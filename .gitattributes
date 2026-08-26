@@ -1,0 +1,22 @@
+# Normalize line endings across macOS, Linux and Windows.
+# Everything Git detects as text is stored with LF in the repo and checked out
+# with LF everywhere, so diffs never churn on CRLF and ESLint/Prettier agree.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF or cmd.exe may misparse them.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files: never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
