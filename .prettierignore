@@ -1,0 +1,14 @@
+.next
+node_modules
+out
+build
+coverage
+next-env.d.ts
+package-lock.json
+
+# Pre-existing project docs and skill definitions: leave formatting alone.
+CLAUDE.md
+AGENTS.md
+README.md
+.claude/
+claudeskill_reports/
