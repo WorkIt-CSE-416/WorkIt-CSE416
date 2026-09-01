@@ -34,12 +34,50 @@ src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
+  (app)/          Signed-in shell — top bar, and every screen behind it
+  login/          Auth screens, outside the shell
+  <route>/data.ts The fixture a screen renders, kept out of its page.tsx
+src/components/   Shared components
+  logo.tsx        The WorkIt logo — picks lockup or icon per size
+  icons.tsx       Glyphs used by more than one route
+  ui/             Presentational primitives: badge, button, card, company-tile,
+                  fact, filter-chip, icon-button, search-field, section-heading,
+                  text-field, text-link
+src/lib/          Framework-free helpers
+  cn.ts           Class-name joiner — clsx + tailwind-merge
 public/           Static assets served from /
+  workit-logo.png Full lockup, 1256x448 — auth card
+  workit-icon.png Mark only, 481x448 — app top bar
 scripts/          Repo maintenance scripts — plain Node, never shell
 ```
 
-Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme inline`
-— there is no `tailwind.config.js`. Add design tokens there.
+Anything shared by more than one route lives in `src/components`; anything used
+by exactly one route stays beside it (`(app)/avatar.tsx`, the per-route
+`icons.tsx` files). Promote on the second consumer, not in anticipation of one.
+Styling for a control belongs in its component, not inline at the call site —
+`src/components/ui/button.tsx` is the only place button classes are written, and
+it carries the variant and size maps.
+
+Name a variant for the role it plays, never for how it looks: `primary`,
+`positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette
+change; colours do not.
+
+**Always build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
+does not resolve Tailwind conflicts: two utilities from the same group both land
+in the class attribute and the winner is decided by the order Tailwind emitted
+them into the stylesheet, not by the order you wrote them. `cn()` drops the
+loser, so a `className` override behaves the way it reads. It cannot help across
+utility groups — `border` and `border-t-*` are separate properties and both
+survive — which is why `ui/card.tsx` sets its accent edge one side at a time.
+
+A screen's fixture data lives in a sibling `data.ts`, not inside `page.tsx`, so
+a page file is layout and the swap to real data touches one file per screen.
+
+Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
+— there is no `tailwind.config.js`. Add design tokens there. The file also
+records two open questions for whoever owns the mockups: the login and app
+screens disagree about which hex is a page and which is a card, and the board's
+grey "Applied" chip may or may not be a second chip token.
 
 `@/*` maps to `src/*`.
 

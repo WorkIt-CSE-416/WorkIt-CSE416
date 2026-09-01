@@ -13,7 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WorkIt",
+  /**
+   * Pages set only their own name; the template appends the brand. Tabs get
+   * truncated from the right, so the distinguishing word has to come first —
+   * "Applications · WorkIt" survives a narrow tab, "WorkIt — Applications"
+   * would not. `default` is what a page without its own title inherits.
+   */
+  title: { default: "WorkIt", template: "%s · WorkIt" },
   description: "CSE 416 final project",
 };
 
