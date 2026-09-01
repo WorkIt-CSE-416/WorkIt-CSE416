@@ -13,16 +13,30 @@ import { cn } from "@/lib/cn";
  * aligned pair, which is what keeps the link's text sitting on the same line as
  * the label rather than on the taller of the two boxes.
  */
-const INPUT_BASE =
-  "w-full rounded-control border-border-subtle bg-surface text-body text-ink border py-2 pr-3.5 " +
+
+/**
+ * The box every field control shares, exported so the controls that are not
+ * inputs can be the same box.
+ *
+ * A form mixing a text input, a textarea and a select has to draw one control,
+ * three times — same height, radius, border, fill and focus ring — and the
+ * moment those strings are retyped anywhere else they start drifting. This is
+ * the same rule ui/button.tsx follows: the classes live in one place and call
+ * sites compose them. Padding is deliberately left out; a single-line input
+ * pads differently from a textarea, and an input with a leading glyph pads
+ * differently again.
+ */
+export const FIELD_CONTROL =
+  "w-full rounded-control border-border-subtle bg-surface text-body text-ink border " +
   "placeholder:text-ink-subtle focus-visible:border-brand focus-visible:ring-[3px] " +
   "focus-visible:ring-brand-ring focus-visible:outline-none";
+
+/** The type style of a field's label. */
+export const FIELD_LABEL = "text-label text-ink-muted";
 
 /* Cleared for the glyph: 14px to the icon (left-3.5), a 20px icon, 10px after. */
 const INPUT_WITH_ICON = "pl-11";
 const INPUT_WITHOUT_ICON = "pl-3.5";
-
-const LABEL = "text-label text-ink-muted";
 
 type TextFieldProps = {
   id: string;
@@ -36,13 +50,13 @@ export function TextField({ id, label, icon: Icon, labelAction, ...input }: Text
     <div className="flex flex-col gap-1">
       {labelAction ? (
         <div className="flex items-baseline justify-between gap-3">
-          <label htmlFor={id} className={LABEL}>
+          <label htmlFor={id} className={FIELD_LABEL}>
             {label}
           </label>
           {labelAction}
         </div>
       ) : (
-        <label htmlFor={id} className={LABEL}>
+        <label htmlFor={id} className={FIELD_LABEL}>
           {label}
         </label>
       )}
@@ -53,7 +67,7 @@ export function TextField({ id, label, icon: Icon, labelAction, ...input }: Text
         )}
         <input
           id={id}
-          className={cn(INPUT_BASE, Icon ? INPUT_WITH_ICON : INPUT_WITHOUT_ICON)}
+          className={cn(FIELD_CONTROL, "py-2 pr-3.5", Icon ? INPUT_WITH_ICON : INPUT_WITHOUT_ICON)}
           {...input}
         />
       </div>
