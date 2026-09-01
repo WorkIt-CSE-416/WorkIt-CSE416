@@ -60,3 +60,21 @@ export function TrendIcon({ className, down = false }: IconProps & { down?: bool
     </svg>
   );
 }
+
+/**
+ * Sort state on a column heading.
+ *
+ * Three states, one glyph. Unsorted shows both arrowheads, so a column that
+ * can be sorted looks different from one that cannot even before anyone clicks
+ * it; sorted shows only the direction in force. Colour changes too — the
+ * caller tints it brand once active — but the shape carries the state on its
+ * own, which is what keeps it readable where colour is not.
+ */
+export function SortIcon({ className, direction }: IconProps & { direction?: "asc" | "desc" }) {
+  return (
+    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
+      {direction !== "desc" && <path d="m4.6 6.8 3.4-3.4 3.4 3.4" />}
+      {direction !== "asc" && <path d="m4.6 9.2 3.4 3.4 3.4-3.4" />}
+    </svg>
+  );
+}

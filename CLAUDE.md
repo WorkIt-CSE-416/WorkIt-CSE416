@@ -37,7 +37,9 @@ src/app/          App Router routes, layouts, pages
   (seeker)/       Job-seeker shell — top bar, and every screen behind it
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
-                  collide on a URL. /company is the hiring dashboard.
+                  collide on a URL. /company is the hiring dashboard;
+                  table.tsx is the sortable/filterable table its two list
+                  screens share.
   login/          Auth screens, outside both shells
   design-kit/     Every token and component on one page, resolved from the
                   live stylesheet — outside both shells on purpose
@@ -101,6 +103,17 @@ have not built — dialogs, selects, popovers — and is regenerated in place, s
 hand edits there are a fork. shadcn's colour roles are aliased onto WorkIt's
 tokens at the bottom of `globals.css`, which is why a generated component needs
 no restyling — fix the mapping there rather than the component.
+
+The two company list screens share `app/company/table.tsx` — a TanStack Table
+shell over shadcn's `Table`, with sorting, filtering and row selection. **It is
+TanStack v9, and every shadcn data-table example in circulation is v8**: v8's
+`useReactTable` and `getCoreRowModel()` options do not exist, features and their
+sort/filter functions must be registered explicitly in `tableFeatures`, and
+cells render through `<table.FlexRender />`. The library ships its own guides in
+`node_modules/@tanstack/react-table/skills` — read those rather than a blog
+post. Select-all deliberately covers the filtered rows only; both
+`getIsAllRowsSelected` and `toggleAllRowsSelected` resolve to the filtered row
+model, so a filtered list cannot select rows nobody can see.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own

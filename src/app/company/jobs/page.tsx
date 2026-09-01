@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { Placeholder } from "../placeholder";
+import { JobsTable } from "./jobs-table";
 
 export const metadata: Metadata = {
   title: "Job Postings",
@@ -20,12 +20,15 @@ export const metadata: Metadata = {
  */
 export default function CompanyJobsPage() {
   return (
-    <Placeholder
-      title="Job Postings"
-      description="Every role you have open, and how far along each one is."
-    >
-      One row per posting with its status, applicant count and close date, plus the filters to cut
-      that list down. Each row opens the posting at /company/jobs/[jobId].
-    </Placeholder>
+    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+      <header className="mb-5">
+        <h1 className="text-heading text-ink">Job Postings</h1>
+        <p className="text-body text-ink-meta mt-1">
+          Every role you have open, and how far along each one is.
+        </p>
+      </header>
+
+      <JobsTable />
+    </div>
   );
 }

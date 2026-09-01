@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { Placeholder } from "../placeholder";
+import { CandidatesTable } from "./candidates-table";
 
 export const metadata: Metadata = {
   title: "Candidates",
@@ -18,12 +18,15 @@ export const metadata: Metadata = {
  */
 export default function CompanyCandidatesPage() {
   return (
-    <Placeholder
-      title="Candidates"
-      description="Everyone who has applied to you, across every posting."
-    >
-      A searchable list of applicants with the roles each one applied to and the stage they are in,
-      filterable by role, stage and skill.
-    </Placeholder>
+    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+      <header className="mb-5">
+        <h1 className="text-heading text-ink">Candidates</h1>
+        <p className="text-body text-ink-meta mt-1">
+          Everyone who has applied to you, across every posting.
+        </p>
+      </header>
+
+      <CandidatesTable />
+    </div>
   );
 }
