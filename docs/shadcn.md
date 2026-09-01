@@ -70,7 +70,7 @@ using, so the fonts needed no change.
 | `tw-animate-css`           | Enter/exit animations                                     |
 | `shadcn`                   | Provides `shadcn/tailwind.css`, imported by `globals.css` |
 
-### Three decisions that differ from a stock install
+### Four decisions that differ from a stock install
 
 Anyone re-running `init` should know these, or they will be undone.
 
@@ -155,7 +155,19 @@ reintroduce that bug wherever it was used. Read the comment at the top of
 > If you add a design token, add it to the lists in `cn.ts` too. A missing entry
 > is not a crash — it is a merge that quietly does nothing.
 
-#### c. shadcn's colour names are aliased onto WorkIt's
+#### c. Vendored hooks live under `src/components/shadcn/hooks/`
+
+`components.json` sets `aliases.hooks` to `@/components/shadcn/hooks`.
+
+Stock shadcn writes a top-level `src/hooks/`, which `add sidebar` did. That
+mixes generated code into a directory we would also write our own hooks in, and
+the two need different lint rules — `use-mobile.ts` trips
+`react-hooks/set-state-in-effect`, and fixing it forks a file the next `add`
+regenerates. Keeping every vendored file under one root means one ESLint
+exemption covers exactly the code we do not own, and a hook we write ourselves
+is still held to the rule.
+
+#### d. shadcn's colour names are aliased onto WorkIt's
 
 shadcn components are written against a fixed vocabulary — `bg-primary`,
 `text-muted-foreground`, `border-input` — that has nothing to do with our token

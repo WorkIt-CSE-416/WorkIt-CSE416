@@ -35,8 +35,9 @@ src/app/          App Router routes, layouts, pages
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
   (seeker)/       Job-seeker shell — top bar, and every screen behind it
-  company/        Company shell — same, for the other account type, under
-                  /company/* so the two audiences cannot collide on a URL
+  company/        Company shell — a left panel plus a top bar, for the other
+                  account type, under /company/* so the two audiences cannot
+                  collide on a URL. /company is the hiring dashboard.
   login/          Auth screens, outside both shells
   design-kit/     Every token and component on one page, resolved from the
                   live stylesheet — outside both shells on purpose
@@ -51,11 +52,13 @@ src/components/   Shared components
                   fact, filter-chip, icon-button, search-field, section-heading,
                   text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
+    hooks/        Vendored hooks, same rule (components.json points here, so
+                  `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
 public/           Static assets served from /
-  workit-logo.png Full lockup, 1256x448 — auth card
-  workit-icon.png Mark only, 481x448 — app top bar
+  workit-logo.png Full lockup, 1256x448 — auth card and app top bar
+  workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Repo maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
   shadcn.md       What shadcn is, how it is wired here, how to pull components
