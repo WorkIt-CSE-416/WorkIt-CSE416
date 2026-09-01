@@ -28,11 +28,13 @@ import { ChartIcon, GridIcon } from "./icons";
  * WHY IT IS OFFSET RATHER THAN FULL-HEIGHT: shadcn's Sidebar positions itself
  * `fixed inset-y-0 h-svh`, which assumes it owns the left edge of the viewport
  * and that any header sits inside the content area beside it. This shell keeps
- * a full-width bar across the top instead, so the panel starts below it — h-16
- * being the bar's height. The override is passed in from here rather than
- * edited into components/shadcn/sidebar.tsx, which `shadcn add` regenerates.
+ * a full-width bar across the top instead, so the panel starts where the bar
+ * ends — --company-bar, set on the shell in layout.tsx so the bar's height is
+ * written once rather than duplicated here as a literal. The override is
+ * passed in from here rather than edited into components/shadcn/sidebar.tsx,
+ * which `shadcn add` regenerates.
  *
- * WHY `top-16!` CARRIES AN IMPORTANT: `h-auto` merges cleanly over `h-svh`
+ * WHY THE OFFSET CARRIES AN IMPORTANT: `h-auto` merges cleanly over `h-svh`
  * because both are the height group, but `inset-y-0` and `top-*` are different
  * groups — inset-y also sets `bottom`, so tailwind-merge keeps it rather than
  * drop a value the override never replaced. Both `top: 0` and `top: 4rem` then
@@ -82,7 +84,7 @@ export function CompanySidebar({
   return (
     <Sidebar
       collapsible="icon"
-      className="border-border top-16! h-auto"
+      className="border-border top-(--company-bar)! h-auto"
       aria-label="Company sections"
     >
       <SidebarContent className="pt-2">

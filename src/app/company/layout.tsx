@@ -59,11 +59,28 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
           both, so the provider becomes a column holding the bar and then the
           row. min-h-svh would add the bar's height to a full viewport and
           overflow; min-h-full is what the rest of the app uses. */}
-      <SidebarProvider className="bg-app min-h-full flex-1 flex-col">
-        {/* Sticky, which the seeker bar is not: the panel below is fixed, so a
-            bar that scrolled away would leave it hanging off the top edge. */}
-        <header className="bg-panel border-border sticky top-0 z-20 w-full border-b">
-          <div className="mx-auto flex h-16 w-full items-center gap-5 px-6">
+      <SidebarProvider
+        className="bg-app min-h-full flex-1 flex-col"
+        /* The bar's height, in one place. Both the bar and the panel below it
+           need it — the panel starts where the bar ends — and when the two were
+           written as separate h-16/top-16 literals there was nothing linking
+           them: changing one silently misaligned the other. SidebarProvider
+           spreads `style` over its own, so this rides along with the
+           --sidebar-width it already sets. */
+        style={{ "--company-bar": "4rem" } as React.CSSProperties}
+      >
+        {/* FIXED, NOT STICKY, and that distinction is the whole reason this
+            comment exists. A sticky element is positioned by its scroll
+            container and travels with the document; a fixed one is positioned
+            by the viewport and does not. The panel below is fixed — shadcn
+            ships it that way — so a sticky bar put two different positioning
+            models in one shell. They agree while the page sits still and part
+            company the moment it overscrolls: rubber-band a trackpad and the
+            document slides while the viewport does not, so the bar drifts and
+            the panel stays, opening a gap that snaps shut. Same model for
+            both, and the pair moves as one. */}
+        <header className="bg-panel border-border fixed inset-x-0 top-0 z-20 h-(--company-bar) border-b">
+          <div className="mx-auto flex h-full w-full items-center gap-5 px-6">
             <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-transparent" />
 
             <Link
@@ -93,7 +110,9 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
           </div>
         </header>
 
-        <div className="flex w-full flex-1">
+        {/* The bar is out of flow now that it is fixed, so the row has to
+            reserve its height rather than start underneath it. */}
+        <div className="flex w-full flex-1 pt-(--company-bar)">
           <CompanySidebar openRoles={OPEN_ROLES} unreadApplicants={UNREAD_APPLICANTS} />
           <SidebarInset className="bg-app flex-1">{children}</SidebarInset>
         </div>
