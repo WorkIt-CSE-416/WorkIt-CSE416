@@ -26,7 +26,7 @@ import { CircleSlashIcon, SparkleIcon } from "./icons";
 import { MatchRail } from "./match-rail";
 
 export const metadata: Metadata = {
-  title: "Recommendations",
+  title: "Jobs",
   description: "Roles matched to your profile.",
 };
 
@@ -132,7 +132,7 @@ function RecommendationCard({ job }: { job: Recommendation }) {
   );
 }
 
-export default function RecommendationsPage() {
+export default function JobsPage() {
   return (
     <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
       <div className="flex items-end justify-between gap-4">

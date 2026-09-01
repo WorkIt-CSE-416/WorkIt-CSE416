@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 
-import { Avatar } from "../avatar";
+import { Avatar } from "@/components/avatar";
 import { APPLICATIONS, type StagedApplication } from "./data";
 import { ProgressBar } from "./progress-bar";
 

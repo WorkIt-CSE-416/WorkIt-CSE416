@@ -3,9 +3,15 @@ import type { ComponentType } from "react";
 import { CompassIcon, LayersIcon, LeafIcon, SunIcon } from "./icons";
 
 /**
- * The fixtures the recommendations screen renders against.
+ * The fixtures the Jobs screen renders against.
  *
- * NO MOCKUP EXISTS FOR THIS ROUTE. The shell already links to it, so the screen
+ * NO MOCKUP EXISTS FOR THIS ROUTE. The route is /jobs — the tab reads Jobs
+ * and the heading reads Recommended for You — but the type below stays
+ * Recommendation: the section is where you go to find work, and a scored
+ * match is what it happens to show you there. `Job` is also already taken,
+ * by search/data.ts, and two different Jobs would be worse than one
+ * Recommendation.
+ * The shell already links to it, so the screen
  * is built from the layout of a competitor's board — a wide row per job, its
  * facts on a grid, and a scored rail down the right — redrawn in WorkIt's own
  * kit. What that reference contributes is structure and the set of fields a row

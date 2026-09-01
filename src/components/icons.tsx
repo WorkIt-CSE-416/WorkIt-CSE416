@@ -5,7 +5,7 @@ type IconProps = { className?: string };
  *
  * Per-route icon sets stay beside their route; a glyph moves here the moment a
  * second route needs it. The search screen brought the first batch. The
- * recommendations screen brought the rest: the chevron and cross a filter chip
+ * Jobs screen brought the rest: the chevron and cross a filter chip
  * toggles between (now owned by ui/filter-chip), the four fact glyphs its
  * result rows share with the search detail pane, and the ellipsis it shares
  * with the applications board.
@@ -87,6 +87,45 @@ export function BookmarkIcon({ className, filled = false }: IconProps & { filled
       className={className}
     >
       <path d="M4 2.6h8a.6.6 0 0 1 .6.6v10.2L8 10.9l-4.6 2.5V3.2a.6.6 0 0 1 .6-.6Z" />
+    </svg>
+  );
+}
+
+/* App shell ---------------------------------------------------------------- */
+
+/**
+ * The three glyphs the top bar and its account menu are built from. They moved
+ * here from the seeker shell's own icons.tsx when the company shell became a
+ * second consumer of the same bar.
+ *
+ * They are drawn on an 18-unit grid rather than this file's usual 16, and keep
+ * it for the same reason PinIcon keeps its 14: redrawing a glyph that is
+ * already signed off changes how it sits on screen for no gain.
+ */
+export function BellIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 18 18" {...strokeProps} className={className}>
+      <path d="M4.5 7.5a4.5 4.5 0 0 1 9 0c0 3 .9 4.35 1.35 4.8H3.15C3.6 11.85 4.5 10.5 4.5 7.5Z" />
+      <path d="M7.35 14.4a1.8 1.8 0 0 0 3.3 0" />
+    </svg>
+  );
+}
+
+/** The account menu's Profile item. */
+export function UserIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 18 18" {...strokeProps} className={className}>
+      <circle cx="9" cy="6" r="2.9" />
+      <path d="M3.5 15.1c0-2.65 2.46-4.3 5.5-4.3s5.5 1.65 5.5 4.3" />
+    </svg>
+  );
+}
+
+export function GearIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 18 18" {...strokeProps} className={className}>
+      <circle cx="9" cy="9" r="2.4" />
+      <path d="M14.3 11.1a1.2 1.2 0 0 0 .24 1.32l.05.04a1.44 1.44 0 1 1-2.04 2.04l-.04-.05a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.72 1.1v.13a1.44 1.44 0 1 1-2.88 0v-.07a1.2 1.2 0 0 0-.78-1.1 1.2 1.2 0 0 0-1.32.24l-.04.05a1.44 1.44 0 1 1-2.04-2.04l.05-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.72h-.13a1.44 1.44 0 1 1 0-2.88h.07a1.2 1.2 0 0 0 1.1-.78 1.2 1.2 0 0 0-.24-1.32l-.05-.04a1.44 1.44 0 1 1 2.04-2.04l.04.05a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .72-1.1v-.13a1.44 1.44 0 1 1 2.88 0v.07a1.2 1.2 0 0 0 .72 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.05a1.44 1.44 0 1 1 2.04 2.04l-.05.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.72h.13a1.44 1.44 0 1 1 0 2.88h-.07a1.2 1.2 0 0 0-1.1.72Z" />
     </svg>
   );
 }

@@ -11,7 +11,7 @@ const strokeProps = {
 
 /* Board chrome ------------------------------------------------------------
  * The ellipsis and the calendar that used to sit here moved to
- * @/components/icons when the recommendations screen became their second
+ * @/components/icons when the Jobs screen became their second
  * caller; this file keeps the glyphs only the board draws.
  * ---------------------------------------------------------------------- */
 

@@ -7,7 +7,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
-import { Avatar } from "../avatar";
+import { Avatar } from "@/components/avatar";
 import { PROFILE, RESUME, ROLES, SKILLS } from "./data";
 import { EyeIcon, PdfIcon, PencilIcon, PhoneIcon, TrashIcon, UploadIcon } from "./icons";
 

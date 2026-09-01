@@ -20,12 +20,12 @@ import { cn } from "@/lib/cn";
  * to stylesheet order rather than to the override.
  */
 const SIZES = {
-  /** App top bar — the mark alone. 32px tall renders ~34px wide. */
+  /** App top bar — the mark alone. 40px tall renders ~43px wide. */
   bar: {
     src: "/workit-icon.png",
     intrinsic: { width: 481, height: 448 },
-    classes: "h-8 w-auto",
-    rendered: "34px",
+    classes: "h-10 w-auto",
+    rendered: "43px",
   },
   /** Auth card — the full lockup. 48px tall renders ~135px wide. */
   card: {

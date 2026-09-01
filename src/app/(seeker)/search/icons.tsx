@@ -34,7 +34,7 @@ export function ExternalLinkIcon({ className }: IconProps) {
 /* Company marks -----------------------------------------------------------
  * Stand-ins for employer logos — see the note on JOBS in ./data. The stat-tile
  * glyphs that used to sit here moved to @/components/icons when the
- * recommendations screen became their second caller.
+ * Jobs screen became their second caller.
  * ---------------------------------------------------------------------- */
 
 export function GlobeIcon({ className }: IconProps) {

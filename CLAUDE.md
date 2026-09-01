@@ -34,33 +34,72 @@ src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
-  (app)/          Signed-in shell — top bar, and every screen behind it
-  login/          Auth screens, outside the shell
+  (seeker)/       Job-seeker shell — top bar, and every screen behind it
+  company/        Company shell — same, for the other account type, under
+                  /company/* so the two audiences cannot collide on a URL
+  login/          Auth screens, outside both shells
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
   icons.tsx       Glyphs used by more than one route
+  avatar.tsx      Initials stand-in for a profile photo
+  nav-link.tsx    Top-bar tab that underlines itself on its own route
+  account-menu.tsx  The avatar dropdown; each shell passes its own items
   ui/             Presentational primitives: badge, button, card, company-tile,
                   fact, filter-chip, icon-button, search-field, section-heading,
                   text-field, text-link
+  shadcn/         Vendored shadcn/ui components — generated, treat as read-only
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448 — auth card
   workit-icon.png Mark only, 481x448 — app top bar
 scripts/          Repo maintenance scripts — plain Node, never shell
+docs/             Prose docs for the team
+  shadcn.md       What shadcn is, how it is wired here, how to pull components
+components.json   shadcn config — see docs/shadcn.md before changing its aliases
 ```
 
 Anything shared by more than one route lives in `src/components`; anything used
-by exactly one route stays beside it (`(app)/avatar.tsx`, the per-route
-`icons.tsx` files). Promote on the second consumer, not in anticipation of one.
+by exactly one route stays beside it (`company/placeholder.tsx`, the per-route
+`icons.tsx` files). Promote on the second consumer, not in anticipation of one —
+the app shell's avatar, nav link and account menu moved to `src/components` the
+day the company shell became that second consumer.
 Styling for a control belongs in its component, not inline at the call site —
 `src/components/ui/button.tsx` is the only place button classes are written, and
 it carries the variant and size maps.
 
+## Two audiences
+
+Seekers and companies are different account types, not modes. Seeker screens sit
+at the root (`/applications`, `/jobs`) inside the `(seeker)` route group; company
+screens sit under a real `/company` prefix with their own `company/layout.tsx`.
+
+The parentheses in `(seeker)` mean "group these under one layout without adding
+a URL segment", so a route group is free but cannot disambiguate. Two of them
+cannot both define `/profile`, and both audiences need one — hence the prefix on
+the company side rather than a second invisible group. It also means the auth
+guard is one path check covering routes nobody has written yet.
+
+The two top bars are separate files on purpose. Their shared parts are already
+shared components; what is left is a tab list and one button. Lift a `<TopBar>`
+out only if they are still near-identical once both sides are real screens.
+
 Name a variant for the role it plays, never for how it looks: `primary`,
 `positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette
 change; colours do not.
+
+`src/components/ui` and `src/components/shadcn` are not interchangeable. The
+first is hand-written from the mockups and is what screens should import. The
+second is vendored by `npx shadcn@latest add` for the interactive primitives we
+have not built — dialogs, selects, popovers — and is regenerated in place, so
+hand edits there are a fork. Both can hold a `button.tsx`, so an ESLint rule
+blocks app code from importing `shadcn/button`, `shadcn/badge`, or
+`shadcn/card`. shadcn's colour roles are aliased onto WorkIt's tokens at the
+bottom of `globals.css`, which is why a generated component needs no restyling —
+fix the mapping there rather than the component. **Read `docs/shadcn.md` before
+running any `shadcn` command**; three settings differ from a stock install and
+re-running `init` would silently undo them.
 
 **Always build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
 does not resolve Tailwind conflicts: two utilities from the same group both land

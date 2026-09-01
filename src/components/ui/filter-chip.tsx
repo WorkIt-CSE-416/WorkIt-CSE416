@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
  * here", a cross says "there is a choice here you can undo".
  *
  * Written first for the search results pane and promoted when the
- * recommendations bar became the second caller. It stays presentational and
+ * Jobs filter bar became the second caller. It stays presentational and
  * inert: neither screen has a menu to open yet, and the day one exists it
  * belongs behind this button rather than inside it, so this can stay a server
  * component on screens that render entirely on the server.
