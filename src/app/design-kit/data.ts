@@ -71,7 +71,10 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--primary", role: "→ --color-brand" },
       { token: "--secondary", role: "→ --color-surface" },
-      { token: "--background", role: "→ --color-app" },
+      {
+        token: "--background",
+        role: "→ --color-app (company shell retargets it to --color-panel)",
+      },
       { token: "--foreground", role: "→ --color-ink" },
       { token: "--card", role: "→ --color-panel" },
       { token: "--popover", role: "→ --color-panel" },

@@ -60,14 +60,31 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
           row. min-h-svh would add the bar's height to a full viewport and
           overflow; min-h-full is what the rest of the app uses. */}
       <SidebarProvider
-        className="bg-app min-h-full flex-1 flex-col"
-        /* The bar's height, in one place. Both the bar and the panel below it
-           need it — the panel starts where the bar ends — and when the two were
-           written as separate h-16/top-16 literals there was nothing linking
-           them: changing one silently misaligned the other. SidebarProvider
-           spreads `style` over its own, so this rides along with the
-           --sidebar-width it already sets. */
-        style={{ "--company-bar": "4rem" } as React.CSSProperties}
+        className="bg-background min-h-full flex-1 flex-col"
+        /* Two values scoped to this shell.
+         *
+         * --company-bar is the bar's height, in one place. Both the bar and the
+         * panel below it need it — the panel starts where the bar ends — and
+         * when the two were written as separate h-16/top-16 literals there was
+         * nothing linking them: changing one silently misaligned the other.
+         *
+         * --background is what makes the company pages white where the seeker
+         * shell stays grey. Retargeting the role beats swapping bg-app for
+         * bg-panel at each call site: `panel` means a card or the bar, so
+         * painting a page with it would name the colour rather than the job,
+         * and SidebarInset already paints bg-background — one override here
+         * moves the page, the inset, and any shadcn component that grounds
+         * itself against the page, all together. --color-app still backs the
+         * seeker shell, untouched.
+         *
+         * SidebarProvider spreads `style` over its own, so both ride along with
+         * the --sidebar-width it already sets. */
+        style={
+          {
+            "--company-bar": "4rem",
+            "--background": "var(--color-panel)",
+          } as React.CSSProperties
+        }
       >
         {/* FIXED, NOT STICKY, and that distinction is the whole reason this
             comment exists. A sticky element is positioned by its scroll
@@ -114,7 +131,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
             reserve its height rather than start underneath it. */}
         <div className="flex w-full flex-1 pt-(--company-bar)">
           <CompanySidebar openRoles={OPEN_ROLES} unreadApplicants={UNREAD_APPLICANTS} />
-          <SidebarInset className="bg-app flex-1">{children}</SidebarInset>
+          <SidebarInset className="flex-1">{children}</SidebarInset>
         </div>
       </SidebarProvider>
     </TooltipProvider>
