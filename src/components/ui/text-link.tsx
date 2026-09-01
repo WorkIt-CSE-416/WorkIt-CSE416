@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 /**
  * A brand-coloured link inside running text.
  *
- * Distinct from <Button variant="quiet">, which is an action affordance in a
+ * Distinct from <Button variant="ghost">, which is an action affordance in a
  * card header: this one inherits its type size from the sentence around it and
  * uses the softer focus radius that suits a target the height of one line.
  */

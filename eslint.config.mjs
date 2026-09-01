@@ -3,10 +3,19 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 /**
- * Names that exist in BOTH src/components/ui (hand-built, mockup-derived) and
- * src/components/shadcn (vendored). The vendored copies exist only so that
- * shadcn components can import each other; app code must use the WorkIt one,
- * whose variants match the designs. See docs/shadcn.md.
+ * Names that exist in both src/components/ui (hand-built, mockup-derived) and
+ * src/components/shadcn (vendored), for different reasons.
+ *
+ * `button` is a re-export: there is one Button, and shadcn/button.tsx points at
+ * it so generated components resolve. Importing the shadcn path works, but the
+ * canonical path is the real one, so the rule keeps them from drifting apart in
+ * the codebase.
+ *
+ * `badge` and `card` are not re-exports — nothing vendored needs them yet, and
+ * if `shadcn add` ever writes them they will be genuinely different components
+ * from ours. The rule is what stops one being imported by accident.
+ *
+ * See docs/shadcn.md.
  */
 const DUPLICATED_PRIMITIVES = ["Button", "Badge", "Card"];
 
@@ -22,7 +31,7 @@ const eslintConfig = defineConfig([
         {
           paths: DUPLICATED_PRIMITIVES.map((name) => ({
             name: `@/components/shadcn/${name.toLowerCase()}`,
-            message: `Import { ${name} } from "@/components/ui/${name.toLowerCase()}" instead — the shadcn copy is vendored for shadcn's own internal imports and does not carry WorkIt's variants.`,
+            message: `Import { ${name} } from "@/components/ui/${name.toLowerCase()}" instead — that is the canonical path; the shadcn one exists for shadcn's own internal imports.`,
           })),
         },
       ],

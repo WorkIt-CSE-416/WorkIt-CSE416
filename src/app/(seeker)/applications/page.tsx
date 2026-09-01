@@ -36,7 +36,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
             <FilterIcon className="size-4" />
             Filter
           </Button>
-          <Button variant="primary" size="sm">
+          <Button size="sm">
             <PlusIcon className="size-4" />
             New Entry
           </Button>

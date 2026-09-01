@@ -120,7 +120,7 @@ export default function ProfilePage() {
           </Card>
 
           <Card as="section" aria-labelledby="experience">
-            <SectionHeading id="experience" action={<Button variant="quiet">+ Add</Button>}>
+            <SectionHeading id="experience" action={<Button variant="ghost">+ Add</Button>}>
               Work Experience
             </SectionHeading>
 
@@ -151,7 +151,7 @@ export default function ProfilePage() {
             <SectionHeading
               id="skills"
               action={
-                <Button variant="quiet">
+                <Button variant="ghost">
                   <PencilIcon className="size-3" />
                   Edit
                 </Button>

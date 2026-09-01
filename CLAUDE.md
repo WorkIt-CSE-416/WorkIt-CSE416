@@ -38,6 +38,8 @@ src/app/          App Router routes, layouts, pages
   company/        Company shell — same, for the other account type, under
                   /company/* so the two audiences cannot collide on a URL
   login/          Auth screens, outside both shells
+  design-kit/     Every token and component on one page, resolved from the
+                  live stylesheet — outside both shells on purpose
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
@@ -93,13 +95,20 @@ change; colours do not.
 first is hand-written from the mockups and is what screens should import. The
 second is vendored by `npx shadcn@latest add` for the interactive primitives we
 have not built — dialogs, selects, popovers — and is regenerated in place, so
-hand edits there are a fork. Both can hold a `button.tsx`, so an ESLint rule
-blocks app code from importing `shadcn/button`, `shadcn/badge`, or
-`shadcn/card`. shadcn's colour roles are aliased onto WorkIt's tokens at the
-bottom of `globals.css`, which is why a generated component needs no restyling —
-fix the mapping there rather than the component. **Read `docs/shadcn.md` before
-running any `shadcn` command**; three settings differ from a stock install and
-re-running `init` would silently undo them.
+hand edits there are a fork. shadcn's colour roles are aliased onto WorkIt's
+tokens at the bottom of `globals.css`, which is why a generated component needs
+no restyling — fix the mapping there rather than the component.
+
+There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
+size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
+`positive`) while painting the mockups' styling, so a component pasted from the
+shadcn docs composes without edits and still looks like WorkIt.
+`shadcn/button.tsx` is a re-export pointing back at it, and an ESLint rule keeps
+app code on the canonical path — likewise for `badge` and `card`, which are not
+re-exports.
+
+**Read `docs/shadcn.md` before running any `shadcn` command**; several settings
+differ from a stock install and re-running `init` would silently undo them.
 
 **Always build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
 does not resolve Tailwind conflicts: two utilities from the same group both land

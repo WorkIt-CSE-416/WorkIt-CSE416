@@ -120,9 +120,7 @@ function RecommendationCard({ job }: { job: Recommendation }) {
               Ask WorkIt
             </Button>
 
-            <Button variant="primary" size="sm">
-              Apply Now
-            </Button>
+            <Button size="sm">Apply Now</Button>
           </div>
         </div>
       </div>

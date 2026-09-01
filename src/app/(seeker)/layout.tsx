@@ -120,9 +120,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </ul>
 
           <div className="ml-auto flex items-center gap-5">
-            <ButtonLink href="/apply" variant="primary" size="md">
-              Apply to Job
-            </ButtonLink>
+            <ButtonLink href="/apply">Apply to Job</ButtonLink>
 
             <IconButton label="Notifications">
               <BellIcon className="size-5" />

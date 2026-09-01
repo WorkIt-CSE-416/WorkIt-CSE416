@@ -163,7 +163,7 @@ export default function SearchPage() {
             <BookmarkIcon className="size-4" />
           </IconButton>
 
-          <Button variant="primary" size="lg" className="shrink-0">
+          <Button size="lg" className="shrink-0">
             Apply Now
             <ExternalLinkIcon className="size-4" />
           </Button>

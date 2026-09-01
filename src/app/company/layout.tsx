@@ -82,9 +82,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
           </ul>
 
           <div className="ml-auto flex items-center gap-5">
-            <ButtonLink href="/company/jobs/new" variant="primary" size="md">
-              Post a Job
-            </ButtonLink>
+            <ButtonLink href="/company/jobs/new">Post a Job</ButtonLink>
 
             <IconButton label="Notifications">
               <BellIcon className="size-5" />

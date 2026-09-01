@@ -55,7 +55,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <Button type="submit" variant="primary" size="lg" className="mt-2.5">
+          <Button type="submit" size="lg" className="mt-2.5">
             Sign In
             <ArrowRightIcon className="size-4" />
           </Button>
