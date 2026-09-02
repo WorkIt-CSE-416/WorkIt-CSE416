@@ -1,3 +1,5 @@
+import type { BadgeTone } from "@/components/ui/badge";
+
 /** What /company/jobs lists. Fixtures — one file to swap for real data. */
 
 export type JobStatus = "Open" | "Paused" | "Closed" | "Draft";
@@ -16,6 +18,24 @@ export type Posting = {
 };
 
 export const STATUSES: JobStatus[] = ["Open", "Paused", "Closed", "Draft"];
+
+/**
+ * What each status is, rather than what each one is called.
+ *
+ * Open is running, Paused is stopped but recoverable and waiting on someone
+ * here, Closed is over, and Draft has never been live at all — which is why it
+ * is the one with no fill.
+ *
+ * It lives beside the data rather than in the table so that /design-kit can
+ * render the real set from the same source. A copy over there would be right
+ * on the day it was written and wrong the first time anyone retoned a status.
+ */
+export const STATUS_TONE: Record<JobStatus, BadgeTone> = {
+  Open: "positive",
+  Paused: "warning",
+  Closed: "inert",
+  Draft: "outline",
+};
 
 export const POSTINGS: Posting[] = [
   {

@@ -1,7 +1,7 @@
 type IconProps = { className?: string };
 
 /**
- * Glyphs the company sidebar needs and no other route does.
+ * Glyphs the company shell needs and no other route does.
  *
  * Drawn on the same 16-unit grid and the same 1.4 stroke as
  * src/components/icons.tsx, because they sit in a nav beside BriefcaseIcon and
@@ -33,14 +33,18 @@ export function GridIcon({ className }: IconProps) {
   );
 }
 
-/** Analytics — three columns on a baseline, ascending. */
-export function ChartIcon({ className }: IconProps) {
+/** Company Profile — an office block, so the row is not a second UserIcon.
+ *  Applicants already owns that glyph, and two identical marks in a four-row
+ *  nav is the one thing a nav cannot afford. */
+export function BuildingIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M2.4 13.4h11.2" />
-      <path d="M4.8 13.4V9.2" />
-      <path d="M8 13.4V5.6" />
-      <path d="M11.2 13.4v-6" />
+      <path d="M2.8 13.6V3.4a1 1 0 0 1 1-1h5.4a1 1 0 0 1 1 1v10.2" />
+      <path d="M10.2 6.8h2a1 1 0 0 1 1 1v5.8" />
+      <path d="M1.6 13.6h12.8" />
+      <path d="M5.1 5.4h2.6" />
+      <path d="M5.1 8h2.6" />
+      <path d="M5.9 13.6v-2.7h2v2.7" />
     </svg>
   );
 }

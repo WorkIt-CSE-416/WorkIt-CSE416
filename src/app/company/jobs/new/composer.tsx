@@ -173,11 +173,12 @@ export function Composer() {
           </Card>
         </div>
 
-        {/* The bar is fixed at --company-bar, so a sticky panel has to clear it
-            plus the page's own top padding. The variable is set on the shell in
-            ../../layout.tsx and inherited here, which is what keeps the two
-            from drifting apart. */}
-        <aside className="min-w-0 lg:sticky lg:top-[calc(var(--company-bar)+1.5rem)]">
+        {/* top-6 is the page's own py-6, and nothing more. A sticky offset is
+            measured from its scroll container, and the shell's scroller now
+            starts below the bar rather than at the top of the window — so
+            clearing --company-bar as well, which is what this used to do, would
+            park the panel a bar's height too low. */}
+        <aside className="min-w-0 lg:sticky lg:top-6">
           <h2 className="text-title text-ink flex items-center gap-2">
             <EyeIcon className="text-ink-meta size-4.5" />
             Live Preview

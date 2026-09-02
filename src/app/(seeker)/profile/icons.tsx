@@ -17,14 +17,6 @@ export function PhoneIcon({ className }: IconProps) {
   );
 }
 
-export function PencilIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 12 12" {...strokeProps} className={className}>
-      <path d="M8.4 1.6a1.4 1.4 0 0 1 2 2L4 10 1.4 10.6 2 8Z" />
-    </svg>
-  );
-}
-
 export function UploadIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 20 24" {...strokeProps} className={className}>

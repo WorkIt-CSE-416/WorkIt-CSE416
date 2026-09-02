@@ -1,8 +1,10 @@
-/** What /company/candidates lists. Fixtures — one file to swap for real data. */
+import type { BadgeTone } from "@/components/ui/badge";
+
+/** What /company/applicants lists. Fixtures — one file to swap for real data. */
 
 export type Stage = "Applied" | "Screening" | "Interview" | "Offer" | "Rejected";
 
-export type Candidate = {
+export type Applicant = {
   id: string;
   name: string;
   /** The posting this application is against. */
@@ -18,6 +20,25 @@ export type Candidate = {
 /** Pipeline order, not alphabetical — the dropdown reads as a funnel. */
 export const STAGES: Stage[] = ["Applied", "Screening", "Interview", "Offer", "Rejected"];
 
+/**
+ * What each stage is, rather than what each one is called.
+ *
+ * Applied is inert — it has arrived and nobody has done anything with it.
+ * Screening and Interview are both in flight but do not share a tone: a screen
+ * is a recruiter and twenty minutes, an interview is a panel and an afternoon.
+ * Offer and Rejected are the two ways it ends, and they must not look alike.
+ *
+ * Beside the data rather than in the table, so /design-kit renders the real set
+ * from the same source instead of a copy that goes stale.
+ */
+export const STAGE_TONE: Record<Stage, BadgeTone> = {
+  Applied: "inert",
+  Screening: "brand",
+  Interview: "advanced",
+  Offer: "positive",
+  Rejected: "danger",
+};
+
 export const ROLES = [
   "Frontend Engineer, New Grad",
   "Platform Engineer",
@@ -26,7 +47,7 @@ export const ROLES = [
   "Machine Learning Engineer",
 ];
 
-export const CANDIDATES: Candidate[] = [
+export const APPLICANTS: Applicant[] = [
   {
     id: "c1",
     name: "Amara Osei",

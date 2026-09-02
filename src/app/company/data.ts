@@ -87,7 +87,15 @@ export const NEEDS_ATTENTION: Attention[] = [
   { id: "a3", role: "Platform Engineer", need: "Offer approval pending", waitingDays: 2 },
 ];
 
-export type Applicant = {
+/**
+ * A row in the dashboard's arrivals feed.
+ *
+ * Named for the feed rather than for the person because applicants/data.ts now
+ * owns `Applicant` — the full record behind the table, with a stage, a location
+ * and a date. This is the same human seen from the overview screen, carrying
+ * only what a feed row shows. Two names beat one name meaning two shapes.
+ */
+export type RecentApplicant = {
   id: string;
   name: string;
   role: string;
@@ -96,7 +104,7 @@ export type Applicant = {
   match: number;
 };
 
-export const RECENT_APPLICANTS: Applicant[] = [
+export const RECENT_APPLICANTS: RecentApplicant[] = [
   { id: "p1", name: "Amara Osei", role: "Frontend Engineer, New Grad", hoursAgo: 2, match: 94 },
   { id: "p2", name: "Devin Park", role: "Platform Engineer", hoursAgo: 5, match: 88 },
   { id: "p3", name: "Rosa Iglesias", role: "Data Analyst Intern", hoursAgo: 9, match: 81 },

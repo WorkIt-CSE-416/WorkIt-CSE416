@@ -54,7 +54,7 @@ export default function CompanyHomePage() {
         <Card padding="md">
           <SectionHeading
             as="h2"
-            action={<ButtonLink href="/company/candidates">View all</ButtonLink>}
+            action={<ButtonLink href="/company/applicants">View all</ButtonLink>}
           >
             Pipeline
           </SectionHeading>

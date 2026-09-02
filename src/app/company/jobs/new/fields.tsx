@@ -6,7 +6,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/shadcn/select";
+} from "@/components/ui/select";
 import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 

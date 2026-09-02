@@ -15,7 +15,7 @@ import {
   TableToolbar,
   type FilterSpec,
 } from "../table";
-import { POSTINGS, STATUSES, type Posting } from "./data";
+import { POSTINGS, STATUS_TONE, STATUSES, type Posting } from "./data";
 
 /**
  * The postings table.
@@ -30,7 +30,6 @@ const helper = createColumnHelper<typeof FEATURES, Posting>();
 const columns = helper.columns([
   helper.display({
     id: "select",
-    meta: { className: "w-12" },
     header: ({ table }) => <SelectAllHeader table={table} />,
     cell: ({ row }) => <SelectRowCell row={row} label={row.original.role} />,
   }),
@@ -43,7 +42,9 @@ const columns = helper.columns([
      * accessor's filter override below. */
     filterFn: "includesString",
     cell: ({ row }) => (
-      <div className="min-w-0">
+      /* The cap, not the column, is what stops a long title stretching the
+         table. Past it the text trails off. */
+      <div className="max-w-[22rem] min-w-0">
         <RowLink href={`/company/jobs/${row.original.id}`} className="text-label">
           {row.original.role}
         </RowLink>
@@ -55,8 +56,12 @@ const columns = helper.columns([
   }),
 
   helper.accessor("status", {
-    meta: { className: "w-32" },
-    header: ({ column }) => <SortHeader column={column}>Status</SortHeader>,
+    meta: { className: "text-center" },
+    header: ({ column }) => (
+      <SortHeader column={column} align="center">
+        Status
+      </SortHeader>
+    ),
     sortFn: "alphanumeric",
     /* arrIncludesSome rather than equalsString: the toolbar hands over an
      * array so a multi-select dropdown later needs no change here. */
@@ -65,7 +70,7 @@ const columns = helper.columns([
       const status = getValue();
 
       return (
-        <Badge variant="status" tone={status === "Open" ? "positive" : "neutral"}>
+        <Badge variant="status" tone={STATUS_TONE[status]}>
           {status}
         </Badge>
       );
@@ -73,9 +78,9 @@ const columns = helper.columns([
   }),
 
   helper.accessor("applicants", {
-    meta: { className: "w-32 text-right" },
+    meta: { className: "text-center" },
     header: ({ column }) => (
-      <SortHeader column={column} align="end">
+      <SortHeader column={column} align="center">
         Applicants
       </SortHeader>
     ),
@@ -87,9 +92,9 @@ const columns = helper.columns([
   }),
 
   helper.accessor("unreviewed", {
-    meta: { className: "w-32 text-right" },
+    meta: { className: "text-center" },
     header: ({ column }) => (
-      <SortHeader column={column} align="end">
+      <SortHeader column={column} align="center">
         Unreviewed
       </SortHeader>
     ),
@@ -105,8 +110,12 @@ const columns = helper.columns([
   }),
 
   helper.accessor("posted", {
-    meta: { className: "w-40" },
-    header: ({ column }) => <SortHeader column={column}>Posted</SortHeader>,
+    meta: { className: "text-center" },
+    header: ({ column }) => (
+      <SortHeader column={column} align="center">
+        Posted
+      </SortHeader>
+    ),
     /* datetime, not alphanumeric. ISO strings happen to sort correctly as
      * text, which is exactly why this is worth stating: the day the fixture
      * becomes a real date the string comparison would start lying, silently. */
@@ -117,7 +126,9 @@ const columns = helper.columns([
   }),
 ]);
 
-const FILTERS: FilterSpec[] = [{ columnId: "status", label: "Status", options: STATUSES }];
+const FILTERS: FilterSpec[] = [
+  { columnId: "status", label: "Status", plural: "Statuses", options: STATUSES },
+];
 
 export function JobsTable() {
   const table = useTable({ features: FEATURES, columns, data: POSTINGS });
