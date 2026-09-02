@@ -244,9 +244,15 @@ Three lines `init` generated were removed, each for a reason recorded in
   pill (6px → 8px) and `ui/text-link.tsx`'s focus ring (4px → 6px). Stock
   Tailwind radii are what existing call sites were measured against.
 
-Still undesigned, holding shadcn's stock values: `--destructive` (WorkIt has no
-red — no mockup draws a destructive action) and `--chart-1…5`. Both are marked
-`OPEN` in `globals.css`.
+Still undesigned, holding shadcn's stock value: `--destructive` (WorkIt has no
+red — no mockup draws a destructive action). It is marked `OPEN` in
+`globals.css`.
+
+`--chart-1…5` used to be `OPEN` too. They are now the badge tones in a fixed
+order — brand, advanced, positive, danger, then a de-emphasis grey — so a stage
+is one colour whether it is drawn as a pill or as a bar. The reasoning, the
+validator results, and why there is no fifth hue are recorded above the block in
+`globals.css`; the rendered swatches are on `/design-kit/colour`.
 
 ### Dark mode
 

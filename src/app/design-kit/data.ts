@@ -119,6 +119,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-positive-hover", role: "Derived — 33% lightness" },
       { token: "--color-positive-active", role: "Derived — 27% lightness" },
       { token: "--color-positive-ring", role: "Derived — focus ring" },
+      { token: "--color-positive-ink", role: "Positive as text on its tint — AA safe" },
       { token: "--color-inert-tint", role: "Measured — a status that is over or not begun" },
       { token: "--color-warning", role: "UNMEASURED — halted, waiting on a decision" },
       { token: "--color-warning-tint", role: "UNMEASURED" },
@@ -126,6 +127,17 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-danger-tint", role: "UNMEASURED" },
       { token: "--color-advanced", role: "UNMEASURED — in flight, late (Interview)" },
       { token: "--color-advanced-tint", role: "UNMEASURED" },
+    ],
+  },
+  {
+    title: "Charts",
+    note: "Not a separate palette — the status tones above, in a fixed order, so a stage is one colour whether it is drawn as a pill or as a bar. The order never changes and is not a rank: a filter that drops a series must not repaint the survivors. Four identities is the ceiling, because --color-warning against --color-danger measures 4.8 under deuteranopia and the two are one colour to a red-green colourblind reader. Slot 5 is the de-emphasis grey rather than a fifth hue.",
+    tokens: [
+      { token: "--chart-1", role: "→ --color-brand · in flight, early (Screening)" },
+      { token: "--chart-2", role: "→ --color-advanced · in flight, late (Interview)" },
+      { token: "--chart-3", role: "→ --color-positive · ended well (Offer)" },
+      { token: "--chart-4", role: "→ --color-danger · ended badly (Rejected)" },
+      { token: "--chart-5", role: "→ --color-ink-subtle · inert, Other, de-emphasis" },
     ],
   },
   {
@@ -138,7 +150,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
   },
   {
     title: "shadcn roles",
-    note: "Aliases, not new colours. Every one points at a token above, which is why a stock shadcn component renders in WorkIt's palette with no editing. --destructive and the chart ramp are the exceptions: nothing designed them yet.",
+    note: "Aliases, not new colours. Every one points at a token above, which is why a stock shadcn component renders in WorkIt's palette with no editing. --destructive is the one exception: nothing has designed a red action yet. The chart ramp used to be a second exception and is now its own group above.",
     tokens: [
       { token: "--primary", role: "→ --color-brand" },
       { token: "--secondary", role: "→ --color-surface" },

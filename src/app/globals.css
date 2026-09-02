@@ -221,6 +221,24 @@
   --color-positive-active: #107a52; /* derived: positive at 27% lightness */
   --color-positive-ring: rgb(23 176 118 / 0.35); /* derived: focus ring */
 
+  /* Positive as *text*, for a label on a --color-positive-tint fill.
+   *
+   * The same role --color-brand-ink is, added for the same reason and measured
+   * the same way: --color-positive cannot do this job. #17b076 on #e3f7f0
+   * measures 2.51:1, which is not a near miss on the 4.5:1 AA needs for an 11px
+   * pill — it is a green that mostly disappears into its own tint. This clears
+   * it at 4.79:1.
+   *
+   * The note further down about the status chips called that pairing "only
+   * about 2.5:1" and left it, because the only thing wearing it was an Offer
+   * chip. It is now also the KPI row's rise pill, four of them across the top
+   * of the first screen a company sees, so it stopped being a corner case.
+   *
+   * The hex is the one --color-positive-active happens to hold today. The roles
+   * are unrelated — one is a pressed button, the other is text on a tint — and
+   * either is free to move without the other. */
+  --color-positive-ink: #107a52;
+
   /* Status chips ---------------------------------------------------------
    * A status pill has to say which of four things is true at a glance —
    * running, paused, finished, not started — and until now the palette could
@@ -431,13 +449,63 @@ body:has([data-shell="company"]) {
    * delete/withdraw flow gets designed. */
   --destructive: oklch(0.577 0.245 27.325);
 
-  /* OPEN — no chart palette has been designed. shadcn's stock greys stand in;
-   * see the dataviz work when the dashboard screens land. */
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Chart palette — the status tones, in a fixed order.
+   *
+   * These were shadcn's five stock greys, which is why the OPEN note here used
+   * to say no chart palette had been designed. One had been, twice over: the
+   * badge tones already name what a state IS rather than what it is called, and
+   * a chart series is the same question asked of a mark instead of a pill. A
+   * separate chart palette would mean the purple bar for Interview and the
+   * purple chip for Interview drifting apart on the first retone.
+   *
+   * So a stage is one colour everywhere in the app, and /company's charts read
+   * against /company/applicants' table without a legend lookup.
+   *
+   * THE ORDER IS FIXED AND IS NOT A RANK. Slot 1 is always brand, slot 2 always
+   * advanced, and so on, so a filter that drops a series never repaints the
+   * survivors. Recharts assigns by explicit `var(--color-chart-N)` per series,
+   * never by index.
+   *
+   * MEASURED, not guessed — run through the dataviz validator on --color-panel:
+   *   lightness band  PASS   all four inside L 0.43-0.77
+   *   chroma floor    PASS   all four >= 0.1
+   *   CVD separation  PASS   worst adjacent pair 10.2 deutan (target >= 8)
+   *   normal vision   PASS   worst adjacent pair 17.7 (floor 15)
+   *   contrast        WARN   --color-positive is 2.72:1, under the 3:1 mark floor
+   *
+   * That WARN is the one constraint a chart here has to honour: it obligates a
+   * visible label rather than a hover-only value, which is why every chart on
+   * /company direct-labels its marks and none of them hide a number in a
+   * tooltip. It is not dismissable — see the note in company/pipeline-ring.tsx.
+   *
+   * WHY THERE ARE FOUR IDENTITIES AND NOT FIVE: --color-warning is the obvious
+   * fifth, and it cannot go here. Amber against --color-danger measures 4.8
+   * under deuteranopia — the two are one colour to a red-green colourblind
+   * reader, and a hard fail rather than a judgement call. Reordering to
+   * separate them only moves the collision, because a fixed order has to hold
+   * for every subset a filter can produce. Four hues is also where the series
+   * ladder caps out for stacked and grouped forms, so the ceiling is the same
+   * one the form would have imposed anyway. A fifth series folds into slot 5.
+   *
+   * Paused postings keep amber in the STATUS COLUMN, where it sits beside a
+   * word and a shape rather than beside red in a stack. */
+  --chart-1: var(--color-brand); /* in flight, early — Screening */
+  --chart-2: var(--color-advanced); /* in flight, late — Interview */
+  --chart-3: var(--color-positive); /* ended well — Offer */
+  --chart-4: var(--color-danger); /* ended badly — Rejected */
+
+  /* Slot 5 is deliberately NOT a fifth identity. It is the de-emphasis grey:
+   * the inert stage (Applied, where nothing has happened yet), the "Other"
+   * bucket a 5th series folds into, and the context marks in an emphasis chart
+   * where one series is the point. It fails the chroma floor on purpose — that
+   * check asks whether a slot reads as a hue, and this one must not, or it
+   * would compete with the four that carry meaning.
+   *
+   * --color-ink-subtle rather than a new token: it is already the app's grey
+   * for a mark that is present but not the subject (placeholders, input
+   * glyphs), and inventing a solid `inert` nobody designed to sit beside
+   * --color-inert-tint would put an unmeasured colour on the dashboard. */
+  --chart-5: var(--color-ink-subtle);
 
   /* No sidebar exists yet — the shell is a top bar. These are mapped anyway so
    * that if a shadcn Sidebar is ever added it inherits the palette. */

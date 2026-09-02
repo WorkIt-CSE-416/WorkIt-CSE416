@@ -28,7 +28,7 @@ const SIZES = {
 
 const TONES = {
   brand: "bg-brand-tint text-brand",
-  positive: "bg-positive-tint text-positive",
+  positive: "bg-positive-tint text-positive-ink",
   deep: "bg-ink text-on-brand",
   outline: "border-border-subtle bg-panel text-ink-meta border",
 } as const;

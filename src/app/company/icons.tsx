@@ -65,6 +65,30 @@ export function TrendIcon({ className, down = false }: IconProps & { down?: bool
   );
 }
 
+/** Time owed — a clock, for the queue that is waiting on you. Hands at four
+ *  o'clock rather than a symmetrical noon, so the dial reads as a clock at 16px
+ *  instead of as a circle with a cross in it. */
+export function ClockIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="M8 4.8V8l2.4 1.5" />
+    </svg>
+  );
+}
+
+/** Export — a tray with an arrow coming out of it. Points down because what
+ *  the button does is put a file on your disk, not upload one. */
+export function DownloadIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
+      <path d="M8 2.6v7" />
+      <path d="m4.9 6.5 3.1 3.1 3.1-3.1" />
+      <path d="M2.6 11.4v1a1 1 0 0 0 1 1h8.8a1 1 0 0 0 1-1v-1" />
+    </svg>
+  );
+}
+
 /**
  * Sort state on a column heading.
  *

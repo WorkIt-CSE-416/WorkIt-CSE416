@@ -43,6 +43,13 @@ const VARIANTS = {
  * `neutral` stays exactly as it was. It is the default for every `tag` — skill
  * pills, salary bands, the search screen's result count — and the mockups draw
  * all of those blue-tinted. `inert` is the grey that statuses wanted from it.
+ *
+ * `positive` wears --color-positive-ink rather than --color-positive, which is
+ * the one tone whose text colour is not simply its fill colour darkened by
+ * convention. --color-positive on --color-positive-tint measures 2.51:1: at
+ * 11px that is a green chip with a slightly greener chip printed on it. The ink
+ * role clears AA at 4.79:1 on the same fill, so the tint is unchanged and only
+ * the glyph moved. See the token's note in globals.css.
  */
 const TONES = {
   /** In flight, early — someone is looking, cheaply. */
@@ -52,7 +59,7 @@ const TONES = {
   /** A tag's fill. Blue-tinted, and the default for `tag` rather than a state. */
   neutral: "bg-brand-tint text-ink-muted",
   /** Finished well — an offer, a live posting. */
-  positive: "bg-positive-tint text-positive",
+  positive: "bg-positive-tint text-positive-ink",
   /** Halted, and waiting on someone here to decide. */
   warning: "bg-warning-tint text-warning",
   /** Finished badly — a rejection. */
