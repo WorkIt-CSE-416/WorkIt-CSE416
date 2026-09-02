@@ -69,7 +69,7 @@ export const buttonVariants = cva(
           "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control focus-visible:ring-[3px]",
         /** Bordered neutral — alternatives sitting beside a primary action. */
         secondary:
-          "border-border-subtle bg-surface text-ink hover:bg-canvas focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-border-subtle bg-surface text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
         /** Brand outline — an action inside an already-recessed area. */
         outline:
           "border-brand/50 text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",

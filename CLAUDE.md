@@ -39,11 +39,16 @@ src/app/          App Router routes, layouts, pages
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
   (seeker)/       Job-seeker shell — top bar, and every screen behind it
-  company/        Company shell — same, for the other account type, under
-                  /company/* so the two audiences cannot collide on a URL
+  company/        Company shell — a left panel plus a top bar, for the other
+                  account type, under /company/* so the two audiences cannot
+                  collide on a URL. /company is the hiring dashboard;
+                  table.tsx is the sortable/filterable table its two list
+                  screens share.
   login/          Auth screens, outside both shells
-  design-kit/     Every token and component on one page, resolved from the
-                  live stylesheet — outside both shells on purpose
+  design-kit/     Every token and component, one route per section, resolved
+                  from the live stylesheet — outside both shells on purpose.
+                  Section titles and notes live in its data.ts so the nav and
+                  each page heading cannot disagree.
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
@@ -55,6 +60,8 @@ src/components/   Shared components
                   fact, filter-chip, icon-button, search-field, section-heading,
                   text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
+    hooks/        Vendored hooks, same rule (components.json points here, so
+                  `shadcn add` never writes a top-level src/hooks)
 src/db/           Drizzle data layer — read docs/drizzle.md first
   client.ts       Both postgres.js connections; nothing else opens one
   index.ts        `db.rls()` — the only handle app code may import
@@ -65,8 +72,8 @@ src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
   supabase/server.ts  Per-request client, used only to read the session
 public/           Static assets served from /
-  workit-logo.png Full lockup, 1256x448 — auth card
-  workit-icon.png Mark only, 481x448 — app top bar
+  workit-logo.png Full lockup, 1256x448 — auth card and app top bar
+  workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Repo maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
   shadcn.md       What shadcn is, how it is wired here, how to pull components
@@ -109,6 +116,17 @@ have not built — dialogs, selects, popovers — and is regenerated in place, s
 hand edits there are a fork. shadcn's colour roles are aliased onto WorkIt's
 tokens at the bottom of `globals.css`, which is why a generated component needs
 no restyling — fix the mapping there rather than the component.
+
+The two company list screens share `app/company/table.tsx` — a TanStack Table
+shell over shadcn's `Table`, with sorting, filtering and row selection. **It is
+TanStack v9, and every shadcn data-table example in circulation is v8**: v8's
+`useReactTable` and `getCoreRowModel()` options do not exist, features and their
+sort/filter functions must be registered explicitly in `tableFeatures`, and
+cells render through `<table.FlexRender />`. The library ships its own guides in
+`node_modules/@tanstack/react-table/skills` — read those rather than a blog
+post. Select-all deliberately covers the filtered rows only; both
+`getIsAllRowsSelected` and `toggleAllRowsSelected` resolve to the filtered row
+model, so a filtered list cannot select rows nobody can see.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own

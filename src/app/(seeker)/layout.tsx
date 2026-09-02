@@ -90,11 +90,34 @@ const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-app flex min-h-full flex-1 flex-col">
-      <header className="bg-panel border-border border-b">
+    <div
+      className="bg-app flex h-svh flex-col"
+      /* The bar's height, in one place, the way the company shell keeps its
+         own. Nothing below reserves it any more — the bar is back in flow, so
+         it takes its own room — but it stays a token because it is one number
+         two shells and a fixed panel all measure against.
+
+         h-svh rather than min-h-full is what moves the scrollbar under the bar:
+         a min-height leaves the document scrolling, and a document scrollbar
+         runs the full window height, past the bar it has nothing to do with. An
+         exact viewport height makes this column the window, so the only thing
+         left to scroll is the region below the bar. */
+      style={{ "--seeker-bar": "4rem" } as React.CSSProperties}
+    >
+      {/* BACK IN FLOW, which it was long ago for the wrong reason and is again
+          for the right one. In flow it used to scroll away with the document,
+          so it was pulled out to `fixed` — the note that stood here weighed
+          fixed against sticky on how each behaves during a rubber-band
+          overscroll.
+
+          None of that applies once the document is not what scrolls. The bar is
+          a sibling of the scroller now, not a layer over it, so nothing can
+          slide it and nothing bounces underneath it. shrink-0 so a tall page
+          cannot squeeze it. */}
+      <header className="bg-panel border-border relative z-20 h-(--seeker-bar) shrink-0 border-b">
         <nav
           aria-label="Main"
-          className="max-w-app mx-auto flex h-16 w-full items-center gap-5 px-12"
+          className="max-w-app mx-auto flex h-full w-full items-center gap-5 px-12"
         >
           <Link
             href="/"
@@ -131,7 +154,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
       </header>
 
-      {children}
+      {/* The one scrolling element in the shell. min-h-0 because a flex item
+          will not shrink below its content by default, which would push the
+          column past h-svh and hand the scroll back to the document. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
     </div>
   );
 }
