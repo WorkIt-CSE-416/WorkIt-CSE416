@@ -9,7 +9,6 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/shadcn/sidebar";
@@ -43,11 +42,6 @@ import { BuildingIcon, GridIcon } from "./icons";
  * emitted them into the stylesheet rather than by anything written here. That
  * is the failure cn() cannot close, described in cn.ts and in CLAUDE.md; the
  * important is what makes the outcome deterministic instead of incidental.
- *
- * Counts are the reason SidebarMenuBadge is here rather than a plain label: the
- * two numbers a recruiter checks before opening anything are how many roles are
- * live and how many applicants are unread, and a nav that already draws them
- * saves the trip. They are fixtures for now, from ./data.
  */
 /**
  * Room around a row, and between one row and the next.
@@ -68,17 +62,9 @@ import { BuildingIcon, GridIcon } from "./icons";
  * label. `h-9` is not a bigger row so much as the row the padding already
  * asked for. Icon-collapsed mode is untouched: that keeps its square
  * `size-8!`, which is what a 32px icon rail wants.
- *
- * MENU_BADGE follows the height. The count is absolutely positioned at
- * `top-1.5`, which centres a 20px badge in a 32px row and would sit it 2px
- * high in a 36px one. It is respelled with the same modifier the vendored
- * class uses so tailwind-merge treats them as one utility and drops the old
- * value — a plain `top-2` would be a different group, survive alongside it,
- * and lose on specificity.
  */
 const MENU = "gap-1";
 const MENU_BUTTON = "h-9";
-const MENU_BADGE = "peer-data-[size=default]/menu-button:top-2";
 
 /**
  * What marks the item you are on, once the fill stopped being brand-coloured.
@@ -115,17 +101,9 @@ type NavItem = {
   href: string;
   label: string;
   Icon: (props: { className?: string }) => React.ReactNode;
-  /** Rendered as a count beside the label. Omitted when there is nothing to say. */
-  badge?: number;
 };
 
-export function CompanySidebar({
-  openRoles,
-  unreadApplicants,
-}: {
-  openRoles: number;
-  unreadApplicants: number;
-}) {
+export function CompanySidebar() {
   const pathname = usePathname();
 
   /* Company Profile is here rather than in the account menu, which is the
@@ -139,13 +117,8 @@ export function CompanySidebar({
    * three and one; split it if a second non-hiring row ever arrives. */
   const hiring: NavItem[] = [
     { href: "/company", label: "Overview", Icon: GridIcon },
-    { href: "/company/jobs", label: "Job Postings", Icon: BriefcaseIcon, badge: openRoles },
-    {
-      href: "/company/applicants",
-      label: "Applicants",
-      Icon: UserIcon,
-      badge: unreadApplicants,
-    },
+    { href: "/company/jobs", label: "Job Postings", Icon: BriefcaseIcon },
+    { href: "/company/applicants", label: "Applicants", Icon: UserIcon },
     { href: "/company/profile", label: "Company Profile", Icon: BuildingIcon },
   ];
 
@@ -167,7 +140,7 @@ function Group({ label, items, pathname }: { label: string; items: NavItem[]; pa
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu className={MENU}>
-        {items.map(({ href, label: text, Icon, badge }) => {
+        {items.map(({ href, label: text, Icon }) => {
           /* Overview owns /company exactly; every other item owns its subtree,
            * so /company/jobs/new still lights Job Postings. Without the exact
            * case, Overview would be active on every company screen. */
@@ -184,9 +157,6 @@ function Group({ label, items, pathname }: { label: string; items: NavItem[]; pa
                 <Icon className="size-4" />
                 <span>{text}</span>
               </SidebarMenuButton>
-              {badge !== undefined && (
-                <SidebarMenuBadge className={MENU_BADGE}>{badge}</SidebarMenuBadge>
-              )}
             </SidebarMenuItem>
           );
         })}

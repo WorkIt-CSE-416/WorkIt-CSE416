@@ -9,7 +9,6 @@ import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
 
 import { CompanySidebar } from "./company-sidebar";
-import { OPEN_ROLES, UNREAD_APPLICANTS } from "./data";
 
 /**
  * Chrome shared by every company screen.
@@ -166,7 +165,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
             fixed element's containing block is the viewport unless an ancestor
             carries a transform, and none does. */}
         <div className="flex min-h-0 w-full flex-1">
-          <CompanySidebar openRoles={OPEN_ROLES} unreadApplicants={UNREAD_APPLICANTS} />
+          <CompanySidebar />
           <SidebarInset className="flex-1 overflow-y-auto">{children}</SidebarInset>
         </div>
       </SidebarProvider>
