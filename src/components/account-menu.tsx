@@ -47,7 +47,7 @@ import {
  * The dropdown itself is stock shadcn from @/components/shadcn — unedited, so
  * `shadcn add` can regenerate it. It looks like WorkIt because globals.css maps
  * shadcn's role names onto WorkIt's tokens (--popover is --color-panel, and the
- * highlighted row's --accent is --color-brand-tint), not because it was
+ * highlighted row's --accent is --color-hover), not because it was
  * restyled here.
  */
 export type AccountMenuItem = {

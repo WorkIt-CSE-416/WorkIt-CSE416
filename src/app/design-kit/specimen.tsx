@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import { SectionHeading } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 /**
@@ -12,27 +11,27 @@ import { cn } from "@/lib/cn";
  * radii, the same as any screen.
  */
 
-export function Section({
-  id,
+export function KitPage({
   title,
   note,
   children,
 }: {
-  id: string;
   title: string;
   note?: string;
   children: ReactNode;
 }) {
   return (
-    <section aria-labelledby={id} className="scroll-mt-8">
-      <SectionHeading id={id}>{title}</SectionHeading>
-      {note && <p className="text-note text-ink-meta mt-1.5 max-w-prose">{note}</p>}
-      <div className="mt-4">{children}</div>
-    </section>
+    <>
+      <header>
+        <h1 className="text-heading text-ink">{title}</h1>
+        {note && <p className="text-body text-ink-muted mt-1.5 max-w-prose">{note}</p>}
+      </header>
+      <div className="mt-6 flex flex-col gap-10">{children}</div>
+    </>
   );
 }
 
-/** A sub-heading inside a section — "Surfaces" under "Colour". */
+/** A sub-heading inside a page — "Surfaces" under "Colour". */
 export function Group({
   title,
   note,

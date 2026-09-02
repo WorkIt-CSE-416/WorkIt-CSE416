@@ -23,11 +23,12 @@ const SIZES = {
   sm: { box: "size-8 rounded", icon: "size-4" }, // applications board
   md: { box: "size-10 rounded-control", icon: "size-5" }, // search result
   lg: { box: "size-16 rounded-control", icon: "size-7" }, // search detail
+  xl: { box: "size-24 rounded-card", icon: "size-10" }, // company profile hero
 } as const;
 
 const TONES = {
   brand: "bg-brand-tint text-brand",
-  positive: "bg-positive-tint text-positive",
+  positive: "bg-positive-tint text-positive-ink",
   deep: "bg-ink text-on-brand",
   outline: "border-border-subtle bg-panel text-ink-meta border",
 } as const;

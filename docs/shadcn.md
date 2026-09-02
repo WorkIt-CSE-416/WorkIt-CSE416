@@ -70,7 +70,7 @@ using, so the fonts needed no change.
 | `tw-animate-css`           | Enter/exit animations                                     |
 | `shadcn`                   | Provides `shadcn/tailwind.css`, imported by `globals.css` |
 
-### Three decisions that differ from a stock install
+### Four decisions that differ from a stock install
 
 Anyone re-running `init` should know these, or they will be undone.
 
@@ -95,8 +95,9 @@ That first collision was resolved properly rather than worked around — see
 **There is one Button** below.
 
 An ESLint rule (`eslint.config.mjs`) keeps app code off
-`@/components/shadcn/button`, `badge`, and `card` and points at the `ui/` one,
-so the two folders cannot quietly drift into two of the same component.
+`@/components/shadcn/button`, `badge`, `card`, and `select` and points at the
+`ui/` one, so the two folders cannot quietly drift into two of the same
+component.
 
 #### The one exception: there is one Button
 
@@ -140,6 +141,40 @@ rare element that must look like a button without being one) are still exported.
 `buttonVariants` is exported too, as the cva function shadcn components import —
 note it skips the per-variant default size and always uses `default`.
 
+#### The other exception: Select is wrapped, not replaced
+
+`src/components/ui/select.tsx` is a third shape, and worth knowing about before
+you reach for `@/components/shadcn/select`. It re-exports every part of the
+vendored Select untouched and overrides exactly one thing: `SelectContent`'s
+positioning defaults.
+
+Base UI's `alignItemWithTrigger` defaults to `true`, which is the macOS native
+select — the popup _overlaps_ its trigger so the selected row sits on top of the
+closed control. Two things follow that are easy to mistake for bugs:
+
+- The popup is not below the button, and where it opens moves with whichever
+  item is selected.
+- It is conditional. Base UI reverts to ordinary below-the-trigger positioning
+  when the popup would be squeezed too short, when the trigger is within 20px of
+  the top or bottom of the viewport, or when touch opened it — so one select
+  behaves two ways depending on scroll position.
+
+`ui/select.tsx` sets it to `false`, which also makes `side` and `align` mean
+something: **those props are ignored entirely while the mode is on**, so the
+vendored component's own `side="bottom"` never applied.
+
+What it deliberately does not set is `collisionAvoidance` — "below even when
+there is no room below". `SelectContent` forwards a fixed list of positioner
+props that excludes it, and everything else it receives goes to the Popup, so
+reaching it means forking the vendored markup. Flipping above a trigger with no
+space under it is standard and keeps the list usable.
+
+**`<Select.Value>` renders the raw value, not the item's text**, unless `Root`
+gets an `items` prop to look a label up in. That is fine while a value and its
+label are the same string, which is why most of this app's selects omit it — and
+it is why the company table's "all" sentinel once rendered as `__all__` in the
+closed filter. Any select whose values are not display text needs `items`.
+
 #### b. `cn` comes from `@/lib/cn`, not `@/lib/utils`
 
 `init` created a `src/lib/utils.ts` with a plain, unconfigured `cn`. It was
@@ -155,7 +190,19 @@ reintroduce that bug wherever it was used. Read the comment at the top of
 > If you add a design token, add it to the lists in `cn.ts` too. A missing entry
 > is not a crash — it is a merge that quietly does nothing.
 
-#### c. shadcn's colour names are aliased onto WorkIt's
+#### c. Vendored hooks live under `src/components/shadcn/hooks/`
+
+`components.json` sets `aliases.hooks` to `@/components/shadcn/hooks`.
+
+Stock shadcn writes a top-level `src/hooks/`, which `add sidebar` did. That
+mixes generated code into a directory we would also write our own hooks in, and
+the two need different lint rules — `use-mobile.ts` trips
+`react-hooks/set-state-in-effect`, and fixing it forks a file the next `add`
+regenerates. Keeping every vendored file under one root means one ESLint
+exemption covers exactly the code we do not own, and a hook we write ourselves
+is still held to the rule.
+
+#### d. shadcn's colour names are aliased onto WorkIt's
 
 shadcn components are written against a fixed vocabulary — `bg-primary`,
 `text-muted-foreground`, `border-input` — that has nothing to do with our token
@@ -178,8 +225,8 @@ names. Rather than edit every component we pull in, the bottom of
 | `--ring`               | `--color-brand`         |
 
 Values are deliberately not listed here — they go stale the first time anyone
-edits `globals.css`. Run the app and open **`/design-kit`**, which reads every
-token from the live stylesheet.
+edits `globals.css`. Run the app and open **`/design-kit/colour`**, which reads
+every token from the live stylesheet.
 
 **A stock shadcn component therefore renders in WorkIt's palette with no
 editing.** That is the whole point of the mapping — don't restyle generated
@@ -197,9 +244,15 @@ Three lines `init` generated were removed, each for a reason recorded in
   pill (6px → 8px) and `ui/text-link.tsx`'s focus ring (4px → 6px). Stock
   Tailwind radii are what existing call sites were measured against.
 
-Still undesigned, holding shadcn's stock values: `--destructive` (WorkIt has no
-red — no mockup draws a destructive action) and `--chart-1…5`. Both are marked
-`OPEN` in `globals.css`.
+Still undesigned, holding shadcn's stock value: `--destructive` (WorkIt has no
+red — no mockup draws a destructive action). It is marked `OPEN` in
+`globals.css`.
+
+`--chart-1…5` used to be `OPEN` too. They are now the badge tones in a fixed
+order — brand, advanced, positive, danger, then a de-emphasis grey — so a stage
+is one colour whether it is drawn as a pill or as a bar. The reasoning, the
+validator results, and why there is no fifth hue are recorded above the block in
+`globals.css`; the rendered swatches are on `/design-kit/colour`.
 
 ### Dark mode
 
