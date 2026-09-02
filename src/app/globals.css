@@ -21,9 +21,21 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* Surfaces ------------------------------------------------------------ */
-  --color-canvas: #f7f9fc; /* page background behind the card */
-  --color-surface: #f8f8ff; /* card / raised panel — note: not pure white */
+  /* Surfaces ------------------------------------------------------------
+   * NEUTRALISED, the same way the app roles below were and for the same
+   * reason. Both were sampled blue — the card at #f8f8ff, which is CSS
+   * `ghostwhite`: red and green at 248 with blue at 255, and the page at
+   * #f7f9fc. Seven points on one channel is invisible in a swatch and reads
+   * as a cool cast once it is a whole field or a whole page, which is what it
+   * became: --color-surface is the fill of every text input, select and
+   * secondary button, not just the login card.
+   *
+   * The blue channel is dropped and the red/green kept, so the card sits at
+   * the lightness it was measured at. The page moves further, down to the
+   * app's own ground: once the hue is gone the two were within a point of
+   * each other, and one page grey is simpler than two nobody can tell apart. */
+  --color-canvas: #f5f5f5; /* page background behind the card */
+  --color-surface: #f8f8f8; /* card / raised panel — note: not pure white */
   --color-surface-tint: #f1f7fa; /* logo tile, subtle tinted fills */
 
   /* Borders ------------------------------------------------------------- */
@@ -113,11 +125,47 @@
   --color-panel: #ffffff; /* top bar and cards */
   --color-well: #f7f7f7; /* recessed area — the resume dropzone, match rail */
 
+  /* App interaction states -----------------------------------------------
+   * The fill a control takes when it is under the pointer, or is the one you
+   * are on. These were --color-brand-tint until they were not: a hovered menu
+   * row, a current nav item and a skill pill were all painted the same blue,
+   * which made half the shell look brand-coloured and left "you are here"
+   * saying nothing the row beside it did not.
+   *
+   * Grey, on the rule this file already states: the only colour in the shell
+   * is colour something means. Being hovered does not mean anything. Being
+   * current does, so that one keeps the brand — on the label, where it reads
+   * as emphasis, rather than as a slab behind it. This is also how shadcn's
+   * own palette is built: --accent is a neutral, and the brand lives in
+   * --primary.
+   *
+   * Two steps rather than one so a hovered row and the current row are not
+   * the same rectangle; stock shadcn gives both the same fill and separates
+   * them by font-weight alone. */
+  --color-hover: #f0f0f0; /* row or control under the pointer */
+  --color-selected: #e8e8e8; /* the current nav item, the chosen option */
+
+  /* Brand as *text*, for the label on a --color-selected fill.
+   *
+   * It is a separate role from --color-brand because --color-brand cannot do
+   * this job: #005cff on #e8e8e8 measures 4.31:1, short of the 4.5:1 AA needs
+   * for a 14px label, and darkening it to #004fdb clears it at 5.46:1. The hex
+   * is the same one --color-brand-hover happens to hold today; the roles are
+   * unrelated and either is free to move without the other.
+   *
+   * NOTE FOR WHOEVER OWNS THE PALETTE: --color-brand on --color-brand-tint —
+   * every `brand` badge, the avatar, the company tile — measures 4.43:1 and has
+   * the same problem. It predates this token and is left alone rather than
+   * quietly restyled across four components, but it is the same fix. */
+  --color-brand-ink: #004fdb;
+
   /* App ink -------------------------------------------------------------- */
   --color-ink-meta: #596980; /* nav links, subtitles, dates, icon glyphs */
 
   /* App brand ------------------------------------------------------------ */
-  --color-brand-tint: #e3ebff; /* skill-pill fill */
+  --color-brand-tint: #e3ebff; /* skill pills, badges, avatars, company tiles —
+                                * brand marks only. Interaction states used to
+                                * live here too; see --color-hover above. */
 
   /* App borders ---------------------------------------------------------- */
   --color-border-strong: #dee5ee; /* dashed dropzone, spent timeline dot */
@@ -173,6 +221,47 @@
   --color-positive-active: #107a52; /* derived: positive at 27% lightness */
   --color-positive-ring: rgb(23 176 118 / 0.35); /* derived: focus ring */
 
+  /* Status chips ---------------------------------------------------------
+   * A status pill has to say which of four things is true at a glance —
+   * running, paused, finished, not started — and until now the palette could
+   * only say two of them. Everything that was not "Open" fell through to one
+   * tone, so Paused and Closed painted identically, which is the opposite of
+   * what a status column is for.
+   *
+   * --color-inert-tint is the grey this file already recorded and declined to
+   * adopt: the board's "Applied" chip measures #e1e6ea, a grey among blues,
+   * and the note above calls it either mockup noise or "a second chip token
+   * and a designer's call". It is the second token. A passive status reads
+   * grey; an active one stays blue.
+   *
+   * UNMEASURED — the amber and the red are not in any mockup, because no
+   * mockup draws a paused posting or a rejected applicant. They are set at the
+   * saturation and tint-lightness of --color-positive so the four chips carry
+   * the same weight in a row, and their text sits darker than --color-positive
+   * does on its own tint, which is a deliberate break: that pairing is only
+   * about 2.5:1 and these are more legible rather than matched to a
+   * shortcoming. Replace all of it when a designer draws the set. */
+  --color-inert-tint: #e1e6ea; /* measured: the board's "Applied" chip */
+  --color-warning: #a06800; /* unmeasured: paused, needs a decision */
+  --color-warning-tint: #fdf0d9;
+  --color-danger: #c02a3d; /* unmeasured: rejected, ended badly */
+  --color-danger-tint: #fce9eb;
+
+  /* UNMEASURED — the late half of "in flight". Screening and Interview are
+   * both in progress, but they cost a hiring team very differently: a screen
+   * is a recruiter and twenty minutes, an interview is a panel and an
+   * afternoon, and the pipeline on /company drops 68 to 23 between them. That
+   * gap is what a reader should see before reading a word, so the two stop
+   * sharing --color-brand.
+   *
+   * Purple because it is the only hue left with room. Blue is taken by brand,
+   * green by positive, amber by warning, red by danger; teal and cyan sit too
+   * close to the green and the blue to survive being 11px tall. The tint runs
+   * warmer than --color-brand-tint — more red, less blue — so the two pale
+   * fills separate even before the label colour does. */
+  --color-advanced: #7b2fbe;
+  --color-advanced-tint: #f2e6fb;
+
   /* Board type -----------------------------------------------------------
    * A step above --text-title, which the board still uses for its column
    * headings — so the page name and the column names cannot be confused. */
@@ -215,6 +304,29 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
+ * the document — is painted by <body>, and <body> is in the root layout, above
+ * both shells. So it cannot inherit the page colour a shell sets on itself, and
+ * this rule is the only way it learns which shell it is holding.
+ *
+ * The seeker shell grounds on --color-app and login and the design kit ground on
+ * --color-canvas; those are the same #f5f5f5, so the default above is already
+ * right for all three. The company shell is the one that diverges: it retargets
+ * --background to --color-panel, which paints its page and its SidebarInset
+ * white, while the canvas underneath stayed grey. Rubber-band a trackpad there
+ * and a grey band opened up — under the fixed bar going up, past the last row
+ * going down — for as long as the bounce lasted.
+ *
+ * :has() rather than a class on <body> because a nested layout cannot reach the
+ * root layout's <body>; the shell announces itself and the canvas reads it.
+ *
+ * The alternative was overscroll-behavior: none, which ends the bounce instead
+ * of colouring it. That hides this bug and the next one like it, and on the x
+ * axis it would take the trackpad's swipe-to-go-back with it. */
+body:has([data-shell="company"]) {
+  background: var(--color-panel);
 }
 
 /* -----------------------------------------------------------------------------
@@ -304,7 +416,7 @@ body {
   --secondary-foreground: var(--color-ink);
   --muted: var(--color-well); /* recessed fills */
   --muted-foreground: var(--color-ink-meta); /* subtitles, dates, glyphs */
-  --accent: var(--color-brand-tint); /* hovered / selected row */
+  --accent: var(--color-hover); /* hovered / focused row */
   --accent-foreground: var(--color-ink);
 
   /* Lines and focus */
@@ -333,7 +445,7 @@ body {
   --sidebar-foreground: var(--color-ink);
   --sidebar-primary: var(--color-brand);
   --sidebar-primary-foreground: var(--color-on-brand);
-  --sidebar-accent: var(--color-brand-tint);
+  --sidebar-accent: var(--color-hover);
   --sidebar-accent-foreground: var(--color-ink);
   --sidebar-border: var(--color-border-subtle);
   --sidebar-ring: var(--color-brand);
@@ -349,10 +461,34 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+  /* Dead, and kept only because it is what `shadcn init` writes. Plain CSS in
+   * this file compiles into the utilities layer, which outranks base, so the
+   * body rule above wins both of these properties outright — read that one, not
+   * this one, when asking what colour the page is. */
   body {
     @apply bg-background text-foreground;
   }
   html {
     @apply font-sans;
+  }
+
+  /* Tailwind v3 gave every <button> a pointer cursor through preflight; v4
+   * dropped it, on the reading that a button is a control rather than a link
+   * and the platform default is what a native button does. The app disagrees:
+   * nothing here looks like an OS button, so `default` reads as "not
+   * clickable" on a sort header, a filter chip or an icon.
+   *
+   * One rule rather than a cursor-pointer on each component, because the rest
+   * are not ours to edit — the sidebar's menu buttons, dropdown items and
+   * select trigger all live in components/shadcn and would be overwritten by
+   * the next `shadcn add`. `shadcn init` offers a --pointer flag that stamps
+   * the utility into every generated file; this achieves the same thing
+   * without depending on how those files were generated.
+   *
+   * Disabled controls keep the default arrow — :disabled for native buttons,
+   * aria-disabled for the Base UI components that render a div. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 }

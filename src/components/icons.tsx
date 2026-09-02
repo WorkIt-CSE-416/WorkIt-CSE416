@@ -91,6 +91,22 @@ export function BookmarkIcon({ className, filled = false }: IconProps & { filled
   );
 }
 
+/**
+ * Edit. Promoted from (seeker)/profile the day the company profile grew its own
+ * edit affordance — the second consumer, which is what moves a glyph here.
+ *
+ * It keeps its 12-unit grid rather than being redrawn to 16, for the reason at
+ * the top of this file: the seeker profile is signed off against how this sits
+ * today, and a regrid would move it.
+ */
+export function PencilIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 12 12" {...strokeProps} className={className}>
+      <path d="M8.4 1.6a1.4 1.4 0 0 1 2 2L4 10 1.4 10.6 2 8Z" />
+    </svg>
+  );
+}
+
 /* App shell ---------------------------------------------------------------- */
 
 /**

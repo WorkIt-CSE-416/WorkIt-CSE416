@@ -15,16 +15,24 @@ import nextTs from "eslint-config-next/typescript";
  * if `shadcn add` ever writes them they will be genuinely different components
  * from ours. The rule is what stops one being imported by accident.
  *
+ * `select` is a third shape: ui/select.tsx wraps the vendored one to change a
+ * positioning default and re-exports the rest untouched. Both files therefore
+ * export the same names and only one of them positions the popup the way this
+ * app wants, which is exactly the drift the rule exists to catch.
+ *
  * See docs/shadcn.md.
  */
-const DUPLICATED_PRIMITIVES = ["Button", "Badge", "Card"];
+const DUPLICATED_PRIMITIVES = ["Button", "Badge", "Card", "Select"];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/components/shadcn/**"],
+    // ui/select.tsx is the one file outside shadcn/ that has to reach the
+    // vendored path: it wraps that component rather than replacing it, so the
+    // canonical import it points everyone else at is its own.
+    ignores: ["src/components/shadcn/**", "src/components/ui/select.tsx"],
     rules: {
       "no-restricted-imports": [
         "error",

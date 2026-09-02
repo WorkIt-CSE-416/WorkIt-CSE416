@@ -19,7 +19,7 @@ const VARIANTS = {
    *  call site: the search detail pane's bookmark is deliberately narrower
    *  than it is tall, to sit under the Apply button's height. */
   outline:
-    "border-border-subtle bg-panel text-ink-meta hover:bg-canvas hover:text-ink focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
+    "border-border-subtle bg-panel text-ink-meta hover:bg-hover hover:text-ink focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
   /** Brand disc — an edit affordance overlapping the thing it edits. The border
    *  matches the panel behind it so the disc reads as cut out of the surface. */
   brand:

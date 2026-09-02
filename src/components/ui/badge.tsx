@@ -19,14 +19,49 @@ import { cn } from "@/lib/cn";
  * fully rounded, so shape and colour stopped moving together.
  */
 const VARIANTS = {
-  status: "text-meta rounded-full px-2 py-px",
+  /* py-px gave the chip a 17px box, which read as a label squeezed onto its
+   * text rather than a pill sitting around it. py-1 takes it to 23px — still
+   * shorter than anything else in a row, which is the point of a chip, but
+   * with enough room that the fill reads as a shape. */
+  status: "text-meta rounded-full px-2.5 py-1",
   tag: "text-note rounded-md px-2 py-0.5",
 } as const;
 
+/**
+ * Tones name a state's KIND, not one label each.
+ *
+ * Two statuses share a tone when they are the same kind of thing. What is not
+ * useful is two different kinds sharing one, which is what happened while
+ * everything that was not positive fell through to `neutral`: a paused posting
+ * and a closed one painted identically, though one is waiting on a decision
+ * and the other is over.
+ *
+ * `brand` and `advanced` are the two halves of "in flight", split because
+ * being in a screen and being in an interview cost a hiring team completely
+ * different amounts of its week.
+ *
+ * `neutral` stays exactly as it was. It is the default for every `tag` — skill
+ * pills, salary bands, the search screen's result count — and the mockups draw
+ * all of those blue-tinted. `inert` is the grey that statuses wanted from it.
+ */
 const TONES = {
+  /** In flight, early — someone is looking, cheaply. */
   brand: "bg-brand-tint text-brand",
+  /** In flight, late — the expensive half, where a team's time is committed. */
+  advanced: "bg-advanced-tint text-advanced",
+  /** A tag's fill. Blue-tinted, and the default for `tag` rather than a state. */
   neutral: "bg-brand-tint text-ink-muted",
+  /** Finished well — an offer, a live posting. */
   positive: "bg-positive-tint text-positive",
+  /** Halted, and waiting on someone here to decide. */
+  warning: "bg-warning-tint text-warning",
+  /** Finished badly — a rejection. */
+  danger: "bg-danger-tint text-danger",
+  /** Over or not yet begun; nothing is happening and nothing is owed. */
+  inert: "bg-inert-tint text-ink-meta",
+  /** Not live at all. No fill, because there is nothing to fill in yet — a
+   *  draft is the one state that has never been published. */
+  outline: "border-border-strong text-ink-meta border bg-transparent",
 } as const;
 
 export type BadgeVariant = keyof typeof VARIANTS;
