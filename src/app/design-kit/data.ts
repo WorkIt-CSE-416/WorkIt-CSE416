@@ -8,20 +8,83 @@
  * globals.css.
  */
 
+/**
+ * The kit's sections, in the order the nav lists them.
+ *
+ * Title and note live here rather than in each page so the nav and the page
+ * heading cannot say different things about the same section. A page spreads
+ * its own entry into <KitPage>.
+ */
+export const SECTIONS = {
+  colour: {
+    slug: "colour",
+    title: "Colour",
+    note: "Swatches paint var(--token) directly and the value beside each is read back from the live stylesheet, so neither can drift from globals.css.",
+  },
+  type: {
+    slug: "type",
+    title: "Type",
+    note: "Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px — caption carries uppercase tracking and weight 600, meta carries neither.",
+  },
+  shape: {
+    slug: "shape",
+    title: "Shape and elevation",
+    note: "Two radii and two shadows. WorkIt's own; stock Tailwind's rounded-sm/md/lg keep their default values, which is what existing call sites were measured against.",
+  },
+  buttons: {
+    slug: "buttons",
+    title: "Buttons",
+    note: "One component, shadcn's variant and size names, WorkIt's measured styling. Each variant has a natural size, so most call sites pass only a variant.",
+  },
+  forms: {
+    slug: "forms",
+    title: "Form controls",
+    note: "Every control that takes input, at the width it is used rather than full-bleed.",
+  },
+  display: {
+    slug: "display",
+    title: "Display",
+    note: "Everything that shows a value without accepting one. The status rows render from the same maps the company tables read, so they cannot drift from what the app paints.",
+  },
+  vendored: {
+    slug: "vendored",
+    title: "Vendored",
+    note: "Pulled in with `npx shadcn add` and not restyled. They look like WorkIt because globals.css maps shadcn's role names onto WorkIt's tokens, and because they compose against the same Button as everything above.",
+  },
+} as const;
+
+export const SECTION_ORDER = [
+  SECTIONS.colour,
+  SECTIONS.type,
+  SECTIONS.shape,
+  SECTIONS.buttons,
+  SECTIONS.forms,
+  SECTIONS.display,
+  SECTIONS.vendored,
+];
+
 export type ColorToken = { token: string; role: string };
 export type ColorGroup = { title: string; note?: string; tokens: ColorToken[] };
 
 export const COLOR_GROUPS: ColorGroup[] = [
   {
     title: "Surfaces",
-    note: "Login and the app shell disagree about which hex is a page and which is a card, so both scales exist side by side until a designer reconciles them.",
+    note: "Login and the app shell disagree about which hex is a page and which is a card, so both scales exist side by side until a designer reconciles them. Every one is a pure grey: the blue casts they were sampled with are gone.",
     tokens: [
       { token: "--color-canvas", role: "Login page ground" },
-      { token: "--color-surface", role: "Login card" },
+      { token: "--color-surface", role: "Login card, and every field fill" },
       { token: "--color-surface-tint", role: "Logo tile, subtle fills" },
       { token: "--color-app", role: "Signed-in page ground" },
       { token: "--color-panel", role: "Top bar and cards" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
+    ],
+  },
+  {
+    title: "Interaction",
+    note: "What a control is painted while you are on it. Grey, not brand: being hovered does not mean anything, and the shell keeps colour for things that do.",
+    tokens: [
+      { token: "--color-hover", role: "Row or control under the pointer" },
+      { token: "--color-selected", role: "Current nav item, chosen option" },
     ],
   },
   {
@@ -41,20 +104,28 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-on-brand", role: "Label on a brand fill" },
       { token: "--color-brand-hover", role: "Derived — 43% lightness" },
       { token: "--color-brand-active", role: "Derived — 36% lightness" },
-      { token: "--color-brand-tint", role: "Skill pills, hovered rows" },
+      { token: "--color-brand-tint", role: "Skill pills, badges, avatars, tiles" },
+      { token: "--color-brand-ink", role: "Brand as text on a grey fill — AA safe" },
       { token: "--color-brand-pale", role: "Accent on a saved card" },
       { token: "--color-brand-ring", role: "Derived — focus ring" },
     ],
   },
   {
     title: "Status",
-    note: "The board's only non-brand control: accepting an offer.",
+    note: "The board's only non-brand control is accepting an offer. The chip tones below it say what KIND of state something is in — in flight, finished well, halted, finished badly, over — so two states never share a colour unless they are the same kind of thing.",
     tokens: [
       { token: "--color-positive", role: "Offer accent and its green button" },
       { token: "--color-positive-tint", role: "The offer card's company tile" },
       { token: "--color-positive-hover", role: "Derived — 33% lightness" },
       { token: "--color-positive-active", role: "Derived — 27% lightness" },
       { token: "--color-positive-ring", role: "Derived — focus ring" },
+      { token: "--color-inert-tint", role: "Measured — a status that is over or not begun" },
+      { token: "--color-warning", role: "UNMEASURED — halted, waiting on a decision" },
+      { token: "--color-warning-tint", role: "UNMEASURED" },
+      { token: "--color-danger", role: "UNMEASURED — ended badly" },
+      { token: "--color-danger-tint", role: "UNMEASURED" },
+      { token: "--color-advanced", role: "UNMEASURED — in flight, late (Interview)" },
+      { token: "--color-advanced-tint", role: "UNMEASURED" },
     ],
   },
   {
@@ -80,7 +151,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--popover", role: "→ --color-panel" },
       { token: "--muted", role: "→ --color-well" },
       { token: "--muted-foreground", role: "→ --color-ink-meta" },
-      { token: "--accent", role: "→ --color-brand-tint" },
+      { token: "--accent", role: "→ --color-hover" },
       { token: "--border", role: "→ --color-border" },
       { token: "--input", role: "→ --color-border-subtle" },
       { token: "--ring", role: "→ --color-brand" },

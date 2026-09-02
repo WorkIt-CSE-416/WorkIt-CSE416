@@ -95,8 +95,9 @@ That first collision was resolved properly rather than worked around — see
 **There is one Button** below.
 
 An ESLint rule (`eslint.config.mjs`) keeps app code off
-`@/components/shadcn/button`, `badge`, and `card` and points at the `ui/` one,
-so the two folders cannot quietly drift into two of the same component.
+`@/components/shadcn/button`, `badge`, `card`, and `select` and points at the
+`ui/` one, so the two folders cannot quietly drift into two of the same
+component.
 
 #### The one exception: there is one Button
 
@@ -139,6 +140,40 @@ The Button is built on Base UI's `ButtonPrimitive`, which is what makes
 rare element that must look like a button without being one) are still exported.
 `buttonVariants` is exported too, as the cva function shadcn components import —
 note it skips the per-variant default size and always uses `default`.
+
+#### The other exception: Select is wrapped, not replaced
+
+`src/components/ui/select.tsx` is a third shape, and worth knowing about before
+you reach for `@/components/shadcn/select`. It re-exports every part of the
+vendored Select untouched and overrides exactly one thing: `SelectContent`'s
+positioning defaults.
+
+Base UI's `alignItemWithTrigger` defaults to `true`, which is the macOS native
+select — the popup _overlaps_ its trigger so the selected row sits on top of the
+closed control. Two things follow that are easy to mistake for bugs:
+
+- The popup is not below the button, and where it opens moves with whichever
+  item is selected.
+- It is conditional. Base UI reverts to ordinary below-the-trigger positioning
+  when the popup would be squeezed too short, when the trigger is within 20px of
+  the top or bottom of the viewport, or when touch opened it — so one select
+  behaves two ways depending on scroll position.
+
+`ui/select.tsx` sets it to `false`, which also makes `side` and `align` mean
+something: **those props are ignored entirely while the mode is on**, so the
+vendored component's own `side="bottom"` never applied.
+
+What it deliberately does not set is `collisionAvoidance` — "below even when
+there is no room below". `SelectContent` forwards a fixed list of positioner
+props that excludes it, and everything else it receives goes to the Popup, so
+reaching it means forking the vendored markup. Flipping above a trigger with no
+space under it is standard and keeps the list usable.
+
+**`<Select.Value>` renders the raw value, not the item's text**, unless `Root`
+gets an `items` prop to look a label up in. That is fine while a value and its
+label are the same string, which is why most of this app's selects omit it — and
+it is why the company table's "all" sentinel once rendered as `__all__` in the
+closed filter. Any select whose values are not display text needs `items`.
 
 #### b. `cn` comes from `@/lib/cn`, not `@/lib/utils`
 
@@ -190,8 +225,8 @@ names. Rather than edit every component we pull in, the bottom of
 | `--ring`               | `--color-brand`         |
 
 Values are deliberately not listed here — they go stale the first time anyone
-edits `globals.css`. Run the app and open **`/design-kit`**, which reads every
-token from the live stylesheet.
+edits `globals.css`. Run the app and open **`/design-kit/colour`**, which reads
+every token from the live stylesheet.
 
 **A stock shadcn component therefore renders in WorkIt's palette with no
 editing.** That is the whole point of the mapping — don't restyle generated

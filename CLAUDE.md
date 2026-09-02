@@ -41,8 +41,10 @@ src/app/          App Router routes, layouts, pages
                   table.tsx is the sortable/filterable table its two list
                   screens share.
   login/          Auth screens, outside both shells
-  design-kit/     Every token and component on one page, resolved from the
-                  live stylesheet — outside both shells on purpose
+  design-kit/     Every token and component, one route per section, resolved
+                  from the live stylesheet — outside both shells on purpose.
+                  Section titles and notes live in its data.ts so the nav and
+                  each page heading cannot disagree.
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
