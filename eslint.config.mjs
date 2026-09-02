@@ -24,15 +24,22 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/components/shadcn/**"],
+    ignores: ["src/components/shadcn/**", "src/db/**"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          paths: DUPLICATED_PRIMITIVES.map((name) => ({
-            name: `@/components/shadcn/${name.toLowerCase()}`,
-            message: `Import { ${name} } from "@/components/ui/${name.toLowerCase()}" instead — that is the canonical path; the shadcn one exists for shadcn's own internal imports.`,
-          })),
+          paths: [
+            ...DUPLICATED_PRIMITIVES.map((name) => ({
+              name: `@/components/shadcn/${name.toLowerCase()}`,
+              message: `Import { ${name} } from "@/components/ui/${name.toLowerCase()}" instead — that is the canonical path; the shadcn one exists for shadcn's own internal imports.`,
+            })),
+            {
+              name: "@/db/admin",
+              message:
+                "dbAdmin bypasses row-level security. Use db.rls() from '@/db' instead. If you genuinely need admin access, move the code to scripts/.",
+            },
+          ],
         },
       ],
     },
