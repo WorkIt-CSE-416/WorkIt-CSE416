@@ -1,8 +1,10 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
-/.pnp
+# Dependencies. Unanchored on purpose: these live inside each workspace folder
+# (frontend/node_modules, and backend/ when it lands), not at the repo root, so
+# a leading slash would match nothing.
+node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -11,14 +13,14 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage/
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+build/
 
 # misc
 .DS_Store
@@ -44,5 +46,6 @@ next-env.d.ts
 claudeskill_reports/
 
 # Agent-generated design specs and implementation plans: local scratch, not
-# project documentation. docs/drizzle.md and docs/shadcn.md are the real docs.
+# project documentation. frontend/docs/drizzle.md and frontend/docs/shadcn.md
+# are the real docs.
 docs/superpowers/

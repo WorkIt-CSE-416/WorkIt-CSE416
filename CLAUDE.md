@@ -1,179 +1,81 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working in this
+repository. It covers what is true repo-wide. The Next.js app has its own
+guidance in `frontend/CLAUDE.md`, which is loaded on top of this one whenever
+you touch a file in there — read it before writing app code.
 
-@AGENTS.md
+## Repo layout
 
-## Stack
+```
+frontend/         The Next.js app, and the whole build. Self-contained:
+                  package.json, node_modules, lockfile and every toolchain
+                  config live in here. See frontend/CLAUDE.md.
+.claude/          Skills and settings for Claude Code, repo-wide
+.vscode/          Shared editor settings and extension recommendations
+package.json      No dependencies. Scripts only, each one forwarding to
+                  frontend (see Commands)
+.nvmrc            Node version for the whole team
+.gitattributes    LF normalization
+```
 
-Next.js 16 (App Router, Turbopack) · React 19 · TypeScript (strict) · Tailwind CSS v4 · ESLint 9 · Prettier.
+Team prose docs moved down with the app, to `frontend/docs/` — everything in
+there is currently about the frontend. Add a root `docs/` back if something
+genuinely cross-cutting ever needs a home.
 
-Node.js 20.9+ is required; the repo targets 22 LTS (`.nvmrc`).
+A `backend/` sibling is planned and **does not exist yet — do not create it.**
+When it arrives it gets the same treatment: self-contained, its own dependency
+manifest, its own `backend/CLAUDE.md`.
+
+### Why two folders rather than one project at the root
+
+So the two halves can have separate dependency trees and separate toolchains
+without arguing. A Next.js project insists on owning the directory it is
+invoked from — it resolves `src/app` and `next.config.ts` relative to that —
+so "the frontend lives in a subfolder" and "the frontend keeps its config at
+the repo root" cannot both be true. Everything the app needs moved down
+together.
+
+It also splits this guidance the way the work actually splits: the root file is
+always in context, `frontend/CLAUDE.md` loads when you are in the frontend, and
+a future backend task will not drag the app's component conventions along with
+it.
+
+The trade is that dependencies now have a correct home and an incorrect one.
+**`npm install <pkg>` belongs in `frontend/`, never at the repo root** — an
+install here would write a second `node_modules` and a second lockfile that
+nothing builds from.
 
 ## Commands
 
-```
-npm run dev          # dev server on :3000
-npm run build        # production build
-npm start            # serve the production build
-npm run lint         # eslint      (lint:fix to autofix)
-npm run typecheck    # next typegen + tsc --noEmit
-npm run format       # prettier    (format:check to verify only)
-npm run clean        # remove .next, out, coverage, tsbuildinfo
-npm run db:generate  # write a migration from the schema
-npm run db:migrate   # apply pending migrations
-npm run db:studio    # browse the database
-npm run db:check     # verify the connection
-```
-
-There is no test runner yet. When one is added, document it here.
-
-`typecheck` runs `next typegen` first on purpose: `LayoutProps`/`PageProps` are
-generated route types that do not exist on a fresh clone, so bare `tsc` fails.
-
-## Architecture
+Every script lives in `frontend/package.json`. The root `package.json` mirrors
+them, so both of these work:
 
 ```
-src/app/          App Router routes, layouts, pages
-  layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
-  page.tsx        Route "/"
-  globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
-  (seeker)/       Job-seeker shell — top bar, and every screen behind it
-  company/        Company shell — a left panel plus a top bar, for the other
-                  account type, under /company/* so the two audiences cannot
-                  collide on a URL. /company is the hiring dashboard;
-                  table.tsx is the sortable/filterable table its two list
-                  screens share.
-  login/          Auth screens, outside both shells
-  design-kit/     Every token and component, one route per section, resolved
-                  from the live stylesheet — outside both shells on purpose.
-                  Section titles and notes live in its data.ts so the nav and
-                  each page heading cannot disagree.
-  <route>/data.ts The fixture a screen renders, kept out of its page.tsx
-src/components/   Shared components
-  logo.tsx        The WorkIt logo — picks lockup or icon per size
-  icons.tsx       Glyphs used by more than one route
-  avatar.tsx      Initials stand-in for a profile photo
-  nav-link.tsx    Top-bar tab that underlines itself on its own route
-  account-menu.tsx  The avatar dropdown; each shell passes its own items
-  ui/             Presentational primitives: badge, button, card, company-tile,
-                  fact, filter-chip, icon-button, search-field, section-heading,
-                  text-field, text-link
-  shadcn/         Vendored shadcn/ui components — generated, treat as read-only
-    hooks/        Vendored hooks, same rule (components.json points here, so
-                  `shadcn add` never writes a top-level src/hooks)
-src/db/           Drizzle data layer — read docs/drizzle.md first
-  client.ts       Both postgres.js connections; nothing else opens one
-  index.ts        `db.rls()` — the only handle app code may import
-  admin.ts        Bypasses RLS. Scripts only; an ESLint rule enforces it
-  rls.ts          Transaction wrapper: verified claims, role switch
-  schema/         Tables. Empty until the first one is modelled
-src/lib/          Framework-free helpers
-  cn.ts           Class-name joiner — clsx + tailwind-merge
-  supabase/server.ts  Per-request client, used only to read the session
-public/           Static assets served from /
-  workit-logo.png Full lockup, 1256x448 — auth card and app top bar
-  workit-icon.png Mark only, 481x448 — favicon source only
-scripts/          Repo maintenance scripts — plain Node, never shell
-docs/             Prose docs for the team
-  shadcn.md       What shadcn is, how it is wired here, how to pull components
-components.json   shadcn config — see docs/shadcn.md before changing its aliases
+npm run dev                    # from the repo root
+npm --prefix frontend run dev  # from the repo root, explicitly
+npm run dev                    # from inside frontend/
 ```
 
-Anything shared by more than one route lives in `src/components`; anything used
-by exactly one route stays beside it (`company/placeholder.tsx`, the per-route
-`icons.tsx` files). Promote on the second consumer, not in anticipation of one —
-the app shell's avatar, nav link and account menu moved to `src/components` the
-day the company shell became that second consumer.
-Styling for a control belongs in its component, not inline at the call site —
-`src/components/ui/button.tsx` is the only place button classes are written, and
-it carries the variant and size maps.
+The full list — `dev`, `build`, `start`, `lint`, `lint:fix`, `typecheck`,
+`format`, `format:check`, `clean`, `db:generate`, `db:migrate`, `db:studio`,
+`db:check`, `favicon` — is documented with what each one does in
+`frontend/CLAUDE.md`. First-time setup is `npm run install:frontend` from the
+root, or `npm install` inside `frontend/`.
 
-## Two audiences
-
-Seekers and companies are different account types, not modes. Seeker screens sit
-at the root (`/applications`, `/jobs`) inside the `(seeker)` route group; company
-screens sit under a real `/company` prefix with their own `company/layout.tsx`.
-
-The parentheses in `(seeker)` mean "group these under one layout without adding
-a URL segment", so a route group is free but cannot disambiguate. Two of them
-cannot both define `/profile`, and both audiences need one — hence the prefix on
-the company side rather than a second invisible group. It also means the auth
-guard is one path check covering routes nobody has written yet.
-
-The two top bars are separate files on purpose. Their shared parts are already
-shared components; what is left is a tab list and one button. Lift a `<TopBar>`
-out only if they are still near-identical once both sides are real screens.
-
-Name a variant for the role it plays, never for how it looks: `primary`,
-`positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette
-change; colours do not.
-
-`src/components/ui` and `src/components/shadcn` are not interchangeable. The
-first is hand-written from the mockups and is what screens should import. The
-second is vendored by `npx shadcn@latest add` for the interactive primitives we
-have not built — dialogs, selects, popovers — and is regenerated in place, so
-hand edits there are a fork. shadcn's colour roles are aliased onto WorkIt's
-tokens at the bottom of `globals.css`, which is why a generated component needs
-no restyling — fix the mapping there rather than the component.
-
-The two company list screens share `app/company/table.tsx` — a TanStack Table
-shell over shadcn's `Table`, with sorting, filtering and row selection. **It is
-TanStack v9, and every shadcn data-table example in circulation is v8**: v8's
-`useReactTable` and `getCoreRowModel()` options do not exist, features and their
-sort/filter functions must be registered explicitly in `tableFeatures`, and
-cells render through `<table.FlexRender />`. The library ships its own guides in
-`node_modules/@tanstack/react-table/skills` — read those rather than a blog
-post. Select-all deliberately covers the filtered rows only; both
-`getIsAllRowsSelected` and `toggleAllRowsSelected` resolve to the filtered row
-model, so a filtered list cannot select rows nobody can see.
-
-There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
-size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
-`positive`) while painting the mockups' styling, so a component pasted from the
-shadcn docs composes without edits and still looks like WorkIt.
-`shadcn/button.tsx` is a re-export pointing back at it, and an ESLint rule keeps
-app code on the canonical path — likewise for `badge` and `card`, which are not
-re-exports.
-
-**Read `docs/shadcn.md` before running any `shadcn` command**; several settings
-differ from a stock install and re-running `init` would silently undo them.
-
-**Always build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
-does not resolve Tailwind conflicts: two utilities from the same group both land
-in the class attribute and the winner is decided by the order Tailwind emitted
-them into the stylesheet, not by the order you wrote them. `cn()` drops the
-loser, so a `className` override behaves the way it reads. It cannot help across
-utility groups — `border` and `border-t-*` are separate properties and both
-survive — which is why `ui/card.tsx` sets its accent edge one side at a time.
-
-A screen's fixture data lives in a sibling `data.ts`, not inside `page.tsx`, so
-a page file is layout and the swap to real data touches one file per screen.
-
-Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
-— there is no `tailwind.config.js`. Add design tokens there. The file also
-records two open questions for whoever owns the mockups: the login and app
-screens disagree about which hex is a page and which is a card, and the board's
-grey "Applied" chip may or may not be a second chip token.
-
-There are two database handles and they are not interchangeable. `db.rls()`
-from `@/db` runs inside a transaction as the `authenticated` role, so row-level
-security applies; it is what screens and server actions use. `dbAdmin` from
-`@/db/admin` connects as the table owner and bypasses every policy — scripts
-and migrations only, and an ESLint rule blocks it elsewhere under `src/`.
-
-**Read `docs/drizzle.md` before adding a table or changing the schema.**
-
-`@/*` maps to `src/*`.
+Adding a script to `frontend/package.json` does not make it available from the
+root; add the forwarding line here too if it should be.
 
 ## Cross-platform rules
 
 The team develops on both macOS and Windows. Keep it that way:
 
 - **Never write shell-specific npm scripts.** No `rm -rf`, no `&&`-chained unix
-  utilities, no `$(...)`, no POSIX path separators in scripts. If a task needs
-  more than a single binary invocation, add a Node script under `scripts/` (see
-  `scripts/clean.mjs`).
+  utilities, no `$(...)`, no POSIX path separators in scripts, and no `cd` — a
+  single binary invocation, which is why the root scripts use npm's own
+  `--prefix` flag instead of changing directory. If a task needs more than one
+  invocation, add a Node script under `frontend/scripts/` (see
+  `frontend/scripts/clean.mjs`).
 - Line endings are normalized to LF by `.gitattributes`. Do not commit CRLF, and
   do not add files that require it except `.bat`/`.cmd`/`.ps1`.
 - Build paths with `node:path`, never by concatenating `/`.
@@ -181,12 +83,15 @@ The team develops on both macOS and Windows. Keep it that way:
 ## Conventions
 
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`.
-- Prettier owns formatting for code; it is configured to skip `CLAUDE.md`,
-  `AGENTS.md`, `README.md`, and `.claude/` (see `.prettierignore`).
+- Prettier owns formatting for code and runs from `frontend/`; it is configured
+  to skip the markdown docs. The repo root's `CLAUDE.md` and `README.md` are
+  outside its reach entirely.
 
 ## Project-local skill
 
-`.claude/skills/pr-review/SKILL.md` defines a `pr-review` skill used for pre-PR review and bug hunting. Its notable conventions, which apply to review work in this repo:
+`.claude/skills/pr-review/SKILL.md` defines a `pr-review` skill used for pre-PR
+review and bug hunting. Its notable conventions, which apply to review work in
+this repo:
 
 - Output is a severity-ranked **markdown report written to `claudeskill_reports/pr-review/`** — not a chat summary, and not edits to the author's code. The author decides what to act on.
 - Reviews must first reconstruct *intended* behavior (from tests, callers, docstrings, schemas) before looking for defects — never review code against itself.

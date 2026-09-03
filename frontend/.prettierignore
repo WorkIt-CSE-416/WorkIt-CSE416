@@ -10,9 +10,9 @@ package-lock.json
 # would be undone the next time anyone touches the schema.
 drizzle/
 
-# Pre-existing project docs and skill definitions: leave formatting alone.
+# Project docs: leave formatting alone. Prettier runs from this folder, so
+# these are frontend/CLAUDE.md and frontend/AGENTS.md -- the repo-root
+# CLAUDE.md, README.md and .claude/ are outside its reach entirely and need no
+# entry here.
 CLAUDE.md
 AGENTS.md
-README.md
-.claude/
-claudeskill_reports/
