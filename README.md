@@ -31,6 +31,10 @@ npm run dev
 
 Open http://localhost:3000. Editing `src/app/page.tsx` hot-reloads the page.
 
+Database work additionally needs `.env.local` — copy `.env.example` and fill it
+in from the Supabase dashboard. The app runs without it; every screen still
+renders fixture data.
+
 ## Scripts
 
 Every script is cross-platform and runs identically in macOS Terminal, Windows
@@ -47,6 +51,10 @@ PowerShell, and cmd.exe.
 | `npm run format` | Format with Prettier |
 | `npm run format:check` | Verify formatting without writing |
 | `npm run clean` | Delete `.next`, `out`, `coverage`, build info |
+| `npm run db:generate` | Generate a SQL migration from the Drizzle schema |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:studio` | Browse the database in Drizzle Studio |
+| `npm run db:check` | Verify the database connection works |
 
 ## Project layout
 
@@ -57,6 +65,8 @@ src/app/          App Router routes, layouts, and pages
   globals.css     Tailwind entry point and theme tokens
 public/           Static assets served from /
 scripts/          Repo maintenance scripts (plain Node, no shell)
+src/db/           Drizzle schema, connections, and the RLS query wrapper
+docs/drizzle.md   How the database is wired — read before adding a table
 ```
 
 Import from `src/` with the `@/` alias, e.g. `import { Foo } from "@/app/foo"`.

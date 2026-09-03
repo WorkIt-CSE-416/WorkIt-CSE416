@@ -20,6 +20,10 @@ npm run lint         # eslint      (lint:fix to autofix)
 npm run typecheck    # next typegen + tsc --noEmit
 npm run format       # prettier    (format:check to verify only)
 npm run clean        # remove .next, out, coverage, tsbuildinfo
+npm run db:generate  # write a migration from the schema
+npm run db:migrate   # apply pending migrations
+npm run db:studio    # browse the database
+npm run db:check     # verify the connection
 ```
 
 There is no test runner yet. When one is added, document it here.
@@ -58,8 +62,15 @@ src/components/   Shared components
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
+src/db/           Drizzle data layer — read docs/drizzle.md first
+  client.ts       Both postgres.js connections; nothing else opens one
+  index.ts        `db.rls()` — the only handle app code may import
+  admin.ts        Bypasses RLS. Scripts only; an ESLint rule enforces it
+  rls.ts          Transaction wrapper: verified claims, role switch
+  schema/         Tables. Empty until the first one is modelled
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
+  supabase/server.ts  Per-request client, used only to read the session
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448 — auth card and app top bar
   workit-icon.png Mark only, 481x448 — favicon source only
@@ -144,6 +155,14 @@ Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
 records two open questions for whoever owns the mockups: the login and app
 screens disagree about which hex is a page and which is a card, and the board's
 grey "Applied" chip may or may not be a second chip token.
+
+There are two database handles and they are not interchangeable. `db.rls()`
+from `@/db` runs inside a transaction as the `authenticated` role, so row-level
+security applies; it is what screens and server actions use. `dbAdmin` from
+`@/db/admin` connects as the table owner and bypasses every policy — scripts
+and migrations only, and an ESLint rule blocks it elsewhere under `src/`.
+
+**Read `docs/drizzle.md` before adding a table or changing the schema.**
 
 `@/*` maps to `src/*`.
 

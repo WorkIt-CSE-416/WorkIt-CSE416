@@ -169,7 +169,7 @@ export function Trend() {
 
         {/* Base UI's ToggleGroup gives this arrow-key navigation and one tab
             stop, which a row of buttons would not.
-            
+
             `value` is an array, and an EMPTY one is meaningful here rather than
             a state to guard against: a window picked from the calendar matches
             no preset, and pressing nothing is the honest rendering of that.
@@ -289,7 +289,7 @@ export function Trend() {
                thirty days, so normally there are none — just one on hover,
                sized past the 8px floor so it is a target and not merely a
                highlight.
-               
+
                THE EXCEPTION IS A WINDOW OF ONE OR TWO DAYS, which Today,
                Yesterday and This Month can all produce. An area needs width to
                be visible at all: at a single point the fill has none and the
