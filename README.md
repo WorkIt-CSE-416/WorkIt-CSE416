@@ -43,6 +43,10 @@ npm run dev
 **Install dependencies in `frontend/`, not at the repo root.** The root
 `package.json` has no dependencies — it only forwards the scripts below.
 
+Database work additionally needs `frontend/.env.local` — copy
+`frontend/.env.example` and fill it in from the Supabase dashboard. The app runs
+without it; every screen still renders fixture data.
+
 ## Scripts
 
 Every script is cross-platform and runs identically in macOS Terminal, Windows
@@ -60,6 +64,10 @@ mirrored at the repo root, so each one works from either folder.
 | `npm run format` | Format with Prettier |
 | `npm run format:check` | Verify formatting without writing |
 | `npm run clean` | Delete `.next`, `out`, `coverage`, build info |
+| `npm run db:generate` | Generate a SQL migration from the Drizzle schema |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:studio` | Browse the database in Drizzle Studio |
+| `npm run db:check` | Verify the database connection works |
 | `npm run favicon` | Rebuild the favicon from `public/workit-icon.png` |
 | `npm run install:frontend` | Install frontend dependencies (root only) |
 
@@ -74,11 +82,13 @@ frontend/         The Next.js app — its own package.json and node_modules
     layout.tsx    Root layout (fonts, metadata, <html>/<body>)
     page.tsx      Route "/"
     globals.css   Tailwind entry point and theme tokens
+  src/db/         Drizzle schema, connections, and the RLS query wrapper
   src/components/ Shared components
   src/lib/        Framework-free helpers
   public/         Static assets served from /
   scripts/        Maintenance scripts (plain Node, no shell)
   docs/           Prose docs for the team
+    drizzle.md    How the database is wired — read before adding a table
 package.json      Scripts that forward into frontend/; no dependencies
 ```
 

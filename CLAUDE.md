@@ -58,9 +58,10 @@ npm run dev                    # from inside frontend/
 ```
 
 The full list — `dev`, `build`, `start`, `lint`, `lint:fix`, `typecheck`,
-`format`, `format:check`, `clean`, `favicon` — is documented with what each one
-does in `frontend/CLAUDE.md`. First-time setup is `npm run install:frontend`
-from the root, or `npm install` inside `frontend/`.
+`format`, `format:check`, `clean`, `db:generate`, `db:migrate`, `db:studio`,
+`db:check`, `favicon` — is documented with what each one does in
+`frontend/CLAUDE.md`. First-time setup is `npm run install:frontend` from the
+root, or `npm install` inside `frontend/`.
 
 Adding a script to `frontend/package.json` does not make it available from the
 root; add the forwarding line here too if it should be.

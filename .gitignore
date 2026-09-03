@@ -44,3 +44,8 @@ next-env.d.ts
 
 # claude skill reports
 claudeskill_reports/
+
+# Agent-generated design specs and implementation plans: local scratch, not
+# project documentation. frontend/docs/drizzle.md and frontend/docs/shadcn.md
+# are the real docs.
+docs/superpowers/

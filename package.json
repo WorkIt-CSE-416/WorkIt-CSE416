@@ -12,6 +12,10 @@
     "format": "npm --prefix frontend run format",
     "format:check": "npm --prefix frontend run format:check",
     "clean": "npm --prefix frontend run clean",
+    "db:generate": "npm --prefix frontend run db:generate",
+    "db:migrate": "npm --prefix frontend run db:migrate",
+    "db:studio": "npm --prefix frontend run db:studio",
+    "db:check": "npm --prefix frontend run db:check",
     "favicon": "npm --prefix frontend run favicon",
     "install:frontend": "npm --prefix frontend install"
   }
