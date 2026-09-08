@@ -28,6 +28,7 @@ CREATE TYPE job_post_status       AS ENUM ('draft', 'published', 'closed');
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS ltree;    -- role hierarchy
+CREATE EXTENSION IF NOT EXISTS pg_trgm;  -- gin_trgm_ops, fuzzy role/alias search
 ```
 
 ## Tables
@@ -54,7 +55,7 @@ CREATE TABLE job_postings (
     salary_max      integer,
     salary_currency char(3) NOT NULL DEFAULT 'USD',
     salary_period   salary_period NOT NULL DEFAULT 'year',
-    status       job_status  NOT NULL DEFAULT 'draft',
+    status       job_post_status  NOT NULL DEFAULT 'draft',
     uploaded_at timestamptz NOT NULL,              
     closes_at    timestamptz,
     updated_at   timestamptz NOT NULL DEFAULT now(),
@@ -66,11 +67,11 @@ CREATE TABLE job_postings (
         (salary_min IS NULL OR salary_min >= 0) AND (salary_max IS NULL OR salary_max >= 0)
     ),
     CONSTRAINT salary_exist CHECK (
-        (salary NOT NULL) OR (salary_min NOT NULL and salary_max NOT NULL)
-    ), 
+        salary IS NOT NULL OR (salary_min IS NOT NULL AND salary_max IS NOT NULL)
+    )
 );
 -- sort by status and publish date newest first 
-CREATE INDEX job_postings_board_idx    ON job_postings (status, published_at DESC);
+CREATE INDEX job_postings_board_idx    ON job_postings (status, uploaded_at DESC);
 
 -- index the company_id, so every delete company efficiently deletes every job posting under that company without sequentially scanning 
 CREATE INDEX job_postings_company_idx  ON job_postings (company_id);
@@ -82,11 +83,11 @@ CREATE TABLE job_roles (
     id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     parent_id  uuid REFERENCES job_roles (id) ON DELETE CASCADE,
     role_name      text  NOT NULL,
-    path       ltree NOT NULL UNIQUE,   -- engineering.software.backend
+    path       ltree NOT NULL UNIQUE    -- engineering.software.backend
 );
 CREATE INDEX job_roles_path_idx   ON job_roles USING gist (path);
 CREATE INDEX job_roles_parent_idx ON job_roles (parent_id);
-CREATE INDEX job_roles_label_trgm ON job_roles USING gin (label gin_trgm_ops);
+CREATE INDEX job_roles_role_name_trgm ON job_roles USING gin (role_name gin_trgm_ops);
 
 -- One row per job-role PAIR. A posting has as many rows here as it has roles.
 CREATE TABLE job_role_tags (
