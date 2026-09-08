@@ -1,19 +1,25 @@
 # Job Posting — Schema Design
 
 Tables:
-- job_postings: each job individual information  
-    - each job posting will point to a specific tag 
-- job_role: all kinds of roles that serve as tags 
-    - this table stores all the common job titles such as "Software Engineer", "Mechanical Engineer", etc. 
-    - each job role may have a parent ID if it's a subclass of the role (such as front end dev -> software eng) 
-- job_alias: all unconventional/abbreviated job role names 
-    - each will point to a job role  
-- job_post_to_role: table highlighting which job posting points to which role 
-- alias_to_role: table indicating which alias points to which job_role 
-- location: stores all locations from country to cities. Each entry has a country_id indicating which country it refers to 
-- job_post_to_location: indicating which job posting points to which location 
+- `job_postings`: one row per job, holding the posting's own information —
+  title, description, type/experience/work style, salary, status and dates.
+  A posting can carry any number of role tags (see `job_role_tags`).
+- `job_roles`: the canonical job titles used as tags — "Software Engineer",
+  "Mechanical Engineer", etc.
+    - the roles form a tree: `parent_id` points at the broader role
+      (front end dev -> software eng), and `path` is the same hierarchy as an
+      `ltree` value (`engineering.software.backend`) so a search for a parent
+      role can match everything beneath it.
+- `job_role_tags`: the job posting <-> job role join table. One row per pair,
+  so a posting tagged with three roles has three rows here.
+- `role_aliases`: the unconventional or abbreviated names people type instead
+  of the canonical one — SWE, programmer, ui engineer. Each alias belongs to
+  exactly one role, stored on the row itself (`role_id`), so no separate join
+  table is needed.
 
-
+Location is **not** its own table: a posting stores `location_city` and
+`location_country` (ISO 3166-1 alpha-2) directly on `job_postings`, and both
+are NULL when the job is fully remote.
 
 ## Enumerated types
 ```sql
@@ -78,7 +84,7 @@ CREATE INDEX job_postings_company_idx  ON job_postings (company_id);
 ```
 
 ```sql
--- The roles themselves, as a tree. company_id NULL is a curated role
+-- The roles themselves, as a tree
 CREATE TABLE job_roles (
     id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     parent_id  uuid REFERENCES job_roles (id) ON DELETE CASCADE,
