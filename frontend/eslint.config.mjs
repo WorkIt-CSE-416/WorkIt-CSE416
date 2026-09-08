@@ -32,15 +32,26 @@ const eslintConfig = defineConfig([
     // ui/select.tsx is the one file outside shadcn/ that has to reach the
     // vendored path: it wraps that component rather than replacing it, so the
     // canonical import it points everyone else at is its own.
-    ignores: ["src/components/shadcn/**", "src/components/ui/select.tsx"],
+    ignores: [
+      "src/components/shadcn/**",
+      "src/components/ui/select.tsx",
+      "src/db/**",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          paths: DUPLICATED_PRIMITIVES.map((name) => ({
-            name: `@/components/shadcn/${name.toLowerCase()}`,
-            message: `Import { ${name} } from "@/components/ui/${name.toLowerCase()}" instead — that is the canonical path; the shadcn one exists for shadcn's own internal imports.`,
-          })),
+          paths: [
+            ...DUPLICATED_PRIMITIVES.map((name) => ({
+              name: `@/components/shadcn/${name.toLowerCase()}`,
+              message: `Import { ${name} } from "@/components/ui/${name.toLowerCase()}" instead — that is the canonical path; the shadcn one exists for shadcn's own internal imports.`,
+            })),
+            {
+              name: "@/db/admin",
+              message:
+                "dbAdmin bypasses row-level security. Use db.rls() from '@/db' instead. If you genuinely need admin access, move the code to scripts/.",
+            },
+          ],
         },
       ],
     },

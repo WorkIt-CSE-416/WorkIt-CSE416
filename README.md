@@ -25,16 +25,33 @@ Check with `node -v`. If you need to install or switch versions:
 ```bash
 git clone https://github.com/WorkIt-CSE-416/WorkIt-CSE416.git
 cd WorkIt-CSE416
+npm run install:frontend
+npm run dev
+```
+
+Open http://localhost:3000. Editing `frontend/src/app/page.tsx` hot-reloads the
+page.
+
+The app itself lives in `frontend/`, so you can also work from in there:
+
+```bash
+cd frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Editing `src/app/page.tsx` hot-reloads the page.
+**Install dependencies in `frontend/`, not at the repo root.** The root
+`package.json` has no dependencies — it only forwards the scripts below.
+
+Database work additionally needs `frontend/.env.local` — copy
+`frontend/.env.example` and fill it in from the Supabase dashboard. The app runs
+without it; every screen still renders fixture data.
 
 ## Scripts
 
 Every script is cross-platform and runs identically in macOS Terminal, Windows
-PowerShell, and cmd.exe.
+PowerShell, and cmd.exe. They are defined in `frontend/package.json` and
+mirrored at the repo root, so each one works from either folder.
 
 | Command | What it does |
 | --- | --- |
@@ -47,19 +64,37 @@ PowerShell, and cmd.exe.
 | `npm run format` | Format with Prettier |
 | `npm run format:check` | Verify formatting without writing |
 | `npm run clean` | Delete `.next`, `out`, `coverage`, build info |
+| `npm run db:generate` | Generate a SQL migration from the Drizzle schema |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:studio` | Browse the database in Drizzle Studio |
+| `npm run db:check` | Verify the database connection works |
+| `npm run favicon` | Rebuild the favicon from `public/workit-icon.png` |
+| `npm run install:frontend` | Install frontend dependencies (root only) |
 
 ## Project layout
 
+The repo is split by tier. A `backend/` folder will sit beside `frontend/` once
+there is a backend; it does not exist yet.
+
 ```
-src/app/          App Router routes, layouts, and pages
-  layout.tsx      Root layout (fonts, metadata, <html>/<body>)
-  page.tsx        Route "/"
-  globals.css     Tailwind entry point and theme tokens
-public/           Static assets served from /
-scripts/          Repo maintenance scripts (plain Node, no shell)
+frontend/         The Next.js app — its own package.json and node_modules
+  src/app/        App Router routes, layouts, and pages
+    layout.tsx    Root layout (fonts, metadata, <html>/<body>)
+    page.tsx      Route "/"
+    globals.css   Tailwind entry point and theme tokens
+  src/db/         Drizzle schema, connections, and the RLS query wrapper
+  src/components/ Shared components
+  src/lib/        Framework-free helpers
+  public/         Static assets served from /
+  scripts/        Maintenance scripts (plain Node, no shell)
+  docs/           Prose docs for the team
+    drizzle.md    How the database is wired — read before adding a table
+package.json      Scripts that forward into frontend/; no dependencies
 ```
 
-Import from `src/` with the `@/` alias, e.g. `import { Foo } from "@/app/foo"`.
+Import from `frontend/src/` with the `@/` alias, e.g.
+`import { Foo } from "@/app/foo"`. The alias does not reach outside
+`frontend/`.
 
 ## Cross-platform notes
 
@@ -72,7 +107,8 @@ The repo is set up so macOS and Windows contributors produce identical diffs:
 - npm scripts avoid shell-specific syntax; `clean` is a Node script rather than
   `rm -rf`.
 
-**Windows only:** if `npm install` fails on long paths inside `node_modules`,
+**Windows only:** if `npm install` fails on long paths inside
+`frontend/node_modules`,
 enable long path support once:
 
 ```powershell
