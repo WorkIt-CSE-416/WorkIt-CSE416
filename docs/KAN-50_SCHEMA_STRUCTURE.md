@@ -91,10 +91,16 @@ and each value stores the last recognized wording and the user-approved answer.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `applicant_id` | `uuid` | Primary key. References `applicant_profiles.profile_id` with `ON DELETE CASCADE`. |
+| `applicant_profile_id` | `uuid` | Primary key. References `applicant_profiles.profile_id` with `ON DELETE CASCADE`. |
 | `answers` | `jsonb` | `NOT NULL DEFAULT '{}'::jsonb`. Maps stable question keys to `question_text` and `answer`. |
 | `created_at` | `timestamptz` | Default now. |
 | `updated_at` | `timestamptz` | Updated by app or trigger. |
+
+Constraints:
+- `CHECK (jsonb_typeof(answers) = 'object')`.
+
+Write rule:
+- Update individual answer keys atomically with PostgreSQL `jsonb_set`; do not replace the bank from stale client state.
 
 RLS:
 - Applicant can read/write only their own answers.
@@ -120,7 +126,9 @@ One row per employer/company account.
 
 RLS:
 - Public/seeker reads should eventually see published company profile fields.
-- Active members can read their company; only active owners can update company information.
+- Active members can read their company.
+- Active owners and admins can update company information.
+- Only owners can delete the company or transfer ownership.
 
 ### company_memberships
 
@@ -142,10 +150,16 @@ Constraints:
 
 RLS:
 - Users can read their own memberships.
-- Active owners can update company information and manage memberships.
-- Active admins can manage recruiter memberships but cannot update company information.
+- Active owners can manage every membership and transfer ownership.
+- Active admins can manage recruiter memberships but cannot grant owner/admin access.
 - Active recruiters can read company-scoped recruiting data but cannot manage memberships.
 - Ownership comes only from active `owner` memberships; `companies.owner_id` is intentionally omitted.
+
+Delete behavior:
+- Hard-deleting an auth user cascades only through their dependent profile, applicant, autofill, and membership rows.
+- Deactivating a user changes authorization state and does not delete their data.
+- Deleting a company cascades through its memberships but never deletes user profiles.
+- Future resumes, applications, and audit records require their own retention rules; cascade is not a universal default.
 
 ## Argument For Key Columns
 
@@ -154,7 +168,7 @@ RLS:
 | Identity | `id`, `profile_id`, `company_id` | Stable UUID joins that map cleanly to Supabase Auth, RLS policies, and future foreign keys. |
 | Access | `company_memberships.role`, `status` | Company access comes from active memberships, while applicant access comes from an applicant profile. |
 | Display/contact | `email`, `full_name`, `phone_number`, `avatar_url`, links, `location` | Lets the UI and autofiller use shared contact data without duplicating it by user type. |
-| Autofill reuse | `applicant_id`, `answers` | One JSONB answer bank handles portal-specific wording without adding one row per question. |
+| Autofill reuse | `applicant_profile_id`, `answers` | One JSONB answer bank handles portal-specific wording without adding one row per question. |
 | Company basics | `name`, `slug`, `website_url`, `contact_email`, `contact_phone`, `logo_url`, `description`, `industry`, `size_range` | Enough public employer data for dashboards and future job pages without modeling jobs yet. |
 | Auditability | `created_at`, `updated_at` | Required for sorting, sync, debugging, and future admin review. |
 
@@ -240,7 +254,11 @@ close enough to sanity-check the schema against public code and docs.
 - A user can be both an applicant and an HR member. No global user role is needed.
 - Active company memberships are the authorization source for HR access.
 - Active owner memberships are the ownership source; companies do not duplicate an `owner_id`.
-- Deleting a user cascades through user-owned rows and memberships, but never deletes a company.
+- Hard-deleting a user cascades through dependent identity/access rows and memberships, but never deletes a company.
+- Deactivating a user preserves data and removes access through authorization state.
 - Deleting a company cascades through its memberships, but never deletes user profiles.
+- JSONB is the MVP answer-bank format; use relational answer rows when per-answer history, provenance, or concurrent workflows are required.
+- `company_size_range` uses fixed MVP buckets; changing those buckets requires a migration.
+- The `reviewer` role is deferred until delegated ATS review is implemented.
 - Company creation is self-serve for MVP.
-- Resume storage and parsing are outside KAN-50 and owned by Brian's separate work.
+- Resume storage and parsing are outside KAN-50 and owned by Brian's separate work; that design should reconsider `file_hash` for deduplication and idempotent parsing.
