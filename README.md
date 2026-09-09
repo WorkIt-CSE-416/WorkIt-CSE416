@@ -1,4 +1,7 @@
 # WorkIt-CSE416
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 CSE 416 Final Project Group
 
 By Xiang, Brian, Andrew, Lisul, Vedant
@@ -90,6 +93,7 @@ frontend/         The Next.js app — its own package.json and node_modules
   docs/           Prose docs for the team
     drizzle.md    How the database is wired — read before adding a table
 package.json      Scripts that forward into frontend/; no dependencies
+LICENSE           MIT license for the whole repo
 ```
 
 Import from `frontend/src/` with the `@/` alias, e.g.
@@ -114,3 +118,12 @@ enable long path support once:
 ```powershell
 git config --global core.longpaths true
 ```
+
+## License
+
+[MIT](LICENSE) — © 2026 Xiang Liu, Brian Cao, Andrew Shi, Lisul Elvitigala,
+Vedant Vyas.
+
+You are free to use, modify, and redistribute this code, including
+commercially, as long as the copyright notice and license text travel with it.
+The software comes with no warranty.
