@@ -259,6 +259,5 @@ close enough to sanity-check the schema against public code and docs.
 - Deleting a company cascades through its memberships, but never deletes user profiles.
 - JSONB is the MVP answer-bank format; use relational answer rows when per-answer history, provenance, or concurrent workflows are required.
 - `company_size_range` uses fixed MVP buckets; changing those buckets requires a migration.
-- The `reviewer` role is deferred until delegated ATS review is implemented.
 - Company creation is self-serve for MVP.
 - Resume storage and parsing are outside KAN-50 and owned by Brian's separate work; that design should reconsider `file_hash` for deduplication and idempotent parsing.
