@@ -17,6 +17,7 @@ package.json      No dependencies. Scripts only, each one forwarding to
                   frontend (see Commands)
 .nvmrc            Node version for the whole team
 .gitattributes    LF normalization
+LICENSE           MIT license covering the whole repo
 ```
 
 Team prose docs moved down with the app, to `frontend/docs/` — everything in
