@@ -1,0 +1,562 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+ * WorkIt design kit
+ *
+ * Extracted from the KAN-43 login mockup. The source PNG renders 1:1 (rules and
+ * borders land on exact single pixels, fills are flat), so mockup px == CSS px.
+ *
+ * Everything here was sampled from that mockup except the few tokens marked
+ * "derived" — the static screen shows no hover, active, or focus state and no
+ * dark theme, so those are extrapolated from the brand hue. Replace them as
+ * soon as real designs exist.
+ * ------------------------------------------------------------------------- */
+
+@theme static {
+  /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx. */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Surfaces ------------------------------------------------------------
+   * NEUTRALISED, the same way the app roles below were and for the same
+   * reason. Both were sampled blue — the card at #f8f8ff, which is CSS
+   * `ghostwhite`: red and green at 248 with blue at 255, and the page at
+   * #f7f9fc. Seven points on one channel is invisible in a swatch and reads
+   * as a cool cast once it is a whole field or a whole page, which is what it
+   * became: --color-surface is the fill of every text input, select and
+   * secondary button, not just the login card.
+   *
+   * The blue channel is dropped and the red/green kept, so the card sits at
+   * the lightness it was measured at. The page moves further, down to the
+   * app's own ground: once the hue is gone the two were within a point of
+   * each other, and one page grey is simpler than two nobody can tell apart. */
+  --color-canvas: #f5f5f5; /* page background behind the card */
+  --color-surface: #f8f8f8; /* card / raised panel — note: not pure white */
+  --color-surface-tint: #f1f7fa; /* logo tile, subtle tinted fills */
+
+  /* Borders ------------------------------------------------------------- */
+  --color-border: #e3e9f0; /* card outline */
+  --color-border-subtle: #e8ebf5; /* inputs, secondary buttons, rules */
+
+  /* Ink ----------------------------------------------------------------- */
+  --color-ink: #121a28; /* headings, secondary-button labels */
+  --color-ink-muted: #3b3e46; /* body copy, field labels, divider label */
+  --color-ink-subtle: #94969d; /* placeholders, input icons */
+
+  /* Brand --------------------------------------------------------------- */
+  --color-brand: #005cff; /* primary fill and links */
+  --color-on-brand: #ffffff; /* label sitting on a brand fill */
+  --color-brand-hover: #004fdb; /* derived: brand at 43% lightness */
+  --color-brand-active: #0042b8; /* derived: brand at 36% lightness */
+  --color-brand-ring: rgb(0 92 255 / 0.35); /* derived: focus ring */
+
+  /* Type ----------------------------------------------------------------
+   * Four sizes carry the whole login screen. Weights and tracking are baked
+   * into the token so a caption cannot be used without its letter-spacing. */
+  --text-caption: 0.6875rem; /* 11px — "OR CONTINUE WITH" */
+  --text-caption--line-height: 1rem;
+  --text-caption--font-weight: 600;
+  --text-caption--letter-spacing: 0.08em;
+
+  --text-label: 0.8125rem; /* 13px — field labels, links, social buttons */
+  --text-label--line-height: 1.125rem;
+  --text-label--font-weight: 500;
+
+  --text-body: 0.875rem; /* 14px — body copy, inputs, primary button */
+  --text-body--line-height: 1.25rem;
+
+  --text-title: 1.25rem; /* 20px — "Welcome Back" */
+  --text-title--line-height: 1.75rem;
+  --text-title--font-weight: 700;
+  --text-title--letter-spacing: -0.01em;
+
+  /* Radii ---------------------------------------------------------------- */
+  --radius-control: 0.5rem; /* 8px — inputs, buttons */
+  --radius-card: 0.625rem; /* 10px — card */
+
+  /* Elevation ------------------------------------------------------------
+   * Matches the measured falloff: ~10px below the card, ~8px to the sides. */
+  --shadow-card: 0 1px 2px rgb(18 26 40 / 0.04), 0 8px 20px rgb(18 26 40 / 0.06);
+
+  /* Layout --------------------------------------------------------------- */
+  --container-auth: 22.5rem; /* 360px — auth card, 320px content + 20px pad */
+
+  /* -------------------------------------------------------------------------
+   * App shell — added for the KAN-43 profile mockup
+   *
+   * That mockup exports at 0.82 scale (839px wide for a 1024px design). Every
+   * value below is the measurement scaled back up, which is how it lands on
+   * tokens the login screen had already defined: --color-brand, --color-ink,
+   * --color-ink-muted (the work-history body copy is #3b3e46 exactly), both
+   * radii and --text-title/--text-label all matched to within a pixel. Only
+   * the roles the profile screen actually introduces are new.
+   *
+   * KNOWN CONFLICT — the two mockups disagree about surfaces. Login paints the
+   * page #f7f9fc and the card #f8f8ff. Profile paints the page #f8f8ff, the
+   * card #ffffff, and a recessed well #f7f9fc. The same hex is a card on one
+   * screen and a page on the other, so no single token can be true for both.
+   * The login tokens above are therefore left untouched and the profile roles
+   * are added alongside them. A designer needs to reconcile the two before
+   * this becomes one coherent surface scale.
+   *
+   * Since then the app roles have been neutralised to pure grey — see the note
+   * on --color-app below. The hexes quoted in this block and in the
+   * applications block further down are what the mockups measure, which is
+   * still what they measure; they are no longer what the app paints.
+   * ---------------------------------------------------------------------- */
+
+  /* App surfaces ---------------------------------------------------------
+   * NEUTRALISED, and the one place the signed-in shell departs from what the
+   * mockups sample. Both greys were tinted blue — the page was #f8f8ff, which
+   * is CSS `ghostwhite`: red and green at 248 with blue at 255. Seven points on
+   * one channel is invisible in a swatch and clearly a cool cast once it is a
+   * whole page, and the well carried the same cast at #f7f9fc.
+   *
+   * They are now pure greys, R = G = B, so the only colour in the shell is
+   * colour something means: brand on an action, positive on an offer. The
+   * lightness order the mockups drew is kept — card lightest, then well, then
+   * page — with the page a shade deeper than it was (96% against the old 97.5%)
+   * so a white card has an edge to sit on now that the hue difference is gone. */
+  --color-app: #f5f5f5; /* page behind the cards; uploaded-file row */
+  --color-panel: #ffffff; /* top bar and cards */
+  --color-well: #f7f7f7; /* recessed area — the resume dropzone, match rail */
+
+  /* App interaction states -----------------------------------------------
+   * The fill a control takes when it is under the pointer, or is the one you
+   * are on. These were --color-brand-tint until they were not: a hovered menu
+   * row, a current nav item and a skill pill were all painted the same blue,
+   * which made half the shell look brand-coloured and left "you are here"
+   * saying nothing the row beside it did not.
+   *
+   * Grey, on the rule this file already states: the only colour in the shell
+   * is colour something means. Being hovered does not mean anything. Being
+   * current does, so that one keeps the brand — on the label, where it reads
+   * as emphasis, rather than as a slab behind it. This is also how shadcn's
+   * own palette is built: --accent is a neutral, and the brand lives in
+   * --primary.
+   *
+   * Two steps rather than one so a hovered row and the current row are not
+   * the same rectangle; stock shadcn gives both the same fill and separates
+   * them by font-weight alone. */
+  --color-hover: #f0f0f0; /* row or control under the pointer */
+  --color-selected: #e8e8e8; /* the current nav item, the chosen option */
+
+  /* Brand as *text*, for the label on a --color-selected fill.
+   *
+   * It is a separate role from --color-brand because --color-brand cannot do
+   * this job: #005cff on #e8e8e8 measures 4.31:1, short of the 4.5:1 AA needs
+   * for a 14px label, and darkening it to #004fdb clears it at 5.46:1. The hex
+   * is the same one --color-brand-hover happens to hold today; the roles are
+   * unrelated and either is free to move without the other.
+   *
+   * NOTE FOR WHOEVER OWNS THE PALETTE: --color-brand on --color-brand-tint —
+   * every `brand` badge, the avatar, the company tile — measures 4.43:1 and has
+   * the same problem. It predates this token and is left alone rather than
+   * quietly restyled across four components, but it is the same fix. */
+  --color-brand-ink: #004fdb;
+
+  /* App ink -------------------------------------------------------------- */
+  --color-ink-meta: #596980; /* nav links, subtitles, dates, icon glyphs */
+
+  /* App brand ------------------------------------------------------------ */
+  --color-brand-tint: #e3ebff; /* skill pills, badges, avatars, company tiles —
+                                * brand marks only. Interaction states used to
+                                * live here too; see --color-hover above. */
+
+  /* App borders ---------------------------------------------------------- */
+  --color-border-strong: #dee5ee; /* dashed dropzone, spent timeline dot */
+
+  /* App type -------------------------------------------------------------
+   * The profile screen needs an 11px with no tracking, so it cannot reuse
+   * --text-caption, which bakes in uppercase letter-spacing and weight 600. */
+  --text-meta: 0.6875rem; /* 11px — dates, file meta, helper copy */
+  --text-meta--line-height: 0.9375rem;
+
+  --text-note: 0.75rem; /* 12px — employer, skill pills, section actions */
+  --text-note--line-height: 1rem;
+
+  --text-subtitle: 1rem; /* 16px — work-history job titles */
+  --text-subtitle--line-height: 1.375rem;
+  --text-subtitle--font-weight: 600;
+
+  /* App elevation --------------------------------------------------------
+   * Far tighter than --shadow-card: the profile cards show a 1px halo and no
+   * measurable falloff below, so the login card's 20px blur does not apply. */
+  --shadow-panel: 0 1px 2px rgb(18 26 40 / 0.05);
+
+  /* App layout ----------------------------------------------------------- */
+  --container-app: 64rem; /* 1024px — 928px content + 48px padding each side */
+
+  /* -------------------------------------------------------------------------
+   * Applications board — added for the KAN-43 applications mockup
+   *
+   * This one exports 1:1, unlike the profile mockup: its cards start at x=47,
+   * which is the shell's own px-12, and every flat fill it shares with profile
+   * matches to the byte (#f8f8ff page, #ffffff card, #f7f9fc well, #e3ebff
+   * tint). Only its saturated colours drift a shade — #0059fd where login
+   * sampled #005cff, #111a28 where login sampled #121a28 — which is a colour
+   * shift on export rather than a third palette, so they reuse --color-brand
+   * and --color-ink rather than adding near-duplicates.
+   *
+   * The board paints three light pills within ten units of each other: tags at
+   * #e8effd, the "Round 2" chip at #e1ecf7, and profile's skill pills already
+   * at #e3ebff. All three are the same role, so all three use --color-brand-tint.
+   * The one that does not fit is the "Applied" chip at #e1e6ea, which is a grey
+   * rather than a blue. It is unified with the others here on the reading that
+   * it is mockup noise — but if a passive status is meant to read grey and an
+   * active one blue, that is a second chip token and a designer's call.
+   * ---------------------------------------------------------------------- */
+
+  /* Status ---------------------------------------------------------------
+   * A card's top edge carries its column: pale until it has been acted on,
+   * brand once it is in flight, positive once there is an offer. */
+  --color-brand-pale: #d2dffa; /* accent on a saved, not-yet-applied card */
+  --color-positive: #17b076; /* offer accent and its one green button */
+  --color-positive-tint: #e3f7f0; /* the offer card's company tile */
+  --color-positive-hover: #139564; /* derived: positive at 33% lightness */
+  --color-positive-active: #107a52; /* derived: positive at 27% lightness */
+  --color-positive-ring: rgb(23 176 118 / 0.35); /* derived: focus ring */
+
+  /* Positive as *text*, for a label on a --color-positive-tint fill.
+   *
+   * The same role --color-brand-ink is, added for the same reason and measured
+   * the same way: --color-positive cannot do this job. #17b076 on #e3f7f0
+   * measures 2.51:1, which is not a near miss on the 4.5:1 AA needs for an 11px
+   * pill — it is a green that mostly disappears into its own tint. This clears
+   * it at 4.79:1.
+   *
+   * The note further down about the status chips called that pairing "only
+   * about 2.5:1" and left it, because the only thing wearing it was an Offer
+   * chip. It is now also the KPI row's rise pill, four of them across the top
+   * of the first screen a company sees, so it stopped being a corner case.
+   *
+   * The hex is the one --color-positive-active happens to hold today. The roles
+   * are unrelated — one is a pressed button, the other is text on a tint — and
+   * either is free to move without the other. */
+  --color-positive-ink: #107a52;
+
+  /* Status chips ---------------------------------------------------------
+   * A status pill has to say which of four things is true at a glance —
+   * running, paused, finished, not started — and until now the palette could
+   * only say two of them. Everything that was not "Open" fell through to one
+   * tone, so Paused and Closed painted identically, which is the opposite of
+   * what a status column is for.
+   *
+   * --color-inert-tint is the grey this file already recorded and declined to
+   * adopt: the board's "Applied" chip measures #e1e6ea, a grey among blues,
+   * and the note above calls it either mockup noise or "a second chip token
+   * and a designer's call". It is the second token. A passive status reads
+   * grey; an active one stays blue.
+   *
+   * UNMEASURED — the amber and the red are not in any mockup, because no
+   * mockup draws a paused posting or a rejected applicant. They are set at the
+   * saturation and tint-lightness of --color-positive so the four chips carry
+   * the same weight in a row, and their text sits darker than --color-positive
+   * does on its own tint, which is a deliberate break: that pairing is only
+   * about 2.5:1 and these are more legible rather than matched to a
+   * shortcoming. Replace all of it when a designer draws the set. */
+  --color-inert-tint: #e1e6ea; /* measured: the board's "Applied" chip */
+  --color-warning: #a06800; /* unmeasured: paused, needs a decision */
+  --color-warning-tint: #fdf0d9;
+  --color-danger: #c02a3d; /* unmeasured: rejected, ended badly */
+  --color-danger-tint: #fce9eb;
+
+  /* UNMEASURED — the late half of "in flight". Screening and Interview are
+   * both in progress, but they cost a hiring team very differently: a screen
+   * is a recruiter and twenty minutes, an interview is a panel and an
+   * afternoon, and the pipeline on /company drops 68 to 23 between them. That
+   * gap is what a reader should see before reading a word, so the two stop
+   * sharing --color-brand.
+   *
+   * Purple because it is the only hue left with room. Blue is taken by brand,
+   * green by positive, amber by warning, red by danger; teal and cyan sit too
+   * close to the green and the blue to survive being 11px tall. The tint runs
+   * warmer than --color-brand-tint — more red, less blue — so the two pale
+   * fills separate even before the label colour does. */
+  --color-advanced: #7b2fbe;
+  --color-advanced-tint: #f2e6fb;
+
+  /* Board type -----------------------------------------------------------
+   * A step above --text-title, which the board still uses for its column
+   * headings — so the page name and the column names cannot be confused. */
+  --text-heading: 1.625rem; /* 26px — "My Applications" */
+  --text-heading--line-height: 2rem;
+  --text-heading--font-weight: 700;
+  --text-heading--letter-spacing: -0.02em;
+
+  /* -------------------------------------------------------------------------
+   * Search screen — added for the KAN-43 search mockup
+   *
+   * Exported at 0.81 scale (829px for the same 1024px design) and it needs
+   * almost nothing new: ink #111a28, body #3a3e46, meta #58697f and brand
+   * #0059fd all match the board's readings, its green is --color-positive and
+   * --color-positive-tint to the byte, and the result count and selected
+   * employer tile reuse --color-brand-tint.
+   *
+   * Its top bar is the divergence: 44px tall with 12px links and a search
+   * field, where profile measures 48px with 13px links and no field. The
+   * shell keeps profile's proportions and gains the field, because a search
+   * screen cannot work without one — so the field now shows on every signed-in
+   * screen, including the two whose mockups do not draw it.
+   * ---------------------------------------------------------------------- */
+
+  /* One step lighter than --color-ink-meta, for a result card's timestamp —
+   * the only text in the app that sits below meta in the hierarchy. */
+  --color-ink-faint: #8893a4;
+
+  /* 28px — the job title on the detail pane, the largest type in the app. */
+  --text-display: 1.75rem;
+  --text-display--line-height: 2rem;
+  --text-display--font-weight: 700;
+  --text-display--letter-spacing: -0.02em;
+}
+
+/* The mockup defines a light theme only. No dark palette is declared here on
+ * purpose: guessing one would bake in colors nobody designed. */
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
+ * the document — is painted by <body>, and <body> is in the root layout, above
+ * both shells. So it cannot inherit the page colour a shell sets on itself, and
+ * this rule is the only way it learns which shell it is holding.
+ *
+ * The seeker shell grounds on --color-app and login and the design kit ground on
+ * --color-canvas; those are the same #f5f5f5, so the default above is already
+ * right for all three. The company shell is the one that diverges: it retargets
+ * --background to --color-panel, which paints its page and its SidebarInset
+ * white, while the canvas underneath stayed grey. Rubber-band a trackpad there
+ * and a grey band opened up — under the fixed bar going up, past the last row
+ * going down — for as long as the bounce lasted.
+ *
+ * :has() rather than a class on <body> because a nested layout cannot reach the
+ * root layout's <body>; the shell announces itself and the canvas reads it.
+ *
+ * The alternative was overscroll-behavior: none, which ends the bounce instead
+ * of colouring it. That hides this bug and the next one like it, and on the x
+ * axis it would take the trackpad's swipe-to-go-back with it. */
+body:has([data-shell="company"]) {
+  background: var(--color-panel);
+}
+
+/* -----------------------------------------------------------------------------
+ * shadcn/ui compatibility layer — added when shadcn was wired up (see docs/shadcn.md)
+ *
+ * shadcn components are written against a fixed vocabulary of role names
+ * (--primary, --muted, --popover…) that has nothing to do with the WorkIt
+ * token names above. Rather than edit every component we pull in, this block
+ * aliases shadcn's names onto WorkIt's, so a stock `npx shadcn add` component
+ * renders in WorkIt's palette with no per-component editing.
+ *
+ * Two lines that `shadcn init` generates were deliberately removed:
+ *
+ *   --color-border: var(--border)  — WorkIt already defines --color-border
+ *     (#e3e9f0) in the @theme static block. This block is emitted later, so
+ *     keeping the generated line silently repainted every existing
+ *     `border-border` — the top bar, the login card, the work-history rail —
+ *     in shadcn's neutral grey. Dropping it lets WorkIt's value stand, and
+ *     --border below points back at it so both spellings agree.
+ *
+ *   --font-sans: var(--font-sans)  — self-referential, and redundant with the
+ *     @theme static definition that already resolves to next/font's Geist.
+ *
+ * Anything below whose comment says OPEN is a role WorkIt has never designed;
+ * it holds shadcn's stock value until a designer supplies one.
+ * -------------------------------------------------------------------------- */
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  /* `shadcn init` also rebinds Tailwind's stock radius scale here —
+   *   --radius-sm: calc(var(--radius) * 0.6)  … through --radius-4xl
+   * — so that a shadcn component's corners track --radius. Those seven lines
+   * are deliberately not kept: the app already uses the stock scale in two
+   * places written against Tailwind's values, and rebinding it silently
+   * reshaped both (ui/badge.tsx's tag pill 6px -> 8px, ui/text-link.tsx's
+   * focus ring 4px -> 6px). WorkIt's own radii are --radius-control and
+   * --radius-card; stock rounded-sm/md/lg keep Tailwind's defaults, which is
+   * what every existing call site was measured against. shadcn components
+   * therefore round to Tailwind's scale rather than to --radius, a difference
+   * of about 2px on a corner. */
+}
+
+:root {
+  /* Surfaces — the signed-in shell's scale, since that is where shadcn
+   * components will appear. Login keeps its own --color-canvas ground. */
+  --background: var(--color-app); /* #f5f5f5 — page */
+  --foreground: var(--color-ink);
+  --card: var(--color-panel); /* #ffffff — raised */
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-panel); /* dialogs, dropdowns, tooltips */
+  --popover-foreground: var(--color-ink);
+
+  /* Controls */
+  --primary: var(--color-brand);
+  --primary-foreground: var(--color-on-brand);
+  --secondary: var(--color-surface); /* matches ui/button.tsx `secondary` */
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-well); /* recessed fills */
+  --muted-foreground: var(--color-ink-meta); /* subtitles, dates, glyphs */
+  --accent: var(--color-hover); /* hovered / focused row */
+  --accent-foreground: var(--color-ink);
+
+  /* Lines and focus */
+  --border: var(--color-border);
+  --input: var(--color-border-subtle); /* matches ui/text-field.tsx */
+  --ring: var(--color-brand);
+
+  --radius: var(--radius-card); /* 10px, same value shadcn defaults to */
+
+  /* OPEN — WorkIt has no red. The mockups never draw a destructive action, so
+   * this is shadcn's stock red rather than a sampled one. Replace when a
+   * delete/withdraw flow gets designed. */
+  --destructive: oklch(0.577 0.245 27.325);
+
+  /* Chart palette — the status tones, in a fixed order.
+   *
+   * These were shadcn's five stock greys, which is why the OPEN note here used
+   * to say no chart palette had been designed. One had been, twice over: the
+   * badge tones already name what a state IS rather than what it is called, and
+   * a chart series is the same question asked of a mark instead of a pill. A
+   * separate chart palette would mean the purple bar for Interview and the
+   * purple chip for Interview drifting apart on the first retone.
+   *
+   * So a stage is one colour everywhere in the app, and /company's charts read
+   * against /company/applicants' table without a legend lookup.
+   *
+   * THE ORDER IS FIXED AND IS NOT A RANK. Slot 1 is always brand, slot 2 always
+   * advanced, and so on, so a filter that drops a series never repaints the
+   * survivors. Recharts assigns by explicit `var(--color-chart-N)` per series,
+   * never by index.
+   *
+   * MEASURED, not guessed — run through the dataviz validator on --color-panel:
+   *   lightness band  PASS   all four inside L 0.43-0.77
+   *   chroma floor    PASS   all four >= 0.1
+   *   CVD separation  PASS   worst adjacent pair 10.2 deutan (target >= 8)
+   *   normal vision   PASS   worst adjacent pair 17.7 (floor 15)
+   *   contrast        WARN   --color-positive is 2.72:1, under the 3:1 mark floor
+   *
+   * That WARN is the one constraint a chart here has to honour: it obligates a
+   * visible label rather than a hover-only value, which is why every chart on
+   * /company direct-labels its marks and none of them hide a number in a
+   * tooltip. It is not dismissable — see the note in company/pipeline-ring.tsx.
+   *
+   * WHY THERE ARE FOUR IDENTITIES AND NOT FIVE: --color-warning is the obvious
+   * fifth, and it cannot go here. Amber against --color-danger measures 4.8
+   * under deuteranopia — the two are one colour to a red-green colourblind
+   * reader, and a hard fail rather than a judgement call. Reordering to
+   * separate them only moves the collision, because a fixed order has to hold
+   * for every subset a filter can produce. Four hues is also where the series
+   * ladder caps out for stacked and grouped forms, so the ceiling is the same
+   * one the form would have imposed anyway. A fifth series folds into slot 5.
+   *
+   * Paused postings keep amber in the STATUS COLUMN, where it sits beside a
+   * word and a shape rather than beside red in a stack. */
+  --chart-1: var(--color-brand); /* in flight, early — Screening */
+  --chart-2: var(--color-advanced); /* in flight, late — Interview */
+  --chart-3: var(--color-positive); /* ended well — Offer */
+  --chart-4: var(--color-danger); /* ended badly — Rejected */
+
+  /* Slot 5 is deliberately NOT a fifth identity. It is the de-emphasis grey:
+   * the inert stage (Applied, where nothing has happened yet), the "Other"
+   * bucket a 5th series folds into, and the context marks in an emphasis chart
+   * where one series is the point. It fails the chroma floor on purpose — that
+   * check asks whether a slot reads as a hue, and this one must not, or it
+   * would compete with the four that carry meaning.
+   *
+   * --color-ink-subtle rather than a new token: it is already the app's grey
+   * for a mark that is present but not the subject (placeholders, input
+   * glyphs), and inventing a solid `inert` nobody designed to sit beside
+   * --color-inert-tint would put an unmeasured colour on the dashboard. */
+  --chart-5: var(--color-ink-subtle);
+
+  /* No sidebar exists yet — the shell is a top bar. These are mapped anyway so
+   * that if a shadcn Sidebar is ever added it inherits the palette. */
+  --sidebar: var(--color-panel);
+  --sidebar-foreground: var(--color-ink);
+  --sidebar-primary: var(--color-brand);
+  --sidebar-primary-foreground: var(--color-on-brand);
+  --sidebar-accent: var(--color-hover);
+  --sidebar-accent-foreground: var(--color-ink);
+  --sidebar-border: var(--color-border-subtle);
+  --sidebar-ring: var(--color-brand);
+}
+
+/* Dark theme is deliberately undefined — see the note above the body rule.
+ * `@custom-variant dark` is bound to a `.dark` class rather than the OS
+ * preference on purpose: nothing in the app sets that class, so shadcn's
+ * built-in `dark:` utilities stay inert instead of firing on a visitor's
+ * system setting and painting dark utilities over a light-only palette. */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  /* Dead, and kept only because it is what `shadcn init` writes. Plain CSS in
+   * this file compiles into the utilities layer, which outranks base, so the
+   * body rule above wins both of these properties outright — read that one, not
+   * this one, when asking what colour the page is. */
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+
+  /* Tailwind v3 gave every <button> a pointer cursor through preflight; v4
+   * dropped it, on the reading that a button is a control rather than a link
+   * and the platform default is what a native button does. The app disagrees:
+   * nothing here looks like an OS button, so `default` reads as "not
+   * clickable" on a sort header, a filter chip or an icon.
+   *
+   * One rule rather than a cursor-pointer on each component, because the rest
+   * are not ours to edit — the sidebar's menu buttons, dropdown items and
+   * select trigger all live in components/shadcn and would be overwritten by
+   * the next `shadcn add`. `shadcn init` offers a --pointer flag that stamps
+   * the utility into every generated file; this achieves the same thing
+   * without depending on how those files were generated.
+   *
+   * Disabled controls keep the default arrow — :disabled for native buttons,
+   * aria-disabled for the Base UI components that render a div. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
