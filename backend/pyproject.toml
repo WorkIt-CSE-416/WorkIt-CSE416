@@ -1,7 +1,10 @@
 [project]
 name = "workit-api"
 version = "0.1.0"
-requires-python = ">=3.12"
+# Upper bound on purpose. There is no .python-version file, so this is the only
+# thing pinning the interpreter: ">=3.12" alone would let one teammate sync onto
+# 3.13 and another onto 3.14, which is how a bug appears on exactly one laptop.
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
     "asyncpg>=0.31.0",
