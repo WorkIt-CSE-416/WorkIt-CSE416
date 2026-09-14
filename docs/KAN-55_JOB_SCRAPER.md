@@ -462,8 +462,15 @@ persist the affected source's next eligible poll time and defer it. Coordinate
 provider cooldown within the running process. Never shorten a requested delay
 to 120 seconds merely because the reference code does.
 
-Use an identifying User-Agent and project contact address before scheduled
-operation. Respect robots directives and keep request hosts within the
+Every request — discovery, listing, and detail alike — carries:
+
+```
+User-Agent: WorkIt/<version> (+https://github.com/WorkIt-CSE-416/WorkIt-CSE416; workit-team@googlegroups.com)
+```
+
+A group address, not a personal one, so it outlives any individual on the team.
+This is the only channel a provider has to raise a problem before they resort
+to blocking us. Respect robots directives and keep request hosts within the
 provider allowlist. Record denied/blocked sources as unavailable; their jobs
 do not close because of that failure.
 

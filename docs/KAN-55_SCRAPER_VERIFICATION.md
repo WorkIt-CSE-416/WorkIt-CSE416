@@ -344,7 +344,7 @@ assertions against a live third party are flaky and rude.
 
 | ID | Verifies | Method | Pass criterion |
 | --- | --- | --- | --- |
-| F1 | Identifying User-Agent with contact address (§6) | integration | Every request carries a UA naming the project and a reachable contact; asserted on all request types including discovery |
+| F1 | Identifying User-Agent with contact address (§6) | integration | Every request carries `WorkIt/<version> (+<repo url>; workit-team@googlegroups.com)`; asserted on all request types including discovery |
 | F2 | Robots directives respected (§6) | integration | A disallowed path is not requested; the source is recorded unavailable |
 | F3 | Blocked source does not close its jobs (§6) | integration | Lifecycle untouched |
 | F4 | Host/provider concurrency caps (§6) | integration | Max in-flight ≤ 8 per host, ≤ 5 for Ashby, ≤ 32 globally, measured at the fake server |
