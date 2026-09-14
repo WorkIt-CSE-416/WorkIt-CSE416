@@ -8,7 +8,6 @@ import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 import { AUDIT_LOG, type LogStatus } from "./data";
-import { SideNav } from "./side-nav";
 
 export const metadata: Metadata = {
   title: "System Audit Logs",
@@ -50,100 +49,99 @@ const TD = "px-4 py-3";
 
 export default function CompanyAuditLogsPage() {
   return (
-    <div className="flex flex-1 items-stretch">
-      <SideNav />
-      <main className="min-w-0 flex-1 px-8 py-4.5">
+    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+      <header className="mb-5">
         <h1 className="text-heading text-ink">System Audit Logs</h1>
         <p className="text-body text-ink-meta mt-1">
           View and search system-wide administrative and automated actions.
         </p>
+      </header>
 
-        <Card padding="none" className="mt-4 overflow-hidden">
-          <div className="flex flex-wrap items-center justify-end gap-3 p-3">
-            <SearchField
-              id="audit-log-search"
-              label="Search logs"
-              name="q"
-              placeholder="Search logs…"
-              className="min-w-0 flex-1 sm:max-w-xs"
-            />
-            <Button variant="secondary" size="sm">
-              <svg
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.4}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                className="size-4"
-              >
-                <path d="M8 2.5v7M5 6.5 8 9.5l3-3M3 12.5h10" />
-              </svg>
-              Export CSV
+      <Card padding="none" className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-end gap-3 p-3">
+          <SearchField
+            id="audit-log-search"
+            label="Search logs"
+            name="q"
+            placeholder="Search logs…"
+            className="min-w-0 flex-1 sm:max-w-xs"
+          />
+          <Button variant="secondary" size="sm">
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className="size-4"
+            >
+              <path d="M8 2.5v7M5 6.5 8 9.5l3-3M3 12.5h10" />
+            </svg>
+            Export CSV
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="bg-well border-border-subtle border-y">
+                <th className={TH}>Timestamp</th>
+                <th className={TH}>Actor</th>
+                <th className={TH}>Action</th>
+                <th className={TH}>Target</th>
+                <th className={TH}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {AUDIT_LOG.map((entry) => (
+                <tr
+                  key={entry.id}
+                  className="border-border-subtle hover:bg-accent border-b transition-colors last:border-0"
+                >
+                  <td className={cn(TD, "text-body text-ink-meta whitespace-nowrap")}>
+                    {entry.timestamp}
+                  </td>
+                  <td className={TD}>
+                    <span className="flex items-center gap-2 whitespace-nowrap">
+                      <Avatar name={entry.actor} className="text-meta size-6" />
+                      <span className="text-body text-ink">{entry.actor}</span>
+                    </span>
+                  </td>
+                  <td className={TD}>
+                    <Badge variant="tag" tone={actionTone(entry.action)}>
+                      {entry.action}
+                    </Badge>
+                  </td>
+                  <td className={cn(TD, "text-body text-ink")}>{entry.target}</td>
+                  <td
+                    className={cn(
+                      TD,
+                      "text-body font-medium whitespace-nowrap",
+                      STATUS_META[entry.status].className,
+                    )}
+                  >
+                    {STATUS_META[entry.status].label}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="text-note text-ink-meta flex items-center justify-between p-3">
+          <p>Showing 1 to {AUDIT_LOG.length} of 1,248 entries</p>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" disabled>
+              Previous
+            </Button>
+            <Button variant="ghost" size="sm">
+              Next
             </Button>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="bg-well border-border-subtle border-y">
-                  <th className={TH}>Timestamp</th>
-                  <th className={TH}>Actor</th>
-                  <th className={TH}>Action</th>
-                  <th className={TH}>Target</th>
-                  <th className={TH}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {AUDIT_LOG.map((entry) => (
-                  <tr
-                    key={entry.id}
-                    className="border-border-subtle hover:bg-accent border-b transition-colors last:border-0"
-                  >
-                    <td className={cn(TD, "text-body text-ink-meta whitespace-nowrap")}>
-                      {entry.timestamp}
-                    </td>
-                    <td className={TD}>
-                      <span className="flex items-center gap-2 whitespace-nowrap">
-                        <Avatar name={entry.actor} className="text-meta size-6" />
-                        <span className="text-body text-ink">{entry.actor}</span>
-                      </span>
-                    </td>
-                    <td className={TD}>
-                      <Badge variant="tag" tone={actionTone(entry.action)}>
-                        {entry.action}
-                      </Badge>
-                    </td>
-                    <td className={cn(TD, "text-body text-ink")}>{entry.target}</td>
-                    <td
-                      className={cn(
-                        TD,
-                        "text-body font-medium whitespace-nowrap",
-                        STATUS_META[entry.status].className,
-                      )}
-                    >
-                      {STATUS_META[entry.status].label}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="text-note text-ink-meta flex items-center justify-between p-3">
-            <p>Showing 1 to {AUDIT_LOG.length} of 1,248 entries</p>
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm" disabled>
-                Previous
-              </Button>
-              <Button variant="ghost" size="sm">
-                Next
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </main>
+        </div>
+      </Card>
     </div>
   );
 }

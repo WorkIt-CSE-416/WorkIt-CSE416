@@ -2,6 +2,7 @@
   "name": "workit-repo",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
@@ -12,10 +13,6 @@
     "format": "npm --prefix frontend run format",
     "format:check": "npm --prefix frontend run format:check",
     "clean": "npm --prefix frontend run clean",
-    "db:generate": "npm --prefix frontend run db:generate",
-    "db:migrate": "npm --prefix frontend run db:migrate",
-    "db:studio": "npm --prefix frontend run db:studio",
-    "db:check": "npm --prefix frontend run db:check",
     "scrape": "uv --directory scraper run workit-scrape",
     "scrape:dry": "uv --directory scraper run workit-scrape --dry-run",
     "scraper:lint": "uv --directory scraper run ruff check .",

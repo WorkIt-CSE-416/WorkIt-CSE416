@@ -1,4 +1,7 @@
 # WorkIt-CSE416
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 CSE 416 Final Project Group
 
 By Xiang, Brian, Andrew, Lisul, Vedant
@@ -9,6 +12,14 @@ By Xiang, Brian, Andrew, Lisul, Vedant
 - TypeScript (strict)
 - Tailwind CSS v4
 - ESLint 9 + Prettier
+- [Supabase](https://supabase.com) — hosted Postgres
+- FastAPI + SQLAlchemy + Alembic (in `backend/`) — everything that touches the
+  database
+
+The frontend never queries Postgres itself; it calls the API for data. How
+auth works — Supabase Auth or the API itself — is still being decided, so
+nothing in `frontend/` assumes an answer yet. See
+`frontend/docs/backend-integration.md`.
 
 ## Requirements
 
@@ -43,9 +54,10 @@ npm run dev
 Install app dependencies in `frontend/` and Python dependencies in `backend/`.
 The root `package.json` has no dependencies — it only forwards scripts.
 
-Database work additionally needs `frontend/.env.local` — copy
-`frontend/.env.example` and fill it in from the Supabase dashboard. The app runs
-without it; every screen still renders fixture data.
+You do not need `frontend/.env.local` to run the app — every screen renders
+fixture data, so a fresh clone boots with no configuration at all. Copy
+`frontend/.env.example` once you need a real Supabase session. Database
+credentials do **not** go in that file; they belong to the Python service.
 
 ## Scripts
 
@@ -64,21 +76,33 @@ mirrored at the repo root, so each one works from either folder.
 | `npm run format` | Format with Prettier |
 | `npm run format:check` | Verify formatting without writing |
 | `npm run clean` | Delete `.next`, `out`, `coverage`, build info |
-| `npm run db:generate` | Generate a SQL migration from the Drizzle schema |
-| `npm run db:migrate` | Apply pending migrations |
-| `npm run db:studio` | Browse the database in Drizzle Studio |
-| `npm run db:check` | Verify the database connection works |
 | `npm run favicon` | Rebuild the favicon from `public/workit-icon.png` |
 | `npm run install:frontend` | Install frontend dependencies (root only) |
 
+Scraper scripts forward through `uv` and need it on PATH (`brew install uv`).
+`scrape` and `scrape:dry` target the future CLI and are not runnable yet.
+
+| Command | What it does |
+| --- | --- |
+| `npm run scrape` | Run the ingestion CLI (planned) |
+| `npm run scrape:dry` | Fetch and normalize to local files, no database (planned) |
+| `npm run scraper:lint` | Ruff |
+| `npm run scraper:typecheck` | mypy |
+| `npm run scraper:test` | pytest |
+| `npm run install:scraper` | Install scraper dependencies (root only) |
+
 ## Project layout
 
-The repo is split by tier. The Python backend is currently a scaffold; its
-scraper CLI, adapters, persistence, and tests are still planned. Read the
-[scraper architecture](docs/KAN-55_JOB_SCRAPER.md) and
-[research appendix](docs/KAN-55_SCRAPER_RESEARCH.md) for the implementation plan.
-Backend development requires Python 3.11+ and uv; install its development tools
-with `uv --directory backend sync --extra dev` from the repository root.
+The repo is split by tier: the Next.js app in `frontend/`, the Python API in
+`backend/`, and job ingestion in `scraper/`. Each is self-contained, with its
+own dependencies.
+
+`scraper/` is a scaffold — its CLI, adapters, persistence, and tests are still
+planned. Read the [architecture](docs/KAN-55_JOB_SCRAPER.md), its
+[research appendix](docs/KAN-55_SCRAPER_RESEARCH.md), and the
+[verification suite](docs/KAN-55_SCRAPER_VERIFICATION.md) for the plan. It
+needs Python 3.11+ and uv; install its development tools with
+`uv --directory scraper sync --extra dev` from the repository root.
 
 ```
 frontend/         The Next.js app — its own package.json and node_modules
@@ -86,16 +110,20 @@ frontend/         The Next.js app — its own package.json and node_modules
     layout.tsx    Root layout (fonts, metadata, <html>/<body>)
     page.tsx      Route "/"
     globals.css   Tailwind entry point and theme tokens
-  src/db/         Drizzle schema, connections, and the RLS query wrapper
   src/components/ Shared components
   src/lib/        Framework-free helpers
+    supabase/     Per-request session client; unused, and provisional
   public/         Static assets served from /
   scripts/        Maintenance scripts (plain Node, no shell)
   docs/           Prose docs for the team
-    drizzle.md    How the database is wired — read before adding a table
-backend/          Python ingestion scaffold; see backend/CLAUDE.md
-docs/             Scraper architecture and research
-package.json      Scripts that forward into frontend/ and backend/; no dependencies
+    backend-integration.md  The frontend/API boundary and its open questions
+backend/          The Python API — owns the database
+  db/             Schema design notes
+scraper/          Job ingestion — see scraper/CLAUDE.md
+  workit_scraper/ The package: provider adapters, normalization, store
+docs/             Scraper architecture, research appendix, verification suite
+package.json      Scripts that forward into frontend/ and scraper/; no dependencies
+LICENSE           MIT license for the whole repo
 ```
 
 Import from `frontend/src/` with the `@/` alias, e.g.
@@ -120,3 +148,12 @@ enable long path support once:
 ```powershell
 git config --global core.longpaths true
 ```
+
+## License
+
+[MIT](LICENSE) — © 2026 Xiang Liu, Brian Cao, Andrew Shi, Lisul Elvitigala,
+Vedant Vyas.
+
+You are free to use, modify, and redistribute this code, including
+commercially, as long as the copyright notice and license text travel with it.
+The software comes with no warranty.

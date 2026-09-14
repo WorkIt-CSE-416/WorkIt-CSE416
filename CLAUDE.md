@@ -8,44 +8,71 @@ you touch a file in there — read it before writing app code.
 ## Repo layout
 
 ```
-frontend/         The Next.js app, and the whole build. Self-contained:
+frontend/         The Next.js app, and the whole JS build. Self-contained:
                   package.json, node_modules, lockfile and every toolchain
                   config live in here. See frontend/CLAUDE.md.
-backend/          The job ingestion scaffold. Python, self-contained: its own
-                  pyproject.toml, .venv and toolchain. See backend/CLAUDE.md.
-docs/             Cross-cutting prose docs — things that belong to neither half
+backend/          The Python API (FastAPI). It owns the database — connection
+                  strings, schema and migrations all live on this side.
+scraper/          Job ingestion. Python, self-contained: its own
+                  pyproject.toml, .venv and toolchain. Writes rows; never
+                  issues DDL. See scraper/CLAUDE.md.
+docs/             Cross-cutting prose docs — the scraper architecture, its
+                  research appendix, and its verification suite
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to
-                  frontend or backend (see Commands)
+                  frontend or scraper (see Commands)
 .nvmrc            Node version for the whole team
 .gitattributes    LF normalization
+LICENSE           MIT license covering the whole repo
 ```
 
-Frontend prose docs live with the app, in `frontend/docs/` — `drizzle.md` and
-`shadcn.md` are both about the Next.js project. The root `docs/` is for what
-belongs to neither half: `KAN-55_JOB_SCRAPER.md` (the ingestion architecture),
-`KAN-55_SCRAPER_RESEARCH.md` (its evidence and adaptation map), and
-`KAN-55_SCRAPER_VERIFICATION.md` (how we prove it works) are read by
-whoever is working on either side. KAN-50's domain design is currently on
-`KAN-50-login-business-profiles`, not in this checkout; its implemented schema
-must land before ingestion migrations reference its company tables.
+Frontend prose docs live in `frontend/docs/`; database design notes live in
+`backend/db/`. The root `docs/` holds what belongs to no single tier: the
+scraper's architecture (`KAN-55_JOB_SCRAPER.md`), its research appendix
+(`KAN-55_SCRAPER_RESEARCH.md`), and its verification suite
+(`KAN-55_SCRAPER_VERIFICATION.md`).
 
-`backend/` now exists — KAN-55 created the scaffold; its CLI, adapters, store,
-and tests are still planned. It gets the same treatment as `frontend/`: its own
-dependency manifest, its own `backend/CLAUDE.md`. **`uv add <pkg>` belongs in
-`backend/`, `npm install <pkg>` in `frontend/`, and neither at the root.**
+`backend/` and `scraper/` each get the same treatment as `frontend/`:
+self-contained, its own dependency manifest, its own `CLAUDE.md`. **`uv add
+<pkg>` belongs in `backend/` or `scraper/`, `npm install <pkg>` in
+`frontend/`, and none of them at the root.**
 
-The two halves meet only at the database, and the boundary has a direction:
-**`backend/` owns the schema and every migration; `frontend/` never opens a
-connection.** Tables are SQLAlchemy models migrated by Alembic (KAN-93), in one
-revision history for the whole database — a second chain, or DDL issued outside
-it, diverges silently and cannot be ordered. The app reaches data through the
-API, not an ORM. See `docs/KAN-55_JOB_SCRAPER.md` §5 for the ingestion side.
+`scraper/` is a third tier rather than a package inside `backend/`: the two are
+separate Python projects with separate dependency trees, and one long-running
+ingestion worker has nothing in common with a request-scoped API process. They
+meet at Postgres and nowhere else — neither imports the other's code.
 
-### Why two folders rather than one project at the root
+## The database
 
-So the two halves can have separate dependency trees and separate toolchains
+Postgres, hosted on Supabase, reached by FastAPI through SQLAlchemy, with
+Alembic owning migrations. **Only the backend talks to it.** The Next.js app
+holds no ORM, no connection string and no schema; Drizzle used to sit in
+`frontend/src/db/` and was removed when the API moved to Python. A query you
+are tempted to write in a React component belongs in an endpoint instead.
+
+Alembic is the single source of truth for schema. `backend/db/*.md` are design
+rationale, and schema edits through the Supabase dashboard are banned — they
+bypass Alembic silently.
+
+**Auth is an open decision, not a settled one.** Supabase Auth and the Python
+API are both plausible owners of identity. Row-level security is a separate
+matter and largely settled by the stack: SQLAlchemy connects as one privileged
+role, so policies do not fire and authorization lives in Python. The
+`@supabase/*` packages in `frontend/` are scaffolding, not an answer — nothing
+calls them yet. Do not write code, or docs, that assume a winner.
+
+`frontend/docs/backend-integration.md` records what is settled, what is open,
+and the constraints that hold either way. Read it before wiring the two halves
+together, and update it when the team decides.
+
+Ingestion adds one rule on top: `scraper/` reads and writes rows but **never
+issues DDL**, including staging tables, and never starts a second Alembic
+history. See `docs/KAN-55_JOB_SCRAPER.md` §5.
+
+### Why separate folders rather than one project at the root
+
+So the tiers can have separate dependency trees and separate toolchains
 without arguing. A Next.js project insists on owning the directory it is
 invoked from — it resolves `src/app` and `next.config.ts` relative to that —
 so "the frontend lives in a subfolder" and "the frontend keeps its config at
@@ -74,8 +101,12 @@ npm run dev                    # from inside frontend/
 ```
 
 **Frontend** — `dev`, `build`, `start`, `lint`, `lint:fix`, `typecheck`,
-`format`, `format:check`, `clean`, `db:generate`, `db:migrate`, `db:studio`,
-`db:check`, `favicon` — documented with what each does in `frontend/CLAUDE.md`.
+`format`, `format:check`, `clean`, `favicon` — documented with what each one
+does in `frontend/CLAUDE.md`. First-time setup is `npm run install:frontend`
+from the root, or `npm install` inside `frontend/`.
+
+There are no `db:*` scripts. Migrations belong to `backend/` and run through
+Alembic, never through npm.
 
 **Scraper** — `scrape`, `scrape:dry`, `scraper:lint`, `scraper:typecheck`,
 `scraper:test` — documented in `scraper/CLAUDE.md`. These forward through `uv`'s
