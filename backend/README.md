@@ -3,8 +3,11 @@
 The Python backend. It owns the database; the Next.js app in `frontend/` talks
 to it over HTTP and never queries Postgres itself.
 
-Stack: **FastAPI** (the framework) served by **Uvicorn** (the server).
-SQLAlchemy and Alembic arrive when the schema settles — see
+Stack: **FastAPI** served by **Uvicorn**, with **SQLAlchemy 2.0** (async, over
+asyncpg) for queries and **Alembic** for migrations.
+
+There are no tables yet — the schema is still being designed, and the wiring
+landed first on purpose so that work has somewhere to go. See
 `frontend/docs/backend-integration.md` for what is decided and what is not.
 
 ## Setup
@@ -35,6 +38,11 @@ why we prefix commands with `uv run` instead of activating the virtualenv.
 
 Then open <http://localhost:8000/health> — you should get `{"status":"ok"}`.
 
+For database access, copy `.env.example` to `.env` and fill in both connection
+strings from the Supabase dashboard, then check
+<http://localhost:8000/health/db>. Everything except that one endpoint works
+without credentials.
+
 Notes:
 
 - No Homebrew or winget? Use the standalone installer:
@@ -48,12 +56,17 @@ Notes:
 
 ## Commands
 
-| Command                                     | What it does                          |
-| ------------------------------------------- | ------------------------------------- |
-| `uv sync`                                   | Install/update deps to match the lock |
-| `uv run uvicorn app.main:app --reload`      | Dev server on port 8000, hot reload   |
-| `uv add <package>`                          | Add a dependency and update the lock  |
-| `uv run <anything>`                         | Run a command inside the venv         |
+| Command                                       | What it does                          |
+| --------------------------------------------- | ------------------------------------- |
+| `uv sync`                                     | Install/update deps to match the lock |
+| `uv run uvicorn app.main:app --reload`        | Dev server on port 8000, hot reload   |
+| `uv add <package>`                            | Add a dependency and update the lock  |
+| `uv run <anything>`                           | Run a command inside the venv         |
+| `uv run alembic revision --autogenerate -m x` | Write a migration from the models     |
+| `uv run alembic upgrade head`                 | Apply pending migrations              |
+| `uv run alembic downgrade -1`                 | Undo the last one                     |
+| `uv run alembic current`                      | Which revision the database is on     |
+| `uv run alembic check`                        | Fail if models have no migration      |
 
 **You never activate the virtualenv.** `uv run` does it for you, which is the
 main reason we use uv: `.venv/bin/activate` on macOS and
@@ -86,6 +99,55 @@ different origins, so a request made from browser JavaScript needs CORS
 configured here; one made from a Next.js Server Component does not. That choice
 is still open and is recorded in `frontend/docs/backend-integration.md`.
 
+## The database layer
+
+Nothing defines a table yet. `app/db.py` holds the engine, the session factory
+and the declarative `Base`; `alembic/versions/` is empty and
+`--autogenerate` correctly produces an empty migration until the first model
+exists. That is the expected output, not a broken setup.
+
+### Two connection strings, and the port is the difference
+
+| Variable       | Port | Used by     | Why                                                    |
+| -------------- | ---- | ----------- | ------------------------------------------------------ |
+| `DATABASE_URL` | 6543 | The app     | Transaction pooler; short-lived connections need one    |
+| `DIRECT_URL`   | 5432 | Alembic     | Session pooler; DDL locks need one serial conversation |
+
+Do not collapse them. It appears to work until a migration hangs or prepared
+statements fail under load. `app/config.py` rewrites both to
+`postgresql+asyncpg://` automatically, so paste the URLs exactly as Supabase
+gives them.
+
+### Rules that are not negotiable
+
+- **Never add a `sqlalchemy.url` to `alembic.ini`.** That file is committed;
+  the password is not. `alembic/env.py` reads `DIRECT_URL` instead.
+- **Never edit the schema in the Supabase dashboard.** It bypasses Alembic
+  silently and surfaces weeks later as an unrelated failed migration.
+- **Import new models in `alembic/env.py`.** A model no import reaches is
+  absent from `Base.metadata`, and autogenerate will write a migration
+  *dropping* the table it cannot see.
+- **Read every generated migration.** Autogenerate does not emit
+  `CREATE EXTENSION`, new enum values, index operator classes like
+  `gin_trgm_ops`, or anything ltree — and the planned schema uses all four.
+
+### Why env.py filters schemas
+
+`include_name` and `include_object` restrict Alembic to `public`. Without them,
+autogenerate treats Supabase's own tables as things to delete, because they are
+in the database but not in `Base.metadata`. Verified against a database holding
+`auth.users` and `storage.objects`:
+
+```
+with the filters:     pass                                    (empty migration)
+without the filters:  op.drop_table('objects', schema='storage')
+                      op.drop_table('users', schema='auth')
+```
+
+Two filters rather than one: `include_name` stops reflection descending into a
+foreign schema, `include_object` catches anything that gets through and keeps
+working if someone sets `include_schemas=True`.
+
 ## Windows and macOS
 
 Both work, from the same `uv.lock`. uv resolves a universal lockfile carrying
@@ -110,9 +172,16 @@ Commands are identical on both, which is the point of prefixing everything with
 
 ```
 app/
-  main.py         The FastAPI application and its routes
+  main.py         FastAPI application; /health and /health/db
+  config.py       Environment settings, and the asyncpg URL rewrite
+  db.py           Engine, session factory, declarative Base
+alembic/
+  env.py          Migration environment — READ THE HEADER before editing
+  versions/       Migrations. Empty until the first model exists
+alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, not a source of truth
+.env.example      Template; copy to .env (gitignored) and fill in
 pyproject.toml    Dependencies and project metadata (the package.json)
 uv.lock           Exact resolved versions — committed (the lockfile)
 .python-version   Pinned interpreter (the .nvmrc)
