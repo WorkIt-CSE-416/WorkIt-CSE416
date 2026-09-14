@@ -1,12 +1,14 @@
 import Link from "next/link";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
-import { BellIcon, GearIcon } from "@/components/icons";
+import { GearIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { NavLink } from "@/components/nav-link";
+import { NotificationsMenu } from "@/components/notifications-menu";
 import { ButtonLink } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
+
+import { NOTIFICATIONS } from "./notifications-data";
 
 /**
  * Chrome shared by every signed-in seeker screen.
@@ -145,9 +147,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-5">
             <ButtonLink href="/apply">Apply to Job</ButtonLink>
 
-            <IconButton label="Notifications">
-              <BellIcon className="size-5" />
-            </IconButton>
+            <NotificationsMenu items={NOTIFICATIONS} />
 
             <AccountMenu name="Alex Chen" items={ACCOUNT_ITEMS} />
           </div>
