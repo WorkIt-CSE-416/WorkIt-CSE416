@@ -8,9 +8,12 @@ you touch a file in there — read it before writing app code.
 ## Repo layout
 
 ```
-frontend/         The Next.js app, and the whole build. Self-contained:
+frontend/         The Next.js app, and the whole JS build. Self-contained:
                   package.json, node_modules, lockfile and every toolchain
                   config live in here. See frontend/CLAUDE.md.
+backend/          The Python API. It owns the database — connection strings,
+                  schema and migrations all live on this side. Currently just
+                  db/, the schema design notes.
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to
@@ -20,13 +23,36 @@ package.json      No dependencies. Scripts only, each one forwarding to
 LICENSE           MIT license covering the whole repo
 ```
 
-Team prose docs moved down with the app, to `frontend/docs/` — everything in
-there is currently about the frontend. Add a root `docs/` back if something
-genuinely cross-cutting ever needs a home.
+Frontend prose docs live in `frontend/docs/`; database design notes live in
+`backend/db/`. Add a root `docs/` back if something genuinely cross-cutting
+ever needs a home.
 
-A `backend/` sibling is planned and **does not exist yet — do not create it.**
-When it arrives it gets the same treatment: self-contained, its own dependency
-manifest, its own `backend/CLAUDE.md`.
+`backend/` gets the same treatment as `frontend/` as it fills in:
+self-contained, its own dependency manifest, its own `backend/CLAUDE.md`. Do
+not add Python tooling to the repo root.
+
+## The database
+
+Postgres, hosted on Supabase, reached by FastAPI through SQLAlchemy, with
+Alembic owning migrations. **Only the backend talks to it.** The Next.js app
+holds no ORM, no connection string and no schema; Drizzle used to sit in
+`frontend/src/db/` and was removed when the API moved to Python. A query you
+are tempted to write in a React component belongs in an endpoint instead.
+
+Alembic is the single source of truth for schema. `backend/db/*.md` are design
+rationale, and schema edits through the Supabase dashboard are banned — they
+bypass Alembic silently.
+
+**Auth is an open decision, not a settled one.** Supabase Auth and the Python
+API are both plausible owners of identity. Row-level security is a separate
+matter and largely settled by the stack: SQLAlchemy connects as one privileged
+role, so policies do not fire and authorization lives in Python. The
+`@supabase/*` packages in `frontend/` are scaffolding, not an answer — nothing
+calls them yet. Do not write code, or docs, that assume a winner.
+
+`frontend/docs/backend-integration.md` records what is settled, what is open,
+and the constraints that hold either way. Read it before wiring the two halves
+together, and update it when the team decides.
 
 ### Why two folders rather than one project at the root
 
@@ -59,10 +85,13 @@ npm run dev                    # from inside frontend/
 ```
 
 The full list — `dev`, `build`, `start`, `lint`, `lint:fix`, `typecheck`,
-`format`, `format:check`, `clean`, `db:generate`, `db:migrate`, `db:studio`,
-`db:check`, `favicon` — is documented with what each one does in
-`frontend/CLAUDE.md`. First-time setup is `npm run install:frontend` from the
-root, or `npm install` inside `frontend/`.
+`format`, `format:check`, `clean`, `favicon` — is documented with what each one
+does in `frontend/CLAUDE.md`. First-time setup is `npm run install:frontend`
+from the root, or `npm install` inside `frontend/`.
+
+The root forwards frontend scripts only. There are no `db:*` scripts any more —
+migrations belong to the Python service and will be run with its own tooling,
+not through npm.
 
 Adding a script to `frontend/package.json` does not make it available from the
 root; add the forwarding line here too if it should be.
