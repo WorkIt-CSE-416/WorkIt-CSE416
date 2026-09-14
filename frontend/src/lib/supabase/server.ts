@@ -1,12 +1,20 @@
+import "server-only";
+
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 /**
  * A Supabase client scoped to the current request.
  *
- * This exists to READ the session — src/db/rls.ts needs verified JWT claims to
- * hand to Postgres. Signing in, signing out and the seeker/company route guard
- * belong to the auth ticket; see the note in src/app/login/actions.ts.
+ * This exists to READ the session. Nothing in this app talks to Postgres —
+ * data access belongs to the Python API, which does its own authorization; the
+ * frontend's job is to know who is signed in and to forward that identity. Use
+ * `getClaims()` rather than `getSession()` when the answer decides anything:
+ * @supabase/auth-js states that a user object read from cookies "must not be
+ * trusted", while getClaims() verifies the token's signature.
+ *
+ * Signing in, signing out and the seeker/company route guard belong to the
+ * auth ticket; see the note in src/app/login/actions.ts.
  *
  * Never cache the returned client. Supabase requires a fresh one per render.
  */
@@ -16,7 +24,7 @@ export async function createSupabaseServerClient() {
 
   if (!url || !key) {
     throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must both be set. Copy .env.example to .env.local — see docs/drizzle.md.",
+      "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must both be set. Copy .env.example to .env.local — see docs/supabase.md.",
     );
   }
 

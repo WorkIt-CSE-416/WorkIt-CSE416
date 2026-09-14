@@ -46,6 +46,6 @@ next-env.d.ts
 claudeskill_reports/
 
 # Agent-generated design specs and implementation plans: local scratch, not
-# project documentation. frontend/docs/drizzle.md and frontend/docs/shadcn.md
+# project documentation. frontend/docs/supabase.md and frontend/docs/shadcn.md
 # are the real docs.
 docs/superpowers/

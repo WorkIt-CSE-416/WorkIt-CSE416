@@ -11,9 +11,10 @@ alongside this one. This file is the Next.js app.
 
 `frontend/` is the whole Next.js project: its own `package.json`,
 `node_modules`, lockfile and toolchain config. Nothing above it is part of the
-build. A `backend/` sibling is planned but does not exist yet — do not create
-one speculatively, and do not reach for a path outside this folder from app
-code.
+build. The `backend/` sibling is the Python API and owns the database; it holds
+its own schema docs and is not importable from here. Do not reach for a path
+outside this folder from app code — the `@/` alias stops at `frontend/src`, and
+that is deliberate.
 
 That is why the config files are here rather than at the repo root: Next.js
 resolves `src/app` from the directory it is invoked in, so the project root and
@@ -40,10 +41,6 @@ npm run lint         # eslint      (lint:fix to autofix)
 npm run typecheck    # next typegen + tsc --noEmit
 npm run format       # prettier    (format:check to verify only)
 npm run clean        # remove .next, out, coverage, tsbuildinfo
-npm run db:generate  # write a migration from the schema
-npm run db:migrate   # apply pending migrations
-npm run db:studio    # browse the database
-npm run db:check     # verify the connection
 npm run favicon      # rebuild src/app/favicon.ico from public/workit-icon.png
 ```
 
@@ -83,12 +80,6 @@ src/components/   Shared components
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
-src/db/           Drizzle data layer — read docs/drizzle.md first
-  client.ts       Both postgres.js connections; nothing else opens one
-  index.ts        `db.rls()` — the only handle app code may import
-  admin.ts        Bypasses RLS. Scripts only; an ESLint rule enforces it
-  rls.ts          Transaction wrapper: verified claims, role switch
-  schema/         Tables. Empty until the first one is modelled
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
   supabase/server.ts  Per-request client, used only to read the session
@@ -97,6 +88,7 @@ public/           Static assets served from /
   workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
+  supabase.md     Session reading, env vars, and why no SQL lives here
   shadcn.md       What shadcn is, how it is wired here, how to pull components
 components.json   shadcn config — see docs/shadcn.md before changing its aliases
 ```
@@ -179,13 +171,13 @@ records two open questions for whoever owns the mockups: the login and app
 screens disagree about which hex is a page and which is a card, and the board's
 grey "Applied" chip may or may not be a second chip token.
 
-There are two database handles and they are not interchangeable. `db.rls()`
-from `@/db` runs inside a transaction as the `authenticated` role, so row-level
-security applies; it is what screens and server actions use. `dbAdmin` from
-`@/db/admin` connects as the table owner and bypasses every policy — scripts
-and migrations only, and an ESLint rule blocks it elsewhere under `src/`.
+**This app does not talk to the database.** There is no ORM, no connection
+pool, no schema and no migrations here — that is the Python API's job, and it
+owns the connection string. Supabase stays for one thing: reading the signed-in
+user's session, through `src/lib/supabase/server.ts`. A query belongs in an API
+endpoint, and a `page.tsx` reaches it through that screen's `data.ts`.
 
-**Read `docs/drizzle.md` before adding a table or changing the schema.**
+**Read `docs/supabase.md` before touching auth or adding an API call.**
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.
