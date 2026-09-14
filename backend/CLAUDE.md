@@ -91,9 +91,10 @@ failing on model drift.
 | `DATABASE_URL` | 6543 | The app | Transaction pooler; short connections     |
 | `DIRECT_URL`   | 5432 | Alembic | Session pooler; DDL locks need one session |
 
-There is no `.env.example`; this table is the template. Create `backend/.env`
-by hand — it is gitignored — from the Supabase dashboard connection string
-(Project Settings → Database), using the two ports above:
+**`.env` lives at the repo root, not in `backend/`.** Copy the root
+`.env.example` to `.env` beside it — `.env*` is gitignored, with `.env.example`
+negated — and fill it in from the Supabase dashboard connection string (Project
+Settings → Database), using the two ports above:
 
 ```
 DATABASE_URL=postgresql://postgres.<ref>:<password>@<host>.pooler.supabase.com:6543/postgres
@@ -106,6 +107,13 @@ wrong and the error will not say why.
 Do not collapse them into one variable. It appears to work until a migration
 hangs or prepared statements fail under load. `app/config.py` rewrites both to
 `postgresql+asyncpg://` automatically, so paste what Supabase gives you.
+
+`ENV_FILE` in `app/config.py` resolves the root path from `__file__`, not from
+the working directory. That is deliberate: pydantic's default `env_file=".env"`
+is relative to wherever the process started, so it would find the file when run
+from the root and silently miss it when run from `backend/` — which is where
+uvicorn and alembic actually run. If the file ever moves again, that one
+constant is the only thing to change.
 
 ### Engine settings that are not optional
 
@@ -177,7 +185,7 @@ and of the Drizzle layer this replaced. A non-obvious setting gets a sentence
 on what breaks without it.
 
 **The app must start with no credentials.** `/health` and every fixture route
-work without `.env`; only `/health/db` needs it. Keep that true — it is what
+work without the root `.env`; only `/health/db` needs it. Keep that true — it is what
 lets someone work on routes without database access, and it makes a failure
 point at one half or the other.
 

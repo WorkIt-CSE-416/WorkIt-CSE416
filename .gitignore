@@ -44,9 +44,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-# ...but the templates must be committed, or a fresh clone has nothing to copy.
-# frontend/.env.example predates the rule above and survives only because it is
-# already tracked; a new one would be silently ignored without this line.
+# ...but the template must be committed, or a fresh clone has nothing to copy.
+# `.env.example` at the root is that template, and `.env` beside it is what the
+# backend reads (see backend/CLAUDE.md). Without this negation the rule above
+# would swallow the template silently.
 !.env.example
 
 # vercel

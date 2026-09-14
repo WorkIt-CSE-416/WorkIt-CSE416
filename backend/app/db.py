@@ -34,7 +34,7 @@ def get_engine() -> AsyncEngine:
     return create_async_engine(
         settings.app_url,
         poolclass=NullPool, # open as new connection
-        connect_args={
+        connect_args={  # connect with Supabase
             "statement_cache_size": 0,
             "prepared_statement_cache_size": 0,
         },

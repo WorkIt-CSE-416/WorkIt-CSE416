@@ -1,22 +1,17 @@
 """
-Environment configuration for SQLAlchemy
+Environment configuration for SQLAlchemy, imported by other files and migration
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def to_asyncpg(url: str) -> str:
-    """Rewrite a Postgres URL to name the asyncpg driver.
-
-    Supabase hands you `postgresql://…`. SQLAlchemy needs to know which DBAPI
-    to load, and it reads that from the scheme, so the async engine requires
-    `postgresql+asyncpg://…`. Passing the URL through unchanged is the single
-    most common first-hour error: SQLAlchemy loads a *sync* driver, fails to
-    find one, and the traceback says nothing about the scheme.
-
-    Idempotent, and accepts the older `postgres://` spelling.
+    """
+    parse a supabase connection url into url with asyncpg,
+    so it can connect to supabase 
     """
     scheme, separator, rest = url.partition("://")
 
@@ -31,31 +26,33 @@ def to_asyncpg(url: str) -> str:
     return f"postgresql+asyncpg://{rest}"
 
 
+# `.env` lives at the repo root, one directory above `backend/`. Anchoring to
+# __file__ rather than pydantic's default relative ".env" keeps it found no
+# matter where a command is invoked from — uvicorn and alembic run from
+# `backend/`, a test runner or editor may run from the root.
+ENV_FILE = Path(__file__).parents[2] / ".env"
+
+
 class Settings(BaseSettings):
     """Everything the API reads from the environment."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    # The TRANSACTION pooler, port 6543. What the running app uses. Serverless
-    # and short-lived connections need a pooler, and Supavisor's transaction
-    # mode is why app/db.py disables prepared statements.
+    # the transaction pooler of Supabase, same as DATABASE_URL
     database_url: str | None = None
 
-    # The SESSION pooler, port 5432. What Alembic uses. DDL takes locks and
-    # wants one serial conversation with the database; running migrations
-    # through the transaction pooler is unreliable.
+    # The session pooler 
     direct_url: str | None = None
 
     @property
     def app_url(self) -> str:
         if not self.database_url:
             raise RuntimeError(
-                "DATABASE_URL is not set. Copy .env.example to .env and fill it "
-                "in from the Supabase dashboard (Project Settings → Database)."
+                "DATABASE_URL is not set"
             )
 
         return to_asyncpg(self.database_url)
@@ -64,8 +61,7 @@ class Settings(BaseSettings):
     def migration_url(self) -> str:
         if not self.direct_url:
             raise RuntimeError(
-                "DIRECT_URL is not set. Alembic needs the session pooler (port "
-                "5432), not the transaction pooler. See .env.example."
+                "DIRECT_URL is not set."
             )
 
         return to_asyncpg(self.direct_url)
