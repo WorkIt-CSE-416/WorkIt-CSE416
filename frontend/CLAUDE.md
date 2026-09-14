@@ -82,13 +82,14 @@ src/components/   Shared components
                   `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
-  supabase/server.ts  Per-request client, used only to read the session
+  supabase/server.ts  Per-request session client; unused, and provisional
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448 — auth card and app top bar
   workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
-  supabase.md     Session reading, env vars, and why no SQL lives here
+  backend-integration.md  What is settled, what is still open, and the
+                  constraints that hold either way — read before an API call
   shadcn.md       What shadcn is, how it is wired here, how to pull components
 components.json   shadcn config — see docs/shadcn.md before changing its aliases
 ```
@@ -173,11 +174,16 @@ grey "Applied" chip may or may not be a second chip token.
 
 **This app does not talk to the database.** There is no ORM, no connection
 pool, no schema and no migrations here — that is the Python API's job, and it
-owns the connection string. Supabase stays for one thing: reading the signed-in
-user's session, through `src/lib/supabase/server.ts`. A query belongs in an API
-endpoint, and a `page.tsx` reaches it through that screen's `data.ts`.
+owns the connection string. A query belongs in an endpoint, and a `page.tsx`
+reaches it through that screen's `data.ts`.
 
-**Read `docs/supabase.md` before touching auth or adding an API call.**
+**Auth is not decided and not implemented.** `login/actions.ts` is a stub, and
+`src/lib/supabase/server.ts` is called by nothing. Whether Supabase Auth or the
+API issues our tokens is an open question, so do not treat the `@supabase/*`
+dependencies as a settled answer.
+
+**Read `docs/backend-integration.md` before touching auth or adding an API
+call.**
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.

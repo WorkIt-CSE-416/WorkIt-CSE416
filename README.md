@@ -12,11 +12,13 @@ By Xiang, Brian, Andrew, Lisul, Vedant
 - TypeScript (strict)
 - Tailwind CSS v4
 - ESLint 9 + Prettier
-- [Supabase](https://supabase.com) — Postgres and auth
+- [Supabase](https://supabase.com) — hosted Postgres
 - Python API (in `backend/`) — everything that touches the database
 
-The frontend never queries Postgres itself. It reads the signed-in user's
-session from Supabase and calls the API for data.
+The frontend never queries Postgres itself; it calls the API for data. How
+auth works — Supabase Auth or the API itself — is still being decided, so
+nothing in `frontend/` assumes an answer yet. See
+`frontend/docs/backend-integration.md`.
 
 ## Requirements
 
@@ -51,10 +53,10 @@ npm run dev
 **Install dependencies in `frontend/`, not at the repo root.** The root
 `package.json` has no dependencies — it only forwards the scripts below.
 
-Anything that reads a real session needs `frontend/.env.local` — copy
-`frontend/.env.example` and fill in the two Supabase values from the dashboard.
-The app runs without it; every screen still renders fixture data. Database
-credentials do **not** go in that file — they belong to the Python service.
+You do not need `frontend/.env.local` to run the app — every screen renders
+fixture data, so a fresh clone boots with no configuration at all. Copy
+`frontend/.env.example` once you need a real Supabase session. Database
+credentials do **not** go in that file; they belong to the Python service.
 
 ## Scripts
 
@@ -89,11 +91,11 @@ frontend/         The Next.js app — its own package.json and node_modules
     globals.css   Tailwind entry point and theme tokens
   src/components/ Shared components
   src/lib/        Framework-free helpers
-    supabase/     Per-request client, used only to read the session
+    supabase/     Per-request session client; unused, and provisional
   public/         Static assets served from /
   scripts/        Maintenance scripts (plain Node, no shell)
   docs/           Prose docs for the team
-    supabase.md   Env vars, reading the session, why no SQL lives here
+    backend-integration.md  The frontend/API boundary and its open questions
 backend/          The Python API — owns the database
   db/             Schema design notes
 package.json      Scripts that forward into frontend/; no dependencies
