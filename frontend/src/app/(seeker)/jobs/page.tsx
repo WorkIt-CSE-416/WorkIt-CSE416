@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { Avatar } from "@/components/avatar";
 import {
   AwardIcon,
   BookmarkIcon,
@@ -14,7 +15,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CompanyTile } from "@/components/ui/company-tile";
 import { Fact } from "@/components/ui/fact";
 import { FilterChip } from "@/components/ui/filter-chip";
 import { IconButton } from "@/components/ui/icon-button";
@@ -22,6 +22,14 @@ import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
 
 import { FILTERS, RECOMMENDATIONS, SORT, type Recommendation } from "./data";
+import {
+  formatExperience,
+  formatJobType,
+  formatLocation,
+  formatSalary,
+  formatTiming,
+  formatWorkStyle,
+} from "./format";
 import { CircleSlashIcon, SparkleIcon } from "./icons";
 import { MatchRail } from "./match-rail";
 
@@ -34,7 +42,8 @@ export const metadata: Metadata = {
  * is inert, as it is on the other two job screens. */
 
 /**
- * One recommendation: the job on the left, the reasoning on the right.
+ * One recommendation: the job on the left, WorkIt's match reasoning on the
+ * right.
  *
  * The card pads its two halves rather than itself, which is why it takes
  * `padding="none"`: the rail carries its own fill and has to reach the card's
@@ -50,14 +59,17 @@ function RecommendationCard({ job }: { job: Recommendation }) {
     <Card as="article" padding="none" className="flex flex-col overflow-hidden md:flex-row">
       <div className="min-w-0 flex-1 p-4">
         <div className="flex items-start gap-3">
-          <CompanyTile Icon={job.Icon} size="lg" tone={job.tone} />
+          {/* No per-job Icon/tone any more — that was company branding
+              smuggled onto the job. Initials stand in until `companies` has a
+              logo. */}
+          <Avatar name={job.company} className="text-title size-12" />
 
           <div className="min-w-0 flex-1">
             <ul className="flex flex-wrap items-center gap-1.5">
-              {job.flags.map((flag) => (
-                <li key={flag.label} className="flex">
-                  <Badge variant="tag" tone={flag.fresh ? "positive" : "neutral"}>
-                    {flag.label}
+              {job.roles.map((role) => (
+                <li key={role} className="flex">
+                  <Badge variant="tag" tone="neutral">
+                    {role}
                   </Badge>
                 </li>
               ))}
@@ -65,13 +77,10 @@ function RecommendationCard({ job }: { job: Recommendation }) {
 
             <h3 className="text-title text-ink mt-1.5">{job.title}</h3>
 
-            {/* The employer is a link and the sector is not, so the two are
-                told apart by weight and ink as well as by the slash. */}
             <p className="text-note mt-0.5">
               <TextLink href="/companies" className="font-semibold">
                 {job.company}
               </TextLink>
-              <span className="text-ink-faint"> / {job.industries.join(" · ")}</span>
             </p>
           </div>
 
@@ -84,44 +93,38 @@ function RecommendationCard({ job }: { job: Recommendation }) {
             the salary under the salary of the card above it, which is what
             makes a stack of these scannable. */}
         <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 sm:grid-cols-3">
-          <Fact Icon={PinIcon}>{job.location}</Fact>
-          <Fact Icon={BriefcaseIcon}>{job.jobType}</Fact>
-          <Fact Icon={CoinIcon}>{job.salary}</Fact>
-          <Fact Icon={MonitorIcon}>{job.workplace}</Fact>
-          <Fact Icon={AwardIcon}>{job.level}</Fact>
-          <Fact Icon={CalendarIcon}>{job.starts}</Fact>
+          <Fact Icon={PinIcon}>{formatLocation(job.locationCity, job.locationCountry)}</Fact>
+          <Fact Icon={BriefcaseIcon}>{formatJobType(job.jobType)}</Fact>
+          <Fact Icon={CoinIcon}>{formatSalary(job)}</Fact>
+          <Fact Icon={MonitorIcon}>{formatWorkStyle(job.workStyle)}</Fact>
+          <Fact Icon={AwardIcon}>
+            {formatExperience(job.experienceLevel, job.minYearsExperience)}
+          </Fact>
+          <Fact Icon={CalendarIcon}>{formatTiming(job.uploadedAt, job.closesAt)}</Fact>
         </div>
 
-        <div className="border-border-subtle mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-          <p className="text-meta text-ink-faint">{job.applicants}</p>
+        <div className="border-border-subtle mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+          <IconButton label={`Not interested in ${job.title}`} variant="outline" className="size-8">
+            <CircleSlashIcon className="size-4" />
+          </IconButton>
 
-          <div className="flex items-center gap-2">
-            <IconButton
-              label={`Not interested in ${job.title}`}
-              variant="outline"
-              className="size-8"
-            >
-              <CircleSlashIcon className="size-4" />
-            </IconButton>
+          <IconButton
+            label={job.saved ? `Remove ${job.title} from saved` : `Save ${job.title}`}
+            variant="outline"
+            className={cn("size-8", job.saved && "text-brand")}
+          >
+            <BookmarkIcon filled={job.saved} className="size-4" />
+          </IconButton>
 
-            <IconButton
-              label={job.saved ? `Remove ${job.title} from saved` : `Save ${job.title}`}
-              variant="outline"
-              className={cn("size-8", job.saved && "text-brand")}
-            >
-              <BookmarkIcon filled={job.saved} className="size-4" />
-            </IconButton>
+          {/* Secondary, not primary: asking about a job is the step before
+              applying to it, and only one control on a card can be the one
+              being pointed at. */}
+          <Button variant="secondary" size="sm">
+            <SparkleIcon className="size-4" />
+            Ask WorkIt
+          </Button>
 
-            {/* Secondary, not primary: asking about a job is the step before
-                applying to it, and only one control on a card can be the one
-                being pointed at. */}
-            <Button variant="secondary" size="sm">
-              <SparkleIcon className="size-4" />
-              Ask WorkIt
-            </Button>
-
-            <Button size="sm">Apply Now</Button>
-          </div>
+          <Button size="sm">Apply Now</Button>
         </div>
       </div>
 

@@ -1,60 +1,89 @@
-import type { ComponentType } from "react";
-
-import { CompassIcon, LayersIcon, LeafIcon, SunIcon } from "./icons";
-
 /**
  * The fixtures the Jobs screen renders against.
  *
- * NO MOCKUP EXISTS FOR THIS ROUTE. The route is /jobs — the tab reads Jobs
- * and the heading reads Recommended for You — but the type below stays
- * Recommendation: the section is where you go to find work, and a scored
- * match is what it happens to show you there. `Job` is also already taken,
- * by search/data.ts, and two different Jobs would be worse than one
- * Recommendation.
- * The shell already links to it, so the screen
- * is built from the layout of a competitor's board — a wide row per job, its
- * facts on a grid, and a scored rail down the right — redrawn in WorkIt's own
- * kit. What that reference contributes is structure and the set of fields a row
- * is expected to carry; every colour, control and type size here comes from the
- * three screens KAN-43 already signed off.
+ * Shaped after `backend/db/job_posting.md`'s `job_postings` table (plus
+ * `job_role_tags`) rather than the original mockup-only fields. Two things the
+ * schema has no column for, flagged rather than guessed at:
+ *
+ * - `jobType`: the schema enum is only `full_time` / `part_time` / `contract`.
+ *   The original mock had "Contract to hire" for Verdant, which doesn't fit
+ *   any of the three — mapped to `contract` here, losing that nuance.
+ * - `experienceLevel`: the schema enum is `internship` / `new_grad` /
+ *   `experienced` — there is no junior/mid/senior/staff ladder. Every posting
+ *   below reads as `experienced`, which is a real gap (a Staff and a Mid-level
+ *   role are indistinguishable at the enum), not an oversight in this fixture.
+ *   `minYearsExperience` is the only thing left to tell them apart.
+ *
+ * Also dropped for not being a `job_postings` column at all:
+ * - `Icon`/`tone` (company branding lives on `companies`, not the job)
+ * - `flags` (the "N alumni here" pill has no backing table)
+ * - `applicants` (a count from elsewhere, not stored on the job)
+ *
+ * `saved` stays — it is a real per-user action the card still needs, even
+ * though it belongs to a seeker/job relation rather than `job_postings`
+ * itself.
+ *
+ * `match`/`highlights` are back too, but deliberately kept separate from the
+ * `job_postings`-shaped fields above: this is WorkIt's own matching layer,
+ * analyzed against a seeker's profile rather than stored on the posting, so
+ * it is the one part of `Recommendation` with no counterpart in
+ * `job_posting.md` at all.
  *
  * Nothing reads or writes yet: the filters, the sort, the dismiss and save
  * actions, Ask WorkIt and Apply Now are all inert, as they are on search and on
  * the applications board.
- *
- * `Icon` stands in for an employer's logo — see the note in ./icons.
  */
+
+export type JobType = "full_time" | "part_time" | "contract";
+export type ExperienceLevel = "internship" | "new_grad" | "experienced";
+export type WorkStyle = "remote" | "hybrid" | "onsite";
+export type SalaryPeriod = "year" | "hour";
+export type JobPostStatus = "draft" | "published" | "closed";
+
+export type Recommendation = {
+  id: string;
+  companyId: string;
+  company: string;
+
+  title: string;
+  /** Markdown. Not rendered on the card — this is what the detail view needs. */
+  description: string;
+
+  jobType: JobType;
+  experienceLevel: ExperienceLevel;
+  minYearsExperience?: number;
+
+  workStyle: WorkStyle;
+  /** NULL/NULL for fully remote, same as `job_postings`. */
+  locationCity: string | null;
+  /** ISO 3166-1 alpha-2. */
+  locationCountry: string | null;
+
+  salary?: number;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency: string;
+  salaryPeriod: SalaryPeriod;
+
+  status: JobPostStatus;
+  uploadedAt: string;
+  closesAt?: string;
+
+  /** Canonical `job_roles` names this posting is tagged with, via `job_role_tags`. */
+  roles: string[];
+
+  saved?: boolean;
+
+  /** 0-100. WorkIt's own score — see the comment at the top of this file. */
+  match: number;
+  /** Why the score is what it is. Three fit a rail without scrolling. */
+  highlights: Highlight[];
+};
 
 export type Highlight = {
   text: string;
   /** True is a reason to apply; false is a caveat to weigh before applying. */
   met: boolean;
-};
-
-export type Recommendation = {
-  id: string;
-  title: string;
-  company: string;
-  /** What the employer is, read as one grey line after the company name. */
-  industries: string[];
-  Icon: ComponentType<{ className?: string }>;
-  /** Tints the employer tile. Each company gets its own, as on the board. */
-  tone: "brand" | "deep" | "positive";
-  /** Pills above the title. `fresh` is the one that reads green: a new post. */
-  flags: { label: string; fresh?: boolean }[];
-  location: string;
-  workplace: string;
-  jobType: string;
-  level: string;
-  salary: string;
-  starts: string;
-  /** How much competition there is, which is why it sits beside the actions. */
-  applicants: string;
-  /** 0-100. The rail draws it as an arc and names the band it falls in. */
-  match: number;
-  /** Why the score is what it is. Three fit a rail without scrolling. */
-  highlights: Highlight[];
-  saved?: boolean;
 };
 
 /**
@@ -75,6 +104,14 @@ export function matchTier(score: number) {
   return (TIERS.find((tier) => score >= tier.min) ?? TIERS[TIERS.length - 1]).label;
 }
 
+function hoursAgo(hours: number) {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
+function daysAgo(days: number) {
+  return hoursAgo(days * 24);
+}
+
 /** `active` is the one facet shown applied, so it is the one that can be cleared. */
 export const FILTERS = [
   { label: "United States" },
@@ -91,42 +128,52 @@ export const SORT = "Best match";
 export const RECOMMENDATIONS: Recommendation[] = [
   {
     id: "northwind-staff-frontend-engineer",
-    title: "Staff Frontend Engineer",
+    companyId: "northwind-analytics",
     company: "Northwind Analytics",
-    industries: ["Data Infrastructure", "B2B SaaS", "Series C"],
-    Icon: CompassIcon,
-    tone: "brand",
-    flags: [{ label: "Posted 3h ago", fresh: true }, { label: "2 alumni here" }],
-    location: "Seattle, WA",
-    workplace: "Hybrid",
-    jobType: "Full-time",
-    level: "Senior, Staff",
-    salary: "$165k - $210k",
-    starts: "Immediate start",
-    applicants: "Under 25 applicants",
+    title: "Staff Frontend Engineer",
+    description:
+      "Northwind is looking for a Staff Frontend Engineer to own the architecture of our analytics dashboard.",
+    jobType: "full_time",
+    experienceLevel: "experienced",
+    minYearsExperience: 8,
+    workStyle: "hybrid",
+    locationCity: "Seattle",
+    locationCountry: "US",
+    salaryMin: 165_000,
+    salaryMax: 210_000,
+    salaryCurrency: "USD",
+    salaryPeriod: "year",
+    status: "published",
+    uploadedAt: hoursAgo(3),
+    roles: ["Frontend Engineer", "Software Engineer"],
+    saved: true,
     match: 94,
     highlights: [
       { text: "React and TypeScript depth", met: true },
       { text: "Pays above your $150k floor", met: true },
       { text: "Two days on-site each week", met: false },
     ],
-    saved: true,
   },
   {
     id: "lumen-product-engineer-design-systems",
-    title: "Product Engineer, Design Systems",
+    companyId: "lumen-labs",
     company: "Lumen Labs",
-    industries: ["Developer Tools", "Artificial Intelligence", "Series B"],
-    Icon: SunIcon,
-    tone: "deep",
-    flags: [{ label: "Posted 9h ago", fresh: true }, { label: "Early applicant" }],
-    location: "Remote (US)",
-    workplace: "Remote",
-    jobType: "Full-time",
-    level: "Mid, Senior",
-    salary: "$150k - $185k",
-    starts: "Start date flexible",
-    applicants: "31 applicants",
+    title: "Product Engineer, Design Systems",
+    description:
+      "Lumen is hiring a Product Engineer to build and maintain the design system behind our developer tools.",
+    jobType: "full_time",
+    experienceLevel: "experienced",
+    minYearsExperience: 4,
+    workStyle: "remote",
+    locationCity: null,
+    locationCountry: null,
+    salaryMin: 150_000,
+    salaryMax: 185_000,
+    salaryCurrency: "USD",
+    salaryPeriod: "year",
+    status: "published",
+    uploadedAt: hoursAgo(9),
+    roles: ["Frontend Engineer", "Design Systems Engineer"],
     match: 88,
     highlights: [
       { text: "Design-systems work you saved twice", met: true },
@@ -136,19 +183,24 @@ export const RECOMMENDATIONS: Recommendation[] = [
   },
   {
     id: "atlas-senior-software-engineer-web",
-    title: "Senior Software Engineer, Web",
+    companyId: "atlas-freight",
     company: "Atlas Freight",
-    industries: ["Logistics", "Marketplace", "Public Company"],
-    Icon: LayersIcon,
-    tone: "brand",
-    flags: [{ label: "Reposted 2d ago" }, { label: "6 alumni here" }],
-    location: "Austin, TX",
-    workplace: "On-site",
-    jobType: "Full-time",
-    level: "Senior",
-    salary: "$140k - $175k",
-    starts: "Starts Oct 2026",
-    applicants: "80+ applicants",
+    title: "Senior Software Engineer, Web",
+    description:
+      "Atlas Freight is hiring a Senior Software Engineer to build the web tools our logistics team runs on.",
+    jobType: "full_time",
+    experienceLevel: "experienced",
+    minYearsExperience: 6,
+    workStyle: "onsite",
+    locationCity: "Austin",
+    locationCountry: "US",
+    salaryMin: 140_000,
+    salaryMax: 175_000,
+    salaryCurrency: "USD",
+    salaryPeriod: "year",
+    status: "published",
+    uploadedAt: daysAgo(2),
+    roles: ["Software Engineer"],
     match: 76,
     highlights: [
       { text: "Matches your Node and GraphQL work", met: true },
@@ -158,19 +210,25 @@ export const RECOMMENDATIONS: Recommendation[] = [
   },
   {
     id: "verdant-frontend-engineer-ii",
-    title: "Frontend Engineer II",
+    companyId: "verdant-health",
     company: "Verdant Health",
-    industries: ["Healthcare", "Telemedicine", "Series A"],
-    Icon: LeafIcon,
-    tone: "positive",
-    flags: [{ label: "Posted 4d ago" }, { label: "Early applicant" }],
-    location: "Boston, MA",
-    workplace: "Hybrid",
-    jobType: "Contract to hire",
-    level: "Mid-level",
-    salary: "$120k - $145k",
-    starts: "Starts Jan 2027",
-    applicants: "45 applicants",
+    title: "Frontend Engineer II",
+    description:
+      "Verdant Health is hiring a Frontend Engineer II to build accessible patient-facing tools.",
+    jobType: "contract",
+    experienceLevel: "experienced",
+    minYearsExperience: 3,
+    workStyle: "hybrid",
+    locationCity: "Boston",
+    locationCountry: "US",
+    salaryMin: 120_000,
+    salaryMax: 145_000,
+    salaryCurrency: "USD",
+    salaryPeriod: "year",
+    status: "published",
+    uploadedAt: daysAgo(4),
+    closesAt: daysAgo(-14),
+    roles: ["Frontend Engineer"],
     match: 68,
     highlights: [
       { text: "Accessibility work you list as a strength", met: true },

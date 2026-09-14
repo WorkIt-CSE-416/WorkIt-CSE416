@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 import { cn } from "@/lib/cn";
 
-import { EXAMPLE, type JobDraft } from "./data";
+import { EXAMPLE, formatLocation, type JobDraft, type SavedLocation } from "./data";
 
 /**
  * What a seeker will see, redrawn on every keystroke.
@@ -31,11 +31,11 @@ import { EXAMPLE, type JobDraft } from "./data";
  * tabindex="0", which a disabled form control ignores — so it cannot be
  * clicked or submitted, not merely dimmed.
  */
-export function JobPreview({ draft }: { draft: JobDraft }) {
+export function JobPreview({ draft, locations }: { draft: JobDraft; locations: SavedLocation[] }) {
   const title = draft.title.trim() || EXAMPLE.title;
-  const location = draft.location.trim() || EXAMPLE.location;
+  const location = locationLabel(draft, locations);
   const description = draft.description.trim();
-  const salary = salaryBand(draft.salaryMin, draft.salaryMax);
+  const salary = formatSalary(draft);
 
   return (
     <Card padding="none">
@@ -43,13 +43,11 @@ export function JobPreview({ draft }: { draft: JobDraft }) {
         <CompanyTile Icon={BriefcaseIcon} size="md" tone="brand" />
 
         <h3 className="text-title text-ink mt-3">{title}</h3>
-        <p className="text-note text-ink-meta mt-0.5">
-          {location} <span aria-hidden="true">·</span> {draft.department}
-        </p>
+        <p className="text-note text-ink-meta mt-0.5">{location}</p>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           <Badge variant="tag">{salary}</Badge>
-          <Badge variant="tag">{draft.employmentType}</Badge>
+          <Badge variant="tag">{draft.jobType}</Badge>
         </div>
       </div>
 
@@ -98,33 +96,60 @@ function RuledLines() {
 }
 
 /**
- * "$100k - $150k" from what is in the two salary inputs.
- *
- * Each end is handled separately because a half-filled pair is a real state —
- * a recruiter types the floor before the ceiling — and a band that reads
- * "$100k - $0k" in between would be worse than no band. With neither end filled
- * the example band stands in, matching what the inputs suggest.
+ * Where a location is read from: the saved location a recruiter picked, or
+ * "Remote" when Work Style says so — Remote never has a location at all, the
+ * same NULL/NULL convention `job_postings` uses.
  */
-function salaryBand(minInput: string, maxInput: string) {
-  const min = Number(minInput);
-  const max = Number(maxInput);
+function locationLabel(draft: JobDraft, locations: SavedLocation[]) {
+  if (draft.workStyle === "Remote") return "Remote";
 
-  if (!min && !max) return `${compact(EXAMPLE.salaryMin)} - ${compact(EXAMPLE.salaryMax)}`;
-  if (!max) return `From ${compact(min)}`;
-  if (!min) return `Up to ${compact(max)}`;
-  /* Typed out of order — show the band, not the mistake. The form is what
-     should complain about min > max, once it validates anything. */
-  if (min > max) return `${compact(max)} - ${compact(min)}`;
-
-  return `${compact(min)} - ${compact(max)}`;
+  const saved = locations.find((location) => location.id === draft.locationId);
+  return saved ? formatLocation(saved.city, saved.country) : EXAMPLE.location;
 }
 
-/** 100000 -> "$100k". Anything under a thousand is written out in full. */
-function compact(amount: number) {
-  if (amount < 1000) return `$${amount}`;
+/**
+ * "$100k - $150k/yr" from the salary fields, respecting the Exact/Range
+ * toggle and the chosen currency and period.
+ *
+ * Each end of a range is handled separately because a half-filled pair is a
+ * real state — a recruiter types the floor before the ceiling — and a band
+ * that reads "$100k - $0k" in between would be worse than no band. With
+ * nothing filled the example band stands in, matching what the inputs
+ * suggest.
+ */
+function formatSalary(draft: JobDraft) {
+  const period = draft.salaryPeriod === "Year" ? "yr" : "hr";
 
-  /* One decimal only where it says something: $125k, not $125.0k. */
-  const thousands = amount / 1000;
+  if (draft.salaryType === "Exact figure") {
+    const amount = Number(draft.salary);
+    if (!amount) return `${compact(EXAMPLE.salaryMin, "USD")}/yr`;
+    return `${compact(amount, draft.currency)}/${period}`;
+  }
 
-  return `$${Number(thousands.toFixed(1))}k`;
+  const min = Number(draft.salaryMin);
+  const max = Number(draft.salaryMax);
+
+  if (!min && !max) {
+    return `${compact(EXAMPLE.salaryMin, "USD")} - ${compact(EXAMPLE.salaryMax, "USD")}/yr`;
+  }
+  if (!max) return `From ${compact(min, draft.currency)}/${period}`;
+  if (!min) return `Up to ${compact(max, draft.currency)}/${period}`;
+  /* Typed out of order — show the band, not the mistake. The form is what
+     should complain about min > max, once it validates anything. */
+  if (min > max)
+    return `${compact(max, draft.currency)} - ${compact(min, draft.currency)}/${period}`;
+
+  return `${compact(min, draft.currency)} - ${compact(max, draft.currency)}/${period}`;
+}
+
+/** 100000, "USD" -> "$100K". `Intl` picks the right symbol for the currency
+ *  a recruiter chose rather than assuming USD, and `compact` notation is what
+ *  gives the one-decimal "$125K" instead of writing every zero out. */
+function compact(amount: number, currency: string) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount);
 }
