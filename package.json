@@ -16,7 +16,13 @@
     "db:migrate": "npm --prefix frontend run db:migrate",
     "db:studio": "npm --prefix frontend run db:studio",
     "db:check": "npm --prefix frontend run db:check",
+    "scrape": "uv --directory scraper run workit-scrape",
+    "scrape:dry": "uv --directory scraper run workit-scrape --dry-run",
+    "scraper:lint": "uv --directory scraper run ruff check .",
+    "scraper:typecheck": "uv --directory scraper run mypy .",
+    "scraper:test": "uv --directory scraper run pytest",
     "favicon": "npm --prefix frontend run favicon",
-    "install:frontend": "npm --prefix frontend install"
+    "install:frontend": "npm --prefix frontend install",
+    "install:scraper": "uv --directory scraper sync"
   }
 }

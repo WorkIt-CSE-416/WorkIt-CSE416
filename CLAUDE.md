@@ -11,21 +11,37 @@ you touch a file in there — read it before writing app code.
 frontend/         The Next.js app, and the whole build. Self-contained:
                   package.json, node_modules, lockfile and every toolchain
                   config live in here. See frontend/CLAUDE.md.
+backend/          The job ingestion scaffold. Python, self-contained: its own
+                  pyproject.toml, .venv and toolchain. See backend/CLAUDE.md.
+docs/             Cross-cutting prose docs — things that belong to neither half
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to
-                  frontend (see Commands)
+                  frontend or backend (see Commands)
 .nvmrc            Node version for the whole team
 .gitattributes    LF normalization
 ```
 
-Team prose docs moved down with the app, to `frontend/docs/` — everything in
-there is currently about the frontend. Add a root `docs/` back if something
-genuinely cross-cutting ever needs a home.
+Frontend prose docs live with the app, in `frontend/docs/` — `drizzle.md` and
+`shadcn.md` are both about the Next.js project. The root `docs/` is for what
+belongs to neither half: `KAN-55_JOB_SCRAPER.md` (the ingestion architecture),
+`KAN-55_SCRAPER_RESEARCH.md` (its evidence and adaptation map), and
+`KAN-55_SCRAPER_VERIFICATION.md` (how we prove it works) are read by
+whoever is working on either side. KAN-50's domain design is currently on
+`KAN-50-login-business-profiles`, not in this checkout; its implemented schema
+must land before ingestion migrations reference its company tables.
 
-A `backend/` sibling is planned and **does not exist yet — do not create it.**
-When it arrives it gets the same treatment: self-contained, its own dependency
-manifest, its own `backend/CLAUDE.md`.
+`backend/` now exists — KAN-55 created the scaffold; its CLI, adapters, store,
+and tests are still planned. It gets the same treatment as `frontend/`: its own
+dependency manifest, its own `backend/CLAUDE.md`. **`uv add <pkg>` belongs in
+`backend/`, `npm install <pkg>` in `frontend/`, and neither at the root.**
+
+The two halves meet only at the database, and the boundary has a direction:
+**`backend/` owns the schema and every migration; `frontend/` never opens a
+connection.** Tables are SQLAlchemy models migrated by Alembic (KAN-93), in one
+revision history for the whole database — a second chain, or DDL issued outside
+it, diverges silently and cannot be ordered. The app reaches data through the
+API, not an ORM. See `docs/KAN-55_JOB_SCRAPER.md` §5 for the ingestion side.
 
 ### Why two folders rather than one project at the root
 
@@ -48,8 +64,8 @@ nothing builds from.
 
 ## Commands
 
-Every script lives in `frontend/package.json`. The root `package.json` mirrors
-them, so both of these work:
+The root `package.json` has no dependencies. It forwards scripts into both
+halves, so implemented commands can run from the repo root:
 
 ```
 npm run dev                    # from the repo root
@@ -57,14 +73,25 @@ npm --prefix frontend run dev  # from the repo root, explicitly
 npm run dev                    # from inside frontend/
 ```
 
-The full list — `dev`, `build`, `start`, `lint`, `lint:fix`, `typecheck`,
+**Frontend** — `dev`, `build`, `start`, `lint`, `lint:fix`, `typecheck`,
 `format`, `format:check`, `clean`, `db:generate`, `db:migrate`, `db:studio`,
-`db:check`, `favicon` — is documented with what each one does in
-`frontend/CLAUDE.md`. First-time setup is `npm run install:frontend` from the
-root, or `npm install` inside `frontend/`.
+`db:check`, `favicon` — documented with what each does in `frontend/CLAUDE.md`.
 
-Adding a script to `frontend/package.json` does not make it available from the
-root; add the forwarding line here too if it should be.
+**Scraper** — `scrape`, `scrape:dry`, `scraper:lint`, `scraper:typecheck`,
+`scraper:test` — documented in `scraper/CLAUDE.md`. These forward through `uv`'s
+`--directory` flag, which is the Python equivalent of npm's `--prefix`: one
+binary invocation, no `cd`, so the cross-platform rule below still holds.
+`scrape` and `scrape:dry` target the future CLI and are not runnable yet.
+
+First-time setup is `npm run install:frontend` and `npm run install:scraper`.
+The scraper needs [uv](https://docs.astral.sh/uv/) on PATH (`brew install uv`);
+it is not bundled. For scraper development tools, run
+`uv --directory scraper sync --extra dev`; the npm install forwarder currently
+installs runtime dependencies only.
+
+Adding a script to `frontend/package.json` or `scraper/pyproject.toml` does not
+make it available from the root; add the forwarding line here too if it should
+be.
 
 ## Cross-platform rules
 

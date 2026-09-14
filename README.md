@@ -40,8 +40,8 @@ npm install
 npm run dev
 ```
 
-**Install dependencies in `frontend/`, not at the repo root.** The root
-`package.json` has no dependencies — it only forwards the scripts below.
+Install app dependencies in `frontend/` and Python dependencies in `backend/`.
+The root `package.json` has no dependencies — it only forwards scripts.
 
 Database work additionally needs `frontend/.env.local` — copy
 `frontend/.env.example` and fill it in from the Supabase dashboard. The app runs
@@ -49,8 +49,8 @@ without it; every screen still renders fixture data.
 
 ## Scripts
 
-Every script is cross-platform and runs identically in macOS Terminal, Windows
-PowerShell, and cmd.exe. They are defined in `frontend/package.json` and
+The frontend scripts below are cross-platform and run in macOS Terminal,
+Windows PowerShell, and cmd.exe. They are defined in `frontend/package.json` and
 mirrored at the repo root, so each one works from either folder.
 
 | Command | What it does |
@@ -73,8 +73,12 @@ mirrored at the repo root, so each one works from either folder.
 
 ## Project layout
 
-The repo is split by tier. A `backend/` folder will sit beside `frontend/` once
-there is a backend; it does not exist yet.
+The repo is split by tier. The Python backend is currently a scaffold; its
+scraper CLI, adapters, persistence, and tests are still planned. Read the
+[scraper architecture](docs/KAN-55_JOB_SCRAPER.md) and
+[research appendix](docs/KAN-55_SCRAPER_RESEARCH.md) for the implementation plan.
+Backend development requires Python 3.11+ and uv; install its development tools
+with `uv --directory backend sync --extra dev` from the repository root.
 
 ```
 frontend/         The Next.js app — its own package.json and node_modules
@@ -89,7 +93,9 @@ frontend/         The Next.js app — its own package.json and node_modules
   scripts/        Maintenance scripts (plain Node, no shell)
   docs/           Prose docs for the team
     drizzle.md    How the database is wired — read before adding a table
-package.json      Scripts that forward into frontend/; no dependencies
+backend/          Python ingestion scaffold; see backend/CLAUDE.md
+docs/             Scraper architecture and research
+package.json      Scripts that forward into frontend/ and backend/; no dependencies
 ```
 
 Import from `frontend/src/` with the `@/` alias, e.g.

@@ -1,0 +1,18 @@
+# Scraped postings never enter git. This is a hard product constraint, not a
+# tidiness preference -- see ../docs/KAN-55_JOB_SCRAPER.md.
+.scraped/
+
+# Verification evidence: live-probe output, reconciliation worksheets, and
+# measured metrics. Same rule as .scraped/ -- real captured responses never
+# enter Git. See docs/KAN-55_SCRAPER_VERIFICATION.md.
+.verification/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

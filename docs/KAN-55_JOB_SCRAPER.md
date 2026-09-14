@@ -12,8 +12,9 @@ tables, migrations, tests, and npm scraper commands are implementation work
 and are not included in these commits.
 
 Adapt the Python ingestion core from zshah101's internship engine and selected
-provider mappings from ats-scrapers. Keep HTTPX and add Psycopg when persistence
-lands. Use their relevant modules and tests rather than copying their entire
+provider mappings from ats-scrapers. Keep HTTPX; add SQLAlchemy when
+persistence lands, sharing the backend's engine and models rather than opening
+a second connection layer. Use their relevant modules and tests rather than copying their entire
 applications. The [research appendix](#9-research-appendix) pins the
 reviewed revisions, distinguishes measurements from recommendations, and maps
 each adaptation to source code.
@@ -21,8 +22,14 @@ each adaptation to source code.
 ### Boundaries
 
 - Initial providers: Greenhouse, Lever, Ashby, SmartRecruiters.
-- Drizzle in `frontend/` owns schema definitions and migrations. Python only
-  reads and writes data; it does not create tables, including staging tables.
+- The Python backend owns schema definitions and migrations (KAN-93: FastAPI,
+  SQLAlchemy, Alembic). Ingestion tables are declared as SQLAlchemy models
+  alongside the API's own and migrated by Alembic. `frontend/` holds no ORM,
+  no schema and no migrations; it reads data through the API.
+- **One Alembic history governs the whole database.** The scraper does not keep
+  a second migration chain, a second `alembic_version` table, or ad-hoc DDL,
+  including staging tables. Two revision histories against one database
+  diverge silently and cannot be ordered against each other.
 - Postgres is authoritative. There is no committed JSON mirror or publishing
   workflow. Real scraped postings and captured responses never enter Git.
 - Ingest all publicly listed roles from enabled sources. Region, role, age,
@@ -37,10 +44,12 @@ each adaptation to source code.
 ### Company-schema dependency
 
 KAN-50 defines `companies` and `company_memberships`; its design document is
-on the `KAN-50-login-business-profiles` branch, not in this checkout. The
-current Drizzle schema barrel is empty. Merge the implemented KAN-50 schema
-before generating ingestion migrations with company foreign keys or membership
-policies. Do not implement a second company schema in Python.
+on the `KAN-50-login-business-profiles` branch, not in this checkout. Those
+tables now arrive as SQLAlchemy models in the KAN-93 backend. Their models and
+their Alembic revision must land before the ingestion revision that carries
+company foreign keys, because Alembic orders revisions by `down_revision` and a
+foreign key cannot precede its target. Do not implement a second company model
+in the scraper package.
 
 Until explicitly mapped, a source and its jobs retain a nullable `company_id`
 and their source display name. Discovery never grants memberships, merges
@@ -126,8 +135,12 @@ Preserve source fields alongside derived values:
   (`unknown`, `relative_derived`, `date_only`, `exact`).
 - Visibility: `is_listed`, independent of presence and `active`.
 
-Treat these types as the boundary between adapters and the store, not as a
-second ORM schema. Drizzle remains the database schema owner.
+Treat these types as the boundary between adapters and the store. They are
+plain dataclasses, deliberately **not** SQLAlchemy models: adapters must stay
+importable and testable without a database, and the dry run must not pull in
+the ORM at all. The SQLAlchemy models in the backend package remain the single
+schema definition, and the store is the only place the two representations
+meet.
 
 ## 3. Provider contracts
 
@@ -262,9 +275,19 @@ Enforce unique `(source_id, external_id)` for scraped jobs. Scraped origin
 requires both identities; employer origin requires a company and has null
 source/external identities. Origin is not client-editable. Employer writes
 require active membership in the owning company, with both existing-row and
-new-row checks. Until those membership policies exist, deny employer writes.
-Service-only tables have RLS enabled and no client policies. Preserve jobs
-when disabling a source or removing a company mapping.
+new-row checks. Until those membership checks exist, deny employer writes.
+
+**The "Access" column above is now an API contract, not a database policy.**
+When the API connects as a single application role — the ordinary SQLAlchemy
+setup — row-level security policies never fire, so "Service only" means *no
+FastAPI route exposes this table* and `active AND is_listed` is a filter the
+read endpoint applies. Enforce both in the query layer, in one place, not per
+route. If the team later decides RLS should remain a real boundary, that is a
+deliberate choice recorded in `frontend/docs/backend-integration.md`, and it
+requires per-transaction role and claim settings that interact badly with
+connection pooling; it is not the default and must not be assumed here.
+
+Preserve jobs when disabling a source or removing a company mapping.
 
 The two additional tables have concrete purposes: per-board outcomes remain
 queryable even for an empty board, and full replay data is separated from the
@@ -272,9 +295,13 @@ public normalized posting.
 
 Keep database credentials in a backend-only environment variable, never a
 client-prefixed variable, fixture, or log. Use the project's Supabase direct
-or session-pooler Postgres connection for this long-lived worker. If deployment
-requires the transaction pooler instead, configure Psycopg without automatic
-prepared statements and verify that mode in integration tests. Follow the
+or session-pooler Postgres connection (5432) for this long-lived worker; that
+is also the pooler Alembic must use, since DDL and migration locks need a
+session-scoped connection. If deployment requires the transaction pooler
+(6543) instead, disable automatic prepared statements on the engine — with
+SQLAlchemy over psycopg 3 that is
+`create_engine(url, connect_args={"prepare_threshold": None})` — and verify
+that mode in integration tests. Follow the
 [Supabase connection guidance](https://supabase.com/docs/guides/database/connecting-to-postgres)
 for the deployed network and pooler mode; do not reuse a browser client key as
 a database password.
@@ -284,7 +311,15 @@ a database password.
 Create the invocation and board-attempt records before network work. Read the
 source version, fetch/validate/normalize outside a write transaction, then:
 
-1. Begin a Psycopg transaction and lock the source with `SELECT … FOR UPDATE`.
+Use SQLAlchemy **Core** here, against the shared models' table metadata — not
+the ORM session. The steps below are explicit pessimistic locking with an
+optimistic version check, and the ORM's identity map, autoflush and cascade
+behaviour obscure exactly the ordering this depends on. Core keeps the emitted
+SQL predictable and reviewable, which is what the version-comparison argument
+below relies on.
+
+1. Begin a transaction on a SQLAlchemy `Connection` and lock the source with
+   `SELECT … FOR UPDATE`.
 2. If this observation was already committed, return its stored outcome without
    rewriting it. Otherwise compare `expected_state_version` with the locked
    row. On mismatch, mark this attempt superseded and leave jobs, checkpoint,
@@ -359,7 +394,7 @@ The planned CLI has `discover`, `poll`, and `reprocess` commands. Invoking
 `workit-scrape` without a subcommand defaults to `poll`. Planned npm
 forwarders should use that default. `poll --dry-run --sources <file>` reads an explicit local source
 list and writes normalized JSONL plus outcome metadata under
-`backend/.scraped/`, without database credentials or writes. It validates
+`scraper/.scraped/`, without database credentials or writes. It validates
 fetching and normalization, not database lifecycle behavior. Database lifecycle
 and restart behavior require integration tests.
 
@@ -468,8 +503,12 @@ Implementation milestones:
 1. Adapt contracts, provider-envelope validators, and synthetic fixtures from
    the pinned references. Add shared network policy and CLI scaffolding.
 2. Implement Greenhouse through normalization, including detail-failure paths.
-3. After the KAN-50 dependency lands, add the five Drizzle tables, policies,
-   constraints, and reviewed migration; add Psycopg and the board transaction.
+3. After KAN-93 and the KAN-50 dependency land, add the five ingestion tables
+   as SQLAlchemy models with their constraints, generate and hand-review one
+   Alembic revision, and implement the board transaction over the shared
+   engine. Autogenerated revisions are a draft: review the emitted DDL before
+   committing it, because Alembic does not reliably detect constraint or index
+   changes.
 4. Adapt and pass lifecycle, rollback, and concurrent-writer tests against an
    isolated Postgres database before enabling sweeps.
 5. Add Lever, Ashby, and SmartRecruiters against their provider contracts.
@@ -563,7 +602,8 @@ The [database schema](https://github.com/zshah101/Automated-List-Of-Summer-2027-
 replaces a mirror snapshot atomically using a global advisory lock and staging
 tables, including deletion of absent rows. Retain the transaction principle;
 replace the mirror with source-row locking, version comparison, stable job
-IDs, and soft closure. WorkIt migrations remain owned by Drizzle.
+IDs, and soft closure. WorkIt migrations are owned by Alembic in the Python
+backend, in one revision history shared with the API (KAN-93).
 
 The [workflow](https://github.com/zshah101/Automated-List-Of-Summer-2027-and-Fall-2026-Tech-Internships/blob/fd622ad36b2f85cfbc2c103bf7c05a45dbfb1a89/.github/workflows/update.yml)
 runs at minutes 7 and 37 with cancellation disabled. Its comments report an
@@ -647,7 +687,9 @@ ties destination acknowledgement to committed data. Apply the same principle
 to an ATS validator: commit it with the corresponding job/lifecycle writes,
 never immediately after HTTP success. The WorkIt transaction uses
 [Postgres row locking](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS)
-and [Psycopg transaction contexts](https://www.psycopg.org/psycopg3/docs/basic/transactions.html).
+and [SQLAlchemy transaction handling](https://docs.sqlalchemy.org/en/20/core/connections.html),
+over the [psycopg 3](https://www.psycopg.org/psycopg3/docs/basic/transactions.html)
+driver.
 Airbyte itself adds no necessary runtime capability to this scope.
 
 ### Provider contracts
