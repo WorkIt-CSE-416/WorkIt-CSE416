@@ -65,6 +65,8 @@ worth running.
 | A8 | Third-party attribution current | manual | `workit_scraper/THIRD_PARTY.md` lists every adapted file with its pinned upstream revision; reviewer confirms each entry against the actual import |
 | A9 | No ad-hoc DDL in the scraper (§1) | static | `grep -rniE '\b(create|alter|drop)\s+(table|index|type|schema)\b' workit_scraper/` returns nothing outside comments |
 | A10 | Single Alembic history (§1) | static | Exactly one `alembic_version` table and one `versions/` directory across the backend; `alembic heads` reports exactly one head |
+| A11 | v1 runs with no database at all | integration | A full `poll --store json` completes with no DB env vars set and no database package importable |
+| A12 | `.scraped/` output is gitignored | static | CI fails if any file under `scraper/.scraped/` or `scraper/.verification/` is staged |
 
 **A7 in detail.** The fixture rule is the one most likely to erode quietly,
 because pasting a real response is the fastest way to write a test. Enforce it
@@ -245,26 +247,49 @@ without its seed is not reproducible and therefore not actionable.
 
 ## Gate D — Transaction integrity and concurrency
 
-Where correctness meets crashes. Every check here needs a **real Postgres**;
-SQLite substitutes silently change locking semantics and will pass tests that
-production fails.
+Where correctness meets crashes.
+
+**This gate is split by store implementation.** v1 ships `JsonStore`, and file
+replacement genuinely provides atomicity — a crash mid-write leaves the
+previous board intact — so most of the gate runs against it. What files cannot
+provide is multi-writer concurrency and real row locking, so those checks wait
+for `PostgresStore`.
+
+| Runs against | Checks |
+| --- | --- |
+| **Both stores** | D1, D2, D6, D8, D9, D10, D11, D12, D13 |
+| **`PostgresStore` only** | D3, D4, D5, D7, D14 |
+
+Run the shared checks against **both** implementations from one parameterized
+suite. If a check passes on files and fails on Postgres, that difference is the
+finding — it means the protocol leaked an assumption.
+
+Postgres checks need a **real Postgres**; SQLite substitutes silently change
+locking semantics and will pass tests that production fails.
+
+| ID | v1 equivalent, where one exists |
+| --- | --- |
+| D1 | One board's jobs, payloads, outcome and checkpoint all land, or none — `os.replace()` is atomic |
+| D2 | Inject failure after the ETag arrives, before replace; next poll issues an unconditional request |
+| D4 | Version comparison is store-independent; the mismatch path is testable on files |
+| D10 | `SIGKILL` mid-write leaves the previous board file intact and the attempt recoverable |
 
 | ID | Verifies | Method | Pass criterion |
 | --- | --- | --- | --- |
 | D1 | Board commits atomically (§5) | integration | Jobs, payloads, lifecycle, outcome, and checkpoint all present, or none |
 | D2 | Failure rolls back everything including the ETag (§5, §7) | chaos | Inject a failure after the ETag arrives but before commit; next poll issues an **unconditional** request |
-| D3 | Source locked with `FOR UPDATE` (§5) | integration | Second writer blocks until the first commits |
+| D3 | Source locked with `FOR UPDATE` (§5) — *Postgres only* | integration | Second writer blocks until the first commits |
 | D4 | Version mismatch → superseded, nothing changed (§5) | integration | Jobs, checkpoint, and health all unchanged; source retried later |
-| D5 | Two workers, one starting version | integration | Exactly one application; missing count incremented at most once (§7) |
+| D5 | Two workers, one starting version — *Postgres only* | integration | Exactly one application; missing count incremented at most once (§7) |
 | D6 | Lost acknowledgement, retried commit (§7) | integration | Returns the committed outcome; does **not** mark it superseded |
-| D7 | **No database lock held during HTTP** (§5) | integration | Instrument: assert no transaction is open while the HTTP client is in flight. See M4 |
+| D7 | **No database lock held during HTTP** (§5) — *Postgres only* | integration | Instrument: assert no transaction is open while the HTTP client is in flight. See M4 |
 | D8 | Board failure does not stop other boards (§7) | integration | One board raises; others commit independently |
 | D9 | Attempt failure recorded in a separate transaction (§5) | integration | Visible after the main transaction rolls back |
 | D10 | Unfinished attempt visible after a hard crash | chaos | `SIGKILL` mid-transaction; the attempt row remains for recovery, no partial job writes |
 | D11 | Retried invocation gets a new run ID; retried observation keeps its ID (§5) | integration | Both asserted |
 | D12 | Registry edit during in-flight fetch (§5) | integration | Disabling a source advances its version; the in-flight result is rejected as obsolete |
 | D13 | Closure preserved when sweeping disabled mid-fetch (§7) | integration | `closed_at` unchanged; obsolete version rejected |
-| D14 | Parameterized SQL only | static + integration | No string-built SQL anywhere; a fixture with `'; DROP TABLE jobs;--` as a job title round-trips as literal text |
+| D14 | Parameterized SQL only — *Postgres only* | static + integration | No string-built SQL anywhere; a fixture with `'; DROP TABLE jobs;--` as a job title round-trips as literal text |
 
 **D7 deserves its own note.** Holding a transaction open across an HTTP call is
 the single scaling mistake this design most carefully avoids (§5: "Do not hold
@@ -370,7 +395,10 @@ compensation field.
 
 ### G.2 Corpus-level invariants
 
-Cheap, automated, run over the whole output of a pilot run.
+Cheap, automated, run over the whole output of a pilot run. These run against
+whichever store is in use — over `jobs/*.jsonl` in v1, over the `jobs` table in
+v2 — and the assertions are identical either way. Keep them store-independent;
+a corpus check that only works against SQL will silently stop running in v1.
 
 | ID | Invariant | Pass criterion |
 | --- | --- | --- |

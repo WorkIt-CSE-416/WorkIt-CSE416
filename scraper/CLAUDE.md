@@ -44,6 +44,14 @@ These are implementation contracts, not commands available in this scaffold.
 
 ## Persistence rules
 
+**v1 does not use the database.** The store is a protocol with two
+implementations: `JsonStore` writes gitignored files under `scraper/.scraped/`
+and is what v1 ships; `PostgresStore` arrives once KAN-93's schema lands. Both
+honour the same contract, so lifecycle and caching are built once. One file per
+board, committed by atomic replace — see the architecture §5.
+
+Everything below governs the Postgres implementation when it lands.
+
 **Alembic owns the schema, in one revision history for the whole database.**
 Tables are SQLAlchemy models in the Python backend (KAN-93); `frontend/` holds
 no ORM and no migrations. Add SQLAlchemy when the store lands and share the
