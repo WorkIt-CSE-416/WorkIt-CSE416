@@ -12,6 +12,13 @@ By Xiang, Brian, Andrew, Lisul, Vedant
 - TypeScript (strict)
 - Tailwind CSS v4
 - ESLint 9 + Prettier
+- [Supabase](https://supabase.com) — hosted Postgres
+- Python API (in `backend/`) — everything that touches the database
+
+The frontend never queries Postgres itself; it calls the API for data. How
+auth works — Supabase Auth or the API itself — is still being decided, so
+nothing in `frontend/` assumes an answer yet. See
+`frontend/docs/backend-integration.md`.
 
 ## Requirements
 
@@ -46,9 +53,10 @@ npm run dev
 **Install dependencies in `frontend/`, not at the repo root.** The root
 `package.json` has no dependencies — it only forwards the scripts below.
 
-Database work additionally needs `frontend/.env.local` — copy
-`frontend/.env.example` and fill it in from the Supabase dashboard. The app runs
-without it; every screen still renders fixture data.
+You do not need `frontend/.env.local` to run the app — every screen renders
+fixture data, so a fresh clone boots with no configuration at all. Copy
+`frontend/.env.example` once you need a real Supabase session. Database
+credentials do **not** go in that file; they belong to the Python service.
 
 ## Scripts
 
@@ -67,17 +75,13 @@ mirrored at the repo root, so each one works from either folder.
 | `npm run format` | Format with Prettier |
 | `npm run format:check` | Verify formatting without writing |
 | `npm run clean` | Delete `.next`, `out`, `coverage`, build info |
-| `npm run db:generate` | Generate a SQL migration from the Drizzle schema |
-| `npm run db:migrate` | Apply pending migrations |
-| `npm run db:studio` | Browse the database in Drizzle Studio |
-| `npm run db:check` | Verify the database connection works |
 | `npm run favicon` | Rebuild the favicon from `public/workit-icon.png` |
 | `npm run install:frontend` | Install frontend dependencies (root only) |
 
 ## Project layout
 
-The repo is split by tier. A `backend/` folder will sit beside `frontend/` once
-there is a backend; it does not exist yet.
+The repo is split by tier: the Next.js app in `frontend/`, the Python API in
+`backend/`. Each is self-contained, with its own dependencies.
 
 ```
 frontend/         The Next.js app — its own package.json and node_modules
@@ -85,13 +89,15 @@ frontend/         The Next.js app — its own package.json and node_modules
     layout.tsx    Root layout (fonts, metadata, <html>/<body>)
     page.tsx      Route "/"
     globals.css   Tailwind entry point and theme tokens
-  src/db/         Drizzle schema, connections, and the RLS query wrapper
   src/components/ Shared components
   src/lib/        Framework-free helpers
+    supabase/     Per-request session client; unused, and provisional
   public/         Static assets served from /
   scripts/        Maintenance scripts (plain Node, no shell)
   docs/           Prose docs for the team
-    drizzle.md    How the database is wired — read before adding a table
+    backend-integration.md  The frontend/API boundary and its open questions
+backend/          The Python API — owns the database
+  db/             Schema design notes
 package.json      Scripts that forward into frontend/; no dependencies
 LICENSE           MIT license for the whole repo
 ```
