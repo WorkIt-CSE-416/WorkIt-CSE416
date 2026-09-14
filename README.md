@@ -13,7 +13,8 @@ By Xiang, Brian, Andrew, Lisul, Vedant
 - Tailwind CSS v4
 - ESLint 9 + Prettier
 - [Supabase](https://supabase.com) — hosted Postgres
-- Python API (in `backend/`) — everything that touches the database
+- FastAPI + SQLAlchemy + Alembic (in `backend/`) — everything that touches the
+  database
 
 The frontend never queries Postgres itself; it calls the API for data. How
 auth works — Supabase Auth or the API itself — is still being decided, so
