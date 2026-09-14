@@ -197,6 +197,15 @@ companies
   1 -> many company_memberships
 ```
 
+## Database Functions And Triggers
+
+- `workit_handle_new_user()` provisions `profiles` from `auth.users`. It uses auth metadata for `full_name`, falls back to the email local part, and is paired with a migration-time backfill for existing users.
+- `workit_sync_profile_email()` copies later auth email changes without overwriting user-edited profile fields.
+- `create_company(name, slug)` creates the company and the caller's active owner membership in one transaction. Direct company inserts are not granted to authenticated users.
+- `has_company_role(company_id, roles[])` checks active memberships from RLS policies without recursively applying membership policies.
+- `workit_set_updated_at()` is the shared trigger for every KAN-50 table.
+- Security-definer functions use an empty `search_path` and expose execution only to the roles that require it.
+
 ## KAN-22 Boundary
 
 KAN-50 should provide:
@@ -221,8 +230,9 @@ KAN-22 should provide:
 4. Add `company_memberships`.
 5. Add `applicant_profiles`.
 6. Add `autofill_answers`.
-7. Add minimal RLS policies.
-8. Generate and review Drizzle migration SQL.
+7. Add provisioning, company creation, and authorization helpers.
+8. Add least-privilege grants and RLS policies.
+9. Generate and review Drizzle migration SQL.
 
 ## Cross-Reference With Similar Projects
 
