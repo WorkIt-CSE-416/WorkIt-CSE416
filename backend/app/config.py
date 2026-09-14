@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     # the transaction pooler of Supabase, same as DATABASE_URL
     database_url: str | None = None
 
-    # The session pooler 
+    # The session pooler for alembic to use for migrations 
     direct_url: str | None = None
 
     @property

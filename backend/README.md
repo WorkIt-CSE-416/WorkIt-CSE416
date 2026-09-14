@@ -18,3 +18,10 @@ The full chain for alembic upgrade head
 9. → configure_context(connection=connection) → context.configure(...)
 10. → context.begin_transaction(), then context.run_migrations()
 11. → Alembic walks the revision chain from the database's current revision to head, calling each upgrade()
+
+## Alembic Commands: 
+```uv run alembic history```     # every migration, in order 
+
+```uv run alembic current```     # which revision the database is on 
+
+```uv run alembic heads```       # should always print exactly one  
