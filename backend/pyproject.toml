@@ -1,0 +1,15 @@
+[project]
+name = "workit-api"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.53.0",
+]
+
+[tool.uv]
+# Always use a uv-downloaded interpreter, never whatever Python happens to be on
+# the machine. Teammates run Homebrew, Conda and the system Python in various
+# combinations; without this, "3.12" silently means a different build for each
+# of them. uv fetches the pinned version on first sync.
+python-preference = "only-managed"

@@ -33,16 +33,22 @@ not add Python tooling to the repo root.
 
 ## The database
 
-Postgres, hosted on Supabase. **Only the backend talks to it.** The Next.js app
+Postgres, hosted on Supabase, reached by FastAPI through SQLAlchemy, with
+Alembic owning migrations. **Only the backend talks to it.** The Next.js app
 holds no ORM, no connection string and no schema; Drizzle used to sit in
 `frontend/src/db/` and was removed when the API moved to Python. A query you
 are tempted to write in a React component belongs in an endpoint instead.
 
+Alembic is the single source of truth for schema. `backend/db/*.md` are design
+rationale, and schema edits through the Supabase dashboard are banned — they
+bypass Alembic silently.
+
 **Auth is an open decision, not a settled one.** Supabase Auth and the Python
-API are both plausible owners of identity, and the choice decides whether
-row-level security stays a boundary at all. The `@supabase/*` packages in
-`frontend/` are scaffolding, not an answer — nothing calls them yet. Do not
-write code, or docs, that assume a winner.
+API are both plausible owners of identity. Row-level security is a separate
+matter and largely settled by the stack: SQLAlchemy connects as one privileged
+role, so policies do not fire and authorization lives in Python. The
+`@supabase/*` packages in `frontend/` are scaffolding, not an answer — nothing
+calls them yet. Do not write code, or docs, that assume a winner.
 
 `frontend/docs/backend-integration.md` records what is settled, what is open,
 and the constraints that hold either way. Read it before wiring the two halves
