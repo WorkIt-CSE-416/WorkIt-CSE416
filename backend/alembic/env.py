@@ -1,10 +1,6 @@
-"""Alembic environment.
+"""
+Alembic environment 
 
-Two things here are load-bearing and were added deliberately. Read them before
-changing anything:
-
-1. The connection URL comes from `app.config`, not from `alembic.ini`. The ini
-   file is committed; the database password is not.
 2. `include_name` and `include_object` restrict Alembic to the `public` schema.
    Without them, the first `--autogenerate` run against a Supabase project
    proposes dropping `auth.users`, every `storage` object, and the rest of the
@@ -22,12 +18,6 @@ from alembic import context
 from app.config import get_settings
 from app.db import Base
 
-# Importing the models is what registers them on Base.metadata; a model that no
-# import reaches is invisible to autogenerate, and Alembic will cheerfully
-# generate a migration dropping the table it cannot see. There are no models
-# yet — when app/models/ exists, import it here:
-#
-#     from app import models  # noqa: F401
 
 config = context.config
 
@@ -36,15 +26,7 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Schemas Supabase owns. They exist in every project, this application did not
-# create them, and Alembic must never generate DDL against them.
-#
-# Alembic compares the live database to Base.metadata and treats anything it
-# finds in the database but not in the metadata as something to DROP. Supabase's
-# internal tables are exactly that, so an unfiltered autogenerate produces a
-# migration that deletes the auth system. This list is documentation; the
-# filters below work by allowing only `public` rather than by naming these, so
-# a schema Supabase adds later is excluded automatically.
+# Schemas Supabase owns
 SUPABASE_SCHEMAS = frozenset(
     {
         "auth",

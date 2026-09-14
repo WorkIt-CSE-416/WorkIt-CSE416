@@ -26,10 +26,7 @@ def to_asyncpg(url: str) -> str:
     return f"postgresql+asyncpg://{rest}"
 
 
-# `.env` lives at the repo root, one directory above `backend/`. Anchoring to
-# __file__ rather than pydantic's default relative ".env" keeps it found no
-# matter where a command is invoked from — uvicorn and alembic run from
-# `backend/`, a test runner or editor may run from the root.
+# env from the root directory 
 ENV_FILE = Path(__file__).parents[2] / ".env"
 
 
