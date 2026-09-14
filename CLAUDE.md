@@ -155,3 +155,20 @@ this repo:
 - Reviews must first reconstruct *intended* behavior (from tests, callers, docstrings, schemas) before looking for defects — never review code against itself.
 - Findings are cut aggressively; a handful that survive scrutiny beat twenty speculative ones.
 - If the code cannot be run, trace its logic directly rather than skipping the path.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in Jira, project key `KAN`, reached through the Atlassian MCP
+server; GitHub holds pull requests only. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, each label string equal to its name. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` at the repo root plus `docs/adr/`, both created
+lazily by `/domain-modeling`. See `docs/agents/domain.md`.

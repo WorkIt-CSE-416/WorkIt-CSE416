@@ -21,7 +21,8 @@ imports the other's application code.
 
 ## Development commands
 
-Python 3.11+ and [uv](https://docs.astral.sh/uv/) are required. Run from the
+Python 3.12+ and [uv](https://docs.astral.sh/uv/) are required — the same
+version `backend/` pins, so one interpreter serves both. Run from the
 repository root:
 
 ```text
@@ -51,6 +52,10 @@ honour the same contract, so lifecycle and caching are built once. One file per
 board, committed by atomic replace — see the architecture §5.
 
 Everything below governs the Postgres implementation when it lands.
+
+**The ingestion migration is written in `backend/`, not here.** The five
+tables are SQLAlchemy models in the API project and land in its Alembic
+history; this package writes rows through them and owns no revision.
 
 **Alembic owns the schema, in one revision history for the whole database.**
 Tables are SQLAlchemy models in the Python backend (KAN-93); `frontend/` holds

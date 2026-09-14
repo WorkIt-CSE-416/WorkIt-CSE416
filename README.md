@@ -101,7 +101,7 @@ own dependencies.
 planned. Read the [architecture](docs/KAN-55_JOB_SCRAPER.md), its
 [research appendix](docs/KAN-55_SCRAPER_RESEARCH.md), and the
 [verification suite](docs/KAN-55_SCRAPER_VERIFICATION.md) for the plan. It
-needs Python 3.11+ and uv; install its development tools with
+needs Python 3.12+ and uv; install its development tools with
 `uv --directory scraper sync --extra dev` from the repository root.
 
 ```
