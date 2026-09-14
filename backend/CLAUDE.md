@@ -42,9 +42,8 @@ uv run alembic check                           fail if models lack a migration
 
 There is no test runner yet. When one is added, document it here.
 
-**Never run `alembic init` again.** It overwrites `alembic/env.py` with the
-stock template, which discards the schema filters described below and restores
-a version that proposes dropping `auth.users`.
+**Never run `alembic init` again** — it overwrites `alembic/env.py` and undoes
+the schema filters. `alembic/CLAUDE.md` explains what that costs.
 
 ## Layout
 
@@ -54,7 +53,8 @@ app/
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
   db.py           Async engine, session factory, declarative Base
 alembic/
-  env.py          Migration environment — READ ITS HEADER before editing
+  CLAUDE.md       Alembic decisions — read before editing anything here
+  env.py          Migration environment
   versions/       Migrations. Empty until the first model exists
   script.py.mako  Template for generated migrations
 alembic.ini       Alembic config. Deliberately holds no database URL
@@ -127,39 +127,26 @@ Both are DBAPI arguments and belong in `connect_args`. Passing
 `prepared_statement_cache_size` directly to `create_async_engine()` raises
 `TypeError: Invalid argument(s) sent to create_engine()`.
 
-### Why alembic/env.py filters schemas
+### Migrations
 
-`include_name` and `include_object` restrict Alembic to `public`. Alembic treats
-anything present in the database but absent from `Base.metadata` as something to
-DROP, and Supabase's own tables are exactly that. Verified against a database
-holding `auth.users` and `storage.objects`:
+**`alembic/CLAUDE.md` owns this** — the schema filters that stop autogenerate
+dropping `auth.users`, what autogenerate does not emit, the revision chain, and
+the rules for `versions/`. Read it before touching anything under `alembic/`.
 
-```
-with the filters:     pass                                    (empty migration)
-without the filters:  op.drop_table('objects', schema='storage')
-                      op.drop_table('users', schema='auth')
-```
+The two that matter from out here:
 
-Two filters rather than one: `include_name` stops reflection descending into a
-foreign schema, `include_object` catches what gets through and keeps working if
-someone sets `include_schemas=True`.
-
-### Rules that are not negotiable
-
-- **Never add `sqlalchemy.url` to `alembic.ini`.** That file is committed; the
-  password is not. `env.py` reads `DIRECT_URL` through `app.config`.
-- **Never change the schema in the Supabase dashboard.** It bypasses Alembic
-  silently and surfaces weeks later as an unrelated failed migration. Alembic
-  is the single source of truth.
+- **Alembic is the single source of truth for the schema.** Never change the
+  schema in the Supabase dashboard; it bypasses Alembic silently and surfaces
+  weeks later as an unrelated failed migration. `db/*.md` are design rationale,
+  not truth.
 - **Import every new model in `alembic/env.py`.** A model no import reaches is
   absent from `Base.metadata`, and autogenerate will write a migration
   *dropping* the table it cannot see.
-- **Read every generated migration before applying it.** Autogenerate does not
-  emit `CREATE EXTENSION`, new enum values, index operator classes such as
-  `gin_trgm_ops`, or anything `ltree` — and the planned schema uses all four.
-  Expect it to cover roughly two thirds and hand-write the rest with
-  `op.execute()`.
-- **Never put a connection string or service-role key in `frontend/`.**
+
+### Never put a connection string or service-role key in `frontend/`
+
+They belong to this service's environment. A variable added there is one typo
+away from a `NEXT_PUBLIC_` prefix and the client bundle.
 
 ## Conventions
 

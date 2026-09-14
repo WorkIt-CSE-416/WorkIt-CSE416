@@ -1,10 +1,5 @@
 """
-Alembic environment 
-
-2. `include_name` and `include_object` restrict Alembic to the `public` schema.
-   Without them, the first `--autogenerate` run against a Supabase project
-   proposes dropping `auth.users`, every `storage` object, and the rest of the
-   platform. See the note on SUPABASE_SCHEMAS below.
+Alembic environment file that's run top to bottom everytime Alembic runs 
 """
 
 import asyncio

@@ -121,7 +121,10 @@ The team develops on both macOS and Windows. Keep it that way:
   changed and why, and what is still undecided. Written for whoever picks the
   work up next, human or agent. The root file is always in context;
   `frontend/CLAUDE.md` and `backend/CLAUDE.md` load on top of it when working
-  in those folders.
+  in those folders, and they nest further where a subfolder has decisions of
+  its own — `backend/alembic/CLAUDE.md` is the current example. Put a rule at
+  the deepest level that fully contains it, and leave a pointer above rather
+  than a copy; two statements of the same rule drift.
 - `README.md` — kept deliberately short. Do not move explanatory material into
   one, and do not restore prose to a README that has been trimmed; that trim
   was the point.
