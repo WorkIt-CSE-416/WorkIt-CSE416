@@ -267,12 +267,16 @@ finding — it means the protocol leaked an assumption.
 Postgres checks need a **real Postgres**; SQLite substitutes silently change
 locking semantics and will pass tests that production fails.
 
-| ID | v1 equivalent, where one exists |
-| --- | --- |
-| D1 | One board's jobs, payloads, outcome and checkpoint all land, or none — `os.replace()` is atomic |
-| D2 | Inject failure after the ETag arrives, before replace; next poll issues an unconditional request |
-| D4 | Version comparison is store-independent; the mismatch path is testable on files |
-| D10 | `SIGKILL` mid-write leaves the previous board file intact and the attempt recoverable |
+How the shared checks read against `JsonStore`:
+
+- **D1** — one board's jobs, payloads, outcome and checkpoint all land, or none;
+  `os.replace()` is atomic.
+- **D2** — inject failure after the ETag arrives but before the replace; the
+  next poll issues an unconditional request.
+- **D4** — version comparison is store-independent, so the mismatch path is
+  fully testable on files.
+- **D10** — `SIGKILL` mid-write leaves the previous board file intact and the
+  attempt recoverable.
 
 | ID | Verifies | Method | Pass criterion |
 | --- | --- | --- | --- |
