@@ -1,14 +1,12 @@
 import enum
 import uuid as _uuid
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
-from sqlalchemy import  Text, text, ForeignKey, Boolean
+from sqlalchemy import  Text, text, ForeignKey, Boolean, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-
-from json import jsonb
 from app.db import Base
 
 
@@ -20,8 +18,8 @@ class ResumeStatus(str, enum.Enum):
 class Resume(Base):
     __tablename__ = "resumes"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
-    applicant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("applicant_profiles.profile_id", ondelete="CASCADE"))
+    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+    applicant_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("applicant_profiles.profile_id", ondelete="CASCADE"))
     original_filename: Mapped[Optional[str]]
     storage_path: Mapped[Optional[str]]
     file_hash: Mapped[Optional[str]]
@@ -32,3 +30,17 @@ class Resume(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
+class ResumeEducation(Base):
+    __tablename__ = "resume_education"
+
+    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
+    institution: Mapped[str]
+    degree: Mapped[Optional[str]]
+    field_of_study: Mapped[Optional[str]]
+    gpa: Mapped[Optional[float]]
+    start_date: Mapped[Optional[date]]
+    end_date: Mapped[Optional[date]]
+    description: Mapped[Optional[str]]
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
