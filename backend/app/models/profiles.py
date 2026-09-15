@@ -5,7 +5,7 @@ from typing import Optional
 import datetime
 import uuid 
 from sqlalchemy import ForeignKey
-from sqlalchemy import String, DateTime, func
+from sqlalchemy import String, DateTime, func, Enum
 from sqlalchemy.orm import DeclarativeBase, Mapped,mapped_column 
 from app.models.dto import company_size_range, company_role, profile_status
 from app.db import Base # the actual Base that Alembic reads from 
