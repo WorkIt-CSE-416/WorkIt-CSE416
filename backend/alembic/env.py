@@ -1,5 +1,5 @@
 """
-Alembic environment file that's run top to bottom everytime Alembic runs 
+Alembic environment file that's run top to bottom everytime Alembic runs
 """
 
 import asyncio
@@ -13,6 +13,7 @@ from alembic import context
 from app.config import get_settings
 from app.db import Base
 
+from app.models.resume import Resume, ResumeStatus, ResumeCertifications, ResumeEducation, ResumeExperience, ResumeProjects, ResumeSkills
 
 config = context.config
 
