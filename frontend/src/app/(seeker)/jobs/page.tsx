@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import {
   AwardIcon,
@@ -18,7 +19,6 @@ import { CompanyTile } from "@/components/ui/company-tile";
 import { Fact } from "@/components/ui/fact";
 import { FilterChip } from "@/components/ui/filter-chip";
 import { IconButton } from "@/components/ui/icon-button";
-import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
 
 import { FILTERS, RECOMMENDATIONS, SORT, type Recommendation } from "./data";
@@ -49,10 +49,24 @@ function RecommendationCard({ job }: { job: Recommendation }) {
   return (
     <Card as="article" padding="none" className="flex flex-col overflow-hidden md:flex-row">
       <div className="min-w-0 flex-1 p-4">
-        <div className="flex items-start gap-3">
-          <CompanyTile Icon={job.Icon} size="lg" tone={job.tone} />
+        {/* Grid, not flex: the tile opts into `self-stretch` to grow past its
+            own 64px default and match whatever height the flags/title/company
+            stack beside it actually needs — a fixed box otherwise falls short
+            of that stack's bottom edge, since the stack's height depends on
+            content (title wrapping, how many flags there are) a fixed box
+            can't anticipate. `aspect-square` is what keeps the grown box a
+            square rather than a stretched rectangle, and needs grid's row/
+            column sizing to resolve correctly — the same aspect-ratio-from-
+            stretched-cross-size case is a known gap in flexbox specifically. */}
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
+          <CompanyTile
+            Icon={job.Icon}
+            size="lg"
+            tone={job.tone}
+            className="aspect-square h-full w-auto self-stretch"
+          />
 
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <ul className="flex flex-wrap items-center gap-1.5">
               {job.flags.map((flag) => (
                 <li key={flag.label} className="flex">
@@ -63,14 +77,30 @@ function RecommendationCard({ job }: { job: Recommendation }) {
               ))}
             </ul>
 
-            <h3 className="text-title text-ink mt-1.5">{job.title}</h3>
+            {/* Ink, not brand, and turning brand only on hover/focus — same
+                call RowLink makes for the company table's title cell: a list
+                where every card's title is the same blue has no contrast left
+                to draw attention with. */}
+            <h3 className="text-title mt-1.5">
+              <Link
+                href={`/jobs/${job.id}`}
+                className="text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+              >
+                {job.title}
+              </Link>
+            </h3>
 
-            {/* The employer is a link and the sector is not, so the two are
-                told apart by weight and ink as well as by the slash. */}
+            {/* Ink, not brand, same call as the title above — a card where
+                the company name is the one blue thing sitting under a black
+                title reads as a mistake, not an affordance. The employer is
+                still told apart from the sector by weight and the slash. */}
             <p className="text-note mt-0.5">
-              <TextLink href="/companies" className="font-semibold">
+              <Link
+                href="/companies"
+                className="text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs font-semibold focus-visible:ring-2 focus-visible:outline-none"
+              >
                 {job.company}
-              </TextLink>
+              </Link>
               <span className="text-ink-faint"> / {job.industries.join(" · ")}</span>
             </p>
           </div>

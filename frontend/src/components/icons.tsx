@@ -66,6 +66,18 @@ export function CloseIcon({ className }: IconProps) {
   );
 }
 
+/**
+ * A back link's arrow. Promoted from (seeker)/jobs the day the company job
+ * detail page grew its own "Back to Jobs" — the second consumer.
+ */
+export function ArrowLeftIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
+      <path d="M13.25 8h-10.5M6.75 4l-4 4 4 4" />
+    </svg>
+  );
+}
+
 /** Opens the overflow menu on a card or a column. */
 export function EllipsisIcon({ className }: IconProps) {
   return (

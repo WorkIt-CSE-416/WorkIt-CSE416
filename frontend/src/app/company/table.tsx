@@ -40,6 +40,12 @@ import { cn } from "@/lib/cn";
 
 import { SortIcon } from "./icons";
 
+/* Re-exported so jobs-table.tsx's existing `import { formatDate } from
+ * "../table"` keeps working — see the note on the real definition for why it
+ * moved to a framework-free helper instead of living in this "use client"
+ * module. */
+export { formatDate } from "@/lib/format-date";
+
 /**
  * The table the two list screens share: /company/jobs and /company/applicants.
  *
@@ -371,33 +377,6 @@ export function RowLink({
       {children}
     </Link>
   );
-}
-
-/* Dates -------------------------------------------------------------------- */
-
-/**
- * Formats a date-only ISO string (`2026-08-04`) for display.
- *
- * BOTH OPTIONS BELOW ARE DOING REAL WORK. Drop either and it breaks.
- *
- * `timeZone: "UTC"` is why the date shown is the date written. `new Date()`
- * parses a date-only string as UTC midnight, and a viewer east of Greenwich —
- * or in this case west, at UTC-4 — renders that instant on the previous
- * evening, so every date came out a day early. Formatting in UTC keeps a value
- * that has no time component from being pushed across a boundary by one.
- *
- * The explicit `en-US` is why the server and the client agree. An unqualified
- * toLocaleDateString picks up whatever locale the runtime has, which is not the
- * same in Node and in a browser, and React reports the difference as a
- * hydration mismatch.
- */
-export function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }
 
 /* Table ------------------------------------------------------------------- */

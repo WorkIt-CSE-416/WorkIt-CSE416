@@ -4,7 +4,6 @@ import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { BellIcon, GearIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { NavLink } from "@/components/nav-link";
-import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
 
@@ -81,9 +80,9 @@ const NAV_ITEMS = [
  * account rows are still arriving: sign out has nowhere else to go, and neither
  * will billing or notification preferences.
  *
- * /settings is not built yet, the same way /apply in the bar is not. Both are
- * links that 404 rather than controls that do nothing, which is the more honest
- * placeholder and the one that stops needing a note the day the route lands. */
+ * /settings is not built yet. It is a link that 404s rather than a control
+ * that does nothing, which is the more honest placeholder and the one that
+ * stops needing a note the day the route lands. */
 const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
   { href: "/settings", label: "Settings", icon: <GearIcon className="size-4" /> },
 ];
@@ -143,8 +142,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </ul>
 
           <div className="ml-auto flex items-center gap-5">
-            <ButtonLink href="/apply">Apply to Job</ButtonLink>
-
             <IconButton label="Notifications">
               <BellIcon className="size-5" />
             </IconButton>

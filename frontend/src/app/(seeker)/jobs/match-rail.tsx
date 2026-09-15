@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 
-import { matchTier, type Highlight } from "./data";
+import { matchColor, matchTier, type Highlight } from "./data";
 import { CheckIcon } from "./icons";
 
 /**
@@ -12,14 +12,18 @@ import { CheckIcon } from "./icons";
  * 200px black block would be the only dark thing in the signed-in app and would
  * read as an advert pinned to every card. The rail uses `--color-well`, the
  * recessed surface the profile dropzone already established, and earns its
- * prominence from the ring instead. Swapping the two classes on the <aside>
- * below for `bg-ink text-on-brand` is the whole change if a designer disagrees.
+ * prominence from the ring instead.
  *
- * The arc is brand at every score. Colouring it by band was the obvious
- * alternative and it is the wrong one twice over: green would collide with the
- * board, where green means an offer and nothing else, and a red-to-green scale
- * would tell someone a 68% job is a bad job when it is only a lower-ranked one.
- * Length carries the magnitude; the label carries the band.
+ * The arc and the tier label now colour by band — green through red, from
+ * `matchColor` in ./data — rather than a single brand blue at every score.
+ * See the note on `TIERS` there for why that reverses this file's own earlier
+ * reasoning, and why it's a safe reversal even so. Length still carries the
+ * magnitude and the label still carries the band; colour is a third, faster
+ * read of the same two facts, not a replacement for either.
+ *
+ * `standalone` only changes the shape — a card with its own rounded corners
+ * and border, rather than a rail flush against a bigger card's edge — not the
+ * fill.
  */
 
 /* 64px box, 5px stroke, so the arc's centreline sits 2.5px inside the edge. */
@@ -27,6 +31,8 @@ const RADIUS = (64 - 5) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 function MatchRing({ score }: { score: number }) {
+  const color = matchColor(score);
+
   return (
     <div className="relative size-16">
       {/* -rotate-90 starts the arc at twelve o'clock rather than three. */}
@@ -47,7 +53,7 @@ function MatchRing({ score }: { score: number }) {
           strokeWidth="5"
           strokeLinecap="round"
           strokeDasharray={`${(CIRCUMFERENCE * score) / 100} ${CIRCUMFERENCE}`}
-          className="stroke-brand"
+          style={{ stroke: color }}
         />
       </svg>
 
@@ -70,14 +76,31 @@ function Dot() {
   );
 }
 
-export function MatchRail({ score, highlights }: { score: number; highlights: Highlight[] }) {
+export function MatchRail({
+  score,
+  highlights,
+  standalone = false,
+}: {
+  score: number;
+  highlights: Highlight[];
+  /** A rounded card that floats on its own — the job detail page's layout,
+   *  which sits it beside the facts rather than flush against a bigger
+   *  card's edge. Default false keeps the recommendation feed's flush rail
+   *  unchanged. */
+  standalone?: boolean;
+}) {
   return (
     <aside
       aria-label="Why this matches"
-      className="bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 border-t p-4 md:w-52 md:border-t-0 md:border-l"
+      className={cn(
+        "bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 p-4 md:w-52",
+        standalone ? "rounded-card border" : "border-t md:border-t-0 md:border-l",
+      )}
     >
       <MatchRing score={score} />
-      <p className="text-caption text-ink-meta uppercase">{matchTier(score)}</p>
+      <p className="text-caption font-semibold uppercase" style={{ color: matchColor(score) }}>
+        {matchTier(score)}
+      </p>
 
       <ul className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3">
         {highlights.map((highlight) => (

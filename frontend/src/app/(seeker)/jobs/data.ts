@@ -58,21 +58,42 @@ export type Recommendation = {
 };
 
 /**
- * What a score is called.
+ * What a score is called, and what colour says so at a glance.
  *
  * Bands rather than a bare percentage because a number alone invites a reading
  * it has not earned — 76 and 74 are not two different things. The thresholds
  * are a placeholder: whoever owns the matching model sets the real ones, and
  * the labels are the only place the screen states them.
+ *
+ * Five bands, green through red, rather than one brand blue at every score —
+ * a deliberate reversal of this file's earlier call. The risk that reversal
+ * runs is real (see the note it replaced in match-rail.tsx): green already
+ * means "you have an offer" on the applications board, and red already means
+ * "rejected." These are a different green and a different red from those
+ * tokens — a warmer, more saturated pair chosen so the two contexts read as
+ * visibly different colours rather than the same one reused — and a match
+ * score only ever appears on a job card or its detail page, never beside an
+ * application's own status, so the two vocabularies don't compete on screen.
  */
 const TIERS = [
-  { min: 85, label: "Strong match" },
-  { min: 70, label: "Good match" },
-  { min: 0, label: "Fair match" },
+  { min: 90, label: "Excellent match", color: "#22c55e" },
+  { min: 80, label: "Strong match", color: "#84cc16" },
+  { min: 65, label: "Good match", color: "#f59e0b" },
+  { min: 50, label: "Fair match", color: "#f97316" },
+  { min: 0, label: "Weak match", color: "#ef4444" },
 ] as const;
 
+function tierFor(score: number) {
+  return TIERS.find((tier) => score >= tier.min) ?? TIERS[TIERS.length - 1];
+}
+
 export function matchTier(score: number) {
-  return (TIERS.find((tier) => score >= tier.min) ?? TIERS[TIERS.length - 1]).label;
+  return tierFor(score).label;
+}
+
+/** The hex a match's ring and tier label draw in — see the note on `TIERS`. */
+export function matchColor(score: number) {
+  return tierFor(score).color;
 }
 
 /** `active` is the one facet shown applied, so it is the one that can be cleared. */
