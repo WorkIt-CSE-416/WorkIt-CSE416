@@ -2,6 +2,10 @@
 - AsyncEngine is the object that talks to Postgres, then uses asyncpg to send network to supabase, and a connection pooler like Supavisor :6543 to talk with supabase 
 
 
+## ORM and Cor 
+- SQLAlchemy has both ORM and Core. ORM defines classes and wraps SQL as Python, write like Python objects and read returns as python objects 
+- Core is faster and closer to raw SQL. Can combine both to get very efficient time 
+
 # Alembic 
 - verion folder consists of all the migration data 
 
@@ -25,3 +29,7 @@ The full chain for alembic upgrade head
 ```uv run alembic current```     # which revision the database is on 
 
 ```uv run alembic heads```       # should always print exactly one  
+
+
+## Schema Updates 
+- Can update schema directly in SQLAlchemy models, and create migration scripts for Alembic to execute
