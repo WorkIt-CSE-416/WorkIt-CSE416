@@ -62,6 +62,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# python
+__pycache__/
+*.py[cod]
+
 # claude skill reports
 claudeskill_reports/
 

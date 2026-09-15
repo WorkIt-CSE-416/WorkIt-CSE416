@@ -1,14 +1,15 @@
 import Link from "next/link";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
-import { BellIcon, GearIcon } from "@/components/icons";
+import { GearIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
+import { NotificationsMenu } from "@/components/notifications-menu";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
 import { TooltipProvider } from "@/components/shadcn/tooltip";
-import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
 
 import { CompanySidebar } from "./company-sidebar";
+import { NOTIFICATIONS } from "./notifications-data";
 
 /**
  * Chrome shared by every company screen.
@@ -144,9 +145,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
             />
 
             <div className="ml-auto flex items-center gap-5">
-              <IconButton label="Notifications">
-                <BellIcon className="size-5" />
-              </IconButton>
+              <NotificationsMenu items={NOTIFICATIONS} />
 
               <AccountMenu name="Jordan Reyes" items={ACCOUNT_ITEMS} />
             </div>
