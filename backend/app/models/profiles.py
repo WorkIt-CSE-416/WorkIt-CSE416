@@ -29,7 +29,7 @@ class Profile(BaseModel):
     '''
     __abstract__= True  # copy attributes 
     id:Mapped[uuid.UUID] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(100))
+    email: Mapped[str] = mapped_column(String(100), unique=True)
     full_name: Mapped[str] =mapped_column(String(50))
     phone_number: Mapped[Optional[str]] = mapped_column(String(30))
     avatar_url: Mapped[Optional[str]]
@@ -56,7 +56,7 @@ class Company_Profile(BaseModel):
     company_name: Mapped[str] = mapped_column(String(255))
     slug:Mapped[Optional[str]]
     website_url: Mapped[Optional[str]]
-    contact_email:Mapped[str] 
+    contact_email:Mapped[str] = mapped_column(String(100), unique=True)
     phone_number: Mapped[Optional[str]] = mapped_column(String(30)) 
     logo_url: Mapped[Optional[str]]
     description: Mapped[Optional[str]]= mapped_column(String(250))
