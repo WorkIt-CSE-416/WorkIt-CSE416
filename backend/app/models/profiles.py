@@ -7,16 +7,14 @@ import uuid
 from sqlalchemy import ForeignKey
 from sqlalchemy import String, DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped,mapped_column 
-from models.dto import company_size_range, company_role, profile_status
-
-class Base(DeclarativeBase): 
-    # standard base by default 
-    pass 
+from app.models.dto import company_size_range, company_role, profile_status
+from app.db import Base # the actual Base that Alembic reads from 
 
 class BaseModel(Base): 
     '''
     custom base model to store attributes that every subclass model would have
     '''
+    __abstract__ = True
     created_at: Mapped[datetime.datetime]=mapped_column(
                                             DateTime(timezone=True), 
                                             server_default=func.now())
@@ -29,7 +27,7 @@ class Profile(BaseModel):
     '''
     definition for profiles
     '''
-    __tablename__ = "profiles"
+    __abstract__= True  # copy attributes 
     id:Mapped[uuid.UUID] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(100))
     full_name: Mapped[str] =mapped_column(String(50))
@@ -69,6 +67,7 @@ class Company_Membership(Profile):
     '''
     individual profile under company (i.e. recruiter, etc.)
     '''
+    __tablename__ = "company_memberships"
     company_id: Mapped[uuid.UUID]= mapped_column(
         ForeignKey("company_profiles.id", ondelete="CASCADE")
     )
