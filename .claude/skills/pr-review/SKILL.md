@@ -9,6 +9,40 @@ A pre-PR review. The goal is to catch what the author's own eyes slide past: the
 
 The output is a markdown report in `claudeskill_reports/pr-review/`, not a chat message and not a set of edits to their code. The author decides what to act on. Try running the code with commands, but if they fail trace the logic of the program directly without running the code.
 
+## Hard rule — leave the repository untouched
+
+**The report is the only thing you may write. Nothing else in the repository changes.**
+
+`git status` must be exactly as clean at the end of the review as it was at the
+start. Check it before you begin, and check it again before you report back. If
+anything moved that you did not intend to move, say so plainly in chat.
+
+Specifically, during a review you do **not**:
+
+- edit, create, delete or rename any file other than the report — not the code
+  under review, not tests, not config, not `.gitignore`, not docs
+- apply a suggested patch, even an obviously correct one-liner, and even if the
+  user sounded receptive earlier in the conversation. Patches live in the report
+  as diffs. The author applies them.
+- stage, commit, stash, checkout, branch, merge, rebase, reset, or `git clean`
+- install, upgrade or remove dependencies, or touch a lockfile
+- run formatters, linters with `--fix`, codegen, or migrations
+
+Reading is unrestricted: `git diff`, `git log`, `git show`, and reading any file
+are all fine. Running the code for verification is fine too, but prefer commands
+that write nothing into the working tree, and be aware that test and build runs
+can leave artifacts (`__pycache__/`, `.next/`, `coverage/`, build output). Most
+are already ignored here; if one shows up in `git status`, remove that artifact
+and tell the user what produced it.
+
+The report path `claudeskill_reports/` is already listed in this repo's
+`.gitignore`, so writing the report does not dirty the tree. If that entry is
+ever missing, **do not add it** — write the report anyway and tell the user the
+entry needs adding, leaving the edit to them.
+
+If the user asks you to apply a fix, that is a separate task they have to ask
+for after the review. Write the report first, then ask.
+
 ## The core discipline
 
 Most bad code review comes from reviewing code against itself. If you read a function and ask "does this do what it does?", the answer is always yes. You have to know what it is *supposed* to do first, then check whether it does that. Everything below is in service of that.
@@ -103,7 +137,7 @@ Order the report by severity, then confidence. Anything below Low is a nit — i
 
 ## The report
 
-Create a folder called `claudeskill_reports` at the repository root, then within it a subfolder named for this skill — `claudeskill_reports/pr-review/`. Create both if they don't exist, and add `claudeskill_reports/` to `.gitignore` if it isn't already there.
+Create a folder called `claudeskill_reports` at the repository root, then within it a subfolder named for this skill — `claudeskill_reports/pr-review/`. Create both if they don't exist. These two folders and the report file inside them are the only writes this skill is permitted to make; `claudeskill_reports/` is already in `.gitignore`, so they stay out of `git status`.
 
 Write to `claudeskill_reports/pr-review/review-YYYY-MM-DD-<scope>.md`, where `<scope>` is a short slug for what was reviewed (`auth-refactor`, `parser`, `staged-changes`). If a report with that name exists, append `-2`, `-3`, and so on rather than overwriting.
 
@@ -173,8 +207,10 @@ is still needed.>
 
 Keep every part of that structure. The summary exists to be skimmed in ten seconds; the sections exist to be read when the author decides a finding is worth their time. Both matter — don't collapse one into the other.
 
-**On patches:** suggest the fix inline as a diff, and keep it minimal — the smallest change that closes the bug. Don't refactor in a patch, and don't apply it to the user's files. They review, they decide, they edit. If a fix has a real design tradeoff, name the alternatives in one line rather than picking silently.
+**On patches:** suggest the fix inline as a diff, and keep it minimal — the smallest change that closes the bug. Don't refactor in a patch, and never apply it to the user's files — see the hard rule above. They review, they decide, they edit. If a fix has a real design tradeoff, name the alternatives in one line rather than picking silently.
 
 ## After writing
 
-Tell the user the path, then give the headline in two or three sentences: how many findings, the worst one, and whether you'd open the PR. Don't restate the report in chat — they have the file. The report should contain both the findings and suggested fixes. Create a folder called `claudeskill_reports` in the root directory, then within it create a subfolder with the skill name — `claudeskill_reports/pr-review/` — and write the report markdown file there. Also add `claudeskill_reports/` into .gitignore if not already, so it won't be accidentally pushed to github. Write the file report and save it to the folder first, then ask user if they want to make the change. You do not need to ask permission to create the folders, but let the user know the file has been created and its name.
+Run `git status` one last time and confirm it is clean apart from the report itself, which is ignored — so the expected result is no changes at all. If it isn't clean, say what appeared and why before anything else.
+
+Then tell the user the path, and give the headline in two or three sentences: how many findings, the worst one, and whether you'd open the PR. Don't restate the report in chat — they have the file. The report contains both the findings and the suggested fixes; the user's code is untouched. You do not need to ask permission to create the report folders, but do let the user know the file has been created and its name. Finish by asking whether they want you to apply any of the fixes — and only start editing if they say yes, as a new task outside this review.
