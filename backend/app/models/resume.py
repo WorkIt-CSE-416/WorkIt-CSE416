@@ -44,3 +44,49 @@ class ResumeEducation(Base):
     description: Mapped[Optional[str]]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+class ResumeExperience(Base):
+    __tablename__ = "resume_experience"
+
+    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
+    company_name: Mapped[str]
+    title: Mapped[str]
+    location: Mapped[Optional[str]]
+    start_date: Mapped[Optional[date]]
+    end_date: Mapped[Optional[date]]
+    description: Mapped[Optional[str]]
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class ResumeSkills(Base):
+    __tablename__ = "resume_skills"
+
+    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
+    skill_name: Mapped[str]
+    category: Mapped[Optional[str]]
+
+
+class ResumeProjects(Base):
+    __tablename__ = "resume_projects"
+
+    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
+    project_name: Mapped[str]
+    url: Mapped[Optional[str]]
+    start_date: Mapped[Optional[date]]
+    end_date: Mapped[Optional[date]]
+    description: Mapped[Optional[str]]
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class ResumeCertifications(Base):
+    __tablename__ = "resume_certifications"
+
+    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
+    cert_name: Mapped[str]
+    issuer: Mapped[Optional[str]]
