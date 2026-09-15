@@ -1,9 +1,10 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working in this
-repository. It covers what is true repo-wide. The Next.js app has its own
-guidance in `frontend/CLAUDE.md`, which is loaded on top of this one whenever
-you touch a file in there — read it before writing app code.
+repository. It covers what is true repo-wide. Each half has its own file loaded
+on top of this one whenever you touch a file in there — `frontend/CLAUDE.md`
+for the Next.js app, `backend/CLAUDE.md` for the Python API. Read the relevant
+one before writing code.
 
 ## Repo layout
 
@@ -11,9 +12,10 @@ you touch a file in there — read it before writing app code.
 frontend/         The Next.js app, and the whole JS build. Self-contained:
                   package.json, node_modules, lockfile and every toolchain
                   config live in here. See frontend/CLAUDE.md.
-backend/          The Python API. It owns the database — connection strings,
-                  schema and migrations all live on this side. Currently just
-                  db/, the schema design notes.
+backend/          The Python API (FastAPI, SQLAlchemy, Alembic). It owns the
+                  database — connection strings, schema and migrations all live
+                  on this side. Self-contained: its own pyproject.toml, .venv
+                  and lockfile. See backend/CLAUDE.md.
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to
@@ -89,9 +91,10 @@ The full list — `dev`, `build`, `start`, `lint`, `lint:fix`, `typecheck`,
 does in `frontend/CLAUDE.md`. First-time setup is `npm run install:frontend`
 from the root, or `npm install` inside `frontend/`.
 
-The root forwards frontend scripts only. There are no `db:*` scripts any more —
-migrations belong to the Python service and will be run with its own tooling,
-not through npm.
+The root forwards frontend scripts only, and there are no `db:*` scripts any
+more. The backend is driven by `uv run ...` from inside `backend/` — never add
+an npm script that shells into it. Its commands are listed in
+`backend/CLAUDE.md`.
 
 Adding a script to `frontend/package.json` does not make it available from the
 root; add the forwarding line here too if it should be.
@@ -109,6 +112,30 @@ The team develops on both macOS and Windows. Keep it that way:
 - Line endings are normalized to LF by `.gitattributes`. Do not commit CRLF, and
   do not add files that require it except `.bat`/`.cmd`/`.ps1`.
 - Build paths with `node:path`, never by concatenating `/`.
+
+## Where documentation goes
+
+**Guidance for Claude belongs in a `CLAUDE.md`, never in a `README.md`.**
+
+- `CLAUDE.md` — conventions, invariants, rationale, the things that must not be
+  changed and why, and what is still undecided. Written for whoever picks the
+  work up next, human or agent. The root file is always in context;
+  `frontend/CLAUDE.md` and `backend/CLAUDE.md` load on top of it when working
+  in those folders, and they nest further where a subfolder has decisions of
+  its own — `backend/alembic/CLAUDE.md` is the current example. Put a rule at
+  the deepest level that fully contains it, and leave a pointer above rather
+  than a copy; two statements of the same rule drift.
+- `README.md` — kept deliberately short. Do not move explanatory material into
+  one, and do not restore prose to a README that has been trimmed; that trim
+  was the point.
+- `frontend/docs/` — prose for the team that is too long for a CLAUDE.md, such
+  as `backend-integration.md`.
+- `backend/db/` — schema design notes. Rationale only; Alembic is the source
+  of truth for what the schema actually is.
+
+When something is learned the hard way — a setting that breaks under load, a
+command that must never be re-run — write it into the nearest `CLAUDE.md` with
+the failure it prevents. That is what these files are for.
 
 ## Conventions
 
