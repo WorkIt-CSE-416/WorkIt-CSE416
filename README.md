@@ -51,8 +51,8 @@ npm install
 npm run dev
 ```
 
-**Install dependencies in `frontend/`, not at the repo root.** The root
-`package.json` has no dependencies — it only forwards the scripts below.
+Install app dependencies in `frontend/` and Python dependencies in `backend/`.
+The root `package.json` has no dependencies — it only forwards scripts.
 
 You do not need `frontend/.env.local` to run the app — every screen renders
 fixture data, so a fresh clone boots with no configuration at all. Copy
@@ -61,8 +61,8 @@ credentials do **not** go in that file; they belong to the Python service.
 
 ## Scripts
 
-Every script is cross-platform and runs identically in macOS Terminal, Windows
-PowerShell, and cmd.exe. They are defined in `frontend/package.json` and
+The frontend scripts below are cross-platform and run in macOS Terminal,
+Windows PowerShell, and cmd.exe. They are defined in `frontend/package.json` and
 mirrored at the repo root, so each one works from either folder.
 
 | Command | What it does |
@@ -79,10 +79,30 @@ mirrored at the repo root, so each one works from either folder.
 | `npm run favicon` | Rebuild the favicon from `public/workit-icon.png` |
 | `npm run install:frontend` | Install frontend dependencies (root only) |
 
+Scraper scripts forward through `uv` and need it on PATH (`brew install uv`).
+`scrape` and `scrape:dry` target the future CLI and are not runnable yet.
+
+| Command | What it does |
+| --- | --- |
+| `npm run scrape` | Run the ingestion CLI (planned) |
+| `npm run scrape:dry` | Fetch and normalize to local files, no database (planned) |
+| `npm run scraper:lint` | Ruff |
+| `npm run scraper:typecheck` | mypy |
+| `npm run scraper:test` | pytest |
+| `npm run install:scraper` | Install scraper dependencies (root only) |
+
 ## Project layout
 
 The repo is split by tier: the Next.js app in `frontend/`, the Python API in
-`backend/`. Each is self-contained, with its own dependencies.
+`backend/`, and job ingestion in `scraper/`. Each is self-contained, with its
+own dependencies.
+
+`scraper/` is a scaffold — its CLI, adapters, persistence, and tests are still
+planned. Read the [architecture](docs/KAN-55_JOB_SCRAPER.md), its
+[research appendix](docs/KAN-55_SCRAPER_RESEARCH.md), and the
+[verification suite](docs/KAN-55_SCRAPER_VERIFICATION.md) for the plan. It
+needs Python 3.12+ and uv; install its development tools with
+`uv --directory scraper sync --extra dev` from the repository root.
 
 ```
 frontend/         The Next.js app — its own package.json and node_modules
@@ -99,7 +119,10 @@ frontend/         The Next.js app — its own package.json and node_modules
     backend-integration.md  The frontend/API boundary and its open questions
 backend/          The Python API — owns the database
   db/             Schema design notes
-package.json      Scripts that forward into frontend/; no dependencies
+scraper/          Job ingestion — see scraper/CLAUDE.md
+  workit_scraper/ The package: provider adapters, normalization, store
+docs/             Scraper architecture, research appendix, verification suite
+package.json      Scripts that forward into frontend/ and scraper/; no dependencies
 LICENSE           MIT license for the whole repo
 ```
 
