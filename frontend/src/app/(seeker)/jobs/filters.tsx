@@ -4,15 +4,6 @@ import { useState, type ReactNode } from "react";
 
 import { FilterIcon } from "@/components/icons";
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-} from "@/components/shadcn/combobox";
-import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -22,6 +13,7 @@ import {
   SheetTitle,
 } from "@/components/shadcn/sheet";
 import { Button, buttonClasses } from "@/components/ui/button";
+import { Select, SelectCheckboxItem, SelectContent, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 
 import {
@@ -35,9 +27,11 @@ import {
 } from "./data";
 
 /**
- * The Jobs filter row, built on shadcn's real `Combobox` (`@base-ui/react`,
- * via `@/components/shadcn/combobox`) instead of the inert chips
- * `FilterChip`'s own doc comment said would get a menu one day.
+ * The Jobs filter row, built on Base UI's `Select` (via `@/components/ui/select`)
+ * instead of the inert chips `FilterChip`'s own doc comment said would get a
+ * menu one day. A Select rather than a Combobox because there is no search
+ * field: Base UI's Combobox handles arrow keys and Enter on its input, so
+ * without one its list cannot be reached from the keyboard at all.
  *
  * Stays inert against `RECOMMENDATIONS` on purpose — nothing here re-filters
  * the feed, matching every other control on this screen. What's real is the
@@ -53,7 +47,11 @@ import {
 
 /** The button every facet opens from. Its label is static — a facet's picks
  *  never rewrite it — so the only thing that changes is the tint once the
- *  facet has a pick and its popup is closed. */
+ *  facet has a pick and its popup is closed.
+ *
+ *  The vendored SelectTrigger is a form field, so the button's look is laid
+ *  over it: `h-auto` undoes its fixed height, and `data-placeholder:text-ink`
+ *  its grey label while nothing is picked. */
 function FacetTrigger({
   label,
   hasSelection,
@@ -66,63 +64,35 @@ function FacetTrigger({
   className?: string;
 }) {
   return (
-    <ComboboxTrigger
+    <SelectTrigger
       className={cn(
         buttonClasses({ variant: "secondary", size: "sm" }),
-        "justify-between",
+        "data-placeholder:text-ink h-auto justify-between data-[size=default]:h-auto",
         hasSelection && !open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
         className,
       )}
     >
       {label}
-    </ComboboxTrigger>
+    </SelectTrigger>
   );
 }
 
-/** The search field plus checkbox list shared by every facet's popup. */
-function FacetPopup({ label, showClear }: { label: string; showClear: boolean }) {
+/** The checkbox list shared by every facet's popup. */
+function FacetPopup({ options }: { options: readonly string[] }) {
   return (
-    <ComboboxContent>
-      <ComboboxInput placeholder={`Search ${label}`} showTrigger={false} showClear={showClear} />
-      <ComboboxEmpty>No matches.</ComboboxEmpty>
-      <ComboboxList>
-        {(option: string) => (
-          <ComboboxItem key={option} value={option}>
-            {option}
-          </ComboboxItem>
-        )}
-      </ComboboxList>
-    </ComboboxContent>
+    <SelectContent>
+      {options.map((option) => (
+        <SelectCheckboxItem key={option} value={option}>
+          {option}
+        </SelectCheckboxItem>
+      ))}
+    </SelectContent>
   );
 }
 
-/** One facet, one pick. */
-function SingleFacet({
-  label,
-  options,
-  value,
-  onChange,
-  className,
-}: {
-  label: string;
-  options: readonly string[];
-  value: string | null;
-  onChange: (value: string | null) => void;
-  className?: string;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Combobox items={options} value={value} onValueChange={onChange} onOpenChange={setOpen}>
-      <FacetTrigger label={label} hasSelection={value !== null} open={open} className={className} />
-      <FacetPopup label={label} showClear={value !== null} />
-    </Combobox>
-  );
-}
-
-/** One facet, many picks — every option renders as a checkbox in the popup
- *  list, and picking one leaves the popup open for the next pick. */
-function MultiFacet({
+/** One facet. Every option is a checkbox, so every facet takes any number of
+ *  picks — picking one leaves the popup open for the next. */
+function Facet({
   label,
   options,
   values,
@@ -138,21 +108,15 @@ function MultiFacet({
   const [open, setOpen] = useState(false);
 
   return (
-    <Combobox
-      items={options}
-      value={values}
-      onValueChange={onChange}
-      onOpenChange={setOpen}
-      multiple
-    >
+    <Select value={values} onValueChange={onChange} onOpenChange={setOpen} multiple>
       <FacetTrigger
         label={label}
         hasSelection={values.length > 0}
         open={open}
         className={className}
       />
-      <FacetPopup label={label} showClear={values.length > 0} />
-    </Combobox>
+      <FacetPopup options={options} />
+    </Select>
   );
 }
 
@@ -167,22 +131,22 @@ function FacetSection({ label, children }: { label: string; children: ReactNode 
 }
 
 type FacetState = {
-  jobType: string | null;
+  jobType: string[];
   workplace: string[];
   experience: string[];
-  datePosted: string | null;
-  location: string | null;
-  salary: string | null;
+  datePosted: string[];
+  location: string[];
+  salary: string[];
   industry: string[];
 };
 
 const EMPTY_FACETS: FacetState = {
-  jobType: null,
+  jobType: [],
   workplace: [],
   experience: [],
-  datePosted: null,
-  location: null,
-  salary: null,
+  datePosted: [],
+  location: [],
+  salary: [],
   industry: [],
 };
 
@@ -197,32 +161,32 @@ export function JobFilters() {
 
   return (
     <>
-      <SingleFacet
+      <Facet
         label="Job Type"
         options={JOB_TYPE_OPTIONS}
-        value={facets.jobType}
-        onChange={(value) => set("jobType", value)}
+        values={facets.jobType}
+        onChange={(values) => set("jobType", values)}
         className="w-36"
       />
-      <MultiFacet
+      <Facet
         label="Workplace"
         options={WORKPLACE_OPTIONS}
         values={facets.workplace}
         onChange={(values) => set("workplace", values)}
         className="w-40"
       />
-      <MultiFacet
+      <Facet
         label="Experience"
         options={EXPERIENCE_OPTIONS}
         values={facets.experience}
         onChange={(values) => set("experience", values)}
         className="w-40"
       />
-      <SingleFacet
+      <Facet
         label="Date Posted"
         options={DATE_POSTED_OPTIONS}
-        value={facets.datePosted}
-        onChange={(value) => set("datePosted", value)}
+        values={facets.datePosted}
+        onChange={(values) => set("datePosted", values)}
         className="w-40"
       />
 
@@ -236,25 +200,33 @@ export function JobFilters() {
         All Filters
       </Button>
 
-      <Sheet open={allFiltersOpen} onOpenChange={setAllFiltersOpen} modal="trap-focus">
-        <SheetContent>
+      {/* Fully modal (Base UI's default), not `modal="trap-focus"`: only a
+          true modal locks page scroll, so the options list is the one thing
+          that scrolls while the sheet is open. */}
+      <Sheet open={allFiltersOpen} onOpenChange={setAllFiltersOpen}>
+        {/* Floats: inset from the viewport's right, top and bottom edges with
+            every corner rounded, instead of the stock full-height panel flush
+            against the right edge. */}
+        <SheetContent className="rounded-card border data-[side=right]:inset-y-3 data-[side=right]:right-3 data-[side=right]:h-auto">
           <SheetHeader>
             <SheetTitle>All Filters</SheetTitle>
             <SheetDescription>Every facet, including the four already on the row.</SheetDescription>
           </SheetHeader>
 
-          <div className="flex flex-col gap-4 overflow-y-auto px-4">
+          {/* overscroll-contain: a fling past the end of the list stops here
+              instead of chaining on to the page behind. */}
+          <div className="flex flex-col gap-4 overflow-y-auto overscroll-contain px-4">
             <FacetSection label="Job Type">
-              <SingleFacet
+              <Facet
                 label="Job Type"
                 options={JOB_TYPE_OPTIONS}
-                value={facets.jobType}
-                onChange={(value) => set("jobType", value)}
+                values={facets.jobType}
+                onChange={(values) => set("jobType", values)}
                 className="w-full"
               />
             </FacetSection>
             <FacetSection label="Workplace">
-              <MultiFacet
+              <Facet
                 label="Workplace"
                 options={WORKPLACE_OPTIONS}
                 values={facets.workplace}
@@ -263,7 +235,7 @@ export function JobFilters() {
               />
             </FacetSection>
             <FacetSection label="Experience">
-              <MultiFacet
+              <Facet
                 label="Experience"
                 options={EXPERIENCE_OPTIONS}
                 values={facets.experience}
@@ -272,34 +244,34 @@ export function JobFilters() {
               />
             </FacetSection>
             <FacetSection label="Date Posted">
-              <SingleFacet
+              <Facet
                 label="Date Posted"
                 options={DATE_POSTED_OPTIONS}
-                value={facets.datePosted}
-                onChange={(value) => set("datePosted", value)}
+                values={facets.datePosted}
+                onChange={(values) => set("datePosted", values)}
                 className="w-full"
               />
             </FacetSection>
             <FacetSection label="Location">
-              <SingleFacet
+              <Facet
                 label="Location"
                 options={LOCATION_OPTIONS}
-                value={facets.location}
-                onChange={(value) => set("location", value)}
+                values={facets.location}
+                onChange={(values) => set("location", values)}
                 className="w-full"
               />
             </FacetSection>
             <FacetSection label="Salary">
-              <SingleFacet
+              <Facet
                 label="Salary"
                 options={SALARY_OPTIONS}
-                value={facets.salary}
-                onChange={(value) => set("salary", value)}
+                values={facets.salary}
+                onChange={(values) => set("salary", values)}
                 className="w-full"
               />
             </FacetSection>
             <FacetSection label="Industry">
-              <MultiFacet
+              <Facet
                 label="Industry"
                 options={INDUSTRY_OPTIONS}
                 values={facets.industry}
