@@ -18,14 +18,14 @@ class company_role(enum.StrEnum):
     '''
     different possible roles for company memebership table 
     '''
-    owner= "Owner"
-    admin= "Admin"
-    recruiter= "Recruiter"
+    owner= "owner"
+    admin= "admin"
+    recruiter= "recruiter"
 
 class profile_status(enum.StrEnum):
     '''
     different possible status for a profile to be in
     '''
-    active= "Active"
-    invited= "Invited"
-    disabled = "Disabled"
+    active= "active"
+    invited= "invited"
+    disabled = "disabled"
