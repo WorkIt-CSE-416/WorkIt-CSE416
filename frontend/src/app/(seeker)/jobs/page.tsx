@@ -104,7 +104,7 @@ function RecommendationCard({ job }: { job: Recommendation }) {
             </p>
           </div>
 
-          <IconButton label={`More options for ${job.title}`}>
+          <IconButton label={`More options for ${job.title}`} tooltip="More options">
             <EllipsisIcon className="size-4" />
           </IconButton>
         </div>
@@ -127,6 +127,7 @@ function RecommendationCard({ job }: { job: Recommendation }) {
           <div className="flex items-center gap-2">
             <IconButton
               label={`Not interested in ${job.title}`}
+              tooltip="Not interested"
               variant="outline"
               className="size-8"
             >
@@ -135,6 +136,7 @@ function RecommendationCard({ job }: { job: Recommendation }) {
 
             <IconButton
               label={job.saved ? `Remove ${job.title} from saved` : `Save ${job.title}`}
+              tooltip={job.saved ? "Remove from saved" : "Save"}
               variant="outline"
               className={cn("size-8", job.saved && "text-brand")}
             >

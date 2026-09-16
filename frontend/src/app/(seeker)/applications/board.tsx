@@ -162,10 +162,13 @@ export function ApplicationsBoard() {
               </span>
 
               <span className="ml-auto flex items-center gap-0.5">
-                <IconButton label={`Add an application to ${column.title}`}>
+                <IconButton
+                  label={`Add an application to ${column.title}`}
+                  tooltip="Add application"
+                >
                   <PlusIcon className="size-4" />
                 </IconButton>
-                <IconButton label={`${column.title} column options`}>
+                <IconButton label={`${column.title} column options`} tooltip="Column options">
                   <EllipsisIcon className="size-4" />
                 </IconButton>
               </span>

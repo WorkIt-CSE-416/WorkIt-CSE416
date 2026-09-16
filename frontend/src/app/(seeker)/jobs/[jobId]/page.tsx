@@ -43,13 +43,21 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
         companyHref="/companies"
         actions={
           <>
-            <IconButton label={`Save ${posting.title}`} className="size-8 shrink-0">
+            <IconButton label={`Save ${posting.title}`} tooltip="Save" className="size-8 shrink-0">
               <BookmarkIcon className="size-4" />
             </IconButton>
-            <IconButton label={`Report ${posting.title}`} className="size-8 shrink-0">
+            <IconButton
+              label={`Report ${posting.title}`}
+              tooltip="Report"
+              className="size-8 shrink-0"
+            >
               <Flag className="size-4" />
             </IconButton>
-            <IconButton label={`Share ${posting.title}`} className="size-8 shrink-0">
+            <IconButton
+              label={`Share ${posting.title}`}
+              tooltip="Share"
+              className="size-8 shrink-0"
+            >
               <Share2 className="size-4" />
             </IconButton>
             <Button size="lg" className="shrink-0">

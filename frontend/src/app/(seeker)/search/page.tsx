@@ -45,6 +45,7 @@ function ResultCard({ job }: { job: Job }) {
             {job.isNew && <Badge tone="positive">New</Badge>}
             <IconButton
               label={job.saved ? `Remove ${job.title} from saved` : `Save ${job.title}`}
+              tooltip={job.saved ? "Remove from saved" : "Save"}
               className={cn(job.saved ? "text-brand" : "text-border-strong hover:text-ink-meta")}
             >
               <BookmarkIcon filled={job.saved} className="size-3.5" />
@@ -133,6 +134,7 @@ export default function SearchPage() {
 
           <IconButton
             label={`Save ${job.title}`}
+            tooltip="Save"
             variant="outline"
             className="text-ink-meta h-10 w-6 shrink-0"
           >

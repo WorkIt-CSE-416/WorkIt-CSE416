@@ -126,6 +126,7 @@ export function ScreeningQuestions({ questions, onChange }: ScreeningQuestionsPr
               <div className="flex items-start gap-2.5">
                 <IconButton
                   label={`Reorder question ${index + 1}. Use the arrow keys to move it.`}
+                  tooltip="Drag to reorder"
                   draggable
                   onDragStart={(event) => {
                     event.dataTransfer.effectAllowed = "move";
@@ -160,6 +161,7 @@ export function ScreeningQuestions({ questions, onChange }: ScreeningQuestionsPr
 
                 <IconButton
                   label={`Remove question ${index + 1}`}
+                  tooltip="Remove question"
                   onClick={() => remove(index)}
                   className="hover:text-ink mt-2"
                 >

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/cn";
 
 import { BoardIcon, GridIcon, ListIcon } from "./icons";
@@ -18,7 +19,9 @@ import { viewHref, type View } from "./views";
  * them rather than the order they were designed.
  *
  * `aria-current` is what marks the active option; the raised segment is
- * decoration on top of it. Every option is icon-only, so every option is named.
+ * decoration on top of it. Every option is icon-only, so every option is named,
+ * and the name is its tooltip — the same pairing IconButton makes, written out
+ * here because these are links rather than buttons.
  */
 const OPTIONS: { view: View; label: string; Icon: typeof BoardIcon }[] = [
   { view: "board", label: "Board", Icon: BoardIcon },
@@ -37,20 +40,26 @@ export function ViewSwitcher({ current }: { current: View }) {
         const isActive = view === current;
 
         return (
-          <Link
-            key={view}
-            href={viewHref(view)}
-            aria-label={`${label} view`}
-            aria-current={isActive ? "true" : undefined}
-            className={cn(
-              "focus-visible:ring-brand-ring flex size-7 items-center justify-center rounded-[0.375rem] focus-visible:ring-2 focus-visible:outline-none",
-              isActive
-                ? "bg-panel text-ink shadow-panel"
-                : "text-ink-meta hover:text-ink hover:bg-panel/60",
-            )}
-          >
-            <Icon className="size-4" />
-          </Link>
+          <Tooltip key={view}>
+            <TooltipTrigger
+              render={
+                <Link
+                  href={viewHref(view)}
+                  aria-label={`${label} view`}
+                  aria-current={isActive ? "true" : undefined}
+                  className={cn(
+                    "focus-visible:ring-brand-ring flex size-7 items-center justify-center rounded-[0.375rem] focus-visible:ring-2 focus-visible:outline-none",
+                    isActive
+                      ? "bg-panel text-ink shadow-panel"
+                      : "text-ink-meta hover:text-ink hover:bg-panel/60",
+                  )}
+                />
+              }
+            >
+              <Icon className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent>{label} view</TooltipContent>
+          </Tooltip>
         );
       })}
     </div>
