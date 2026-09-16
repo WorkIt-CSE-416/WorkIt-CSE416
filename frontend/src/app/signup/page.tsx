@@ -2,31 +2,40 @@ import type { Metadata } from "next";
 
 import { AccountTypeSwitcher } from "@/components/account-type-switcher";
 import { BrandPanel } from "@/components/brand-panel";
-import { ArrowRightIcon, GoogleIcon, LinkedInIcon, LockIcon, MailIcon } from "@/components/icons";
+import {
+  ArrowRightIcon,
+  GoogleIcon,
+  LinkedInIcon,
+  LockIcon,
+  MailIcon,
+  UserIcon,
+} from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { TextLink } from "@/components/ui/text-link";
 
-import { signIn } from "./actions";
+import { createAccount } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Sign In",
-  description: "Log in to find your next career move.",
+  title: "Create Account",
+  description: "Join WorkIt to find your next role or your next hire.",
 };
 
 /** Ties the switcher's hidden input to the form it sits above. */
-const FORM_ID = "sign-in";
+const FORM_ID = "create-account";
 
 /**
- * Two halves from `lg` up: the pitch on the left, the card on the right.
+ * /signup — the login card's counterpart. Same two-pane layout, same card,
+ * same account-type switcher: a returning and a new user should recognise
+ * this as one screen with two doors, not two different products.
  *
- * The card is unchanged — same width, border, shadow and contents — so on a
- * narrow viewport, where the left half is dropped, this is still the screen
- * KAN-43 signed off. `justify-center` on the right half keeps it centred in its
- * own column rather than pinned to the divide.
+ * There is no submission to wire up yet (see ./actions.ts), so the fields
+ * collect nothing but a name, email and password for whenever the backend
+ * lands — the one working piece of behaviour is Create Account routing into
+ * onboarding for the selected account type.
  */
-export default function LoginPage() {
+export default function SignUpPage() {
   return (
     <main className="flex flex-1">
       <BrandPanel />
@@ -35,17 +44,26 @@ export default function LoginPage() {
         <div className="max-w-auth rounded-card border-border bg-surface shadow-card w-full border p-6">
           <Logo size="card" priority className="mx-auto" />
 
-          <h1 className="text-title text-ink mt-2.5 text-center">Welcome Back</h1>
+          <h1 className="text-title text-ink mt-2.5 text-center">Create Your Account</h1>
           <p className="text-body text-ink-muted mt-1 text-center">
-            Log in to find your next career move
+            Join WorkIt to find your next role or your next hire
           </p>
 
-          {/* It sits above the form rather than inside it, so its value
-              reaches the submission through its hidden input's `form`. */}
           <AccountTypeSwitcher form={FORM_ID} />
 
-          <form id={FORM_ID} action={signIn} className="mt-5 flex flex-col">
+          <form id={FORM_ID} action={createAccount} className="mt-5 flex flex-col">
             <div className="flex flex-col gap-2.5">
+              <TextField
+                id="name"
+                name="name"
+                type="text"
+                label="Full Name"
+                icon={UserIcon}
+                autoComplete="name"
+                placeholder="Jane Doe"
+                required
+              />
+
               <TextField
                 id="email"
                 name="email"
@@ -63,19 +81,25 @@ export default function LoginPage() {
                 type="password"
                 label="Password"
                 icon={LockIcon}
-                autoComplete="current-password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 required
-                labelAction={
-                  <TextLink href="/forgot-password" className="text-label">
-                    Forgot password?
-                  </TextLink>
-                }
+              />
+
+              <TextField
+                id="confirm-password"
+                name="confirmPassword"
+                type="password"
+                label="Confirm Password"
+                icon={LockIcon}
+                autoComplete="new-password"
+                placeholder="••••••••"
+                required
               />
             </div>
 
             <Button type="submit" size="lg" className="mt-2.5">
-              Sign In
+              Create Account
               <ArrowRightIcon className="size-4" />
             </Button>
           </form>
@@ -98,7 +122,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-body text-ink-muted mt-6 text-center">
-            Don&apos;t have an account? <TextLink href="/signup">Create Account</TextLink>
+            Already have an account? <TextLink href="/login">Sign In</TextLink>
           </p>
         </div>
       </div>
