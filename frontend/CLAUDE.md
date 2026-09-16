@@ -82,14 +82,12 @@ src/components/   Shared components
                   `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
-  supabase/server.ts  Per-request session client; unused, and provisional
+  supabase/server.ts  Dead — the API issues tokens now. Removable.
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448 — auth card and app top bar
   workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
-  backend-integration.md  What is settled, what is still open, and the
-                  constraints that hold either way — read before an API call
   shadcn.md       What shadcn is, how it is wired here, how to pull components
 components.json   shadcn config — see docs/shadcn.md before changing its aliases
 ```
@@ -177,13 +175,22 @@ pool, no schema and no migrations here — that is the Python API's job, and it
 owns the connection string. A query belongs in an endpoint, and a `page.tsx`
 reaches it through that screen's `data.ts`.
 
-**Auth is not decided and not implemented.** `login/actions.ts` is a stub, and
-`src/lib/supabase/server.ts` is called by nothing. Whether Supabase Auth or the
-API issues our tokens is an open question, so do not treat the `@supabase/*`
-dependencies as a settled answer.
+**Auth is decided and not yet implemented.** The Python API issues our session
+tokens; Supabase is managed Postgres and nothing else. `login/actions.ts` is
+still a stub, so nothing here authenticates yet — but the shape is settled, and
+it points at our own API rather than at Supabase.
 
-**Read `docs/backend-integration.md` before touching auth or adding an API
-call.**
+That makes three things dead rather than provisional:
+`src/lib/supabase/server.ts`, both `NEXT_PUBLIC_SUPABASE_*` variables, and the
+`@supabase/*` dependencies. Nothing calls them and nothing will. **Do not build
+on them** — they are removable, and the only reason they are still here is that
+nobody has done the removal.
+
+When login is wired up, the token comes from the API. Server Components calling
+it server-side keeps the token out of browser JavaScript and is the safest
+default; a Client Component calling directly needs CORS configured on the API
+side. `backend/CLAUDE.md` owns that decision and the rules that come with it —
+**read it before touching auth or adding an API call.**
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.

@@ -24,6 +24,12 @@ Dependencies are managed by **uv**. `uv add <pkg>` to add one, `uv sync` to
 install what the lock already names. Never `pip install` into the venv — it
 writes nothing to `pyproject.toml` and the next `uv sync` silently undoes it.
 
+**Not `supabase-py` / PostgREST, deliberately.** We connect to Postgres
+directly over asyncpg. The job search needs ltree containment and trigram
+ranking, which PostgREST's filter syntax expresses badly, and there is no
+reason to put an HTTP hop between two services that already trust each other.
+Supabase is managed Postgres to us and nothing else — see Auth below.
+
 ## Commands
 
 Always prefixed with `uv run`, which executes inside `.venv` without activating
@@ -52,26 +58,32 @@ app/
   main.py         FastAPI app. /health (liveness) and /health/db (readiness)
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
   db.py           Async engine, session factory, declarative Base
+  models/
+    CLAUDE.md     Model invariants — read before adding or editing a model
+    profiles.py   Account and company tables
+    dto.py        Enums
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
-  versions/       Migrations. Empty until the first model exists
+  versions/       Migrations. Empty until the first revision is written
   script.py.mako  Template for generated migrations
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
+  resume.md       Same, for resume storage and parsing
 pyproject.toml    Dependencies, and the pinned Python series
 uv.lock           Exact resolved versions — committed
 ```
 
-Models will go in `app/models/`, routers in `app/routers/`. Neither exists yet.
+Routers will go in `app/routers/`, which does not exist yet.
 
 ## Current state
 
-**There are no tables, no models and no migrations.** The schema is still being
-designed and the wiring landed first on purpose. `alembic revision
---autogenerate` correctly produces an empty migration — that is the expected
-output, not a broken setup.
+**Models exist; there are no migrations yet.** `app/models/` holds
+`applicant_profiles`, `company_profiles` and `company_memberships`. Nothing has
+been applied to a database, so the first revision is still to be written — and
+per `alembic/CLAUDE.md` it should be reviewed by hand rather than trusted from
+a diff.
 
 The recommended next step is Pydantic response schemas serving fixture data, so
 the frontend can replace its `data.ts` fixtures with real calls while the
@@ -148,6 +160,32 @@ The two that matter from out here:
 They belong to this service's environment. A variable added there is one typo
 away from a `NEXT_PUBLIC_` prefix and the client bundle.
 
+## The frontend contract
+
+The two halves communicate over HTTP and share no code. What each side may
+assume about the other:
+
+**`frontend/` does not query the database.** No ORM, no connection pool, no
+connection string, no schema, no migrations. Drizzle used to live in
+`frontend/src/db/` and was removed when the API moved to Python. A query
+someone is tempted to write in a React component belongs in an endpoint here.
+
+**A screen's `data.ts` is the seam.** Each screen holds fixture data in a
+sibling `data.ts` today, and that file becomes the fetch once the endpoint
+exists — so `page.tsx` is untouched either way. Design endpoints against those
+fixture shapes; they are the closest thing to a agreed contract that exists.
+
+**The app must keep running without this service.** Every screen renders its
+`data.ts` fixture, so a clone with no environment file still boots. On this
+side, `/health` and every fixture route work without the root `.env`; only
+`/health/db` needs it. Keep both true — it is what lets someone work on one
+half without the other, and it makes a failure point at one side or the other
+instead of being ambiguous.
+
+**Schema changes through the Supabase dashboard are banned.** A UI edit bypasses
+Alembic silently and surfaces weeks later as an unrelated failed migration.
+Revoke dashboard write access if the plan allows it.
+
 ## Conventions
 
 **Routes are `async def`.** Mixing sync and async arbitrarily invites blocking
@@ -176,12 +214,65 @@ work without the root `.env`; only `/health/db` needs it. Keep that true — it 
 lets someone work on routes without database access, and it makes a failure
 point at one half or the other.
 
-## Open decisions
+## Auth — this API owns identity end to end
 
-`../frontend/docs/backend-integration.md` records what is settled and what is
-not. Unresolved as of now: **who issues the session token** — Supabase Auth or
-this API — and how that token travels. Do not write code or docs that assume a
-winner.
+**Decided: FastAPI issues the session token.** Supabase is managed Postgres and
+nothing else. There is no Supabase Auth in the picture, so nothing references
+`auth.users`, there is no JWKS fetch, and there is no second service in the
+sign-in path.
 
-Row-level security is effectively decided by the stack: SQLAlchemy connects as
-one privileged role, so policies do not fire and authorization lives in Python.
+**This does not make `alembic/env.py`'s schema filters unnecessary.** A Supabase
+project provisions `auth`, `storage`, `realtime` and the rest whether or not we
+use them, so autogenerate would still propose dropping them. Not using Supabase
+Auth means we never *reference* `auth.users`; it does not mean the table is
+gone. Leave the filters alone.
+
+This was an open question for a long time and the alternative was real —
+Supabase Auth would have given us OAuth providers, email verification, password
+reset and magic links for free. We chose one service owning identity instead:
+simpler to reason about, simpler to test, and no sign-in outage when Supabase
+has one. **The cost is that we now write all of that ourselves.** Budget for it
+honestly rather than discovering it at the end.
+
+What this API therefore owns, none of which exists yet:
+
+- Password hashing and verification. Use a vetted KDF; do not invent one.
+- Session token issuance and refresh.
+- Email verification and password reset, which means a mail sender.
+- Every OAuth callback, if social sign-in is wanted.
+
+Three rules that hold regardless of how the above gets built:
+
+- **Whoever acts on a token verifies its signature.** Never trust a decoded
+  cookie or a client-supplied identity claim. Since we issue the tokens, this
+  is our signing key and our verification dependency — one place, used by every
+  protected route.
+- **Authorization is Python, not row-level security.** SQLAlchemy connects as
+  one privileged role, so RLS policies never fire. A policy written against
+  this connection is dead code that reads as a security control. Every
+  company-scoped endpoint checks for an active membership on the requested
+  `company_id` before reading or writing; role checks are Python guards.
+- **Never trust a client-supplied `company_id`, `profile_id` or role.** Derive
+  identity from the verified token, then check access against it.
+
+Still open, and smaller than it looks:
+
+- **How the token travels.** Server Components calling this API server-side
+  keeps it out of browser JavaScript and is the safest default. Client
+  Components calling directly need CORS here. Next Route Handlers proxying is
+  same-origin with one extra hop. Related: whether the two halves run on one
+  origin or two, which drives CORS and cookie `SameSite`.
+- **Whether to write RLS policies anyway as a backstop.** They cost little and
+  catch a direct-connection mistake, but they are invisible to Alembic
+  autogenerate and must be hand-written in migrations. Do not drift into
+  `SET LOCAL ROLE` per transaction by half — it is transaction-scoped and
+  fights connection pooling, leaking one request's identity into the next.
+
+### Consequence for the schema
+
+The account tables carry `email` with a unique constraint but **no credential
+column** — nothing stores a password hash. Under this decision that is a gap to
+close, not a design. `app/models/CLAUDE.md` records where it lands and the
+ambiguity to resolve first: `email` is unique *per table*, so the same address
+can exist in both `applicant_profiles` and `company_memberships`, and
+"authenticate by email" has no single answer until that is settled.

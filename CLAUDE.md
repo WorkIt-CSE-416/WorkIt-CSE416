@@ -45,16 +45,21 @@ Alembic is the single source of truth for schema. `backend/db/*.md` are design
 rationale, and schema edits through the Supabase dashboard are banned — they
 bypass Alembic silently.
 
-**Auth is an open decision, not a settled one.** Supabase Auth and the Python
-API are both plausible owners of identity. Row-level security is a separate
-matter and largely settled by the stack: SQLAlchemy connects as one privileged
-role, so policies do not fire and authorization lives in Python. The
-`@supabase/*` packages in `frontend/` are scaffolding, not an answer — nothing
-calls them yet. Do not write code, or docs, that assume a winner.
+**Auth is decided: the Python API issues the session token.** Supabase is
+managed Postgres and nothing else — there is no Supabase Auth, and therefore no
+`auth.users` table. Row-level security follows from the same stack choice:
+SQLAlchemy connects as one privileged role, so policies do not fire and
+authorization lives in Python.
 
-`frontend/docs/backend-integration.md` records what is settled, what is open,
-and the constraints that hold either way. Read it before wiring the two halves
-together, and update it when the team decides.
+Two consequences. The `@supabase/*` packages in `frontend/`, both
+`NEXT_PUBLIC_SUPABASE_*` variables, and `frontend/src/lib/supabase/server.ts`
+are now dead — nothing calls them and nothing will. And this API owns password
+hashing, reset flows, verification mail and any OAuth callback, none of which
+is written yet.
+
+`backend/CLAUDE.md` holds the decision and the rules that come with it;
+`backend/app/models/CLAUDE.md` holds the schema consequence, which is that no
+table stores a credential yet. Read both before wiring the two halves together.
 
 ### Why two folders rather than one project at the root
 
@@ -129,7 +134,7 @@ The team develops on both macOS and Windows. Keep it that way:
   one, and do not restore prose to a README that has been trimmed; that trim
   was the point.
 - `frontend/docs/` — prose for the team that is too long for a CLAUDE.md, such
-  as `backend-integration.md`.
+  as `shadcn.md`.
 - `backend/db/` — schema design notes. Rationale only; Alembic is the source
   of truth for what the schema actually is.
 
