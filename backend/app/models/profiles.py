@@ -5,8 +5,8 @@ from typing import Optional
 import datetime
 import uuid 
 from sqlalchemy import ForeignKey
-from sqlalchemy import String, DateTime, func, Enum
-from sqlalchemy.orm import DeclarativeBase, Mapped,mapped_column 
+from sqlalchemy import String, DateTime, func, text
+from sqlalchemy.orm import Mapped,mapped_column 
 from app.models.dto import company_size_range, company_role, profile_status
 from app.db import Base # the actual Base that Alembic reads from 
 
@@ -28,7 +28,12 @@ class Profile(BaseModel):
     definition for profiles
     '''
     __abstract__= True  # copy attributes 
-    id:Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    id:Mapped[uuid.UUID] = mapped_column(
+                        primary_key=True, 
+                        # python generate 
+                        default=uuid.uuid4, 
+                        # server backup 
+                        server_default=text("gen_random_uuid()"))
     email: Mapped[str] = mapped_column(String(100), unique=True)
     full_name: Mapped[str] =mapped_column(String(50))
     phone_number: Mapped[Optional[str]] = mapped_column(String(30))
@@ -52,7 +57,12 @@ class Company_Profile(BaseModel):
     separate from individual recruiter under the company
     '''
     __tablename__="company_profiles"
-    id:Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    id:Mapped[uuid.UUID] = mapped_column(
+                        primary_key=True, 
+                        # python generate 
+                        default=uuid.uuid4, 
+                        # server backup 
+                        server_default=text("gen_random_uuid()"))
     company_name: Mapped[str] = mapped_column(String(255))
     slug:Mapped[Optional[str]]
     website_url: Mapped[Optional[str]]
