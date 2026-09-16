@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 
 import { ApplicationsBoard } from "./board";
 import { ApplicationsGrid } from "./grid";
-import { PlusIcon } from "./icons";
 import { ApplicationsList } from "./list";
 import { ViewSwitcher } from "./view-switcher";
 import { parseView } from "./views";
@@ -16,8 +15,9 @@ export const metadata: Metadata = {
 };
 
 /* KAN-43 renders the applications mockup only, against the fixture in ./data.
- * Nothing here reads or writes yet, so Filter, New Entry, the column menus, the
- * bookmarks and the two card actions are all inert on purpose. */
+ * Nothing here reads or writes yet, so Filter, the column menus, the bookmarks
+ * and the two card actions are all inert on purpose. The mockup's New Entry
+ * button has been removed rather than left inert. */
 
 export default async function ApplicationsPage({ searchParams }: PageProps<"/applications">) {
   const view = parseView((await searchParams).view);
@@ -35,10 +35,6 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           <Button variant="secondary" size="sm">
             <FilterIcon className="size-4" />
             Filter
-          </Button>
-          <Button size="sm">
-            <PlusIcon className="size-4" />
-            New Entry
           </Button>
         </div>
       </div>

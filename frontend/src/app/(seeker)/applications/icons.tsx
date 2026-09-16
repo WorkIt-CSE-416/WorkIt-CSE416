@@ -9,19 +9,10 @@ const strokeProps = {
   "aria-hidden": true,
 } as const;
 
-/* Board chrome ------------------------------------------------------------
- * The ellipsis and the calendar that used to sit here moved to
- * @/components/icons when the Jobs screen became their second
- * caller; this file keeps the glyphs only the board draws.
- * ---------------------------------------------------------------------- */
-
-export function PlusIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M8 3.5v9M3.5 8h9" />
-    </svg>
-  );
-}
+/* The ellipsis and the calendar that used to sit here moved to
+ * @/components/icons when the Jobs screen became their second caller, and the
+ * plus went with the add buttons; this file keeps the glyphs only this screen
+ * draws. */
 
 /* Card meta -------------------------------------------------------------- */
 
@@ -116,24 +107,6 @@ export function ListIcon({ className }: IconProps) {
     <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
       <path d="M6 3.6h8M6 8h8M6 12.4h8" />
       <path d="M2.6 3.6h.01M2.6 8h.01M2.6 12.4h.01" />
-    </svg>
-  );
-}
-
-/* Card footer counts ----------------------------------------------------- */
-
-export function PaperclipIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M13.4 7.3 8.1 12.6a3.2 3.2 0 0 1-4.5-4.5l5.6-5.6a2.1 2.1 0 0 1 3 3l-5.6 5.6a1.1 1.1 0 0 1-1.5-1.5l5-5" />
-    </svg>
-  );
-}
-
-export function CommentIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M13.8 10.2a1.2 1.2 0 0 1-1.2 1.2H4.9L2.2 14V3.4a1.2 1.2 0 0 1 1.2-1.2h9.2a1.2 1.2 0 0 1 1.2 1.2Z" />
     </svg>
   );
 }
