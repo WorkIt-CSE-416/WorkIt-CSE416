@@ -1,10 +1,13 @@
-import type { ComponentType } from "react";
-
-import { BuildingIcon } from "@/app/company/icons";
 import { COMPANY } from "@/app/company/profile/data";
 import { POSTINGS, type JobStatus, type Posting } from "@/app/company/jobs/data";
 import { RECOMMENDATIONS, type Highlight, type Recommendation } from "@/app/(seeker)/jobs/data";
-import type { CompanyTileTone } from "@/components/ui/company-tile";
+import {
+  formatExperienceLevel,
+  formatJobLocation,
+  formatJobType,
+  formatSalary,
+  formatWorkStyle,
+} from "@/app/(seeker)/jobs/format";
 
 /**
  * The one job posting fixture both /company/jobs/[jobId] and /jobs/[jobId]
@@ -14,9 +17,11 @@ import type { CompanyTileTone } from "@/components/ui/company-tile";
  * fixture — `fromPosting`/`fromRecommendation` below read `POSTINGS` and
  * RECOMMENDATIONS` rather than re-typing their values, which is what keeps
  * the expanded view honest with the row or the card someone clicked to open
- * it. Only what neither fixture carries (the long-form copy, and — for a
- * company posting, which has no `level`/`starts` of its own — those two
- * facts) is authored here, in the per-id `*_EXTRAS` records below.
+ * it. A recommendation's schema-shaped fields go through the same formatters
+ * its feed card uses, so the two print identical strings. Only what neither
+ * fixture carries (the long-form copy, `starts` — which `job_postings` has no
+ * column for — and, for a company posting, `level` too) is authored here, in
+ * the per-id `*_EXTRAS` records below.
  *
  * `companyAbout`/`about`/`responsibilities`/`qualifications` stand in for
  * the schema's single markdown `description` column — nothing renders
@@ -27,28 +32,22 @@ export type JobPosting = {
   id: string;
 
   companyName: string;
-  /** Employer mark stand-in. The seeker page draws this; the company page
-   *  always draws its own BuildingIcon instead, since a company has no
-   *  logo to pick for itself. */
-  Icon: ComponentType<{ className?: string }>;
-  tone: CompanyTileTone;
 
   title: string;
   status: JobStatus;
 
-  /** Free text, matching `Posting`/`Recommendation`'s own fields rather than
-   *  a narrower enum — a job_postings column will eventually constrain this,
-   *  but until then the fixture it was opened from is the source of truth. */
+  /** Display strings, not enum values: a recommendation's are formatted from
+   *  its schema enums by (seeker)/jobs/format.ts, a company posting's are
+   *  authored as labels. */
   jobType: string;
   workStyle: string;
-  /** "Senior, Staff", "Mid-level" — `Recommendation.level`'s own shape, not
-   *  the schema's `experience_level` enum, so the seeker feed and this page
-   *  never describe the same posting two different ways. */
+  /** "Experienced", "Internship" — the label, formatted the same way the seeker
+   *  feed's card formats it, so the two never describe the same posting two
+   *  different ways. */
   level: string;
   starts: string;
   /** Always a display string, e.g. "Austin, TX" or "Remote" — never absent,
-   *  matching `Posting.location`/`Recommendation.location`, which never are
-   *  either. */
+   *  since `JobFacts` always prints a location. */
   locationCity: string;
   salary: string;
 
@@ -95,8 +94,6 @@ function fromPosting(source: Posting, extra: CompanyExtra): JobPosting {
   return {
     id: source.id,
     companyName: COMPANY.name,
-    Icon: BuildingIcon,
-    tone: "outline",
     title: source.role,
     status: source.status,
     jobType: extra.jobType,
@@ -117,35 +114,33 @@ function fromPosting(source: Posting, extra: CompanyExtra): JobPosting {
   };
 }
 
-/** What `Recommendation` has no field for: the long-form copy and a real
- *  posted date (its own fixture only carries a "Posted 3h ago"-style label,
- *  authored for a flag with nothing behind it — see the note on
- *  `formatRelativeTime`). Everything else — `jobType`, `workStyle`, `level`,
- *  `starts`, `locationCity`, `salary` — comes straight from `source`. */
+/** What `Recommendation` has no field for: the long-form copy and a start
+ *  date, which `job_postings` does not store. Everything else — `jobType`,
+ *  `workStyle`, `level`, `locationCity`, `salary` and the posted/closing
+ *  dates — is formatted from `source`. */
 type SeekerExtra = {
+  starts: string;
   companyAbout: string;
   about: string;
   responsibilities: string[];
   qualifications: string[];
-  postedAt: string;
 };
 
 function fromRecommendation(source: Recommendation, extra: SeekerExtra): JobPosting {
   return {
     id: source.id,
     companyName: source.company,
-    Icon: source.Icon,
-    tone: source.tone,
     title: source.title,
     status: "Open",
-    jobType: source.jobType,
-    workStyle: source.workplace,
-    level: source.level,
-    starts: source.starts,
-    locationCity: source.location,
-    salary: source.salary,
-    postedAt: extra.postedAt,
-    updatedAt: extra.postedAt,
+    jobType: formatJobType(source.jobType),
+    workStyle: formatWorkStyle(source.workStyle),
+    level: formatExperienceLevel(source.experienceLevel),
+    starts: extra.starts,
+    locationCity: formatJobLocation(source) ?? "Remote",
+    salary: formatSalary(source),
+    postedAt: source.uploadedAt,
+    updatedAt: source.uploadedAt,
+    closesAt: source.closesAt,
     companyAbout: extra.companyAbout,
     about: extra.about,
     responsibilities: extra.responsibilities,
@@ -315,6 +310,7 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
 
 const SEEKER_EXTRAS: Record<string, SeekerExtra> = {
   "northwind-staff-frontend-engineer": {
+    starts: "Immediate start",
     companyAbout:
       "Northwind Analytics builds the data infrastructure other engineering teams trust. Founded in 2019, it has grown from a two-person team into the pipeline layer several hundred companies now run their own products on.",
     about:
@@ -331,9 +327,9 @@ const SEEKER_EXTRAS: Record<string, SeekerExtra> = {
       "A track record of pay above the $150k floor for comparable roles.",
       "Comfortable spending two days a week on-site in Seattle.",
     ],
-    postedAt: "2026-09-15",
   },
   "lumen-product-engineer-design-systems": {
+    starts: "Start date flexible",
     companyAbout:
       "Lumen Labs is a developer-tools startup building AI-assisted workflows. Its editor and design system are used by engineering teams ranging from early-stage startups to publicly traded software companies.",
     about:
@@ -348,9 +344,9 @@ const SEEKER_EXTRAS: Record<string, SeekerExtra> = {
       "Experience sponsoring or working under H1B sponsorship a plus.",
       "Comfortable on a small team of twelve, with high individual ownership.",
     ],
-    postedAt: "2026-09-15",
   },
   "atlas-senior-software-engineer-web": {
+    starts: "Starts Oct 2026",
     companyAbout:
       "Atlas Freight moves freight across a marketplace of carriers and shippers. The company matches loads to trucks in real time, coordinating thousands of shipments a day across a network that spans the continental U.S.",
     about:
@@ -366,9 +362,9 @@ const SEEKER_EXTRAS: Record<string, SeekerExtra> = {
       "Comfortable working on-site five days a week in Austin.",
       "No relocation package is offered for this role.",
     ],
-    postedAt: "2026-09-13",
   },
   "verdant-frontend-engineer-ii": {
+    starts: "Starts Jan 2027",
     companyAbout:
       "Verdant Health builds telemedicine software for community clinics. Its platform connects patients in underserved areas with providers, and today supports care teams across dozens of clinics nationwide.",
     about:
@@ -383,7 +379,6 @@ const SEEKER_EXTRAS: Record<string, SeekerExtra> = {
       "Comfortable starting on a six-month contract before conversion.",
       "Empathy for users who are not confident with technology.",
     ],
-    postedAt: "2026-09-11",
   },
 };
 

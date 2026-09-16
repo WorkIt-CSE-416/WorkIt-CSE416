@@ -222,3 +222,49 @@ export function MailIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/* Resume upload ------------------------------------------------------------
+ * Promoted from (seeker)/profile the day the applicant onboarding screen
+ * became a second consumer. Geometry is unchanged from profile's original
+ * icons.tsx so neither screen moves a pixel. */
+
+export function UploadIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 24" {...strokeProps} className={className}>
+      <path d="M11.6 1.4H4.4A2.2 2.2 0 0 0 2.2 3.6v16.8a2.2 2.2 0 0 0 2.2 2.2h11.2a2.2 2.2 0 0 0 2.2-2.2V7.4Z" />
+      <path d="M11.6 1.4v6h6" />
+      <path d="M10 18.4v-6M7.4 15l2.6-2.6 2.6 2.6" />
+    </svg>
+  );
+}
+
+export function TrashIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
+      <path d="M2.4 4h11.2M6 4V2.9a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V4" />
+      <path d="M12.5 4v8.6a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V4" />
+      <path d="M6.6 7v3.8M9.4 7v3.8" />
+    </svg>
+  );
+}
+
+/** The one icon the mockup renders in colour rather than the surrounding ink. */
+export function PdfIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="#b21919"
+      strokeWidth={1.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M11.4 1.7H5.2a1.9 1.9 0 0 0-1.9 1.9v12.8a1.9 1.9 0 0 0 1.9 1.9h9.6a1.9 1.9 0 0 0 1.9-1.9V7.1Z" />
+      <path d="M11.4 1.7v5.4h5.4" />
+      <path d="M6.6 11.9v3.4M6.6 11.9h1a1 1 0 0 1 0 2h-1M13.4 11.9h-1.8v3.4M11.6 13.6h1.5" />
+      <path d="M8.9 15.3v-3.4h.8a1.7 1.7 0 0 1 0 3.4Z" />
+    </svg>
+  );
+}

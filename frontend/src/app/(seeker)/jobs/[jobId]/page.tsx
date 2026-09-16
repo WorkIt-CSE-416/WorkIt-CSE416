@@ -2,6 +2,7 @@ import { Flag, Share2 } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { Avatar } from "@/components/avatar";
 import { ArrowLeftIcon, BookmarkIcon } from "@/components/icons";
 import { getJobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
@@ -38,8 +39,9 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
 
       <JobDetailHeader
         posting={posting}
-        tileIcon={posting.Icon}
-        tileTone={posting.tone}
+        // Initials, as on the feed card — `rounded` beats <Avatar>'s own
+        // `rounded-full` the same way the card's `rounded-card` does.
+        tile={<Avatar name={posting.companyName} className="text-meta size-8 rounded" />}
         companyHref="/companies"
         actions={
           <>

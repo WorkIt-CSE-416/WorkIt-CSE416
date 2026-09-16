@@ -1,8 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # Dependencies. Unanchored on purpose: these live inside each workspace folder
-# (frontend/node_modules, and backend/ when it lands), not at the repo root, so
-# a leading slash would match nothing.
+# (frontend/node_modules, backend/.venv), not at the repo root, so a leading
+# slash would match nothing.
 node_modules/
 .pnp
 .pnp.*
@@ -11,6 +11,16 @@ node_modules/
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+
+# Python virtualenvs and bytecode. Same reasoning as node_modules above: these
+# live inside backend/, not at the repo root, so no leading slash.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
 
 # testing
 coverage/
@@ -39,6 +49,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the template must be committed, or a fresh clone has nothing to copy.
+# `.env.example` at the root is that template, and `.env` beside it is what the
+# backend reads (see backend/CLAUDE.md). Without this negation the rule above
+# would swallow the template silently.
+!.env.example
 
 # vercel
 .vercel
@@ -46,6 +61,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+__pycache__/
+*.py[cod]
 
 # claude skill reports
 claudeskill_reports/

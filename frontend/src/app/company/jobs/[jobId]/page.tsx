@@ -6,6 +6,7 @@ import { ArrowLeftIcon, PencilIcon } from "@/components/icons";
 import { getJobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { ButtonLink, Button } from "@/components/ui/button";
+import { CompanyTile } from "@/components/ui/company-tile";
 import { Points, Section } from "@/components/ui/section";
 
 import { ApplicantOverviewPanel } from "./applicant-overview";
@@ -39,8 +40,7 @@ export default async function CompanyJobDetailPage({ params }: PageProps<"/compa
 
       <JobDetailHeader
         posting={posting}
-        tileIcon={BuildingIcon}
-        tileTone="outline"
+        tile={<CompanyTile Icon={BuildingIcon} size="sm" tone="outline" />}
         actions={
           <Button variant="outline">
             <PencilIcon className="size-3.5" />

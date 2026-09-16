@@ -1,9 +1,8 @@
 import Link from "next/link";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { CompanyTile, type CompanyTileTone } from "@/components/ui/company-tile";
 import { formatRelativeTime } from "@/lib/format-date";
 
 import type { JobPosting } from "./data";
@@ -17,10 +16,11 @@ function Dot() {
 
 type JobDetailHeaderProps = {
   posting: JobPosting;
-  /** BuildingIcon for the company viewing its own posting; the posting's own
-   *  Icon for a seeker viewing someone else's. */
-  tileIcon: ComponentType<{ className?: string }>;
-  tileTone: CompanyTileTone;
+  /** The small employer mark before the name, sized to sit on one line with
+   *  it (32px). A BuildingIcon `CompanyTile` for the company viewing its own
+   *  posting; the same initials the feed card draws for a seeker viewing
+   *  someone else's, since a job carries no logo of its own. */
+  tile: ReactNode;
   /** Omit to render the company name as plain text — a company has nothing
    *  to link to on its own posting. */
   companyHref?: string;
@@ -57,8 +57,7 @@ type JobDetailHeaderProps = {
  */
 export function JobDetailHeader({
   posting,
-  tileIcon,
-  tileTone,
+  tile,
   companyHref,
   actions,
   rail,
@@ -68,7 +67,7 @@ export function JobDetailHeader({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <CompanyTile Icon={tileIcon} size="sm" tone={tileTone} />
+            {tile}
 
             {companyHref ? (
               // Ink, not brand — a name that turns brand on hover/focus
