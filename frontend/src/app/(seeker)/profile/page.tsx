@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { MailIcon, PencilIcon, PinIcon } from "@/components/icons";
+import { MailIcon, PdfIcon, PencilIcon, PinIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
 import { PROFILE, RESUME, ROLES, SKILLS } from "./data";
-import { EyeIcon, PdfIcon, PhoneIcon, TrashIcon, UploadIcon } from "./icons";
+import { EyeIcon, PhoneIcon } from "./icons";
 
 export const metadata: Metadata = {
   title: "Profile",
