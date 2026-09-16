@@ -5,7 +5,8 @@ import { useState } from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 
 /**
- * Applicant or Company — which of the two account types is signing in.
+ * Applicant or Company — which of the two account types a login or sign-up
+ * form is for.
  *
  * A segmented ToggleGroup rather than a Select or a pair of radios: there are
  * exactly two options, both fit on one line, and the choice is worth showing
@@ -14,13 +15,16 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
  * the same reason company/trend.tsx uses this component for its time range.
  *
  * FRONT END ONLY. Nothing here decides what a company may see or where either
- * type lands after signing in; that is the auth ticket's job, and the note in
- * ./actions.ts already says where the guard belongs. What this does do is carry
- * its value into the form as a hidden field, so the choice arrives with the
- * submission instead of being a decoration the next ticket has to rewire.
+ * type lands after signing in or signing up; that is the auth ticket's job.
+ * What this does do is carry its value into the form as a hidden field, so the
+ * choice arrives with the submission instead of being a decoration the next
+ * ticket has to rewire.
  *
  * The hidden input sits outside <form> and is associated by its `form`
  * attribute, because the switcher is rendered above the form rather than in it.
+ *
+ * Promoted from login/account-type.tsx the day signup became a second
+ * consumer — same reasoning as this file's siblings (nav-link, account-menu).
  */
 const TYPES = [
   { value: "applicant", label: "Applicant" },
@@ -55,9 +59,10 @@ export function AccountTypeSwitcher({ form }: { form: string }) {
             /* aria-pressed is the state Base UI actually sets, so the pressed
              * fill has to be written against it to beat the vendored default.
              * Brand tint rather than a brand fill: the only solid brand on this
-             * card is Sign In, and a chosen segment is not a second action.
-             * The label darkens to --color-brand-ink because plain --color-brand
-             * on this tint measures 4.43:1 — see the note in globals.css. */
+             * card is the submit button, and a chosen segment is not a second
+             * action. The label darkens to --color-brand-ink because plain
+             * --color-brand on this tint measures 4.43:1 — see the note in
+             * globals.css. */
             className="text-body text-ink-muted hover:text-ink aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex-1 rounded-[6px]"
           >
             {label}
