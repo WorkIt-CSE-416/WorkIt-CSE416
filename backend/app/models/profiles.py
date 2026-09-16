@@ -79,7 +79,8 @@ class Company_Membership(Profile):
     '''
     __tablename__ = "company_memberships"
     company_id: Mapped[uuid.UUID]= mapped_column(
-        ForeignKey("company_profiles.id", ondelete="CASCADE")
+        ForeignKey("company_profiles.id", ondelete="CASCADE"), 
+        index=True
     )
     role:Mapped[company_role]
     status: Mapped[profile_status]

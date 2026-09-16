@@ -6,7 +6,7 @@ import datetime
 import uuid
 from app.models.profiles import BaseModel
 from app.models import dto
-from sqlalchemy import ForeignKey, DateTime, text, Text, SmallInteger, CHAR, CheckConstraint, Index, desc
+from sqlalchemy import ForeignKey, DateTime, text, Text, SmallInteger, CHAR, CheckConstraint, Index, desc,ForeignKeyConstraint
 from sqlalchemy.orm import Mapped,mapped_column
 
 class Job_Post(BaseModel):
@@ -26,7 +26,8 @@ class Job_Post(BaseModel):
         index=True
     )
     posted_by_recruiter_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        ForeignKey("company_memberships.id", ondelete="SET NULL")    # if the recruiter is deleted, job remains
+        ForeignKey("company_memberships.id", ondelete="SET NULL"),    # if the recruiter is deleted, job remains
+        index=True
     )
 
     title: Mapped[str] = mapped_column(Text)
@@ -37,8 +38,14 @@ class Job_Post(BaseModel):
     min_years_experience: Mapped[Optional[int]] = mapped_column(SmallInteger)
 
     work_style: Mapped[dto.work_style]
-    location_city: Mapped[Optional[str]] = mapped_column(Text)  
-    location_country: Mapped[Optional[str]] = mapped_column(CHAR(2)) 
+    location_state: Mapped[str] = mapped_column(
+        ForeignKey("states.code"), 
+        index=True
+    )  
+    location_country: Mapped[str] = mapped_column(
+        ForeignKey("countries.code"),
+        index=True
+    ) 
 
     salary: Mapped[Optional[float]]
     salary_min: Mapped[Optional[float]]
@@ -71,11 +78,19 @@ class Job_Post(BaseModel):
             name= "salary_exist"
         ),
 
+        ForeignKeyConstraint(
+            ["location_state", "location_country"],
+            ["states.code", "states.country_code"],
+            name="country_state_reference_exist"
+        ),
+        CheckConstraint(
+            "location_state IS NULL OR location_country IS NOT NULL",
+            name="state_requires_country",
+        ),
+
         Index(  # index by job status ranked from earliest posted to latest 
             "job_postings_status_idx",
             "status", 
             desc("created_at")
         )
-
-
     )
