@@ -1,0 +1,22 @@
+[project]
+name = "workit-api"
+version = "0.1.0"
+# Upper bound on purpose. There is no .python-version file, so this is the only
+# thing pinning the interpreter: ">=3.12" alone would let one teammate sync onto
+# 3.13 and another onto 3.14, which is how a bug appears on exactly one laptop.
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.31.0",
+    "fastapi>=0.141.1",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy[asyncio]>=2.0.53",
+    "uvicorn[standard]>=0.53.0",
+]
+
+[tool.uv]
+# Always use a uv-downloaded interpreter, never whatever Python happens to be on
+# the machine. Teammates run Homebrew, Conda and the system Python in various
+# combinations; without this, "3.12" silently means a different build for each
+# of them. uv fetches the pinned version on first sync.
+python-preference = "only-managed"
