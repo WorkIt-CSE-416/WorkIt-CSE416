@@ -24,8 +24,8 @@ const ANALYZE_DELAY_MS = 900;
  * and job-type selections all live in this component's state and are lost on
  * navigation. What is real is the interaction itself — adding and removing
  * tags, dropping a file, toggling job types — and Continue, which actually
- * routes into the app. That is the "functionality" this ticket asked for
- * ahead of a backend to save to: signup can link here today, and wiring the
+ * routes into the app, to /jobs. That is the "functionality" this ticket
+ * asked for ahead of a backend to save to: signup can link here today, and wiring the
  * three fields into a real submission later touches only this file.
  *
  * Continue is disabled until both required fields hold something, so the
@@ -149,7 +149,7 @@ export function OnboardingForm() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 p-5">
         <TextLink href="/login">Back to Sign In</TextLink>
-        <Button size="lg" disabled={!canContinue} onClick={() => router.push("/applications")}>
+        <Button size="lg" disabled={!canContinue} onClick={() => router.push("/jobs")}>
           Continue
         </Button>
       </div>

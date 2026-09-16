@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * /onboarding/applicant — where sign-up sends a new seeker before /applications.
+ * /onboarding/applicant — where sign-up sends a new seeker before /jobs.
  *
  * Outside both shells, like /login: a first-time user has no top bar to sit
  * under yet. The card is wider than login's — three sections of real content
