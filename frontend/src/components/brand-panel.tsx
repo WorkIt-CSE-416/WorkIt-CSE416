@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 
 import { AwardIcon, BriefcaseIcon, SearchIcon } from "@/components/icons";
+import { cn } from "@/lib/cn";
 
 /**
  * The copy the brand half of an auth screen renders.
@@ -63,10 +64,23 @@ const pillars: Pillar[] = [
  *
  * Promoted from login/brand-panel.tsx the day signup became a second
  * consumer — same reasoning as this file's siblings (nav-link, account-menu).
+ *
+ * `className` exists so signup can hand it a smaller flex-grow than login's
+ * default 1:1 split — its card carries more fields and wants the room. The
+ * override is `lg:`-prefixed, same as the panel's own `lg:flex`, so it wins
+ * on the cascade rather than needing cn() to drop the base `flex-1`: Tailwind
+ * emits responsive rules after the unprefixed ones, so `lg:flex-[…]` beats
+ * `flex-1` at the breakpoint where either could apply — the same reasoning
+ * that makes plain `w-full lg:w-1/2` work anywhere else in this codebase.
  */
-export function BrandPanel() {
+export function BrandPanel({ className }: { className?: string }) {
   return (
-    <section className="bg-brand text-on-brand hidden flex-1 flex-col justify-center gap-9 p-12 lg:flex">
+    <section
+      className={cn(
+        "bg-brand text-on-brand hidden flex-1 flex-col justify-center gap-9 p-12 lg:flex",
+        className,
+      )}
+    >
       <div className="max-w-md">
         <h2 className="text-display">Find the work. Track the search.</h2>
         {/* 80% white rather than a token: the ink scale is built for light
