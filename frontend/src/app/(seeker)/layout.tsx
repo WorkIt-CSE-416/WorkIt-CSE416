@@ -90,7 +90,13 @@ const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="bg-app flex h-svh flex-col"
+      /* bg-background, which is white — the same page the company shell
+         paints. It was bg-app, a grey; see the note on --background in
+         globals.css. */
+      className="bg-background flex h-svh flex-col"
+      /* Read by the canvas rule in globals.css, which paints the overscroll
+         strip white to match — the company shell sets the same attribute. */
+      data-shell="seeker"
       /* The bar's height, in one place, the way the company shell keeps its
          own. Nothing below reserves it any more — the bar is back in flow, so
          it takes its own room — but it stays a token because it is one number
@@ -160,8 +166,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           chain onto the document once this div hits its scroll limit, and
           since the document is the whole h-svh column, that drags the header
           along with it — a second, page-level scrollbar stacked on this
-          one's. Containing it stops the chain right at this div's edge. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+          one's. Containing it stops the chain right at this div's edge.
+
+          relative so this div clips everything inside it. An absolutely
+          positioned descendant with no positioned ancestor (every sr-only
+          span, for one) is placed against the viewport instead, escapes this
+          div's overflow, and makes the document itself taller than h-svh —
+          scrollable behind a modal, header and all. */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
         {children}
       </div>
     </div>

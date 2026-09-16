@@ -84,32 +84,20 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
         className="bg-background h-svh flex-col"
         /* Read by the canvas rule in globals.css. <body> paints the strip an
            overscroll exposes and sits above this shell, so it cannot inherit
-           the white --background set below; it matches on this instead. */
+           the white --background this page paints; it matches on this instead. */
         data-shell="company"
-        /* Two values scoped to this shell.
-         *
-         * --company-bar is the bar's height, in one place. Both the bar and the
+        /* --company-bar is the bar's height, in one place. Both the bar and the
          * panel below it need it — the panel starts where the bar ends — and
          * when the two were written as separate h-16/top-16 literals there was
          * nothing linking them: changing one silently misaligned the other.
          *
-         * --background is what makes the company pages white where the seeker
-         * shell stays grey. Retargeting the role beats swapping bg-app for
-         * bg-panel at each call site: `panel` means a card or the bar, so
-         * painting a page with it would name the colour rather than the job,
-         * and SidebarInset already paints bg-background — one override here
-         * moves the page, the inset, and any shadcn component that grounds
-         * itself against the page, all together. --color-app still backs the
-         * seeker shell, untouched.
+         * The white page is not set here any more. This shell used to retarget
+         * --background to --color-panel on its own; now that the seeker shell
+         * is white too, the default in globals.css says so for both.
          *
-         * SidebarProvider spreads `style` over its own, so both ride along with
-         * the --sidebar-width it already sets. */
-        style={
-          {
-            "--company-bar": "4rem",
-            "--background": "var(--color-panel)",
-          } as React.CSSProperties
-        }
+         * SidebarProvider spreads `style` over its own, so this rides along
+         * with the --sidebar-width it already sets. */
+        style={{ "--company-bar": "4rem" } as React.CSSProperties}
       >
         {/* IN FLOW, AND IT NO LONGER NEEDS TO BE ANYTHING ELSE.
             This was `fixed`, over a long note about fixed versus sticky: the
