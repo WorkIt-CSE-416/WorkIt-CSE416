@@ -69,8 +69,8 @@ import { SearchField } from "@/components/ui/search-field";
  * the company shell also has to name.
  */
 const NAV_ITEMS = [
-  { href: "/applications", label: "Applications" },
   { href: "/jobs", label: "Jobs" },
+  { href: "/applications", label: "Applications" },
   { href: "/profile", label: "My Profile" },
 ];
 
@@ -153,8 +153,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* The one scrolling element in the shell. min-h-0 because a flex item
           will not shrink below its content by default, which would push the
-          column past h-svh and hand the scroll back to the document. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
+          column past h-svh and hand the scroll back to the document.
+
+          overscroll-contain for the same reason from the other direction: a
+          trackpad fling that outruns the list's own travel would otherwise
+          chain onto the document once this div hits its scroll limit, and
+          since the document is the whole h-svh column, that drags the header
+          along with it — a second, page-level scrollbar stacked on this
+          one's. Containing it stops the chain right at this div's edge. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        {children}
+      </div>
     </div>
   );
 }

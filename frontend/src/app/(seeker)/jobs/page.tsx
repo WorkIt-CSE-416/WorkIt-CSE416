@@ -8,7 +8,6 @@ import {
   CalendarIcon,
   CoinIcon,
   EllipsisIcon,
-  FilterIcon,
   MonitorIcon,
   PinIcon,
 } from "@/components/icons";
@@ -17,11 +16,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 import { Fact } from "@/components/ui/fact";
-import { FilterChip } from "@/components/ui/filter-chip";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
-import { FILTERS, RECOMMENDATIONS, SORT, type Recommendation } from "./data";
+import { RECOMMENDATIONS, type Recommendation } from "./data";
+import { JobFilters } from "./filters";
 import { CircleSlashIcon, SparkleIcon } from "./icons";
 import { MatchRail } from "./match-rail";
 
@@ -163,38 +162,15 @@ function RecommendationCard({ job }: { job: Recommendation }) {
 export default function JobsPage() {
   return (
     <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-heading text-ink">Recommended for You</h1>
-          <p className="text-body text-ink-meta mt-1">
-            Roles matched to your profile, refreshed every morning.
-          </p>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-3">
-          <Badge variant="tag" pill>
-            {RECOMMENDATIONS.length} matches
-          </Badge>
-          {/* The sort reuses the filter chip: it is the same affordance — a
-              label with a menu behind it — and giving it a second shape would
-              only claim a difference that is not there. */}
-          <span className="text-note text-ink-meta">Sort by</span>
-          <FilterChip label={SORT} />
-        </div>
+      <div>
+        <h1 className="text-heading text-ink">Recommended for You</h1>
+        <p className="text-body text-ink-meta mt-1">
+          Roles matched to your profile, refreshed every morning.
+        </p>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {FILTERS.map((filter) => (
-          <FilterChip key={filter.label} label={filter.label} active={filter.active} />
-        ))}
-
-        {/* Deliberately not a chip. The chips each own one facet; this opens
-            everything else, and the applications header already spells that
-            control this way. */}
-        <Button variant="secondary" size="sm">
-          <FilterIcon className="size-4" />
-          All filters
-        </Button>
+        <JobFilters />
       </div>
 
       <ul className="mt-4 flex flex-col gap-3">

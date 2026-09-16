@@ -65,21 +65,25 @@ export type Recommendation = {
  * are a placeholder: whoever owns the matching model sets the real ones, and
  * the labels are the only place the screen states them.
  *
- * Five bands, green through red, rather than one brand blue at every score —
- * a deliberate reversal of this file's earlier call. The risk that reversal
- * runs is real (see the note it replaced in match-rail.tsx): green already
- * means "you have an offer" on the applications board, and red already means
- * "rejected." These are a different green and a different red from those
- * tokens — a warmer, more saturated pair chosen so the two contexts read as
- * visibly different colours rather than the same one reused — and a match
- * score only ever appears on a job card or its detail page, never beside an
- * application's own status, so the two vocabularies don't compete on screen.
+ * Four bands, blue through red, rather than one flat colour at every score.
+ * Top band reuses `--color-brand` — the score that earns the app's own
+ * primary colour is the one worth calling out — and the three below it step
+ * through green, yellow and red so the bands read as a falling scale rather
+ * than a set of unrelated badges. Green and red here are a warmer, more
+ * saturated pair than `--color-positive`/`--color-negative`, chosen so a
+ * match score doesn't borrow the applications board's vocabulary for "you
+ * have an offer" / "rejected" — the two never sit on screen together, but
+ * they'd still be the same colour meaning two different things.
+ *
+ * One hue per band, not two bands sharing a hue family (the old green/lime
+ * and amber/orange pairs read as the same colour at a glance). Fair match —
+ * the old 50-64 band — folds into Weak match instead of getting its own
+ * colour, since below Good is all "don't count on this one."
  */
 const TIERS = [
-  { min: 90, label: "Excellent match", color: "#22c55e" },
-  { min: 80, label: "Strong match", color: "#84cc16" },
-  { min: 65, label: "Good match", color: "#f59e0b" },
-  { min: 50, label: "Fair match", color: "#f97316" },
+  { min: 90, label: "Excellent match", color: "var(--color-brand)" },
+  { min: 80, label: "Strong match", color: "#22c55e" },
+  { min: 65, label: "Good match", color: "#eab308" },
   { min: 0, label: "Weak match", color: "#ef4444" },
 ] as const;
 
@@ -96,18 +100,42 @@ export function matchColor(score: number) {
   return tierFor(score).color;
 }
 
-/** `active` is the one facet shown applied, so it is the one that can be cleared. */
-export const FILTERS = [
-  { label: "United States" },
-  { label: "Frontend Engineer" },
-  { label: "Full-time" },
-  { label: "Remote (+2)", active: true },
-  { label: "Date posted" },
-  { label: "Experience" },
+/**
+ * The facets the filter row offers, and the options behind each one.
+ *
+ * Location and keyword are deliberately not here: the top bar's search field
+ * already owns both, and a filter chip for "United States" or "Frontend
+ * Engineer" would just be a second, disagreeing way to set the same query.
+ * What's left is the set every job board narrows on — type, workplace,
+ * level, and how fresh the posting is — plus the three that are common
+ * enough to want but not frequent enough to earn permanent row space, kept
+ * behind All Filters instead.
+ */
+export const JOB_TYPE_OPTIONS = [
+  "Full-time",
+  "Part-time",
+  "Contract",
+  "Contract to hire",
+  "Internship",
 ];
 
-/** The sort the board opens on, and the reason the route is called this. */
-export const SORT = "Best match";
+export const WORKPLACE_OPTIONS = ["On-site", "Hybrid", "Remote"];
+
+export const EXPERIENCE_OPTIONS = ["Entry", "Mid", "Senior", "Staff", "Lead"];
+
+export const DATE_POSTED_OPTIONS = ["Past 24 hours", "Past week", "Past month", "Any time"];
+
+export const LOCATION_OPTIONS = ["Remote (US)", "New York, NY", "Seattle, WA", "Austin, TX"];
+
+export const SALARY_OPTIONS = ["$80k+", "$120k+", "$160k+", "$200k+"];
+
+export const INDUSTRY_OPTIONS = [
+  "B2B SaaS",
+  "Data Infrastructure",
+  "Fintech",
+  "Healthcare",
+  "Logistics",
+];
 
 export const RECOMMENDATIONS: Recommendation[] = [
   {
@@ -192,7 +220,7 @@ export const RECOMMENDATIONS: Recommendation[] = [
     salary: "$120k - $145k",
     starts: "Starts Jan 2027",
     applicants: "45 applicants",
-    match: 68,
+    match: 58,
     highlights: [
       { text: "Accessibility work you list as a strength", met: true },
       { text: "Contract for the first six months", met: false },
