@@ -3,17 +3,63 @@ import uuid as _uuid
 from datetime import date
 from typing import Optional
 
+from pydantic import BaseModel as PydanticBase
 from sqlalchemy import text, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db import Base, BaseModel
+from app.db import BaseModel
 
 
 class ResumeStatus(str, enum.Enum):
     uploaded="uploaded"
     parsed="parsed"
     parse_failed="parse_failed"
+
+
+# --- Pydantic schemas for parsed_json structure ---
+
+class Education(PydanticBase):
+    institution: str
+    degree: Optional[str] = None
+    field_of_study: Optional[str] = None
+    gpa: Optional[float] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    description: Optional[str] = None
+
+class Experience(PydanticBase):
+    company_name: str
+    title: str
+    location: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    description: Optional[str] = None
+
+class Skill(PydanticBase):
+    skill_name: str
+    category: Optional[str] = None
+
+class Project(PydanticBase):
+    project_name: str
+    url: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    description: Optional[str] = None
+
+class Certification(PydanticBase):
+    cert_name: str
+    issuer: Optional[str] = None
+
+class ParsedResume(PydanticBase):
+    education: list[Education] = []
+    experience: list[Experience] = []
+    skills: list[Skill] = []
+    projects: list[Project] = []
+    certifications: list[Certification] = []
+
+
+# --- SQLAlchemy model ---
 
 class Resume(BaseModel):
     __tablename__ = "resumes"
@@ -25,55 +71,3 @@ class Resume(BaseModel):
     status: Mapped[ResumeStatus] = mapped_column(server_default="uploaded")
     raw_text: Mapped[Optional[str]]
     parsed_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-
-class ResumeEducation(BaseModel):
-    __tablename__ = "resume_education"
-
-    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
-    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
-    institution: Mapped[str]
-    degree: Mapped[Optional[str]]
-    field_of_study: Mapped[Optional[str]]
-    gpa: Mapped[Optional[float]]
-    start_date: Mapped[Optional[date]]
-    end_date: Mapped[Optional[date]]
-    description: Mapped[Optional[str]]
-
-class ResumeExperience(BaseModel):
-    __tablename__ = "resume_experience"
-
-    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
-    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
-    company_name: Mapped[str]
-    title: Mapped[str]
-    location: Mapped[Optional[str]]
-    start_date: Mapped[Optional[date]]
-    end_date: Mapped[Optional[date]]
-    description: Mapped[Optional[str]]
-
-class ResumeSkills(Base):
-    __tablename__ = "resume_skills"
-
-    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
-    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
-    skill_name: Mapped[str]
-    category: Mapped[Optional[str]]
-
-class ResumeProjects(BaseModel):
-    __tablename__ = "resume_projects"
-
-    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
-    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
-    project_name: Mapped[str]
-    url: Mapped[Optional[str]]
-    start_date: Mapped[Optional[date]]
-    end_date: Mapped[Optional[date]]
-    description: Mapped[Optional[str]]
-
-class ResumeCertifications(Base):
-    __tablename__ = "resume_certifications"
-
-    id: Mapped[_uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
-    resume_id: Mapped[_uuid.UUID] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
-    cert_name: Mapped[str]
-    issuer: Mapped[Optional[str]]

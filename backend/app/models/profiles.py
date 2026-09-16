@@ -33,7 +33,7 @@ class Applicant_Profile(Profile):
     schema for job applicants
     '''
     __tablename__= "applicant_profiles"
-    default_resume_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("resumes.id", ondelete="SET NULL"), nullable=True)
+    default_resume_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("resumes.id", ondelete="SET NULL", use_alter=True), nullable=True)
     headline: Mapped[Optional[str]] = mapped_column(String(50))
     linkedin_url: Mapped[Optional[str]]
     portfolio_url: Mapped[Optional[str]]
