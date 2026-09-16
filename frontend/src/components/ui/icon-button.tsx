@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/cn";
 
 /**
@@ -9,6 +10,18 @@ import { cn } from "@/lib/cn";
  * accessible name is unusable with a screen reader, and making the prop
  * mandatory is what stops one from shipping. Pass the icon as children and size
  * it there — the glyph sizes differ per usage even where the button does not.
+ *
+ * The label is also the tooltip, unless `tooltip` says otherwise. Pass one when
+ * the label names the thing the button acts on — "Save Staff Frontend
+ * Engineer" — because that detail is for a screen reader, which reaches the
+ * button without the card around it and would otherwise hear "Save" ten times
+ * down the feed. A sighted user is hovering inside that card already, so the
+ * tooltip says just "Save". The label stays on aria-label either way: Base
+ * UI's tooltip is visual only and never becomes the button's accessible name.
+ *
+ * The trigger is the button itself — Base UI's Tooltip.Trigger renders a
+ * <button> — rather than a wrapper around one, so there is no extra element in
+ * the flex rows these sit in. TooltipProvider is in the root layout.
  */
 const VARIANTS = {
   /** Bare glyph — top-bar utilities and row actions. */
@@ -30,6 +43,8 @@ export type IconButtonVariant = keyof typeof VARIANTS;
 
 type IconButtonProps = {
   label: string;
+  /** Shown on hover in place of `label`, for a label too specific to read well. */
+  tooltip?: string;
   variant?: IconButtonVariant;
   className?: string;
   children: ReactNode;
@@ -37,6 +52,7 @@ type IconButtonProps = {
 
 export function IconButton({
   label,
+  tooltip = label,
   variant = "quiet",
   className,
   type = "button",
@@ -44,13 +60,16 @@ export function IconButton({
   ...props
 }: IconButtonProps) {
   return (
-    <button
-      type={type}
-      aria-label={label}
-      className={cn(VARIANTS[variant], "focus-visible:outline-none", className)}
-      {...props}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        type={type}
+        aria-label={label}
+        className={cn(VARIANTS[variant], "focus-visible:outline-none", className)}
+        {...props}
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }

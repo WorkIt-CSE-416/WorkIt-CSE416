@@ -1,19 +1,17 @@
 import type { Metadata } from "next";
 
-import { BookmarkIcon, EllipsisIcon, FilterIcon } from "@/components/icons";
+import { BookmarkIcon, EllipsisIcon } from "@/components/icons";
 import { JobPostingCard } from "@/components/job-posting-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FilterChip } from "@/components/ui/filter-chip";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
-import { FILTERS, RECOMMENDATIONS, SORT, type Recommendation } from "./data";
+import { RECOMMENDATIONS, type Recommendation } from "./data";
+import { JobFilters } from "./filters";
 import {
-  formatCountry,
   formatExperienceLevel,
+  formatJobLocation,
   formatJobType,
-  formatLocation,
   formatMinYearsExperience,
   formatSalary,
   formatTiming,
@@ -46,17 +44,14 @@ function RecommendationCard({ job }: { job: Recommendation }) {
         company: job.company,
         companyHref: "/companies",
         title: job.title,
+        titleHref: `/jobs/${job.id}`,
         timing: formatTiming(job.uploadedAt, job.closesAt),
         // null only when there is no location information at all — Work
         // Style already says Remote, and printing that again under the pin
         // icon would read as two facts agreeing by coincidence. A posting
         // with a country but no city (a Remote role restricted to, say, the
         // US) still has something real to show, just not a full city.
-        location: job.locationCity
-          ? formatLocation(job.locationCity, job.locationCountry)
-          : job.locationCountry
-            ? formatCountry(job.locationCountry)
-            : null,
+        location: formatJobLocation(job),
         jobType: formatJobType(job.jobType),
         salary: formatSalary(job),
         workStyle: formatWorkStyle(job.workStyle),
@@ -64,18 +59,24 @@ function RecommendationCard({ job }: { job: Recommendation }) {
         minYearsExperience: formatMinYearsExperience(job.minYearsExperience),
       }}
       headerAction={
-        <IconButton label={`More options for ${job.title}`}>
+        <IconButton label={`More options for ${job.title}`} tooltip="More options">
           <EllipsisIcon className="size-4" />
         </IconButton>
       }
       actions={
         <>
-          <IconButton label={`Not interested in ${job.title}`} variant="outline" className="size-8">
+          <IconButton
+            label={`Not interested in ${job.title}`}
+            tooltip="Not interested"
+            variant="outline"
+            className="size-8"
+          >
             <CircleSlashIcon className="size-4" />
           </IconButton>
 
           <IconButton
             label={job.saved ? `Remove ${job.title} from saved` : `Save ${job.title}`}
+            tooltip={job.saved ? "Remove from saved" : "Save"}
             variant="outline"
             className={cn("size-8", job.saved && "text-brand")}
           >
@@ -101,38 +102,15 @@ function RecommendationCard({ job }: { job: Recommendation }) {
 export default function JobsPage() {
   return (
     <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-heading text-ink">Recommended for You</h1>
-          <p className="text-body text-ink-meta mt-1">
-            Roles matched to your profile, refreshed every morning.
-          </p>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-3">
-          <Badge variant="tag" pill>
-            {RECOMMENDATIONS.length} matches
-          </Badge>
-          {/* The sort reuses the filter chip: it is the same affordance — a
-              label with a menu behind it — and giving it a second shape would
-              only claim a difference that is not there. */}
-          <span className="text-note text-ink-meta">Sort by</span>
-          <FilterChip label={SORT} />
-        </div>
+      <div>
+        <h1 className="text-heading text-ink">Recommended for You</h1>
+        <p className="text-body text-ink-meta mt-1">
+          Roles matched to your profile, refreshed every morning.
+        </p>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {FILTERS.map((filter) => (
-          <FilterChip key={filter.label} label={filter.label} active={filter.active} />
-        ))}
-
-        {/* Deliberately not a chip. The chips each own one facet; this opens
-            everything else, and the applications header already spells that
-            control this way. */}
-        <Button variant="secondary" size="sm">
-          <FilterIcon className="size-4" />
-          All filters
-        </Button>
+        <JobFilters />
       </div>
 
       <ul className="mt-4 flex flex-col gap-3">

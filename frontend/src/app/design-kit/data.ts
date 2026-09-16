@@ -74,7 +74,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-canvas", role: "Login page ground" },
       { token: "--color-surface", role: "Login card, and every field fill" },
       { token: "--color-surface-tint", role: "Logo tile, subtle fills" },
-      { token: "--color-app", role: "Signed-in page ground" },
+      { token: "--color-app", role: "Home and design kit ground; uploaded-file row" },
       { token: "--color-panel", role: "Top bar and cards" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
     ],
@@ -154,10 +154,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--primary", role: "→ --color-brand" },
       { token: "--secondary", role: "→ --color-surface" },
-      {
-        token: "--background",
-        role: "→ --color-app (company shell retargets it to --color-panel)",
-      },
+      { token: "--background", role: "→ --color-panel · signed-in page ground" },
       { token: "--foreground", role: "→ --color-ink" },
       { token: "--card", role: "→ --color-panel" },
       { token: "--popover", role: "→ --color-panel" },

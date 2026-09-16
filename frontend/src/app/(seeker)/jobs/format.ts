@@ -70,6 +70,19 @@ export function formatCountry(country: string) {
   }
 }
 
+/**
+ * A posting's location as one string: city and country when it has a city,
+ * the country alone when it doesn't (a Remote role restricted to, say, the
+ * US), and null only when there is no location information at all.
+ *
+ * Shared by the feed card and the expanded view so the two cannot describe the
+ * same posting's location differently.
+ */
+export function formatJobLocation(job: Pick<Recommendation, "locationCity" | "locationCountry">) {
+  if (job.locationCity) return formatLocation(job.locationCity, job.locationCountry);
+  return job.locationCountry ? formatCountry(job.locationCountry) : null;
+}
+
 export function formatSalary(
   job: Pick<
     Recommendation,

@@ -25,9 +25,9 @@ import {
  * was still a competing affordance on a screen whose one live action is
  * Continue/Publish.
  *
- * NO COMPANY LINK either, for the same reason: <JobPostingCard> paints the
- * name in brand colour either way, but a real link here would navigate away
- * from an in-progress draft that lives only in this component's state.
+ * NO COMPANY OR TITLE LINK either, for the same reason: <JobPostingCard>
+ * paints both in the same ink either way, but a real link here would navigate
+ * away from an in-progress draft that lives only in this component's state.
  */
 export function JobPreview({ draft, locations }: { draft: JobDraft; locations: SavedLocation[] }) {
   const title = draft.title.trim() || EXAMPLE.title;

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
+import { TooltipProvider } from "@/components/shadcn/tooltip";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,7 +29,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {/* Here rather than in a shell: every icon-only button carries a
+            tooltip, and those are in both shells and the design kit. One
+            provider is also what makes hovering along a row of them hand the
+            tooltip straight from one to the next. */}
+        <TooltipProvider>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }

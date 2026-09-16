@@ -4,7 +4,6 @@ import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { BellIcon, GearIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { NavLink } from "@/components/nav-link";
-import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
 
@@ -70,8 +69,8 @@ import { SearchField } from "@/components/ui/search-field";
  * the company shell also has to name.
  */
 const NAV_ITEMS = [
-  { href: "/applications", label: "Applications" },
   { href: "/jobs", label: "Jobs" },
+  { href: "/applications", label: "Applications" },
   { href: "/profile", label: "My Profile" },
 ];
 
@@ -81,9 +80,9 @@ const NAV_ITEMS = [
  * account rows are still arriving: sign out has nowhere else to go, and neither
  * will billing or notification preferences.
  *
- * /settings is not built yet, the same way /apply in the bar is not. Both are
- * links that 404 rather than controls that do nothing, which is the more honest
- * placeholder and the one that stops needing a note the day the route lands. */
+ * /settings is not built yet. It is a link that 404s rather than a control
+ * that does nothing, which is the more honest placeholder and the one that
+ * stops needing a note the day the route lands. */
 const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
   { href: "/settings", label: "Settings", icon: <GearIcon className="size-4" /> },
 ];
@@ -91,7 +90,13 @@ const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="bg-app flex h-svh flex-col"
+      /* bg-background, which is white — the same page the company shell
+         paints. It was bg-app, a grey; see the note on --background in
+         globals.css. */
+      className="bg-background flex h-svh flex-col"
+      /* Read by the canvas rule in globals.css, which paints the overscroll
+         strip white to match — the company shell sets the same attribute. */
+      data-shell="seeker"
       /* The bar's height, in one place, the way the company shell keeps its
          own. Nothing below reserves it any more — the bar is back in flow, so
          it takes its own room — but it stays a token because it is one number
@@ -143,8 +148,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </ul>
 
           <div className="ml-auto flex items-center gap-5">
-            <ButtonLink href="/apply">Apply to Job</ButtonLink>
-
             <IconButton label="Notifications">
               <BellIcon className="size-5" />
             </IconButton>
@@ -156,8 +159,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* The one scrolling element in the shell. min-h-0 because a flex item
           will not shrink below its content by default, which would push the
-          column past h-svh and hand the scroll back to the document. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
+          column past h-svh and hand the scroll back to the document.
+
+          overscroll-contain for the same reason from the other direction: a
+          trackpad fling that outruns the list's own travel would otherwise
+          chain onto the document once this div hits its scroll limit, and
+          since the document is the whole h-svh column, that drags the header
+          along with it — a second, page-level scrollbar stacked on this
+          one's. Containing it stops the chain right at this div's edge.
+
+          relative so this div clips everything inside it. An absolutely
+          positioned descendant with no positioned ancestor (every sr-only
+          span, for one) is placed against the viewport instead, escapes this
+          div's overflow, and makes the document itself taller than h-svh —
+          scrollable behind a modal, header and all. */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        {children}
+      </div>
     </div>
   );
 }

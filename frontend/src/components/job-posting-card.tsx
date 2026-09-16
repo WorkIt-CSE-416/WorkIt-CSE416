@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Avatar } from "@/components/avatar";
@@ -12,7 +13,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
-import { TextLink } from "@/components/ui/text-link";
 
 /**
  * The job posting card a seeker sees on their Jobs feed: a square initials
@@ -57,6 +57,12 @@ import { TextLink } from "@/components/ui/text-link";
  * raw shape would have to know about both — formatting once at each call site
  * and handing this the strings it prints keeps the card itself audience-blind.
  *
+ * THE TITLE AND COMPANY NAME ARE INK, NOT BRAND, turning brand only on
+ * hover/focus — the same call RowLink makes for the company table's title
+ * cell. A feed where every card's title and employer are the same blue has no
+ * contrast left to draw attention with, and a blue company name under a black
+ * title reads as a mistake rather than an affordance.
+ *
  * `headerAction`, `actions` and `rail` are slots because what surrounds the
  * card differs by audience. A seeker's card carries a more-options menu, a
  * Save / Ask WorkIt / Apply row, and the match rail; the composer's preview
@@ -65,11 +71,14 @@ import { TextLink } from "@/components/ui/text-link";
  */
 export type JobPostingCardData = {
   company: string;
-  /** Omit to render the company name in the same brand colour without a real
-   *  `<a>` under it — the composer's preview has nowhere to send a click that
+  /** Omit to render the company name in the same ink without a real `<a>`
+   *  under it — the composer's preview has nowhere to send a click that
    *  wouldn't abandon the draft being edited. */
   companyHref?: string;
   title: string;
+  /** The posting's expanded view. Omit for a plain heading, for the same
+   *  reason `companyHref` is optional. */
+  titleHref?: string;
   /** "Posted 3 hours ago" or "Closes Sep 29, 2026" — see (seeker)/jobs/format.ts's
    *  `formatTiming`. Printed as a badge above the title, not as a grid fact. */
   timing: string;
@@ -86,6 +95,10 @@ export type JobPostingCardData = {
    *  grad role), which omits the fact rather than printing an empty one. */
   minYearsExperience: string | null;
 };
+
+/** Ink at rest, brand on hover — see the note on the title and company name. */
+const INK_LINK =
+  "text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none";
 
 export function JobPostingCard({
   job,
@@ -118,15 +131,23 @@ export function JobPostingCard({
               {job.timing}
             </Badge>
 
-            <h3 className="text-title text-ink mt-1.5">{job.title}</h3>
-
-            <p className="text-note mt-0.5">
-              {job.companyHref ? (
-                <TextLink href={job.companyHref} className="font-semibold">
-                  {job.company}
-                </TextLink>
+            <h3 className="text-title text-ink mt-1.5">
+              {job.titleHref ? (
+                <Link href={job.titleHref} className={INK_LINK}>
+                  {job.title}
+                </Link>
               ) : (
-                <span className="text-brand font-semibold">{job.company}</span>
+                job.title
+              )}
+            </h3>
+
+            <p className="text-note text-ink mt-0.5 font-semibold">
+              {job.companyHref ? (
+                <Link href={job.companyHref} className={INK_LINK}>
+                  {job.company}
+                </Link>
+              ) : (
+                job.company
               )}
             </p>
           </div>

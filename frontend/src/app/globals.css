@@ -329,13 +329,13 @@ body {
  * both shells. So it cannot inherit the page colour a shell sets on itself, and
  * this rule is the only way it learns which shell it is holding.
  *
- * The seeker shell grounds on --color-app and login and the design kit ground on
- * --color-canvas; those are the same #f5f5f5, so the default above is already
- * right for all three. The company shell is the one that diverges: it retargets
- * --background to --color-panel, which paints its page and its SidebarInset
- * white, while the canvas underneath stayed grey. Rubber-band a trackpad there
- * and a grey band opened up — under the fixed bar going up, past the last row
- * going down — for as long as the bounce lasted.
+ * Login grounds on --color-canvas and the design kit on --color-app; those are
+ * the same #f5f5f5, so the default above is already right for both. The two
+ * signed-in shells are the ones that diverge: they paint their pages with
+ * --background, which is white, while the canvas underneath stayed grey.
+ * Rubber-band a trackpad there and a grey band opened up — under the bar going
+ * up, past the last row going down — for as long as the bounce lasted. Each
+ * shell sets data-shell, and this rule matches either.
  *
  * :has() rather than a class on <body> because a nested layout cannot reach the
  * root layout's <body>; the shell announces itself and the canvas reads it.
@@ -343,7 +343,7 @@ body {
  * The alternative was overscroll-behavior: none, which ends the bounce instead
  * of colouring it. That hides this bug and the next one like it, and on the x
  * axis it would take the trackpad's swipe-to-go-back with it. */
-body:has([data-shell="company"]) {
+body:has([data-shell]) {
   background: var(--color-panel);
 }
 
@@ -418,9 +418,13 @@ body:has([data-shell="company"]) {
 }
 
 :root {
-  /* Surfaces — the signed-in shell's scale, since that is where shadcn
-   * components will appear. Login keeps its own --color-canvas ground. */
-  --background: var(--color-app); /* #f5f5f5 — page */
+  /* Surfaces — the signed-in shells' scale, since that is where shadcn
+   * components will appear. Login keeps its own --color-canvas ground.
+   *
+   * The page is white in both shells. It was --color-app, with the company
+   * shell retargeting it to white on its own; the seeker shell followed, and
+   * a default every consumer overrides is not a default, so it moved here. */
+  --background: var(--color-panel); /* #ffffff — page */
   --foreground: var(--color-ink);
   --card: var(--color-panel); /* #ffffff — raised */
   --card-foreground: var(--color-ink);

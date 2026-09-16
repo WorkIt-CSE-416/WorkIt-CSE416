@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 
 import { BookmarkIcon, CoinIcon, FilterIcon, PinIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +8,7 @@ import { CompanyTile } from "@/components/ui/company-tile";
 import { Fact } from "@/components/ui/fact";
 import { FilterChip } from "@/components/ui/filter-chip";
 import { IconButton } from "@/components/ui/icon-button";
+import { Points, Section } from "@/components/ui/section";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
@@ -45,6 +45,7 @@ function ResultCard({ job }: { job: Job }) {
             {job.isNew && <Badge tone="positive">New</Badge>}
             <IconButton
               label={job.saved ? `Remove ${job.title} from saved` : `Save ${job.title}`}
+              tooltip={job.saved ? "Remove from saved" : "Save"}
               className={cn(job.saved ? "text-brand" : "text-border-strong hover:text-ink-meta")}
             >
               <BookmarkIcon filled={job.saved} className="size-3.5" />
@@ -73,30 +74,6 @@ function ResultCard({ job }: { job: Job }) {
 /** The dots between the employer, the location and the hiring status. */
 function Dot() {
   return <span aria-hidden="true" className="bg-border-strong size-1 shrink-0 rounded-full" />;
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="mt-5">
-      <SectionHeading>{title}</SectionHeading>
-      {children}
-    </section>
-  );
-}
-
-/** The mockup indents these and draws no markers, so the marker is dropped
- *  rather than faked. role="list" keeps the semantics Safari removes when a
- *  list has no marker. */
-function Points({ items }: { items: string[] }) {
-  return (
-    <ul role="list" className="mt-3 flex flex-col gap-1.5 pl-4">
-      {items.map((item) => (
-        <li key={item} className="text-label text-ink-muted leading-5 font-normal">
-          {item}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 export default function SearchPage() {
@@ -157,6 +134,7 @@ export default function SearchPage() {
 
           <IconButton
             label={`Save ${job.title}`}
+            tooltip="Save"
             variant="outline"
             className="text-ink-meta h-10 w-6 shrink-0"
           >
