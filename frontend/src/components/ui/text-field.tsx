@@ -34,6 +34,21 @@ export const FIELD_CONTROL =
 /** The type style of a field's label. */
 export const FIELD_LABEL = "text-label text-ink-muted";
 
+/**
+ * The asterisk after a required field's label, shared so every field draws
+ * the same mark rather than each inventing its own. `aria-hidden` because the
+ * `required` attribute (or, on <LocationField>, the composer's own
+ * validation) is what actually tells assistive tech the field is required —
+ * this is the sighted shorthand for it, not a second source of truth.
+ */
+export function RequiredMark() {
+  return (
+    <span aria-hidden="true" className="text-danger ml-0.5">
+      *
+    </span>
+  );
+}
+
 /* Cleared for the glyph: 14px to the icon (left-3.5), a 20px icon, 10px after. */
 const INPUT_WITH_ICON = "pl-11";
 const INPUT_WITHOUT_ICON = "pl-3.5";
@@ -45,19 +60,28 @@ type TextFieldProps = {
   labelAction?: ReactNode;
 } & Omit<ComponentProps<"input">, "id" | "className">;
 
-export function TextField({ id, label, icon: Icon, labelAction, ...input }: TextFieldProps) {
+export function TextField({
+  id,
+  label,
+  icon: Icon,
+  labelAction,
+  required,
+  ...input
+}: TextFieldProps) {
   return (
     <div className="flex flex-col gap-1">
       {labelAction ? (
         <div className="flex items-baseline justify-between gap-3">
           <label htmlFor={id} className={FIELD_LABEL}>
             {label}
+            {required && <RequiredMark />}
           </label>
           {labelAction}
         </div>
       ) : (
         <label htmlFor={id} className={FIELD_LABEL}>
           {label}
+          {required && <RequiredMark />}
         </label>
       )}
 
@@ -67,6 +91,7 @@ export function TextField({ id, label, icon: Icon, labelAction, ...input }: Text
         )}
         <input
           id={id}
+          required={required}
           className={cn(FIELD_CONTROL, "py-2 pr-3.5", Icon ? INPUT_WITH_ICON : INPUT_WITHOUT_ICON)}
           {...input}
         />
