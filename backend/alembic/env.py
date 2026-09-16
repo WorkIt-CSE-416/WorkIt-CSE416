@@ -1,5 +1,6 @@
 """
-Alembic environment file that's run top to bottom everytime Alembic runs 
+Alembic environment file that's run top to bottom everytime Alembic runs
+Alembic environment file that's run top to bottom everytime Alembic runs
 """
 
 import asyncio
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.config import get_settings
 from app.db import Base
-
+from app import models
 
 config = context.config
 
