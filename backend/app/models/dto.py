@@ -68,9 +68,9 @@ class company_size_range(enum.StrEnum):
     TEN_THOUSAND= "5001_10000"
     LARGE_THOUSAND= "10000_"
 
-class company_role(enum.StrEnum): 
+class company_role(enum.StrEnum):
     '''
-    different possible roles for company memebership table 
+    different possible roles for company memebership table
     '''
     owner= "owner"
     admin= "admin"

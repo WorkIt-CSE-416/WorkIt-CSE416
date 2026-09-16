@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 
-import { MailIcon } from "@/components/icons";
+import { AccountTypeSwitcher } from "@/components/account-type-switcher";
+import { BrandPanel } from "@/components/brand-panel";
+import { ArrowRightIcon, GoogleIcon, LinkedInIcon, LockIcon, MailIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { TextLink } from "@/components/ui/text-link";
 
-import { AccountTypeSwitcher } from "./account-type";
 import { signIn } from "./actions";
-import { BrandPanel } from "./brand-panel";
-import { ArrowRightIcon, GoogleIcon, LinkedInIcon, LockIcon } from "./icons";
 
 export const metadata: Metadata = {
   title: "Sign In",
