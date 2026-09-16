@@ -1,6 +1,5 @@
 """
 Alembic environment file that's run top to bottom everytime Alembic runs
-Alembic environment file that's run top to bottom everytime Alembic runs
 """
 
 import asyncio
