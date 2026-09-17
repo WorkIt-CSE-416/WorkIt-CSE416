@@ -1,6 +1,7 @@
 import { cn } from "@/lib/cn";
+import { matchColor, matchTier } from "@/lib/match";
 
-import { matchColor, matchTier, type Highlight } from "./data";
+import type { Highlight } from "./data";
 import { CheckIcon } from "./icons";
 
 /**
@@ -15,7 +16,7 @@ import { CheckIcon } from "./icons";
  * prominence from the ring instead.
  *
  * The arc and the tier label now colour by band — green through red, from
- * `matchColor` in ./data — rather than a single brand blue at every score.
+ * `matchColor` in @/lib/match — rather than a single brand blue at every score.
  * See the note on `TIERS` there for why that reverses this file's own earlier
  * reasoning, and why it's a safe reversal even so. Length still carries the
  * magnitude and the label still carries the band; colour is a third, faster

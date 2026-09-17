@@ -3,11 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 import { IconButton } from "@/components/ui/icon-button";
-import { cn } from "@/lib/cn";
 
-import { COLUMNS, type Application, type Column } from "./data";
-import { CommentIcon, PaperclipIcon, PlusIcon } from "./icons";
-import { ProgressRing } from "./progress-ring";
+import { COLUMNS, type Application } from "./data";
+import { MatchBadge } from "./match-badge";
 
 /**
  * The applications grouped into pipeline columns, in the shadcn kanban layout.
@@ -15,61 +13,30 @@ import { ProgressRing } from "./progress-ring";
  * WHAT CHANGED AND WHY: the earlier board drew bare columns of cards on the page
  * and marked each card's stage with a 3px accent along its top edge. This design
  * puts every column inside its own recessed panel, which is a stronger grouping
- * than a coloured edge — so the accent edge is gone from the card and the stage
- * now shows up in the ring, the dot on the stage pill, and the panel around it.
+ * than a coloured edge — so the accent edge is gone from the card, and the panel
+ * around it is the only place the stage shows.
  *
  * Adapted rather than copied, for the same reason as the grid: the source is
  * monochrome with a black primary button and red/amber/blue priority dots, and
  * WorkIt has a palette of its own. Structure is what carries over — a panelled
- * column, a card of title + description + a company/progress row + a ruled
- * footer of small facts.
+ * column, a card of title + description + a company/match row + a ruled
+ * footer of small facts. The design's footer counts (attachments, comments) were
+ * dropped as noise the card did not need.
  *
  * Its "priority" pill has no equivalent here, and inventing one would have meant
- * inventing both the field and two palette colours. The slot takes the thing an
- * application actually has: its status where there is one ("Round 2"), and its
- * stage otherwise, dotted in the stage's colour.
+ * inventing both the field and two palette colours. The slot held a stage pill
+ * for a while, but the column heading already names the stage, so a card no
+ * longer repeats it; that also drops an application's `status` ("Round 2") from
+ * the board.
  *
- * Nothing is interactive yet, so the column's add and menu buttons are inert
- * like the rest of KAN-43. The design's drag handle is deliberately not here —
- * a handle that cannot be dragged invites a gesture that does nothing, which is
- * worse than a menu button that does nothing.
+ * Nothing is interactive yet, so the column's menu button is inert like the
+ * rest of KAN-43. The design's per-column add button has been removed. Its drag
+ * handle is deliberately not here either — a handle that cannot be dragged
+ * invites a gesture that does nothing, which is worse than a menu button that
+ * does nothing.
  */
-const DOT = {
-  pale: "bg-brand-pale",
-  brand: "bg-brand",
-  positive: "bg-positive",
-} as const;
-
-function StagePill({ label, accent }: { label: string; accent: Column["accent"] }) {
-  return (
-    <span className="border-border-subtle text-meta text-ink-muted inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5">
-      <span aria-hidden="true" className={cn("size-1.5 rounded-full", DOT[accent])} />
-      {label}
-    </span>
-  );
-}
-
-function Count({
-  Icon,
-  value,
-  label,
-}: {
-  Icon: typeof PaperclipIcon;
-  value: number;
-  label: string;
-}) {
-  return (
-    <span className="text-meta text-ink-meta flex items-center gap-1">
-      <Icon className="size-3.5" />
-      {value}
-      <span className="sr-only">{label}</span>
-    </span>
-  );
-}
-
-function ApplicationCard({ item, column }: { item: Application; column: Column }) {
+function ApplicationCard({ item }: { item: Application }) {
   const { Icon } = item;
-  const { accent } = column;
 
   return (
     <Card as="li" padding="sm" selected={item.active} className="flex flex-col gap-2.5">
@@ -85,7 +52,7 @@ function ApplicationCard({ item, column }: { item: Application; column: Column }
           <CompanyTile Icon={Icon} size="sm" tone={item.tone ?? "brand"} />
           <span className="text-note text-ink-meta truncate">{item.company}</span>
         </span>
-        <ProgressRing value={column.progress} accent={accent} />
+        <MatchBadge score={item.match} />
       </div>
 
       {/* The one place an application's next commitment appears on the board —
@@ -102,18 +69,9 @@ function ApplicationCard({ item, column }: { item: Application; column: Column }
       )}
 
       <div className="border-border-subtle flex items-center gap-2 border-t pt-2.5">
-        <StagePill label={item.status ?? column.title} accent={accent} />
         <span className="text-meta text-ink-meta flex min-w-0 items-center gap-1">
           <CalendarIcon className="size-3.5 shrink-0" />
           <span className="truncate">{item.meta.text}</span>
-        </span>
-        <span className="ml-auto flex shrink-0 items-center gap-2">
-          {item.documents !== undefined && (
-            <Count Icon={PaperclipIcon} value={item.documents} label="documents sent" />
-          )}
-          {item.notes !== undefined && (
-            <Count Icon={CommentIcon} value={item.notes} label="notes" />
-          )}
         </span>
       </div>
 
@@ -133,17 +91,21 @@ function ApplicationCard({ item, column }: { item: Application; column: Column }
 export function ApplicationsBoard() {
   return (
     /* The strip scrolls sideways: four panelled columns are wider than the
-       928px content column at any comfortable width. The negative margin moves
-       only the scrollport — the first column stays aligned with the heading
-       above it, while the last runs to the edge of the window instead of
-       stopping short of it with empty page alongside.
-       calc(50% - 50vw) is that distance: 50% is half the 928px content column,
-       50vw half the window, so the two cancel to exactly -48px at 1024 and grow
-       from there. (On a platform with classic, space-taking scrollbars 100vw is
-       a scrollbar wider than the client area, so this can overshoot by that
-       much; overlay scrollbars, which is everything current, are exact.) */
-    <div className="mt-4 mr-[calc(50%-50vw)] overflow-x-auto">
-      <div className="flex w-max items-start gap-4 pr-12">
+       928px content column at any comfortable width. The scrollport is exactly
+       that column, so the board is cut off at the same right edge as the
+       buttons above it rather than running on into the page margin. It used to
+       bleed to the window edge on a calc(50% - 50vw) negative margin; the
+       margin is part of the layout, so the board stops at it now.
+
+       `relative` is what keeps the scrolling here and off the page. The match
+       badges carry sr-only labels, which are absolutely positioned, and an
+       absolute box is clipped only by an overflow ancestor that is also its
+       containing block. Without it their containing block is the shell's
+       scroller, so the labels on the off-screen columns escape this div and
+       make the whole page scroll sideways — by about 100px, when the card
+       counts that used to sit in the footer did exactly that. */
+    <div className="relative mt-4 overflow-x-auto">
+      <div className="flex w-max items-start gap-4">
         {COLUMNS.map((column) => (
           <section
             key={column.title}
@@ -161,13 +123,7 @@ export function ApplicationsBoard() {
                 {column.items.length}
               </span>
 
-              <span className="ml-auto flex items-center gap-0.5">
-                <IconButton
-                  label={`Add an application to ${column.title}`}
-                  tooltip="Add application"
-                >
-                  <PlusIcon className="size-4" />
-                </IconButton>
+              <span className="ml-auto flex items-center">
                 <IconButton label={`${column.title} column options`} tooltip="Column options">
                   <EllipsisIcon className="size-4" />
                 </IconButton>
@@ -176,7 +132,7 @@ export function ApplicationsBoard() {
 
             <ul className="flex flex-col gap-2">
               {column.items.map((item) => (
-                <ApplicationCard key={item.role} item={item} column={column} />
+                <ApplicationCard key={item.role} item={item} />
               ))}
             </ul>
           </section>
