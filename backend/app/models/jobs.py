@@ -38,14 +38,8 @@ class Job_Post(BaseModel):
     min_years_experience: Mapped[Optional[int]] = mapped_column(SmallInteger)
 
     work_style: Mapped[dto.work_style]
-    location_state: Mapped[str] = mapped_column(
-        ForeignKey("states.code"), 
-        index=True
-    )  
-    location_country: Mapped[str] = mapped_column(
-        ForeignKey("countries.code"),
-        index=True
-    ) 
+    location_state: Mapped[str] 
+    location_country: Mapped[str] 
 
     salary: Mapped[Optional[float]]
     salary_min: Mapped[Optional[float]]

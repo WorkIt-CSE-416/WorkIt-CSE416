@@ -1,5 +1,4 @@
 from app.db import Base
-from sqlalchemy import ForeignKey 
 from sqlalchemy import ForeignKey, String, text, Text, CHAR, UniqueConstraint, desc
 from sqlalchemy.orm import Mapped,mapped_column
 

@@ -95,7 +95,7 @@ class job_type(enum.StrEnum):
 class experience_level(enum.StrEnum):
     internship= "internship"
     new_grad= "new_grad"
-    experienced= "experienced"
+    other= "other"
 
 class work_style(enum.StrEnum):
     remote= "remote"

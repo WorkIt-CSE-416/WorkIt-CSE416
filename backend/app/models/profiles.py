@@ -2,7 +2,6 @@
 hold model schema for profile table
 '''
 from typing import Optional
-import datetime
 import uuid
 from sqlalchemy import ForeignKey
 from sqlalchemy import String, text
