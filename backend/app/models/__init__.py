@@ -1,4 +1,8 @@
-# Register all SQLAlchemy models so Alembic sees them in Base.metadata
-from app.models.profiles import Applicant_Profile, Company_Profile, Company_Membership  # noqa: F401
-from app.models.resume import Resume  # noqa: F401
-from app.models.sessions import Session  # noqa: F401
+'''
+import every module from this folder
+'''
+import importlib
+import pkgutil
+
+for _module in pkgutil.iter_modules(__path__):
+    importlib.import_module(f"{__name__}.{_module.name}")
