@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 
 import { AccountTypeSwitcher } from "@/components/account-type-switcher";
 import { BrandPanel } from "@/components/brand-panel";
-import { ArrowRightIcon, GoogleIcon, LinkedInIcon, LockIcon, MailIcon } from "@/components/icons";
+import { GoogleIcon, LinkedInIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
-import { TextField } from "@/components/ui/text-field";
 import { TextLink } from "@/components/ui/text-link";
 
-import { signIn } from "./actions";
+import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
   title: "Sign In",
@@ -44,41 +43,7 @@ export default function LoginPage() {
               reaches the submission through its hidden input's `form`. */}
           <AccountTypeSwitcher form={FORM_ID} />
 
-          <form id={FORM_ID} action={signIn} className="mt-5 flex flex-col">
-            <div className="flex flex-col gap-2.5">
-              <TextField
-                id="email"
-                name="email"
-                type="email"
-                label="Email Address"
-                icon={MailIcon}
-                autoComplete="email"
-                placeholder="name@example.com"
-                required
-              />
-
-              <TextField
-                id="password"
-                name="password"
-                type="password"
-                label="Password"
-                icon={LockIcon}
-                autoComplete="current-password"
-                placeholder="••••••••"
-                required
-                labelAction={
-                  <TextLink href="/forgot-password" className="text-label">
-                    Forgot password?
-                  </TextLink>
-                }
-              />
-            </div>
-
-            <Button type="submit" size="lg" className="mt-2.5">
-              Sign In
-              <ArrowRightIcon className="size-4" />
-            </Button>
-          </form>
+          <LoginForm formId={FORM_ID} />
 
           <div className="mt-5 flex items-center gap-3">
             <span className="bg-border-subtle h-px flex-1" />

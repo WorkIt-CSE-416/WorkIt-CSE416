@@ -175,10 +175,16 @@ pool, no schema and no migrations here — that is the Python API's job, and it
 owns the connection string. A query belongs in an endpoint, and a `page.tsx`
 reaches it through that screen's `data.ts`.
 
-**Auth is decided and not yet implemented.** The Python API issues our session
-tokens; Supabase is managed Postgres and nothing else. `login/actions.ts` is
-still a stub, so nothing here authenticates yet — but the shape is settled, and
-it points at our own API rather than at Supabase.
+**Auth is wired up for applicant accounts.** The Python API issues session
+tokens; Supabase is managed Postgres and nothing else. `signup/actions.ts` and
+`login/actions.ts` call `POST /auth/signup` / `POST /auth/login` through
+`src/lib/auth.ts` and redirect off the real response — company accounts still
+hit the same call and surface whatever the API says back (`501` today, since
+no screen collects a company name yet — see `backend/db/auth_methodology.md`
+§2 decision 4). That decision is deliberately still open: `onboarding/company`
+is a stub, so there's nowhere to send a new company account even once the
+signup fields exist. Don't build the company-signup fields ahead of that
+route landing.
 
 That makes three things dead rather than provisional:
 `src/lib/supabase/server.ts`, both `NEXT_PUBLIC_SUPABASE_*` variables, and the
@@ -186,11 +192,20 @@ That makes three things dead rather than provisional:
 on them** — they are removable, and the only reason they are still here is that
 nobody has done the removal.
 
-When login is wired up, the token comes from the API. Server Components calling
-it server-side keeps the token out of browser JavaScript and is the safest
-default; a Client Component calling directly needs CORS configured on the API
-side. `backend/CLAUDE.md` owns that decision and the rules that come with it —
-**read it before touching auth or adding an API call.**
+**The token travels through Server Actions, not a Client Component + CORS.**
+`src/lib/auth.ts`'s `apiFetch()` runs only on the Next server — a
+server-to-server call the browser never sees, so there is no CORS to
+configure on the API side and the token never reaches client JS. The API
+hands the token back only via `Set-Cookie` (never the JSON body — see
+`backend/app/schemas/auth.py`), and a server-to-server fetch's `Set-Cookie`
+does not forward to the browser on its own, so `relaySessionCookie()` reads
+it off the response and re-sets it as Next's own cookie. The reverse
+direction — forwarding the browser's cookie onto a call to a protected
+endpoint like `GET /auth/me` — doesn't have a helper yet; nothing calls
+`/auth/me` from this side yet. `backend/CLAUDE.md` owns the API-side rules
+that come with any of this — **read it before touching auth or adding an API
+call.** The base URL is `API_URL` (`frontend/.env.example`), read only
+server-side, deliberately not `NEXT_PUBLIC_*`.
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.

@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 
 import { AccountTypeSwitcher } from "@/components/account-type-switcher";
 import { BrandPanel } from "@/components/brand-panel";
-import { ArrowRightIcon, GoogleIcon, LinkedInIcon, LockIcon, MailIcon } from "@/components/icons";
+import { GoogleIcon, LinkedInIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
-import { TextField } from "@/components/ui/text-field";
 import { TextLink } from "@/components/ui/text-link";
 
-import { createAccount } from "./actions";
+import { SignupForm } from "./signup-form";
 
 export const metadata: Metadata = {
   title: "Create Account",
@@ -23,10 +22,11 @@ const FORM_ID = "create-account";
  * same account-type switcher: a returning and a new user should recognise
  * this as one screen with two doors, not two different products.
  *
- * There is no submission to wire up yet (see ./actions.ts), so the fields
- * collect nothing but a name, email and password for whenever the backend
- * lands — the one working piece of behaviour is Create Account routing into
- * onboarding for the selected account type.
+ * Create Account calls POST /auth/signup (see ./actions.ts and
+ * src/lib/auth.ts) for applicant accounts; a company submission still
+ * round-trips to the API and shows whatever it says back (501 today — see
+ * backend/db/auth_methodology.md §2 decision 4, deliberately not resolved
+ * until onboarding/company exists to send a new company account to).
  */
 export default function SignUpPage() {
   return (
@@ -47,79 +47,7 @@ export default function SignUpPage() {
 
           <AccountTypeSwitcher form={FORM_ID} />
 
-          <form id={FORM_ID} action={createAccount} className="mt-4 flex flex-col">
-            <div className="flex flex-col gap-2.5">
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                <TextField
-                  id="first-name"
-                  name="firstName"
-                  type="text"
-                  label="First Name"
-                  autoComplete="given-name"
-                  placeholder="Jane"
-                  required
-                />
-
-                <TextField
-                  id="middle-name"
-                  name="middleName"
-                  type="text"
-                  label="Middle Name"
-                  labelAction={<span className="text-meta text-ink-faint">Optional</span>}
-                  autoComplete="additional-name"
-                  placeholder="Marie"
-                />
-
-                <TextField
-                  id="last-name"
-                  name="lastName"
-                  type="text"
-                  label="Last Name"
-                  autoComplete="family-name"
-                  placeholder="Doe"
-                  required
-                />
-              </div>
-
-              <TextField
-                id="email"
-                name="email"
-                type="email"
-                label="Email Address"
-                icon={MailIcon}
-                autoComplete="email"
-                placeholder="name@example.com"
-                required
-              />
-
-              <TextField
-                id="password"
-                name="password"
-                type="password"
-                label="Password"
-                icon={LockIcon}
-                autoComplete="new-password"
-                placeholder="••••••••"
-                required
-              />
-
-              <TextField
-                id="confirm-password"
-                name="confirmPassword"
-                type="password"
-                label="Confirm Password"
-                icon={LockIcon}
-                autoComplete="new-password"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-
-            <Button type="submit" size="lg" className="mt-2.5">
-              Create Account
-              <ArrowRightIcon className="size-4" />
-            </Button>
-          </form>
+          <SignupForm formId={FORM_ID} />
 
           <div className="mt-4 flex items-center gap-3">
             <span className="bg-border-subtle h-px flex-1" />

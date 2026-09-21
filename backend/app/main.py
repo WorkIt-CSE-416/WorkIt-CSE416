@@ -9,12 +9,15 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.db import get_sessionmaker
+from app.routers.auth import router as auth_router
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="WorkIt"
 )
+
+app.include_router(auth_router)
 
 
 @app.get("/health")
