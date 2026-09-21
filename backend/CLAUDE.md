@@ -61,11 +61,14 @@ app/
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
+    jobs.py       Job postings
+    locations.py  Country and state reference tables
+    resume.py     Resume storage and parsed JSONB
     dto.py        Enums
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
-  versions/       Migrations. Empty until the first revision is written
+  versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
@@ -79,20 +82,36 @@ Routers will go in `app/routers/`, which does not exist yet.
 
 ## Current state
 
-**Models exist; there are no migrations yet.** `app/models/` holds
-`applicant_profiles`, `company_profiles` and `company_memberships`. Nothing has
-been applied to a database, so the first revision is still to be written — and
-per `alembic/CLAUDE.md` it should be reviewed by hand rather than trusted from
-a diff.
+**The initial migration has landed.** `dee263a84adb_initial_schema.py` creates
+all seven tables — `applicant_profiles`, `company_profiles`,
+`company_memberships`, `resumes`, `countries`, `states`, `job_postings` — plus
+nine enum types. It is the only revision, and `down_revision` is `None`.
+
+The shared Supabase project was **dropped and rebuilt from that migration on
+2026-09-21**, after a migration was applied to it whose file was never
+committed. That left `alembic_version` pointing at a revision nobody had, which
+broke every Alembic command for the whole team. `alembic/CLAUDE.md` records the
+incident and the rule that prevents it; read it before your first migration.
+
+Two things the schema cannot do yet:
+
+- **`countries` and `states` are empty.** `job_postings.location_state` and
+  `location_country` are `NOT NULL` with a composite FK into `states`, so no
+  job posting can be inserted until the reference data is seeded. Decide
+  whether that seed rides in a migration (versioned, reproducible, large) or a
+  separate script (smaller history, one more step to forget).
+- **No table stores a credential.** See Auth below and
+  `app/models/CLAUDE.md` — the gap is deliberate to record, not a design.
 
 The recommended next step is Pydantic response schemas serving fixture data, so
 the frontend can replace its `data.ts` fixtures with real calls while the
 schema churns underneath. The API contract should be designed deliberately
 rather than falling out of whatever the tables happen to look like.
 
-There is no CI. Two gates are worth adding before the first migration lands:
+There is no CI. Two gates are worth adding now that migrations exist:
 `alembic heads` failing when it returns more than one, and `alembic check`
-failing on model drift.
+failing on model drift. Both would have caught the 2026-09-21 breakage before
+it reached anyone else.
 
 ## The database
 
