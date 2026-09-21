@@ -74,16 +74,25 @@ alembic both run from `backend/`, so `app` is the top-level package. Both
 spellings resolving at once gives you `app.db` and `backend.app.db` as two
 separate modules with two separate `Base` classes — the same bug, harder to see.
 
-## Register every model in __init__.py
+## __init__.py registers every model automatically
 
 `alembic/env.py` does `from app import models`. A model that import does not
 reach is absent from `Base.metadata`, and autogenerate writes a migration
 **dropping the table it cannot see**.
 
-List classes explicitly rather than `import *` — guaranteeing registration is
-this file's whole job, and a star import hides what it registered. The `noqa` on
-the import in `env.py` is load-bearing; linters strip "unused" imports, and
-stripping that one is how the table gets dropped.
+`__init__.py` therefore imports every module in this folder with `pkgutil`, so
+a new model file is registered without being listed anywhere. It replaced a
+hand-maintained list of imports, which had already missed `locations.py` —
+exactly the failure above. Two consequences:
+
+- **Every `.py` file here is imported at startup.** A scratch or half-written
+  file that raises on import breaks the app and Alembic alike. Keep non-model
+  code out of this folder.
+- **Nothing is re-exported.** Import a model from its module
+  (`from app.models.jobs import Job_Post`), not from `app.models`.
+
+The `noqa` on the import in `env.py` is load-bearing; linters strip "unused"
+imports, and stripping that one is how the table gets dropped.
 
 ## BaseModel and Profile are abstract on purpose
 

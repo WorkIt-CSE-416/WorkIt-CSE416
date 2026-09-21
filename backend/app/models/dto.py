@@ -83,3 +83,33 @@ class profile_status(enum.StrEnum):
     active= "active"
     invited= "invited"
     disabled = "disabled"
+
+class job_type(enum.StrEnum):
+    '''
+    employment type of a job posting
+    '''
+    full_time= "full_time"
+    part_time= "part_time"
+    contract= "contract"
+
+class experience_level(enum.StrEnum):
+    internship= "internship"
+    new_grad= "new_grad"
+    other= "other"
+
+class work_style(enum.StrEnum):
+    remote= "remote"
+    hybrid= "hybrid"
+    onsite= "onsite"
+
+class salary_period(enum.StrEnum):
+    year= "year"
+    hour= "hour"
+
+class job_post_status(enum.StrEnum):
+    '''
+    lifecycle status of a job posting
+    '''
+    draft= "draft"
+    published= "published"
+    closed= "closed"
