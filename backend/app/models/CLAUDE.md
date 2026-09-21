@@ -157,7 +157,8 @@ raises `TypeError: Cannot create a consistent method resolution order`.
 `ALTER TYPE ... ADD VALUE` does not autogenerate and does not roll back cleanly.
 `../../alembic/CLAUDE.md` covers this; the version here is that adding or
 renaming an enum value is a hand-written `op.execute()` and a deploy, not an
-edit. Get the value set right before the first migration lands.
+edit. That window has closed — `dee263a84adb` created all nine types on
+2026-09-21, so every value change from here is the coordinated kind.
 
 `company_size_range` uses fixed MVP buckets for exactly this reason — the
 domain does not grow with the product. For anything that will, a lookup table
@@ -174,8 +175,14 @@ It also creates one. **Nothing here stores a password hash.** The account tables
 have `email` (unique per table) and no credential column at all, so this schema
 cannot authenticate anyone yet.
 
-Resolve this before the first migration, because it is an identity decision and
-not a column addition:
+**The first migration shipped without it.** `dee263a84adb` created these tables
+with no credential column, so closing the gap is now an `ALTER TABLE ADD
+COLUMN` migration rather than a free edit. There is already a consumer waiting:
+the KAN-114 auth branch expects `password_hash` and `onboarding_completed_at`
+on the account tables, and must bring its own migration adding them.
+
+Settle the question below first, because it is an identity decision and not a
+column addition:
 
 - **`email` is unique per table, not globally.** The same address can exist in
   both `applicant_profiles` and `company_memberships`, so "look up the user by
