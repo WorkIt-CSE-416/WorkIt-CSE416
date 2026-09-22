@@ -172,7 +172,7 @@ costs a join and saves the coordination.
 surrogate ids:
 
 - `countries.code` — ISO 3166-1 alpha-2 (`US`, `GB`).
-- `states.code` — ISO 3166-2 (`US-CA`, `GB-ENG`), with `country_code` → `countries`.
+- `states.code` — ISO 3166-2 (`US-CA`), with `country_code` → `countries`.
 
 **The code is the key.** A job posting stores `US-CA` itself, so filtering
 "jobs in California" is `WHERE location_state = 'US-CA'` with no join. The join
@@ -207,20 +207,21 @@ Seeded by migrations, frozen inline from pycountry 26.2.16:
 | --- | --- |
 | `cca905583de8` | all 249 countries |
 | `6b5bd2831d18` | 57 US subdivisions: 50 states, DC, 6 outlying areas (PR, GU…) |
-| `60e294868d57` | 4 GB nations: England, Scotland, Wales, Northern Ireland |
 
-**Only the US and GB have states.** A posting anywhere else stores its country
-with `location_state` NULL. That scope was chosen on purpose: an earlier draft
-seeded 15 countries (310 rows) and was cut back as more than the product needs.
-Adding a country later is a new seed migration, not an edit to one already
-applied, and follows the rules below.
+**Only the US has states.** A posting anywhere else stores its country with
+`location_state` NULL. That scope was chosen on purpose: earlier drafts seeded
+15 countries' subdivisions (310 rows), then the UK's four nations alone, and
+both were cut as more than the product needs for now. Adding a country later is
+a new seed migration, not an edit to one already applied, and follows the
+rules below.
 
 Rules the seeds follow, which a new one must follow too:
 
 - **Never read pycountry at upgrade time.** Its data changes between releases,
   so two machines would insert different rows. Generate once, inline the rows.
 - **Top level only.** `states` is one level deep, and postings name the top
-  level ("London, England, United Kingdom"), not a borough or département.
+  level ("London, England, United Kingdom" names England), not a borough or
+  département.
 - **English names.** Country names use pycountry's `common_name` ("South
   Korea", not "Korea, Republic of"). ISO names many subdivisions in the local
   language ("Bayern"); store the English one ("Bavaria") and give the local one
@@ -238,7 +239,7 @@ Rules the seeds follow, which a new one must follow too:
 Scraped postings give free text ("New York, NY"). Something must turn that into
 `(location_country, location_state)` before insert. The design below was
 prototyped on 2026-09-22 against a larger seed; the cases below are
-restated for the US + GB seed that shipped, then left for a
+restated for the US-only seed that shipped, then left for a
 separate branch. A draft may still be reachable in commit `554e279`.
 
 **Where.** `app/services/location_resolver.py`. **Never in this folder**:
@@ -254,7 +255,6 @@ next to fetching the posting over HTTP.
 ```
 country_code("U.S.A.")            -> "US"     country_name("US")    -> "United States"
 state_code("new york")            -> "US-NY"  state_name("US-NY")   -> "New York"
-state_code("England", "GB")       -> "GB-ENG"
 resolve("Austin, Texas, USA")     -> ("US", "US-TX")
 resolve("San Francisco")          -> None
 ```
@@ -265,7 +265,7 @@ Then "U.S." = "us", "Türkiye" = "turkiye", and "Québec" = "quebec".
 
 **State keys are stored per country**, because abbreviations repeat once more
 countries are seeded ("WA" is Washington and Western Australia). Each state is
-keyed by its name, its full code (`us-ny`) and its suffix (`ny`, `eng`). Skip
+keyed by its name, its full code (`us-ny`) and its suffix (`ny`). Skip
 numeric suffixes if a future seed has them (`JP-13` is Tokyo, and a bare "13"
 means nothing). Looked up without a country, a key that matches several states
 returns the US one if there is one, otherwise nothing.
@@ -279,8 +279,10 @@ returns the US one if there is one, otherwise nothing.
   names override ISO's adds the local names here (`bayern` → DE-BY); derive
   them by comparing pycountry's names with `states.name`, not by hand, and add
   them in the same PR as the seed.
-- **Do not** alias England, Scotland, Wales or Northern Ireland to `GB`; they
-  are states (`GB-ENG`…), and resolving them as states still yields GB.
+- Alias England, Scotland, Wales and Northern Ireland to `GB` as countries
+  while GB has no states, or "Edinburgh, Scotland" resolves to nothing. If GB
+  states are ever seeded, drop these aliases: the nations become states
+  (`GB-ENG`…), and resolving them as states still yields GB.
 
 **`resolve(text)`.** Split on commas, drop empty parts, read from the right. Try
 the last part, in order:
@@ -299,11 +301,10 @@ collide constantly:
 | `Indianapolis, IN` | US-IN | India |
 | `Atlanta, Georgia` | US-GA | the country Georgia |
 | `Amsterdam, NL` | NL | Newfoundland |
-| `Edinburgh, Scotland` | GB-SCT | — |
 
 Known misses, accepted: "Berlin, DE" → Delaware, "Regina, SK" → Slovakia,
 "Perth, WA" → Washington. Spelled-out names resolve correctly. Step 3 only
-matters once a third country has states; with US and GB alone, a bare "ON" or
+matters once a second country has states; with the US alone, a bare "ON" or
 "Bavaria" resolves to nothing.
 
 Cases checked against the seeds, as a starting test set:
@@ -312,9 +313,9 @@ Cases checked against the seeds, as a starting test set:
 New York, NY                          US, US-NY
 Seattle, WA, United States            US, US-WA
 Washington, D.C.                      US, US-DC
-London, England, United Kingdom       GB, GB-ENG
+London, England, United Kingdom       GB, —
 London, UK                            GB, —
-Edinburgh, Scotland                   GB, GB-SCT
+Edinburgh, Scotland                   GB, —       (via the scotland alias)
 Paris, Île-de-France, France          FR, —       (no FR states seeded)
 München, Bayern, Deutschland          DE, —       (via the deutschland alias)
 Bengaluru, Karnataka, India           IN, —
