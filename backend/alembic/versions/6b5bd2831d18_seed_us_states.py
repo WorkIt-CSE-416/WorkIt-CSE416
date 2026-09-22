@@ -20,8 +20,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 # Frozen copy of the ISO 3166-2:US subdivisions, generated from pycountry
 # 26.2.16: 50 states, DC, and 6 outlying areas. The outlying areas
-# (PR, GU, ...) are also ISO countries in their own right; they are listed here
-# too because ISO lists them under US, and a posting may say "San Juan, PR".
+# (PR, GU, ...) are also ISO countries in their own right, though not seeded as
+# countries; they are listed here because ISO lists them under US, and a posting
+# may say "San Juan, PR".
 # Other countries' subdivisions get their own migrations.
 US_STATES = [
     ('US-AK', 'Alaska'),
