@@ -205,8 +205,31 @@ Seeded by migrations, frozen inline from pycountry 26.2.16:
 
 | Revision | Rows |
 | --- | --- |
-| `cca905583de8` | all 249 countries |
+| `cca905583de8` | 15 of ISO's 249 countries — see below |
 | `6b5bd2831d18` | 57 US subdivisions: 50 states, DC, 6 outlying areas (PR, GU…) |
+
+**The countries list is incomplete on purpose.** It holds 15: Australia,
+Canada, China, Denmark, France, Germany, Hong Kong, Italy, Japan, New Zealand,
+Singapore, Spain, Taiwan, the United Kingdom and the United States. Everything
+else was cut on 2026-09-22 to keep the seed small while the product is young —
+not for storage, which was never the constraint (all 249 fit in about 50 KB).
+Any of them can be added back when real postings need it.
+
+Consequences, until someone adds them back:
+
+- A posting in an unseeded country cannot be stored with that country — its
+  `location_country` fails the FK. The resolver must return nothing for it
+  rather than guess a neighbour.
+- Puerto Rico, Guam and the other US outlying areas exist only as US states
+  (`US-PR`), not as countries (`PR`).
+
+**Adding countries back.** Take the rows from pycountry 26.2.16 — the version
+the rest were frozen from — using `common_name` and no commas; the full list is
+in this file's git history before 2026-09-22. As of 2026-09-22 the shared
+database has not applied `cca905583de8` (it is on `dee263a84adb`), which is
+the only reason editing it in place was safe. Once it has been applied
+anywhere, add countries in a **new** seed migration instead — Alembic never
+re-runs an applied revision, so an edit would reach fresh databases only.
 
 **Only the US has states.** A posting anywhere else stores its country with
 `location_state` NULL. That scope was chosen on purpose: earlier drafts seeded
@@ -275,6 +298,9 @@ returns the US one if there is one, otherwise nothing.
 - Countries: nicknames (`usa`, `uk`, `uae`, `russia`, `turkey`, `czech
   republic`, `holland`, `korea`…) and local-language names (`deutschland`,
   `espana`, `italia`, `schweiz`, `suisse`, `nederland`, `brasil`, `osterreich`).
+  Many of these point at countries the trimmed seed dropped; when the resolver
+  loads, discard any alias whose target is not in `countries`, or it returns
+  a code the FK rejects.
 - States: only `washington dc` → US-DC today. A future seed whose English
   names override ISO's adds the local names here (`bayern` → DE-BY); derive
   them by comparing pycountry's names with `states.name`, not by hand, and add
@@ -305,7 +331,9 @@ collide constantly:
 Known misses, accepted: "Berlin, DE" → Delaware, "Regina, SK" → Slovakia,
 "Perth, WA" → Washington. Spelled-out names resolve correctly. Step 3 only
 matters once a second country has states; with the US alone, a bare "ON" or
-"Bavaria" resolves to nothing.
+"Bavaria" resolves to nothing. With the 15-country seed, India, Georgia, the
+Netherlands and Slovakia are not seeded either, so the collisions above cannot
+happen yet — keep the order anyway, since they return with those countries.
 
 Cases checked against the seeds, as a starting test set:
 
