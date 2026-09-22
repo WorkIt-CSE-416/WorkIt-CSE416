@@ -164,6 +164,169 @@ edit. That window has closed — `dee263a84adb` created all nine types on
 domain does not grow with the product. For anything that will, a lookup table
 costs a join and saves the coordination.
 
+## Locations — countries, states, and the resolver not yet written
+
+### The tables
+
+`locations.py` holds two reference tables keyed by ISO codes, with no
+surrogate ids:
+
+- `countries.code` — ISO 3166-1 alpha-2 (`US`, `GB`).
+- `states.code` — ISO 3166-2 (`US-CA`, `GB-ENG`), with `country_code` → `countries`.
+
+**The code is the key.** A job posting stores `US-CA` itself, so filtering
+"jobs in California" is `WHERE location_state = 'US-CA'` with no join. The join
+to `states` is only for the display name.
+
+**The foreign keys are for integrity, not speed.** They make Postgres reject
+`'NY'`, `'New York'` or `'US-XX'`, so every row spells a place one way. The
+speed comes from `job_postings_loc_idx` on `(location_country, location_state)`;
+Postgres does not index a foreign key column by itself.
+
+### How job_postings references them
+
+- `location_country` — required, with its **own** FK to `countries`. Postgres
+  skips a composite FK when any of its columns is NULL (`MATCH SIMPLE`), so
+  without this a country-only row would go unchecked.
+- `location_state` — nullable. "United States" or a country with no seeded
+  subdivisions has no state.
+- The composite FK `(location_state, location_country)` → `states(code,
+  country_code)` rejects a state from the wrong country: `('US-NY', 'CA')`
+  fails.
+- **Remote is `work_style`, not a location.** A remote posting still names a
+  country ("Remote, US"). Never add a sentinel "REMOTE" code; it duplicates
+  `work_style` and cannot say "remote, US only".
+
+A bad code raises `IntegrityError` on insert.
+
+### What is seeded
+
+Seeded by migrations, frozen inline from pycountry 26.2.16:
+
+| Revision | Rows |
+| --- | --- |
+| `cca905583de8` | all 249 countries |
+| `6b5bd2831d18` | 57 US subdivisions: 50 states, DC, 6 outlying areas (PR, GU…) |
+| `60e294868d57` | 310 top-level subdivisions of CA, GB, DE, FR, NL, ES, IT, CH, IN, AU, MX, BR, JP, CN, IL |
+
+Rules the seeds follow, which a new one must follow too:
+
+- **Never read pycountry at upgrade time.** Its data changes between releases,
+  so two machines would insert different rows. Generate once, inline the rows.
+- **Top level only.** `states` is one level deep, and postings name the top
+  level ("London, England, United Kingdom"), not a borough or département.
+- **English names.** `states.name` holds "Bavaria", not ISO's "Bayern"; country
+  names use pycountry's `common_name` ("South Korea", not "Korea, Republic of").
+  No name contains a comma, because the resolver splits posting text on commas.
+- **Nothing that is already a country.** Hong Kong, Taiwan and Macao under CN,
+  and the French and Dutch overseas territories, have their own `countries` rows.
+- **Ireland, Singapore and Poland are deliberately country-only.** Their top
+  levels (historic provinces, districts, Polish-named voivodeships) are not
+  what postings write.
+
+### The resolver — design settled, code not in this branch
+
+Scraped postings give free text ("New York, NY"). Something must turn that into
+`(location_country, location_state)` before insert. The design below was
+prototyped and checked against the seeded rows on 2026-09-22, then left for a
+separate branch. A draft may still be reachable in commit `554e279`.
+
+**Where.** `app/services/location_resolver.py`. **Never in this folder**:
+`__init__.py` imports every file here as a model at startup.
+
+**Built from the tables, not from pycountry.** Load `countries` and `states`
+once per process (two small queries) into in-memory dicts. Every code it
+returns is then one the FKs accept. Lookups are dict hits; speed is a non-issue
+next to fetching the posting over HTTP.
+
+**Interface, both directions:**
+
+```
+country_code("U.S.A.")            -> "US"     country_name("US")    -> "United States"
+state_code("new york")            -> "US-NY"  state_name("US-NY")   -> "New York"
+state_code("Ontario", "CA")       -> "CA-ON"
+resolve("Austin, Texas, USA")     -> ("US", "US-TX")
+resolve("San Francisco")          -> None
+```
+
+**Normalize every key and every input the same way:** casefold, strip accents
+(NFKD, drop combining marks), drop periods, map `’` to `'`, collapse whitespace.
+Then "U.S." = "us", "Türkiye" = "turkiye", and "Québec" = "quebec".
+
+**State keys are stored per country**, because abbreviations repeat ("WA" is
+Washington and Western Australia). Each state is keyed by its name, its full
+code (`us-ny`) and its alphabetic suffix (`ny`, `on`, `nsw`). Skip numeric
+suffixes: `JP-13` is Tokyo, and a bare "13" in a posting means nothing. Looked
+up without a country, a key that matches several states returns the US one if
+there is one, otherwise nothing.
+
+**Aliases the tables cannot produce**, kept as two dicts in the resolver:
+
+- Countries: nicknames (`usa`, `uk`, `uae`, `russia`, `turkey`, `czech
+  republic`, `holland`, `korea`…) and local-language names (`deutschland`,
+  `espana`, `italia`, `schweiz`, `suisse`, `nederland`, `brasil`, `osterreich`).
+- States: the local name for every state whose English name overrode ISO's in
+  `60e294868d57` (`bayern` → DE-BY, `lombardia` → IT-25, `catalunya` → ES-CT…).
+  Derive the list by comparing pycountry's names with `states.name`, not by
+  hand. Plus a few extras: `washington dc`, `nrw`, `paca`, `cdmx`,
+  `madrid` → ES-MD.
+- **Do not** alias England, Scotland, Wales or Northern Ireland to `GB`; they
+  are states (`GB-ENG`…), and resolving them as states still yields GB.
+- **Do not** alias `mexico` to the State of Mexico; it belongs to the country.
+
+A new seed migration needs its local-name aliases added to the resolver in the
+same PR.
+
+**`resolve(text)`.** Split on commas, drop empty parts, read from the right. Try
+the last part, in order:
+
+1. a **US state** → that state, country US
+2. a **country** → that country; then try the part before it as a state
+   *within that country*
+3. **any other country's state** → that state and its country
+4. otherwise → `None`
+
+The order wins the collisions that matter on a US job board. Short codes
+collide constantly:
+
+| Input | Result | Instead of |
+| --- | --- | --- |
+| `Indianapolis, IN` | US-IN | India |
+| `Atlanta, Georgia` | US-GA | the country Georgia |
+| `Amsterdam, NL` | NL | Newfoundland |
+| `Mexico` | MX, no state | State of Mexico |
+| `Toronto, ON` | CA-ON | — (ON is no country) |
+
+Known misses, accepted: "Berlin, DE" → Delaware, "Regina, SK" → Slovakia,
+"Pune, MH" → Marshall Islands, "Perth, WA" → Washington. Spelled-out names
+resolve correctly.
+
+Cases checked against the seeds, as a starting test set:
+
+```
+New York, NY                          US, US-NY
+Seattle, WA, United States            US, US-WA
+Washington, D.C.                      US, US-DC
+London, England, United Kingdom       GB, GB-ENG
+London, UK                            GB, —
+Paris, Île-de-France, France          FR, FR-IDF
+München, Bayern, Deutschland          DE, DE-BY
+Berlin, Germany                       DE, DE-BE   (Berlin is a state)
+Shanghai, China                       CN, CN-SH   (so is Shanghai)
+Bengaluru, Karnataka, India           IN, IN-KA
+Mexico City, Mexico                   MX, MX-CMX
+Remote, US                            US, —
+Dublin, Ireland                       IE, —
+San Francisco / Remote / ""           None
+```
+
+**What it cannot do.** A city alone ("San Francisco") has no ISO entry; that
+needs city data such as GeoNames `cities15000.txt` (city → country + admin1),
+picking the most populous match for a repeated name. Until then, do not guess
+on a miss: log it, since misses show which aliases to add. `job_postings` has
+no column for the raw text, so an unresolved posting cannot be stored for a
+later retry. Add a `location_raw` column if that matters.
+
 ## Credentials are missing, and that is now blocking
 
 **FastAPI issues the session token** — see `../../CLAUDE.md`. Supabase is

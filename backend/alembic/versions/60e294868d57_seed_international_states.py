@@ -27,7 +27,8 @@ depends_on: Union[str, Sequence[str], None] = None
 # left out; they already have a row in countries.
 #
 # Names are English where ISO gives the local one ("Bavaria", not "Bayern");
-# the local names are aliases in app/services/location_resolver.py instead.
+# the local names belong to the location resolver as aliases. See
+# app/models/CLAUDE.md.
 # Ireland, Singapore and Poland are left country-only: their top level
 # (provinces, districts, voivodeships) is not what postings write.
 STATES = [

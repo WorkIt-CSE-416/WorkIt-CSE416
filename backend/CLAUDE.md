@@ -65,10 +65,6 @@ app/
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
     dto.py        Enums
-  services/
-    location_resolver.py  Location text <-> ISO codes, built from the
-                          countries/states rows. Not a model: app/models
-                          imports every file in it at startup
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
@@ -97,17 +93,13 @@ committed. That left `alembic_version` pointing at a revision nobody had, which
 broke every Alembic command for the whole team. `alembic/CLAUDE.md` records the
 incident and the rule that prevents it; read it before your first migration.
 
-Two things the schema cannot do yet:
+Location reference data (`countries`, `states`) is seeded by migrations, and
+`job_postings` references it by ISO code. `app/models/CLAUDE.md` owns the
+details: what is seeded and why, how the location columns and FKs are shaped,
+and the settled design for the location resolver, which is not written yet.
 
-- **`states` holds only the US.** Reference data is seeded by migrations,
-  frozen inline from pycountry (`cca905583de8` all 249 countries,
-  `6b5bd2831d18` the 57 US subdivisions), so a fresh database has it with no
-  extra step. Another country's subdivisions get their own seed migration,
-  generated the same way — never read pycountry at upgrade time, or two
-  machines on different versions insert different rows. `job_postings.
-  location_state` is nullable (`2d9b0e7c41c2`) so a country-only posting can
-  be stored; `location_country` stays required, and `work_style` says whether
-  a job is remote.
+One thing the schema cannot do yet:
+
 - **No table stores a credential.** See Auth below and
   `app/models/CLAUDE.md` — the gap is deliberate to record, not a design.
 
