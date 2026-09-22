@@ -90,9 +90,27 @@ Read every generated migration before applying it. Autogenerate does **not**
 emit:
 
 - `CREATE EXTENSION` — this schema needs `ltree` and `pg_trgm`
-- new enum values — `ALTER TYPE ... ADD VALUE`, and there are five enums
+- new enum values — `ALTER TYPE ... ADD VALUE`, and there are nine enums
 - index operator classes — `gin_trgm_ops`, used on two tables
 - anything `ltree` — no native type, so it needs a `TypeDecorator`
+- **a `use_alter=True` foreign key** — see below, this one bit us
+
+`use_alter=True` marks a FK in a reference cycle, telling SQLAlchemy to leave
+it out of `CREATE TABLE` and add it afterwards. Autogenerate honours the first
+half and forgets the second: it omits the constraint and then emits no `ALTER
+TABLE` to add it back. The column and its index exist, the FK silently does
+not, and **`alembic check` does not catch it** — a missing constraint is not
+model drift it knows how to see.
+
+`applicant_profiles.default_resume_id` → `resumes.id` is the cycle in this
+schema, and `dee263a84adb` carries a hand-added `op.create_foreign_key()` at
+the end of `upgrade()` because of it. The matching `drop_constraint()` must be
+the *first* statement in `downgrade()`, or dropping `resumes` fails while
+`applicant_profiles` still references it.
+
+Catch this class of bug with `alembic upgrade head --sql`, which prints the DDL
+without touching the database. If a FK you expect is missing from the output,
+it will be missing from the database too.
 
 Hand-write those with `op.execute()`. The first migration in particular must
 create the extensions before any table that depends on them, so write it by
@@ -107,13 +125,45 @@ them on behaves differently from a clean one.
 One file per migration, `<revision>_<slug>.py`. Committed — they are the
 schema's history, and the `.gitignore` covers only `__pycache__` and `*.pyc`.
 
-The directory is empty until the first model exists, and `--autogenerate`
-correctly produces `pass`. That is the expected output, not a broken setup.
-Alembic recreates the directory if it is missing, so git not tracking it while
-empty is harmless.
+`dee263a84adb_initial_schema.py` is the root of the chain: `down_revision` is
+`None` and it creates all seven tables. The revisions after it seed the
+location reference data; see `../CLAUDE.md`.
 
 `revision` and `down_revision` form a linked list. That chain is what defines
 order and what "head" means.
+
+## Commit the migration in the same PR that applies it
+
+**Applying a migration to the shared database without pushing its file is what
+breaks everyone else's Alembic.** This is not hypothetical; it happened on
+2026-09-21 and cost the team a day.
+
+The database remembers a revision id in `alembic_version`. If no file in
+`versions/` defines that id, every command that has to resolve the chain —
+`upgrade`, `downgrade`, `revision --autogenerate` — dies with:
+
+```
+Can't locate revision identified by '0002'
+```
+
+for *every* teammate, on every clone, forever. Git is not the problem and
+pulling is not the fix, because the file was never committed in the first
+place. Recovery meant `alembic stamp base --purge` to clear the dangling
+pointer, then dropping and rebuilding the database — the scraped job data in it
+was not recoverable.
+
+Two habits follow:
+
+- The migration file and the schema change go up in **one** PR. A migration
+  applied from a working copy is a migration nobody else has.
+- Prefer applying to your own database first. A free Supabase project or local
+  Postgres costs nothing and keeps DDL experiments off the shared one.
+
+`alembic stamp <rev> --purge` is the escape hatch if this happens again:
+`--purge` erases the version table without first resolving the value in it,
+which is the lookup that fails. It rewrites only that bookkeeping table and
+touches no schema — but you are then responsible for making the database match
+whatever you stamped.
 
 **Never delete an applied migration.** If the database's `alembic_version`
 table points at a revision whose file is gone, `alembic upgrade head` fails
