@@ -126,7 +126,8 @@ One file per migration, `<revision>_<slug>.py`. Committed — they are the
 schema's history, and the `.gitignore` covers only `__pycache__` and `*.pyc`.
 
 `dee263a84adb_initial_schema.py` is the root of the chain: `down_revision` is
-`None`, it creates all seven tables, and it is currently the only revision.
+`None` and it creates all seven tables. The revisions after it seed the
+location reference data; see `../CLAUDE.md`.
 
 `revision` and `down_revision` form a linked list. That chain is what defines
 order and what "head" means.

@@ -65,6 +65,10 @@ app/
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
     dto.py        Enums
+  services/
+    location_resolver.py  Location text <-> ISO codes, built from the
+                          countries/states rows. Not a model: app/models
+                          imports every file in it at startup
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
@@ -85,7 +89,7 @@ Routers will go in `app/routers/`, which does not exist yet.
 **The initial migration has landed.** `dee263a84adb_initial_schema.py` creates
 all seven tables — `applicant_profiles`, `company_profiles`,
 `company_memberships`, `resumes`, `countries`, `states`, `job_postings` — plus
-nine enum types. It is the only revision, and `down_revision` is `None`.
+nine enum types. It is the root of the chain (`down_revision` is `None`).
 
 The shared Supabase project was **dropped and rebuilt from that migration on
 2026-09-21**, after a migration was applied to it whose file was never
@@ -95,11 +99,15 @@ incident and the rule that prevents it; read it before your first migration.
 
 Two things the schema cannot do yet:
 
-- **`countries` and `states` are empty.** `job_postings.location_state` and
-  `location_country` are `NOT NULL` with a composite FK into `states`, so no
-  job posting can be inserted until the reference data is seeded. Decide
-  whether that seed rides in a migration (versioned, reproducible, large) or a
-  separate script (smaller history, one more step to forget).
+- **`states` holds only the US.** Reference data is seeded by migrations,
+  frozen inline from pycountry (`cca905583de8` all 249 countries,
+  `6b5bd2831d18` the 57 US subdivisions), so a fresh database has it with no
+  extra step. Another country's subdivisions get their own seed migration,
+  generated the same way — never read pycountry at upgrade time, or two
+  machines on different versions insert different rows. `job_postings.
+  location_state` is nullable (`2d9b0e7c41c2`) so a country-only posting can
+  be stored; `location_country` stays required, and `work_style` says whether
+  a job is remote.
 - **No table stores a credential.** See Auth below and
   `app/models/CLAUDE.md` — the gap is deliberate to record, not a design.
 
