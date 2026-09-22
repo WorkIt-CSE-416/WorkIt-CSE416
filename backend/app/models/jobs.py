@@ -38,8 +38,12 @@ class Job_Post(BaseModel):
     min_years_experience: Mapped[Optional[int]] = mapped_column(SmallInteger)
 
     work_style: Mapped[dto.work_style]
-    location_state: Mapped[str] 
-    location_country: Mapped[str] 
+    # nullable: "United States" or a country with no ISO subdivisions has no
+    # state. Country is required; a remote posting still names one.
+    location_state: Mapped[Optional[str]]
+    # own FK because Postgres skips the composite one below once location_state
+    # is NULL, which would leave a country-only row unchecked
+    location_country: Mapped[str] = mapped_column(ForeignKey("countries.code"))
 
     salary: Mapped[Optional[float]]
     salary_min: Mapped[Optional[float]]
@@ -86,5 +90,10 @@ class Job_Post(BaseModel):
             "job_postings_status_idx",
             "status", 
             desc("created_at")
+        ), 
+        Index (
+            "job_postings_loc_idx",
+            "location_country",
+            "location_state"
         )
     )

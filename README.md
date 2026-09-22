@@ -26,6 +26,10 @@ winget install --id=astral-sh.uv -e
 pip install uv
 ```
 
+Databases: 
+```bash
+ uv run alembic upgrade head 
+```
 
 ## Getting started
 ```bash

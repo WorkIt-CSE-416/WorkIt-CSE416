@@ -85,7 +85,7 @@ Routers will go in `app/routers/`, which does not exist yet.
 **The initial migration has landed.** `dee263a84adb_initial_schema.py` creates
 all seven tables — `applicant_profiles`, `company_profiles`,
 `company_memberships`, `resumes`, `countries`, `states`, `job_postings` — plus
-nine enum types. It is the only revision, and `down_revision` is `None`.
+nine enum types. It is the root of the chain (`down_revision` is `None`).
 
 The shared Supabase project was **dropped and rebuilt from that migration on
 2026-09-21**, after a migration was applied to it whose file was never
@@ -93,13 +93,13 @@ committed. That left `alembic_version` pointing at a revision nobody had, which
 broke every Alembic command for the whole team. `alembic/CLAUDE.md` records the
 incident and the rule that prevents it; read it before your first migration.
 
-Two things the schema cannot do yet:
+Location reference data (`countries`, `states`) is seeded by migrations, and
+`job_postings` references it by ISO code. `app/models/CLAUDE.md` owns the
+details: what is seeded and why, how the location columns and FKs are shaped,
+and the settled design for the location resolver, which is not written yet.
 
-- **`countries` and `states` are empty.** `job_postings.location_state` and
-  `location_country` are `NOT NULL` with a composite FK into `states`, so no
-  job posting can be inserted until the reference data is seeded. Decide
-  whether that seed rides in a migration (versioned, reproducible, large) or a
-  separate script (smaller history, one more step to forget).
+One thing the schema cannot do yet:
+
 - **No table stores a credential.** See Auth below and
   `app/models/CLAUDE.md` — the gap is deliberate to record, not a design.
 
