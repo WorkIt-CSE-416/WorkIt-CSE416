@@ -16,7 +16,7 @@ ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 MAX_SIZE = 5 * 1024 * 1024
-BUCKET = "resumes"
+BUCKET = "Resume"
 
 
 
@@ -37,14 +37,17 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
     storage_path = f"{applicant_id}/{uuid.uuid4()}_{file.filename}"
 
 
-    # Upload
+    # Upload to Storage
     client = get_supabase()
+    try:
+        client.storage.from_(BUCKET).upload(
+            storage_path,
+            contents,
+            {"content-type": file.content_type},
+        )
+    except Exception:
+        raise HTTPException(502, "File upload failed")
 
-    client.storage.from_(BUCKET).upload(
-        storage_path,
-        contents,
-        {"content-type": file.content_type},
-    )
 
     # Resume ORM object
     resume = Resume(
@@ -57,10 +60,14 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
     # track for insertion
     session.add(resume)
     # send SQL to Postgres and commit transaction
-    await session.commit()
-    # pulls Postgres generated values
-    await session.refresh(resume)
-
+    try:
+        await session.commit()
+        # pulls Postgres generated values
+        await session.refresh(resume)
+    except Exception:
+        # DB failed - remove the file from Storage
+        client.storage.from_(BUCKET).remove([storage_path])
+        raise HTTPException(500, "Failed to save resume record")
 
     return {
         "id": str(resume.id),
