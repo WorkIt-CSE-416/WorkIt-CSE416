@@ -1,12 +1,12 @@
 """API endpoint that accepts resume file uploads from frontend"""
 
 import uuid
+import asyncio
 from fastapi import APIRouter, UploadFile, HTTPException, Depends
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_session
-from app.storage import get_supabase
+from app.db import get_session, get_supabase
 from app.models.resume import Resume
 
 router = APIRouter()
@@ -28,19 +28,25 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(400, "Only PDF and DOCX files are accepted")
 
-    contents = await file.read()
+    # check size metadata
+    if file.size is not None and file.size > MAX_SIZE:
+        raise HTTPException(413, "File must be under 5 MB")
 
+    contents = await file.read(MAX_SIZE + 1)
+    
     if len(contents) > MAX_SIZE:
         raise HTTPException(413, "File must be under 5 MB")
 
     # storage path
-    storage_path = f"{applicant_id}/{uuid.uuid4()}_{file.filename}"
+    ext = ".pdf" if file.content_type == "application/pdf" else ".docx"
+    storage_path = f"{applicant_id}/{uuid.uuid4()}{ext}"
 
 
     # Upload to Storage
     client = get_supabase()
     try:
-        client.storage.from_(BUCKET).upload(
+        await asyncio.to_thread(
+            client.storage.from_(BUCKET).upload,
             storage_path,
             contents,
             {"content-type": file.content_type},
@@ -66,7 +72,10 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
         await session.refresh(resume)
     except Exception:
         # DB failed - remove the file from Storage
-        client.storage.from_(BUCKET).remove([storage_path])
+        await asyncio.to_thread(
+            client.storage.from_(BUCKET).remove,
+            [storage_path],
+        )
         raise HTTPException(500, "Failed to save resume record")
 
     return {
