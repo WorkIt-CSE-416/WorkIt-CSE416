@@ -1,15 +1,15 @@
 '''
 hold model schema for profile table
 '''
-from typing import Optional
 import datetime
 import uuid
-from sqlalchemy import ForeignKey
-from sqlalchemy import DateTime, String, text
-from sqlalchemy.orm import Mapped,mapped_column
-from app.models.dto import company_size_range, company_role, profile_status
-from app.db import BaseModel
+from typing import Optional
 
+from sqlalchemy import DateTime, ForeignKey, String, text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db import BaseModel
+from app.models.dto import company_role, company_size_range, profile_status
 
 
 class Profile(BaseModel):
@@ -25,8 +25,8 @@ class Profile(BaseModel):
                         server_default=text("gen_random_uuid()"))
     email: Mapped[str] = mapped_column(String(100), unique=True)
     full_name: Mapped[str] =mapped_column(String(50))
-    phone_number: Mapped[Optional[str]] = mapped_column(String(30))
-    avatar_url: Mapped[Optional[str]]
+    phone_number: Mapped[str | None] = mapped_column(String(30))
+    avatar_url: Mapped[str | None]
 
     # Encoded KDF output (algorithm + params + salt + hash as one string —
     # what argon2/bcrypt/scrypt all return), never a raw password. 255 is
@@ -49,12 +49,12 @@ class Applicant_Profile(Profile):
     schema for job applicants
     '''
     __tablename__= "applicant_profiles"
-    default_resume_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("resumes.id", ondelete="SET NULL", use_alter=True), index=True, nullable=True)
-    headline: Mapped[Optional[str]] = mapped_column(String(50))
-    linkedin_url: Mapped[Optional[str]]
-    portfolio_url: Mapped[Optional[str]]
-    github_url: Mapped[Optional[str]]
-    other_url: Mapped[Optional[str]]    # add another url for extra options
+    default_resume_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="SET NULL", use_alter=True), index=True, nullable=True)
+    headline: Mapped[str | None] = mapped_column(String(50))
+    linkedin_url: Mapped[str | None]
+    portfolio_url: Mapped[str | None]
+    github_url: Mapped[str | None]
+    other_url: Mapped[str | None]    # add another url for extra options
 
 
 class Company_Profile(BaseModel):
@@ -70,12 +70,12 @@ class Company_Profile(BaseModel):
                         # server backup
                         server_default=text("gen_random_uuid()"))
     company_name: Mapped[str] = mapped_column(String(255))
-    slug:Mapped[Optional[str]]
-    website_url: Mapped[Optional[str]]
+    slug:Mapped[str | None]
+    website_url: Mapped[str | None]
     contact_email:Mapped[str] = mapped_column(String(100), unique=True)
-    phone_number: Mapped[Optional[str]] = mapped_column(String(30))
-    logo_url: Mapped[Optional[str]]
-    description: Mapped[Optional[str]]= mapped_column(String(250))
+    phone_number: Mapped[str | None] = mapped_column(String(30))
+    logo_url: Mapped[str | None]
+    description: Mapped[str | None]= mapped_column(String(250))
     size_range: Mapped[company_size_range]
 
 

@@ -18,17 +18,18 @@ all live on this side. The Next.js app holds no ORM and no credentials.
 ## Stack
 
 FastAPI · Uvicorn · SQLAlchemy 2.0 (async, over asyncpg) · Alembic ·
-pydantic-settings. Python 3.12, pinned by `requires-python = ">=3.12,<3.13"`.
+pydantic-settings · supabase-py (Storage only). Python 3.12, pinned by
+`requires-python = ">=3.12,<3.13"`.
 
 Dependencies are managed by **uv**. `uv add <pkg>` to add one, `uv sync` to
 install what the lock already names. Never `pip install` into the venv — it
 writes nothing to `pyproject.toml` and the next `uv sync` silently undoes it.
 
-**Not `supabase-py` / PostgREST, deliberately.** We connect to Postgres
-directly over asyncpg. The job search needs ltree containment and trigram
-ranking, which PostgREST's filter syntax expresses badly, and there is no
-reason to put an HTTP hop between two services that already trust each other.
-Supabase is managed Postgres to us and nothing else — see Auth below.
+**Not PostgREST, deliberately.** We connect to Postgres directly over asyncpg.
+The job search needs ltree containment and trigram ranking, which PostgREST's
+filter syntax expresses badly. `supabase-py` is installed but **only for
+Supabase Storage** (file uploads) — database queries still go through
+SQLAlchemy. `get_supabase()` in `app/db.py` initialises the Storage client.
 
 ## Commands
 
@@ -57,7 +58,10 @@ the schema filters. `alembic/CLAUDE.md` explains what that costs.
 app/
   main.py         FastAPI app. /health (liveness) and /health/db (readiness)
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
-  db.py           Async engine, session factory, declarative Base
+  db.py           Async engine, session factory, declarative Base, Supabase client
+  routers/
+    CLAUDE.md     Router conventions — read before adding a router
+    resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
@@ -78,7 +82,7 @@ pyproject.toml    Dependencies, and the pinned Python series
 uv.lock           Exact resolved versions — committed
 ```
 
-Routers will go in `app/routers/`, which does not exist yet.
+Routers live in `app/routers/`. See `app/routers/CLAUDE.md` for conventions.
 
 ## Current state
 
@@ -117,10 +121,12 @@ it reached anyone else.
 
 ### Two connection strings, and the port is the only difference
 
-| Variable       | Port | Used by | Why                                       |
-| -------------- | ---- | ------- | ----------------------------------------- |
-| `DATABASE_URL` | 6543 | The app | Transaction pooler; short connections     |
-| `DIRECT_URL`   | 5432 | Alembic | Session pooler; DDL locks need one session |
+| Variable              | Used by        | Why                                       |
+| --------------------- | -------------- | ----------------------------------------- |
+| `DATABASE_URL`        | The app        | Transaction pooler (port 6543)            |
+| `DIRECT_URL`          | Alembic        | Session pooler (port 5432); DDL needs one session |
+| `SUPABASE_URL`        | Storage client | Project URL for file uploads              |
+| `SUPABASE_SERVICE_KEY`| Storage client | Service-role key (not anon) — bypasses RLS |
 
 **`.env` lives at the repo root, not in `backend/`.** Copy the root
 `.env.example` to `.env` beside it — `.env*` is gitignored, with `.env.example`

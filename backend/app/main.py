@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from app.db import get_sessionmaker
 from app.routers.auth import router as auth_router
+from app.routers.resumes import router as resume_router
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
-
+app.include_router(resume_router)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
@@ -28,7 +29,7 @@ async def health() -> dict[str, str]:
 @app.get("/health/db")
 async def health_db() -> JSONResponse:
     '''
-    check the health of the database 
+    check the health of the database
     '''
     try:
         async with get_sessionmaker()() as session:

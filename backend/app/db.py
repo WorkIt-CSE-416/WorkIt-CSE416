@@ -2,7 +2,6 @@
 builds necessary tools from SQLAlchemy to talk with database
 '''
 import datetime
-
 from collections.abc import AsyncIterator
 from functools import lru_cache
 
@@ -15,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.pool import NullPool
+from supabase import Client, create_client
 
 from app.config import get_settings
 
@@ -72,3 +72,15 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     """
     async with get_sessionmaker()() as session:
         yield session
+
+# For the Supabase Storage
+@lru_cache
+def get_supabase() -> Client:
+    """
+    Create a Supabase client once via LRU Cache and reuse it for every request
+    """
+    settings = get_settings()
+    if not settings.supabase_url or not settings.supabase_service_key:
+        raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
+    return create_client(settings.supabase_url, settings.supabase_service_key)
+
