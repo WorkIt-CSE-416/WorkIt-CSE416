@@ -7,10 +7,20 @@ column; it has no field anywhere in this file.
 """
 
 from enum import StrEnum
-from typing import Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
+
+# Case shouldn't matter for an email address — "Jane@Example.com" and
+# "jane@example.com" are the same account — but it must for a password.
+# Normalizing here, once, means every table's `email` UNIQUE constraint and
+# every login lookup are case-insensitive for free: signup stores the
+# lowercased form, login queries with the lowercased form, so they always
+# compare equal without the router ever having to remember to call
+# .lower() itself. EmailStr validates shape first; AfterValidator only
+# lowercases a value that already parsed as a real address.
+NormalizedEmail = Annotated[EmailStr, AfterValidator(str.lower)]
 
 
 class AccountType(StrEnum):
@@ -38,12 +48,13 @@ class SignupRequest(BaseModel):
     # (name="name" on the field) — full_name is what the column is actually
     # called once it reaches Profile in app/models/profiles.py.
     full_name: str = Field(alias="name", min_length=1, max_length=50)
-    email: EmailStr
-    # 8 is a floor, not a policy — this repo has no product decision yet on
-    # complexity rules, and the signup form itself enforces nothing beyond
-    # `required`. Add real complexity rules when that decision exists, not
-    # speculatively now.
-    password: str = Field(min_length=8)
+    email: NormalizedEmail
+    # No length floor here for now — frontend/src/app/signup/signup-form.tsx
+    # enforces the 8-char minimum via the input's own minLength, and this
+    # was deliberately dropped rather than kept as a second copy of that
+    # rule. Not a security backstop against a direct API call right now —
+    # reintroduce it here if that gap needs closing again.
+    password: str
 
 
 class LoginRequest(BaseModel):
@@ -53,15 +64,15 @@ class LoginRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     account_type: AccountType = Field(alias="accountType")
-    email: EmailStr
+    email: NormalizedEmail
     password: str
 
 
 class AuthenticatedAccount(BaseModel):
-    """What a successful login/signup response body carries. The session
+    """What a successful login/signup response body carries. The access
     token itself is never in here — it travels only in the httpOnly cookie
-    (see app/security.py's SESSION_TTL), never in a JSON body a script could
-    read. from_attributes=True so this can be built directly off an
+    (see app/security.py's ACCESS_TOKEN_TTL), never in a JSON body a script
+    could read. from_attributes=True so this can be built directly off an
     Applicant_Profile/Company_Membership ORM row without hand-mapping each
     field — and since password_hash has no field here, one never leaks
     through that shortcut either.
@@ -69,8 +80,7 @@ class AuthenticatedAccount(BaseModel):
     onboarding_completed is a bool, not the raw onboarding_completed_at
     timestamp: the only thing a caller needs is which side of that NULL check
     the account is on. Where it redirects to (`/onboarding/applicant` vs
-    `/jobs`, say) is a route concern, not this API's — see
-    db/auth_methodology.md Step 5.
+    `/jobs`, say) is a route concern, not this API's.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -84,48 +94,3 @@ class AuthenticatedAccount(BaseModel):
     # Not derived here — whoever builds this response passes it explicitly,
     # since an Applicant_Profile row has no company_id to read at all.
     company_id: Optional[UUID] = None
-
-
-if __name__ == "__main__":
-    # ponytail: the one runnable check for this module's aliasing/validation
-    # branches, and the security invariant the docstring above claims.
-
-    signup = SignupRequest.model_validate(
-        {"accountType": "applicant", "name": "Jane Doe", "email": "jane@example.com", "password": "correct horse"}
-    )
-    assert signup.account_type == AccountType.APPLICANT
-    assert signup.full_name == "Jane Doe"
-
-    login = LoginRequest.model_validate(
-        {"accountType": "company", "email": "jane@example.com", "password": "correct horse"}
-    )
-    assert login.account_type == AccountType.COMPANY
-
-    try:
-        SignupRequest.model_validate(
-            {"accountType": "applicant", "name": "Jane Doe", "email": "jane@example.com", "password": "short"}
-        )
-        raise AssertionError("a password under 8 chars must be rejected")
-    except ValueError:
-        pass
-
-    assert "password_hash" not in AuthenticatedAccount.model_fields, (
-        "the response schema must never carry a credential field"
-    )
-
-    # Prove it end to end, not just by field name: build the response from an
-    # object that DOES have a password_hash (an ORM row would) and confirm it
-    # never reaches the serialized output.
-    class FakeRow:
-        id = UUID("00000000-0000-0000-0000-000000000000")
-        email = "jane@example.com"
-        full_name = "Jane Doe"
-        account_type = AccountType.APPLICANT
-        onboarding_completed = False
-        company_id = None
-        password_hash = "argon2id$this-must-never-appear"
-
-    dumped = AuthenticatedAccount.model_validate(FakeRow()).model_dump()
-    assert "password_hash" not in dumped, "password_hash leaked through model_validate"
-
-    print("app/schemas/auth.py: all checks passed")

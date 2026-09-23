@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { ArrowRightIcon, LockIcon, MailIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,12 @@ import { TextField } from "@/components/ui/text-field";
 import { createAccount, type SignupState } from "./actions";
 
 const INITIAL_STATE: SignupState = { error: null };
+
+// The only enforcement of this floor right now — backend/app/schemas/
+// auth.py's SignupRequest.password dropped its own min_length deliberately,
+// so a request that bypasses this form (a direct API call) isn't bound by
+// it. Revisit both sides together if that gap needs closing again.
+const PASSWORD_MIN_LENGTH = 8;
 
 /**
  * The interactive half of /signup — everything above the fold (logo,
@@ -20,8 +26,28 @@ const INITIAL_STATE: SignupState = { error: null };
 export function SignupForm({ formId }: { formId: string }) {
   const [state, formAction, pending] = useActionState(createAccount, INITIAL_STATE);
 
+  // Confirm Password never reaches the server (see actions.ts) — it exists
+  // purely to catch a typo before submission, so the comparison has to live
+  // here. `confirmAttempted` withholds the message until a submit was
+  // actually blocked by it, rather than flashing "doesn't match" on every
+  // keystroke before the second field is even finished.
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmAttempted, setConfirmAttempted] = useState(false);
+  const passwordsMismatch = password !== confirmPassword;
+
   return (
-    <form id={formId} action={formAction} className="mt-4 flex flex-col">
+    <form
+      id={formId}
+      action={formAction}
+      onSubmit={(event) => {
+        if (passwordsMismatch) {
+          event.preventDefault();
+          setConfirmAttempted(true);
+        }
+      }}
+      className="mt-4 flex flex-col"
+    >
       <div className="flex flex-col gap-2.5">
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
           <TextField
@@ -75,18 +101,28 @@ export function SignupForm({ formId }: { formId: string }) {
           autoComplete="new-password"
           placeholder="••••••••"
           required
+          minLength={PASSWORD_MIN_LENGTH}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
         />
 
-        <TextField
-          id="confirm-password"
-          name="confirmPassword"
-          type="password"
-          label="Confirm Password"
-          icon={LockIcon}
-          autoComplete="new-password"
-          placeholder="••••••••"
-          required
-        />
+        <div className="flex flex-col gap-1">
+          <TextField
+            id="confirm-password"
+            name="confirmPassword"
+            type="password"
+            label="Confirm Password"
+            icon={LockIcon}
+            autoComplete="new-password"
+            placeholder="••••••••"
+            required
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+          />
+          {confirmAttempted && passwordsMismatch && (
+            <p className="text-meta text-danger">Passwords do not match.</p>
+          )}
+        </div>
       </div>
 
       {state.error && <p className="text-meta text-danger mt-2.5">{state.error}</p>}

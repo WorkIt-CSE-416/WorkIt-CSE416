@@ -12,6 +12,7 @@ dependencies = [
     "email-validator>=2.3.0",
     "fastapi>=0.141.1",
     "pydantic-settings>=2.15.0",
+    "pyjwt>=2.14.0",
     "sqlalchemy[asyncio]>=2.0.53",
     "uvicorn[standard]>=0.53.0",
 ]

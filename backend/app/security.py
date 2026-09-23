@@ -1,30 +1,48 @@
 """
-Password hashing and session tokens. Argon2id via argon2-cffi for passwords —
-a vetted KDF, never hand-rolled — and secrets/hashlib for session tokens, a
-different problem with a different right tool (see the note on
-hash_session_token). See backend/CLAUDE.md's Auth section for why this API
-owns both at all.
+Password hashing and access tokens. Argon2id via argon2-cffi for passwords —
+a vetted KDF, never hand-rolled. Tokens are signed JWTs (PyJWT, HS256), not
+an opaque value backed by a database-side sessions table — verifying one is
+a signature check, not a DB round trip, and issuing one is a pure function
+of the account's own fields, nothing written anywhere. See backend/CLAUDE.md's
+Auth section for why this API owns both at all.
+
+Trade-off that comes with dropping the sessions table, worth knowing before
+touching this file again: a JWT can't be revoked early. There's no row to
+delete, so logout can only clear the cookie client-side — a token that's
+already out there stays valid until it expires. And the claims below are
+fixed at issue time, so `onboarding_completed` can go stale until the next
+login/signup re-issues a token.
 """
 
-import hashlib
-import secrets
-from datetime import timedelta
+import asyncio
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
+import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
+
+from app.config import get_settings
 
 # One hasher, module-level: it holds the cost parameters (time/memory/parallelism),
 # and constructing it per call would re-read those defaults every time for no reason.
 _hasher = PasswordHasher()
 
 
-def hash_password(password: str) -> str:
+async def hash_password(password: str) -> str:
     """Encodes algorithm + parameters + salt + hash into one string — the
-    whole value is what `password_hash` stores. Never store the raw password."""
-    return _hasher.hash(password)
+    whole value is what `password_hash` stores. Never store the raw password.
+
+    Async even though it does no I/O: argon2 is deliberately slow and
+    `_hasher.hash()` itself is a blocking, synchronous call. Calling it
+    directly from an async route would freeze the whole event loop — every
+    other concurrent request — for the duration of one hash.
+    `asyncio.to_thread` runs it on a worker thread instead, so the loop stays
+    free to handle other requests while this one hashes."""
+    return await asyncio.to_thread(_hasher.hash, password)
 
 
-def verify_password(password: str, password_hash: str) -> bool:
+async def verify_password(password: str, password_hash: str) -> bool:
     """True only if `password` is the one `password_hash` was made from.
 
     Catches the three ways argon2-cffi reports "no": a wrong password
@@ -32,9 +50,12 @@ def verify_password(password: str, password_hash: str) -> bool:
     truncated (VerificationError), and a string that isn't a valid argon2
     hash to begin with (InvalidHash). Anything else propagates, since that
     would be a real bug rather than "this login attempt failed."
+
+    Async for the same reason as hash_password() — `_hasher.verify()` does
+    the same blocking KDF work, just in the other direction.
     """
     try:
-        _hasher.verify(password_hash, password)
+        await asyncio.to_thread(_hasher.verify, password_hash, password)
     except (VerifyMismatchError, VerificationError, InvalidHash):
         return False
     return True
@@ -49,54 +70,38 @@ def needs_rehash(password_hash: str) -> bool:
     return _hasher.check_needs_rehash(password_hash)
 
 
-DUMMY_PASSWORD_HASH = hash_password(secrets.token_hex(32))
-"""A valid argon2 hash of a value nobody will ever type, computed once at
-import time. Login should run verify_password() against this when no account
-matches the submitted email, so "no such email" and "wrong password" cost the
-same CPU time — otherwise the faster response on a nonexistent email lets an
-attacker enumerate registered addresses one timing sample at a time."""
-
-
-SESSION_TTL = timedelta(days=30)
-"""How long a session cookie is valid before its owner has to log in again.
+ACCESS_TOKEN_TTL = timedelta(days=30)
+"""How long an access token is valid before its owner has to log in again.
 Fixed rather than configurable — there's no "remember me" control on the
 login screen yet, so a per-request choice has nothing to read it from."""
 
 SESSION_COOKIE_NAME = "session_token"
-"""Name of the httpOnly cookie carrying generate_session_token()'s output.
-One constant so the name can't drift between whatever sets it (the signup/
-login routes) and whatever will read it (the Stage 7 verification dependency)."""
+"""Name of the httpOnly cookie carrying create_access_token()'s output. One
+constant so the name can't drift between whatever sets it (the signup/login
+routes) and whatever reads it (app/deps.py's get_current_account). Kept as
+"session_token" rather than renamed to "access_token" — the frontend already
+hardcodes this exact string (frontend/src/lib/auth.ts), and the two halves
+share no code to keep that in sync automatically."""
+
+_JWT_ALGORITHM = "HS256"
 
 
-def generate_session_token() -> str:
-    """A high-entropy, URL-safe random value — this, not a hash of it, is
-    what goes in the browser's httpOnly cookie. 32 bytes (256 bits) of
-    randomness, well beyond brute-force range."""
-    return secrets.token_urlsafe(32)
+def create_access_token(claims: dict[str, Any]) -> str:
+    """Signs `claims` into a JWT, adding `iat`/`exp`. No I/O — a token is a
+    pure function of what the caller passes in, unlike the old sessions-table
+    design where issuing one meant an INSERT. Whatever's in `claims` (email,
+    account_type, onboarding_completed, ...) is what get_current_account will
+    see on every later request without touching the database again, so pass
+    everything a protected route might need."""
+    now = datetime.now(timezone.utc)
+    payload = {**claims, "iat": now, "exp": now + ACCESS_TOKEN_TTL}
+    return jwt.encode(payload, get_settings().jwt_signing_key, algorithm=_JWT_ALGORITHM)
 
 
-def hash_session_token(token: str) -> str:
-    """SHA-256, not argon2. argon2 is deliberately slow to make guessing a
-    *low-entropy* human password expensive; a session token is already 256
-    bits of randomness with nothing to guess, so a slow KDF here only adds
-    latency to every authenticated request for no security benefit. Hex
-    digest is 64 characters, matching `sessions.token_hash`'s column."""
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-# # if __name__ == "__main__":
-#     # ponytail: the one runnable check for this module's branches.
-# h = hash_password("correct horse battery staple")
-# assert verify_password("correct horse battery staple", h), "right password must verify"
-# assert not verify_password("wrong password", h), "wrong password must not verify"
-# assert not verify_password("correct horse battery staple", "not-a-real-hash"), (
-#         "a malformed hash must fail closed, not raise"
-#     )
-# assert not needs_rehash(h), "a hash just made with current params needs no rehash"
-
-# t1, t2 = generate_session_token(), generate_session_token()
-# assert t1 != t2, "two generated tokens must not collide"
-# assert hash_session_token(t1) == hash_session_token(t1), "hashing must be deterministic"
-# assert len(hash_session_token(t1)) == 64, "sha256 hex digest is always 64 chars"
-
-# print("app/security.py: all checks passed")
+def decode_access_token(token: str) -> dict[str, Any]:
+    """Verifies `token`'s signature and expiry, returns its claims. Raises
+    `jwt.InvalidTokenError` (or a subclass — `jwt.ExpiredSignatureError` for
+    an expired one) on anything wrong; callers turn that into a 401 rather
+    than catching specific subclasses, since none of the ways a token can be
+    invalid are the caller's business to distinguish."""
+    return jwt.decode(token, get_settings().jwt_signing_key, algorithms=[_JWT_ALGORITHM])

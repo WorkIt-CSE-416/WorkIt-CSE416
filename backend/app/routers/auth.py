@@ -5,7 +5,6 @@ a frontend calls on load to ask "is there a valid session, and whose is it."
 """
 
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
@@ -15,15 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.deps import get_current_account
 from app.models.profiles import Applicant_Profile, Company_Membership
-from app.models.sessions import Session as SessionModel
 from app.schemas.auth import AccountType, AuthenticatedAccount, LoginRequest, SignupRequest
 from app.security import (
-    DUMMY_PASSWORD_HASH,
+    ACCESS_TOKEN_TTL,
     SESSION_COOKIE_NAME,
-    SESSION_TTL,
-    generate_session_token,
+    create_access_token,
     hash_password,
-    hash_session_token,
     needs_rehash,
     verify_password,
 )
@@ -31,34 +27,33 @@ from app.security import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-async def _issue_session(
-    db: AsyncSession,
-    *,
-    applicant_id: uuid.UUID | None = None,
-    company_membership_id: uuid.UUID | None = None,
+def _issue_token(
+    account: Applicant_Profile | Company_Membership,
+    account_type: AccountType,
+    company_id: uuid.UUID | None,
 ) -> str:
-    """Adds a session row to `db` and returns the raw token to hand the
-    browser. Not committed here — the caller's transaction covers it, so a
-    session is never persisted for an account that didn't actually get
-    created. Exactly one of the two ids must be set, mirroring `sessions`'
-    own CHECK constraint (app/models/sessions.py)."""
-    token = generate_session_token()
-    db.add(
-        SessionModel(
-            token_hash=hash_session_token(token),
-            applicant_id=applicant_id,
-            company_membership_id=company_membership_id,
-            expires_at=datetime.now(timezone.utc) + SESSION_TTL,
-        )
+    """Builds the signed access token for a freshly authenticated account.
+    Pure function of the account's already-known fields — no DB write,
+    unlike the old sessions-table design's INSERT. The claims here are what
+    get_current_account (app/deps.py) will read back on every later request
+    without touching the database again."""
+    return create_access_token(
+        {
+            "sub": str(account.id),
+            "email": account.email,
+            "full_name": account.full_name,
+            "account_type": account_type.value,
+            "company_id": str(company_id) if company_id else None,
+            "onboarding_completed": account.onboarding_completed_at is not None,
+        }
     )
-    return token
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         SESSION_COOKIE_NAME,
         token,
-        max_age=int(SESSION_TTL.total_seconds()),
+        max_age=int(ACCESS_TOKEN_TTL.total_seconds()),
         httponly=True,
         secure=True,
         samesite="lax",
@@ -90,14 +85,13 @@ async def signup(
     profile = Applicant_Profile(
         email=body.email,
         full_name=body.full_name,
-        password_hash=hash_password(body.password),
+        password_hash=await hash_password(body.password),
     )
     db.add(profile)
     try:
         # Flush rather than commit: this assigns profile.id (needed for the
-        # session row below) and surfaces the email-uniqueness violation
-        # without ending the transaction, so the whole signup — profile plus
-        # its first session — commits or rolls back together.
+        # token below) and surfaces the email-uniqueness violation without
+        # ending the transaction.
         await db.flush()
     except IntegrityError:
         await db.rollback()
@@ -105,10 +99,10 @@ async def signup(
             status.HTTP_409_CONFLICT, "An account with this email already exists."
         )
 
-    token = await _issue_session(db, applicant_id=profile.id)
     await db.commit()
     await db.refresh(profile)
 
+    token = _issue_token(profile, AccountType.APPLICANT, None)
     _set_session_cookie(response, token)
 
     return AuthenticatedAccount(
@@ -139,26 +133,18 @@ async def login(
     # password" lets an attacker enumerate registered addresses.
     invalid_credentials = HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password.")
 
-    if account is None:
-        # Burn the same CPU time a real verify would, so the response isn't
-        # measurably faster for an email that was never registered.
-        verify_password(body.password, DUMMY_PASSWORD_HASH)
-        raise invalid_credentials
-
-    if not verify_password(body.password, account.password_hash):
+    if account is None or not await verify_password(body.password, account.password_hash):
         raise invalid_credentials
 
     # The only time the plaintext password is on hand to re-hash with — see
     # needs_rehash()'s docstring.
     if needs_rehash(account.password_hash):
-        account.password_hash = hash_password(body.password)
+        account.password_hash = await hash_password(body.password)
 
-    if body.account_type is AccountType.APPLICANT:
-        token = await _issue_session(db, applicant_id=account.id)
-    else:
-        token = await _issue_session(db, company_membership_id=account.id)
     await db.commit()
 
+    company_id = account.company_id if body.account_type is AccountType.COMPANY else None
+    token = _issue_token(account, body.account_type, company_id)
     _set_session_cookie(response, token)
 
     return AuthenticatedAccount(
@@ -167,7 +153,7 @@ async def login(
         full_name=account.full_name,
         account_type=body.account_type,
         onboarding_completed=account.onboarding_completed_at is not None,
-        company_id=account.company_id if body.account_type is AccountType.COMPANY else None,
+        company_id=company_id,
     )
 
 

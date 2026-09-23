@@ -42,8 +42,13 @@ class Settings(BaseSettings):
     # the transaction pooler of Supabase, same as DATABASE_URL
     database_url: str | None = None
 
-    # The session pooler for alembic to use for migrations 
+    # The session pooler for alembic to use for migrations
     direct_url: str | None = None
+
+    # HMAC signing key for access-token JWTs (app/security.py). Symmetric,
+    # so this one value both signs and verifies — never log it, never send
+    # it anywhere but here.
+    jwt_secret: str | None = None
 
     @property
     def app_url(self) -> str:
@@ -62,6 +67,15 @@ class Settings(BaseSettings):
             )
 
         return to_asyncpg(self.direct_url)
+
+    @property
+    def jwt_signing_key(self) -> str:
+        if not self.jwt_secret:
+            raise RuntimeError(
+                "JWT_SECRET is not set."
+            )
+
+        return self.jwt_secret
 
 
 @lru_cache
