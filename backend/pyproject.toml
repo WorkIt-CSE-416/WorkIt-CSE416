@@ -22,3 +22,14 @@ dependencies = [
 # combinations; without this, "3.12" silently means a different build for each
 # of them. uv fetches the pinned version on first sync.
 python-preference = "only-managed"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.8",
+]
+
+[tool.ruff]
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+ignore = ["B008", "BLE001", "SIM103"]

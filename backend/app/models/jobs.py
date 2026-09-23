@@ -1,13 +1,26 @@
 '''
 hold model schema for job posting tables
 '''
-from typing import Optional
 import datetime
 import uuid
-from app.models.profiles import BaseModel
+
+from sqlalchemy import (
+    CHAR,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    SmallInteger,
+    Text,
+    desc,
+    text,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+
 from app.models import dto
-from sqlalchemy import ForeignKey, DateTime, text, Text, SmallInteger, CHAR, CheckConstraint, Index, desc,ForeignKeyConstraint
-from sqlalchemy.orm import Mapped,mapped_column
+from app.models.profiles import BaseModel
+
 
 class Job_Post(BaseModel):
     '''
@@ -25,7 +38,7 @@ class Job_Post(BaseModel):
         ForeignKey("company_profiles.id", ondelete="CASCADE"),
         index=True
     )
-    posted_by_recruiter_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    posted_by_recruiter_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("company_memberships.id", ondelete="SET NULL"),    # if the recruiter is deleted, job remains
         index=True
     )
@@ -35,19 +48,19 @@ class Job_Post(BaseModel):
 
     job_type: Mapped[dto.job_type]
     experience_level: Mapped[dto.experience_level]
-    min_years_experience: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    min_years_experience: Mapped[int | None] = mapped_column(SmallInteger)
 
     work_style: Mapped[dto.work_style]
     # nullable: "United States" or a country with no ISO subdivisions has no
     # state. Country is required; a remote posting still names one.
-    location_state: Mapped[Optional[str]]
+    location_state: Mapped[str | None]
     # own FK because Postgres skips the composite one below once location_state
     # is NULL, which would leave a country-only row unchecked
     location_country: Mapped[str] = mapped_column(ForeignKey("countries.code"))
 
-    salary: Mapped[Optional[float]]
-    salary_min: Mapped[Optional[float]]
-    salary_max: Mapped[Optional[float]]
+    salary: Mapped[float | None]
+    salary_min: Mapped[float | None]
+    salary_max: Mapped[float | None]
     
     # use defaults as backup, but should be defined from backend 
     salary_currency: Mapped[str] = mapped_column(
@@ -60,7 +73,7 @@ class Job_Post(BaseModel):
     status: Mapped[dto.job_post_status] = mapped_column(
                         default=dto.job_post_status.draft,
                         server_default=dto.job_post_status.draft.name)
-    closes_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True))
+    closes_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint(

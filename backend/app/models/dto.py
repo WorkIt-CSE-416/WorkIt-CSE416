@@ -3,10 +3,8 @@ file that holds data objects, such as key words, enums, tec.
 '''
 import enum
 from datetime import date
-from typing import Optional
 
 from pydantic import BaseModel as PydanticBase
-
 
 # --- Resume enums ---
 
@@ -20,35 +18,35 @@ class ResumeStatus(str, enum.Enum):
 
 class Education(PydanticBase):
     institution: str
-    degree: Optional[str] = None
-    field_of_study: Optional[str] = None
-    gpa: Optional[float] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    description: Optional[str] = None
+    degree: str | None = None
+    field_of_study: str | None = None
+    gpa: float | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    description: str | None = None
 
 class Experience(PydanticBase):
     company_name: str
     title: str
-    location: Optional[str] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    description: Optional[str] = None
+    location: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    description: str | None = None
 
 class Skill(PydanticBase):
     skill_name: str
-    category: Optional[str] = None
+    category: str | None = None
 
 class Project(PydanticBase):
     project_name: str
-    url: Optional[str] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    description: Optional[str] = None
+    url: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    description: str | None = None
 
 class Certification(PydanticBase):
     cert_name: str
-    issuer: Optional[str] = None
+    issuer: str | None = None
 
 class ParsedResume(PydanticBase):
     education: list[Education] = []

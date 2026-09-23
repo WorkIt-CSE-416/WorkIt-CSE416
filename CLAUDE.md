@@ -104,6 +104,17 @@ an npm script that shells into it. Its commands are listed in
 Adding a script to `frontend/package.json` does not make it available from the
 root; add the forwarding line here too if it should be.
 
+## CI
+
+GitHub Actions runs on every PR to `main`. The workflow lives at
+`.github/workflows/ci.yml` and has two jobs:
+
+- **frontend** — `npm ci`, `lint`, `typecheck`, `build`
+- **backend** — `uv sync`, `ruff check .`
+
+PRs show a green check or red X based on the result. Do not merge with failing
+checks.
+
 ## Cross-platform rules
 
 The team develops on both macOS and Windows. Keep it that way:
