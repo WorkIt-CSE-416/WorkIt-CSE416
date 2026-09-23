@@ -29,6 +29,7 @@ export async function createAccount(
   // SignupRequest takes one `name` field aliased onto full_name.
   const name = [formData.get("firstName"), formData.get("middleName"), formData.get("lastName")]
     .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+    .map((p) => p.trim())
     .join(" ");
 
   const response = await apiFetch("/auth/signup", {

@@ -9,7 +9,7 @@ import { TextLink } from "@/components/ui/text-link";
 
 import { signIn, type LoginState } from "./actions";
 
-const INITIAL_STATE: LoginState = { error: null };
+const INITIAL_STATE: LoginState = { error: null, email: "" };
 
 /**
  * The interactive half of /login — split out from page.tsx, same reasoning
@@ -29,8 +29,8 @@ export function LoginForm({ formId }: { formId: string }) {
           label="Email Address"
           icon={MailIcon}
           autoComplete="email"
-          placeholder="name@example.com"
           required
+          defaultValue={state.email}
         />
 
         <TextField
@@ -40,7 +40,6 @@ export function LoginForm({ formId }: { formId: string }) {
           label="Password"
           icon={LockIcon}
           autoComplete="current-password"
-          placeholder="••••••••"
           required
           labelAction={
             <TextLink href="/forgot-password" className="text-label">

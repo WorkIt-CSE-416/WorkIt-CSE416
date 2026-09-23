@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db import get_session
 from app.deps import get_current_account
 from app.models.profiles import Applicant_Profile, Company_Membership
@@ -34,17 +35,19 @@ def _issue_token(
 ) -> str:
     """Builds the signed access token for a freshly authenticated account.
     Pure function of the account's already-known fields — no DB write,
-    unlike the old sessions-table design's INSERT. The claims here are what
-    get_current_account (app/deps.py) will read back on every later request
-    without touching the database again."""
+    unlike the old sessions-table design's INSERT.
+
+    Claims are kept to the minimum needed to identify the account and its
+    authorization scope (sub, account_type, company_id) — no email or name,
+    so the token itself carries no PII. get_current_account (app/deps.py)
+    re-reads the rest from the database rather than trusting the token for
+    it, which also means onboarding_completed there can no longer go stale
+    the way a claim fixed at issue time could."""
     return create_access_token(
         {
             "sub": str(account.id),
-            "email": account.email,
-            "full_name": account.full_name,
             "account_type": account_type.value,
             "company_id": str(company_id) if company_id else None,
-            "onboarding_completed": account.onboarding_completed_at is not None,
         }
     )
 
@@ -70,6 +73,8 @@ async def signup(
     response: Response,
     db: AsyncSession = Depends(get_session),
 ) -> AuthenticatedAccount:
+    get_settings().jwt_signing_key  # fail before writing anything if JWT_SECRET is unset
+
     if body.account_type is AccountType.COMPANY:
         # db/auth_methodology.md §2 decision 4: company_profiles.company_name
         # and .size_range are NOT NULL with no default, and no screen collects
@@ -121,6 +126,8 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_session),
 ) -> AuthenticatedAccount:
+    get_settings().jwt_signing_key  # fail before writing anything if JWT_SECRET is unset
+
     # Unlike signup, login has no company-side gap: a company_memberships row
     # only needs to already exist, not to be created by this request, so both
     # account types are handled the same way here.

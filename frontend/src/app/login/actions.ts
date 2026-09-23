@@ -9,7 +9,13 @@ import {
   type AuthenticatedAccount,
 } from "@/lib/auth";
 
-export type LoginState = { error: string | null };
+// `email` round-trips the submitted value back into the form on failure.
+// React resets a useActionState-bound form's uncontrolled fields once the
+// action completes, wrong password included, so without this the email a
+// user just typed would vanish along with the error telling them it failed.
+// `password` deliberately isn't carried back — echoing a submitted password
+// into a form field is the one field worth losing on a failed attempt.
+export type LoginState = { error: string | null; email: string };
 
 /**
  * Real sign-in mutation. Calls POST /auth/login (backend/app/routers/auth.py)
@@ -26,17 +32,20 @@ export type LoginState = { error: string | null };
  * belongs in a root middleware.ts, not here — that hasn't been written yet.
  */
 export async function signIn(_prevState: LoginState, formData: FormData): Promise<LoginState> {
+  const email = formData.get("email");
+  const emailValue = typeof email === "string" ? email : "";
+
   const response = await apiFetch("/auth/login", {
     method: "POST",
     body: JSON.stringify({
       accountType: formData.get("accountType"),
-      email: formData.get("email"),
+      email,
       password: formData.get("password"),
     }),
   });
 
   if (!response.ok) {
-    return { error: await extractErrorMessage(response) };
+    return { error: await extractErrorMessage(response), email: emailValue };
   }
 
   await relaySessionCookie(response);

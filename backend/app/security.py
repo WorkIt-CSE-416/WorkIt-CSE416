@@ -70,7 +70,7 @@ def needs_rehash(password_hash: str) -> bool:
     return _hasher.check_needs_rehash(password_hash)
 
 
-ACCESS_TOKEN_TTL = timedelta(days=30)
+ACCESS_TOKEN_TTL = timedelta(days=7)
 """How long an access token is valid before its owner has to log in again.
 Fixed rather than configurable — there's no "remember me" control on the
 login screen yet, so a per-request choice has nothing to read it from."""
