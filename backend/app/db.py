@@ -2,7 +2,6 @@
 builds necessary tools from SQLAlchemy to talk with database
 '''
 import datetime
-
 from collections.abc import AsyncIterator
 from functools import lru_cache
 
@@ -15,8 +14,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.pool import NullPool
-
 from supabase import Client, create_client
+
 from app.config import get_settings
 
 

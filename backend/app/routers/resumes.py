@@ -1,9 +1,10 @@
 """API endpoint that accepts resume file uploads from frontend"""
 
-import uuid
 import asyncio
-from fastapi import APIRouter, UploadFile, HTTPException, Depends
+import uuid
 
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
@@ -71,13 +72,14 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
     # send SQL to Postgres and commit transaction
     try:
         await session.commit()
-    except Exception:
+    except SQLAlchemyError as exc:
+        await session.rollback()
         # DB failed - remove the file from Storage
         await asyncio.to_thread(
             client.storage.from_(BUCKET).remove,
             [storage_path],
         )
-        raise HTTPException(500, "Failed to save resume record")
+        raise HTTPException(500, "Failed to save resume record") from exc
 
     return {
         "id": str(resume.id),

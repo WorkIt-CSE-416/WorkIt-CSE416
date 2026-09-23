@@ -27,3 +27,9 @@ python-preference = "only-managed"
 dev = [
     "ruff>=0.16.8",
 ]
+
+[tool.ruff]
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+ignore = ["B008", "BLE001", "SIM103"]
