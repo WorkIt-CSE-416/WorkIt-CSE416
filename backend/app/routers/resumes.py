@@ -33,13 +33,15 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
         raise HTTPException(413, "File must be under 5 MB")
 
     contents = await file.read(MAX_SIZE + 1)
-    
+
     if len(contents) > MAX_SIZE:
         raise HTTPException(413, "File must be under 5 MB")
 
     # storage path
     ext = ".pdf" if file.content_type == "application/pdf" else ".docx"
-    storage_path = f"{applicant_id}/{uuid.uuid4()}{ext}"
+
+    resume_id = uuid.uuid4()
+    storage_path = f"{applicant_id}/{resume_id}{ext}"
 
 
     # Upload to Storage
@@ -57,6 +59,7 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
 
     # Resume ORM object
     resume = Resume(
+        id=resume_id,
         applicant_id=applicant_id,
         original_filename=file.filename,
         storage_path=storage_path,
@@ -68,8 +71,6 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
     # send SQL to Postgres and commit transaction
     try:
         await session.commit()
-        # pulls Postgres generated values
-        await session.refresh(resume)
     except Exception:
         # DB failed - remove the file from Storage
         await asyncio.to_thread(
