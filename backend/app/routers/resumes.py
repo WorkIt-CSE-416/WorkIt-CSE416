@@ -4,7 +4,6 @@ import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
@@ -72,14 +71,14 @@ async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: Asyn
     # send SQL to Postgres and commit transaction
     try:
         await session.commit()
-    except SQLAlchemyError as exc:
+    except Exception:
         await session.rollback()
         # DB failed - remove the file from Storage
         await asyncio.to_thread(
             client.storage.from_(BUCKET).remove,
             [storage_path],
         )
-        raise HTTPException(500, "Failed to save resume record") from exc
+        raise HTTPException(500, "Failed to save resume record")
 
     return {
         "id": str(resume.id),
