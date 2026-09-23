@@ -1,5 +1,5 @@
 """
-Environment configuration for SQLAlchemy, imported by other files and migration
+Environment configuration, imported by other files and migration
 """
 
 from functools import lru_cache
@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 def to_asyncpg(url: str) -> str:
     """
     parse a supabase connection url into url with asyncpg,
-    so it can connect to supabase 
+    so it can connect to supabase
     """
     scheme, separator, rest = url.partition("://")
 
@@ -26,7 +26,7 @@ def to_asyncpg(url: str) -> str:
     return f"postgresql+asyncpg://{rest}"
 
 
-# env from the root directory 
+# env from the root directory
 ENV_FILE = Path(__file__).parents[2] / ".env"
 
 
@@ -42,8 +42,12 @@ class Settings(BaseSettings):
     # the transaction pooler of Supabase, same as DATABASE_URL
     database_url: str | None = None
 
-    # The session pooler for alembic to use for migrations 
+    # The session pooler for alembic to use for migrations
     direct_url: str | None = None
+
+    # Supabase Storage (file uploads)
+    supabase_url: str | None = None
+    supabase_service_key: str | None = None
 
     @property
     def app_url(self) -> str:
