@@ -109,11 +109,15 @@ async def signup(
             status.HTTP_409_CONFLICT, "An account with this email already exists."
         )
 
-    token = _issue_token(profile, AccountType.APPLICANT, None)
+    # Always None here, never account.company_id: signup rejects
+    # AccountType.COMPANY above, and profile is an Applicant_Profile, which
+    # has no company to belong to. Named to match login()'s company_id rather
+    # than passed as a bare None, so the two token-issuing sites read the same
+    # way.
+    company_id: uuid.UUID | None = None
+    token = _issue_token(profile, AccountType.APPLICANT, company_id)
     await db.commit()
-    
     await db.refresh(profile)
-
 
     _set_session_cookie(response, token)
 
@@ -123,7 +127,7 @@ async def signup(
         full_name=profile.full_name,
         account_type=AccountType.APPLICANT,
         onboarding_completed=profile.onboarding_completed_at is not None,
-        company_id=None,
+        company_id=company_id,
     )
 
 
