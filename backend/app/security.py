@@ -15,7 +15,7 @@ login/signup re-issues a token.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
@@ -93,7 +93,7 @@ def create_access_token(claims: dict[str, Any]) -> str:
     account_type, onboarding_completed, ...) is what get_current_account will
     see on every later request without touching the database again, so pass
     everything a protected route might need."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {**claims, "iat": now, "exp": now + ACCESS_TOKEN_TTL}
     return jwt.encode(payload, get_settings().jwt_signing_key, algorithm=_JWT_ALGORITHM)
 

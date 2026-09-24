@@ -15,7 +15,12 @@ from app.config import get_settings
 from app.db import get_session
 from app.deps import get_current_account
 from app.models.profiles import Applicant_Profile, Company_Membership
-from app.schemas.auth import AccountType, AuthenticatedAccount, LoginRequest, SignupRequest
+from app.schemas.auth import (
+    AccountType,
+    AuthenticatedAccount,
+    LoginRequest,
+    SignupRequest,
+)
 from app.security import (
     ACCESS_TOKEN_TTL,
     SESSION_COOKIE_NAME,
@@ -73,7 +78,7 @@ async def signup(
     response: Response,
     db: AsyncSession = Depends(get_session),
 ) -> AuthenticatedAccount:
-    get_settings().jwt_signing_key  # fail before writing anything if JWT_SECRET is unset
+    _ = get_settings().jwt_signing_key  # fail before writing anything if JWT_SECRET is unset
 
     if body.account_type is AccountType.COMPANY:
         # db/auth_methodology.md §2 decision 4: company_profiles.company_name
@@ -126,7 +131,7 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_session),
 ) -> AuthenticatedAccount:
-    get_settings().jwt_signing_key  # fail before writing anything if JWT_SECRET is unset
+    _ = get_settings().jwt_signing_key  # fail before writing anything if JWT_SECRET is unset
 
     # Unlike signup, login has no company-side gap: a company_memberships row
     # only needs to already exist, not to be created by this request, so both

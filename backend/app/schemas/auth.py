@@ -7,7 +7,7 @@ column; it has no field anywhere in this file.
 """
 
 from enum import StrEnum
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
@@ -93,4 +93,4 @@ class AuthenticatedAccount(BaseModel):
     # Set only for a company_memberships account; None for an applicant.
     # Not derived here — whoever builds this response passes it explicitly,
     # since an Applicant_Profile row has no company_id to read at all.
-    company_id: Optional[UUID] = None
+    company_id: UUID | None = None

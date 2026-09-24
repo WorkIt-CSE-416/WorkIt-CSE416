@@ -3,7 +3,6 @@ hold model schema for profile table
 '''
 import datetime
 import uuid
-from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, String, text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -41,7 +40,7 @@ class Profile(BaseModel):
     # signal the login/signup routes need to decide /onboarding/* vs the
     # dashboard. No server_default: a freshly created row must start NULL,
     # not "now", or every new account would read as already onboarded.
-    onboarding_completed_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+    onboarding_completed_at: Mapped[datetime.datetime | None] = mapped_column(
                         DateTime(timezone=True))
 
 class Applicant_Profile(Profile):
