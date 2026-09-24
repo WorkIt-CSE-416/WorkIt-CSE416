@@ -20,7 +20,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
 # compare equal without the router ever having to remember to call
 # .lower() itself. EmailStr validates shape first; AfterValidator only
 # lowercases a value that already parsed as a real address.
-NormalizedEmail = Annotated[EmailStr, AfterValidator(str.lower)]
+NormalizedEmail = Annotated[EmailStr, AfterValidator(str.lower), Field(max_length=100)]
 
 
 class AccountType(StrEnum):

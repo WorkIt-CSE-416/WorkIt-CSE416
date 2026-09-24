@@ -109,10 +109,12 @@ async def signup(
             status.HTTP_409_CONFLICT, "An account with this email already exists."
         )
 
+    token = _issue_token(profile, AccountType.APPLICANT, None)
     await db.commit()
+    
     await db.refresh(profile)
 
-    token = _issue_token(profile, AccountType.APPLICANT, None)
+
     _set_session_cookie(response, token)
 
     return AuthenticatedAccount(
@@ -153,10 +155,11 @@ async def login(
     if needs_rehash(account.password_hash):
         account.password_hash = await hash_password(body.password)
 
+    token = _issue_token(account, body.account_type, company_id)
     await db.commit()
 
     company_id = account.company_id if body.account_type is AccountType.COMPANY else None
-    token = _issue_token(account, body.account_type, company_id)
+   
     _set_session_cookie(response, token)
 
     return AuthenticatedAccount(

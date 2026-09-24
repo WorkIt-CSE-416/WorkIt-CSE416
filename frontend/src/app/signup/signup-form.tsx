@@ -8,7 +8,13 @@ import { TextField } from "@/components/ui/text-field";
 
 import { createAccount, type SignupState } from "./actions";
 
-const INITIAL_STATE: SignupState = { error: null };
+const INITIAL_STATE: SignupState = {
+  error: null,
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  email: "",
+};
 
 // The only enforcement of this floor right now — backend/app/schemas/
 // auth.py's SignupRequest.password dropped its own min_length deliberately,
@@ -56,8 +62,8 @@ export function SignupForm({ formId }: { formId: string }) {
             type="text"
             label="First Name"
             autoComplete="given-name"
-            placeholder="Jane"
             required
+            defaultValue={state.firstName}
           />
 
           <TextField
@@ -67,7 +73,7 @@ export function SignupForm({ formId }: { formId: string }) {
             label="Middle Name"
             labelAction={<span className="text-meta text-ink-faint">Optional</span>}
             autoComplete="additional-name"
-            placeholder="Marie"
+            defaultValue={state.middleName}
           />
 
           <TextField
@@ -76,8 +82,8 @@ export function SignupForm({ formId }: { formId: string }) {
             type="text"
             label="Last Name"
             autoComplete="family-name"
-            placeholder="Doe"
             required
+            defaultValue={state.lastName}
           />
         </div>
 
@@ -88,8 +94,8 @@ export function SignupForm({ formId }: { formId: string }) {
           label="Email Address"
           icon={MailIcon}
           autoComplete="email"
-          placeholder="name@example.com"
           required
+          defaultValue={state.email}
         />
 
         <TextField
@@ -99,7 +105,6 @@ export function SignupForm({ formId }: { formId: string }) {
           label="Password"
           icon={LockIcon}
           autoComplete="new-password"
-          placeholder="••••••••"
           required
           minLength={PASSWORD_MIN_LENGTH}
           value={password}
@@ -114,7 +119,6 @@ export function SignupForm({ formId }: { formId: string }) {
             label="Confirm Password"
             icon={LockIcon}
             autoComplete="new-password"
-            placeholder="••••••••"
             required
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
