@@ -2,12 +2,8 @@
 
 import { redirect } from "next/navigation";
 
-import {
-  apiFetch,
-  extractErrorMessage,
-  relaySessionCookie,
-  type AuthenticatedAccount,
-} from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
+import { extractErrorMessage, relaySessionCookie, type AuthenticatedAccount } from "@/lib/auth";
 
 // `email` round-trips the submitted value back into the form on failure.
 // React resets a useActionState-bound form's uncontrolled fields once the
