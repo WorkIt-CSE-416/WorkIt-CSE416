@@ -10,33 +10,31 @@ the system changes, not when a screen gets a new field.
 ## The two halves
 
 ```
-┌─────────────────────────┐        HTTP, server-to-server        ┌──────────────────────────┐
-│  Next.js app (frontend/) │ ────────────────────────────────────▶│  FastAPI app (backend/)  │
-│  App Router · :3000      │◀──────────────────────────────────── │  Uvicorn · :8000          │
-└─────────────────────────┘         JSON + Set-Cookie             └──────────────────────────┘
-        ▲                                                                    │
-        │ HTML / cookies                                                    │ asyncpg
-        │                                                                    ▼
-  ┌───────────┐                                                   ┌──────────────────────┐
-  │  Browser  │                                                   │  Postgres (Supabase)  │
-  └───────────┘                                                   └──────────────────────┘
+  ┌───────────┐  HTML, sb-* cookies  ┌──────────────────────────┐  JSON + Bearer   ┌──────────────────────────┐
+  │  Browser  │◀────────────────────▶│  Next.js app (frontend/)  │─────────────────▶│  FastAPI app (backend/)  │
+  └───────────┘                      │  App Router · :3000       │                  │  Uvicorn · :8000          │
+                                     └──────────────────────────┘                  └──────────────────────────┘
+                                                  │ sign in, refresh                    │ admin API    │ asyncpg
+                                                  ▼                                     ▼ (signup),    ▼
+                                     ┌──────────────────────────┐◀──────────────────── JWKS  ┌──────────────────────┐
+                                     │  Supabase Auth            │──── auth.users ──────────▶ │  Postgres (Supabase)  │
+                                     └──────────────────────────┘                            └──────────────────────┘
 ```
 
 Two self-contained projects, each with its own dependency tree, that talk
 over HTTP and share no code (`../CLAUDE.md`). The backend is the only thing
-that touches Postgres — Supabase is used as managed Postgres only, nothing
-else. There is no Supabase Auth, no `auth.users`, no PostgREST; the API
-connects directly over `asyncpg` and issues its own session tokens.
+that queries Postgres, directly over `asyncpg` — no PostgREST. **Supabase
+Auth** owns credentials and sessions: it stores users in `auth.users`,
+issues access/refresh tokens, and the API only verifies them
+(`backend/CLAUDE.md`'s Auth section).
 
 **How a request reaches the API today:** Next Server Actions call it
 server-side (`frontend/src/lib/auth.ts`), never a Client Component — so the
 diagram's left arrow is a Node process calling a Python process directly,
 not the browser calling it. That's why there's no CORS configuration on the
-FastAPI side yet: the browser never talks to `:8000` directly. See
-"Auth flow" below for the one place this actually matters right now — the
-API hands a session token back only via `Set-Cookie`, and a server-to-server
-`fetch`'s `Set-Cookie` doesn't reach the browser on its own, so the Next
-action re-sets it as its own cookie.
+FastAPI side yet: the browser never talks to `:8000` directly. The browser
+holds Supabase's `sb-*` session cookies on the Next origin; Next reads the
+access token out of the session and forwards it as `Authorization: Bearer`.
 
 ## Backend (`backend/`)
 
@@ -54,7 +52,8 @@ are `async def`; one DB session per request via `get_session`
 | ORM / Core | `sqlalchemy[asyncio]` | `NullPool` — Supavisor already pools |
 | Migrations | `alembic` | `backend/alembic/`, schema filtered to `public` |
 | Settings | `pydantic-settings` | Reads root `.env`; `DATABASE_URL` (app, pooled) vs `DIRECT_URL` (Alembic, session pooler) |
-| Password hashing | `argon2-cffi` | `app/security.py` — argon2id, vetted KDF |
+| Token verification | `pyjwt[crypto]` | `app/security.py` — Supabase JWKS (ES256/RS256), or legacy HS256 secret |
+| Supabase admin + Storage | `supabase` | `get_supabase()` — signup's `create_user`, resume uploads |
 | Email validation | `email-validator` | Backs Pydantic's `EmailStr` |
 
 ### API surface
@@ -67,30 +66,23 @@ endpoint yet, even though some of them have models (see Data layer below).
 | --- | --- | --- | --- | --- |
 | GET | `/health` | none | — | `{status}` — liveness, works with no `.env` |
 | GET | `/health/db` | none | — | `{status, database}` or 503 — needs `.env` |
-| POST | `/auth/signup` | none | `SignupRequest` | `201` + `AuthenticatedAccount`, or `409`/`422`/`501` |
-| POST | `/auth/login` | none | `LoginRequest` | `200` + `AuthenticatedAccount`, or `401` |
-| GET | `/auth/me` | session cookie | — | `200` + `AuthenticatedAccount`, or `401` |
+| POST | `/auth/signup` | none | `SignupRequest` | `201` + `AuthenticatedAccount`, or `409`/`422`/`501`/`502` |
+| GET | `/auth/me` | Bearer token | — | `200` + `AuthenticatedAccount`, or `401` |
 
 - `SignupRequest` — `accountType` (`applicant`\|`company`), `name`, `email`,
-  `password`. Company accounts currently get `501`: `company_profiles` has
-  two `NOT NULL` columns (`company_name`, `size_range`) nothing collects
-  yet, and there's no `/onboarding/company` screen to send a new company
-  account to (`backend/db/auth_methodology.md` §2 decision 4, open on
-  purpose).
-- `LoginRequest` — `accountType`, `email`, `password`. Works for either
-  account type, since login only needs a row to already exist.
+  `password`. The API creates the Supabase auth user (admin API,
+  `app_metadata.account_type`, already confirmed) and the profile row with
+  the same id. Company accounts get `501`: `company_profiles` has two
+  `NOT NULL` columns (`company_name`, `size_range`) nothing collects yet.
+- There is no login endpoint. The Next server signs in against Supabase Auth
+  directly and calls `/auth/me` with the resulting access token.
 - `AuthenticatedAccount` — `id`, `email`, `full_name`, `account_type`,
   `onboarding_completed` (bool, not the raw timestamp), `company_id`
-  (`null` for an applicant). **Never carries `password_hash`** — enforced by
-  a runnable check in `app/schemas/auth.py` itself.
-- The session token is never in a response body. It travels only as an
-  httpOnly, `Secure`, `SameSite=lax` cookie (`session_token`), 30-day
-  lifetime, hashed with SHA-256 before it touches the `sessions` table —
-  the raw token exists only in the cookie and in the moment it's issued.
-- `get_current_account` (`app/deps.py`) is the one place a cookie gets
-  turned back into an identity: hash it, look up `sessions`, check
-  `expires_at`, load the account it points at. Every protected route is
-  meant to depend on this rather than trusting anything client-supplied.
+  (`null` for an applicant). No token in any response body.
+- `get_current_account` (`app/deps.py`) is the one place a token becomes an
+  identity: verify signature, audience, issuer and expiry; read `sub` and
+  `app_metadata.account_type`; load the profile row. Every protected route
+  is meant to depend on this rather than trusting anything client-supplied.
 
 ### Data layer
 
@@ -100,10 +92,10 @@ modeled at all (doesn't exist as code).
 
 | Table | Model | Migrated? | Reachable via API? |
 | --- | --- | --- | --- |
-| `applicant_profiles` | `app/models/profiles.py` | Yes (`0fa8dcca3a06`) | Yes — signup, login, me |
-| `company_profiles` | `app/models/profiles.py` | Yes | Only for an account that already exists (login) |
-| `company_memberships` | `app/models/profiles.py` | Yes | Same as above |
-| `sessions` | `app/models/sessions.py` | Yes | Written/read by every `/auth` route |
+| `applicant_profiles` | `app/models/profiles.py` | Yes | Yes — signup, me. `id` → `auth.users.id` |
+| `company_profiles` | `app/models/profiles.py` | Yes | No — no company signup yet |
+| `company_memberships` | `app/models/profiles.py` | Yes | `/auth/me`, for an account created some other way. `id` → `auth.users.id` |
+| `auth.users` | `app/models/auth_users.py` (stub) | Owned by Supabase | Only as the account tables' FK target |
 | `resumes` | `app/models/resume.py` | Yes | No — no resume endpoint exists yet |
 | `job_postings` | `app/models/jobs.py` | **No** | No |
 | `countries` / `states` | `app/models/locations.py` | **No** | No |
@@ -118,7 +110,7 @@ pending, which is expected, not a bug).
 models (`app/models/`) are deliberately separate layers — a schema decides
 what a request/response looks like on the wire, a model decides what a
 Postgres row looks like, and the translation between them (aliasing
-`name` → `full_name`, dropping `password_hash` entirely) happens by hand in
+`name` → `full_name`) happens by hand in
 each router function. Nothing auto-derives one from the other.
 
 ## Frontend (`frontend/`)
@@ -137,7 +129,7 @@ Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · Tailwind v4.
 | Dates | `date-fns`, `react-day-picker` | Composer/calendar UI |
 | Icons | `lucide-react` | Vendored shadcn components only |
 | Server-only guard | `server-only` | Marks `src/lib/auth.ts` as never bundled to the client |
-| **Dead** | `@supabase/ssr`, `@supabase/supabase-js` | Still installed, nothing calls them — see Auth flow |
+| Auth session | `@supabase/ssr`, `@supabase/supabase-js` | `src/lib/supabase/server.ts`, `src/proxy.ts` — sign-in, cookies, refresh |
 
 ### How a screen gets its data today
 
@@ -180,32 +172,37 @@ a shared contract.
 ### Auth flow — the one real end-to-end path
 
 ```
-Browser                Next server (:3000)              FastAPI (:8000)          Postgres
-  │  submit /signup form   │                                  │                     │
-  │────────────────────────▶ signup/actions.ts                │                     │
-  │                        │  apiFetch("/auth/signup", …) ────▶ POST /auth/signup    │
-  │                        │                                  │  hash_password()     │
-  │                        │                                  │  INSERT profile ─────▶
-  │                        │                                  │  INSERT session ─────▶
-  │                        │                                  │◀── 201 + Set-Cookie ─│
-  │                        │◀─ relaySessionCookie() re-sets   │                     │
-  │                        │   token as Next's own cookie     │                     │
-  │◀── redirect + cookie ──│                                  │                     │
+Browser          Next server (:3000)             Supabase Auth          FastAPI (:8000)
+  │ submit /signup  │                                  │                       │
+  │────────────────▶│ apiFetch("/auth/signup") ────────┼──────────────────────▶│
+  │                 │                                  │◀─ admin.create_user ──│
+  │                 │                                  │   (app_metadata)      │ INSERT profile
+  │                 │◀──────────────────────────────── 201 ────────────────────│ (id = auth id)
+  │                 │ signInWithPassword() ───────────▶│                       │
+  │                 │◀── session (set as sb-* cookies) │                       │
+  │◀─ redirect ─────│                                  │                       │
+
+  │ submit /login   │ signInWithPassword() ───────────▶│                       │
+  │                 │◀── session                       │                       │
+  │                 │ apiFetch("/auth/me", Bearer) ────┼──────────────────────▶│ verify via JWKS
+  │                 │◀──────────────────── account ────┼───────────────────────│ load profile
+  │◀─ redirect ─────│ (wrong account type → signOut, same error as bad password)
 ```
 
 - Applicant accounts only end to end. Company signup round-trips to the same
   endpoint and shows whatever the API says back (currently `501`).
+- `src/proxy.ts` refreshes the Supabase session on every request; it is not
+  an auth guard.
 - `signup-form.tsx` / `login-form.tsx` are Client Components (`useActionState`)
-  so a rejected request (`409`/`401`/`422`/`501`) shows inline instead of
-  failing silently — everything else on these two pages stays server-rendered.
-- Nothing on the frontend calls `GET /auth/me` yet — no page currently needs
-  to re-check "who is logged in" after the initial signup/login redirect.
+  so a rejected request shows inline instead of failing silently —
+  everything else on these two pages stays server-rendered.
 
 ## What's real vs. what's scaffolding, right now
 
 - **Real, persisted, reachable:** applicant signup, applicant login,
-  session verification (`/auth/me`), company login (for a row created some
-  other way — there's no company signup path yet).
+  token verification (`/auth/me`), company login (for an auth user and
+  membership row created some other way — there's no company signup path
+  yet), all through Supabase Auth.
 - **Modeled but dormant:** resumes, job postings, countries/states — tables
   and SQLAlchemy models exist, no migration, no endpoint, no UI wired to
   them.

@@ -17,6 +17,7 @@ Every router follows the same structure:
 
 | File | Prefix | What it does |
 |------|--------|--------------|
+| `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user + profile row; `GET /me` returns the caller's account |
 | `resumes.py` | `/applicants/{applicant_id}/resumes` | Resume file upload (PDF/DOCX) to Supabase Storage + DB row |
 
 ## Conventions
@@ -33,8 +34,11 @@ Every router follows the same structure:
 - **Clean up on failure.** If the DB commit fails after a file was uploaded to
   Storage, the endpoint deletes the orphaned file before returning the error.
 
-- **No auth yet.** Endpoints accept `applicant_id` as a path parameter.
-  Once auth lands, identity comes from the verified token, not from the URL.
+- **Protected routes depend on `get_current_account`** (`app/deps.py`), which
+  verifies the Supabase access token and loads the account. Identity comes
+  from that, never from a path parameter or body field. `resumes.py` predates
+  this and still trusts `applicant_id` from the URL — fix it before anything
+  relies on it.
 
 ## Adding a new router
 

@@ -46,6 +46,13 @@ without the filters:  op.drop_table('objects', schema='storage')
                       op.drop_table('users', schema='auth')
 ```
 
+**One table in `Base.metadata` is outside `public` on purpose.**
+`app/models/auth_users.py` declares a one-column stub of `auth.users`, so the
+account tables' `id` foreign key has something to resolve against. The same
+filters keep autogenerate from creating or dropping it, which is exactly
+right: Supabase owns that table. A migration that adds or drops a foreign key
+into `auth` is hand-written (`referent_schema='auth'`), as `197cfcdecdb8` is.
+
 Two filters rather than one, doing different jobs:
 
 - `include_name` stops reflection descending into a foreign schema at all.

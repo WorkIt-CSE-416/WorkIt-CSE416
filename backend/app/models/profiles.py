@@ -16,32 +16,15 @@ class Profile(BaseModel):
     definition for profiles
     '''
     __abstract__= True  # copy attributes
+    # The Supabase auth.users id, since each user would be 
+    # first created in supabase 
     id:Mapped[uuid.UUID] = mapped_column(
-                        primary_key=True,
-                        # python generate
-                        default=uuid.uuid4,
-                        # server backup
-                        server_default=text("gen_random_uuid()"))
+                        ForeignKey("auth.users.id", ondelete="CASCADE"),
+                        primary_key=True)
     email: Mapped[str] = mapped_column(String(100), unique=True)
     full_name: Mapped[str] =mapped_column(String(50))
     phone_number: Mapped[str | None] = mapped_column(String(30))
     avatar_url: Mapped[str | None]
-
-    # Encoded KDF output (algorithm + params + salt + hash as one string —
-    # what argon2/bcrypt/scrypt all return), never a raw password. 255 is
-    # headroom for any of those, not a measured value: argon2id lands around
-    # 95-100 chars at default params but grows with higher memory cost, bcrypt
-    # is a fixed 60. Required, not Optional — there is no OAuth-only signup
-    # path yet (see backend/CLAUDE.md's Auth section), so every row here is
-    # created through the password form and always has one.
-    password_hash: Mapped[str] = mapped_column(String(255))
-
-    # NULL until onboarding's Continue action sets it — that's the whole
-    # signal the login/signup routes need to decide /onboarding/* vs the
-    # dashboard. No server_default: a freshly created row must start NULL,
-    # not "now", or every new account would read as already onboarded.
-    onboarding_completed_at: Mapped[datetime.datetime | None] = mapped_column(
-                        DateTime(timezone=True))
 
 class Applicant_Profile(Profile):
     '''
@@ -54,6 +37,9 @@ class Applicant_Profile(Profile):
     portfolio_url: Mapped[str | None]
     github_url: Mapped[str | None]
     other_url: Mapped[str | None]    # add another url for extra options
+    # determines if they have finished onboarding to choose recommendations & mathces
+    onboarding_completed_at: Mapped[datetime.datetime | None] = mapped_column(
+                        DateTime(timezone=True))
 
 
 class Company_Profile(BaseModel):

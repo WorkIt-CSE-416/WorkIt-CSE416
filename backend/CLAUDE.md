@@ -18,8 +18,8 @@ all live on this side. The Next.js app holds no ORM and no credentials.
 ## Stack
 
 FastAPI · Uvicorn · SQLAlchemy 2.0 (async, over asyncpg) · Alembic ·
-pydantic-settings · supabase-py (Storage only). Python 3.12, pinned by
-`requires-python = ">=3.12,<3.13"`.
+pydantic-settings · supabase-py (Storage, Auth admin) · PyJWT. Python 3.12,
+pinned by `requires-python = ">=3.12,<3.13"`.
 
 Dependencies are managed by **uv**. `uv add <pkg>` to add one, `uv sync` to
 install what the lock already names. Never `pip install` into the venv — it
@@ -27,9 +27,10 @@ writes nothing to `pyproject.toml` and the next `uv sync` silently undoes it.
 
 **Not PostgREST, deliberately.** We connect to Postgres directly over asyncpg.
 The job search needs ltree containment and trigram ranking, which PostgREST's
-filter syntax expresses badly. `supabase-py` is installed but **only for
-Supabase Storage** (file uploads) — database queries still go through
-SQLAlchemy. `get_supabase()` in `app/db.py` initialises the Storage client.
+filter syntax expresses badly. `supabase-py` is installed for **Storage**
+(file uploads) and the **Auth admin API** (creating users at signup) — never
+for database queries, which still go through SQLAlchemy. `get_supabase()` in
+`app/db.py` builds that one service-role client.
 
 ## Commands
 
@@ -59,12 +60,17 @@ app/
   main.py         FastAPI app. /health (liveness) and /health/db (readiness)
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
   db.py           Async engine, session factory, declarative Base, Supabase client
+  security.py     Verifies Supabase access tokens (JWKS, or the legacy secret)
+  deps.py         get_current_account — the dependency every protected route uses
+  schemas/        Pydantic request/response shapes, separate from models/
   routers/
     CLAUDE.md     Router conventions — read before adding a router
+    auth.py       POST /auth/signup, GET /auth/me
     resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
+    auth_users.py Stub of Supabase's auth.users, for foreign keys only
     jobs.py       Job postings
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
@@ -102,10 +108,8 @@ Location reference data (`countries`, `states`) is seeded by migrations, and
 details: what is seeded and why, how the location columns and FKs are shaped,
 and the settled design for the location resolver, which is not written yet.
 
-One thing the schema cannot do yet:
-
-- **No table stores a credential.** See Auth below and
-  `app/models/CLAUDE.md` — the gap is deliberate to record, not a design.
+Credentials live in Supabase's `auth.users`, not in these tables; the account
+tables' `id` references it. See Auth below.
 
 The recommended next step is Pydantic response schemas serving fixture data, so
 the frontend can replace its `data.ts` fixtures with real calls while the
@@ -125,8 +129,9 @@ it reached anyone else.
 | --------------------- | -------------- | ----------------------------------------- |
 | `DATABASE_URL`        | The app        | Transaction pooler (port 6543)            |
 | `DIRECT_URL`          | Alembic        | Session pooler (port 5432); DDL needs one session |
-| `SUPABASE_URL`        | Storage client | Project URL for file uploads              |
-| `SUPABASE_SERVICE_KEY`| Storage client | Service-role key (not anon) — bypasses RLS |
+| `SUPABASE_URL`        | Storage, Auth  | Project URL; also where the JWKS lives    |
+| `SUPABASE_SERVICE_KEY`| Storage, Auth  | Service-role key (not anon) — bypasses RLS, creates users |
+| `SUPABASE_JWT_SECRET` | Auth, legacy   | Only for a project still on HS256 signing |
 
 **`.env` lives at the repo root, not in `backend/`.** Copy the root
 `.env.example` to `.env` beside it — `.env*` is gitignored, with `.env.example`
@@ -239,65 +244,108 @@ work without the root `.env`; only `/health/db` needs it. Keep that true — it 
 lets someone work on routes without database access, and it makes a failure
 point at one half or the other.
 
-## Auth — this API owns identity end to end
+## Auth — Supabase Auth issues tokens, this API authorizes
 
-**Decided: FastAPI issues the session token.** Supabase is managed Postgres and
-nothing else. There is no Supabase Auth in the picture, so nothing references
-`auth.users`, there is no JWKS fetch, and there is no second service in the
-sign-in path.
+**Decided (2026-09-24): Supabase Auth owns credentials and sessions.** It
+stores the password hash in `auth.users`, issues the access/refresh token pair,
+and refreshes it. This API never hashes a password and never signs a token —
+it only **verifies** Supabase's access token and decides what that account may
+do. This replaced a working FastAPI implementation (Argon2id hashes on the
+account tables, HS256 JWTs in a `session_token` cookie); that code is in git
+history before this branch if it is ever needed again.
 
-**This does not make `alembic/env.py`'s schema filters unnecessary.** A Supabase
-project provisions `auth`, `storage`, `realtime` and the rest whether or not we
-use them, so autogenerate would still propose dropping them. Not using Supabase
-Auth means we never *reference* `auth.users`; it does not mean the table is
-gone. Leave the filters alone.
+Why the switch: email verification, password reset, magic links and OAuth
+providers come with Supabase Auth, and each would otherwise be ours to build
+and get right. The cost is a second service in the sign-in path — a Supabase
+Auth outage is a sign-in outage — and the one-account-per-email rule below.
 
-This was an open question for a long time and the alternative was real —
-Supabase Auth would have given us OAuth providers, email verification, password
-reset and magic links for free. We chose one service owning identity instead:
-simpler to reason about, simpler to test, and no sign-in outage when Supabase
-has one. **The cost is that we now write all of that ourselves.** Budget for it
-honestly rather than discovering it at the end.
+### The flow
 
-What this API therefore owns, none of which exists yet:
+```
+signup   Next action ──POST /auth/signup──▶ FastAPI ──admin API──▶ Supabase Auth
+                                              │ creates auth.users row with
+                                              │ app_metadata.account_type,
+                                              │ then the profile row, same id
+         Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
 
-- Password hashing and verification. Use a vetted KDF; do not invent one.
-- Session token issuance and refresh.
-- Email verification and password reset, which means a mail sender.
-- Every OAuth callback, if social sign-in is wanted.
+login    Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
+         Next action ──GET /auth/me, Bearer──▶ FastAPI  (role check, redirect)
 
-Three rules that hold regardless of how the above gets built:
+request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the session)
+         Server code ──Authorization: Bearer <access token>──▶ FastAPI
+```
 
-- **Whoever acts on a token verifies its signature.** Never trust a decoded
-  cookie or a client-supplied identity claim. Since we issue the tokens, this
-  is our signing key and our verification dependency — one place, used by every
-  protected route.
+- **Signup goes through this API, not `supabase.auth.signUp()`.** The account
+  type must land in `app_metadata`, which only the service-role key can write.
+  `signUp()` can only set `user_metadata`, which the user can edit themselves
+  — trusting it would let anyone make themselves a company account. Going
+  through here also creates the profile row in the same request, so an
+  `auth.users` row never exists without one. If the profile insert fails, the
+  route deletes the auth user it just made.
+- **Login does not touch this API's database code for the password.** Supabase
+  Auth checks it against `auth.users`. The Next action then calls `/auth/me`
+  to learn the account type and onboarding state.
+- **Signup creates the user already confirmed** (`email_confirm=True`), which
+  matches the behaviour before the switch. Turning on email verification means
+  dropping that flag and adding a confirmation route on the frontend.
+
+### How a token is verified — `app/security.py` and `app/deps.py`
+
+`get_current_account` reads `Authorization: Bearer`, **never a cookie**:
+Supabase's cookies belong to the Next origin, and are chunked and
+base64-encoded besides. It then:
+
+1. Verifies the signature. Projects on asymmetric signing keys are checked
+   against the public JWKS at `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
+   fetched once and cached by `PyJWKClient` — no network call per request.
+   A project still on the legacy HS256 secret needs `SUPABASE_JWT_SECRET`.
+2. Checks `aud == "authenticated"`, the issuer, and expiry.
+3. Reads `sub` (the `auth.users` id, which **is** the profile's primary key)
+   and `app_metadata.account_type`, then loads the profile row. `company_id`
+   and onboarding state come from that row, never from the token.
+
+Never read `user_metadata` for anything that decides access.
+
+### Identity rules
+
+- **One email, one account.** `auth.users` holds an address once, so a person
+  can no longer have both an applicant and a company account on the same
+  email. Signup for a taken address is a 409 whichever type is asked for, and
+  login for the wrong account type is rejected by the frontend after `/me`.
+- **The profile id is the `auth.users` id.** Both account tables have
+  `id REFERENCES auth.users(id) ON DELETE CASCADE`, so deleting a user in the
+  Supabase dashboard deletes their profile. The id has no default: a profile
+  row cannot be created without an auth user first.
+- **`email` on the profile tables is a copy** for display and queries.
+  `auth.users.email` is the one Supabase signs in with. Nothing changes an
+  email yet; the day something does, it must update both.
+
+### Rules that did not change
+
+- **Whoever acts on a token verifies its signature.** One place —
+  `get_current_account` — used by every protected route.
 - **Authorization is Python, not row-level security.** SQLAlchemy connects as
-  one privileged role, so RLS policies never fire. A policy written against
-  this connection is dead code that reads as a security control. Every
-  company-scoped endpoint checks for an active membership on the requested
-  `company_id` before reading or writing; role checks are Python guards.
+  one privileged role, so RLS policies never fire, even though Supabase Auth
+  now exists. A policy written against this connection is dead code that reads
+  as a security control. Every company-scoped endpoint checks for an active
+  membership on the requested `company_id`; role checks are Python guards.
 - **Never trust a client-supplied `company_id`, `profile_id` or role.** Derive
   identity from the verified token, then check access against it.
+- **The Next proxy is not a security boundary.** It refreshes the session and
+  may redirect for convenience; this API is reachable without going through
+  Next, so every endpoint checks for itself.
 
-Still open, and smaller than it looks:
+### Configuration
 
-- **How the token travels.** Server Components calling this API server-side
-  keeps it out of browser JavaScript and is the safest default. Client
-  Components calling directly need CORS here. Next Route Handlers proxying is
-  same-origin with one extra hop. Related: whether the two halves run on one
-  origin or two, which drives CORS and cookie `SameSite`.
-- **Whether to write RLS policies anyway as a backstop.** They cost little and
-  catch a direct-connection mistake, but they are invisible to Alembic
-  autogenerate and must be hand-written in migrations. Do not drift into
-  `SET LOCAL ROLE` per transaction by half — it is transaction-scoped and
-  fights connection pooling, leaking one request's identity into the next.
+`SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (already used for Storage) are what
+signup's admin call and JWKS verification need. `SUPABASE_JWT_SECRET` is only
+for a legacy HS256 project. `JWT_SECRET` is gone. **The service-role key never
+goes to `frontend/`** — the frontend gets the anon key only.
 
-### Consequence for the schema
+### Still open
 
-The account tables carry `email` with a unique constraint but **no credential
-column** — nothing stores a password hash. Under this decision that is a gap to
-close, not a design. `app/models/CLAUDE.md` records where it lands and the
-ambiguity to resolve first: `email` is unique *per table*, so the same address
-can exist in both `applicant_profiles` and `company_memberships`, and
-"authenticate by email" has no single answer until that is settled.
+- Email verification and password reset: supported by Supabase, not wired up.
+- Company signup: still `501` — no screen collects a company name.
+- `routers/resumes.py` takes `applicant_id` from the URL and does not depend on
+  `get_current_account` yet. Anyone who can reach the API can upload against
+  any applicant until it does.

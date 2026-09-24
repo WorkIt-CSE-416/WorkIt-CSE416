@@ -1,9 +1,9 @@
 """
-Request/response shapes for login and signup. Separate from
+Request/response shapes for signup and /auth/me. Separate from
 app/models/profiles.py on purpose — see backend/CLAUDE.md: "SQLAlchemy models
-and Pydantic schemas are separate layers... the first time an internal column
-must not be exposed, you will regret" collapsing them. password_hash is that
-column; it has no field anywhere in this file.
+and Pydantic schemas are separate layers." There is no login request here:
+login goes straight from the Next server to Supabase Auth and never reaches
+this API with a password (backend/CLAUDE.md's Auth section).
 """
 
 from enum import StrEnum
@@ -14,12 +14,10 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
 
 # Case shouldn't matter for an email address — "Jane@Example.com" and
 # "jane@example.com" are the same account — but it must for a password.
-# Normalizing here, once, means every table's `email` UNIQUE constraint and
-# every login lookup are case-insensitive for free: signup stores the
-# lowercased form, login queries with the lowercased form, so they always
-# compare equal without the router ever having to remember to call
-# .lower() itself. EmailStr validates shape first; AfterValidator only
-# lowercases a value that already parsed as a real address.
+# Supabase Auth lowercases the address it stores too; normalizing here keeps
+# the profile row's copy identical to auth.users.email, so the UNIQUE
+# constraint on each table agrees with Supabase's. EmailStr validates shape
+# first; AfterValidator only lowercases a value that already parsed.
 NormalizedEmail = Annotated[EmailStr, AfterValidator(str.lower), Field(max_length=100)]
 
 
@@ -49,33 +47,19 @@ class SignupRequest(BaseModel):
     # called once it reaches Profile in app/models/profiles.py.
     full_name: str = Field(alias="name", min_length=1, max_length=50)
     email: NormalizedEmail
-    # No length floor here for now — frontend/src/app/signup/signup-form.tsx
-    # enforces the 8-char minimum via the input's own minLength, and this
-    # was deliberately dropped rather than kept as a second copy of that
-    # rule. Not a security backstop against a direct API call right now —
-    # reintroduce it here if that gap needs closing again.
-    password: str
-
-
-class LoginRequest(BaseModel):
-    """POST body for login. frontend/src/app/login/page.tsx's form: email,
-    password, plus the account-type switcher's hidden field."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    account_type: AccountType = Field(alias="accountType")
-    email: NormalizedEmail
+    # Passed straight to Supabase Auth and never stored here. No length
+    # floor in this file: Supabase enforces the project's minimum (Auth →
+    # Providers → Email in the dashboard) and signup-form.tsx enforces 8
+    # characters in the browser. Set the dashboard minimum to 8 to match.
     password: str
 
 
 class AuthenticatedAccount(BaseModel):
-    """What a successful login/signup response body carries. The access
-    token itself is never in here — it travels only in the httpOnly cookie
-    (see app/security.py's ACCESS_TOKEN_TTL), never in a JSON body a script
-    could read. from_attributes=True so this can be built directly off an
+    """What signup and /auth/me return. No token in here: Supabase Auth
+    issues the session, and the Next server holds it in Supabase's own
+    cookies. from_attributes=True so this can be built directly off an
     Applicant_Profile/Company_Membership ORM row without hand-mapping each
-    field — and since password_hash has no field here, one never leaks
-    through that shortcut either.
+    field.
 
     onboarding_completed is a bool, not the raw onboarding_completed_at
     timestamp: the only thing a caller needs is which side of that NULL check
@@ -91,6 +75,5 @@ class AuthenticatedAccount(BaseModel):
     account_type: AccountType
     onboarding_completed: bool
     # Set only for a company_memberships account; None for an applicant.
-    # Not derived here — whoever builds this response passes it explicitly,
-    # since an Applicant_Profile row has no company_id to read at all.
+    # Always read from the membership row, never from the token.
     company_id: UUID | None = None
