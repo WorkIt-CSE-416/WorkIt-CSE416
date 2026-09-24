@@ -155,11 +155,10 @@ async def login(
     if needs_rehash(account.password_hash):
         account.password_hash = await hash_password(body.password)
 
+    company_id = account.company_id if body.account_type is AccountType.COMPANY else None
     token = _issue_token(account, body.account_type, company_id)
     await db.commit()
 
-    company_id = account.company_id if body.account_type is AccountType.COMPANY else None
-   
     _set_session_cookie(response, token)
 
     return AuthenticatedAccount(
