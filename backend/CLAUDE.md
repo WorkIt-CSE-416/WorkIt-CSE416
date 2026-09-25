@@ -333,6 +333,14 @@ Never read `user_metadata` for anything that decides access.
   now exists. A policy written against this connection is dead code that reads
   as a security control. Every company-scoped endpoint checks for an active
   membership on the requested `company_id`; role checks are Python guards.
+- **RLS is enabled on every `public` table, with no policies**
+  (`ce5b2e3f9b78`). That is a deny-all backstop for the `anon` and
+  `authenticated` roles, which Supabase's Data API uses for the public anon
+  key and for signed-in users. The Data API does not expose `public` either;
+  the RLS is what still holds if someone turns it back on. Every new table
+  enables RLS in its own migration — `alembic/CLAUDE.md` has the rule. Do
+  not add policies to "open up" a table: this app has no path that reads
+  through them, so data a screen needs goes through an endpoint here.
 - **Never trust a client-supplied `company_id`, `profile_id` or role.** Derive
   identity from the verified token, then check access against it.
 - **The Next proxy is not a security boundary.** It refreshes the session and

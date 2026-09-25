@@ -51,8 +51,10 @@ refreshes tokens; the Next server holds the session in Supabase's cookies and
 forwards the access token to FastAPI as a Bearer header; FastAPI verifies it
 and decides what the account may do. Signup still goes through FastAPI, which
 creates the auth user with the account type in `app_metadata` and the profile
-row with the same id. Row-level security still does not apply: SQLAlchemy
-connects as one privileged role, so authorization lives in Python.
+row with the same id. Authorization lives in Python: SQLAlchemy connects as
+one privileged role that bypasses row-level security. RLS is enabled on every
+table with no policies anyway, as a deny-all backstop against the public anon
+key — every new table's migration must enable it too.
 
 `backend/CLAUDE.md`'s Auth section holds the flow, the decision and its
 rules; `frontend/CLAUDE.md` holds the Next side. Read both before touching
