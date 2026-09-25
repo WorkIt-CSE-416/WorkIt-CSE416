@@ -52,7 +52,7 @@ are `async def`; one DB session per request via `get_session`
 | ORM / Core | `sqlalchemy[asyncio]` | `NullPool` — Supavisor already pools |
 | Migrations | `alembic` | `backend/alembic/`, schema filtered to `public` |
 | Settings | `pydantic-settings` | Reads root `.env`; `DATABASE_URL` (app, pooled) vs `DIRECT_URL` (Alembic, session pooler) |
-| Token verification | `pyjwt[crypto]` | `app/security.py` — Supabase JWKS (ES256/RS256), or legacy HS256 secret |
+| Token verification | `pyjwt[crypto]` | `app/security.py` — Supabase JWKS (ES256/RS256) only |
 | Supabase admin + Storage | `supabase` | `get_supabase()` — signup's `create_user`, resume uploads |
 | Email validation | `email-validator` | Backs Pydantic's `EmailStr` |
 

@@ -53,6 +53,7 @@ export async function createAccount(
   
   const password = fieldValue(formData, "password");
 
+  // create the user in backend with supabase
   const response = await apiFetch("/auth/signup", {
     method: "POST",
     body: JSON.stringify({ accountType: formData.get("accountType"), name, email, password }),
@@ -67,7 +68,7 @@ export async function createAccount(
   // user finishes sign up, logs in and issue token 
   const supabase = await createSupabaseServerClient();
 
-  // sign in to supabase's table 
+  // sign in with the created user, supabase issues the token 
   const { error } = await supabase.auth.signInWithPassword({ email: account.email, password });
   if (error) {
     return {

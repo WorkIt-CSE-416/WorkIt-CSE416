@@ -60,7 +60,7 @@ app/
   main.py         FastAPI app. /health (liveness) and /health/db (readiness)
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
   db.py           Async engine, session factory, declarative Base, Supabase client
-  security.py     Verifies Supabase access tokens (JWKS, or the legacy secret)
+  security.py     Verifies Supabase access tokens against the project's JWKS
   deps.py         get_current_account — the dependency every protected route uses
   schemas/        Pydantic request/response shapes, separate from models/
   routers/
@@ -131,7 +131,6 @@ it reached anyone else.
 | `DIRECT_URL`          | Alembic        | Session pooler (port 5432); DDL needs one session |
 | `SUPABASE_URL`        | Storage, Auth  | Project URL; also where the JWKS lives    |
 | `SUPABASE_SERVICE_KEY`| Storage, Auth  | Service-role key (not anon) — bypasses RLS, creates users |
-| `SUPABASE_JWT_SECRET` | Auth, legacy   | Only for a project still on HS256 signing |
 
 **`.env` lives at the repo root, not in `backend/`.** Copy the root
 `.env.example` to `.env` beside it — `.env*` is gitignored, with `.env.example`
@@ -298,7 +297,12 @@ base64-encoded besides. It then:
 1. Verifies the signature. Projects on asymmetric signing keys are checked
    against the public JWKS at `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
    fetched once and cached by `PyJWKClient` — no network call per request.
-   A project still on the legacy HS256 secret needs `SUPABASE_JWT_SECRET`.
+   Only ES256/RS256 are accepted. Supabase's legacy shared-secret HS256
+   scheme is deliberately unsupported: that secret can mint tokens as well as
+   verify them, so holding it here would let a leak forge any user. If the
+   project is ever switched back to it, sign-in breaks with 401s — switch
+   it back to signing keys (Project Settings → JWT Keys), don't add the
+   secret here.
 2. Checks `aud == "authenticated"`, the issuer, and expiry.
 3. Reads `sub` (the `auth.users` id, which **is** the profile's primary key)
    and `app_metadata.account_type`, then loads the profile row. `company_id`
@@ -338,8 +342,9 @@ Never read `user_metadata` for anything that decides access.
 ### Configuration
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (already used for Storage) are what
-signup's admin call and JWKS verification need. `SUPABASE_JWT_SECRET` is only
-for a legacy HS256 project. `JWT_SECRET` is gone. **The service-role key never
+signup's admin call and JWKS verification need. There is no JWT secret —
+`JWT_SECRET` from the old FastAPI auth is gone, and the legacy
+`SUPABASE_JWT_SECRET` is not supported. **The service-role key never
 goes to `frontend/`** — the frontend gets the anon key only.
 
 ### Still open

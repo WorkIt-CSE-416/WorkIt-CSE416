@@ -25,6 +25,11 @@ class Profile(BaseModel):
     full_name: Mapped[str] =mapped_column(String(50))
     phone_number: Mapped[str | None] = mapped_column(String(30))
     avatar_url: Mapped[str | None]
+    # NULL until onboarding's Continue action sets it — /auth/me reads it to
+    # decide /onboarding/* vs the dashboard. No server_default: a new row
+    # must start NULL, or every new account would read as already onboarded.
+    onboarding_completed_at: Mapped[datetime.datetime | None] = mapped_column(
+                        DateTime(timezone=True))
 
 class Applicant_Profile(Profile):
     '''
@@ -37,9 +42,6 @@ class Applicant_Profile(Profile):
     portfolio_url: Mapped[str | None]
     github_url: Mapped[str | None]
     other_url: Mapped[str | None]    # add another url for extra options
-    # determines if they have finished onboarding to choose recommendations & mathces
-    onboarding_completed_at: Mapped[datetime.datetime | None] = mapped_column(
-                        DateTime(timezone=True))
 
 
 class Company_Profile(BaseModel):

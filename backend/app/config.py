@@ -51,11 +51,6 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_key: str | None = None
 
-    # Only for a project still signing access tokens with the legacy shared
-    # HS256 secret. A project on asymmetric signing keys leaves this unset and
-    # is verified against its public JWKS instead (app/security.py).
-    supabase_jwt_secret: str | None = None
-
     @property
     def app_url(self) -> str:
         if not self.database_url:

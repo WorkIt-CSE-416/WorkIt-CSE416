@@ -42,31 +42,15 @@ class SignupRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     account_type: AccountType = Field(alias="accountType")
-    # alias="name" because that's the wire name signup/page.tsx's form sends
-    # (name="name" on the field) — full_name is what the column is actually
-    # called once it reaches Profile in app/models/profiles.py.
     full_name: str = Field(alias="name", min_length=1, max_length=50)
     email: NormalizedEmail
-    # Passed straight to Supabase Auth and never stored here. No length
-    # floor in this file: Supabase enforces the project's minimum (Auth →
-    # Providers → Email in the dashboard) and signup-form.tsx enforces 8
-    # characters in the browser. Set the dashboard minimum to 8 to match.
     password: str
 
 
 class AuthenticatedAccount(BaseModel):
-    """What signup and /auth/me return. No token in here: Supabase Auth
-    issues the session, and the Next server holds it in Supabase's own
-    cookies. from_attributes=True so this can be built directly off an
-    Applicant_Profile/Company_Membership ORM row without hand-mapping each
-    field.
-
-    onboarding_completed is a bool, not the raw onboarding_completed_at
-    timestamp: the only thing a caller needs is which side of that NULL check
-    the account is on. Where it redirects to (`/onboarding/applicant` vs
-    `/jobs`, say) is a route concern, not this API's.
-    """
-
+    '''
+    profile to be returned once account is created/logged in 
+    '''
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -74,6 +58,4 @@ class AuthenticatedAccount(BaseModel):
     full_name: str
     account_type: AccountType
     onboarding_completed: bool
-    # Set only for a company_memberships account; None for an applicant.
-    # Always read from the membership row, never from the token.
     company_id: UUID | None = None

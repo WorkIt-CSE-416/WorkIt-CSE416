@@ -48,10 +48,9 @@ async def get_current_account(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: AsyncSession = Depends(get_session),
 ) -> AuthenticatedAccount:
-    """Resolves the bearer token into the account that owns it, or raises
-    401. Every protected route depends on this rather than trusting anything
-    the client sends — backend/CLAUDE.md: 'never trust a client-supplied
-    company_id, profile_id or role.'"""
+    ''' 
+    resolve bearer token to get account information
+    '''
     if credentials is None:
         raise _NOT_AUTHENTICATED
 
@@ -66,6 +65,7 @@ async def get_current_account(
         # this is the same "not an account here" as a bad token.
         raise _NOT_AUTHENTICATED
 
+    # retrieve user from corresponding table 
     model = Applicant_Profile if account_type is AccountType.APPLICANT else Company_Membership
     account = (
         await db.execute(select(model).where(model.id == account_id))
