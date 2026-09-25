@@ -28,6 +28,7 @@ pip install uv
 
 Databases: 
 ```bash
+ cd backend/ 
  uv run alembic upgrade head 
 ```
 

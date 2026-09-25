@@ -45,21 +45,21 @@ Alembic is the single source of truth for schema. `backend/db/*.md` are design
 rationale, and schema edits through the Supabase dashboard are banned — they
 bypass Alembic silently.
 
-**Auth is decided: the Python API issues the session token.** Supabase is
-managed Postgres and nothing else — there is no Supabase Auth, and therefore no
-`auth.users` table. Row-level security follows from the same stack choice:
-SQLAlchemy connects as one privileged role, so policies do not fire and
-authorization lives in Python.
+**Auth is decided: Supabase Auth issues the session, the Python API
+authorizes.** Supabase Auth stores credentials in `auth.users` and issues and
+refreshes tokens; the Next server holds the session in Supabase's cookies and
+forwards the access token to FastAPI as a Bearer header; FastAPI verifies it
+and decides what the account may do. Signup still goes through FastAPI, which
+creates the auth user with the account type in `app_metadata` and the profile
+row with the same id. Authorization lives in Python: SQLAlchemy connects as
+one privileged role that bypasses row-level security. RLS is enabled on every
+table with no policies anyway, as a deny-all backstop against the public anon
+key — every new table's migration must enable it too.
 
-Two consequences. The `@supabase/*` packages in `frontend/`, both
-`NEXT_PUBLIC_SUPABASE_*` variables, and `frontend/src/lib/supabase/server.ts`
-are now dead — nothing calls them and nothing will. And this API owns password
-hashing, reset flows, verification mail and any OAuth callback, none of which
-is written yet.
-
-`backend/CLAUDE.md` holds the decision and the rules that come with it;
-`backend/app/models/CLAUDE.md` holds the schema consequence, which is that no
-table stores a credential yet. Read both before wiring the two halves together.
+`backend/CLAUDE.md`'s Auth section holds the flow, the decision and its
+rules; `frontend/CLAUDE.md` holds the Next side. Read both before touching
+sign-in on either half. The Supabase **anon** key goes to `frontend/`; the
+**service-role** key never does.
 
 ### Why two folders rather than one project at the root
 
