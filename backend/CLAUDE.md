@@ -281,6 +281,14 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
   through here also creates the profile row in the same request, so an
   `auth.users` row never exists without one. If the profile insert fails, the
   route deletes the auth user it just made.
+- **Two Supabase dashboard settings back this up, and live nowhere in code.**
+  The anon key and project URL ship to the browser, so anyone can call
+  Supabase Auth directly and skip both the form and this API. Authentication
+  → "Allow new users to sign up" is **off**, so a direct `signUp()` is refused
+  (the service-role `admin.create_user` here is unaffected). Minimum password
+  length is **8**, matching `SignupRequest.password` and the form's
+  `PASSWORD_MIN_LENGTH`, so a signed-in user can't `updateUser()` their way to
+  a shorter one. Set both on any new Supabase project.
 - **Login does not touch this API's database code for the password.** Supabase
   Auth checks it against `auth.users`. The Next action then calls `/auth/me`
   to learn the account type and onboarding state.

@@ -44,7 +44,10 @@ class SignupRequest(BaseModel):
     account_type: AccountType = Field(alias="accountType")
     full_name: str = Field(alias="name", min_length=1, max_length=50)
     email: NormalizedEmail
-    password: str
+    # Matches the Supabase project's minimum password length and
+    # signup-form.tsx's PASSWORD_MIN_LENGTH. Supabase would reject a short
+    # one anyway; checking here fails fast with a plain 422 before the call.
+    password: str = Field(min_length=8)
 
 
 class AuthenticatedAccount(BaseModel):

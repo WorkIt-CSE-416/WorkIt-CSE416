@@ -16,10 +16,11 @@ const INITIAL_STATE: SignupState = {
   email: "",
 };
 
-// The only enforcement of this floor right now — backend/app/schemas/
-// auth.py's SignupRequest.password dropped its own min_length deliberately,
-// so a request that bypasses this form (a direct API call) isn't bound by
-// it. Revisit both sides together if that gap needs closing again.
+// A UX check only — it saves a round trip, it doesn't enforce anything. The
+// same floor of 8 is enforced by backend/app/schemas/auth.py's
+// SignupRequest.password (a direct API call) and by the Supabase project's
+// minimum password length (anything reaching Supabase Auth with the public
+// anon key, e.g. updateUser). Change all three together.
 const PASSWORD_MIN_LENGTH = 8;
 
 /**
