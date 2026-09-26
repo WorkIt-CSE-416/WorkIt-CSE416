@@ -4,24 +4,18 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 /**
- * A Supabase client scoped to the current request, for READING the session.
+ * A Supabase client scoped to the current request. Supabase Auth issues our
+ * sessions (backend/CLAUDE.md's Auth section): this client signs in, signs
+ * out, and reads the access token that `src/lib/auth.ts` forwards to the
+ * Python API as a Bearer header.
  *
- * NOTHING CALLS THIS YET, and whether it survives is an open decision: the team
- * has not settled whether Supabase Auth issues our tokens or the Python API
- * does. If the API ends up owning identity, this file and the two
- * NEXT_PUBLIC_SUPABASE_* variables are deleted together. Do not build on it
- * without reading docs/backend-integration.md first.
+ * Auth only. It does not talk to Postgres and must not learn how — data
+ * access belongs to the API. Signup goes through the API too, not
+ * `auth.signUp()`, because only the API can set the account type.
  *
- * It does not talk to Postgres and must not learn how — data access belongs to
- * the API either way.
- *
- * If it is used: call `getClaims()` rather than `getSession()` whenever the
- * answer decides anything. @supabase/auth-js states that a user object read
- * from cookies "must not be trusted", while getClaims() verifies the token's
- * signature.
- *
- * Signing in, signing out and the seeker/company route guard belong to the
- * auth ticket; see the note in src/app/login/actions.ts.
+ * Call `getClaims()` rather than `getSession()` whenever the answer decides
+ * anything. @supabase/auth-js states that a user object read from cookies
+ * "must not be trusted", while getClaims() verifies the token's signature.
  *
  * Never cache the returned client. Supabase requires a fresh one per render.
  */
@@ -31,7 +25,7 @@ export async function createSupabaseServerClient() {
 
   if (!url || !key) {
     throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must both be set. Copy .env.example to .env.local — see docs/backend-integration.md.",
+      "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must both be set. Copy frontend/.env.example to frontend/.env.local.",
     );
   }
 
@@ -47,8 +41,9 @@ export async function createSupabaseServerClient() {
           }
         } catch {
           // A Server Component cannot write cookies. That is expected here:
-          // refreshing the session is the job of the middleware the auth
-          // ticket adds. Swallowing this is the documented Next.js pattern.
+          // refreshing the session is src/proxy.ts's job, and Server Actions
+          // (sign-in, sign-out) can write them. Swallowing this is the
+          // documented Next.js pattern.
         }
       },
     },

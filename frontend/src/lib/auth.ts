@@ -2,17 +2,14 @@
 
 import "server-only";
 
-import { cookies } from "next/headers";
+/**
+ * Send authorization requests for login or sign up to backend
+ */
 
-/** Must match backend/app/security.py's SESSION_COOKIE_NAME. */
-const SESSION_COOKIE_NAME = "session_token";
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
 export type AccountType = "applicant" | "company";
 
-/** Mirrors backend/app/schemas/auth.py's AuthenticatedAccount field-for-field
- * (snake_case included) — that response has no alias layer, so there is
- * nothing to translate here. */
 export type AuthenticatedAccount = {
   id: string;
   email: string;
@@ -23,30 +20,27 @@ export type AuthenticatedAccount = {
 };
 
 /**
- * Copies the session cookie /auth/signup or /auth/login set on `response`
- * onto this request's own outgoing cookies. A server-to-server fetch's
- * Set-Cookie header does not reach the browser on its own — Next has to
- * re-set it as its own cookie for the browser to ever see it.
+ * `accessToken` is the Supabase session's access token
  */
-export async function relaySessionCookie(response: Response): Promise<void> {
-  const setCookie = response.headers
-    .getSetCookie()
-    .find((cookie) => cookie.startsWith(`${SESSION_COOKIE_NAME}=`));
-  if (!setCookie) return;
-
-  const nameAndValue = setCookie.split(";")[0];
-  const token = nameAndValue.slice(nameAndValue.indexOf("=") + 1);
-
-  (await cookies()).set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-    path: "/",
+export function apiFetch(path: string, init: RequestInit, accessToken?: string): Promise<Response> {
+  return fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      // send accessToken to backend, otherwise the header is empty
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...init.headers,
+    },
   });
 }
 
-// Pulls a human-readable message out of a failed API response.
+/**
+ * Pulls a human-readable message out of a failed API response. FastAPI's
+ * HTTPException serializes `detail` as a string (signup's 409/501, /me's
+ * 401), but Pydantic validation failures (422) serialize it as an array of
+ * error objects instead — both are handled here so callers don't have to
+ * know which shape they got.
+ */
 export async function extractErrorMessage(response: Response): Promise<string> {
   const body: unknown = await response.json().catch(() => null);
   const detail = (body as { detail?: unknown } | null)?.detail;

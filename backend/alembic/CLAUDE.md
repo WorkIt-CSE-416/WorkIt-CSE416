@@ -46,6 +46,13 @@ without the filters:  op.drop_table('objects', schema='storage')
                       op.drop_table('users', schema='auth')
 ```
 
+**One table in `Base.metadata` is outside `public` on purpose.**
+`app/models/auth_users.py` declares a one-column stub of `auth.users`, so the
+account tables' `id` foreign key has something to resolve against. The same
+filters keep autogenerate from creating or dropping it, which is exactly
+right: Supabase owns that table. A migration that adds or drops a foreign key
+into `auth` is hand-written (`referent_schema='auth'`), as `197cfcdecdb8` is.
+
 Two filters rather than one, doing different jobs:
 
 - `include_name` stops reflection descending into a foreign schema at all.
@@ -94,6 +101,7 @@ emit:
 - index operator classes — `gin_trgm_ops`, used on two tables
 - anything `ltree` — no native type, so it needs a `TypeDecorator`
 - **a `use_alter=True` foreign key** — see below, this one bit us
+- **row-level security** — see "Every new table enables RLS" below
 
 `use_alter=True` marks a FK in a reference cycle, telling SQLAlchemy to leave
 it out of `CREATE TABLE` and add it afterwards. Autogenerate honours the first
@@ -119,6 +127,28 @@ hand rather than trusting a diff.
 Check first whether the extensions are already enabled: Supabase's dashboard
 installs them into an `extensions` schema, so a project where someone clicked
 them on behaves differently from a clean one.
+
+## Every new table enables RLS
+
+`ce5b2e3f9b78` enabled row-level security on every `public` table that
+existed then, with no policies. That denies all rows to Supabase's `anon`
+and `authenticated` roles — what anyone holding the public anon key gets
+through the Data API. FastAPI and Alembic connect as `postgres`, which owns
+the tables and bypasses RLS, so they are unaffected.
+
+Autogenerate never emits it, so a migration creating a table must add this
+by hand, after `op.create_table()`:
+
+```python
+op.execute('ALTER TABLE public.<table> ENABLE ROW LEVEL SECURITY')
+```
+
+Forget it and the table is readable and writable by anyone with the anon key
+the moment `public` is exposed through the Data API again. Supabase's
+Security Advisor flags such a table as "RLS disabled in public".
+
+`ENABLE`, never `FORCE`: FORCE applies policies to the table owner as well,
+which is `postgres`, and locks the API out of its own data.
 
 ## versions/
 
