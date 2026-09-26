@@ -1,10 +1,10 @@
-'Handles all communication between Next.js frontend and Python backend for auth-related items'
+// Handles all communication between Next.js frontend and Python backend for auth-related items
 
 import "server-only";
 
 import { cookies } from "next/headers";
 
-
+/** Must match backend/app/security.py's SESSION_COOKIE_NAME. */
 const SESSION_COOKIE_NAME = "session_token";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
@@ -21,8 +21,6 @@ export type AuthenticatedAccount = {
   onboarding_completed: boolean;
   company_id: string | null;
 };
-
-
 
 /**
  * Copies the session cookie /auth/signup or /auth/login set on `response`

@@ -50,6 +50,7 @@ export function OnboardingForm() {
     );
   }
 
+  // require applicant to select at least one of each.
   const canContinue = expertise.length > 0 && jobTypes.length > 0;
 
   async function handleContinue() {
@@ -103,7 +104,11 @@ export function OnboardingForm() {
           <ResumeUpload
             file={resumeFile}
             onFileChange={setResumeFile}
-            onRemove={() => setResumeFile(null)}
+            onRemove={() => {
+              setResumeFile(null);
+              setUploading(false);
+              setUploadError(null);
+            }}
           />
         </div>
       </section>
