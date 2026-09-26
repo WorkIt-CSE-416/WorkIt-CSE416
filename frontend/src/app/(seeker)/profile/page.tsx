@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+"use client";
 
-import { MailIcon, PdfIcon, PencilIcon, PinIcon, TrashIcon, UploadIcon } from "@/components/icons";
+import { useState } from "react";
+
+import { MailIcon, PdfIcon, PencilIcon, PinIcon, TrashIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
@@ -8,13 +10,10 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
-import { PROFILE, RESUME, ROLES, SKILLS } from "./data";
-import { EyeIcon, PhoneIcon } from "./icons";
-
-export const metadata: Metadata = {
-  title: "Profile",
-  description: "Your resume, work history, and skills.",
-};
+import { PROFILE, ROLES, SKILLS } from "./data";
+import { PhoneIcon } from "./icons";
+import { ResumeUpload, formatBytes } from "@/components/resume-upload";
+import { uploadResume } from "@/lib/resume-actions";
 
 /**
  * KAN-43 renders the profile mockup only, against the fixtures in ./data.
@@ -30,6 +29,25 @@ const CONTACT = [
 ];
 
 export default function ProfilePage() {
+  // Resume items
+  const [resumeList, setResumeList] = useState<File[]>([]);
+
+  async function handleResumeFileAdd(file: File) {
+    if (resumeList.length >= 5) return;
+    setResumeList((prev) => [file, ...prev]);
+
+    const fd = new FormData();
+    fd.append("file", file);
+    const { error } = await uploadResume(fd);
+    if (error) {
+      setResumeList((prev) => prev.filter((f) => f !== file));
+    }
+  }
+
+  function handleRemove(index: number) {
+    setResumeList((prev) => prev.filter((_, i) => i !== index));
+  }
+
   return (
     <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_2fr]">
@@ -92,31 +110,23 @@ export default function ProfilePage() {
             <SectionHeading id="resume">Resume</SectionHeading>
 
             <div className="border-border-strong bg-well rounded-control mt-4.5 flex flex-col items-center border border-dashed px-4 py-7">
-              <UploadIcon className="text-ink-meta h-6 w-5" />
-              <p className="text-note text-ink mt-2.5 font-medium">
-                Drag and drop your resume here
-              </p>
-              <p className="text-meta text-ink-meta mt-1.5">
-                Supported formats: PDF, DOCX (Max 5MB)
-              </p>
-              <Button variant="outline" className="mt-2">
-                Browse Files
-              </Button>
+              <ResumeUpload file={null} onFileChange={handleResumeFileAdd} onRemove={() => {}} />
             </div>
-
-            <div className="border-border-subtle bg-app rounded-control mt-5 flex items-center gap-3 border p-2">
-              <PdfIcon className="size-5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-label text-ink truncate">{RESUME.fileName}</p>
-                <p className="text-meta text-ink-meta">{RESUME.meta}</p>
+            {resumeList.map((f, i) => (
+              <div
+                key={f.name + i}
+                className="border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2"
+              >
+                <PdfIcon className="size-5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-label text-ink truncate">{f.name}</p>
+                  <p className="text-meta text-ink-meta">{formatBytes(f.size)}</p>
+                </div>
+                <IconButton label="Delete resume" onClick={() => handleRemove(i)}>
+                  <TrashIcon className="size-4" />
+                </IconButton>
               </div>
-              <IconButton label="Preview resume">
-                <EyeIcon className="size-4" />
-              </IconButton>
-              <IconButton label="Delete resume">
-                <TrashIcon className="size-4" />
-              </IconButton>
-            </div>
+            ))}
           </Card>
 
           <Card as="section" aria-labelledby="experience">

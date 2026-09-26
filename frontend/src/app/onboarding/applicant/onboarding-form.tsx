@@ -1,21 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 
-import { uploadResume } from "./actions";
-import { EXPERTISE_SUGGESTIONS, JOB_TYPES, MOCK_RESUME_SKILLS } from "./data";
+import { uploadResume } from "../../../lib/resume-actions";
+import { EXPERTISE_SUGGESTIONS, JOB_TYPES } from "./data";
 import { ExpertiseField } from "./expertise-field";
 import { JobTypeField } from "./job-type-field";
-import { ResumeUpload } from "./resume-upload";
-
-/** How long the mock "parse" pretends to take. */
-const ANALYZE_DELAY_MS = 900;
+import { ResumeUpload } from "../../../components/resume-upload";
 
 /**
  * KAN-113 — the applicant half of onboarding. The business half is a stub
@@ -43,26 +40,6 @@ export function OnboardingForm() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const [detected, setDetected] = useState<string[] | null>(null);
-
-  /* Analyzing is derived rather than its own state: a file is present and the
-   * timer below has not resolved yet. That keeps the "start analyzing" and
-   * "select a file" transitions atomic — one setState, not two racing to
-   * happen together. */
-  const analyzing = resumeFile !== null && detected === null;
-
-  useEffect(() => {
-    if (!resumeFile) return;
-
-    const timer = setTimeout(() => setDetected([...MOCK_RESUME_SKILLS]), ANALYZE_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [resumeFile]);
-
-  function selectResume(file: File) {
-    setResumeFile(file);
-    setDetected(null);
-  }
-
   function addExpertise(value: string) {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -73,25 +50,10 @@ export function OnboardingForm() {
     );
   }
 
-  function removeResume() {
-    setResumeFile(null);
-    setDetected(null);
-  }
-
-  function addDetectedSkill(skill: string) {
-    addExpertise(skill);
-    setDetected((current) => current?.filter((s) => s !== skill) ?? null);
-  }
-
-  function addAllDetectedSkills() {
-    for (const skill of detected ?? []) addExpertise(skill);
-    setDetected([]);
-  }
-
   const canContinue = expertise.length > 0 && jobTypes.length > 0;
 
-  async function handleContinue(){
-    if (resumeFile){
+  async function handleContinue() {
+    if (resumeFile) {
       setUploading(true);
       setUploadError(null);
       const fd = new FormData();
@@ -140,12 +102,8 @@ export function OnboardingForm() {
         <div className="mt-3">
           <ResumeUpload
             file={resumeFile}
-            onFileChange={selectResume}
-            onRemove={removeResume}
-            analyzing={analyzing}
-            detected={detected}
-            onAddSkill={addDetectedSkill}
-            onAddAllSkills={addAllDetectedSkills}
+            onFileChange={setResumeFile}
+            onRemove={() => setResumeFile(null)}
           />
         </div>
       </section>
@@ -170,18 +128,12 @@ export function OnboardingForm() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 p-5">
         <TextLink href="/login">Back to Sign In</TextLink>
-          <div className="flex items-center gap-3">
-            {uploadError && (
-              <p className="text-meta text-red-600">{uploadError}</p>
-            )}
-            <Button
-              size="lg"
-              disabled={!canContinue || uploading}
-              onClick={handleContinue}
-            >
-              {uploading ? "Uploading\u2026" : "Continue"}
-            </Button>
-          </div>
+        <div className="flex items-center gap-3">
+          {uploadError && <p className="text-meta text-red-600">{uploadError}</p>}
+          <Button size="lg" disabled={!canContinue || uploading} onClick={handleContinue}>
+            {uploading ? "Uploading\u2026" : "Continue"}
+          </Button>
+        </div>
       </div>
     </Card>
   );
