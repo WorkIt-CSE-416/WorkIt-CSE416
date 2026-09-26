@@ -73,6 +73,8 @@ src/components/   Shared components
   icons.tsx       Glyphs used by more than one route
   avatar.tsx      Initials stand-in for a profile photo
   nav-link.tsx    Top-bar tab that underlines itself on its own route
+  resume-upload.tsx Dropzone + file preview, no upload logic. Used by
+                  onboarding and profile.
   account-menu.tsx  The avatar dropdown; each shell passes its own items
   ui/             Presentational primitives: badge, button, card, company-tile,
                   fact, filter-chip, icon-button, search-field, section-heading,
@@ -82,6 +84,15 @@ src/components/   Shared components
                   `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
+  api.ts          Server-only API helpers: apiUpload (multipart) and
+                  apiFetch (JSON). Guarded with `import "server-only"`.
+                  Both use API_URL, which is deliberately not NEXT_PUBLIC_*.
+  resume-actions.ts  Server action wrapping apiUpload for resume upload.
+                  Used by both onboarding and profile. Hardcodes a
+                  placeholder applicant UUID — TODO: read from session
+                  once /auth/me is wired.
+  auth.ts         Auth server actions (login, signup, session cookie relay,
+                  extractErrorMessage). Server-only.
   supabase/server.ts  Dead — the API issues tokens now. Removable.
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448 — auth card and app top bar
@@ -193,19 +204,31 @@ on them** — they are removable, and the only reason they are still here is tha
 nobody has done the removal.
 
 **The token travels through Server Actions, not a Client Component + CORS.**
-`src/lib/auth.ts`'s `apiFetch()` runs only on the Next server — a
-server-to-server call the browser never sees, so there is no CORS to
-configure on the API side and the token never reaches client JS. The API
-hands the token back only via `Set-Cookie` (never the JSON body — see
-`backend/app/schemas/auth.py`), and a server-to-server fetch's `Set-Cookie`
-does not forward to the browser on its own, so `relaySessionCookie()` reads
-it off the response and re-sets it as Next's own cookie. The reverse
-direction — forwarding the browser's cookie onto a call to a protected
-endpoint like `GET /auth/me` — doesn't have a helper yet; nothing calls
-`/auth/me` from this side yet. `backend/CLAUDE.md` owns the API-side rules
-that come with any of this — **read it before touching auth or adding an API
-call.** The base URL is `API_URL` (`frontend/.env.example`), read only
-server-side, deliberately not `NEXT_PUBLIC_*`.
+API calls go through `src/lib/api.ts` (`apiFetch` for JSON, `apiUpload` for
+multipart) — both run only on the Next server (guarded by
+`import "server-only"`), so there is no CORS to configure and the token
+never reaches client JS. Auth-specific logic (cookie relay, error
+extraction) stays in `src/lib/auth.ts`. The API hands the token back only
+via `Set-Cookie` (never the JSON body — see `backend/app/schemas/auth.py`),
+and a server-to-server fetch's `Set-Cookie` does not forward to the browser
+on its own, so `relaySessionCookie()` reads it off the response and re-sets
+it as Next's own cookie. The reverse direction — forwarding the browser's
+cookie onto a call to a protected endpoint like `GET /auth/me` — doesn't
+have a helper yet; nothing calls `/auth/me` from this side yet.
+`backend/CLAUDE.md` owns the API-side rules that come with any of this —
+**read it before touching auth or adding an API call.** The base URL is
+`API_URL` (`frontend/.env.example`), read only server-side, deliberately not
+`NEXT_PUBLIC_*`.
+
+**Resume upload is wired.** The onboarding form (`onboarding/applicant`)
+uploads on Continue; the seeker profile (`(seeker)/profile`) uploads
+immediately on file select and supports up to 5 resumes (newest first,
+optimistic add with rollback on failure). Both call `uploadResume` from
+`src/lib/resume-actions.ts`. The `ResumeUpload` component
+(`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
+knows nothing about upload logic or limits. Skill detection from resumes was
+stubbed with mock data and has been removed; add it back when the backend
+has a parsing endpoint.
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.
