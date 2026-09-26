@@ -1,4 +1,4 @@
-'Handles all API related requests from frontend to backend'
+// Handles all API related requests from frontend to backend
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 

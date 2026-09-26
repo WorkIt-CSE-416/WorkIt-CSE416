@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 
+import { uploadResume } from "./actions";
 import { EXPERTISE_SUGGESTIONS, JOB_TYPES, MOCK_RESUME_SKILLS } from "./data";
 import { ExpertiseField } from "./expertise-field";
 import { JobTypeField } from "./job-type-field";
@@ -39,6 +40,9 @@ export function OnboardingForm() {
   const [jobTypes, setJobTypes] = useState<string[]>([]);
 
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const [detected, setDetected] = useState<string[] | null>(null);
 
   /* Analyzing is derived rather than its own state: a file is present and the
@@ -85,6 +89,23 @@ export function OnboardingForm() {
   }
 
   const canContinue = expertise.length > 0 && jobTypes.length > 0;
+
+  async function handleContinue(){
+    if (resumeFile){
+      setUploading(true);
+      setUploadError(null);
+      const fd = new FormData();
+      fd.append("file", resumeFile);
+      const { error } = await uploadResume(fd);
+
+      setUploading(false);
+      if (error) {
+        setUploadError(error);
+        return;
+      }
+    }
+    router.push("/jobs");
+  }
 
   return (
     <Card padding="none" className="mt-6 w-full">
@@ -149,9 +170,18 @@ export function OnboardingForm() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 p-5">
         <TextLink href="/login">Back to Sign In</TextLink>
-        <Button size="lg" disabled={!canContinue} onClick={() => router.push("/jobs")}>
-          Continue
-        </Button>
+          <div className="flex items-center gap-3">
+            {uploadError && (
+              <p className="text-meta text-red-600">{uploadError}</p>
+            )}
+            <Button
+              size="lg"
+              disabled={!canContinue || uploading}
+              onClick={handleContinue}
+            >
+              {uploading ? "Uploading\u2026" : "Continue"}
+            </Button>
+          </div>
       </div>
     </Card>
   );
