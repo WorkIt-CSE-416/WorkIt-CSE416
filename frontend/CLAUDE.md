@@ -52,6 +52,8 @@ generated route types that do not exist on a fresh clone, so bare `tsc` fails.
 ## Architecture
 
 ```
+src/proxy.ts      Refreshes the Supabase session on every request (Next 16's
+                  renamed middleware). Not a security boundary.
 src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
@@ -62,7 +64,8 @@ src/app/          App Router routes, layouts, pages
                   collide on a URL. /company is the hiring dashboard;
                   table.tsx is the sortable/filterable table its two list
                   screens share.
-  login/          Auth screens, outside both shells
+  login/          Auth screens, outside both shells (signup/ too); their
+                  actions.ts are the only places that sign in
   design-kit/     Every token and component, one route per section, resolved
                   from the live stylesheet — outside both shells on purpose.
                   Section titles and notes live in its data.ts so the nav and
@@ -82,7 +85,8 @@ src/components/   Shared components
                   `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
-  supabase/server.ts  Dead — the API issues tokens now. Removable.
+  auth.ts         apiFetch() to the Python API, with an optional Bearer token
+  supabase/server.ts  Per-request Supabase client — auth only, never data
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448 — auth card and app top bar
   workit-icon.png Mark only, 481x448 — favicon source only
@@ -175,37 +179,43 @@ pool, no schema and no migrations here — that is the Python API's job, and it
 owns the connection string. A query belongs in an endpoint, and a `page.tsx`
 reaches it through that screen's `data.ts`.
 
-**Auth is wired up for applicant accounts.** The Python API issues session
-tokens; Supabase is managed Postgres and nothing else. `signup/actions.ts` and
-`login/actions.ts` call `POST /auth/signup` / `POST /auth/login` through
-`src/lib/auth.ts` and redirect off the real response — company accounts still
-hit the same call and surface whatever the API says back (`501` today, since
-no screen collects a company name yet — see `backend/db/auth_methodology.md`
-§2 decision 4). That decision is deliberately still open: `onboarding/company`
-is a stub, so there's nowhere to send a new company account even once the
-signup fields exist. Don't build the company-signup fields ahead of that
-route landing.
+**Auth is Supabase Auth, wired up for applicant accounts.** Supabase Auth
+issues and refreshes the session; the Python API verifies the access token
+and owns authorization. `backend/CLAUDE.md`'s Auth section owns the flow and
+its rules — **read it before touching auth or adding an API call.** The Next
+side:
 
-That makes three things dead rather than provisional:
-`src/lib/supabase/server.ts`, both `NEXT_PUBLIC_SUPABASE_*` variables, and the
-`@supabase/*` dependencies. Nothing calls them and nothing will. **Do not build
-on them** — they are removable, and the only reason they are still here is that
-nobody has done the removal.
+- `login/actions.ts` calls `supabase.auth.signInWithPassword()`, then
+  `GET /auth/me` with the new access token to learn the account type and
+  onboarding state, and redirects off that. If the account type doesn't match
+  the tab the user signed in on, it signs out again and shows the
+  wrong-password message.
+- `signup/actions.ts` calls `POST /auth/signup` — **not**
+  `supabase.auth.signUp()`, which can only write `user_metadata`, a field the
+  user can edit, so it cannot be trusted with the account type — and then
+  signs in. Company signup gets the API's `501` back and shows it; don't build
+  the company-signup fields until `onboarding/company` exists to receive them.
+- `src/proxy.ts` refreshes the session on every request. @supabase/ssr
+  requires it: Server Components cannot write cookies, so without it sessions
+  die when the hour-long access token does. It does nothing when the Supabase
+  variables are unset, which keeps a clone with no env file booting.
 
-**The token travels through Server Actions, not a Client Component + CORS.**
-`src/lib/auth.ts`'s `apiFetch()` runs only on the Next server — a
-server-to-server call the browser never sees, so there is no CORS to
-configure on the API side and the token never reaches client JS. The API
-hands the token back only via `Set-Cookie` (never the JSON body — see
-`backend/app/schemas/auth.py`), and a server-to-server fetch's `Set-Cookie`
-does not forward to the browser on its own, so `relaySessionCookie()` reads
-it off the response and re-sets it as Next's own cookie. The reverse
-direction — forwarding the browser's cookie onto a call to a protected
-endpoint like `GET /auth/me` — doesn't have a helper yet; nothing calls
-`/auth/me` from this side yet. `backend/CLAUDE.md` owns the API-side rules
-that come with any of this — **read it before touching auth or adding an API
-call.** The base URL is `API_URL` (`frontend/.env.example`), read only
-server-side, deliberately not `NEXT_PUBLIC_*`.
+**The token travels server-side.** The browser holds only Supabase's
+`sb-*` cookies, on this origin. Server code reads the access token from the
+session and passes it to `apiFetch()` as a Bearer header — the API never sees
+the cookies and needs no CORS. Use `getClaims()`, not `getSession()`, for any
+decision made here; `getSession()` is fine for fetching a token to forward,
+because the API verifies it anyway.
+
+**The proxy is a convenience, not security.** A signed-out redirect or the
+seeker/company path guard can go there, but the API is reachable without
+Next, so it checks every token itself.
+
+Env lives in `frontend/.env.local` (template: `frontend/.env.example`):
+`API_URL` server-side only, plus `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`. The anon key is meant to be public. **The
+service-role key must never appear in this folder** — one `NEXT_PUBLIC_`
+prefix puts it in every browser.
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.
