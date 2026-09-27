@@ -32,10 +32,14 @@ export default function ProfilePage() {
   // Resume items
   const [resumeList, setResumeList] = useState<ResumeItem[]>([]);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Load the resumes initially
   useEffect(() => {
-    listResumes().then(({ resumes }) => setResumeList(resumes));
+    listResumes().then(({ resumes, error }) => {
+      setResumeList(resumes);
+      if (error) setResumeError(error);
+    });
   }, []);
 
   async function handleResumeFileAdd(file: File) {
@@ -43,17 +47,23 @@ export default function ProfilePage() {
       setResumeError("Max limit for resume reached. Remove one to upload another.");
       return;
     }
+    if (uploading) return;
     setResumeError(null);
+    setUploading(true);
 
     const fd = new FormData();
     fd.append("file", file);
-    const { resume, error } = await uploadResume(fd);
-    if (error) {
-      setResumeError(error);
-      return;
-    }
-    if (resume) {
-      setResumeList((prev) => [resume, ...prev]);
+    try {
+      const { resume, error } = await uploadResume(fd);
+      if (error) {
+        setResumeError(error);
+        return;
+      }
+      if (resume) {
+        setResumeList((prev) => [resume, ...prev]);
+      }
+    } finally {
+      setUploading(false);
     }
   }
 

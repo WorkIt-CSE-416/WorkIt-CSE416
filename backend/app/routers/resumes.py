@@ -10,18 +10,22 @@ from sqlalchemy import select
 
 from app.db import get_session, get_supabase
 from app.models.resume import Resume
+from app.models.dto import ResumeStatus
 from app.deps import get_current_account
-from app.schemas.auth import AuthenticatedAccount
+from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter()
 
-ALLOWED_TYPES = {
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-}
 MAX_SIZE = 5 * 1024 * 1024
 BUCKET = "Resume"
+PDF_MAGIC = b"%PDF"
+DOCX_MAGIC = b"PK\x03\x04"
 
+
+def _assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUID) -> None:
+    """Shared ownership guard for all resume endpoints."""
+    if account.account_type != AccountType.APPLICANT or account.id != applicant_id:
+        raise HTTPException(403, "Forbidden")
 
 
 # Depends grabs get_session before function runs and passes the session into function.
@@ -33,11 +37,7 @@ async def upload_resume(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session)
 ):
-    if account.id != applicant_id:
-        raise HTTPException(403, "Cannot upload to another applicant's profile")
-
-    if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(400, "Only PDF and DOCX files are accepted")
+    _assert_applicant_owns(account, applicant_id)
 
     # check size metadata
     if file.size is not None and file.size > MAX_SIZE:
@@ -48,8 +48,15 @@ async def upload_resume(
     if len(contents) > MAX_SIZE:
         raise HTTPException(413, "File must be under 5 MB")
 
-    # storage path
-    ext = ".pdf" if file.content_type == "application/pdf" else ".docx"
+    # validate magic bytes — content_type is client-supplied and untrustworthy
+    if contents.startswith(PDF_MAGIC):
+        ext = ".pdf"
+        mime = "application/pdf"
+    elif contents.startswith(DOCX_MAGIC):
+        ext = ".docx"
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        raise HTTPException(400, "Only PDF and DOCX files are accepted")
 
     resume_id = uuid.uuid4()
     storage_path = f"{applicant_id}/{resume_id}{ext}"
@@ -62,7 +69,7 @@ async def upload_resume(
             client.storage.from_(BUCKET).upload,
             storage_path,
             contents,
-            {"content-type": file.content_type},
+            {"content-type": mime},
         )
     except Exception:
         raise HTTPException(502, "File upload failed")
@@ -74,7 +81,7 @@ async def upload_resume(
         applicant_id=applicant_id,
         original_filename=file.filename,
         storage_path=storage_path,
-        status="uploaded",
+        status=ResumeStatus.uploaded,
         created_at=datetime.now(timezone.utc),
     )
 
@@ -108,8 +115,7 @@ async def list_resumes(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
-    if account.id != applicant_id:
-        raise HTTPException(403, "Cannot access another applicant's resumes")
+    _assert_applicant_owns(account, applicant_id)
 
     result = await session.execute(
         select(Resume)
@@ -137,8 +143,7 @@ async def delete_resume(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
-    if account.id != applicant_id:
-        raise HTTPException(403, "Cannot delete another applicant's resume")
+    _assert_applicant_owns(account, applicant_id)
 
     resume = (
         await session.execute(
@@ -149,22 +154,24 @@ async def delete_resume(
     if not resume:
         raise HTTPException(404, "Resume not found")
 
-    # Delete from Storage first
-    client = get_supabase()
-    try:
-        await asyncio.to_thread(
-            client.storage.from_(BUCKET).remove,
-            [resume.storage_path],
-        )
-    except Exception:
-        raise HTTPException(502, "Failed to delete file from storage")
-
-    # Then delete the DB row
+    # Delete DB row first (reversible via rollback), then Storage
+    storage_path = resume.storage_path
     try:
         await session.delete(resume)
         await session.commit()
     except Exception:
         await session.rollback()
         raise HTTPException(500, "Failed to delete resume record")
+
+    # DB succeeded — now remove the file from Storage
+    # If this fails the file is orphaned, but no data is lost
+    client = get_supabase()
+    try:
+        await asyncio.to_thread(
+            client.storage.from_(BUCKET).remove,
+            [storage_path],
+        )
+    except Exception:
+        pass  # ponytail: orphaned file in Storage; add cleanup job if this becomes a problem
 
     return {"detail": "Resume deleted"}
