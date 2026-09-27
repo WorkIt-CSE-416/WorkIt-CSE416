@@ -13,7 +13,7 @@ import { Avatar } from "@/components/avatar";
 import { PROFILE, ROLES, SKILLS } from "./data";
 import { PhoneIcon } from "./icons";
 import { ResumeUpload, formatBytes } from "@/components/resume-upload";
-import { uploadResume } from "@/lib/resume-actions";
+import { uploadResume, deleteResume, listResumes } from "@/lib/resume-actions";
 
 /**
  * KAN-43 renders the profile mockup only, against the fixtures in ./data.

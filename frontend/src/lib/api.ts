@@ -11,3 +11,17 @@ export function apiUpload(path: string, body: FormData, accessToken?: string): P
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
   });
 }
+
+
+export function apiGet(path: string, accessToken?: string): Promise<Response> {
+  return fetch(`${API_URL}${path}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  })
+}
+
+export function apiDelete(path: string, accessToken?: string): Promise<Response> {
+  return fetch(`${API_URL}${path}`, {
+    method: "DELETE",
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  });
+}
