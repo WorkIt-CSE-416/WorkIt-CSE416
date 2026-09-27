@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ChangeEvent, type DragEvent } from "react";
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
 import { PdfIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -23,21 +23,32 @@ export function formatBytes(bytes: number) {
 
 export function ResumeUpload({ file, onFileChange, onRemove }: ResumeUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   function isAllowed(file: File): boolean {
     return ALLOWED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
   }
 
+  function handleFile(next: File) {
+    if (!isAllowed(next)) {
+      setFileError("Only PDF and DOCX files are accepted.");
+      setTimeout(() => setFileError(null), 4000);
+      return;
+    }
+    setFileError(null);
+    onFileChange(next);
+  }
+
   function handleSelect(event: ChangeEvent<HTMLInputElement>) {
     const next = event.target.files?.[0];
-    if (next && isAllowed(next)) onFileChange(next);
+    if (next) handleFile(next);
     event.target.value = "";
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     const next = event.dataTransfer.files?.[0];
-    if (next && isAllowed(next)) onFileChange(next);
+    if (next) handleFile(next);
   }
 
   return (
@@ -61,11 +72,13 @@ export function ResumeUpload({ file, onFileChange, onRemove }: ResumeUploadProps
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.doc,.docx"
+          accept=".pdf,.docx"
           onChange={handleSelect}
           className="sr-only"
         />
       </div>
+
+      {fileError && <p className="text-meta mt-2 text-red-600">{fileError}</p>}
 
       {file && (
         <div className="border-border-subtle bg-app rounded-control mt-4 flex items-center gap-3 border p-2">
