@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 
 const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
+const MAX_SIZE = 5 * 1024 * 1024;
 
 type ResumeUploadProps = {
   file: File | null;
@@ -32,6 +33,11 @@ export function ResumeUpload({ file, onFileChange, onRemove }: ResumeUploadProps
   function handleFile(next: File) {
     if (!isAllowed(next)) {
       setFileError("Only PDF and DOCX files are accepted.");
+      setTimeout(() => setFileError(null), 4000);
+      return;
+    }
+    if (next.size > MAX_SIZE) {
+      setFileError("File must be under 5 MB.");
       setTimeout(() => setFileError(null), 4000);
       return;
     }

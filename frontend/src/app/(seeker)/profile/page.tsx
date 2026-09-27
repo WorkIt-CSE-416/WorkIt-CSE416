@@ -39,7 +39,10 @@ export default function ProfilePage() {
   }, []);
 
   async function handleResumeFileAdd(file: File) {
-    if (resumeList.length >= 5) return;
+    if (resumeList.length >= 5) {
+      setResumeError("Max limit for resume reached. Remove one to upload another.");
+      return;
+    }
     setResumeError(null);
 
     const fd = new FormData();
