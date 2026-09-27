@@ -84,7 +84,6 @@ async def upload_resume(
         storage_path=storage_path,
         status=ResumeStatus.uploaded,
         created_at=datetime.now(UTC),
-,
     )
 
     # track for insertion
