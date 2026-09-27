@@ -1,0 +1,4 @@
+# jobs.json is scraper output, committed so `--offline` works on a fresh clone and
+# the demo cannot fail on a bad network. Marking it generated keeps it collapsed in
+# pull request diffs and out of the repo's language statistics.
+jobs.json linguist-generated=true

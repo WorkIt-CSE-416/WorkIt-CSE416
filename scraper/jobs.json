@@ -1,0 +1,2609 @@
+{
+ "jobs": [
+  {
+   "apply_url": "https://jobs.ashbyhq.com/cohere/36d1f52f-8270-4652-adf5-5303a0ff341b/application",
+   "ats": "ashby",
+   "company": "Cohere",
+   "department": "Internships",
+   "external_id": "36d1f52f-8270-4652-adf5-5303a0ff341b",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/cohere#36d1f52f-8270-4652-adf5-5303a0ff341b",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Canada",
+   "posted_at": "2026-05-13T17:16:14.014000+00:00",
+   "tags": [
+    "intern",
+    "ai-ml"
+   ],
+   "title": "Machine Learning Intern/Co-op  (Winter 2027)",
+   "token": "cohere"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/cohere/8c035d3d-081d-4c8a-914a-72f4efaad254/application",
+   "ats": "ashby",
+   "company": "Cohere",
+   "department": "Internships",
+   "external_id": "8c035d3d-081d-4c8a-914a-72f4efaad254",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/cohere#8c035d3d-081d-4c8a-914a-72f4efaad254",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Canada",
+   "posted_at": "2026-05-01T20:20:40.899000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Winter 2027)",
+   "token": "cohere"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/decagon/16529089-a048-4bc3-8456-3f197135e00b/application",
+   "ats": "ashby",
+   "company": "Decagon",
+   "department": "University",
+   "external_id": "16529089-a048-4bc3-8456-3f197135e00b",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/decagon#16529089-a048-4bc3-8456-3f197135e00b",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco",
+   "posted_at": "2026-08-20T23:04:23.664000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Engineering Intern (Summer 2027)",
+   "token": "decagon"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/notion/297b4ece-765f-4eea-b1b8-46057cb6501f/application",
+   "ats": "ashby",
+   "company": "Notion",
+   "department": "Early Career",
+   "external_id": "297b4ece-765f-4eea-b1b8-46057cb6501f",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/notion#297b4ece-765f-4eea-b1b8-46057cb6501f",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, California",
+   "posted_at": "2026-07-06T18:37:35.161000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, Early Career",
+   "token": "notion"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/notion/2b587e66-deac-421a-a824-9415ba78b5a7/application",
+   "ats": "ashby",
+   "company": "Notion",
+   "department": "Early Career",
+   "external_id": "2b587e66-deac-421a-a824-9415ba78b5a7",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/notion#2b587e66-deac-421a-a824-9415ba78b5a7",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, California",
+   "posted_at": "2026-09-24T19:58:11.492000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern, Mobile (Winter 2027)",
+   "token": "notion"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/notion/3fba1c39-c5cb-47d7-9ad2-1cec4d7e9d0c/application",
+   "ats": "ashby",
+   "company": "Notion",
+   "department": "Early Career",
+   "external_id": "3fba1c39-c5cb-47d7-9ad2-1cec4d7e9d0c",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/notion#3fba1c39-c5cb-47d7-9ad2-1cec4d7e9d0c",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, California",
+   "posted_at": "2026-08-14T19:07:13.459000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Summer 2027)",
+   "token": "notion"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/notion/85947779-6b87-466a-98bc-30a640448c28/application",
+   "ats": "ashby",
+   "company": "Notion",
+   "department": "Early Career",
+   "external_id": "85947779-6b87-466a-98bc-30a640448c28",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/notion#85947779-6b87-466a-98bc-30a640448c28",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, California",
+   "posted_at": "2026-07-06T18:37:42.434000+00:00",
+   "tags": [
+    "new-grad",
+    "ai-ml",
+    "swe"
+   ],
+   "title": "Software Engineer, Early Career (AI)",
+   "token": "notion"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/notion/a67d6f2b-7c13-41d0-b36b-b2f662c9873e/application",
+   "ats": "ashby",
+   "company": "Notion",
+   "department": "Early Career",
+   "external_id": "a67d6f2b-7c13-41d0-b36b-b2f662c9873e",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/notion#a67d6f2b-7c13-41d0-b36b-b2f662c9873e",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, California",
+   "posted_at": "2026-08-19T22:32:00.399000+00:00",
+   "tags": [
+    "intern",
+    "ai-ml"
+   ],
+   "title": "Data Science Intern (Winter 2027)",
+   "token": "notion"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/notion/e32799d2-8ef8-4803-8189-c72514afa816/application",
+   "ats": "ashby",
+   "company": "Notion",
+   "department": "Early Career",
+   "external_id": "e32799d2-8ef8-4803-8189-c72514afa816",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/notion#e32799d2-8ef8-4803-8189-c72514afa816",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, California",
+   "posted_at": "2026-08-14T19:12:39.557000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad (Dec 2026)",
+   "token": "notion"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/notion/e66c6658-9e65-4c58-8db2-844628b6e8f8/application",
+   "ats": "ashby",
+   "company": "Notion",
+   "department": "Early Career",
+   "external_id": "e66c6658-9e65-4c58-8db2-844628b6e8f8",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/notion#e66c6658-9e65-4c58-8db2-844628b6e8f8",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, California",
+   "posted_at": "2026-08-14T19:05:18.297000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Winter 2027)",
+   "token": "notion"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/ramp/a13ae586-f4cb-4385-8822-c42b9b54ed74/application",
+   "ats": "ashby",
+   "company": "Ramp",
+   "department": "Engineering",
+   "external_id": "a13ae586-f4cb-4385-8822-c42b9b54ed74",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/ramp#a13ae586-f4cb-4385-8822-c42b9b54ed74",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY (HQ)",
+   "posted_at": "2026-09-24T00:40:15.975000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Internship, Frontend",
+   "token": "ramp"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/ramp/acf6b28d-767f-483f-8ff2-114620cd7e04/application",
+   "ats": "ashby",
+   "company": "Ramp",
+   "department": "Engineering",
+   "external_id": "acf6b28d-767f-483f-8ff2-114620cd7e04",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/ramp#acf6b28d-767f-483f-8ff2-114620cd7e04",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY (HQ)",
+   "posted_at": "2026-04-09T01:01:29.953000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern, Backend",
+   "token": "ramp"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/ramp/b66be397-240b-41a6-9b05-493299b270a9/application",
+   "ats": "ashby",
+   "company": "Ramp",
+   "department": "Engineering",
+   "external_id": "b66be397-240b-41a6-9b05-493299b270a9",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/ramp#b66be397-240b-41a6-9b05-493299b270a9",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY (HQ)",
+   "posted_at": "2026-09-24T01:01:49.394000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern, iOS",
+   "token": "ramp"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/ramp/fcf118cc-521a-4a62-9d13-945e5b6e3cb8/application",
+   "ats": "ashby",
+   "company": "Ramp",
+   "department": "Engineering",
+   "external_id": "fcf118cc-521a-4a62-9d13-945e5b6e3cb8",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/ramp#fcf118cc-521a-4a62-9d13-945e5b6e3cb8",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY (HQ)",
+   "posted_at": "2026-09-24T00:55:33.807000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern, Android",
+   "token": "ramp"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/sentry/f345b525-b2e9-4dc1-bec1-85fb4c3b3cf2/application",
+   "ats": "ashby",
+   "company": "Sentry",
+   "department": "Engineering ",
+   "external_id": "f345b525-b2e9-4dc1-bec1-85fb4c3b3cf2",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/sentry#f345b525-b2e9-4dc1-bec1-85fb4c3b3cf2",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Vienna, Austria",
+   "posted_at": "2026-09-10T15:39:23.649000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad (2027)",
+   "token": "sentry"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/sentry/fa522ac5-fc9f-4ce1-a191-842496a235a2/application",
+   "ats": "ashby",
+   "company": "Sentry",
+   "department": "Engineering ",
+   "external_id": "fa522ac5-fc9f-4ce1-a191-842496a235a2",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/sentry#fa522ac5-fc9f-4ce1-a191-842496a235a2",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Vienna, Austria",
+   "posted_at": "2026-09-10T15:39:22.153000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern (Summer 2027)",
+   "token": "sentry"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/sierra/149f368c-52d5-408f-ba26-ad888f318a00/application",
+   "ats": "ashby",
+   "company": "Sierra",
+   "department": "Early Career",
+   "external_id": "149f368c-52d5-408f-ba26-ad888f318a00",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/sierra#149f368c-52d5-408f-ba26-ad888f318a00",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA",
+   "posted_at": "2026-08-31T17:54:40.218000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, Agent (New Grad 2027)",
+   "token": "sierra"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/sierra/34b31b67-268c-4270-b48f-72e59064c96e/application",
+   "ats": "ashby",
+   "company": "Sierra",
+   "department": "Early Career",
+   "external_id": "34b31b67-268c-4270-b48f-72e59064c96e",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/sierra#34b31b67-268c-4270-b48f-72e59064c96e",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA",
+   "posted_at": "2026-08-31T21:42:19.593000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern, Agent (Summer 2027)",
+   "token": "sierra"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/sierra/79953d72-60d4-43e0-8c8c-6eccda422dce/application",
+   "ats": "ashby",
+   "company": "Sierra",
+   "department": "Early Career",
+   "external_id": "79953d72-60d4-43e0-8c8c-6eccda422dce",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/sierra#79953d72-60d4-43e0-8c8c-6eccda422dce",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Singapore",
+   "posted_at": "2026-09-07T02:02:53.490000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, Agent (New Grad 2027)",
+   "token": "sierra"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/sierra/eb8e8b58-394b-43f0-b9bd-4f1407d9aa17/application",
+   "ats": "ashby",
+   "company": "Sierra",
+   "department": "Early Career",
+   "external_id": "eb8e8b58-394b-43f0-b9bd-4f1407d9aa17",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/sierra#eb8e8b58-394b-43f0-b9bd-4f1407d9aa17",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Singapore",
+   "posted_at": "2026-09-07T01:56:26.806000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern, Agent (Summer 2027)",
+   "token": "sierra"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/snowflake/1bad12df-f443-426f-9d09-e96fc780d698/application",
+   "ats": "ashby",
+   "company": "Snowflake",
+   "department": "Engineering",
+   "external_id": "1bad12df-f443-426f-9d09-e96fc780d698",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/snowflake#1bad12df-f443-426f-9d09-e96fc780d698",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "US-WA-Bellevue",
+   "posted_at": "2026-09-03T21:07:05.402000+00:00",
+   "tags": [
+    "new-grad",
+    "ai-ml"
+   ],
+   "title": "AI Research Scientist, New Grad \u2013 Agents & Reinforcement Learning",
+   "token": "snowflake"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/snowflake/41e65c6c-a01e-4f40-af14-ae75d3b95e27/application",
+   "ats": "ashby",
+   "company": "Snowflake",
+   "department": "Engineering",
+   "external_id": "41e65c6c-a01e-4f40-af14-ae75d3b95e27",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/snowflake#41e65c6c-a01e-4f40-af14-ae75d3b95e27",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "DE-Berlin-Trion Building",
+   "posted_at": "2026-06-02T11:41:43.304000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern - Berlin (2026)",
+   "token": "snowflake"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/snowflake/4be290ae-dd9d-488c-9d90-56fcd69101ca/application",
+   "ats": "ashby",
+   "company": "Snowflake",
+   "department": "Engineering",
+   "external_id": "4be290ae-dd9d-488c-9d90-56fcd69101ca",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/snowflake#4be290ae-dd9d-488c-9d90-56fcd69101ca",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "US-CA-Menlo Park",
+   "posted_at": "2026-09-25T01:05:50.921000+00:00",
+   "tags": [
+    "intern",
+    "ai-ml",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (AI / ML) - Spring 2027",
+   "token": "snowflake"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/snowflake/5315b6f6-2c14-4cb9-a884-c2bae69f2c69/application",
+   "ats": "ashby",
+   "company": "Snowflake",
+   "department": "Engineering",
+   "external_id": "5315b6f6-2c14-4cb9-a884-c2bae69f2c69",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/snowflake#5315b6f6-2c14-4cb9-a884-c2bae69f2c69",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "US-CA-Menlo Park",
+   "posted_at": "2026-09-25T01:03:02.890000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Core, Infrastructure & Security) \u2014 Spring 2027",
+   "token": "snowflake"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/snowflake/7bd393df-67d7-4009-ba4f-1cd79a82b0be/application",
+   "ats": "ashby",
+   "company": "Snowflake",
+   "department": "Engineering",
+   "external_id": "7bd393df-67d7-4009-ba4f-1cd79a82b0be",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/snowflake#7bd393df-67d7-4009-ba4f-1cd79a82b0be",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "US-CA-Menlo Park",
+   "posted_at": "2026-09-25T01:04:54.726000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Database Engineering) - Spring 2027",
+   "token": "snowflake"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/snowflake/90190b16-fd27-4366-8c10-9c4896157681/application",
+   "ats": "ashby",
+   "company": "Snowflake",
+   "department": "Engineering",
+   "external_id": "90190b16-fd27-4366-8c10-9c4896157681",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/snowflake#90190b16-fd27-4366-8c10-9c4896157681",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "PL-Warsaw-Lixa C",
+   "posted_at": "2026-09-08T12:47:25.957000+00:00",
+   "tags": [
+    "intern",
+    "ai-ml"
+   ],
+   "title": "Applied AI Intern - Warsaw",
+   "token": "snowflake"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/snowflake/ab028e3c-c1cf-4455-8915-8e4e6b0cc9e8/application",
+   "ats": "ashby",
+   "company": "Snowflake",
+   "department": "Engineering",
+   "external_id": "ab028e3c-c1cf-4455-8915-8e4e6b0cc9e8",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/snowflake#ab028e3c-c1cf-4455-8915-8e4e6b0cc9e8",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "DE-Berlin-Trion Building",
+   "posted_at": "2026-09-22T13:26:52.671000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern - Berlin (2027)",
+   "token": "snowflake"
+  },
+  {
+   "apply_url": "https://jobs.ashbyhq.com/snowflake/fc1923c1-b151-4458-a792-40d58331a5be/application",
+   "ats": "ashby",
+   "company": "Snowflake",
+   "department": "Engineering",
+   "external_id": "fc1923c1-b151-4458-a792-40d58331a5be",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "ashby/snowflake#fc1923c1-b151-4458-a792-40d58331a5be",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "PL-Warsaw-Lixa C",
+   "posted_at": "2026-08-05T14:38:40.509000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern - Warsaw Security",
+   "token": "snowflake"
+  },
+  {
+   "apply_url": "https://databricks.com/company/careers/open-positions/job?gh_jid=7011263002",
+   "ats": "greenhouse",
+   "company": "Databricks",
+   "department": null,
+   "external_id": "7011263002",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/databricks#7011263002",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, California",
+   "posted_at": "2023-11-07T21:36:32+00:00",
+   "tags": [
+    "intern",
+    "ai-ml"
+   ],
+   "title": "PhD GenAI Research Scientist Intern",
+   "token": "databricks"
+  },
+  {
+   "apply_url": "https://databricks.com/company/careers/open-positions/job?gh_jid=8732364002",
+   "ats": "greenhouse",
+   "company": "Databricks",
+   "department": null,
+   "external_id": "8732364002",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/databricks#8732364002",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Bellevue, Washington; Mountain View, California; San Francisco, California",
+   "posted_at": "2026-08-20T23:40:25+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern (2027 Start) - Winter",
+   "token": "databricks"
+  },
+  {
+   "apply_url": "https://careers.datadoghq.com/detail/8052118/?gh_jid=8052118",
+   "ats": "greenhouse",
+   "company": "Datadog",
+   "department": null,
+   "external_id": "8052118",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/datadog#8052118",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Boston, Massachusetts, USA; New York, New York, USA",
+   "posted_at": "2026-09-08T14:07:37+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern (Summer)",
+   "token": "datadog"
+  },
+  {
+   "apply_url": "https://careers.datadoghq.com/detail/8114161/?gh_jid=8114161",
+   "ats": "greenhouse",
+   "company": "Datadog",
+   "department": null,
+   "external_id": "8114161",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/datadog#8114161",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Madrid, Spain",
+   "posted_at": "2026-09-08T14:04:29+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern",
+   "token": "datadog"
+  },
+  {
+   "apply_url": "https://careers.datadoghq.com/detail/8114186/?gh_jid=8114186",
+   "ats": "greenhouse",
+   "company": "Datadog",
+   "department": null,
+   "external_id": "8114186",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/datadog#8114186",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Paris, France",
+   "posted_at": "2026-09-08T14:06:46+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern",
+   "token": "datadog"
+  },
+  {
+   "apply_url": "https://careers.duolingo.com/jobs/8805925002?gh_jid=8805925002",
+   "ats": "greenhouse",
+   "company": "Duolingo",
+   "department": null,
+   "external_id": "8805925002",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/duolingo#8805925002",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY; Pittsburgh, PA; Seattle, WA",
+   "posted_at": "2026-09-15T16:00:00+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern",
+   "token": "duolingo"
+  },
+  {
+   "apply_url": "https://careers.duolingo.com/jobs/8806114002?gh_jid=8806114002",
+   "ats": "greenhouse",
+   "company": "Duolingo",
+   "department": null,
+   "external_id": "8806114002",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/duolingo#8806114002",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Pittsburgh, PA",
+   "posted_at": "2026-09-15T16:00:00+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Thrive Intern",
+   "token": "duolingo"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/figma/jobs/6131089004?gh_jid=6131089004",
+   "ats": "greenhouse",
+   "company": "Figma",
+   "department": null,
+   "external_id": "6131089004",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/figma#6131089004",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA \u2022 New York, NY",
+   "posted_at": "2026-08-10T19:03:06+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Winter 2027)",
+   "token": "figma"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/figma/jobs/6143238004?gh_jid=6143238004",
+   "ats": "greenhouse",
+   "company": "Figma",
+   "department": null,
+   "external_id": "6143238004",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/figma#6143238004",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA \u2022 New York, NY",
+   "posted_at": "2026-09-14T17:36:20+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Summer 2027)",
+   "token": "figma"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/figma/jobs/6152695004?gh_jid=6152695004",
+   "ats": "greenhouse",
+   "company": "Figma",
+   "department": null,
+   "external_id": "6152695004",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/figma#6152695004",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, England",
+   "posted_at": "2026-09-14T17:36:24+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (London, United Kingdom) (Summer 2027)",
+   "token": "figma"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/figma/jobs/6178851004?gh_jid=6178851004",
+   "ats": "greenhouse",
+   "company": "Figma",
+   "department": null,
+   "external_id": "6178851004",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/figma#6178851004",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA \u2022 New York, NY",
+   "posted_at": "2026-09-23T19:30:27+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Data Engineer Intern (2027)",
+   "token": "figma"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/figma/jobs/6178857004?gh_jid=6178857004",
+   "ats": "greenhouse",
+   "company": "Figma",
+   "department": null,
+   "external_id": "6178857004",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/figma#6178857004",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA \u2022 New York, NY",
+   "posted_at": "2026-09-14T17:36:27+00:00",
+   "tags": [
+    "intern",
+    "ai-ml"
+   ],
+   "title": "Data Science Intern (2027)",
+   "token": "figma"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/figma/jobs/6200626004?gh_jid=6200626004",
+   "ats": "greenhouse",
+   "company": "Figma",
+   "department": null,
+   "external_id": "6200626004",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/figma#6200626004",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA \u2022 New York, NY",
+   "posted_at": "2026-09-21T17:47:10+00:00",
+   "tags": [
+    "intern",
+    "ai-ml"
+   ],
+   "title": "PhD Intern, Data Science (2027)",
+   "token": "figma"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/robinhood/jobs/8123225?t=gh_src=&gh_jid=8123225",
+   "ats": "greenhouse",
+   "company": "Robinhood",
+   "department": null,
+   "external_id": "8123225",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/robinhood#8123225",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Bellevue, WA; Menlo Park, CA; New York, NY",
+   "posted_at": "2026-09-14T12:00:08+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern, Backend (Summer 2027)",
+   "token": "robinhood"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/robinhood/jobs/8142930?t=gh_src=&gh_jid=8142930",
+   "ats": "greenhouse",
+   "company": "Robinhood",
+   "department": null,
+   "external_id": "8142930",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/robinhood#8142930",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Toronto, Canada",
+   "posted_at": "2026-09-14T12:00:08+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Developer Intern, Backend (Summer 2027)",
+   "token": "robinhood"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/robinhood/jobs/8142959?t=gh_src=&gh_jid=8142959",
+   "ats": "greenhouse",
+   "company": "Robinhood",
+   "department": null,
+   "external_id": "8142959",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/robinhood#8142959",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Menlo Park, CA; New York, NY",
+   "posted_at": "2026-09-14T12:00:09+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern, iOS (Summer 2027)",
+   "token": "robinhood"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/robinhood/jobs/8142961?t=gh_src=&gh_jid=8142961",
+   "ats": "greenhouse",
+   "company": "Robinhood",
+   "department": null,
+   "external_id": "8142961",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/robinhood#8142961",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Menlo Park, CA; New York, NY",
+   "posted_at": "2026-09-14T12:00:09+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern, Android (Summer 2027)",
+   "token": "robinhood"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/robinhood/jobs/8142963?t=gh_src=&gh_jid=8142963",
+   "ats": "greenhouse",
+   "company": "Robinhood",
+   "department": null,
+   "external_id": "8142963",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/robinhood#8142963",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Menlo Park, CA; New York, NY",
+   "posted_at": "2026-09-14T12:00:08+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern, Web (Summer 2027)",
+   "token": "robinhood"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/robinhood/jobs/8194428?t=gh_src=&gh_jid=8194428",
+   "ats": "greenhouse",
+   "company": "Robinhood",
+   "department": null,
+   "external_id": "8194428",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/robinhood#8194428",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Toronto, Canada",
+   "posted_at": "2026-09-14T12:00:08+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Developer Intern/Co-op, Backend (Winter 2027)",
+   "token": "robinhood"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/robinhood/jobs/8199729?t=gh_src=&gh_jid=8199729",
+   "ats": "greenhouse",
+   "company": "Robinhood",
+   "department": null,
+   "external_id": "8199729",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/robinhood#8199729",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Toronto, Canada",
+   "posted_at": "2026-09-14T12:00:08+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Developer Intern, iOS (Summer 2027)",
+   "token": "robinhood"
+  },
+  {
+   "apply_url": "https://boards.greenhouse.io/robinhood/jobs/8199744?t=gh_src=&gh_jid=8199744",
+   "ats": "greenhouse",
+   "company": "Robinhood",
+   "department": null,
+   "external_id": "8199744",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/robinhood#8199744",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Toronto, Canada",
+   "posted_at": "2026-09-14T12:00:09+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Developer Intern, Web (Summer 2027)",
+   "token": "robinhood"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/scaleai/jobs/4730834005",
+   "ats": "greenhouse",
+   "company": "Scale AI",
+   "department": null,
+   "external_id": "4730834005",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/scaleai#4730834005",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Doha, Qatar ",
+   "posted_at": "2026-09-14T13:13:08+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern (Summer 2027)",
+   "token": "scaleai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/scaleai/jobs/4730836005",
+   "ats": "greenhouse",
+   "company": "Scale AI",
+   "department": null,
+   "external_id": "4730836005",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/scaleai#4730836005",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA",
+   "posted_at": "2026-09-04T15:59:59+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer - New Grad",
+   "token": "scaleai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/scaleai/jobs/4730845005",
+   "ats": "greenhouse",
+   "company": "Scale AI",
+   "department": null,
+   "external_id": "4730845005",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/scaleai#4730845005",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA",
+   "posted_at": "2026-09-04T16:00:19+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern (Summer 2027)",
+   "token": "scaleai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/scaleai/jobs/4730846005",
+   "ats": "greenhouse",
+   "company": "Scale AI",
+   "department": null,
+   "external_id": "4730846005",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/scaleai#4730846005",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, UK",
+   "posted_at": "2026-09-14T13:12:21+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern (Summer 2027)",
+   "token": "scaleai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/scaleai/jobs/4730851005",
+   "ats": "greenhouse",
+   "company": "Scale AI",
+   "department": null,
+   "external_id": "4730851005",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/scaleai#4730851005",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Doha, Qatar ",
+   "posted_at": "2026-09-14T13:09:35+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer - New Grad",
+   "token": "scaleai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/scaleai/jobs/4730862005",
+   "ats": "greenhouse",
+   "company": "Scale AI",
+   "department": null,
+   "external_id": "4730862005",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/scaleai#4730862005",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, UK",
+   "posted_at": "2026-09-14T13:11:20+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer - New Grad",
+   "token": "scaleai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/scaleai/jobs/4736426005",
+   "ats": "greenhouse",
+   "company": "Scale AI",
+   "department": null,
+   "external_id": "4736426005",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/scaleai#4736426005",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, CA",
+   "posted_at": "2026-09-23T17:55:35+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, Public Sector - New Grad",
+   "token": "scaleai"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8031833",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8031833",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8031833",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Bengaluru",
+   "posted_at": "2026-07-10T05:33:52+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8097801",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8097801",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8097801",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Dublin",
+   "posted_at": "2026-08-17T13:46:14+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern (Summer or Winter)",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8128744",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8128744",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8128744",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, Seattle, New York",
+   "posted_at": "2026-08-31T22:22:27+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8128745",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8128745",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8128745",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, Seattle, New York City",
+   "posted_at": "2026-08-31T22:20:45+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern (Summer or Winter)",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8130805",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8130805",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8130805",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Toronto",
+   "posted_at": "2026-08-31T23:21:48+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern (Summer or Winter)",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8130807",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8130807",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8130807",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Bucharest",
+   "posted_at": "2026-08-31T22:56:01+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8130867",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8130867",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8130867",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London",
+   "posted_at": "2026-08-31T22:30:38+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8130881",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8130881",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8130881",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Dublin",
+   "posted_at": "2026-08-31T23:07:03+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8130883",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8130883",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8130883",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Singapore",
+   "posted_at": "2026-09-07T05:44:20+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Intern",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8130922",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8130922",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8130922",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Bucharest",
+   "posted_at": "2026-08-31T23:03:34+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8130927",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8130927",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8130927",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Barcelona",
+   "posted_at": "2026-08-31T22:35:45+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Frontend",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8130930",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8130930",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8130930",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London",
+   "posted_at": "2026-08-31T22:32:53+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8157838",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8157838",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8157838",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Toronto",
+   "posted_at": "2026-08-31T23:16:04+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8160776",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8160776",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8160776",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Singapore",
+   "posted_at": "2026-09-03T03:28:52+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8186367",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8186367",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8186367",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Singapore",
+   "posted_at": "2026-09-22T19:33:06+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Integration Reliability Engineer Intern, Technical Operations",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8212508",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8212508",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8212508",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco, Seattle, New York",
+   "posted_at": "2026-09-17T23:22:32+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, Early Career \u2014 Immediate Start",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://stripe.com/jobs/search?gh_jid=8212517",
+   "ats": "greenhouse",
+   "company": "Stripe",
+   "department": null,
+   "external_id": "8212517",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/stripe#8212517",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Toronto",
+   "posted_at": "2026-09-17T23:35:28+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, Early Career \u2014 Immediate Start",
+   "token": "stripe"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/togetherai/jobs/5211582007",
+   "ats": "greenhouse",
+   "company": "Together AI",
+   "department": null,
+   "external_id": "5211582007",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/togetherai#5211582007",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco",
+   "posted_at": "2026-09-18T15:45:25+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad (2027)",
+   "token": "togetherai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/togetherai/jobs/5232036007",
+   "ats": "greenhouse",
+   "company": "Together AI",
+   "department": null,
+   "external_id": "5232036007",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/togetherai#5232036007",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco",
+   "posted_at": "2026-09-18T15:45:14+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Summer 2027)",
+   "token": "togetherai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/togetherai/jobs/5238031007",
+   "ats": "greenhouse",
+   "company": "Together AI",
+   "department": null,
+   "external_id": "5238031007",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/togetherai#5238031007",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco",
+   "posted_at": "2026-09-18T15:45:19+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer Intern (Winter 2027)",
+   "token": "togetherai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/togetherai/jobs/5238411007",
+   "ats": "greenhouse",
+   "company": "Together AI",
+   "department": null,
+   "external_id": "5238411007",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/togetherai#5238411007",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco",
+   "posted_at": "2026-09-18T15:45:36+00:00",
+   "tags": [
+    "intern",
+    "ai-ml",
+    "swe"
+   ],
+   "title": "Systems Research Engineer Intern - GPU Programming (Winter 2027)",
+   "token": "togetherai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/togetherai/jobs/5238460007",
+   "ats": "greenhouse",
+   "company": "Together AI",
+   "department": null,
+   "external_id": "5238460007",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/togetherai#5238460007",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco",
+   "posted_at": "2026-09-18T15:45:31+00:00",
+   "tags": [
+    "intern",
+    "ai-ml",
+    "swe"
+   ],
+   "title": "Systems Research Engineer Intern - GPU Programming (Summer 2027)",
+   "token": "togetherai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/togetherai/jobs/5238472007",
+   "ats": "greenhouse",
+   "company": "Together AI",
+   "department": null,
+   "external_id": "5238472007",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/togetherai#5238472007",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "San Francisco",
+   "posted_at": "2026-09-18T15:45:06+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Development In Test Intern (Summer 2027)",
+   "token": "togetherai"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/vercel/jobs/6181755004",
+   "ats": "greenhouse",
+   "company": "Vercel",
+   "department": null,
+   "external_id": "6181755004",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/vercel#6181755004",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Hybrid - San Francisco",
+   "posted_at": "2026-09-08T15:31:09+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern - Winter '27",
+   "token": "vercel"
+  },
+  {
+   "apply_url": "https://job-boards.greenhouse.io/vercel/jobs/6181759004",
+   "ats": "greenhouse",
+   "company": "Vercel",
+   "department": null,
+   "external_id": "6181759004",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "greenhouse/vercel#6181759004",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Hybrid - San Francisco",
+   "posted_at": "2026-09-08T15:31:06+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineering Intern - Summer '27",
+   "token": "vercel"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/0a838e66-1ab0-4fc4-b4d3-4671c0352278",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "0a838e66-1ab0-4fc4-b4d3-4671c0352278",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#0a838e66-1ab0-4fc4-b4d3-4671c0352278",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2025-06-19T01:34:22.911000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Defense",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/15844944-fb69-4b57-9531-e988650b20c6",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "15844944-fb69-4b57-9531-e988650b20c6",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#15844944-fb69-4b57-9531-e988650b20c6",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2025-08-19T09:37:18.891000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Production Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/18d901fc-93bb-4d18-9f04-c72031e20d79",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "18d901fc-93bb-4d18-9f04-c72031e20d79",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#18d901fc-93bb-4d18-9f04-c72031e20d79",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2025-06-19T01:37:46.017000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Defense",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/1b6f1d82-d459-4dea-8bc2-8d2ffe6f881a",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "1b6f1d82-d459-4dea-8bc2-8d2ffe6f881a",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#1b6f1d82-d459-4dea-8bc2-8d2ffe6f881a",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Paris, France",
+   "posted_at": "2026-05-06T11:47:58.850000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/2458ba08-de79-4e8f-b553-060f9568727e",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "2458ba08-de79-4e8f-b553-060f9568727e",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#2458ba08-de79-4e8f-b553-060f9568727e",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Singapore, Singapore",
+   "posted_at": "2024-09-24T20:57:24.233000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/26e23f5d-083b-45aa-b223-1a6e43d960bf",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "26e23f5d-083b-45aa-b223-1a6e43d960bf",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#26e23f5d-083b-45aa-b223-1a6e43d960bf",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2021-07-01T22:17:59.795000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - UK Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/2aa14e4f-d406-486e-9aa8-6ff3358d70a0",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "2aa14e4f-d406-486e-9aa8-6ff3358d70a0",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#2aa14e4f-d406-486e-9aa8-6ff3358d70a0",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2025-08-01T12:23:17.609000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, New Grad - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/2ad0ab10-34c3-410d-883b-8052864a95cd",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "2ad0ab10-34c3-410d-883b-8052864a95cd",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#2ad0ab10-34c3-410d-883b-8052864a95cd",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Seoul, South Korea",
+   "posted_at": "2026-08-10T13:49:27.811000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/2e6b0ac8-83e9-4be5-a3aa-cf319f751728",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "2e6b0ac8-83e9-4be5-a3aa-cf319f751728",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#2e6b0ac8-83e9-4be5-a3aa-cf319f751728",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2025-06-13T23:45:06.552000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, New Grad - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/315f695d-04d1-4a9a-848e-cb2bec7a997e",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "315f695d-04d1-4a9a-848e-cb2bec7a997e",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#315f695d-04d1-4a9a-848e-cb2bec7a997e",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Honolulu, HI",
+   "posted_at": "2025-12-11T22:26:14.632000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/33243fb5-6907-40c7-930c-968b25d825d0",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "33243fb5-6907-40c7-930c-968b25d825d0",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#33243fb5-6907-40c7-930c-968b25d825d0",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Palo Alto, CA",
+   "posted_at": "2025-10-29T20:26:17.197000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Infrastructure Engineer, New Grad - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/341d5cae-a473-4813-9a6c-0f67fcc1b253",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "341d5cae-a473-4813-9a6c-0f67fcc1b253",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#341d5cae-a473-4813-9a6c-0f67fcc1b253",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Seoul, South Korea",
+   "posted_at": "2026-08-10T14:02:48.146000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, New Grad - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/3531977a-9b2f-40a0-a486-4eeb38e75fc1",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "3531977a-9b2f-40a0-a486-4eeb38e75fc1",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#3531977a-9b2f-40a0-a486-4eeb38e75fc1",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Singapore, Singapore",
+   "posted_at": "2026-01-14T15:28:44.400000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/373367a9-3160-49d8-b7af-2efec062fad1",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "373367a9-3160-49d8-b7af-2efec062fad1",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#373367a9-3160-49d8-b7af-2efec062fad1",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Seattle, WA",
+   "posted_at": "2025-06-26T20:05:13.023000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Production Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/373eb939-6f57-4836-8479-be79a5e07249",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "373eb939-6f57-4836-8479-be79a5e07249",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#373eb939-6f57-4836-8479-be79a5e07249",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Denver, CO",
+   "posted_at": "2024-08-29T04:34:48.941000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/37964982-9b4c-471e-a1d8-fb8f45d7f116",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "37964982-9b4c-471e-a1d8-fb8f45d7f116",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#37964982-9b4c-471e-a1d8-fb8f45d7f116",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2025-06-26T20:04:34.819000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Production Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/395a4483-fc3d-4b77-a500-501923fd0976",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "395a4483-fc3d-4b77-a500-501923fd0976",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#395a4483-fc3d-4b77-a500-501923fd0976",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Sydney, Australia",
+   "posted_at": "2026-05-29T12:46:59.423000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - AUS Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/3ab9e715-1ea9-4c6c-ad50-7340eac14e86",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "3ab9e715-1ea9-4c6c-ad50-7340eac14e86",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#3ab9e715-1ea9-4c6c-ad50-7340eac14e86",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2025-08-19T09:41:27.314000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Production Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/3db7e40a-28e0-4ad1-96c5-93de5bc96aa9",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "3db7e40a-28e0-4ad1-96c5-93de5bc96aa9",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#3db7e40a-28e0-4ad1-96c5-93de5bc96aa9",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2026-07-10T22:42:13.024000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Infrastructure Engineer, Internship - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/4abf26b4-795c-420a-bf22-1ab98db268b4",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "4abf26b4-795c-420a-bf22-1ab98db268b4",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#4abf26b4-795c-420a-bf22-1ab98db268b4",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2025-06-26T01:01:09.277000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/4d29249a-d7e8-4c39-880d-3b35d7b2f6f6",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "4d29249a-d7e8-4c39-880d-3b35d7b2f6f6",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#4d29249a-d7e8-4c39-880d-3b35d7b2f6f6",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2016-02-24T23:37:05.251000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/4d5a144e-87ea-45e2-a68c-3fad590629af",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "4d5a144e-87ea-45e2-a68c-3fad590629af",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#4d5a144e-87ea-45e2-a68c-3fad590629af",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Seattle, WA",
+   "posted_at": "2025-06-26T19:54:49.498000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Production Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/599b1907-aba1-4303-837b-66e69a521636",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "599b1907-aba1-4303-837b-66e69a521636",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#599b1907-aba1-4303-837b-66e69a521636",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2025-08-01T12:15:20.204000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/5a28f3a5-8655-47f2-ab19-a79b8a319da8",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "5a28f3a5-8655-47f2-ab19-a79b8a319da8",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#5a28f3a5-8655-47f2-ab19-a79b8a319da8",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2025-10-29T20:27:12.326000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Infrastructure Engineer, New Grad - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/5c4c65c5-77da-4d36-856c-4ade87631019",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "5c4c65c5-77da-4d36-856c-4ade87631019",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#5c4c65c5-77da-4d36-856c-4ade87631019",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2026-04-23T21:17:05.046000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Year at Palantir - Forward Deployed Software Engineer, Internship - USG",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/5c7bb70c-83ea-43e7-8055-0c8f319f4333",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "5c7bb70c-83ea-43e7-8055-0c8f319f4333",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#5c7bb70c-83ea-43e7-8055-0c8f319f4333",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2026-03-20T19:05:22.216000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Year at Palantir - Forward Deployed Software Engineer, Internship - USG",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/655f9937-a4ce-4e7d-80e2-a6659af07329",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "655f9937-a4ce-4e7d-80e2-a6659af07329",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#655f9937-a4ce-4e7d-80e2-a6659af07329",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2026-03-20T19:07:35.933000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Year at Palantir - Software Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/701a9307-0619-45d3-b077-cabe9897cd12",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "701a9307-0619-45d3-b077-cabe9897cd12",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#701a9307-0619-45d3-b077-cabe9897cd12",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Honolulu, HI",
+   "posted_at": "2026-08-31T16:27:36.814000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Infrastructure Engineer, New Grad - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/75cc1c09-8ebd-44c8-b3bc-d122cd1fecb3",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "75cc1c09-8ebd-44c8-b3bc-d122cd1fecb3",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#75cc1c09-8ebd-44c8-b3bc-d122cd1fecb3",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Chicago, IL",
+   "posted_at": "2026-06-24T19:13:14.474000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Year at Palantir - Forward Deployed Software Engineer, Internship - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/76a60923-bb49-40f5-b061-7c7eb1299602",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "76a60923-bb49-40f5-b061-7c7eb1299602",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#76a60923-bb49-40f5-b061-7c7eb1299602",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2021-07-01T22:03:51.312000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/7d69cf8a-06fd-4f05-bd84-27149db29c4d",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "7d69cf8a-06fd-4f05-bd84-27149db29c4d",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#7d69cf8a-06fd-4f05-bd84-27149db29c4d",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2022-06-30T21:19:00.945000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/7d75bed5-45d8-4876-840a-2d92ea79c98d",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "7d75bed5-45d8-4876-840a-2d92ea79c98d",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#7d75bed5-45d8-4876-840a-2d92ea79c98d",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Palo Alto, CA",
+   "posted_at": "2025-08-19T09:45:38.032000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/8bcf4f33-0a79-4248-bbfd-49ac4be9dd8e",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "8bcf4f33-0a79-4248-bbfd-49ac4be9dd8e",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#8bcf4f33-0a79-4248-bbfd-49ac4be9dd8e",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2024-08-05T23:27:08.111000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Defense Tech",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/8f362a1f-1eff-4327-94c1-ff46e2101c69",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "8f362a1f-1eff-4327-94c1-ff46e2101c69",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#8f362a1f-1eff-4327-94c1-ff46e2101c69",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Palo Alto, CA",
+   "posted_at": "2026-07-10T22:43:13.762000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Infrastructure Engineer, Internship - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/91117724-9389-48dc-912f-98e48d4d45d8",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "91117724-9389-48dc-912f-98e48d4d45d8",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#91117724-9389-48dc-912f-98e48d4d45d8",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2025-10-29T18:27:22.352000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Infrastructure Engineer, New Grad - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/9265acce-12cd-4179-8c50-55d15963532b",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "9265acce-12cd-4179-8c50-55d15963532b",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#9265acce-12cd-4179-8c50-55d15963532b",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2025-06-26T01:13:54.912000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/94984771-0704-446c-88c6-91ce748f6d92",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "94984771-0704-446c-88c6-91ce748f6d92",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#94984771-0704-446c-88c6-91ce748f6d92",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2021-07-01T20:24:57.701000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/9e40d77f-b07c-437b-98e7-def9b0184d89",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "9e40d77f-b07c-437b-98e7-def9b0184d89",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#9e40d77f-b07c-437b-98e7-def9b0184d89",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2026-07-01T19:22:25.074000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - Intel",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/a483f41b-0da9-42ea-8ed6-cbf6eb93cc6d",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "a483f41b-0da9-42ea-8ed6-cbf6eb93cc6d",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#a483f41b-0da9-42ea-8ed6-cbf6eb93cc6d",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Palo Alto, CA",
+   "posted_at": "2024-08-05T23:26:42.003000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Defense Tech",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/ac0dc094-2480-43c2-8495-26ade227ff4f",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "ac0dc094-2480-43c2-8495-26ade227ff4f",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#ac0dc094-2480-43c2-8495-26ade227ff4f",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2026-03-10T12:26:55.948000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - France",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/b229baac-494b-4a0d-9a13-2e38806e06f3",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "b229baac-494b-4a0d-9a13-2e38806e06f3",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#b229baac-494b-4a0d-9a13-2e38806e06f3",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2025-06-26T15:01:02.839000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/b4aa51a2-bc43-4d67-bf55-12db7feefb3a",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "b4aa51a2-bc43-4d67-bf55-12db7feefb3a",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#b4aa51a2-bc43-4d67-bf55-12db7feefb3a",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2021-07-01T17:35:48.948000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, New Grad - UK Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/bdcfb29f-4f27-42de-933f-7f83a359b9f0",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "bdcfb29f-4f27-42de-933f-7f83a359b9f0",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#bdcfb29f-4f27-42de-933f-7f83a359b9f0",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2021-07-01T22:00:40.124000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/c34b424e-caf2-455a-b104-ae1096ccca29",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "c34b424e-caf2-455a-b104-ae1096ccca29",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#c34b424e-caf2-455a-b104-ae1096ccca29",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Denver, CO",
+   "posted_at": "2020-10-27T18:32:40.993000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/cadc0eb2-2703-43e4-8e4f-41edf5b071c6",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "cadc0eb2-2703-43e4-8e4f-41edf5b071c6",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#cadc0eb2-2703-43e4-8e4f-41edf5b071c6",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2026-08-31T07:29:41.774000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Infrastructure Engineer, New Grad - UK Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/cbe90327-3e6e-451c-a54c-1d3cbcef5aeb",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "cbe90327-3e6e-451c-a54c-1d3cbcef5aeb",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#cbe90327-3e6e-451c-a54c-1d3cbcef5aeb",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2022-06-30T22:59:08.115000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, New Grad - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/cccfe1bd-f15b-4fe5-b044-c793e7961c1b",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "cccfe1bd-f15b-4fe5-b044-c793e7961c1b",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#cccfe1bd-f15b-4fe5-b044-c793e7961c1b",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2024-08-05T23:14:32.789000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - Defense Tech",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/cf5f44ff-1b0b-4752-bcd4-2dc88798f25b",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "cf5f44ff-1b0b-4752-bcd4-2dc88798f25b",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#cf5f44ff-1b0b-4752-bcd4-2dc88798f25b",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2026-07-10T22:42:44.034000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Infrastructure Engineer, Internship - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/d1ac83d0-e923-42a5-8e6d-58dd0cab25ca",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "d1ac83d0-e923-42a5-8e6d-58dd0cab25ca",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#d1ac83d0-e923-42a5-8e6d-58dd0cab25ca",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2022-06-30T22:50:16.107000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, New Grad - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/d372c805-d0cd-4a10-9522-fbecc78d6f3e",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "d372c805-d0cd-4a10-9522-fbecc78d6f3e",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#d372c805-d0cd-4a10-9522-fbecc78d6f3e",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2021-07-01T20:30:14.997000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/d5486403-c050-4920-b2e0-91b69b61ebb2",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "d5486403-c050-4920-b2e0-91b69b61ebb2",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#d5486403-c050-4920-b2e0-91b69b61ebb2",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Chicago, IL",
+   "posted_at": "2026-06-30T20:01:06.026000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/e0010393-c300-446f-bf67-fa2ef067f16f",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "e0010393-c300-446f-bf67-fa2ef067f16f",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#e0010393-c300-446f-bf67-fa2ef067f16f",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2022-06-30T21:20:50.237000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/e1a6c138-98bf-45e2-97f7-2c70371cc38a",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "e1a6c138-98bf-45e2-97f7-2c70371cc38a",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#e1a6c138-98bf-45e2-97f7-2c70371cc38a",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2025-06-26T19:53:39.925000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Production Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/e27af7ab-41fc-40c9-b31d-02c6cb1c505c",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "e27af7ab-41fc-40c9-b31d-02c6cb1c505c",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#e27af7ab-41fc-40c9-b31d-02c6cb1c505c",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Palo Alto, CA",
+   "posted_at": "2021-07-01T21:52:15.503000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/e500bcf3-19d8-4d3c-b340-4d76e4a55b40",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "e500bcf3-19d8-4d3c-b340-4d76e4a55b40",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#e500bcf3-19d8-4d3c-b340-4d76e4a55b40",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Chicago, IL",
+   "posted_at": "2026-06-29T14:44:20.702000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, New Grad - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/e6789b17-62fb-4226-a079-f8c17ff19e2d",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "e6789b17-62fb-4226-a079-f8c17ff19e2d",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#e6789b17-62fb-4226-a079-f8c17ff19e2d",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2026-03-20T19:02:47.514000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Year at Palantir - Forward Deployed Software Engineer, Internship - Commercial",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/e6ff8bf2-135e-474d-ad37-24f490ae1dd2",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "e6ff8bf2-135e-474d-ad37-24f490ae1dd2",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#e6ff8bf2-135e-474d-ad37-24f490ae1dd2",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2021-07-01T22:12:43.840000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, Internship - US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/ef725594-42dd-4f0d-ba8e-df8179dbc6cb",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Information Security",
+   "external_id": "ef725594-42dd-4f0d-ba8e-df8179dbc6cb",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#ef725594-42dd-4f0d-ba8e-df8179dbc6cb",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "New York, NY",
+   "posted_at": "2022-08-03T19:25:24.044000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Information Security Engineer, Internship",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/f17e98d0-046a-4e6e-9d65-ed0b12dd0ff7",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "f17e98d0-046a-4e6e-9d65-ed0b12dd0ff7",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#f17e98d0-046a-4e6e-9d65-ed0b12dd0ff7",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2024-08-05T23:26:16.668000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Defense Tech",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/f221738b-e97c-4ce3-a12a-17ada2b855e4",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "f221738b-e97c-4ce3-a12a-17ada2b855e4",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#f221738b-e97c-4ce3-a12a-17ada2b855e4",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Palo Alto, CA",
+   "posted_at": "2025-08-19T09:48:43.334000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Infrastructure",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/f362d7aa-360d-4059-ab38-f482742693b3",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "f362d7aa-360d-4059-ab38-f482742693b3",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#f362d7aa-360d-4059-ab38-f482742693b3",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Palo Alto, CA",
+   "posted_at": "2025-06-19T01:36:20.878000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Software Engineer, New Grad - Defense",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/fbca0358-083a-4222-bdbb-3bd729b48382",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Delta",
+   "external_id": "fbca0358-083a-4222-bdbb-3bd729b48382",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#fbca0358-083a-4222-bdbb-3bd729b48382",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "Washington, D.C.",
+   "posted_at": "2026-06-15T16:08:02.343000+00:00",
+   "tags": [
+    "new-grad",
+    "swe"
+   ],
+   "title": "Forward Deployed Software Engineer, New Grad - Intel, US Government",
+   "token": "palantir"
+  },
+  {
+   "apply_url": "https://jobs.lever.co/palantir/fd3603a9-7016-45c6-9c8d-04c9279ab85e",
+   "ats": "lever",
+   "company": "Palantir",
+   "department": "Dev",
+   "external_id": "fd3603a9-7016-45c6-9c8d-04c9279ab85e",
+   "first_seen_at": "2026-09-27T23:18:03.390642+00:00",
+   "key": "lever/palantir#fd3603a9-7016-45c6-9c8d-04c9279ab85e",
+   "last_seen_at": "2026-09-27T23:18:22.547574+00:00",
+   "location": "London, United Kingdom",
+   "posted_at": "2025-06-26T15:15:08.299000+00:00",
+   "tags": [
+    "intern",
+    "swe"
+   ],
+   "title": "Software Engineer, Internship - Infrastructure",
+   "token": "palantir"
+  }
+ ],
+ "scraped_at": "2026-09-27T23:18:22.547574+00:00",
+ "stats": {
+  "boards_failed": 0,
+  "boards_missing": 0,
+  "boards_ok": 35,
+  "boards_skipped": 0,
+  "kept": 144,
+  "postings": 7832
+ }
+}
