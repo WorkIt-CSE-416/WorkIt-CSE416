@@ -1,20 +1,21 @@
 """API endpoint that accepts resume file uploads from frontend"""
-
 import asyncio
+import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
-from app.models.resume import Resume
-from app.models.dto import ResumeStatus
 from app.deps import get_current_account
+from app.models.dto import ResumeStatus
+from app.models.resume import Resume
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 MAX_SIZE = 5 * 1024 * 1024
 BUCKET = "Resume"
@@ -82,7 +83,8 @@ async def upload_resume(
         original_filename=file.filename,
         storage_path=storage_path,
         status=ResumeStatus.uploaded,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+,
     )
 
     # track for insertion
@@ -172,6 +174,11 @@ async def delete_resume(
             [storage_path],
         )
     except Exception:
-        pass  # ponytail: orphaned file in Storage; add cleanup job if this becomes a problem
+        # The database row was already deleted; retain best-effort cleanup behavior,
+        # but record the failure instead of silently ignoring it.
+        logger.exception(
+            "Failed to remove resume file from Storage",
+            extra={"storage_path": storage_path},
+        )
 
     return {"detail": "Resume deleted"}
