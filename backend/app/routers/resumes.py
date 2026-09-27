@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,6 +75,7 @@ async def upload_resume(
         original_filename=file.filename,
         storage_path=storage_path,
         status="uploaded",
+        created_at=datetime.now(timezone.utc),
     )
 
     # track for insertion
@@ -93,8 +95,10 @@ async def upload_resume(
     return {
         "id": str(resume.id),
         "applicant_id": str(resume.applicant_id),
+        "original_filename": resume.original_filename,
         "storage_path": resume.storage_path,
         "status": resume.status,
+        "created_at": resume.created_at.isoformat() if resume.created_at else None,
     }
 
 

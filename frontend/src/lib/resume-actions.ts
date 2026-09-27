@@ -54,16 +54,17 @@ async function getApplicantId(): Promise<{ id: string, token: string }> {
   return { id: claimsData.claims.sub, token };
 }
 
-export async function uploadResume(formData: FormData): Promise<{ error: string | null }> {
+export async function uploadResume(formData: FormData): Promise<{ resume: ResumeItem | null; error: string | null }> {
   try {
     const { id, token }  = await getApplicantId();
     const res = await apiUpload(`/applicants/${id}/resumes`, formData, token);
     if (!res.ok) {
       const msg = await extractErrorMessage(res);
-      return { error: msg };
+      return { resume: null, error: msg };
     }
-    return { error: null };
+    const resume: ResumeItem = await res.json();
+    return { resume, error: null};
   } catch {
-    return { error: "Could not reach the server. Is the backend running?" };
+    return { resume: null, error: "Could not reach the server. Is the backend running?" };
   }
 }
