@@ -43,9 +43,16 @@ export function OnboardingForm() {
       setUploadError(null);
       const fd = new FormData();
       fd.append("file", resumeFile);
-      const { error } = await uploadResume(fd);
 
-      setUploading(false);
+      let error: string | null;
+      try {
+        ({ error } = await uploadResume(fd));
+      } catch {
+        error = "Upload failed. Files must be under 5 MB.";
+      } finally {
+        setUploading(false);
+      }
+  
       if (error) {
         setUploadError(error);
         return;

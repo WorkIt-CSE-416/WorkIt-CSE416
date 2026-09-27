@@ -6,6 +6,8 @@ import { PdfIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 
+const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
+
 type ResumeUploadProps = {
   file: File | null;
   onFileChange: (file: File) => void;
@@ -22,16 +24,20 @@ export function formatBytes(bytes: number) {
 export function ResumeUpload({ file, onFileChange, onRemove }: ResumeUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
+  function isAllowed(file: File): boolean {
+    return ALLOWED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
+  }
+
   function handleSelect(event: ChangeEvent<HTMLInputElement>) {
     const next = event.target.files?.[0];
-    if (next) onFileChange(next);
+    if (next && isAllowed(next)) onFileChange(next);
     event.target.value = "";
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     const next = event.dataTransfer.files?.[0];
-    if (next) onFileChange(next);
+    if (next && isAllowed(next)) onFileChange(next);
   }
 
   return (
