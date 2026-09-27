@@ -25,7 +25,7 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
 
   const supabase = await createSupabaseServerClient();
 
-  // attempt to login and get the cookie 
+  // attempt to login and get the cookie
   const { data, error } = await supabase.auth.signInWithPassword({
     email: emailValue.trim().toLowerCase(), // all email is saved with lowercase in db
     password: typeof password === "string" ? password : "",
@@ -36,15 +36,15 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     return { error: message, email: emailValue };
   }
 
-  // get user information 
+  // get user information
   const response = await apiFetch("/auth/me", { method: "GET" }, data.session.access_token);
   const account: AuthenticatedAccount | null = response.ok ? await response.json() : null;
 
   if (account?.account_type !== formData.get("accountType")) {
     // user is logged into the wrong type with supabase already auth
-    // remove current browser token to sign them out 
+    // remove current browser token to sign them out
     await supabase.auth.signOut({ scope: "local" });
-    // display error message 
+    // display error message
     const message =
       account || response.status === 401
         ? INVALID_CREDENTIALS

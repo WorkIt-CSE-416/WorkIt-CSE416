@@ -14,22 +14,6 @@ import { ExpertiseField } from "./expertise-field";
 import { JobTypeField } from "./job-type-field";
 import { ResumeUpload } from "../../../components/resume-upload";
 
-/**
- * KAN-113 — the applicant half of onboarding. The business half is a stub
- * (../company/page.tsx) because what it needs is still undecided.
- *
- * NO BACKEND EXISTS YET, so nothing here is persisted: expertise, the resume
- * and job-type selections all live in this component's state and are lost on
- * navigation. What is real is the interaction itself — adding and removing
- * tags, dropping a file, toggling job types — and Continue, which actually
- * routes into the app, to /jobs. That is the "functionality" this ticket
- * asked for ahead of a backend to save to: signup can link here today, and wiring the
- * three fields into a real submission later touches only this file.
- *
- * Continue is disabled until both required fields hold something, so the
- * screen cannot be dismissed empty by mistake. Resume upload is the one field
- * the ticket calls optional, so it has no bearing on that gate.
- */
 export function OnboardingForm() {
   const router = useRouter();
 
