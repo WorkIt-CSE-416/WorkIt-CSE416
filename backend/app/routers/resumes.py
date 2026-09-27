@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
 from app.models.resume import Resume
+from app.deps import get_current_account
+from app.schemas.auth import AuthenticatedAccount
 
 router = APIRouter()
 
@@ -23,7 +25,14 @@ BUCKET = "Resume"
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
 @router.post("/applicants/{applicant_id}/resumes")
-async def upload_resume(applicant_id: uuid.UUID, file: UploadFile, session: AsyncSession = Depends(get_session)):
+async def upload_resume(
+    applicant_id: uuid.UUID,
+    file: UploadFile,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session)
+):
+    if account.id != applicant_id:
+        raise HTTPException(403, "Cannot upload to another applicant's profile")
 
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(400, "Only PDF and DOCX files are accepted")
