@@ -265,6 +265,8 @@ signup   Next action ──POST /auth/signup──▶ FastAPI ──admin API─
                                               │ creates auth.users row with
                                               │ app_metadata.account_type,
                                               │ then the profile row, same id
+                                              │ (company: the company row and
+                                              │ its owner's membership)
          Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
 
 login    Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
@@ -281,6 +283,19 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
   through here also creates the profile row in the same request, so an
   `auth.users` row never exists without one. If the profile insert fails, the
   route deletes the auth user it just made.
+- **The auth user comes first, the rows second.** The profile id *is* the
+  `auth.users` id and a foreign key to it, so the rows cannot be written
+  before Supabase answers. Everything from the first `db.add()` to the commit
+  sits in one `try` whose `except` deletes that auth user — a flush left
+  outside it would fail on a constraint and leave an auth user with no
+  profile, whose email then 409s on every retry and signs in to nothing.
+- **Create Company writes two rows in one transaction**: the
+  `company_profiles` row, and a `company_memberships` row for the person
+  signing up with role `owner`, status `active`. The body carries a nested
+  `company` object (`CompanySignup` in `app/schemas/auth.py`);
+  `SignupRequest`'s model validator requires it for a company and rejects it
+  for an applicant, so the route never checks. Joining an existing company is
+  not built.
 - **Two Supabase dashboard settings back this up, and live nowhere in code.**
   The anon key and project URL ship to the browser, so anyone can call
   Supabase Auth directly and skip both the form and this API. Authentication
@@ -366,7 +381,15 @@ goes to `frontend/`** — the frontend gets the anon key only.
 ### Still open
 
 - Email verification and password reset: supported by Supabase, not wired up.
-- Company signup: still `501` — no screen collects a company name.
+- Joining an existing company: no endpoint, and the form's Join tab is a
+  placeholder.
+- Every `IntegrityError` at signup answers "An account with this email already
+  exists" — including a taken `company_profiles.contact_email`, where the
+  sign-in email is fine. Tell them apart by constraint name in `exc.orig`.
+- Nothing sets `onboarding_completed_at` for a membership, so `/auth/me`
+  always reports a company account as not onboarded. The frontend routes
+  around it (companies skip onboarding); whatever builds company onboarding
+  must set it.
 - `routers/resumes.py` takes `applicant_id` from the URL and does not depend on
   `get_current_account` yet. Anyone who can reach the API can upload against
   any applicant until it does.
