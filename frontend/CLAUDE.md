@@ -79,7 +79,7 @@ src/components/   Shared components
   account-menu.tsx  The avatar dropdown; each shell passes its own items
   ui/             Presentational primitives: badge, button, card, company-tile,
                   fact, filter-chip, icon-button, search-field, section-heading,
-                  text-field, text-link
+                  select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
@@ -193,8 +193,12 @@ side:
 - `signup/actions.ts` calls `POST /auth/signup` — **not**
   `supabase.auth.signUp()`, which can only write `user_metadata`, a field the
   user can edit, so it cannot be trusted with the account type — and then
-  signs in. Company signup gets the API's `501` back and shows it; don't build
-  the company-signup fields until `onboarding/company` exists to receive them.
+  signs in. The Company tab asks Create Company or Join a Company first
+  (`signup/signup-form.tsx`). Create Company sends the owner's fields plus a
+  nested `company` object (name, websiteUrl, contactEmail, contactPhone,
+  sizeRange — a `company_size_range` value from `backend/app/models/dto.py`);
+  until the API handles it, it answers `501` and the form shows that. Join a
+  Company has no form yet.
 - `src/proxy.ts` refreshes the session on every request. @supabase/ssr
   requires it: Server Components cannot write cookies, so without it sessions
   die when the hour-long access token does. It does nothing when the Supabase

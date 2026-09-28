@@ -11,13 +11,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // (a taken email, say) would wipe every field the user just typed along with
 // it. password/confirmPassword don't need this — signup-form.tsx already
 // keeps them in local state, and echoing a password back isn't good practice
-// regardless.
+// regardless. The company* fields are only filled on the Create Company path.
 export type SignupState = {
   error: string | null;
   firstName: string;
   middleName: string;
   lastName: string;
   email: string;
+  companyName: string;
+  websiteUrl: string;
+  contactEmail: string;
+  contactPhone: string;
 };
 
 /**
@@ -43,40 +47,69 @@ export async function createAccount(
   const middleName = fieldValue(formData, "middleName");
   const lastName = fieldValue(formData, "lastName");
   const email = fieldValue(formData, "email");
+  const accountType = fieldValue(formData, "accountType");
+  const companyName = fieldValue(formData, "companyName");
+  const websiteUrl = fieldValue(formData, "websiteUrl");
+  const contactEmail = fieldValue(formData, "contactEmail");
+  const contactPhone = fieldValue(formData, "contactPhone");
+  const companySize = fieldValue(formData, "companySize");
+  const echo = {
+    firstName,
+    middleName,
+    lastName,
+    email,
+    companyName,
+    websiteUrl,
+    contactEmail,
+    contactPhone,
+  };
 
-  // clear the white spaces  
+  // clear the white spaces
   const name = [firstName, middleName, lastName]
-    .map((part) => part.trim())  
+    .map((part) => part.trim())
     .filter((part) => part.trim().length > 0)
     .join(" ");
 
-  
   const password = fieldValue(formData, "password");
 
   // create the user in backend with supabase
   const response = await apiFetch("/auth/signup", {
     method: "POST",
-    body: JSON.stringify({ accountType: formData.get("accountType"), name, email, password }),
+    body: JSON.stringify({
+      accountType,
+      name,
+      email,
+      password,
+      // Create Company only — the signup form renders no company fields for
+      // an applicant, and "Join a Company" doesn't submit yet. Optional
+      // fields go as null rather than "" so the API can store them as-is.
+      ...(accountType === "company" && {
+        company: {
+          name: companyName.trim(),
+          websiteUrl: websiteUrl.trim() || null,
+          contactEmail: contactEmail.trim(),
+          contactPhone: contactPhone.trim() || null,
+          sizeRange: companySize,
+        },
+      }),
+    }),
   });
 
   if (!response.ok) {
-    return { error: await extractErrorMessage(response), firstName, middleName, lastName, email };
+    return { error: await extractErrorMessage(response), ...echo };
   }
 
   const account: AuthenticatedAccount = await response.json();
 
-  // user finishes sign up, logs in and issue token 
+  // user finishes sign up, logs in and issue token
   const supabase = await createSupabaseServerClient();
 
-  // sign in with the created user, supabase issues the token 
+  // sign in with the created user, supabase issues the token
   const { error } = await supabase.auth.signInWithPassword({ email: account.email, password });
   if (error) {
     return {
       error: "Your account was created, but signing in failed. Please log in again.",
-      firstName,
-      middleName,
-      lastName,
-      email,
+      ...echo,
     };
   }
 
