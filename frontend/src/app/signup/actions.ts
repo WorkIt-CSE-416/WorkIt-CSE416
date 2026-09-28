@@ -43,6 +43,7 @@ export async function createAccount(
   _prevState: SignupState,
   formData: FormData,
 ): Promise<SignupState> {
+  // select all values, they will be None if not for the type 
   const firstName = fieldValue(formData, "firstName");
   const middleName = fieldValue(formData, "middleName");
   const lastName = fieldValue(formData, "lastName");
@@ -80,9 +81,8 @@ export async function createAccount(
       name,
       email,
       password,
-      // Create Company only — the signup form renders no company fields for
-      // an applicant, and "Join a Company" doesn't submit yet. Optional
-      // fields go as null rather than "" so the API can store them as-is.
+      
+      // fields for company sign up
       ...(accountType === "company" && {
         company: {
           name: companyName.trim(),
@@ -113,7 +113,13 @@ export async function createAccount(
     };
   }
 
-  // A brand-new account is never past onboarding — no onboarding_completed
-  // branch to check here, unlike login's redirect below.
-  redirect(`/onboarding/${account.account_type}`);
+  // only send to onboarding if it's profile 
+  if (account.account_type=="applicant")
+  {
+    redirect(`/onboarding/${account.account_type}`);
+  }
+  else 
+  {
+    redirect('/company'); 
+  }
 }
