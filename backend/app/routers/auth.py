@@ -15,9 +15,14 @@ from supabase_auth.errors import AuthError
 
 from app.db import get_session, get_supabase
 from app.deps import get_current_account
-from app.models.profiles import Applicant_Profile, Company_Profile, Company_Membership
-from app.schemas.auth import AccountType, AuthenticatedAccount, SignupRequest, CompanySignup
 from app.models.dto import company_role, profile_status
+from app.models.profiles import Applicant_Profile, Company_Membership, Company_Profile
+from app.schemas.auth import (
+    AccountType,
+    AuthenticatedAccount,
+    CompanySignup,
+    SignupRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +45,13 @@ def _signup_error(exc: AuthError) -> HTTPException:
     return HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn't create the account. Please try again.")
 
 
-async def _create_company(company_info:CompanySignup)->Company_Profile:
+def _create_company(company_info:CompanySignup)->Company_Profile:
     '''
-    function to create a company given the json information file 
+    function to create a company given the json information file
     '''
-    company_id = uuid.UUID()
+    # Set here rather than left to the column default, which SQLAlchemy only
+    # applies at flush — the membership needs this id before then.
+    company_id = uuid.uuid4()
     new_company= Company_Profile(
         id = company_id, 
         company_name = company_info.name, 
@@ -74,40 +81,9 @@ async def signup(
     account_type = body.account_type
     supabase = get_supabase()
 
-    # first add profile to our db then do supabase auth to save db calls 
-    id = uuid.UUID(created.user.id)
-    if (account_type=="applicant"): 
-        profile = Applicant_Profile(
-            id=id,
-            email=body.email,
-            full_name=body.full_name,
-        )
-    elif (account_type=="company"):     # there will be a 3rd case in the future 
-        # create the company
-        company_info = body.company
-        new_company = await _create_company(company_info)
-        company_id = new_company.id
-        db.add(new_company)
-
-        # create company profile
-        profile=Company_Membership(
-            id= id, 
-            company_id= company_id,
-            email= body.email,
-            full_name=body.full_name,
-            role=company_role.owner,
-            status= profile_status.active
-        )
-    db.add(profile)
-    try:
-        await db.commit()
-    except Exception as exc:
-        await db.rollback()
-        if isinstance(exc, IntegrityError):
-            raise _EMAIL_TAKEN from exc
-        raise
-
-    # this add both the company and applicant login 
+    # Supabase first: each profile's id is its auth.users id, and a foreign
+    # key to that table, so the auth user has to exist before any row here.
+    # The admin API is synchronous; to_thread keeps it off the event loop.
     try:
         created = await asyncio.to_thread(
             supabase.auth.admin.create_user,
@@ -121,12 +97,48 @@ async def signup(
     except AuthError as exc:
         raise _signup_error(exc) from exc
 
+    user_id = uuid.UUID(created.user.id)
+    if account_type is AccountType.APPLICANT:
+        profile = Applicant_Profile(
+            id=user_id,
+            email=body.email,
+            full_name=body.full_name,
+        )
+    else:   
+        new_company = _create_company(body.company)
+        company_id = new_company.id
+        db.add(new_company)
+
+        # whoever creates the company owns it
+        profile = Company_Membership(
+            id=user_id,
+            company_id=company_id,
+            email=body.email,
+            full_name=body.full_name,
+            role=company_role.owner,
+            status=profile_status.active,
+        )
+    db.add(profile)
+
+    try:
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        try:
+            await asyncio.to_thread(supabase.auth.admin.delete_user, created.user.id)
+        except AuthError:
+            logger.exception("Orphaned Supabase auth user %s after a failed signup", created.user.id)
+        if isinstance(exc, IntegrityError):
+            raise _EMAIL_TAKEN from exc
+        raise
+
     return AuthenticatedAccount(
         id=profile.id,
         email=profile.email,
         full_name=profile.full_name,
         account_type=account_type,
         onboarding_completed=False,
+        company_id=company_id,
     )
 
 

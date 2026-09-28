@@ -9,7 +9,16 @@ this API with a password (backend/CLAUDE.md's Auth section).
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
-from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, model_validator
+
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    model_validator,
+)
+
 from app.models.dto import company_size_range
 
 # Case shouldn't matter for an email address — "Jane@Example.com" and
