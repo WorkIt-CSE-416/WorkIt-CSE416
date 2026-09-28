@@ -98,29 +98,30 @@ async def signup(
         raise _signup_error(exc) from exc
 
     user_id = uuid.UUID(created.user.id)
-    if account_type is AccountType.APPLICANT:
-        profile = Applicant_Profile(
-            id=user_id,
-            email=body.email,
-            full_name=body.full_name,
-        )
-    else:   
-        new_company = _create_company(body.company)
-        company_id = new_company.id
-        db.add(new_company)
-
-        # whoever creates the company owns it
-        profile = Company_Membership(
-            id=user_id,
-            company_id=company_id,
-            email=body.email,
-            full_name=body.full_name,
-            role=company_role.owner,
-            status=profile_status.active,
-        )
-    db.add(profile)
-
+    company_id= None 
     try:
+        if account_type is AccountType.APPLICANT:
+            profile = Applicant_Profile(
+                id=user_id,
+                email=body.email,
+                full_name=body.full_name,
+            )
+        else:   
+            new_company = _create_company(body.company)
+            company_id = new_company.id
+            db.add(new_company)
+            await db.flush()    # first insert the company to make sure bug-free
+
+            # whoever creates the company owns it
+            profile = Company_Membership(
+                id=user_id,
+                company_id=company_id,
+                email=body.email,
+                full_name=body.full_name,
+                role=company_role.owner,
+                status=profile_status.active,
+            )
+        db.add(profile)
         await db.commit()
     except Exception as exc:
         await db.rollback()
