@@ -9,8 +9,8 @@ this API with a password (backend/CLAUDE.md's Auth section).
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
-
-from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, model_validator
+from app.models.dto import company_size_range
 
 # Case shouldn't matter for an email address — "Jane@Example.com" and
 # "jane@example.com" are the same account — but it must for a password.
@@ -31,6 +31,16 @@ class AccountType(StrEnum):
     APPLICANT = "applicant"
     COMPANY = "company"
 
+class CompanySignup(BaseModel):
+    ''' 
+    stores checks and normalizations for company field in post request
+    '''
+    model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
+    name:str= Field(min_length=1, max_length=255)
+    website_url: str | None = Field(None, alias="websiteUrl")
+    contact_email: NormalizedEmail = Field(alias="contactEmail")
+    contact_phone: str | None = Field(None, alias="contactPhone", max_length=30)
+    size_range: company_size_range = Field(alias="sizeRange")
 
 class SignupRequest(BaseModel):
     """POST body for signup. Mirrors frontend/src/app/signup/page.tsx's form
@@ -44,10 +54,20 @@ class SignupRequest(BaseModel):
     account_type: AccountType = Field(alias="accountType")
     full_name: str = Field(alias="name", min_length=1, max_length=50)
     email: NormalizedEmail
-    # Matches the Supabase project's minimum password length and
-    # signup-form.tsx's PASSWORD_MIN_LENGTH. Supabase would reject a short
-    # one anyway; checking here fails fast with a plain 422 before the call.
     password: str = Field(min_length=8)
+    # company sign up 
+    company: CompanySignup | None = None 
+
+    @model_validator(mode="after")
+    def company_matches_account_type(self):
+        '''
+        run checks after the fields are parsed to make sure account is populated
+        '''
+        if self.account_type is AccountType.COMPANY and self.company is None:
+            raise ValueError("company is required for a company signup")
+        if self.account_type is AccountType.APPLICANT and self.company is not None:
+            raise ValueError("company is only accepted for a company signup")
+        return self
 
 
 class AuthenticatedAccount(BaseModel):
