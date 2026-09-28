@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import uuid
+from io import BytesIO
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
@@ -16,6 +17,24 @@ from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def  _extract_pdf_text(data: bytes) -> str | None:
+    '''Extract text from PDF'''
+    from pypdf import PdfReader
+    try:
+        return "\n".join(p.extract_text() or "" for p in PdfReader(BytesIO(data)).pages).strip() or None
+    except Exception:
+        return None
+
+def _extract_docx_text(data: bytes) -> str | None:
+    from docx import Document
+    try:
+        return "\n".join(p.text for p in Document(BytesIO(data)).paragraphs).strip() or None
+    except Exception:
+        return None
+
+    
 
 MAX_SIZE = 5 * 1024 * 1024
 BUCKET = "Resume"
