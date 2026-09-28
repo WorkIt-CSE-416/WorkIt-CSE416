@@ -1,3 +1,5 @@
+// Handles all communication between Next.js frontend and Python backend for auth-related items
+
 import "server-only";
 
 /**
@@ -7,7 +9,6 @@ import "server-only";
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
 export type AccountType = "applicant" | "company";
-
 
 export type AuthenticatedAccount = {
   id: string;

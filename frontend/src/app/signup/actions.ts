@@ -44,13 +44,12 @@ export async function createAccount(
   const lastName = fieldValue(formData, "lastName");
   const email = fieldValue(formData, "email");
 
-  // clear the white spaces  
+  // clear the white spaces
   const name = [firstName, middleName, lastName]
-    .map((part) => part.trim())  
+    .map((part) => part.trim())
     .filter((part) => part.trim().length > 0)
     .join(" ");
 
-  
   const password = fieldValue(formData, "password");
 
   // create the user in backend with supabase
@@ -65,10 +64,10 @@ export async function createAccount(
 
   const account: AuthenticatedAccount = await response.json();
 
-  // user finishes sign up, logs in and issue token 
+  // user finishes sign up, logs in and issue token
   const supabase = await createSupabaseServerClient();
 
-  // sign in with the created user, supabase issues the token 
+  // sign in with the created user, supabase issues the token
   const { error } = await supabase.auth.signInWithPassword({ email: account.email, password });
   if (error) {
     return {
