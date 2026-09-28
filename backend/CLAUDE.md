@@ -18,7 +18,8 @@ all live on this side. The Next.js app holds no ORM and no credentials.
 ## Stack
 
 FastAPI · Uvicorn · SQLAlchemy 2.0 (async, over asyncpg) · Alembic ·
-pydantic-settings · supabase-py (Storage, Auth admin) · PyJWT. Python 3.12,
+pydantic-settings · supabase-py (Storage, Auth admin) · PyJWT · Pillow
+(profile-photo re-encoding). Python 3.12,
 pinned by `requires-python = ">=3.12,<3.13"`.
 
 Dependencies are managed by **uv**. `uv add <pkg>` to add one, `uv sync` to
@@ -67,6 +68,10 @@ app/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
     resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
+    avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
+  services/       Logic with no HTTP or DB of its own. Never in models/,
+                  whose __init__ imports every file as a model
+    avatar.py     Validates and re-encodes an upload to a 512px WebP
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
@@ -84,6 +89,7 @@ alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
   resume.md       Same, for resume storage and parsing
+  avatar.md       Profile photo: formats, limits, storage, bucket setup
 pyproject.toml    Dependencies, and the pinned Python series
 uv.lock           Exact resolved versions — committed
 ```
@@ -367,6 +373,5 @@ goes to `frontend/`** — the frontend gets the anon key only.
 
 - Email verification and password reset: supported by Supabase, not wired up.
 - Company signup: still `501` — no screen collects a company name.
-- `routers/resumes.py` takes `applicant_id` from the URL and does not depend on
-  `get_current_account` yet. Anyone who can reach the API can upload against
-  any applicant until it does.
+- Deleting an account cascades its rows but not its Storage objects
+  (`Resume/<id>/`, `Avatar/<id>/`). Nothing cleans those up yet.

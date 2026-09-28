@@ -3,10 +3,16 @@ import "server-only";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
-// For upload formData (ex: resume)
-export function apiUpload(path: string, body: FormData, accessToken?: string): Promise<Response> {
+// For upload formData (ex: resume). PUT for routes that replace a single
+// file in place, such as the profile photo.
+export function apiUpload(
+  path: string,
+  body: FormData,
+  accessToken?: string,
+  method: "POST" | "PUT" = "POST",
+): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
-    method: "POST",
+    method,
     body,
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
   });

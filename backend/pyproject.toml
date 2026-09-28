@@ -10,6 +10,7 @@ dependencies = [
     "asyncpg>=0.31.0",
     "email-validator>=2.3.0",
     "fastapi>=0.141.1",
+    "pillow>=12.3.0",
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.14.0",
     "python-multipart>=0.0.32",
