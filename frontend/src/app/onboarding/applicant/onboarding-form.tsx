@@ -49,11 +49,10 @@ export function OnboardingForm() {
         ({ error } = await uploadResume(fd));
       } catch {
         error = "Upload failed. Files must be under 5 MB.";
-      } finally {
-        setUploading(false);
       }
-  
+
       if (error) {
+        setUploading(false);
         setUploadError(error);
         return;
       }

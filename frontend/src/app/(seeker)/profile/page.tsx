@@ -33,21 +33,24 @@ export default function ProfilePage() {
   const [resumeList, setResumeList] = useState<ResumeItem[]>([]);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   // Load the resumes initially
   useEffect(() => {
     listResumes().then(({ resumes, error }) => {
       setResumeList(resumes);
       if (error) setResumeError(error);
+      setLoaded(true);
     });
   }, []);
 
   async function handleResumeFileAdd(file: File) {
+    if (!loaded || uploading) return;
     if (resumeList.length >= 5) {
       setResumeError("Max limit for resume reached. Remove one to upload another.");
       return;
     }
-    if (uploading) return;
     setResumeError(null);
     setUploading(true);
 
@@ -68,8 +71,11 @@ export default function ProfilePage() {
   }
 
   async function handleRemove(resumeId: string) {
+    if (deletingId) return;
     setResumeError(null);
+    setDeletingId(resumeId);
     const { error } = await deleteResume(resumeId);
+    setDeletingId(null);
     if (error) {
       setResumeError(error);
       return;
@@ -152,7 +158,7 @@ export default function ProfilePage() {
                     <p className="text-label text-ink truncate">{r.original_filename ?? "Resume"}</p>
                     <p className="text-meta text-ink-meta">{r.status}</p>
                   </div>
-                  <IconButton label="Delete resume" onClick={() => handleRemove(r.id)}>
+                  <IconButton label="Delete resume" disabled={deletingId === r.id} onClick={() => handleRemove(r.id)}>
                     <TrashIcon className="size-4" />
                   </IconButton>
                 </div>

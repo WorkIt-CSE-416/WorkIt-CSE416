@@ -31,6 +31,8 @@ def _assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUI
 
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
+
+# TODO: Reinforce the 5 resume limit rule in the backend
 @router.post("/applicants/{applicant_id}/resumes")
 async def upload_resume(
     applicant_id: uuid.UUID,
