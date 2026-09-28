@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { MailIcon, PdfIcon, PencilIcon, PinIcon, TrashIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -14,13 +14,14 @@ import { PROFILE, ROLES, SKILLS } from "./data";
 import { PhoneIcon } from "./icons";
 import { ResumeUpload } from "@/components/resume-upload";
 import { uploadResume, deleteResume, listResumes, type ResumeItem } from "@/lib/resume-actions";
+import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
+import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
 
 /**
- * KAN-43 renders the profile mockup only, against the fixtures in ./data.
- * Nothing here reads or writes yet, so the resume dropzone, the two edit
- * affordances and the row actions are inert on purpose. The autofill switch is
- * the exception — a bare checkbox styles its own on state, so it works without
- * pulling the card into a client component.
+ * The profile screen. Resumes and the profile photo are live (resume-actions,
+ * avatar-actions); name, contact details, roles and skills still render the
+ * fixtures in ./data, and their edit affordances are inert until endpoints
+ * exist. The autofill switch styles its own on state from a bare checkbox.
  */
 const CONTACT = [
   { Icon: MailIcon, label: "Email", value: PROFILE.email },
@@ -35,6 +36,68 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+
+  // Profile photo. avatarUrl is a signed URL from the API, or a blob: preview
+  // while an upload is in flight.
+  const avatarInput = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  useEffect(() => {
+    getAvatar().then(({ url, error }) => {
+      setAvatarUrl(url);
+      if (error) setAvatarError(error);
+    });
+  }, []);
+
+  async function handleAvatarSelect(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Cleared so picking the same file again still fires onChange.
+    event.target.value = "";
+    if (!file || avatarBusy) return;
+
+    const invalid = avatarFileError(file);
+    if (invalid) {
+      setAvatarError(invalid);
+      return;
+    }
+
+    // Show the picked file immediately; roll back if the upload fails.
+    const previous = avatarUrl;
+    const preview = URL.createObjectURL(file);
+    setAvatarUrl(preview);
+    setAvatarError(null);
+    setAvatarBusy(true);
+
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const { url, error } = await uploadAvatar(fd);
+      if (error) {
+        setAvatarUrl(previous);
+        setAvatarError(error);
+        return;
+      }
+      setAvatarUrl(url);
+    } finally {
+      URL.revokeObjectURL(preview);
+      setAvatarBusy(false);
+    }
+  }
+
+  async function handleAvatarRemove() {
+    if (avatarBusy) return;
+    setAvatarError(null);
+    setAvatarBusy(true);
+    const { error } = await removeAvatar();
+    setAvatarBusy(false);
+    if (error) {
+      setAvatarError(error);
+      return;
+    }
+    setAvatarUrl(null);
+  }
 
   // Load the resumes initially
   useEffect(() => {
@@ -90,15 +153,34 @@ export default function ProfilePage() {
           <Card as="section" aria-labelledby="identity">
             <div className="flex flex-col items-center text-center">
               <div className="relative">
-                <Avatar name={PROFILE.name} className="size-29 text-3xl" />
+                <Avatar
+                  name={PROFILE.name}
+                  src={avatarUrl}
+                  className={cn("size-29 text-3xl", avatarBusy && "opacity-60")}
+                />
                 <IconButton
                   label="Change profile photo"
                   variant="brand"
                   className="absolute right-1 bottom-1"
+                  disabled={avatarBusy}
+                  onClick={() => avatarInput.current?.click()}
                 >
                   <PencilIcon className="size-3" />
                 </IconButton>
+                <input
+                  ref={avatarInput}
+                  type="file"
+                  accept={AVATAR_MIME_TYPES.join(",")}
+                  className="hidden"
+                  onChange={handleAvatarSelect}
+                />
               </div>
+              {avatarUrl && !avatarBusy && (
+                <Button variant="ghost" size="inline" className="mt-1" onClick={handleAvatarRemove}>
+                  Remove photo
+                </Button>
+              )}
+              {avatarError && <p className="text-meta mt-1 text-red-600">{avatarError}</p>}
 
               <SectionHeading as="h1" id="identity">
                 {PROFILE.name}
@@ -148,21 +230,25 @@ export default function ProfilePage() {
               <ResumeUpload file={null} onFileChange={handleResumeFileAdd} onRemove={() => {}} />
             </div>
             {resumeError && <p className="text-meta mt-2 text-red-600">{resumeError}</p>}
-              {resumeList.map((r) => (
-                <div
-                  key={r.id}
-                  className="border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2"
-                >
-                  <PdfIcon className="size-5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-label text-ink truncate">{r.original_filename ?? "Resume"}</p>
-                    <p className="text-meta text-ink-meta">{r.status}</p>
-                  </div>
-                  <IconButton label="Delete resume" disabled={deletingId === r.id} onClick={() => handleRemove(r.id)}>
-                    <TrashIcon className="size-4" />
-                  </IconButton>
+            {resumeList.map((r) => (
+              <div
+                key={r.id}
+                className="border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2"
+              >
+                <PdfIcon className="size-5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-label text-ink truncate">{r.original_filename ?? "Resume"}</p>
+                  <p className="text-meta text-ink-meta">{r.status}</p>
                 </div>
-              ))}
+                <IconButton
+                  label="Delete resume"
+                  disabled={deletingId === r.id}
+                  onClick={() => handleRemove(r.id)}
+                >
+                  <TrashIcon className="size-4" />
+                </IconButton>
+              </div>
+            ))}
           </Card>
 
           <Card as="section" aria-labelledby="experience">
