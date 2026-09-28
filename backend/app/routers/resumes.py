@@ -2,8 +2,8 @@
 import asyncio
 import logging
 import uuid
-from io import BytesIO
 from datetime import UTC, datetime
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy import select
@@ -19,7 +19,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def  _extract_pdf_text(data: bytes) -> str | None:
+# Extract resume text
+def _extract_pdf_text(data: bytes) -> str | None:
     '''Extract text from PDF'''
     from pypdf import PdfReader
     try:
@@ -34,7 +35,7 @@ def _extract_docx_text(data: bytes) -> str | None:
     except Exception:
         return None
 
-    
+
 
 MAX_SIZE = 5 * 1024 * 1024
 BUCKET = "Resume"
@@ -97,11 +98,16 @@ async def upload_resume(
         raise HTTPException(502, "File upload failed")
 
 
+    raw_text = _extract_pdf_text(contents) if ext == ".pdf" else _extract_docx_text(contents)
+
+    
+
     # Resume ORM object
     resume = Resume(
         id=resume_id,
         applicant_id=applicant_id,
         original_filename=file.filename,
+        raw_text=raw_text,
         storage_path=storage_path,
         status=ResumeStatus.uploaded,
         created_at=datetime.now(UTC),
@@ -125,6 +131,7 @@ async def upload_resume(
         "id": str(resume.id),
         "applicant_id": str(resume.applicant_id),
         "original_filename": resume.original_filename,
+        "raw_text": resume.raw_text,
         "storage_path": resume.storage_path,
         "status": resume.status,
         "created_at": resume.created_at.isoformat() if resume.created_at else None,
@@ -151,6 +158,7 @@ async def list_resumes(
         {
             "id": str(r.id),
             "original_filename": r.original_filename,
+            "raw_text": r.raw_text,
             "storage_path": r.storage_path,
             "status": r.status,
             "created_at": r.created_at.isoformat() if r.created_at else None,
