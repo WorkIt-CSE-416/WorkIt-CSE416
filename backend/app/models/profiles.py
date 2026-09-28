@@ -77,4 +77,6 @@ class Company_Membership(Profile):
     )
     role:Mapped[company_role]
     status: Mapped[profile_status]
-    headline: Mapped[str] = mapped_column(String(50))
+    # Nullable: signup doesn't collect one, so the owner's membership row is
+    # created without it and filled in later, same as applicant_profiles.
+    headline: Mapped[str | None] = mapped_column(String(50))

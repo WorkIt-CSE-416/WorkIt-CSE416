@@ -213,6 +213,7 @@ export function SignupForm({ formId }: { formId: string }) {
                   labelAction={OPTIONAL}
                   placeholder="https://example.com"
                   autoComplete="url"
+                  maxLength={255}   // set url maximum 
                   defaultValue={state.websiteUrl}
                 />
 
@@ -253,6 +254,7 @@ export function SignupForm({ formId }: { formId: string }) {
                 type="text"
                 label="First Name"
                 autoComplete="given-name"
+                maxLength={100}
                 required
                 defaultValue={state.firstName}
               />
@@ -264,6 +266,7 @@ export function SignupForm({ formId }: { formId: string }) {
                 label="Middle Name"
                 labelAction={OPTIONAL}
                 autoComplete="additional-name"
+                maxLength={55}
                 defaultValue={state.middleName}
               />
 
@@ -273,6 +276,7 @@ export function SignupForm({ formId }: { formId: string }) {
                 type="text"
                 label="Last Name"
                 autoComplete="family-name"
+                maxLength={100}
                 required
                 defaultValue={state.lastName}
               />
@@ -287,6 +291,7 @@ export function SignupForm({ formId }: { formId: string }) {
               label={isCompany ? "Sign-in Email" : "Email Address"}
               icon={MailIcon}
               autoComplete="email"
+              maxLength={100}
               required
               defaultValue={state.email}
             />
@@ -300,6 +305,7 @@ export function SignupForm({ formId }: { formId: string }) {
               autoComplete="new-password"
               required
               minLength={PASSWORD_MIN_LENGTH}
+              maxLength={20}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
