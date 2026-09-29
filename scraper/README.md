@@ -7,8 +7,9 @@ Lever, Ashby) and renders them as one self-contained HTML page.
 cd scraper
 python3 -m workit_scraper              # scrape live, then render
 python3 -m workit_scraper --offline    # no network; render from jobs.json
-open internships.html
 ```
+
+Then open `internships.html` in any browser (double-click it in your file manager).
 
 No install step: Python 3.12+ and the standard library only.
 
