@@ -5,8 +5,8 @@ scraper's design and the rules for changing it; `README.md` is only how to run i
 
 ```sh
 cd scraper
-python3 -m workit_scraper                          # scrape, then render the page
-python3 -m workit_scraper --offline                # no network; render from jobs.json
+python3 -m workit_scraper                          # scrape, then write the page and feed.json
+python3 -m workit_scraper --offline                # no network; rewrite both from jobs.json
 python3 build_boards.py                            # regenerate boards.csv
 python3 -m unittest discover -s tests -t . -v      # the tests
 ```
@@ -17,6 +17,7 @@ python3 -m unittest discover -s tests -t . -v      # the tests
 boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶ store.update ─▶ jobs.json
                                                                                    │
                            report.write_html ◀─ shortlist.pick ◀─ Store.is_listed ◀┘
+                           feed.write ◀────────────┘  (feed.json ─▶ backend GET /jobs)
 ```
 
 | file | owns |
@@ -29,6 +30,7 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 | `store.py` | `jobs.json`, `first_seen_at`, and what "listed" and "new today" mean |
 | `shortlist.py` | which postings belong on the page, and collapsing duplicates |
 | `report.py` | rendering the page |
+| `feed.py` | `feed.json`, the backend's copy of the same roles |
 | `__main__.py` | the thread pool and the two commands |
 
 All three providers return a whole board in one request, so there is no pagination.
@@ -183,6 +185,20 @@ Marked in the code with `ponytail:` comments where they apply.
   make `jobs.json` tens of megabytes of roles we never display. The page's counts still
   report everything scanned.
 
+## `feed.json` is the backend's only view of us
+
+The backend serves the seeker Jobs feed (`GET /jobs`) from `feed.json`, which every
+run — `--offline` included — writes from the same roles as the page. It reads the file
+and imports none of this package: `backend/CLAUDE.md` keeps anything outside
+`backend/` out of its build. So `feed.row()` is the whole contract, and its fields
+must match `backend/app/schemas/jobs.py` — add a field in both or neither.
+
+Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's labels
+("On site"). `feed.WORK_STYLE` is indexed, not `.get`: a new label from
+`providers._work_style` should fail a run, not quietly become `null` in the app.
+
+The scraper still never touches the database.
+
 ## Committed data
 
 Only `boards.csv` is committed, marked `linguist-generated` so it stays collapsed in
@@ -193,4 +209,4 @@ offline fallback in one file -- and it is gitignored, at a reviewer's request: i
 megabytes per run, and few people on the team run the scraper. So each machine keeps
 its own history. A fresh clone has none: its first live run counts nothing as new
 (see "New today" above), and `--offline` refuses to run until a live run has written
-the file. `internships.html` is gitignored output of either command.
+the file. `internships.html` and `feed.json` are gitignored output of either command.

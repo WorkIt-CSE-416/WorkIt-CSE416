@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from enum import Enum, auto
 from pathlib import Path
 
-from workit_scraper import providers, report, store
+from workit_scraper import feed, providers, report, store
 from workit_scraper.polite import Robots
 from workit_scraper.providers import Board, BoardNotFound, Job
 from workit_scraper.shortlist import classify, pick
@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BOARDS_CSV = ROOT / "boards.csv"
 JOBS_JSON = ROOT / "jobs.json"
 PAGE_HTML = ROOT / "internships.html"
+FEED_JSON = ROOT / "feed.json"
 MAX_IN_FLIGHT = 8
 
 
@@ -133,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
 
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
+    feed.write(roles, FEED_JSON)
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
@@ -141,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         f" {run.stats.boards_skipped} skipped,"
         f" {run.stats.boards_failed} failed)"
     )
-    print(f"wrote {PAGE_HTML}")
+    print(f"wrote {PAGE_HTML} and {FEED_JSON.name}")
     return 0
 
 

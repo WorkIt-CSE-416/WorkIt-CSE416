@@ -178,7 +178,13 @@ survive — which is why `ui/card.tsx` sets its accent edge one side at a time.
 
 A screen's fixture data lives in a sibling `data.ts`, not inside `page.tsx`, so
 a page file is layout and the swap to real data touches one file per screen.
-When the backend lands, that is the seam it plugs into.
+When the backend lands, that is the seam it plugs into — unless a client
+component imports that `data.ts`. The server-only API helpers cannot go there
+without breaking the build, so the fetch gets its own sibling marked
+`import "server-only"`. The Jobs feed is the first case: `(seeker)/jobs/listings.ts`
+fetches `GET /jobs`, and its `data.ts` still holds the fixtures `filters.tsx`
+(client) and the `/jobs/[jobId]` detail view use. A live fetch in a page calls
+`await connection()` so `next build` does not prerender it with no API running.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
 — there is no `tailwind.config.js`. Add design tokens there. The file also

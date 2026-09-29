@@ -1,0 +1,43 @@
+"""Write the shortlist as feed.json: the data behind WorkIt's Jobs feed.
+
+The same roles `report` renders as HTML, as rows shaped exactly like the API's
+`GET /jobs` response (`backend/app/schemas/jobs.py`). The backend reads this file
+and imports none of our code -- backend/CLAUDE.md: nothing above backend/ is part
+of its build -- so this row is the whole contract between the two, and a field
+added here must be added there.
+
+Values are the schema's own enums, not our display labels: the labels are for the
+HTML page, and translating them here, next to where they are made, keeps the
+backend from knowing they exist.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from workit_scraper.shortlist import Role, Tag
+
+# `providers._work_style` yields exactly these three labels, or None. Indexed, not
+# `.get`: a fourth label is a change there that must be decided here too, not
+# silently dropped to None.
+WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
+
+
+def row(role: Role) -> dict[str, object]:
+    return {
+        # classify() keys roles on (company, title), so the pair is unique per feed.
+        "id": f"{role.company}|{role.title}",
+        "title": role.title,
+        "company": role.company,
+        "apply_url": role.apply_url,
+        "experience_level": "internship" if Tag.INTERN in role.tags else "new_grad",
+        "work_style": WORK_STYLE[role.work_style] if role.work_style else None,
+        "location": role.location_label or None,
+        "posted_at": role.posted_at,
+    }
+
+
+def write(roles: list[Role], path: Path) -> None:
+    """Newest first, in `pick()`'s order: the API serves a prefix of this list."""
+    path.write_text(json.dumps([row(role) for role in roles], indent=1) + "\n", encoding="utf-8")

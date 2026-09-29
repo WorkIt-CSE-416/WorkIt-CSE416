@@ -2,61 +2,43 @@ import type { Metadata } from "next";
 
 import { BookmarkIcon, EllipsisIcon } from "@/components/icons";
 import { JobPostingCard } from "@/components/job-posting-card";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { cn } from "@/lib/cn";
 
-import { RECOMMENDATIONS, type Recommendation } from "./data";
 import { JobFilters } from "./filters";
-import {
-  formatExperienceLevel,
-  formatJobLocation,
-  formatJobType,
-  formatMinYearsExperience,
-  formatSalary,
-  formatTiming,
-  formatWorkStyle,
-} from "./format";
+import { formatExperienceLevel, formatPosted, formatWorkStyle } from "./format";
 import { CircleSlashIcon, SparkleIcon } from "./icons";
-import { MatchRail } from "./match-rail";
+import { getJobListings, type JobListing } from "./listings";
 
 export const metadata: Metadata = {
   title: "Jobs",
   description: "Roles matched to your profile.",
 };
 
-/* Built without a mockup, from the layout described in ./data. Everything here
- * is inert, as it is on the other two job screens. */
+/* Built without a mockup, from the layout described in ./data. The feed is
+ * live (./listings); Save, Not Interested and Ask WorkIt are still inert. */
 
 /**
- * One recommendation: the job on the left, WorkIt's match reasoning on the
- * right. A thin wrapper over <JobPostingCard> — the shared shell — adding the
- * seeker-only chrome: a more-options menu, Not Interested / Save / Ask WorkIt /
- * Apply, and the match rail. See job-posting-card.tsx for the shell itself and
- * why those are slots rather than baked in.
+ * One scraped role in the shared <JobPostingCard> shell, with the seeker-only
+ * chrome around it. What a scraped role lacks is null, and the card omits it:
+ * no salary or job type (job boards rarely state them), no match rail (nothing
+ * scores roles yet), and no title link (there is no expanded view for a role
+ * with no description). Apply Now leaves for the employer's own posting.
  */
-function RecommendationCard({ job }: { job: Recommendation }) {
+function ListingCard({ job }: { job: JobListing }) {
   return (
     <JobPostingCard
       job={{
-        // No per-job Icon/tone any more — that was company branding smuggled
-        // onto the job. Initials stand in until `companies` has a logo.
+        // Initials stand in until `companies` has a logo.
         company: job.company,
-        companyHref: "/companies",
         title: job.title,
-        titleHref: `/jobs/${job.id}`,
-        timing: formatTiming(job.uploadedAt, job.closesAt),
-        // null only when there is no location information at all — Work
-        // Style already says Remote, and printing that again under the pin
-        // icon would read as two facts agreeing by coincidence. A posting
-        // with a country but no city (a Remote role restricted to, say, the
-        // US) still has something real to show, just not a full city.
-        location: formatJobLocation(job),
-        jobType: formatJobType(job.jobType),
-        salary: formatSalary(job),
-        workStyle: formatWorkStyle(job.workStyle),
-        experienceLevel: formatExperienceLevel(job.experienceLevel),
-        minYearsExperience: formatMinYearsExperience(job.minYearsExperience),
+        timing: job.posted_at ? formatPosted(job.posted_at) : null,
+        location: job.location,
+        jobType: null,
+        salary: null,
+        workStyle: job.work_style ? formatWorkStyle(job.work_style) : null,
+        experienceLevel: formatExperienceLevel(job.experience_level),
+        minYearsExperience: null,
       }}
       headerAction={
         <IconButton label={`More options for ${job.title}`} tooltip="More options">
@@ -75,12 +57,12 @@ function RecommendationCard({ job }: { job: Recommendation }) {
           </IconButton>
 
           <IconButton
-            label={job.saved ? `Remove ${job.title} from saved` : `Save ${job.title}`}
-            tooltip={job.saved ? "Remove from saved" : "Save"}
+            label={`Save ${job.title}`}
+            tooltip="Save"
             variant="outline"
-            className={cn("size-8", job.saved && "text-brand")}
+            className="size-8"
           >
-            <BookmarkIcon filled={job.saved} className="size-4" />
+            <BookmarkIcon className="size-4" />
           </IconButton>
 
           {/* Secondary, not primary: asking about a job is the step before
@@ -91,15 +73,18 @@ function RecommendationCard({ job }: { job: Recommendation }) {
             Ask WorkIt
           </Button>
 
-          <Button size="sm">Apply Now</Button>
+          <ButtonLink href={job.apply_url} target="_blank" rel="noopener noreferrer" size="sm">
+            Apply Now
+          </ButtonLink>
         </>
       }
-      rail={<MatchRail score={job.match} highlights={job.highlights} />}
     />
   );
 }
 
-export default function JobsPage() {
+export default async function JobsPage() {
+  const { jobs, error } = await getJobListings();
+
   return (
     <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
       <div>
@@ -113,13 +98,19 @@ export default function JobsPage() {
         <JobFilters />
       </div>
 
-      <ul className="mt-4 flex flex-col gap-3">
-        {RECOMMENDATIONS.map((job) => (
-          <li key={job.id}>
-            <RecommendationCard job={job} />
-          </li>
-        ))}
-      </ul>
+      {error != null ? (
+        <p role="alert" className="text-body text-ink-meta mt-4">
+          Couldn&apos;t load jobs. {error}
+        </p>
+      ) : (
+        <ul className="mt-4 flex flex-col gap-3">
+          {jobs.map((job) => (
+            <li key={job.id}>
+              <ListingCard job={job} />
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }
