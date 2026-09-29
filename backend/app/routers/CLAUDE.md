@@ -18,6 +18,7 @@ Every router follows the same structure:
 | File | Prefix | What it does |
 |------|--------|--------------|
 | `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user + profile row; `GET /me` returns the caller's account |
+| `jobs.py` | `/jobs` | Public `GET` of the scraper's shortlist, newest first. Reads `scraper/feed.json` (path: `Settings.scraper_feed`); imports no scraper code, no DB |
 | `resumes.py` | `/applicants/{applicant_id}/resumes` | Resume file upload (PDF/DOCX) to Supabase Storage + DB row |
 
 ## Conventions

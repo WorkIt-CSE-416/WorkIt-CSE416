@@ -2,3 +2,5 @@
 # source. Python caches and .venv are already ignored by the repo root's .gitignore
 # (unanchored, so they match here too) -- do not repeat them.
 internships.html
+# The Jobs feed the backend serves, written beside the page from the same roles.
+feed.json

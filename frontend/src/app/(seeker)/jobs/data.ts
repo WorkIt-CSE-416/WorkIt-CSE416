@@ -1,5 +1,7 @@
 /**
- * The fixtures the Jobs screen renders against.
+ * The fixtures behind the expanded view at /jobs/[jobId] and the filter
+ * options. The feed itself is live now — see ./listings, and its header for
+ * why the fetch is not in this file.
  *
  * Shaped after `backend/db/job_posting.md`'s `job_postings` table (plus
  * `job_role_tags`) rather than the original mockup-only fields. Two things the
@@ -29,9 +31,9 @@
  * it is the one part of `Recommendation` with no counterpart in
  * `job_posting.md` at all.
  *
- * Nothing reads or writes yet: the filters, the sort, the dismiss and save
- * actions, Ask WorkIt and Apply Now are all inert, as they are on search and on
- * the applications board.
+ * Beyond the feed and its Apply Now link, nothing reads or writes yet: the
+ * filters, the sort, the dismiss and save actions and Ask WorkIt are all
+ * inert, as they are on search and on the applications board.
  */
 
 export type JobType = "full_time" | "part_time" | "contract";
