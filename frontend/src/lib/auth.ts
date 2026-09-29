@@ -19,7 +19,7 @@ const API_URL = process.env.API_URL ?? "http://localhost:8000";
  * pair is the wire contract, not a value either side can import — if one
  * changes, the other has to change with it.
  */
-const SESSION_COOKIE_NAME = "session_token";
+export const SESSION_COOKIE_NAME = "session_token";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export type AccountType = "applicant" | "company";
