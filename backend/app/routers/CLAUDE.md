@@ -17,7 +17,7 @@ Every router follows the same structure:
 
 | File | Prefix | What it does |
 |------|--------|--------------|
-| `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user + profile row; `GET /me` returns the caller's account |
+| `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user, then the applicant profile or the company + owner membership; `GET /me` returns the caller's account |
 | `resumes.py` | `/applicants/{applicant_id}/resumes` | Resume file upload (PDF/DOCX) to Supabase Storage + DB row |
 
 ## Conventions

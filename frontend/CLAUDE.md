@@ -81,7 +81,7 @@ src/components/   Shared components
   account-menu.tsx  The avatar dropdown; each shell passes its own items
   ui/             Presentational primitives: badge, button, card, company-tile,
                   fact, filter-chip, icon-button, search-field, section-heading,
-                  text-field, text-link
+                  select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
@@ -188,7 +188,7 @@ pool, no schema and no migrations here — that is the Python API's job, and it
 owns the connection string. A query belongs in an endpoint, and a `page.tsx`
 reaches it through that screen's `data.ts`.
 
-**Auth is Supabase Auth, wired up for applicant accounts.** Supabase Auth
+**Auth is Supabase Auth, wired up for applicants and company owners.** Supabase Auth
 issues and refreshes the session; the Python API verifies the access token
 and owns authorization. `backend/CLAUDE.md`'s Auth section owns the flow and
 its rules — **read it before touching auth or adding an API call.** The Next
@@ -196,14 +196,26 @@ side:
 
 - `login/actions.ts` calls `supabase.auth.signInWithPassword()`, then
   `GET /auth/me` with the new access token to learn the account type and
-  onboarding state, and redirects off that. If the account type doesn't match
-  the tab the user signed in on, it signs out again and shows the
-  wrong-password message.
+  onboarding state, and redirects off that: an applicant to
+  `/onboarding/applicant` until onboarded and `/jobs` after, a company
+  account always to `/company`. Companies skip the onboarding check because
+  nothing sets their `onboarding_completed_at` yet, so it would send every
+  company login to the `/onboarding/company` stub — restore it when company
+  onboarding is built. If the account type doesn't match the tab the user
+  signed in on, it signs out again and shows the wrong-password message.
 - `signup/actions.ts` calls `POST /auth/signup` — **not**
   `supabase.auth.signUp()`, which can only write `user_metadata`, a field the
   user can edit, so it cannot be trusted with the account type — and then
-  signs in. Company signup gets the API's `501` back and shows it; don't build
-  the company-signup fields until `onboarding/company` exists to receive them.
+  signs in. The Company tab asks Create Company or Join a Company first
+  (`signup/signup-form.tsx`). Create Company sends the owner's fields plus a
+  nested `company` object (name, websiteUrl, contactEmail, contactPhone,
+  sizeRange — a `company_size_range` value from `backend/app/models/dto.py`),
+  sent only when `accountType` is `company`. The API creates the company and
+  the owner's membership, and the action then redirects an applicant to
+  onboarding and a company to `/company`. Join a Company has no form yet.
+- **A key the API's Pydantic schema doesn't declare is dropped silently**
+  (the default `extra="ignore"`), not rejected. A field added to a request
+  body here does nothing until `backend/app/schemas/` declares it too.
 - `src/proxy.ts` refreshes the session on every request. @supabase/ssr
   requires it: Server Components cannot write cookies, so without it sessions
   die when the hour-long access token does. It does nothing when the Supabase
