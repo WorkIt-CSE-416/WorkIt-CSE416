@@ -30,8 +30,9 @@ company_profiles  1 ──o{  company_memberships    a complete HR-user account
 
 An account **is** an `applicant_profiles` row or a `company_memberships` row.
 `Profile` is an abstract class that lends its identity columns to each table
-separately. This is unusual for a Supabase-style schema, which normally pairs
-every auth user with one app-owned profile row.
+separately. Each account row's `id` is its Supabase `auth.users` id, so every
+auth user pairs with exactly one profile row — in whichever of the two tables
+`app_metadata.account_type` names.
 
 What it buys: one row per account, so loading a recruiter or an applicant reads
 a single table — no join, no discriminator column, no inheritance machinery. The
@@ -44,9 +45,10 @@ What it costs — properties of the design, not defects:
 - **An HR user belongs to exactly one company.** `company_memberships.id` is
   both the primary key and the user's identity, so a second membership for the
   same person is a duplicate-key violation.
-- **Someone who is both an applicant and an HR user has two unlinked rows.** Two
-  emails, two names, no query relating them. Updating one does not touch the
-  other.
+- **Someone who is both an applicant and an HR user needs two emails.**
+  `auth.users` holds an address once and the id is shared with the profile, so
+  one sign-in identity is one account. Two addresses give two unlinked rows,
+  with no query relating them.
 - **Deleting a company deletes its HR users' accounts.** The cascade on
   `company_id` is correct for a join row, but a membership *is* the account.
   Confirm this is wanted before writing a company-delete path.
@@ -100,7 +102,9 @@ Both are `__abstract__ = True`: they declare columns and map to no table. Each
 concrete subclass gets its own **independent copy** of those columns.
 
 - `BaseModel` supplies `created_at` / `updated_at`.
-- `Profile` supplies `id`, `email`, `full_name`, `phone_number`, `avatar_url`.
+- `Profile` supplies `id`, `email`, `full_name`, `phone_number`, `avatar_url`,
+  `onboarding_completed_at`. `id` is a foreign key to `auth.users.id`, with no
+  default — see "Identity lives in auth.users" below.
 
 An abstract class must never be given `__tablename__` — it is ignored, and it
 reads as a table that exists. Dropping `__abstract__` from either one raises
@@ -360,39 +364,29 @@ on a miss: log it, since misses show which aliases to add. `job_postings` has
 no column for the raw text, so an unresolved posting cannot be stored for a
 later retry. Add a `location_raw` column if that matters.
 
-## Credentials are missing, and that is now blocking
+## Identity lives in auth.users
 
-**FastAPI issues the session token** — see `../../CLAUDE.md`. Supabase is
-managed Postgres only, so there is no `auth.users` table to reference and no
-external identity provider. That resolves an old question: these tables
-correctly have no foreign key to `auth.users`, because no such table exists.
+Supabase Auth owns credentials (`../../CLAUDE.md`'s Auth section). **No table
+here stores a password or a hash, and none should** — `197cfcdecdb8` dropped
+the `password_hash` columns an earlier FastAPI-issued auth had added.
 
-It also creates one. **Nothing here stores a password hash.** The account tables
-have `email` (unique per table) and no credential column at all, so this schema
-cannot authenticate anyone yet.
+What that means for the account tables:
 
-**The first migration shipped without it.** `dee263a84adb` created these tables
-with no credential column, so closing the gap is now an `ALTER TABLE ADD
-COLUMN` migration rather than a free edit. There is already a consumer waiting:
-the KAN-114 auth branch expects `password_hash` and `onboarding_completed_at`
-on the account tables, and must bring its own migration adding them.
-
-Settle the question below first, because it is an identity decision and not a
-column addition:
-
-- **`email` is unique per table, not globally.** The same address can exist in
-  both `applicant_profiles` and `company_memberships`, so "look up the user by
-  email" has two answers. Either enforce global uniqueness across both tables,
-  or make login account-type-scoped and accept that one address can own two
-  accounts.
-- **Where the hash lives** follows from that. A shared `credentials` table keyed
-  by email gives one login path and one place to rotate hashing parameters, but
-  it reintroduces the shared identity row this schema deliberately avoids. A
-  `password_hash` column on each account table keeps the halves separate and
-  duplicates the login logic.
-
-Do not add a `password_hash` column to one table and not the other, and do not
-store a hash without deciding which of the two shapes above is being built.
+- **`id` references `auth.users(id) ON DELETE CASCADE`** and has no default.
+  Create the auth user first and use its id; `routers/auth.py`'s signup does
+  exactly that, and deletes the auth user again if the profile insert fails.
+  Deleting a user in the Supabase dashboard deletes their account row.
+- **`auth_users.py` is a stub**, one column, so SQLAlchemy can resolve that
+  foreign key. `alembic/env.py`'s filters keep autogenerate from ever creating
+  or dropping it. Do not add columns to it or query through it.
+- **`email` is a copy** of `auth.users.email`, kept for display and joins.
+  Supabase signs in with its own copy. Nothing changes an email yet; whatever
+  first does must update both.
+- **Global email uniqueness now comes from `auth.users`,** which the old
+  per-table `UNIQUE` on `email` could never give. The per-table constraints
+  stay as a second check.
+- **`onboarding_completed_at`** stays here: it is app state, not identity.
+  NULL until onboarding completes, and read on every `/auth/me`.
 
 ## Known gaps
 
