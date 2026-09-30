@@ -42,11 +42,12 @@ export default function ProfilePage() {
   const avatarInput = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
-  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(true);
 
   useEffect(() => {
     getAvatar().then(({ url, error }) => {
       setAvatarUrl(url);
+      setAvatarBusy(false); 
       if (error) setAvatarError(error);
     });
   }, []);
@@ -79,7 +80,7 @@ export default function ProfilePage() {
         setAvatarError(error);
         return;
       }
-      setAvatarUrl(url);
+      setAvatarUrl(url ?? previous);
     } finally {
       URL.revokeObjectURL(preview);
       setAvatarBusy(false);

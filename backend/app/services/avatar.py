@@ -53,7 +53,9 @@ def normalize_avatar(data: bytes) -> bytes:
         img = Image.open(BytesIO(data), formats=ACCEPTED_FORMATS)
     except (Image.UnidentifiedImageError, OSError) as exc:
         raise InvalidImageError("Only JPEG, PNG and WebP images are accepted.") from exc
-
+    except Image.DecompressionBombError as exc:
+        raise InvalidImageError("Image dimensions are too large.") from exc
+    
     # open() read only the header, so this check costs nothing and runs before
     # the pixel data is decoded.
     if img.width * img.height > MAX_PIXELS:
@@ -70,6 +72,8 @@ def normalize_avatar(data: bytes) -> bytes:
         # Phones store "rotate me" as an EXIF tag rather than rotating pixels.
         # Apply it now, since the tag is about to be dropped.
         img = ImageOps.exif_transpose(img)
+        if img.mode.startswith("I"):
+            img = img.point(lambda v: v / 256).convert("L")
         img = img.convert("RGBA" if _has_alpha(img) else "RGB")
         # Centre-crop to a square, then downscale; an image already smaller
         # than AVATAR_SIZE is upscaled, which keeps every stored file one shape.
