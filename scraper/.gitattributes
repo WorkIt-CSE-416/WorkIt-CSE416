@@ -1,0 +1,6 @@
+# Both files are scraper output, committed on purpose: jobs.json so `--offline` works
+# on a fresh clone and the demo cannot fail on a bad network, boards.csv so the board
+# list is reproducible from build_boards.py. Marking them generated keeps them
+# collapsed in pull request diffs and out of the repo's language statistics.
+jobs.json linguist-generated=true
+boards.csv linguist-generated=true
