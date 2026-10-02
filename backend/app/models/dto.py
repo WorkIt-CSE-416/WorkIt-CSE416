@@ -52,7 +52,7 @@ class ParsedResume(PydanticBase):
     education: list[Education] = []
     experience: list[Experience] = []
     skills: list[Skill] = []
-    projects: list[Project] = []
+    projects: list[Project] = []    
     certifications: list[Certification] = []
 
 
@@ -61,7 +61,7 @@ class company_size_range(enum.StrEnum):
     ONE_TO_FIFTY="1_50"
     FIFTY_TO_TWO_HUNDRED="51_200"
     TWO_HUNDRED_TO_FIVE_HUNDRED= "201_500"
-    TOUSAND="501_1000"
+    THOUSAND="501_1000"
     FIVE_THOUSAND="1001_5000"
     TEN_THOUSAND= "5001_10000"
     LARGE_THOUSAND= "10000_"

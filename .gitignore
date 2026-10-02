@@ -66,6 +66,10 @@ next-env.d.ts
 __pycache__/
 *.py[cod]
 
+# Sample resumes for manual upload testing. Real people's resumes — never
+# commit them. backend/tests/fixtures/ holds the redacted text the tests use.
+frontend/public/resumes/
+
 # claude skill reports
 claudeskill_reports/
 

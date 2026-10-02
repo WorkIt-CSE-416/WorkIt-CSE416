@@ -48,7 +48,16 @@ uv run alembic current                         which revision the DB is on
 uv run alembic check                           fail if models lack a migration
 ```
 
-There is no test runner yet. When one is added, document it here.
+```
+uv run pytest                                  run the tests in tests/
+```
+
+Tests cover the resume parser only. `tests/fixtures/*.txt` are extracted text
+of real resumes, each in a layout that once broke parsing, cut to start at the
+first section header so no contact details are committed. The heuristics
+interact — a fix for one layout has broken another more than once — so when a
+new resume parses wrong, add it as a fixture with its expected output in
+`tests/test_resume_parser.py` before touching `app/utils/resume_parser.py`.
 
 **Never run `alembic init` again** — it overwrites `alembic/env.py` and undoes
 the schema filters. `alembic/CLAUDE.md` explains what that costs.
@@ -80,6 +89,7 @@ alembic/
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
+tests/            pytest; resume parser regression tests and their fixtures
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
