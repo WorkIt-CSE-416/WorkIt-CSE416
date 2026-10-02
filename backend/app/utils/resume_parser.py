@@ -45,7 +45,7 @@ SECTION_RE = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
-GPA_RE = re.compile(r'GPA[:\s]*([\d.]+)', re.IGNORECASE)
+GPA_RE = re.compile(r'GPA[:\s]*(\d+(?:\.\d+)?)', re.IGNORECASE)
 DEGREE_RE = re.compile(
     # A.A./A.S. need the dot, or the word "as" would count as a degree
     r'\b(B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|Bachelor|Master|Associate|Doctorate|'

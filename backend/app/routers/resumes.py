@@ -63,6 +63,7 @@ def _join_pages(pages, mode: str) -> str:
 
 
 def _tidy_lines(text: str) -> str:
+    text = text.replace("\x00", "")  # Postgres text/jsonb rejects NUL bytes
     # PDF layout mode pads columns with runs of spaces, and Word separates
     # them with tabs. Turn each gap into two spaces rather than one, because
     # the parser uses that gap to tell a right-aligned location apart from
@@ -187,7 +188,8 @@ async def upload_resume(
         raise HTTPException(502, "File upload failed")
 
 
-    raw_text = _extract_pdf_text(contents) if ext == ".pdf" else _extract_docx_text(contents)
+    extract = _extract_pdf_text if ext == ".pdf" else _extract_docx_text
+    raw_text = await asyncio.to_thread(extract, contents)
 
     parsed = None
     if raw_text:
@@ -204,7 +206,7 @@ async def upload_resume(
         raw_text=raw_text,
         parsed_json=parsed.model_dump(mode="json") if parsed else None,
         storage_path=storage_path,
-        status=ResumeStatus.parsed if parsed else ResumeStatus.uploaded,
+        status=ResumeStatus.parsed if parsed else ResumeStatus.parse_failed,
         created_at=datetime.now(UTC),
     )
 
@@ -259,8 +261,6 @@ async def list_resumes(
             "id": str(r.id),
             "applicant_id": str(r.applicant_id),
             "original_filename": r.original_filename,
-            "raw_text": r.raw_text,
-            "parsed_json": r.parsed_json,
             "storage_path": r.storage_path,
             "status": r.status,
             "created_at": r.created_at.isoformat() if r.created_at else None,

@@ -403,6 +403,3 @@ goes to `frontend/`** — the frontend gets the anon key only.
   always reports a company account as not onboarded. The frontend routes
   around it (companies skip onboarding); whatever builds company onboarding
   must set it.
-- `routers/resumes.py` takes `applicant_id` from the URL and does not depend on
-  `get_current_account` yet. Anyone who can reach the API can upload against
-  any applicant until it does.
