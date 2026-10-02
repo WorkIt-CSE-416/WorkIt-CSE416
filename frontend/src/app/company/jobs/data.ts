@@ -125,11 +125,11 @@ export const POSTINGS: Posting[] = [
   },
 ];
 
-/** "Open" is what a recruiter calls a published job. Paused has no stored
- *  status yet, so nothing maps to it. */
-const STATUS_LABEL: Record<CompanyJob["status"], JobStatus> = {
+/** "Open" is what a recruiter calls a published job. */
+export const STATUS_LABEL: Record<CompanyJob["status"], JobStatus> = {
   draft: "Draft",
   published: "Open",
+  paused: "Paused",
   closed: "Closed",
 };
 

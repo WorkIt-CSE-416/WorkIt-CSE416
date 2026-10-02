@@ -29,7 +29,7 @@ export type CompanyJob = {
   id: string;
   title: string;
   description: string;
-  status: "draft" | "published" | "closed";
+  status: "draft" | "published" | "paused" | "closed";
   job_type: JobPayload["jobType"];
   experience_level: JobPayload["experienceLevel"];
   min_years_experience: number | null;
@@ -110,11 +110,11 @@ export async function getCompanyJob(
   }
 }
 
-/** Moves a job along its lifecycle. Only closing is offered today; the API
- *  rejects any move it doesn't allow, so nothing is checked here. */
+/** Pauses ("paused"), resumes ("published") or closes ("closed") a job. The
+ *  API rejects any move it doesn't allow, so nothing is checked here. */
 export async function changeJobStatus(
   jobId: string,
-  status: "closed",
+  status: "published" | "paused" | "closed",
 ): Promise<{ error: string | null }> {
   try {
     const token = await getAccessToken();

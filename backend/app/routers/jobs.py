@@ -30,7 +30,8 @@ _JOB_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, "Job not found.")
 # published isn't here: publishing goes through PUT with the full form, so the
 # details are checked at the moment the job goes live. Closed is final.
 _NEXT_STATUSES: dict[job_post_status, set[job_post_status]] = {
-    job_post_status.published: {job_post_status.closed},
+    job_post_status.published: {job_post_status.paused, job_post_status.closed},
+    job_post_status.paused: {job_post_status.published, job_post_status.closed},
 }
 
 
@@ -125,17 +126,20 @@ async def update_job(
     form always sends every field, and the salary rules need all of them at
     once to check.
 
-    Status may only stay put or move forward: a draft can be published, but a
-    published job can't return to draft, and a closed job can't be edited.
+    Only a draft's status changes here (to published, when Publish is
+    pressed). A live job keeps its status, paused included, because pausing,
+    resuming and closing go through the status route; a closed job can't be
+    edited at all.
     '''
     job = await _own_job(db, job_id, account)
 
     if job.status == job_post_status.closed:
         raise HTTPException(status.HTTP_409_CONFLICT, "A closed job can't be edited.")
-    if job.status == job_post_status.published and body.status == job_post_status.draft:
-        raise HTTPException(status.HTTP_409_CONFLICT, "A published job can't go back to being a draft.")
+    if job.status != job_post_status.draft and body.status == job_post_status.draft:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A live job can't go back to being a draft.")
 
-    for field, value in body.model_dump().items():
+    changes = body.model_dump(exclude={"status"} if job.status != job_post_status.draft else set())
+    for field, value in changes.items():
         setattr(job, field, value)
     await _commit(db, job)
     return job
@@ -149,8 +153,8 @@ async def change_job_status(
     db: AsyncSession = Depends(get_session),
 ) -> Job_Post:
     '''
-    move a job along its lifecycle, e.g. close it. Only the moves in
-    _NEXT_STATUSES are allowed; anything else is a 409.
+    pause, resume or close a job. Only the moves in _NEXT_STATUSES are
+    allowed; anything else is a 409.
     '''
     job = await _own_job(db, job_id, account)
 
