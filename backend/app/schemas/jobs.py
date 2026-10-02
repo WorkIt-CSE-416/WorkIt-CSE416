@@ -71,6 +71,14 @@ class JobPostingCreate(BaseModel):
         return self
 
 
+class JobStatusChange(BaseModel):
+    '''
+    POST body for moving a job along its lifecycle, separate from editing its
+    details so a status button never saves half-finished form changes
+    '''
+    status: dto.job_post_status
+
+
 class JobPosting(BaseModel):
     '''
     a job posting as the API returns it
