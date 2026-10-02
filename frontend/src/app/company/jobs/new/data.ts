@@ -115,10 +115,13 @@ export const SAVED_LOCATIONS: SavedLocation[] = [
   { id: "toronto", city: "Toronto", country: "CA" },
 ];
 
-/** "San Francisco, United States" from a city and an ISO country code. */
+/** "San Francisco, United States" from a city and an ISO country code, or
+ *  just the country for a location reopened from a saved job, which stores
+ *  no city. */
 export function formatLocation(city: string, country: string) {
   const match = COUNTRIES.find((c) => c.code === country);
-  return `${city}, ${match?.name ?? country}`;
+  const name = match?.name ?? country;
+  return city ? `${city}, ${name}` : name;
 }
 
 /** "US" -> "United States", with no city attached — what a Remote posting

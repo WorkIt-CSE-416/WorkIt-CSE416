@@ -19,6 +19,7 @@ Every router follows the same structure:
 |------|--------|--------------|
 | `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user, then the applicant profile or the company + owner membership; `GET /me` returns the caller's account |
 | `resumes.py` | `/applicants/{applicant_id}/resumes` | Resume file upload (PDF/DOCX) to Supabase Storage + DB row |
+| `jobs.py` | `/company/jobs` | `POST` saves a new job (draft or published), `GET` lists them or loads one, `PUT /{job_id}` updates one. All scoped to the caller's company; another company's job is a 404. Depends on `get_company_member`, so only active company members get in |
 
 ## Conventions
 

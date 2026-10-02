@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { BuildingIcon } from "../../icons";
 import { ArrowLeftIcon, PencilIcon } from "@/components/icons";
@@ -7,6 +7,7 @@ import { getJobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { ButtonLink, Button } from "@/components/ui/button";
 import { CompanyTile } from "@/components/ui/company-tile";
+import { getCompanyJob } from "@/lib/job-actions";
 import { Points, Section } from "@/components/ui/section";
 
 import { ApplicantOverviewPanel } from "./applicant-overview";
@@ -29,7 +30,13 @@ export default async function CompanyJobDetailPage({ params }: PageProps<"/compa
   const { jobId } = await params;
   const posting = getJobPosting(jobId);
 
-  if (!posting) notFound();
+  if (!posting) {
+    // This view still reads fixtures. A real job has nothing to show here
+    // yet, so it opens in the editor instead of a 404.
+    const { job } = await getCompanyJob(jobId);
+    if (job) redirect(`/company/jobs/${job.id}/edit`);
+    notFound();
+  }
 
   return (
     <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">

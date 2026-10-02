@@ -147,6 +147,8 @@ export function SelectRowCell({ row, label }: { row: SelectableRow; label: strin
       checked={row.getIsSelected()}
       onCheckedChange={(checked) => row.toggleSelected(checked)}
       aria-label={`Select ${label}`}
+      // Above <RowLink>'s row-wide overlay, or ticking a box opens the record.
+      className="relative z-10"
     />
   );
 }
@@ -356,6 +358,14 @@ export function TableToolbar<T extends RowData>({
  *
  * truncate rather than wrap: every cell in this table is one line tall, and a
  * long role title must not be the thing that decides row height.
+ *
+ * THE WHOLE ROW IS THE CLICK TARGET. The link's ::after is stretched over its
+ * row (DataTable makes each body row `relative`), so a click anywhere opens
+ * the record. It stays one real <a>: keyboard focus, middle-click and "open in
+ * new tab" all still work, which an onClick on the <tr> would lose. Anything
+ * else clickable in a row sits above the overlay with `relative z-10`, as
+ * <SelectRowCell> does. truncate's overflow-hidden does not clip the overlay,
+ * because its containing block is the row, not the link.
  */
 export function RowLink({
   href,
@@ -370,7 +380,7 @@ export function RowLink({
     <Link
       href={href}
       className={cn(
-        "text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-medium focus-visible:ring-2 focus-visible:outline-none",
+        "text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-medium after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none",
         className,
       )}
     >
@@ -459,7 +469,12 @@ export function DataTable<T extends RowData>({
             </TableRow>
           ) : (
             rows.map((row) => (
-              <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
+              /* relative anchors <RowLink>'s overlay to this row. */
+              <TableRow
+                key={row.id}
+                data-state={row.getIsSelected() ? "selected" : undefined}
+                className="relative"
+              >
                 {row.getAllCells().map((cell) => (
                   <TableCell
                     key={cell.id}

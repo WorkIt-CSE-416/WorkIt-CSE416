@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { ButtonLink } from "@/components/ui/button";
+import { listCompanyJobs } from "@/lib/job-actions";
 
+import { toPosting } from "./data";
 import { JobsTable } from "./jobs-table";
 
 export const metadata: Metadata = {
@@ -20,7 +23,12 @@ export const metadata: Metadata = {
  * The per-role screens hang off this one — /company/jobs/[jobId] and its
  * applicants list — so this page is the index, not the detail.
  */
-export default function CompanyJobsPage() {
+export default async function CompanyJobsPage() {
+  // The rows are this company's, so the page is per request. Without this a
+  // build with no Supabase env prerenders it once, with the error baked in.
+  await connection();
+  const { jobs, error } = await listCompanyJobs();
+
   return (
     <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
       {/* The action sits with the list it adds to rather than in the shell's
@@ -40,7 +48,9 @@ export default function CompanyJobsPage() {
         </ButtonLink>
       </header>
 
-      <JobsTable />
+      {error && <p className="text-meta text-danger mb-4">{error}</p>}
+
+      <JobsTable postings={jobs.map(toPosting)} />
     </div>
   );
 }
