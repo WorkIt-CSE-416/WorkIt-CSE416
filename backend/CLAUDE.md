@@ -48,7 +48,16 @@ uv run alembic current                         which revision the DB is on
 uv run alembic check                           fail if models lack a migration
 ```
 
-There is no test runner yet. When one is added, document it here.
+```
+uv run pytest                                  run the tests in tests/
+```
+
+Tests cover the resume parser only. `tests/fixtures/*.txt` are extracted text
+of real resumes, each in a layout that once broke parsing, cut to start at the
+first section header so no contact details are committed. The heuristics
+interact — a fix for one layout has broken another more than once — so when a
+new resume parses wrong, add it as a fixture with its expected output in
+`tests/test_resume_parser.py` before touching `app/utils/resume_parser.py`.
 
 **Never run `alembic init` again** — it overwrites `alembic/env.py` and undoes
 the schema filters. `alembic/CLAUDE.md` explains what that costs.
@@ -66,7 +75,10 @@ app/
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
-    resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
+    resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
+                  text from PDF/DOCX and parses it into structured JSON
+  utils/
+    resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
@@ -74,12 +86,13 @@ app/
     jobs.py       Job postings
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
-    dto.py        Enums
+    dto.py        Enums and Pydantic schemas (ParsedResume, Education, etc.)
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
+tests/            pytest; resume parser regression tests and their fixtures
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
@@ -390,6 +403,3 @@ goes to `frontend/`** — the frontend gets the anon key only.
   always reports a company account as not onboarded. The frontend routes
   around it (companies skip onboarding); whatever builds company onboarding
   must set it.
-- `routers/resumes.py` takes `applicant_id` from the URL and does not depend on
-  `get_current_account` yet. Anyone who can reach the API can upload against
-  any applicant until it does.

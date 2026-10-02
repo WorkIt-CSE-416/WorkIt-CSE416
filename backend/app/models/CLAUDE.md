@@ -446,9 +446,9 @@ These belong to later tickets and should not be added here:
 
 - Jobs, applications, pipeline stages, interviews, offers, resume scores. ATS
   clones model all of them; `../../db/job_posting.md` starts that work.
-- Resume storage and parsing — Brian's separate work, see `../../db/resume.md`.
-  That design should reconsider `file_hash` for deduplication and idempotent
-  parsing.
+- Resume storage and parsing — implemented in `resume.py` (model) and
+  `../utils/resume_parser.py` (heuristic parser). See `../../db/resume.md`
+  for design rationale.
 - Browser-automation or session state for the autofiller. If autofill needs it
   later, that is a separate `autofill_runs` table, not a column here.
 

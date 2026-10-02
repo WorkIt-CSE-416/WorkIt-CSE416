@@ -1,0 +1,35 @@
+Education
+Stony Brook University  Expected May 2027
+Majors (B.S.): Computer Science Honors  GPA: 3.86
+Relevant Coursework: Algorithms, Deep Learning, Software Engineering, Systems, Security, Cloud Computing
+Experience
+AI Researcher | Washington University Summer Engineering Fellowship
+St. Louis, MO | May 2026 – Aug 2026
+• Developed a database-grounded knowledge graph for CyanoAgent, achieving 96% accuracy on gene-identification queries versus 4% for a baseline LLM
+• Designed a three-tier evidence trust system and corrected gene/organism resolution bugs to prevent unsupported claims and mismatched biological targets.
+• Built a hypothesis-generation pipeline aggregating evidence from 6 databases, integrating Claude Opus to draft structured research proposals with target-identity validation
+Software Engineer and IT Analyst | Stony Brook University Operations & Data
+Stony Brook, NY | Jan 2025 – May 2026
+• Automated data processing pipelines in Python for graduate application workflows, reducing manual review time by 60% and improving system maintainability through modular architecture
+• Integrated 20+ campus devices into Zabbix for centralized monitoring and troubleshot 10+ power distribution units, resolving authentication, firmware, and polling issues.
+• Migrated 5+ departmental websites to Drupal 10 CMS, improving performance and accessibility scores by 40%
+Software Engineer Intern | Pulp Corporation  Brooklyn, NY | Jan 2025 – Aug 2025
+• Engineered a full-stack job-matching platform using Next.js, TypeScript, and Neo4j, leveraging graph-based data modeling for backend systems to automate matching for 100+ users and reduce manual review time by 75%
+• Built CSV ingestion pipelines with parsing, validation, and transformation, integrating REST APIs to automate data processing for applicant onboarding
+• Developed reusable UI components and standardized design tokens in Storybook for Pulp’s internal SDK, enabling component reuse across products.
+Resident Assistant | Stony Brook University Campus Residences
+Stony Brook, NY | Aug 2024 – Present
+• Spearheaded 5 campus-wide events with over 600 attendees collaborating with 10+ RAs, 650% more than average
+• Cultivated an inclusive, supportive, and safe residential community for 30+ students through mentorship, conflict mediation, hall engagement initiatives, and collaboration with campus resources.
+• Handled and mediated 5 roommate conflicts to ensure the inclusivity inside dorm building
+Projects
+WorkIt | Full Stack Recruiting Platform (Next.js, Python, FastAPI, Supabase, SQLAlchemy, Alembic)  Aug 2026–Present
+• Designed backend architecture, relational database schemas, and FastAPI endpoints for a full-stack recruiting platform supporting applicant and recruiter workflows.
+• Engineered an end-to-end resume-processing pipeline integrating Supabase Storage, PDF/DOCX validation, text extraction, and structured JSON parsing.
+• Connected frontend workflows to authenticated backend services using JWT validation and asynchronous execution to prevent blocking operations from stalling the server.
+Stony Brook Academic Advising Bot (Python, Next.js, Supabase, Pinecone, LangGraph)  Mar 2026–Oct 2026
+• Built a full-stack academic advising assistant with Next.js, Tailwind, and Flask, automating the scraping and ingestion of university degree requirements and policies.
+• Implemented a retrieval-augmented generation pipeline using Pinecone for semantic search and Supabase for persistent data, grounding LLM responses in retrieved university information.
+Technical Skills
+Languages: Python, C/C++, Java, TypeScript, JavaScript, SQL, HTML/CSS
+Frameworks & Tools: Next.js, React, FastAPI, Flask, AWS, Hugging Face Transformers, vLLM, PyTorch, Figma, Neo4j, Pinecone

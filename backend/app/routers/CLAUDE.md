@@ -18,7 +18,7 @@ Every router follows the same structure:
 | File | Prefix | What it does |
 |------|--------|--------------|
 | `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user, then the applicant profile or the company + owner membership; `GET /me` returns the caller's account |
-| `resumes.py` | `/applicants/{applicant_id}/resumes` | Resume file upload (PDF/DOCX) to Supabase Storage + DB row |
+| `resumes.py` | `/applicants/{applicant_id}/resumes` | Upload (POST), list (GET), delete (DELETE) resumes; extracts text from PDF/DOCX and parses into structured JSON |
 
 ## Conventions
 
@@ -36,9 +36,7 @@ Every router follows the same structure:
 
 - **Protected routes depend on `get_current_account`** (`app/deps.py`), which
   verifies the Supabase access token and loads the account. Identity comes
-  from that, never from a path parameter or body field. `resumes.py` predates
-  this and still trusts `applicant_id` from the URL — fix it before anything
-  relies on it.
+  from that, never from a path parameter or body field.
 
 ## Adding a new router
 
