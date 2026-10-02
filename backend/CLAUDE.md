@@ -75,7 +75,10 @@ app/
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
-    resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
+    resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
+                  text from PDF/DOCX and parses it into structured JSON
+  utils/
+    resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
@@ -83,7 +86,7 @@ app/
     jobs.py       Job postings
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
-    dto.py        Enums
+    dto.py        Enums and Pydantic schemas (ParsedResume, Education, etc.)
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
