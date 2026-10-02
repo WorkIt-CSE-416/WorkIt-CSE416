@@ -61,12 +61,14 @@ app/
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
   db.py           Async engine, session factory, declarative Base, Supabase client
   security.py     Verifies Supabase access tokens against the project's JWKS
-  deps.py         get_current_account — the dependency every protected route uses
+  deps.py         get_current_account — the dependency every protected route uses;
+                  get_company_member on top of it for company-scoped routes
   schemas/        Pydantic request/response shapes, separate from models/
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
     resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
+    jobs.py       /company/jobs: create, list, load and update a company's own jobs
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables

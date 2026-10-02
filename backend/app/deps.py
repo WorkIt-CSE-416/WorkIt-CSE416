@@ -1,8 +1,8 @@
 """
-Shared FastAPI dependencies. Currently just get_current_account — the
-token-verification dependency backend/CLAUDE.md's Auth section requires:
-"whoever acts on a token verifies its signature... one place, used by every
-protected route."
+Shared FastAPI dependencies. get_current_account is the token-verification
+dependency backend/CLAUDE.md's Auth section requires: "whoever acts on a token
+verifies its signature... one place, used by every protected route."
+get_company_member builds on it for company-scoped routes.
 
 The token is a Supabase access token, sent as `Authorization: Bearer`. Its
 `sub` is the auth.users id, which is also the profile row's primary key, and
@@ -28,6 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
+from app.models.dto import profile_status
 from app.models.profiles import Applicant_Profile, Company_Membership
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.security import decode_access_token
@@ -81,3 +82,27 @@ async def get_current_account(
         onboarding_completed=account.onboarding_completed_at is not None,
         company_id=account.company_id if isinstance(account, Company_Membership) else None,
     )
+
+
+_NOT_A_COMPANY_MEMBER = HTTPException(status.HTTP_403_FORBIDDEN, "Only active company members can do this.")
+
+
+async def get_company_member(
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> AuthenticatedAccount:
+    '''
+    for company-scoped routes: the caller must be a company account whose
+    membership is active. An invited or disabled member still holds a valid
+    token, so get_current_account alone would let them through.
+    '''
+    if account.account_type is not AccountType.COMPANY:
+        raise _NOT_A_COMPANY_MEMBER
+
+    membership_status = (
+        await db.execute(select(Company_Membership.status).where(Company_Membership.id == account.id))
+    ).scalar_one_or_none()
+    if membership_status != profile_status.active:
+        raise _NOT_A_COMPANY_MEMBER
+
+    return account
