@@ -2,9 +2,9 @@
 import asyncio
 import logging
 import re
-import zipfile
 import statistics
 import uuid
+import zipfile
 from datetime import UTC, datetime
 from io import BytesIO
 

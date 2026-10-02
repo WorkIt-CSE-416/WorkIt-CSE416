@@ -1,10 +1,15 @@
 import re
 from datetime import date
 
-import ftfy         # fix broken unicode
+import ftfy  # fix broken unicode
 
 from app.models.dto import (
-    Certification, Education, Experience, ParsedResume, Project, Skill,
+    Certification,
+    Education,
+    Experience,
+    ParsedResume,
+    Project,
+    Skill,
 )
 
 # Constants
@@ -255,9 +260,8 @@ def _split_entries(text: str) -> list[list[str]]:
     for i, ln in enumerate(lines):
         if BULLET_RE.match(ln):
             continue
-        if DATE_RANGE_RE.search(ln) or EXPECTED_RE.search(ln):
-            anchors.append(i)
-        elif BARE_DATE_RE.search(ln) and _is_header_line(ln):
+        if (DATE_RANGE_RE.search(ln) or EXPECTED_RE.search(ln)
+                or (BARE_DATE_RE.search(ln) and _is_header_line(ln))):
             anchors.append(i)
 
     if not anchors:
