@@ -68,7 +68,7 @@ app/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
     resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
-    jobs.py       /company/jobs: create, list, load and update a company's own jobs
+    jobs.py       /company/jobs: create, list, load, update and close a company's own jobs
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables

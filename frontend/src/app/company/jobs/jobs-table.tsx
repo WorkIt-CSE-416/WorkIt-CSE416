@@ -1,7 +1,18 @@
 "use client";
 
 import { createColumnHelper, useTable } from "@tanstack/react-table";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
+import { EllipsisIcon } from "@/components/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 
 import {
@@ -15,6 +26,7 @@ import {
   TableToolbar,
   type FilterSpec,
 } from "../table";
+import { CloseJobDialog } from "./close-job-dialog";
 import { STATUS_TONE, STATUSES, type Posting } from "./data";
 
 /**
@@ -124,7 +136,63 @@ const columns = helper.columns([
       <span className="text-ink-meta whitespace-nowrap">{formatDate(getValue())}</span>
     ),
   }),
+
+  helper.display({
+    id: "actions",
+    meta: { className: "w-px text-right" },
+    header: () => <span className="sr-only">Actions</span>,
+    cell: ({ row }) => <RowActions posting={row.original} />,
+  }),
 ]);
+
+/**
+ * The "⋯" menu at the end of a row: what a recruiter does to a job without
+ * opening it. Only an Open job can be closed; a Draft was never live and a
+ * Closed one is final, so they offer Edit alone.
+ *
+ * relative z-10 lifts the trigger above <RowLink>'s row-wide overlay, the same
+ * way the checkbox is lifted, or opening the menu would open the job.
+ */
+function RowActions({ posting }: { posting: Posting }) {
+  const [isClosing, setIsClosing] = useState(false);
+  const router = useRouter();
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={`Actions for ${posting.role}`}
+          className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring relative z-10 inline-flex size-7 cursor-pointer items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <EllipsisIcon className="size-4" />
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" className="w-36">
+          <DropdownMenuItem render={<Link href={`/company/jobs/${posting.id}/edit`} />}>
+            Edit
+          </DropdownMenuItem>
+          {posting.status === "Open" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => setIsClosing(true)}>
+                Close job
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <CloseJobDialog
+        jobId={posting.id}
+        title={posting.role}
+        open={isClosing}
+        onOpenChange={setIsClosing}
+        // Re-runs the server page, so the row comes back with its new status.
+        onClosed={() => router.refresh()}
+      />
+    </>
+  );
+}
 
 const FILTERS: FilterSpec[] = [
   { columnId: "status", label: "Status", plural: "Statuses", options: STATUSES },

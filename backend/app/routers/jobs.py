@@ -4,6 +4,7 @@ Company job postings: the routes behind the job composer
 company, taken from the verified token, never from the request.
 """
 
+import datetime
 import logging
 import uuid
 
@@ -17,13 +18,20 @@ from app.deps import get_company_member
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Post
 from app.schemas.auth import AuthenticatedAccount
-from app.schemas.jobs import JobPosting, JobPostingCreate
+from app.schemas.jobs import JobPosting, JobPostingCreate, JobStatusChange
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/company/jobs", tags=["jobs"])
 
 _JOB_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, "Job not found.")
+
+# Where a job may go from each status through the status route. Draft to
+# published isn't here: publishing goes through PUT with the full form, so the
+# details are checked at the moment the job goes live. Closed is final.
+_NEXT_STATUSES: dict[job_post_status, set[job_post_status]] = {
+    job_post_status.published: {job_post_status.closed},
+}
 
 
 async def _commit(db: AsyncSession, job: Job_Post) -> None:
@@ -129,5 +137,35 @@ async def update_job(
 
     for field, value in body.model_dump().items():
         setattr(job, field, value)
+    await _commit(db, job)
+    return job
+
+
+@router.post("/{job_id}/status", response_model=JobPosting)
+async def change_job_status(
+    job_id: uuid.UUID,
+    body: JobStatusChange,
+    account: AuthenticatedAccount = Depends(get_company_member),
+    db: AsyncSession = Depends(get_session),
+) -> Job_Post:
+    '''
+    move a job along its lifecycle, e.g. close it. Only the moves in
+    _NEXT_STATUSES are allowed; anything else is a 409.
+    '''
+    job = await _own_job(db, job_id, account)
+
+    if body.status not in _NEXT_STATUSES.get(job.status, set()):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"A {job.status.value} job can't be changed to {body.status.value}.",
+        )
+
+    job.status = body.status
+    if body.status == job_post_status.closed:
+        # Applications stop now, so a later closing date would be a lie.
+        now = datetime.datetime.now(datetime.UTC)
+        if job.closes_at is None or job.closes_at > now:
+            job.closes_at = now
+
     await _commit(db, job)
     return job

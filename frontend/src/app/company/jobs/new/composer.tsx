@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -33,6 +34,8 @@ import { toJobPayload } from "./payload";
 import { JobPreview } from "./preview";
 import { ScreeningQuestions } from "./screening-questions";
 import { Stepper } from "./stepper";
+import { CloseJobDialog } from "../close-job-dialog";
+import { STATUS_TONE } from "../data";
 
 /** STEPS for a job that is already live: nothing is left to publish. */
 const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
@@ -75,6 +78,11 @@ const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
  * is already live, so editing one drops the publishing language entirely: the
  * last step is Review, and the one primary action is Update Job, offered on
  * every step so a quick fix needn't walk through all three.
+ *
+ * STATUS SITS UNDER THE TITLE, APART FROM THE FORM. Close job acts at once
+ * through its own route and never saves form edits along with it, so it
+ * lives beside the status badge rather than among the save buttons. A closed
+ * job is final: the form still opens so it can be read, but nothing saves.
  */
 export function Composer({
   editing,
@@ -94,6 +102,8 @@ export function Composer({
   );
   const isLive = editing !== undefined && editing.status !== "draft";
   const steps = isLive ? LIVE_STEPS : STEPS;
+  const isClosed = editing?.status === "closed";
+  const [isClosing, setIsClosing] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
   const router = useRouter();
@@ -165,6 +175,32 @@ export function Composer({
               ? "Change the details below, then save."
               : "Fill out the details below to create a new job posting."}
           </p>
+
+          {editing && isLive && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Badge variant="status" tone={STATUS_TONE[isClosed ? "Closed" : "Open"]}>
+                {isClosed ? "Closed" : "Open"}
+              </Badge>
+              {isClosed ? (
+                <p className="text-meta text-ink-meta">
+                  This job is closed, so it can no longer be edited.
+                </p>
+              ) : (
+                <>
+                  <Button variant="secondary" size="sm" onClick={() => setIsClosing(true)}>
+                    Close job
+                  </Button>
+                  <CloseJobDialog
+                    jobId={editing.id}
+                    title={editing.draft.title}
+                    open={isClosing}
+                    onOpenChange={setIsClosing}
+                    onClosed={() => router.push("/company/jobs")}
+                  />
+                </>
+              )}
+            </div>
+          )}
         </header>
 
         <Stepper steps={steps} current={step} className="mt-4" />
@@ -410,12 +446,14 @@ export function Composer({
                     Continue to {steps[step + 1]}
                   </Button>
                 )}
-                <Button
-                  onClick={() => save("published")}
-                  disabled={!canLeaveBasicDetails || isSaving}
-                >
-                  Update Job
-                </Button>
+                {!isClosed && (
+                  <Button
+                    onClick={() => save("published")}
+                    disabled={!canLeaveBasicDetails || isSaving}
+                  >
+                    Update Job
+                  </Button>
+                )}
               </>
             ) : (
               <>
