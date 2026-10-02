@@ -7,8 +7,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export type ResumeItem = {
   id: string;
   original_filename: string | null;
-  raw_text: string | null;
-  parsed_json: Record<string, unknown> | null;
+  raw_text?: string | null;
+  parsed_json?: Record<string, unknown> | null;
   storage_path: string;
   status: string;
   created_at: string | null;
