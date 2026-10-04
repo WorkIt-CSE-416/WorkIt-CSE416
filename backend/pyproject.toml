@@ -12,7 +12,7 @@ dependencies = [
     "fastapi>=0.141.1",
 <<<<<<< HEAD
     "pillow>=12.3.0",
-=======
+=========
     "ftfy>=6.3.1",
 >>>>>>> origin
     "pydantic-settings>=2.15.0",

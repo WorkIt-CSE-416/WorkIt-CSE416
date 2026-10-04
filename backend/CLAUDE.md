@@ -87,7 +87,7 @@ app/
                   text from PDF/DOCX and parses it into structured JSON
   utils/
     resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
->>>>>>> origin
+>>>>>>>>> Temporary merge branch 2
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
@@ -408,7 +408,7 @@ goes to `frontend/`** — the frontend gets the anon key only.
 - Company signup: still `501` — no screen collects a company name.
 - Deleting an account cascades its rows but not its Storage objects
   (`Resume/<id>/`, `Avatar/<id>/`). Nothing cleans those up yet.
-=======
+=========
 - Joining an existing company: no endpoint, and the form's Join tab is a
   placeholder.
 - Every `IntegrityError` at signup answers "An account with this email already

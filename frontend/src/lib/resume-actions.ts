@@ -48,7 +48,7 @@ export async function deleteResume(resumeId: string): Promise<{ error: string | 
 export async function uploadResume(formData: FormData): Promise<{ resume: ResumeItem | null; error: string | null }> {
   try {
     const { id, token }  = await getApplicantSession();
-=======
+=========
 async function getApplicantId(): Promise<{ id: string; token: string }> {
   const supabase = await createSupabaseServerClient();
   const { data: claimsData } = await supabase.auth.getClaims();

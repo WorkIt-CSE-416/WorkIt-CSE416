@@ -946,7 +946,7 @@ dependencies = [
     { name = "pillow" },
 =======
     { name = "ftfy" },
->>>>>>> origin
+>>>>>>>>> Temporary merge branch 2
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "pypdf" },
@@ -969,11 +969,11 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "email-validator", specifier = ">=2.3.0" },
     { name = "fastapi", specifier = ">=0.141.1" },
-<<<<<<< HEAD
+<<<<<<<<< Temporary merge branch 1
     { name = "pillow", specifier = ">=12.3.0" },
-=======
+=========
     { name = "ftfy", specifier = ">=6.3.1" },
->>>>>>> origin
+>>>>>>>>> Temporary merge branch 2
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.14.0" },
     { name = "pypdf", specifier = ">=6.19.0" },
