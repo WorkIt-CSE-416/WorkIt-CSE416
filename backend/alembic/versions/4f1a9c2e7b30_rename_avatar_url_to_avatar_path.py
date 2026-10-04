@@ -1,7 +1,7 @@
 """rename avatar_url to avatar_path
 
 Revision ID: 4f1a9c2e7b30
-Revises: ce5b2e3f9b78
+Revises: 1e28b55de51a
 Create Date: 2026-09-28 12:00:00.000000
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '4f1a9c2e7b30'
-down_revision: Union[str, Sequence[str], None] = 'ce5b2e3f9b78'
+down_revision: Union[str, Sequence[str], None] = '1e28b55de51a'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
