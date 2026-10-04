@@ -52,8 +52,17 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     return { error: message, email: emailValue };
   }
 
-  if (!account.onboarding_completed) {
-    redirect(`/onboarding/${account.account_type}`);
+  const account_type = account.account_type; 
+  if (account_type==="applicant" )
+  {
+    if (!account.onboarding_completed) 
+    {
+      redirect(`/onboarding/${account.account_type}`);
+    }
+    else 
+    {
+      redirect(`/jobs`)
+    }
   }
-  redirect(account.account_type === "company" ? "/company" : "/jobs");
+  redirect(`/company`);
 }

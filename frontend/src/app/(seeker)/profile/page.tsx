@@ -138,13 +138,22 @@ export default function ProfilePage() {
     if (deletingId) return;
     setResumeError(null);
     setDeletingId(resumeId);
-    const { error } = await deleteResume(resumeId);
-    setDeletingId(null);
-    if (error) {
-      setResumeError(error);
-      return;
+    try {
+      const { error } = await deleteResume(resumeId);
+      if (error) {
+        setResumeError(error);
+        return;
+      }
+      setResumeList((prev) => prev.filter((r) => r.id !== resumeId));
+    } catch {
+      // The server action call itself failed 
+      // or the page came back from the back-forward cache with stale action IDs.
+      setResumeError("Could not remove the resume. Refresh the page and try again.");
+    } finally {
+      // Without this a thrown call leaves deletingId set, and every later
+      // click returns early without doing anything.
+      setDeletingId(null);
     }
-    setResumeList((prev) => prev.filter((r) => r.id !== resumeId));
   }
 
   return (
@@ -240,6 +249,19 @@ export default function ProfilePage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-label text-ink truncate">{r.original_filename ?? "Resume"}</p>
                   <p className="text-meta text-ink-meta">{r.status}</p>
+              {resumeList.map((r) => (
+                <div
+                  key={r.id}
+                  className="border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2"
+                >
+                  <PdfIcon className="size-5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-label text-ink truncate">{r.original_filename ?? "Resume"}</p>
+                    <p className="text-meta text-ink-meta">{r.status}</p>
+                  </div>
+                  <IconButton label="Delete resume" disabled={deletingId !== null} onClick={() => handleRemove(r.id)}>
+                    <TrashIcon className="size-4" />
+                  </IconButton>
                 </div>
                 <IconButton
                   label="Delete resume"

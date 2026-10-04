@@ -20,6 +20,8 @@ Every router follows the same structure:
 | `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user + profile row; `GET /me` returns the caller's account |
 | `resumes.py` | `/applicants/{applicant_id}/resumes` | Resume file upload (PDF/DOCX) to Supabase Storage + DB row |
 | `avatars.py` | `/applicants/{applicant_id}/avatar` | Profile photo: re-encoded to WebP, stored in the private `Avatar` bucket, served as a signed URL. See `../../db/avatar.md` |
+| `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user, then the applicant profile or the company + owner membership; `GET /me` returns the caller's account |
+| `resumes.py` | `/applicants/{applicant_id}/resumes` | Upload (POST), list (GET), delete (DELETE) resumes; extracts text from PDF/DOCX and parses into structured JSON |
 
 ## Conventions
 
@@ -48,6 +50,7 @@ Every router follows the same structure:
 
 - **CPU-heavy work goes through `asyncio.to_thread` too.** Image decoding is
   as blocking as a synchronous SDK call; `avatars.py` runs Pillow that way.
+  from that, never from a path parameter or body field.
 
 ## Adding a new router
 

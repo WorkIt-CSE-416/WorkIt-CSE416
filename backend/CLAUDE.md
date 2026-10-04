@@ -49,7 +49,16 @@ uv run alembic current                         which revision the DB is on
 uv run alembic check                           fail if models lack a migration
 ```
 
-There is no test runner yet. When one is added, document it here.
+```
+uv run pytest                                  run the tests in tests/
+```
+
+Tests cover the resume parser only. `tests/fixtures/*.txt` are extracted text
+of real resumes, each in a layout that once broke parsing, cut to start at the
+first section header so no contact details are committed. The heuristics
+interact — a fix for one layout has broken another more than once — so when a
+new resume parses wrong, add it as a fixture with its expected output in
+`tests/test_resume_parser.py` before touching `app/utils/resume_parser.py`.
 
 **Never run `alembic init` again** — it overwrites `alembic/env.py` and undoes
 the schema filters. `alembic/CLAUDE.md` explains what that costs.
@@ -72,6 +81,10 @@ app/
   services/       Logic with no HTTP or DB of its own. Never in models/,
                   whose __init__ imports every file as a model
     avatar.py     Validates and re-encodes an upload to a 512px WebP
+    resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
+                  text from PDF/DOCX and parses it into structured JSON
+  utils/
+    resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
@@ -79,12 +92,13 @@ app/
     jobs.py       Job postings
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
-    dto.py        Enums
+    dto.py        Enums and Pydantic schemas (ParsedResume, Education, etc.)
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
+tests/            pytest; resume parser regression tests and their fixtures
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
@@ -271,6 +285,8 @@ signup   Next action ──POST /auth/signup──▶ FastAPI ──admin API─
                                               │ creates auth.users row with
                                               │ app_metadata.account_type,
                                               │ then the profile row, same id
+                                              │ (company: the company row and
+                                              │ its owner's membership)
          Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
 
 login    Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
@@ -287,6 +303,19 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
   through here also creates the profile row in the same request, so an
   `auth.users` row never exists without one. If the profile insert fails, the
   route deletes the auth user it just made.
+- **The auth user comes first, the rows second.** The profile id *is* the
+  `auth.users` id and a foreign key to it, so the rows cannot be written
+  before Supabase answers. Everything from the first `db.add()` to the commit
+  sits in one `try` whose `except` deletes that auth user — a flush left
+  outside it would fail on a constraint and leave an auth user with no
+  profile, whose email then 409s on every retry and signs in to nothing.
+- **Create Company writes two rows in one transaction**: the
+  `company_profiles` row, and a `company_memberships` row for the person
+  signing up with role `owner`, status `active`. The body carries a nested
+  `company` object (`CompanySignup` in `app/schemas/auth.py`);
+  `SignupRequest`'s model validator requires it for a company and rejects it
+  for an applicant, so the route never checks. Joining an existing company is
+  not built.
 - **Two Supabase dashboard settings back this up, and live nowhere in code.**
   The anon key and project URL ship to the browser, so anyone can call
   Supabase Auth directly and skip both the form and this API. Authentication
@@ -375,3 +404,12 @@ goes to `frontend/`** — the frontend gets the anon key only.
 - Company signup: still `501` — no screen collects a company name.
 - Deleting an account cascades its rows but not its Storage objects
   (`Resume/<id>/`, `Avatar/<id>/`). Nothing cleans those up yet.
+- Joining an existing company: no endpoint, and the form's Join tab is a
+  placeholder.
+- Every `IntegrityError` at signup answers "An account with this email already
+  exists" — including a taken `company_profiles.contact_email`, where the
+  sign-in email is fine. Tell them apart by constraint name in `exc.orig`.
+- Nothing sets `onboarding_completed_at` for a membership, so `/auth/me`
+  always reports a company account as not onboarded. The frontend routes
+  around it (companies skip onboarding); whatever builds company onboarding
+  must set it.

@@ -15,8 +15,14 @@ from supabase_auth.errors import AuthError
 
 from app.db import get_session, get_supabase
 from app.deps import get_current_account
-from app.models.profiles import Applicant_Profile
-from app.schemas.auth import AccountType, AuthenticatedAccount, SignupRequest
+from app.models.dto import company_role, profile_status
+from app.models.profiles import Applicant_Profile, Company_Membership, Company_Profile
+from app.schemas.auth import (
+    AccountType,
+    AuthenticatedAccount,
+    CompanySignup,
+    SignupRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +45,25 @@ def _signup_error(exc: AuthError) -> HTTPException:
     return HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn't create the account. Please try again.")
 
 
+def _create_company(company_info:CompanySignup)->Company_Profile:
+    '''
+    function to create a company given the json information file
+    '''
+    # Set here rather than left to the column default, which SQLAlchemy only
+    # applies at flush — the membership needs this id before then.
+    company_id = uuid.uuid4()
+    new_company= Company_Profile(
+        id = company_id, 
+        company_name = company_info.name, 
+        website_url= company_info.website_url,
+        contact_email= company_info.contact_email,
+        phone_number= company_info.contact_phone,
+        size_range=company_info.size_range
+    )
+    return new_company
+
+
+
 @router.post(
     "/signup",
     response_model=AuthenticatedAccount,
@@ -48,16 +73,17 @@ async def signup(
     body: SignupRequest,
     db: AsyncSession = Depends(get_session),
 ) -> AuthenticatedAccount:
-    if body.account_type is AccountType.COMPANY:
-        raise HTTPException(
-            status.HTTP_501_NOT_IMPLEMENTED,
-            "Company signup isn't wired up yet — no screen collects a company name.",
-        )
-
-    # create supabase 
+    '''
+    central sign up function for both applicants and companies 
+    for applicants, create applicant_profile and return attributes same as sign up
+    for companies, generate company_id, create company_profile, and return login attributes 
+    '''
+    account_type = body.account_type
     supabase = get_supabase()
 
-    # The admin API is synchronous; to_thread keeps it off the event loop
+    # Supabase first: each profile's id is its auth.users id, and a foreign
+    # key to that table, so the auth user has to exist before any row here.
+    # The admin API is synchronous; to_thread keeps it off the event loop.
     try:
         created = await asyncio.to_thread(
             supabase.auth.admin.create_user,
@@ -65,23 +91,39 @@ async def signup(
                 "email": body.email,
                 "password": body.password,
                 "email_confirm": True,
-                "app_metadata": {"account_type": AccountType.APPLICANT.value},
+                "app_metadata": {"account_type": account_type.value},
             },
         )
     except AuthError as exc:
         raise _signup_error(exc) from exc
 
-    # once account is created in supabase, manually create our profile info
-    profile = Applicant_Profile(
-        id=uuid.UUID(created.user.id),
-        email=body.email,
-        full_name=body.full_name,
-    )
-    db.add(profile)
+    user_id = uuid.UUID(created.user.id)
+    company_id= None 
     try:
+        if account_type is AccountType.APPLICANT:
+            profile = Applicant_Profile(
+                id=user_id,
+                email=body.email,
+                full_name=body.full_name,
+            )
+        else:   
+            new_company = _create_company(body.company)
+            company_id = new_company.id
+            db.add(new_company)
+            await db.flush()    # first insert the company to make sure bug-free
+
+            # whoever creates the company owns it
+            profile = Company_Membership(
+                id=user_id,
+                company_id=company_id,
+                email=body.email,
+                full_name=body.full_name,
+                role=company_role.owner,
+                status=profile_status.active,
+            )
+        db.add(profile)
         await db.commit()
     except Exception as exc:
-        # if db has errors, failed to store to db, delete the user from supabase auth
         await db.rollback()
         try:
             await asyncio.to_thread(supabase.auth.admin.delete_user, created.user.id)
@@ -95,8 +137,9 @@ async def signup(
         id=profile.id,
         email=profile.email,
         full_name=profile.full_name,
-        account_type=AccountType.APPLICANT,
+        account_type=account_type,
         onboarding_completed=False,
+        company_id=company_id,
     )
 
 

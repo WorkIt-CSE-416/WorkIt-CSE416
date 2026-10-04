@@ -158,6 +158,16 @@ export function GearIcon({ className }: IconProps) {
   );
 }
 
+/** The account menu's Sign out row. */
+export function SignOutIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 18 18" {...strokeProps} className={className}>
+      <path d="M7.5 3.6H4.8a1.2 1.2 0 0 0-1.2 1.2v8.4a1.2 1.2 0 0 0 1.2 1.2h2.7" />
+      <path d="M8.4 9h6.3M12.3 6l2.7 3-2.7 3" />
+    </svg>
+  );
+}
+
 /* Facts about a job ------------------------------------------------------- */
 
 export function CoinIcon({ className }: IconProps) {
