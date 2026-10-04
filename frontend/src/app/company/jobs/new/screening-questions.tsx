@@ -8,7 +8,7 @@ import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 import { QUESTION_TYPES, type ScreeningQuestion } from "./data";
-import { SelectField } from "./fields";
+import { SelectField } from "@/components/ui/select-field";
 import { GripIcon, PlusIcon, TrashIcon } from "./icons";
 
 /**

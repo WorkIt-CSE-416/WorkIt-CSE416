@@ -4,10 +4,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Avatar } from "@/components/avatar";
+import { SignOutIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 
@@ -56,9 +58,19 @@ export type AccountMenuItem = {
   icon: ReactNode;
 };
 
-type AccountMenuProps = { name: string; items: readonly AccountMenuItem[] };
+type AccountMenuProps = {
+  name: string;
+  items: readonly AccountMenuItem[];
+  /**
+   * A Server Action, passed down from the shell's layout — see
+   * src/app/actions.ts. Optional so a shell with no sign-out wired up yet
+   * (the company side, still under construction) renders the same menu
+   * minus this row rather than needing its own variant.
+   */
+  onSignOut?: () => void | Promise<void>;
+};
 
-export function AccountMenu({ name, items }: AccountMenuProps) {
+export function AccountMenu({ name, items, onSignOut }: AccountMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -82,6 +94,22 @@ export function AccountMenu({ name, items }: AccountMenuProps) {
             {label}
           </DropdownMenuItem>
         ))}
+
+        {onSignOut && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                void onSignOut();
+              }}
+            >
+              <span className="text-ink-meta flex shrink-0">
+                <SignOutIcon className="size-4" />
+              </span>
+              Sign out
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

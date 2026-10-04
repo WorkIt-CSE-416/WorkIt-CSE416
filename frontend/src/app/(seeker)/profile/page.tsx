@@ -138,13 +138,22 @@ export default function ProfilePage() {
     if (deletingId) return;
     setResumeError(null);
     setDeletingId(resumeId);
-    const { error } = await deleteResume(resumeId);
-    setDeletingId(null);
-    if (error) {
-      setResumeError(error);
-      return;
+    try {
+      const { error } = await deleteResume(resumeId);
+      if (error) {
+        setResumeError(error);
+        return;
+      }
+      setResumeList((prev) => prev.filter((r) => r.id !== resumeId));
+    } catch {
+      // The server action call itself failed 
+      // or the page came back from the back-forward cache with stale action IDs.
+      setResumeError("Could not remove the resume. Refresh the page and try again.");
+    } finally {
+      // Without this a thrown call leaves deletingId set, and every later
+      // click returns early without doing anything.
+      setDeletingId(null);
     }
-    setResumeList((prev) => prev.filter((r) => r.id !== resumeId));
   }
 
   return (

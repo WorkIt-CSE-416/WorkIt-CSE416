@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { signOut } from "@/app/actions";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { BellIcon, GearIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
@@ -74,11 +75,12 @@ const NAV_ITEMS = [
   { href: "/profile", label: "My Profile" },
 ];
 
-/* One row, now that My Profile is a tab again. A menu holding a single item is
- * worth a second look — the alternative is the bare gear this replaced, back
- * beside the bell — but it is the right shape to leave in place while the
- * account rows are still arriving: sign out has nowhere else to go, and neither
- * will billing or notification preferences.
+/* One row, now that My Profile is a tab again and Sign out is its own slot
+ * below a separator (AccountMenu's onSignOut) rather than a row here. A menu
+ * holding a single item is worth a second look — the alternative is the bare
+ * gear this replaced, back beside the bell — but it is the right shape to
+ * leave in place while the account rows are still arriving: billing and
+ * notification preferences have nowhere else to go yet.
  *
  * /settings is not built yet. It is a link that 404s rather than a control
  * that does nothing, which is the more honest placeholder and the one that
@@ -152,7 +154,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <BellIcon className="size-5" />
             </IconButton>
 
-            <AccountMenu name="Alex Chen" items={ACCOUNT_ITEMS} />
+            <AccountMenu name="Alex Chen" items={ACCOUNT_ITEMS} onSignOut={signOut} />
           </div>
         </nav>
       </header>

@@ -58,6 +58,26 @@ at two employers: make `Profile` concrete and add `profile_id` foreign keys. A
 migration and a backfill, not a rewrite. Do not half-do it — a `profile_id`
 with no table to point at is worse than neither.
 
+## Insert order is not foreign-key order
+
+**No model here declares a `relationship()`**, only `ForeignKey` columns, and
+without one the unit of work does not sort INSERTs by foreign key. Checked on
+2026-09-28: a `Company_Profile` and a `Company_Membership` pointing at it,
+flushed together, insert the membership first whichever was `add()`ed first.
+Postgres checks the foreign key immediately, so the flush fails with an
+`IntegrityError` for a company that is only missing because it has not been
+inserted yet.
+
+Whenever one flush writes a parent and a child, `await db.flush()` after
+adding the parent, still inside the same transaction — `routers/auth.py`'s
+company signup does exactly that. Adding a `relationship()` would let the
+unit of work order them itself, but it also brings lazy loading, which is a
+`MissingGreenlet` trap in async code (`../../CLAUDE.md`).
+
+A column default such as `Company_Profile.id`'s `default=uuid.uuid4` is also
+applied only at flush, so `company.id` is `None` until then. Set the id
+explicitly when a child row needs it before the flush.
+
 ## There is exactly one Base, and it lives in app/db.py
 
 ```python
@@ -124,8 +144,8 @@ in Python.
 
 | Enum | Name | Value | In Postgres |
 | --- | --- | --- | --- |
-| `company_role` | `Owner` | `"Owner"` | `Owner` |
-| `profile_status` | `Active` | `"Active"` | `Active` |
+| `company_role` | `owner` | `"owner"` | `owner` |
+| `profile_status` | `active` | `"active"` | `active` |
 | `company_size_range` | `ONE_TO_FIFTY` | `"1_50"` | `ONE_TO_FIFTY` |
 
 `company_role` and `profile_status` set name and value identical, so those
@@ -135,10 +155,17 @@ the column holds `ONE_TO_FIFTY` while `== "1_50"` is what returns `True`.
 So: **compare against the member, never a string literal.**
 
 ```python
-if membership.status == profile_status.Active:        # correct
-if membership.status == "Active":                     # works, but fragile
+if membership.status == profile_status.active:        # correct
+if membership.status == "active":                     # works, but fragile
 if membership.status == "ACTIVE":                     # silently always False
+if company.size_range == "ONE_TO_FIFTY":              # silently always False
 ```
+
+None of this needs a reverse mapping in Python: SQLAlchemy writes the name
+and reads it back as the member, and a `StrEnum` member serializes to JSON as
+its value, so the API sends and receives `"1_50"`. The name only surfaces
+where SQLAlchemy's enum handling is skipped — the dashboard, exports, and raw
+`text()` SQL, where `WHERE size_range = '1_50'` matches nothing.
 
 The last form is the natural mistake — `ONE_TO_FIFTY`-style names are what you
 see in the Supabase dashboard and in exports, so copying a value from where you
@@ -397,8 +424,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 - No index on `company_memberships.company_id` — the column every authorization
   check filters on.
-- No UUID default anywhere; every insert must supply `id`. A
-  `server_default=func.gen_random_uuid()` would move that into the database.
+- Only `company_profiles.id` has a UUID default (Python `uuid4` plus
+  `gen_random_uuid()`); every other insert must supply `id`. The account
+  tables must keep having none — their id is the `auth.users` id.
 - `autofill_answers` is not implemented. It is still wanted: one reusable answer
   bank per applicant, keyed on `applicant_profiles.id`, with a `jsonb answers`
   column mapping stable question keys to `{question_text, answer}`. Workday-style
@@ -421,9 +449,9 @@ These belong to later tickets and should not be added here:
 
 - Jobs, applications, pipeline stages, interviews, offers, resume scores. ATS
   clones model all of them; `../../db/job_posting.md` starts that work.
-- Resume storage and parsing — Brian's separate work, see `../../db/resume.md`.
-  That design should reconsider `file_hash` for deduplication and idempotent
-  parsing.
+- Resume storage and parsing — implemented in `resume.py` (model) and
+  `../utils/resume_parser.py` (heuristic parser). See `../../db/resume.md`
+  for design rationale.
 - Browser-automation or session state for the autofiller. If autofill needs it
   later, that is a separate `autofill_runs` table, not a column here.
 
