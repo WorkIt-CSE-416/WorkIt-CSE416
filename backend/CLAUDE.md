@@ -76,18 +76,14 @@ app/
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
-<<<<<<< HEAD
-    resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
+    resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
+                  text from PDF/DOCX and parses it into structured JSON
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
   services/       Logic with no HTTP or DB of its own. Never in models/,
                   whose __init__ imports every file as a model
     avatar.py     Validates and re-encodes an upload to a 512px WebP
-=======
-    resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
-                  text from PDF/DOCX and parses it into structured JSON
   utils/
     resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
->>>>>>>>> Temporary merge branch 2
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
@@ -404,11 +400,8 @@ goes to `frontend/`** — the frontend gets the anon key only.
 ### Still open
 
 - Email verification and password reset: supported by Supabase, not wired up.
-<<<<<<< HEAD
-- Company signup: still `501` — no screen collects a company name.
 - Deleting an account cascades its rows but not its Storage objects
   (`Resume/<id>/`, `Avatar/<id>/`). Nothing cleans those up yet.
-=========
 - Joining an existing company: no endpoint, and the form's Join tab is a
   placeholder.
 - Every `IntegrityError` at signup answers "An account with this email already
@@ -418,4 +411,3 @@ goes to `frontend/`** — the frontend gets the anon key only.
   always reports a company account as not onboarded. The frontend routes
   around it (companies skip onboarding); whatever builds company onboarding
   must set it.
->>>>>>> origin

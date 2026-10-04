@@ -249,19 +249,6 @@ export default function ProfilePage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-label text-ink truncate">{r.original_filename ?? "Resume"}</p>
                   <p className="text-meta text-ink-meta">{r.status}</p>
-              {resumeList.map((r) => (
-                <div
-                  key={r.id}
-                  className="border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2"
-                >
-                  <PdfIcon className="size-5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-label text-ink truncate">{r.original_filename ?? "Resume"}</p>
-                    <p className="text-meta text-ink-meta">{r.status}</p>
-                  </div>
-                  <IconButton label="Delete resume" disabled={deletingId !== null} onClick={() => handleRemove(r.id)}>
-                    <TrashIcon className="size-4" />
-                  </IconButton>
                 </div>
                 <IconButton
                   label="Delete resume"

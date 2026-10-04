@@ -43,30 +43,24 @@ export async function deleteResume(resumeId: string): Promise<{ error: string | 
   }
 }
 
-<<<<<<< HEAD
-
-export async function uploadResume(formData: FormData): Promise<{ resume: ResumeItem | null; error: string | null }> {
-  try {
-    const { id, token }  = await getApplicantSession();
-=========
-async function getApplicantId(): Promise<{ id: string; token: string }> {
-  const supabase = await createSupabaseServerClient();
-  const { data: claimsData } = await supabase.auth.getClaims();
-  if (!claimsData?.claims?.sub) throw new Error("Not signed in");
-
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
-  if (!token) throw new Error("Not signed in");
-
-  return { id: claimsData.claims.sub, token };
-}
+// Unused: replaced by getApplicantSession() from @/lib/session.
+// async function getApplicantId(): Promise<{ id: string; token: string }> {
+//   const supabase = await createSupabaseServerClient();
+//   const { data: claimsData } = await supabase.auth.getClaims();
+//   if (!claimsData?.claims?.sub) throw new Error("Not signed in");
+//
+//   const { data: sessionData } = await supabase.auth.getSession();
+//   const token = sessionData.session?.access_token;
+//   if (!token) throw new Error("Not signed in");
+//
+//   return { id: claimsData.claims.sub, token };
+// }
 
 export async function uploadResume(
   formData: FormData,
 ): Promise<{ resume: ResumeItem | null; error: string | null }> {
   try {
-    const { id, token } = await getApplicantId();
->>>>>>> origin
+    const { id, token } = await getApplicantSession();
     const res = await apiUpload(`/applicants/${id}/resumes`, formData, token);
     if (!res.ok) {
       const msg = await extractErrorMessage(res);
