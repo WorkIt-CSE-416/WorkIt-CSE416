@@ -11,6 +11,7 @@ dependencies = [
     "email-validator>=2.3.0",
     "fastapi>=0.141.1",
     "ftfy>=6.3.1",
+    "pillow>=12.3.0",
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.14.0",
     "pypdf>=6.19.0",
