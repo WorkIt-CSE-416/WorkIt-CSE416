@@ -119,7 +119,8 @@ src/lib/          Framework-free helpers
                   extractErrorMessage, and auth types. Server-only.
   supabase/server.ts  Per-request Supabase client — auth only, never data
 public/           Static assets served from /
-  workit-logo.png Full lockup, 1256x448 — auth card and app top bar
+  workit-logo.png Full lockup, 1256x448, violet — the auth card
+  workit-logo-ink.png  The same lockup in --color-ink — the app top bar
   workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
