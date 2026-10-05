@@ -1,15 +1,13 @@
 import Link from "next/link";
 
 import { ArrowRightIcon } from "@/components/icons";
-import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 import { WAITING, type WaitBucket } from "./data";
 
 /**
  * Applications with no reply yet, by how long they have waited — the seeker's
- * "Time in stage". Bars rather than a ring: the buckets are ordered, and the
+ * "Time in stage". Open on the page beside Activity, like it. Bars rather than a ring: the buckets are ordered, and the
  * question is how much of the pile is old, which a row of lengths answers in
  * one look.
  *
@@ -34,9 +32,11 @@ export function Waiting() {
   );
 
   return (
-    <Card padding="md" className="flex flex-col">
-      <SectionHeading as="h3">Waiting to hear back</SectionHeading>
-      <p className="text-note text-ink-meta mt-1">No reply yet, as of today.</p>
+    <section aria-labelledby="waiting" className="flex flex-col">
+      <h2 id="waiting" className="text-title text-ink">
+        Waiting to hear back
+      </h2>
+      <p className="text-body text-ink-meta mt-1">No reply yet, as of today.</p>
 
       {/* The headline first, so the card answers "how many" before "how
           old" — and fills the height Up next gives this row with a figure
@@ -64,12 +64,12 @@ export function Waiting() {
       {due > 0 && (
         <Link
           href="/applications"
-          className="text-label text-brand-ink focus-visible:ring-brand-ring mt-auto inline-flex items-center gap-1 self-start rounded-xs pt-5 hover:underline focus-visible:ring-2 focus-visible:outline-none"
+          className="text-label text-brand-ink focus-visible:ring-brand-ring mt-5 inline-flex items-center gap-1 self-start rounded-xs hover:underline focus-visible:ring-2 focus-visible:outline-none"
         >
           Follow up on the {due} waiting over two weeks
           <ArrowRightIcon className="size-3.5" />
         </Link>
       )}
-    </Card>
+    </section>
   );
 }

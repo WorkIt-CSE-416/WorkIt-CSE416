@@ -17,11 +17,18 @@ import { COLUMNS } from "../applications/data";
 
 export type RangeKey = "week" | "month" | "season";
 
-export const RANGES: { key: RangeKey; label: string; period: string | null }[] = [
-  { key: "week", label: "This week", period: "last week" },
-  { key: "month", label: "30 days", period: "the 30 days before" },
+export const RANGES: {
+  key: RangeKey;
+  label: string;
+  /** What a delta is compared against; null where there is nothing before. */
+  period: string | null;
+  /** The window in a sentence: "How far your applications got, this week." */
+  scope: string;
+}[] = [
+  { key: "week", label: "This week", period: "last week", scope: "this week" },
+  { key: "month", label: "30 days", period: "the 30 days before", scope: "in the last 30 days" },
   // A season has nothing before it to compare against, so no deltas.
-  { key: "season", label: "Season", period: null },
+  { key: "season", label: "Season", period: null, scope: "this season" },
 ];
 
 export function parseRange(value: string | string[] | undefined): RangeKey {
@@ -43,19 +50,19 @@ export type DashboardStat = {
  *  is the number a student can most change (better targeting, referrals). */
 export const STATS: Record<RangeKey, DashboardStat[]> = {
   week: [
-    { label: "Applications sent", value: 5, previous: 7 },
+    { label: "Applications", value: 5, previous: 7 },
     { label: "Response rate", value: 40, previous: 29, suffix: "%" },
     { label: "Interviews", value: 1, previous: 1 },
     { label: "Offers", value: 0, previous: 0 },
   ],
   month: [
-    { label: "Applications sent", value: 18, previous: 12 },
+    { label: "Applications", value: 18, previous: 12 },
     { label: "Response rate", value: 33, previous: 25, suffix: "%" },
     { label: "Interviews", value: 3, previous: 1 },
     { label: "Offers", value: 1, previous: 0 },
   ],
   season: [
-    { label: "Applications sent", value: 42, previous: null },
+    { label: "Applications", value: 42, previous: null },
     { label: "Response rate", value: 29, previous: null, suffix: "%" },
     { label: "Interviews", value: 5, previous: null },
     { label: "Offers", value: 1, previous: null },

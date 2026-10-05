@@ -2,63 +2,50 @@ import Link from "next/link";
 import type { ComponentType } from "react";
 
 import { ArrowRightIcon, AwardIcon, CalendarIcon, MailIcon } from "@/components/icons";
-import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
-import { UP_NEXT, type UpNextKind } from "./data";
+import type { UpNextItem, UpNextKind } from "./data";
 
 /**
- * What needs the seeker next — the Dashboard's lead card, because "what do I
- * do today" is worth more to a student than any total. The seeker's version
- * of the company dashboard's "Needs your attention", and the same shape: one
- * row a commitment, the commitment first, whose it is second, when last.
+ * The rest of what needs the seeker next — the top item is the violet card
+ * above (./next-up-hero.tsx). The seeker's version of the company dashboard's
+ * "Needs your attention", and the same shape: the commitment first, whose it
+ * is second, when last.
  *
- * Each kind wears its own tone so the list sorts itself at a glance: an
- * interview or an offer is someone waiting on you (brand, positive), a
- * closing application is a clock (warning), a follow-up is a nudge (quiet).
+ * Open on the page, not in a card: a short list of rows with round glyphs
+ * reads as a list without a box around it, and the page has the hero and the
+ * pipeline band to carry its colour. Each kind wears its own tone so the list
+ * sorts itself at a glance: an interview or an offer is someone waiting on
+ * you (brand, positive), a closing application is a clock (warning), a
+ * follow-up is a nudge (quiet).
  */
-const KIND: Record<UpNextKind, { Icon: ComponentType<{ className?: string }>; tile: string }> = {
-  interview: { Icon: CalendarIcon, tile: "bg-brand-tint text-brand" },
-  offer: { Icon: AwardIcon, tile: "bg-positive-tint text-positive-ink" },
-  deadline: { Icon: CalendarIcon, tile: "bg-warning-tint text-warning" },
-  "follow-up": { Icon: MailIcon, tile: "bg-hover text-ink-meta" },
+const KIND: Record<UpNextKind, { Icon: ComponentType<{ className?: string }>; tone: string }> = {
+  interview: { Icon: CalendarIcon, tone: "bg-brand-tint text-brand" },
+  offer: { Icon: AwardIcon, tone: "bg-positive-tint text-positive-ink" },
+  deadline: { Icon: CalendarIcon, tone: "bg-warning-tint text-warning" },
+  "follow-up": { Icon: MailIcon, tone: "bg-hover text-ink-meta" },
 };
 
-export function UpNext() {
+export function UpNext({ items }: { items: UpNextItem[] }) {
   return (
-    <Card padding="md" className="flex flex-col">
-      <SectionHeading
-        as="h2"
-        action={
-          <Link
-            href="/applications"
-            className="text-label text-brand-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs hover:underline focus-visible:ring-2 focus-visible:outline-none"
-          >
-            All applications
-            <ArrowRightIcon className="size-3.5" />
-          </Link>
-        }
-      >
+    <section aria-labelledby="up-next">
+      <h2 id="up-next" className="text-title text-ink">
         Up next
-      </SectionHeading>
-      <p className="text-note text-ink-meta mt-1">
-        Interviews and offers first, then deadlines and follow-ups.
-      </p>
+      </h2>
 
-      <ul className="mt-4 flex flex-1 flex-col gap-2">
-        {UP_NEXT.map((item) => {
-          const { Icon, tile } = KIND[item.kind];
+      <ul className="mt-3 flex flex-col">
+        {items.map((item) => {
+          const { Icon, tone } = KIND[item.kind];
 
           return (
             <li
               key={`${item.company}-${item.title}`}
-              className="border-border-subtle rounded-control flex items-center gap-3 border p-3"
+              className="border-border-subtle flex items-center gap-3 border-b py-3 last:border-b-0"
             >
               <span
                 className={cn(
-                  "rounded-control flex size-9 shrink-0 items-center justify-center",
-                  tile,
+                  "flex size-10 shrink-0 items-center justify-center rounded-full",
+                  tone,
                 )}
               >
                 <Icon className="size-4" />
@@ -69,7 +56,7 @@ export function UpNext() {
                   letters and an ellipsis. */}
               <div className="min-w-0 flex-1 @xl/main:flex @xl/main:items-center @xl/main:gap-3">
                 <div className="min-w-0 @xl/main:flex-1">
-                  <p className="text-label text-ink truncate">{item.title}</p>
+                  <p className="text-label text-ink truncate font-semibold">{item.title}</p>
                   <p className="text-note text-ink-meta truncate">
                     {item.role} · {item.company}
                   </p>
@@ -82,6 +69,14 @@ export function UpNext() {
           );
         })}
       </ul>
-    </Card>
+
+      <Link
+        href="/applications"
+        className="text-label text-ink-muted hover:text-ink focus-visible:ring-brand-ring mt-2 inline-flex items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+      >
+        View all applications
+        <ArrowRightIcon className="size-3.5" />
+      </Link>
+    </section>
   );
 }

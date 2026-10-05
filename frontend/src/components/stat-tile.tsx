@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import { TrendIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 
 export type StatDelta = {
   value: number;
@@ -76,6 +77,7 @@ export function StatTile({
   value,
   suffix = "",
   delta,
+  plain = false,
 }: {
   label: string;
   /** Decoration beside the label; see the note on the glyph below. */
@@ -84,7 +86,60 @@ export function StatTile({
   /** Printed after the value and its delta — "%" for a rate. */
   suffix?: string;
   delta?: StatDelta;
+  /** Open on the page instead of in a card: the label sits on a hairline and
+   *  the direction is a small round marker beside it, the way the seeker
+   *  Dashboard's headline row reads. The company dashboard keeps the card. */
+  plain?: boolean;
 }) {
+  if (plain) {
+    const moved = delta && delta.value !== 0;
+    const good = delta ? isGood(delta.value, delta.upIsGood) : false;
+
+    return (
+      <div>
+        <div className="border-border-subtle flex items-center justify-between gap-2 border-b pb-2">
+          <p className="text-note text-ink-meta">{label}</p>
+          {/* The marker carries direction by its arrow, not only its
+              colour, and the line below says the size of the change. */}
+          {moved && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded-full text-white",
+                good ? "bg-positive" : "bg-danger",
+              )}
+            >
+              <TrendIcon className="size-2.5" down={delta.value < 0} />
+            </span>
+          )}
+        </div>
+
+        <p className="text-display text-ink mt-2">
+          {format(value)}
+          {suffix}
+        </p>
+
+        {delta && (
+          <p className="text-note text-ink-meta mt-0.5">
+            {/* "Same as" rather than "No change vs": a narrow column wrapped
+                the longer phrase onto a second line, the one tile in the row
+                that did. */}
+            {delta.value === 0 ? (
+              `Same as ${delta.period}`
+            ) : (
+              <span className={cn("font-semibold", good ? "text-positive-ink" : "text-danger")}>
+                {delta.value > 0 ? "+" : "−"}
+                {format(Math.abs(delta.value))}
+                {suffix}
+              </span>
+            )}
+            {delta.value !== 0 && ` vs ${delta.period}`}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <Card padding="md">
       {/* The glyph is decoration, not information: the label beside it already

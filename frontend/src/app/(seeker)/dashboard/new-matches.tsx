@@ -2,8 +2,6 @@ import Link from "next/link";
 
 import { CompanyLogo } from "@/components/company-logo";
 import { ArrowRightIcon } from "@/components/icons";
-import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
 
 import { formatPosted } from "../jobs/format";
 import { getJobListings } from "../jobs/listings";
@@ -13,7 +11,8 @@ import { getJobListings } from "../jobs/listings";
  * today. "Matches" is the feed's own word for what it shows (Recommended for
  * You); there is no scoring yet, so the order is newest first.
  *
- * A compact list rather than the Jobs page's cards: this is a glance at what
+ * Open on the page, like the other lists. A compact list rather than the Jobs
+ * page's cards: this is a glance at what
  * arrived, with Jobs one click away for the full card and its actions. Apply
  * goes straight to the employer's posting, as it does there.
  *
@@ -27,22 +26,20 @@ export async function NewMatches() {
   const latest = (jobs ?? []).slice(0, SHOWN);
 
   return (
-    <Card padding="md" className="flex flex-col">
-      <SectionHeading
-        as="h2"
-        action={
-          <Link
-            href="/jobs"
-            className="text-label text-brand-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs hover:underline focus-visible:ring-2 focus-visible:outline-none"
-          >
-            All jobs
-            <ArrowRightIcon className="size-3.5" />
-          </Link>
-        }
-      >
-        New matches
-      </SectionHeading>
-      <p className="text-note text-ink-meta mt-1">The latest roles from your feed.</p>
+    <section aria-labelledby="new-matches">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="new-matches" className="text-title text-ink">
+          New matches
+        </h2>
+        <Link
+          href="/jobs"
+          className="text-label text-ink-muted hover:text-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+        >
+          All jobs
+          <ArrowRightIcon className="size-3.5" />
+        </Link>
+      </div>
+      <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 
       {error != null || latest.length === 0 ? (
         <p className="text-body text-ink-meta mt-4">
@@ -79,6 +76,6 @@ export async function NewMatches() {
           ))}
         </ul>
       )}
-    </Card>
+    </section>
   );
 }

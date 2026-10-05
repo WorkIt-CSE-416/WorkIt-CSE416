@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from "recharts";
 
 import {
   ChartContainer,
@@ -8,24 +8,25 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/shadcn/chart";
-import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
 
 import type { ActivityPoint } from "./data";
 
 /**
  * Applications sent over the window: days this week, weeks over a month or
- * the season. Bars, not the company's area chart: a student sends a handful a
- * week, and at that count each send is a thing that happened rather than a
- * point on a continuous flow — and a zero day is a gap, not a dip.
+ * the season. Open on the page, under its heading, rather than in a card.
+ *
+ * A smooth line over a soft fill rather than bars: the question is the pace
+ * — is it holding — which a line answers in its slope, and the curve keeps a
+ * week with a quiet Tuesday from reading as a broken chart. A dot marks each
+ * point, so a reader can still count individual weeks.
  *
  * THE GOAL LINE is the habit the Dashboard is for. Five a week is a steady,
  * reachable pace through a recruiting season, and a dashed line at it turns
- * every bar into "made it" or "short" without a word. It is drawn only over
- * weekly bars; a weekly goal over daily bars would read as five a day.
+ * every point into "made it" or "short" without a word. Drawn only over
+ * weekly points; a weekly goal over daily ones would read as five a day.
  *
- * Brand for the series, for the reason the company trend gives: --chart-1 is
- * the one slot that clears 3:1 against a white card on its own.
+ * Brand for the series: --chart-1 is the one slot that clears 3:1 against
+ * white on its own, which a 2px line needs.
  */
 const config = {
   count: { label: "Applications", color: "var(--color-chart-1)" },
@@ -36,9 +37,11 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
   const hit = goal === null ? 0 : points.filter((point) => point.count >= goal).length;
 
   return (
-    <Card padding="md" className="flex flex-col">
-      <SectionHeading as="h3">Activity</SectionHeading>
-      <p className="text-note text-ink-meta mt-1">
+    <section aria-labelledby="activity">
+      <h2 id="activity" className="text-title text-ink">
+        Activity
+      </h2>
+      <p className="text-body text-ink-meta mt-1">
         {total} {total === 1 ? "application" : "applications"} sent
         {goal !== null && (
           <>
@@ -49,12 +52,18 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
         .
       </p>
 
-      <ChartContainer config={config} className="mt-4 aspect-auto h-52 w-full">
-        <BarChart data={points} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+      <ChartContainer config={config} className="mt-4 aspect-auto h-56 w-full">
+        <AreaChart data={points} margin={{ left: 0, right: 12, top: 12, bottom: 0 }}>
+          <defs>
+            <linearGradient id="activity-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-count)" stopOpacity={0.22} />
+              <stop offset="100%" stopColor="var(--color-count)" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
           <CartesianGrid vertical={false} className="stroke-border-subtle" />
           <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={8} />
           <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={24} />
-          <ChartTooltip cursor={{ fill: "var(--color-well)" }} content={<ChartTooltipContent />} />
+          <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
           {goal !== null && (
             <ReferenceLine
               y={goal}
@@ -68,9 +77,17 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
               }}
             />
           )}
-          <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} maxBarSize={36} />
-        </BarChart>
+          <Area
+            type="monotone"
+            dataKey="count"
+            stroke="var(--color-count)"
+            strokeWidth={2.5}
+            fill="url(#activity-fill)"
+            dot={{ r: 3, fill: "var(--color-panel)", strokeWidth: 2 }}
+            activeDot={{ r: 5 }}
+          />
+        </AreaChart>
       </ChartContainer>
-    </Card>
+    </section>
   );
 }

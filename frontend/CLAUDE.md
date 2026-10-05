@@ -169,13 +169,13 @@ counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
 Settings lives in the panel's footer, not the account menu.
 
-`components/stat-tile.tsx` is shared by both dashboards. The seeker Dashboard
-is two tiers: on the first screen, the headline numbers, then Up next (its
-version of the company's Needs your attention) beside New matches from the
-live feed; below, under Insights, the charts that redraw those numbers
-through stages and over time (pipeline funnel, activity, waiting to hear
-back). Keep anything that repeats a tile in the lower tier — on top, three
-views of one number read as clutter. Fixtures are in
+`components/stat-tile.tsx` is shared by both dashboards; the seeker one uses
+its `plain` variant. The seeker Dashboard gives each kind of content its own
+surface instead of a white card each: the numbers open under the greeting, one
+violet Next up hero (the only solid colour), open sections for Activity and
+the lists, and a lavender pipeline band of small badge cards with a violet
+Full board tile. Keep it that way — a page of identical boxes has no first
+place to look; the page docblock says what goes where. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real. Its range is
 `?range=`, links rather than client state.
 
