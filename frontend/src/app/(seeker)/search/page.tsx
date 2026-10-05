@@ -13,6 +13,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
 
+import { SEEKER_GUTTER } from "../gutter";
 import { DETAIL, FILTERS, JOBS, type Job } from "./data";
 import { BoltIcon, ExternalLinkIcon } from "./icons";
 
@@ -80,32 +81,38 @@ export default function SearchPage() {
   const job = JOBS.find((entry) => entry.selected) ?? JOBS[0];
 
   return (
-    <div className="flex flex-1 items-stretch">
-      <aside
-        aria-labelledby="results-heading"
-        className="bg-well border-border-subtle flex w-90 shrink-0 flex-col border-r"
-      >
-        <div className="bg-panel px-2 pt-3 pb-4">
-          <div className="flex items-center justify-between gap-3">
-            <SectionHeading as="h1" id="results-heading">
-              Search Results
-            </SectionHeading>
-            <Badge variant="tag" pill>
-              {JOBS.length} Jobs
-            </Badge>
-          </div>
-
-          <div className="mt-2 flex items-center gap-1.5">
-            {FILTERS.map((filter) => (
-              <FilterChip key={filter.label} label={filter.label} active={filter.active} />
-            ))}
-            <IconButton label="More filters" variant="outline" className="ml-auto size-6.5">
-              <FilterIcon className="size-3.5" />
-            </IconButton>
-          </div>
+    /* Contained like every other seeker screen, not a full-bleed workspace.
+       The results pane used to start at x=0 under a bar whose logo starts at
+       the container's edge, so nothing on the page lined up with the bar
+       above it. Below md the detail pane steps out and the results take the
+       width: two fixed panes side by side were wider than a phone, so the
+       whole page scrolled sideways to reach the job. */
+    <div
+      className={cn(
+        "max-w-app mx-auto flex w-full flex-1 flex-col gap-6 py-6 md:flex-row md:items-start",
+        SEEKER_GUTTER,
+      )}
+    >
+      <aside aria-labelledby="results-heading" className="flex shrink-0 flex-col md:w-80">
+        <div className="flex items-center justify-between gap-3">
+          <SectionHeading as="h1" id="results-heading">
+            Search Results
+          </SectionHeading>
+          <Badge variant="tag" pill>
+            {JOBS.length} Jobs
+          </Badge>
         </div>
 
-        <ul className="flex flex-col gap-2.5 p-2">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {FILTERS.map((filter) => (
+            <FilterChip key={filter.label} label={filter.label} active={filter.active} />
+          ))}
+          <IconButton label="More filters" variant="outline" className="ml-auto size-6.5">
+            <FilterIcon className="size-3.5" />
+          </IconButton>
+        </div>
+
+        <ul className="mt-4 flex flex-col gap-2.5">
           {JOBS.map((entry) => (
             <li key={entry.id}>
               <ResultCard job={entry} />
@@ -114,21 +121,29 @@ export default function SearchPage() {
         </ul>
       </aside>
 
-      <main className="bg-panel min-w-0 flex-1 px-6 pt-5 pb-12">
+      <main className="hidden min-w-0 flex-1 md:block">
+        {/* text-title, not text-display: at 28px the title outweighed the page
+            heading of every other screen, and in a pane beside the results it
+            wrapped long before the header ran out of room. */}
         <Card as="header" padding="lg" elevated={false} className="flex items-center gap-4">
           <CompanyTile Icon={job.Icon} size="lg" tone="outline" />
 
           <div className="min-w-0 flex-1">
-            <h2 className="text-display text-ink">{job.title}</h2>
+            {/* The status rides with the title rather than at the end of the
+                company line, where a wrap in the narrower pane left a dot
+                dangling at the end of one line and the badge alone on the
+                next. */}
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <h2 className="text-title text-ink">{job.title}</h2>
+              <Badge tone="positive">{DETAIL.status}</Badge>
+            </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
               <TextLink href="/companies" className="text-label font-semibold">
                 {job.company}
               </TextLink>
               <Dot />
               <span className="text-label text-ink-meta font-normal">{job.location}</span>
-              <Dot />
-              <Badge tone="positive">{DETAIL.status}</Badge>
             </div>
           </div>
 
@@ -136,18 +151,20 @@ export default function SearchPage() {
             label={`Save ${job.title}`}
             tooltip="Save"
             variant="outline"
-            className="text-ink-meta h-10 w-6 shrink-0"
+            className="text-ink-meta size-9 shrink-0"
           >
             <BookmarkIcon className="size-4" />
           </IconButton>
 
-          <Button size="lg" className="shrink-0">
+          <Button className="shrink-0">
             Apply Now
             <ExternalLinkIcon className="size-4" />
           </Button>
         </Card>
 
-        <dl className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* Two across at every width: the pane is ~584px at most, and four
+            across left each value ~130px to wrap in. */}
+        <dl className="mt-4 grid grid-cols-2 gap-3">
           {DETAIL.stats.map(({ label, value, Icon }) => (
             <div
               key={label}
@@ -163,15 +180,17 @@ export default function SearchPage() {
         </dl>
 
         <Section title="About the Role">
-          <p className="text-label text-ink-muted mt-3 leading-5 font-normal">{DETAIL.about}</p>
+          <p className="text-body text-ink-muted mt-3">{DETAIL.about}</p>
         </Section>
 
+        {/* `marker` draws the bullets. Without it the items were indented
+            with nothing in the indent, which read as a layout mistake. */}
         <Section title="What You'll Do">
-          <Points items={DETAIL.responsibilities} />
+          <Points items={DETAIL.responsibilities} marker />
         </Section>
 
         <Section title="Qualifications">
-          <Points items={DETAIL.qualifications} />
+          <Points items={DETAIL.qualifications} marker />
         </Section>
       </main>
     </div>

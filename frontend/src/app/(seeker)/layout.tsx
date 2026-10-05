@@ -38,12 +38,9 @@ import { SEEKER_GUTTER } from "./gutter";
  * right edges never agreed at all. The mockup's ~17px right gap is read as an
  * artefact of its single width rather than an intent.
  *
- * /search is the screen this does not align to. It is a full-bleed two-pane
- * workspace rather than a centred container, so its results pane starts at
- * x=0 and no single bar can align to both it and the cards on the other three
- * screens. The container is the majority case, so the bar follows it; if the
- * two-pane layout is meant to be the rule rather than the exception, this is
- * the line to revisit.
+ * /search used to be the screen this did not align to: a full-bleed two-pane
+ * workspace whose results pane started at x=0. It takes the container now,
+ * like the other three, so every seeker screen shares the bar's two edges.
  *
  * The mockup leaves the left of the bar empty, with the first nav link starting
  * 128px in. That slot holds the icon rather than the full lockup: at 32px tall
