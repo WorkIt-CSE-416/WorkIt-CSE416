@@ -60,3 +60,24 @@ export async function saveJob(
     return { error: "Could not reach the server. Is the backend running?" };
   }
 }
+
+/** Moves a job along its lifecycle. Only closing is offered today; the API
+ *  rejects any move it doesn't allow, so nothing is checked here. */
+export async function changeJobStatus(
+  jobId: string,
+  status: "closed",
+): Promise<{ error: string | null }> {
+  try {
+    const token = await getAccessToken();
+    if (!token) return { error: SIGNED_OUT };
+    const res = await apiFetch(
+      `/company/jobs/${encodeURIComponent(jobId)}/status`,
+      { method: "POST", body: JSON.stringify({ status }) },
+      token,
+    );
+    if (!res.ok) return { error: await extractErrorMessage(res) };
+    return { error: null };
+  } catch {
+    return { error: "Could not reach the server. Is the backend running?" };
+  }
+}

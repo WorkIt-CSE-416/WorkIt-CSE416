@@ -86,6 +86,14 @@ class JobPostingUpdate(JobPostingCreate):
     updated_at: AwareDatetime = Field(alias="updatedAt")
 
 
+class JobStatusChange(BaseModel):
+    '''
+    POST body for moving a job along its lifecycle, separate from editing its
+    details so a status button never saves half-finished form changes
+    '''
+    status: dto.job_post_status
+
+
 class JobPostingSummary(BaseModel):
     '''
     a job as the list returns it: what the Job Postings table shows, without
