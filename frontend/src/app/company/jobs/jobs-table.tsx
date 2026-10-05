@@ -1,6 +1,7 @@
 "use client";
 
 import { createColumnHelper, useTable } from "@tanstack/react-table";
+import { useSyncExternalStore } from "react";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -120,9 +121,7 @@ const columns = helper.columns([
      * text, which is exactly why this is worth stating: the day the fixture
      * becomes a real date the string comparison would start lying, silently. */
     sortFn: "datetime",
-    cell: ({ getValue }) => (
-      <span className="text-ink-meta whitespace-nowrap">{formatDate(getValue())}</span>
-    ),
+    cell: ({ getValue }) => <PostedDate iso={getValue()} />,
   }),
 ]);
 
@@ -130,7 +129,35 @@ const FILTERS: FilterSpec[] = [
   { columnId: "status", label: "Status", plural: "Statuses", options: STATUSES },
 ];
 
-export function JobsTable({ postings }: { postings: Posting[] }) {
+/**
+ * `created_at` is a full timestamp, so the calendar day it falls on depends
+ * on the viewer's timezone, which only the browser knows. The server renders
+ * the UTC day (formatDate), and the browser swaps in its own day after
+ * hydration: useSyncExternalStore's server snapshot is what keeps that from
+ * being a hydration mismatch, where suppressHydrationWarning would just keep
+ * the server's text. A date-only string has no timezone to apply, so it
+ * stays as written.
+ */
+const noSubscription = () => () => {};
+
+function PostedDate({ iso }: { iso: string }) {
+  const text = useSyncExternalStore(
+    noSubscription,
+    () =>
+      iso.length === 10
+        ? formatDate(iso)
+        : new Date(iso).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+    () => formatDate(iso),
+  );
+
+  return <span className="text-ink-meta whitespace-nowrap">{text}</span>;
+}
+
+export function JobsTable({ postings, empty }: { postings: Posting[]; empty: string }) {
   const table = useTable({ features: FEATURES, columns, data: postings });
 
   return (
@@ -141,7 +168,7 @@ export function JobsTable({ postings }: { postings: Posting[] }) {
         searchPlaceholder="Search roles"
         filters={FILTERS}
       />
-      <DataTable table={table} empty="No postings match those filters." />
+      <DataTable table={table} empty={empty} />
     </div>
   );
 }

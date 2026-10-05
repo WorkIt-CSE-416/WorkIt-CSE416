@@ -63,7 +63,9 @@ src/app/          App Router routes, layouts, pages
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
                   table.tsx is the sortable/filterable table its two list
-                  screens share.
+                  screens share. /company/jobs lists the company's real
+                  jobs; /company/jobs/new is the composer, and
+                  /company/jobs/[jobId]/edit reopens it on a saved job.
   login/          Auth screens, outside both shells (signup/ too); their
                   actions.ts are the only places that sign in
   design-kit/     Every token and component, one route per section, resolved
@@ -94,11 +96,18 @@ src/lib/          Framework-free helpers
   api.ts          Server-only apiUpload (multipart, POST or PUT), apiGet,
                   apiDelete. Guarded with `import "server-only"`. Uses
                   API_URL (not NEXT_PUBLIC_*).
-  session.ts      getApplicantSession() — the signed-in id + access token.
-                  Server-only, and never in a "use server" file (see below)
+  session.ts      getApplicantSession() — the signed-in id + access token —
+                  and getAccessToken() for any account type. Server-only, and
+                  never in a "use server" file (see below)
   resume-actions.ts  Server actions for resume upload/list/delete.
                   Used by both onboarding and profile.
   avatar-actions.ts  Server actions for the profile photo: get/upload/remove
+  job-actions.ts  Server actions for the company's jobs: saveJob (create, or
+                  update with the updated_at it was loaded with, so a save over
+                  someone else's is a 409)
+  job-queries.ts  Server-only reads of the company's jobs for Server
+                  Components: listCompanyJobs (pages through the API) and
+                  getCompanyJob. Not actions, so not public endpoints
   avatar-rules.ts Accepted photo types and size, for the client-side check
   auth.ts         apiFetch() to the Python API (with optional Bearer token),
                   extractErrorMessage, and auth types. Server-only.
@@ -280,7 +289,17 @@ share the same 5 MB / `6mb` pair.
 export of one becomes an endpoint the browser can call, so exporting
 `getApplicantSession` from `resume-actions.ts` would hand any page script the
 access token. Helpers like it live in `server-only` modules (`session.ts`)
-and are imported by the action files.
+and are imported by the action files. The same goes for reads only Server
+Components call: they live in a `server-only` module (`job-queries.ts`), not
+beside the mutations, so they never become endpoints either.
+
+**A saved timestamp becomes a calendar day in the browser, never on the
+server.** The server runs in UTC, so a closing date or a Posted day computed
+there is a day off for anyone in the Americas. The job composer builds its
+form from the raw job in a `useState` initializer, and the jobs table's Posted
+cell swaps in the local day after hydration with `useSyncExternalStore`.
+`formatDate` in `lib/format-date.ts` formats in UTC on purpose and is only
+right for date-only strings.
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.

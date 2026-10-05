@@ -19,8 +19,11 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 from app.models import dto
 
 # Money is >= 0 here so a bad figure is a 422 naming the field, rather than an
-# IntegrityError from the salary_non_negative constraint.
-Money = Annotated[float, Field(ge=0)]
+# IntegrityError from the salary_non_negative constraint. allow_inf_nan=False
+# because Python's JSON parser accepts Infinity and NaN: Infinity passes ge=0,
+# is stored, and comes back as null, and NaN's 422 echoes a value json.dumps
+# can't encode, which turns it into a 500.
+Money = Annotated[float, Field(ge=0, allow_inf_nan=False)]
 
 
 class JobPostingCreate(BaseModel):
@@ -68,7 +71,43 @@ class JobPostingCreate(BaseModel):
             raise ValueError("salaryMin cannot be greater than salaryMax")
         if self.location_state is not None and not self.location_state.startswith(f"{self.location_country}-"):
             raise ValueError("locationState must be a state of locationCountry")
+        # The date picker blocks past days, but a direct call or a form left
+        # open past its own closing date could otherwise publish a job that
+        # has already closed. A draft may keep a stale date until it goes live.
+        if (
+            self.status == dto.job_post_status.published
+            and self.closes_at is not None
+            and self.closes_at < datetime.datetime.now(datetime.UTC)
+        ):
+            raise ValueError("closesAt is in the past; pick a later closing date")
         return self
+
+
+class JobPostingUpdate(JobPostingCreate):
+    '''
+    PUT body: the full form again, plus the updatedAt the form was loaded
+    with. The route refuses the save if the job has changed since, so two
+    recruiters editing one job can't silently overwrite each other.
+    '''
+    updated_at: AwareDatetime = Field(alias="updatedAt")
+
+
+class JobPostingSummary(BaseModel):
+    '''
+    a job as the list returns it: what the Job Postings table shows, without
+    the description, which can run to pages and isn't shown there
+    '''
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    status: dto.job_post_status
+    work_style: dto.work_style
+    location_country: str
+    location_state: str | None
+    closes_at: datetime.datetime | None
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
 
 
 class JobPosting(BaseModel):

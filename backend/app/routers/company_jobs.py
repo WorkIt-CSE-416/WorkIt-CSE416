@@ -7,7 +7,7 @@ company, taken from the verified token, never from the request.
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,13 +17,25 @@ from app.deps import get_company_member
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Post
 from app.schemas.auth import AuthenticatedAccount
-from app.schemas.company_jobs import JobPosting, JobPostingCreate
+from app.schemas.company_jobs import (
+    JobPosting,
+    JobPostingCreate,
+    JobPostingSummary,
+    JobPostingUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/company/jobs", tags=["company jobs"])
 
-_JOB_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, "Job not found.")
+# The foreign keys a job's location is checked against. Anything else that
+# fails on commit is a bug of ours, not an unsupported location.
+_LOCATION_CONSTRAINTS = {"job_postings_location_country_fkey", "country_state_reference_exist"}
+
+
+# A function, not a shared instance: see _not_authenticated in app/deps.py.
+def _job_not_found() -> HTTPException:
+    return HTTPException(status.HTTP_404_NOT_FOUND, "Job not found.")
 
 
 async def _commit(db: AsyncSession, job: Job_Post) -> None:
@@ -35,7 +47,12 @@ async def _commit(db: AsyncSession, job: Job_Post) -> None:
     except IntegrityError as exc:
         await db.rollback()
         # The schema already enforces salary and state/country agreement, so
-        # what reaches here is a country or state code that isn't seeded.
+        # a location foreign key failing means a country or state code that
+        # isn't seeded. asyncpg's own error, which names the constraint, is
+        # the cause of the DBAPI error SQLAlchemy wraps.
+        constraint = getattr(exc.orig.__cause__, "constraint_name", None)
+        if constraint not in _LOCATION_CONSTRAINTS:
+            raise
         logger.info("Job write rejected: %s", exc.orig)
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -47,14 +64,17 @@ async def _commit(db: AsyncSession, job: Job_Post) -> None:
     await db.refresh(job)
 
 
-async def _own_job(db: AsyncSession, job_id: uuid.UUID, account: AuthenticatedAccount) -> Job_Post:
+async def _own_job(
+    db: AsyncSession, job_id: uuid.UUID, account: AuthenticatedAccount, *, lock: bool = False
+) -> Job_Post:
     '''
     the job, if it belongs to the caller's company. Another company's job is a
-    404 rather than a 403, so ids can't be probed for existence.
+    404 rather than a 403, so ids can't be probed for existence. `lock` holds
+    the row until commit, for a write that first checks what it read.
     '''
-    job = await db.get(Job_Post, job_id)
+    job = await db.get(Job_Post, job_id, with_for_update=lock)
     if job is None or job.company_id != account.company_id:
-        raise _JOB_NOT_FOUND
+        raise _job_not_found()
     return job
 
 
@@ -77,18 +97,26 @@ async def create_job(
     return job
 
 
-@router.get("", response_model=list[JobPosting])
+@router.get("", response_model=list[JobPostingSummary])
 async def list_jobs(
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
 ) -> list[Job_Post]:
     '''
-    every job the caller's company has, newest first
+    a page of the caller's company's jobs, newest first. Summaries only: the
+    table never shows a description, so it isn't sent. A page shorter than
+    `limit` is the last one.
     '''
     rows = await db.execute(
         select(Job_Post)
         .where(Job_Post.company_id == account.company_id)
-        .order_by(Job_Post.created_at.desc())
+        # id breaks ties, so two jobs created in one transaction can't swap
+        # places between pages and be skipped or shown twice.
+        .order_by(Job_Post.created_at.desc(), Job_Post.id)
+        .limit(limit)
+        .offset(offset)
     )
     return list(rows.scalars())
 
@@ -108,7 +136,7 @@ async def get_job(
 @router.put("/{job_id}", response_model=JobPosting)
 async def update_job(
     job_id: uuid.UUID,
-    body: JobPostingCreate,
+    body: JobPostingUpdate,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
 ) -> Job_Post:
@@ -119,15 +147,23 @@ async def update_job(
 
     Status may only stay put or move forward: a draft can be published, but a
     published job can't return to draft, and a closed job can't be edited.
+    A form loaded before someone else's save is refused (409), never merged.
     '''
-    job = await _own_job(db, job_id, account)
+    # Locked, or two saves could both pass the updated_at check below before
+    # either commits.
+    job = await _own_job(db, job_id, account, lock=True)
 
+    if body.updated_at != job.updated_at:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Someone else changed this job since you opened it. Reload to see their changes.",
+        )
     if job.status == job_post_status.closed:
         raise HTTPException(status.HTTP_409_CONFLICT, "A closed job can't be edited.")
     if job.status == job_post_status.published and body.status == job_post_status.draft:
         raise HTTPException(status.HTTP_409_CONFLICT, "A published job can't go back to being a draft.")
 
-    for field, value in body.model_dump().items():
+    for field, value in body.model_dump(exclude={"updated_at"}).items():
         setattr(job, field, value)
     await _commit(db, job)
     return job

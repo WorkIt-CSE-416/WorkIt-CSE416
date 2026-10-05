@@ -28,7 +28,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_EMAIL_TAKEN = HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists.")
+# A function, not a shared instance: see _not_authenticated in app/deps.py.
+def _email_taken() -> HTTPException:
+    return HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists.")
 
 
 def _signup_error(exc: AuthError) -> HTTPException:
@@ -37,7 +39,7 @@ def _signup_error(exc: AuthError) -> HTTPException:
     back; anything else is ours, and gets a generic 502 with the detail
     logged rather than echoed."""
     if exc.code in ("email_exists", "user_already_exists"):
-        return _EMAIL_TAKEN
+        return _email_taken()
     if exc.code == "weak_password":
         return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, exc.message)
 
@@ -130,7 +132,7 @@ async def signup(
         except AuthError:
             logger.exception("Orphaned Supabase auth user %s after a failed signup", created.user.id)
         if isinstance(exc, IntegrityError):
-            raise _EMAIL_TAKEN from exc
+            raise _email_taken() from exc
         raise
 
     return AuthenticatedAccount(

@@ -68,7 +68,8 @@ the schema filters. `alembic/CLAUDE.md` explains what that costs.
 
 ```
 app/
-  main.py         FastAPI app. /health (liveness) and /health/db (readiness)
+  main.py         FastAPI app. /health (liveness) and /health/db (readiness);
+                  the 422 handler that keeps a non-finite number from a 500
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
   db.py           Async engine, session factory, declarative Base, Supabase client
   security.py     Verifies Supabase access tokens against the project's JWKS

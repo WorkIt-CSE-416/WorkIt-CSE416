@@ -7,7 +7,7 @@ import { getJobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { ButtonLink, Button } from "@/components/ui/button";
 import { CompanyTile } from "@/components/ui/company-tile";
-import { getCompanyJob } from "@/lib/job-actions";
+import { getCompanyJob } from "@/lib/job-queries";
 import { Points, Section } from "@/components/ui/section";
 
 import { ApplicantOverviewPanel } from "./applicant-overview";
@@ -33,7 +33,10 @@ export default async function CompanyJobDetailPage({ params }: PageProps<"/compa
   if (!posting) {
     // This view still reads fixtures. A real job has nothing to show here
     // yet, so it opens in the editor instead of a 404.
-    const { job } = await getCompanyJob(jobId);
+    const { job, error } = await getCompanyJob(jobId);
+    // An outage or an expired session isn't a missing job; let the error
+    // boundary say so rather than showing a 404 for a job that exists.
+    if (error) throw new Error(error);
     if (job) redirect(`/company/jobs/${job.id}/edit`);
     notFound();
   }
