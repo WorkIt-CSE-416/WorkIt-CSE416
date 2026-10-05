@@ -24,10 +24,9 @@ class Profile(BaseModel):
     email: Mapped[str] = mapped_column(String(100), unique=True)
     full_name: Mapped[str] =mapped_column(String(50))
     phone_number: Mapped[str | None] = mapped_column(String(30))
-    avatar_url: Mapped[str | None]
-    # NULL until onboarding's Continue action sets it — /auth/me reads it to
-    # decide /onboarding/* vs the dashboard. No server_default: a new row
-    # must start NULL, or every new account would read as already onboarded.
+    # same design as resume, use a path to the supabase bucket
+    # do not store the original url 
+    avatar_path: Mapped[str | None]
     onboarding_completed_at: Mapped[datetime.datetime | None] = mapped_column(
                         DateTime(timezone=True))
 

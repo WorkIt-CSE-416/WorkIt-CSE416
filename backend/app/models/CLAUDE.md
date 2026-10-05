@@ -122,7 +122,7 @@ Both are `__abstract__ = True`: they declare columns and map to no table. Each
 concrete subclass gets its own **independent copy** of those columns.
 
 - `BaseModel` supplies `created_at` / `updated_at`.
-- `Profile` supplies `id`, `email`, `full_name`, `phone_number`, `avatar_url`,
+- `Profile` supplies `id`, `email`, `full_name`, `phone_number`, `avatar_path`,
   `onboarding_completed_at`. `id` is a foreign key to `auth.users.id`, with no
   default — see "Identity lives in auth.users" below.
 
@@ -414,6 +414,9 @@ What that means for the account tables:
   stay as a second check.
 - **`onboarding_completed_at`** stays here: it is app state, not identity.
   NULL until onboarding completes, and read on every `/auth/me`.
+- **`avatar_path`** is a path in the private `Avatar` Storage bucket, never a
+  URL and never image bytes. Renamed from `avatar_url` in `4f1a9c2e7b30`;
+  `../../db/avatar.md` has why.
 
 ## Known gaps
 
