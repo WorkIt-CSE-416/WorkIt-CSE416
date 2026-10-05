@@ -59,7 +59,8 @@ src/app/          App Router routes, layouts, pages
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
   (seeker)/       Job-seeker shell — a left panel plus a top bar, the same
-                  dashboard layout as company/, and every screen behind it
+                  dashboard layout as company/, and every screen behind it.
+                  /dashboard is the seeker's home: sign-in lands there
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -160,11 +161,19 @@ rearranges itself (the job card) is its own `@container`. Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
 The seeker bar shows the signed-in account's real name and photo
-(`getCurrentAccount()` in `lib/session.ts`, cached per render) and one status
-line, chosen in `(seeker)/status.ts`: new roles, then a resume nudge, then a
-greeting. Only messages backed by real data belong there — deadlines and
-application progress go first once the tracker has a backend, and not before.
+(`getCurrentAccount()` in `lib/session.ts`, cached per render), and a pill
+for roles posted in the last 24 hours when there are any (`(seeker)/status.ts`).
+The greeting is the Dashboard's heading, and the resume nudge is the profile
+strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
+counts only steps the API can see. Only messages backed by real data belong in
+the bar — deadlines go first once the tracker has a backend, and not before.
 Settings lives in the panel's footer, not the account menu.
+
+`components/stat-tile.tsx` is shared by both dashboards; the seeker
+Dashboard's other cards are its own versions of the company's (Up next for
+Needs your attention, Waiting for Time in stage, Pipeline for Application
+Status), on fixtures in `(seeker)/dashboard/data.ts` until the tracker is
+real. Its range is `?range=`, links rather than client state.
 
 Name a variant for the role it plays, never for how it looks: `primary`,
 `positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette
@@ -239,7 +248,7 @@ side:
 - `login/actions.ts` calls `supabase.auth.signInWithPassword()`, then
   `GET /auth/me` with the new access token to learn the account type and
   onboarding state, and redirects off that: an applicant to
-  `/onboarding/applicant` until onboarded and `/jobs` after, a company
+  `/onboarding/applicant` until onboarded and `/dashboard` after, a company
   account always to `/company`. Companies skip the onboarding check because
   nothing sets their `onboarding_completed_at` yet, so it would send every
   company login to the `/onboarding/company` stub — restore it when company

@@ -61,7 +61,7 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     }
     else 
     {
-      redirect(`/jobs`)
+      redirect(`/dashboard`)
     }
   }
   redirect(`/company`);

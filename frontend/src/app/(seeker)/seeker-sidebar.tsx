@@ -1,13 +1,16 @@
 "use client";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
-import { BriefcaseIcon, GearIcon, UserIcon } from "@/components/icons";
+import type { ReactNode } from "react";
+
+import { BriefcaseIcon, GearIcon, GridIcon, UserIcon } from "@/components/icons";
 
 import { BoardIcon } from "./applications/icons";
 
 /**
- * The seeker shell's left panel: the three sections a job seeker moves
- * between all through a hunt, which used to be tabs in the top bar. The bar
+ * The seeker shell's left panel: the sections a job seeker moves between all
+ * through a hunt, Dashboard first as the home, which used to be tabs in the
+ * top bar. The bar
  * keeps what is global to every screen — the logo, job search,
  * notifications and the account menu — the same split the company shell
  * makes. The panel itself is @/components/app-sidebar, shared with that
@@ -33,6 +36,7 @@ const GROUPS: SidebarNavGroup[] = [
   {
     label: "Job search",
     items: [
+      { href: "/dashboard", label: "Dashboard", Icon: GridIcon },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
       { href: "/applications", label: "Applications", Icon: BoardIcon },
       { href: "/profile", label: "My Profile", Icon: UserIcon },
@@ -42,11 +46,15 @@ const GROUPS: SidebarNavGroup[] = [
 
 const FOOTER = [{ href: "/settings", label: "Settings", Icon: GearIcon }];
 
-export function SeekerSidebar() {
+/** `card` is the profile strength card, rendered on the server by the layout
+ *  (it reads the API) and passed through, since this panel is a client
+ *  component. */
+export function SeekerSidebar({ card }: { card?: ReactNode }) {
   return (
     <AppSidebar
       groups={GROUPS}
       footer={FOOTER}
+      footerCard={card}
       label="Job search sections"
       className="top-(--seeker-bar)!"
     />

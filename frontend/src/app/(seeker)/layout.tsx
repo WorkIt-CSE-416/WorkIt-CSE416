@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 
 import { SeekerAccount, SeekerStatusLine } from "./account-status";
 import { SEEKER_GUTTER } from "./gutter";
+import { ProfileStrength } from "./profile-strength";
 import { SeekerSidebar } from "./seeker-sidebar";
 import { SidebarBrand } from "./sidebar-brand";
 
@@ -126,7 +127,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           SidebarInset renders the <main>, so the pages inside it don't. */}
       <div className="flex min-h-0 w-full flex-1">
-        <SeekerSidebar />
+        <SeekerSidebar
+          card={
+            <Suspense fallback={null}>
+              <ProfileStrength />
+            </Suspense>
+          }
+        />
         <SidebarInset className="@container/main flex-1 overflow-y-auto overscroll-contain">
           {children}
         </SidebarInset>

@@ -112,10 +112,14 @@ export type SidebarNavGroup = { label: string; items: SidebarNavItem[] };
 export function AppSidebar({
   groups,
   footer,
+  footerCard,
   label,
   className,
 }: {
   groups: SidebarNavGroup[];
+  /** A card above the footer rows — the seeker's profile strength. It hides
+   *  itself on the collapsed rail. */
+  footerCard?: ReactNode;
   /** Rows pinned to the bottom of the panel, apart from the sections: the
    *  things you visit to change how the app works rather than to work in it,
    *  like Settings. */
@@ -146,10 +150,11 @@ export function AppSidebar({
         ))}
       </SidebarContent>
 
-      {footer && footer.length > 0 && (
-        <SidebarFooter className="pb-3">
+      {(footerCard || (footer && footer.length > 0)) && (
+        <SidebarFooter className="gap-3 pb-3">
+          {footerCard}
           <SidebarMenu className={MENU}>
-            {footer.map((item) => (
+            {footer?.map((item) => (
               <NavRow key={item.href} item={item} pathname={pathname} />
             ))}
           </SidebarMenu>

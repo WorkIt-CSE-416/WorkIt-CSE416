@@ -17,12 +17,21 @@ function partOfDay(hour: number) {
   return "Good evening";
 }
 
-export function Greeting({ firstName, className }: { firstName: string; className?: string }) {
+export function Greeting({
+  firstName,
+  as: Tag = "p",
+  className,
+}: {
+  firstName: string;
+  /** h1 on the Dashboard, where the greeting is the page's heading. */
+  as?: "p" | "h1";
+  className?: string;
+}) {
   const text = useSyncExternalStore(
     noSubscription,
     () => `${partOfDay(new Date().getHours())}, ${firstName}`,
     () => `Welcome back, ${firstName}`,
   );
 
-  return <p className={className}>{text}</p>;
+  return <Tag className={className}>{text}</Tag>;
 }

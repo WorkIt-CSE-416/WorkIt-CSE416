@@ -78,7 +78,7 @@ export function SidebarBrand() {
 function LogoLink({ hidden }: { hidden: boolean }) {
   return (
     <Link
-      href="/"
+      href="/dashboard"
       inert={hidden}
       className={cn(
         "focus-visible:ring-brand-ring flex shrink-0 rounded-xs transition-opacity duration-200 ease-linear focus-visible:ring-2 focus-visible:outline-none",
