@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 
 import { ButtonLink } from "@/components/ui/button";
-import { listCompanyJobs } from "@/lib/job-actions";
+import { listCompanyJobs } from "@/lib/job-queries";
 
 import { toPosting } from "./data";
 import { JobsTable } from "./jobs-table";
@@ -50,7 +50,16 @@ export default async function CompanyJobsPage() {
 
       {error && <p className="text-meta text-danger mb-4">{error}</p>}
 
-      <JobsTable postings={jobs.map(toPosting)} />
+      {/* An empty company and an empty filter result are different news:
+          the first needs a way forward, the second a hint to loosen up. */}
+      <JobsTable
+        postings={jobs.map(toPosting)}
+        empty={
+          jobs.length === 0 && !error
+            ? "No job postings yet. Post your first role."
+            : "No postings match those filters."
+        }
+      />
     </div>
   );
 }

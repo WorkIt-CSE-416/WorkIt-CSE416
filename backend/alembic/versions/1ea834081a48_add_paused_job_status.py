@@ -1,7 +1,7 @@
 """add paused job status
 
 Revision ID: 1ea834081a48
-Revises: 1e28b55de51a
+Revises: 4f1a9c2e7b30
 Create Date: 2026-10-02 18:30:00.000000
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '1ea834081a48'
-down_revision: Union[str, Sequence[str], None] = '1e28b55de51a'
+down_revision: Union[str, Sequence[str], None] = '4f1a9c2e7b30'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

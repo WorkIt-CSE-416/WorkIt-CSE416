@@ -1,10 +1,16 @@
 "use server";
 
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAccessToken } from "@/lib/session";
+
+/**
+ * Mutations of the company's own jobs, called from the composer. Reads live
+ * in ./job-queries.ts, which is server-only: every export here is a public
+ * POST endpoint, so this file holds only what a client has to call.
+ */
 
 /** POST /company/jobs body. Keys and enum values are the API's, not the
- *  composer's display labels; see backend/app/schemas/jobs.py. */
+ *  composer's display labels; see backend/app/schemas/company_jobs.py. */
 export type JobPayload = {
   status: "draft" | "published";
   title: string;
@@ -23,50 +29,26 @@ export type JobPayload = {
   closesAt: string | null;
 };
 
-/** A job as GET /company/jobs returns it (backend/app/schemas/jobs.py's
- *  JobPosting). Responses are snake_case, unlike the camelCase request. */
-export type CompanyJob = {
-  id: string;
-  title: string;
-  description: string;
-  status: "draft" | "published" | "paused" | "closed";
-  job_type: JobPayload["jobType"];
-  experience_level: JobPayload["experienceLevel"];
-  min_years_experience: number | null;
-  work_style: JobPayload["workStyle"];
-  location_country: string;
-  location_state: string | null;
-  salary: number | null;
-  salary_min: number | null;
-  salary_max: number | null;
-  salary_currency: string;
-  salary_period: JobPayload["salaryPeriod"];
-  closes_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-/** The company's access token, forwarded as a Bearer header. The API checks
- *  that it belongs to an active company member, so nothing is decided here. */
-async function getAccessToken(): Promise<string | null> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
-}
-
 const SIGNED_OUT = "You're signed out. Sign in again to continue.";
 
-/** Creates a job, or replaces an existing one's details when `jobId` is set. */
+/**
+ * Creates a job, or replaces an existing one's details when `existing` is
+ * set. `existing.updatedAt` is the job's `updated_at` as it was loaded; the
+ * API refuses the save (409) if the job has changed since.
+ */
 export async function saveJob(
   payload: JobPayload,
-  jobId?: string,
+  existing?: { id: string; updatedAt: string },
 ): Promise<{ error: string | null }> {
   try {
     const token = await getAccessToken();
     if (!token) return { error: SIGNED_OUT };
     const res = await apiFetch(
-      jobId ? `/company/jobs/${encodeURIComponent(jobId)}` : "/company/jobs",
-      { method: jobId ? "PUT" : "POST", body: JSON.stringify(payload) },
+      existing ? `/company/jobs/${encodeURIComponent(existing.id)}` : "/company/jobs",
+      {
+        method: existing ? "PUT" : "POST",
+        body: JSON.stringify(existing ? { ...payload, updatedAt: existing.updatedAt } : payload),
+      },
       token,
     );
     if (!res.ok) return { error: await extractErrorMessage(res) };
@@ -76,57 +58,28 @@ export async function saveJob(
   }
 }
 
-export async function listCompanyJobs(): Promise<{ jobs: CompanyJob[]; error: string | null }> {
-  try {
-    const token = await getAccessToken();
-    if (!token) return { jobs: [], error: SIGNED_OUT };
-    const res = await apiFetch("/company/jobs", { method: "GET" }, token);
-    if (!res.ok) return { jobs: [], error: await extractErrorMessage(res) };
-    return { jobs: await res.json(), error: null };
-  } catch {
-    return { jobs: [], error: "Could not reach the server. Is the backend running?" };
-  }
-}
-
-/** One of the company's jobs. `job` is null with no error when it doesn't
- *  exist or belongs to another company, which the page shows as a 404. */
-export async function getCompanyJob(
-  jobId: string,
-): Promise<{ job: CompanyJob | null; error: string | null }> {
-  try {
-    const token = await getAccessToken();
-    if (!token) return { job: null, error: SIGNED_OUT };
-    const res = await apiFetch(
-      `/company/jobs/${encodeURIComponent(jobId)}`,
-      { method: "GET" },
-      token,
-    );
-    // 422 is a malformed id, which can't name a job either.
-    if (res.status === 404 || res.status === 422) return { job: null, error: null };
-    if (!res.ok) return { job: null, error: await extractErrorMessage(res) };
-    return { job: await res.json(), error: null };
-  } catch {
-    return { job: null, error: "Could not reach the server. Is the backend running?" };
-  }
-}
-
-/** Pauses ("paused"), resumes ("published") or closes ("closed") a job. The
- *  API rejects any move it doesn't allow, so nothing is checked here. */
+/**
+ * Pauses ("paused"), resumes ("published") or closes ("closed") a job. The
+ * API rejects any move it doesn't allow, so nothing is checked here.
+ * `updatedAt` is the job's new `updated_at`: a status change counts as a
+ * change, so a form still open on the job needs it for its next save.
+ */
 export async function changeJobStatus(
   jobId: string,
   status: "published" | "paused" | "closed",
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; updatedAt: string | null }> {
   try {
     const token = await getAccessToken();
-    if (!token) return { error: SIGNED_OUT };
+    if (!token) return { error: SIGNED_OUT, updatedAt: null };
     const res = await apiFetch(
       `/company/jobs/${encodeURIComponent(jobId)}/status`,
       { method: "POST", body: JSON.stringify({ status }) },
       token,
     );
-    if (!res.ok) return { error: await extractErrorMessage(res) };
-    return { error: null };
+    if (!res.ok) return { error: await extractErrorMessage(res), updatedAt: null };
+    const job: { updated_at: string } = await res.json();
+    return { error: null, updatedAt: job.updated_at };
   } catch {
-    return { error: "Could not reach the server. Is the backend running?" };
+    return { error: "Could not reach the server. Is the backend running?", updatedAt: null };
   }
 }

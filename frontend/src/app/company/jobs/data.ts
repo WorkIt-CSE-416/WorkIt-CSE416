@@ -1,5 +1,7 @@
 import type { BadgeTone } from "@/components/ui/badge";
-import type { CompanyJob } from "@/lib/job-actions";
+import type { CompanyJobSummary } from "@/lib/job-queries";
+
+import { formatCountry } from "./new/data";
 
 /**
  * What /company/jobs lists. The rows come from GET /company/jobs through
@@ -126,7 +128,7 @@ export const POSTINGS: Posting[] = [
 ];
 
 /** "Open" is what a recruiter calls a published job. */
-export const STATUS_LABEL: Record<CompanyJob["status"], JobStatus> = {
+export const STATUS_LABEL: Record<CompanyJobSummary["status"], JobStatus> = {
   draft: "Draft",
   published: "Open",
   paused: "Paused",
@@ -138,9 +140,10 @@ export const STATUS_LABEL: Record<CompanyJob["status"], JobStatus> = {
  * source yet (no department column, no applications table), so they stay
  * empty and zero rather than invented.
  */
-export function toPosting(job: CompanyJob): Posting {
-  // "US-NY" -> "NY". Only the US has states seeded.
-  const place = [job.location_state?.split("-")[1], job.location_country]
+export function toPosting(job: CompanyJobSummary): Posting {
+  // "US-NY" -> "NY". Only the US has states seeded. The country is spelled
+  // out, the way the composer shows it.
+  const place = [job.location_state?.split("-")[1], formatCountry(job.location_country)]
     .filter(Boolean)
     .join(", ");
 

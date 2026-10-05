@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCompanyJob } from "@/lib/job-actions";
+import { getCompanyJob } from "@/lib/job-queries";
 
 import { Composer } from "../../new/composer";
-import { fromCompanyJob } from "../../new/payload";
 
 export const metadata: Metadata = {
   title: "Edit Job",
@@ -29,7 +28,8 @@ export default async function EditJobPage({ params }: PageProps<"/company/jobs/[
   }
   if (!job) notFound();
 
-  const { draft, location } = fromCompanyJob(job);
-
-  return <Composer editing={{ id: job.id, status: job.status, draft, location }} />;
+  // The raw job, not a draft built here: the closing date has to become a
+  // calendar day in the recruiter's timezone, which only the browser knows.
+  // See the `editing` state in <Composer>.
+  return <Composer job={job} />;
 }
