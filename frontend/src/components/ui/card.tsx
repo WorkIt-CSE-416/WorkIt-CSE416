@@ -39,12 +39,6 @@ const ACCENT = {
   pale: "border-t-brand-pale",
   brand: "border-t-brand",
   positive: "border-t-positive",
-  /* The seeker's stage colours (app/(seeker)/stage-colors.ts): a saved,
-   * interviewing and offer card wear the same colour as their badge. */
-  inert: "border-t-ink-subtle",
-  advanced: "border-t-advanced",
-  warning: "border-t-warning-fill",
-  positiveInk: "border-t-positive-ink",
 } as const;
 
 export type CardPadding = keyof typeof PADDING;

@@ -1,16 +1,9 @@
 import Link from "next/link";
-import type { ComponentType } from "react";
 
-import {
-  ArrowRightIcon,
-  AwardIcon,
-  BriefcaseIcon,
-  CalendarIcon,
-  MailIcon,
-} from "@/components/icons";
+import { ArrowRightIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
-import { STAGE_COLOR, type StageKey } from "../stage-colors";
+import { STAGE_COLOR, STAGE_ICON, type StageKey } from "../stage-colors";
 import type { PipelineStage } from "./data";
 
 /**
@@ -31,9 +24,10 @@ import type { PipelineStage } from "./data";
  * them. The panel is neutral now so the stage colours carry it; only the Full
  * board tile keeps the brand, as the section's one action.
  *
- * The colours are ../stage-colors.ts, the same map the Applications board,
- * grid and list read, so a stage is one colour everywhere in the app; the
- * contrast reasoning for the amber and the green lives there.
+ * The colours and icons are ../stage-colors.ts, the same maps the
+ * Applications board, grid and list read, so a stage is one colour and one
+ * glyph everywhere in the app; the contrast reasoning for the amber and the
+ * green lives there.
  *
  * THE FUNNEL runs under the cards across the same four columns, so each
  * segment sits beneath its stage: a band whose thickness is that stage's
@@ -53,12 +47,7 @@ import type { PipelineStage } from "./data";
  * heard back"): a low first rate says the targeting or the resume needs
  * work, a low last one says interview practice does.
  */
-const STAGE_STYLE: { Icon: ComponentType<{ className?: string }>; stage: StageKey }[] = [
-  { Icon: BriefcaseIcon, stage: "applied" },
-  { Icon: MailIcon, stage: "heardBack" },
-  { Icon: CalendarIcon, stage: "interviewing" },
-  { Icon: AwardIcon, stage: "offer" },
-];
+const STAGES: StageKey[] = ["applied", "heardBack", "interviewing", "offer"];
 
 const W = 100; // per column, in viewBox units
 const H = 60;
@@ -88,8 +77,9 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
             previous && previous.count > 0
               ? Math.round((stage.count / previous.count) * 100)
               : null;
-          const { Icon, stage: key } = STAGE_STYLE[i] ?? STAGE_STYLE[0];
+          const key = STAGES[i] ?? STAGES[0];
           const { fill, onFill } = STAGE_COLOR[key];
+          const Icon = STAGE_ICON[key];
 
           return (
             <div
@@ -156,7 +146,7 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
                   `L${x0},${bottom}`,
                   "Z",
                 ].join(" ")}
-                fill={STAGE_COLOR[STAGE_STYLE[i]?.stage ?? "applied"].css}
+                fill={STAGE_COLOR[STAGES[i] ?? "applied"].css}
               />
             );
           })}

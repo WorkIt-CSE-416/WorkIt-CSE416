@@ -1,5 +1,7 @@
+import type { ComponentType } from "react";
+
+import { AwardIcon, BookmarkIcon, BriefcaseIcon, CalendarIcon, MailIcon } from "@/components/icons";
 import type { BadgeTone } from "@/components/ui/badge";
-import type { CardAccent } from "@/components/ui/card";
 
 /**
  * One colour per stage of a search, for every screen that shows one — the
@@ -13,9 +15,10 @@ import type { CardAccent } from "@/components/ui/card";
  *   offer         green   finished well
  *
  * Each stage carries every form the screens need, as literal class names so
- * Tailwind sees them: a solid fill (a badge, a dot, a bar) and the glyph that
- * reads on it, a tint and the text that reads on that, a card's top edge, the
- * <Badge> tone, and the raw colour for SVG.
+ * Tailwind sees them: a solid fill (a badge, a bar) and the glyph that reads
+ * on it, a tint and the text that reads on that, a panel (the board column
+ * that holds a stage's cards: its tint and a faint border in the same hue),
+ * the <Badge> tone, and the raw colour for SVG.
  *
  * Amber is --color-warning-fill with ink on it, not white: the text amber
  * renders brown as a fill, and white on the bright one is 2.1:1. Green is
@@ -24,6 +27,16 @@ import type { CardAccent } from "@/components/ui/card";
  */
 export type StageKey = "saved" | "applied" | "heardBack" | "interviewing" | "offer";
 
+/** Each stage's glyph, beside its name wherever the stage is labelled: a
+ *  board column's header and a Dashboard pipeline badge. */
+export const STAGE_ICON: Record<StageKey, ComponentType<{ className?: string }>> = {
+  saved: BookmarkIcon,
+  applied: BriefcaseIcon,
+  heardBack: MailIcon,
+  interviewing: CalendarIcon,
+  offer: AwardIcon,
+};
+
 export const STAGE_COLOR: Record<
   StageKey,
   {
@@ -31,7 +44,7 @@ export const STAGE_COLOR: Record<
     onFill: string;
     tint: string;
     onTint: string;
-    edge: CardAccent;
+    panel: string;
     tone: BadgeTone;
     css: string;
   }
@@ -41,7 +54,7 @@ export const STAGE_COLOR: Record<
     onFill: "text-white",
     tint: "bg-inert-tint",
     onTint: "text-ink-meta",
-    edge: "inert",
+    panel: "bg-app border-border-subtle",
     tone: "inert",
     css: "var(--color-ink-subtle)",
   },
@@ -50,7 +63,7 @@ export const STAGE_COLOR: Record<
     onFill: "text-white",
     tint: "bg-brand-tint",
     onTint: "text-brand-ink",
-    edge: "brand",
+    panel: "bg-brand-tint border-brand/20",
     tone: "brand",
     css: "var(--color-brand)",
   },
@@ -59,7 +72,7 @@ export const STAGE_COLOR: Record<
     onFill: "text-white",
     tint: "bg-advanced-tint",
     onTint: "text-advanced",
-    edge: "advanced",
+    panel: "bg-advanced-tint border-advanced/20",
     tone: "advanced",
     css: "var(--color-advanced)",
   },
@@ -68,7 +81,7 @@ export const STAGE_COLOR: Record<
     onFill: "text-ink",
     tint: "bg-warning-tint",
     onTint: "text-warning",
-    edge: "warning",
+    panel: "bg-warning-tint border-warning-fill/40",
     tone: "warning",
     css: "var(--color-warning-fill)",
   },
@@ -77,7 +90,7 @@ export const STAGE_COLOR: Record<
     onFill: "text-white",
     tint: "bg-positive-tint",
     onTint: "text-positive-ink",
-    edge: "positiveInk",
+    panel: "bg-positive-tint border-positive/30",
     tone: "positive",
     css: "var(--color-positive-ink)",
   },

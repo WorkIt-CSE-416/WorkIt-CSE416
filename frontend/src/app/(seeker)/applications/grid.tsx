@@ -29,12 +29,7 @@ function GridCard({ item }: { item: StagedApplication }) {
   const { Icon, stage } = item;
 
   return (
-    <Card
-      as="li"
-      padding="none"
-      accent={STAGE_COLOR[stage.stage].edge}
-      className="flex flex-col overflow-hidden"
-    >
+    <Card as="li" padding="none" className="flex flex-col overflow-hidden">
       <div className="bg-well border-border-subtle flex items-start gap-2 border-b p-3">
         <CompanyTile Icon={Icon} size="sm" tone={item.tone ?? "brand"} />
         <div className="min-w-0 flex-1">

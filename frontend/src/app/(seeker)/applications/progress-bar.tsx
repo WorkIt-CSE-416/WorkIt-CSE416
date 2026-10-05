@@ -6,7 +6,7 @@ import { STAGE_COLOR, type StageKey } from "../stage-colors";
  * How far an application has moved through the pipeline.
  *
  * The fill takes the stage's own colour (../stage-colors.ts) — the same one
- * the board paints along a card's top edge and the Dashboard's funnel uses —
+ * the board tints a column with and the Dashboard's funnel uses —
  * rather than the mockup's per-card palette. That mockup gives each project an
  * arbitrary colour (orange, pink, red, two blues); here the colour carries
  * meaning, so a full green bar reads as an offer at a glance and cannot be

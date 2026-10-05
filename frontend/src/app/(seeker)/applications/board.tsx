@@ -5,7 +5,7 @@ import { CompanyTile } from "@/components/ui/company-tile";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
-import { STAGE_COLOR, type StageKey } from "../stage-colors";
+import { STAGE_COLOR, STAGE_ICON } from "../stage-colors";
 import { COLUMNS, type Application } from "./data";
 import { MatchBadge } from "./match-badge";
 
@@ -15,10 +15,12 @@ import { MatchBadge } from "./match-badge";
  * WHAT CHANGED AND WHY: the earlier board drew bare columns of cards on the page
  * and marked each card's stage with a 3px accent along its top edge. This design
  * puts every column inside its own recessed panel, which is a stronger grouping
- * than a coloured edge. The edge is back on top of that, in the stage's colour
- * (../stage-colors.ts), with a matching dot and count in the column header —
- * so the board speaks the same colours as the Dashboard's pipeline, and a card
- * dragged loose of its column would still say where it came from.
+ * than a coloured edge — so the edge is gone from the card, and the PANEL
+ * carries the stage: each column is tinted in its stage's colour
+ * (../stage-colors.ts) with a faint border in the same hue, the colours the
+ * Dashboard's pipeline uses, and its header leads with the stage's icon, the
+ * same glyph as that stage's badge there. The cards inside stay plain white,
+ * so the colour groups them without decorating each one.
  *
  * Adapted rather than copied, for the same reason as the grid: the source is
  * monochrome with a black primary button and red/amber/blue priority dots, and
@@ -39,17 +41,11 @@ import { MatchBadge } from "./match-badge";
  * invites a gesture that does nothing, which is worse than a menu button that
  * does nothing.
  */
-function ApplicationCard({ item, stage }: { item: Application; stage: StageKey }) {
+function ApplicationCard({ item }: { item: Application }) {
   const { Icon } = item;
 
   return (
-    <Card
-      as="li"
-      padding="sm"
-      accent={STAGE_COLOR[stage].edge}
-      selected={item.active}
-      className="flex flex-col gap-2.5"
-    >
+    <Card as="li" padding="sm" selected={item.active} className="flex flex-col gap-2.5">
       {/* Who and what together: the company tile leads the title, the way a
           job card does, and the match sits at the end of the company line.
           They used to sit in a row of their own below the summary. The match
@@ -118,47 +114,62 @@ export function ApplicationsBoard() {
        counts that used to sit in the footer did exactly that. */
     <div className="relative mt-4 overflow-x-auto">
       <div className="flex w-max items-start gap-4">
-        {COLUMNS.map((column) => (
-          <section
-            key={column.title}
-            aria-labelledby={`col-${column.title}`}
-            className="bg-well border-border-subtle rounded-card w-72 shrink-0 border p-2"
-          >
-            <header className="flex items-center gap-2 px-1 pb-2">
-              {/* text-subtitle rather than SectionHeading's text-title: the
+        {COLUMNS.map((column) => {
+          const StageIcon = STAGE_ICON[column.stage];
+
+          return (
+            <section
+              key={column.title}
+              aria-labelledby={`col-${column.title}`}
+              className={cn(
+                "rounded-card w-72 shrink-0 border p-2",
+                STAGE_COLOR[column.stage].panel,
+              )}
+            >
+              <header className="flex items-center gap-2 px-1 pb-2">
+                {/* The stage's glyph in its solid colour, as the Dashboard's
+                  pipeline badges draw it, so a column and its badge there
+                  read as the same stage. */}
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "flex size-6 shrink-0 items-center justify-center rounded-full",
+                    STAGE_COLOR[column.stage].fill,
+                    STAGE_COLOR[column.stage].onFill,
+                  )}
+                >
+                  <StageIcon className="size-3.5" />
+                </span>
+                {/* text-subtitle rather than SectionHeading's text-title: the
                   column is a panel inside the page now, not a section of it,
                   and a 20px heading would outweigh the cards it labels. */}
-              <span
-                aria-hidden="true"
-                className={cn("size-2.5 shrink-0 rounded-full", STAGE_COLOR[column.stage].fill)}
-              />
-              <h2 id={`col-${column.title}`} className="text-subtitle text-ink">
-                {column.title}
-              </h2>
-              <span
-                className={cn(
-                  "text-meta rounded-full px-1.5 py-0.5 font-semibold",
-                  STAGE_COLOR[column.stage].tint,
-                  STAGE_COLOR[column.stage].onTint,
-                )}
-              >
-                {column.items.length}
-              </span>
+                <h2 id={`col-${column.title}`} className="text-subtitle text-ink">
+                  {column.title}
+                </h2>
+                <span
+                  className={cn(
+                    "bg-panel text-meta rounded-full px-1.5 py-0.5 font-semibold",
+                    STAGE_COLOR[column.stage].onTint,
+                  )}
+                >
+                  {column.items.length}
+                </span>
 
-              <span className="ml-auto flex items-center">
-                <IconButton label={`${column.title} column options`} tooltip="Column options">
-                  <EllipsisIcon className="size-4" />
-                </IconButton>
-              </span>
-            </header>
+                <span className="ml-auto flex items-center">
+                  <IconButton label={`${column.title} column options`} tooltip="Column options">
+                    <EllipsisIcon className="size-4" />
+                  </IconButton>
+                </span>
+              </header>
 
-            <ul className="flex flex-col gap-2">
-              {column.items.map((item) => (
-                <ApplicationCard key={item.role} item={item} stage={column.stage} />
-              ))}
-            </ul>
-          </section>
-        ))}
+              <ul className="flex flex-col gap-2">
+                {column.items.map((item) => (
+                  <ApplicationCard key={item.role} item={item} />
+                ))}
+              </ul>
+            </section>
+          );
+        })}
       </div>
     </div>
   );

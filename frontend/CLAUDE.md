@@ -174,8 +174,11 @@ Settings lives in the panel's footer, not the account menu.
 its `plain` variant. The seeker Dashboard gives each kind of content its own
 surface instead of a white card each: the numbers open under the greeting, one
 violet Next up hero (the only solid colour), open sections for Activity and
-the lists, and a lavender pipeline band of small badge cards with a violet
-Full board tile. Keep it that way — a page of identical boxes has no first
+the lists, and a grey pipeline band of small badge cards with a violet
+Full board tile. Each stage has one colour and one icon,
+`(seeker)/stage-colors.ts`, read by the pipeline and the Applications board,
+grid and list alike; on the board the stage tints the column panel, never the
+cards inside it. Keep it that way — a page of identical boxes has no first
 place to look; the page docblock says what goes where. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real. Its range is
 `?range=`, links rather than client state.

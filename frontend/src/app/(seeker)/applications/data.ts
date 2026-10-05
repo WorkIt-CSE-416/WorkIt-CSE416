@@ -57,9 +57,9 @@ export type Application = {
 
 export type Column = {
   title: string;
-  /** Which stage's colour the column wears — on its header dot and count, its
-   *  cards' top edge, and the grid and list's bars and badges. One map for
-   *  every screen: ../stage-colors.ts. */
+  /** Which stage the column is: its panel's tint, the icon and count in its
+   *  header, and the grid and list's bars and badges. One map for every
+   *  screen: ../stage-colors.ts. */
   stage: StageKey;
   /**
    * How far through the pipeline this stage is. The grid and list draw a bar
