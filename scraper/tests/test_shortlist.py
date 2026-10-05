@@ -1,14 +1,10 @@
 """The shortlist: a bad pattern here still renders a plausible, wrong page.
 
 Every title here was observed on a live board, including the ones that must be
-rejected. Stdlib unittest, so `python3 -m unittest` runs it with nothing installed:
-
-    cd scraper && python3 -m unittest discover -s tests -v
+rejected.
 """
 
 from __future__ import annotations
-
-import unittest
 
 from workit_scraper.providers import Job
 from workit_scraper.shortlist import classify, pick
@@ -37,7 +33,7 @@ def job(
     )
 
 
-class TestClassify(unittest.TestCase):
+class TestClassify:
     def test_keeps_software_internships(self):
         assert classify("Software Engineer, Intern") == ("intern", "swe")
         assert classify("Software Engineer Intern (Summer 2027)") == ("intern", "swe")
@@ -123,7 +119,7 @@ def roles_of(jobs: list[Job]) -> list:
     return pick(jobs, is_new=lambda _: False)
 
 
-class TestPick(unittest.TestCase):
+class TestPick:
     def test_each_application_is_its_own_role(self):
         # Stripe posts "Software Engineer, New Grad" once per office, each with its
         # own application. Collapsing them would leave one link and hide six jobs.
@@ -205,7 +201,3 @@ class TestPick(unittest.TestCase):
             ]
         )
         assert roles[-1].posted_at is None
-
-
-if __name__ == "__main__":
-    unittest.main()
