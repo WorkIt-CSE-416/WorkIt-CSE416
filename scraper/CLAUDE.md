@@ -5,8 +5,8 @@ scraper's design and the rules for changing it; `README.md` is only how to run i
 
 ```sh
 cd scraper
-python3 -m workit_scraper                          # scrape, then render the page
-python3 -m workit_scraper --offline                # no network; render from jobs.json
+python3 -m workit_scraper                          # scrape, then write the page and feed.json
+python3 -m workit_scraper --offline                # no network; rewrite both from jobs.json
 python3 build_boards.py                            # regenerate boards.csv
 python3 -m unittest discover -s tests -t . -v      # the tests
 ```
@@ -17,6 +17,7 @@ python3 -m unittest discover -s tests -t . -v      # the tests
 boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶ store.update ─▶ jobs.json
                                                                                    │
                            report.write_html ◀─ shortlist.pick ◀─ Store.is_listed ◀┘
+                           feed.write ◀────────────┘  (feed.json ─▶ backend GET /jobs)
 ```
 
 | file | owns |
@@ -29,6 +30,8 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 | `store.py` | `jobs.json`, `first_seen_at`, and what "listed" and "new today" mean |
 | `shortlist.py` | which postings belong on the page, and collapsing duplicates |
 | `report.py` | rendering the page |
+| `feed.py` | `feed.json`, the backend's copy of the same roles |
+| `logos.py` | each company's logo, read once off its job board's page |
 | `__main__.py` | the thread pool and the two commands |
 
 All three providers return a whole board in one request, so there is no pagination.
@@ -183,6 +186,49 @@ Marked in the code with `ponytail:` comments where they apply.
   make `jobs.json` tens of megabytes of roles we never display. The page's counts still
   report everything scanned.
 
+## `feed.json` is the backend's only view of us
+
+The backend serves the seeker Jobs feed (`GET /jobs`) from `feed.json`, which every
+run — `--offline` included — writes from the same roles as the page. It reads the file
+and imports none of this package: `backend/CLAUDE.md` keeps anything outside
+`backend/` out of its build. So `feed.row()` is the whole contract, and its fields
+must match `backend/app/schemas/jobs.py` — add a field in both or neither.
+
+Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's labels
+("On site"). `feed.WORK_STYLE` is indexed, not `.get`: a new label from
+`providers._work_style` should fail a run, not quietly become `null` in the app.
+
+The scraper still never touches the database.
+
+## Logos are read once per board
+
+A live run reads the board page -- the listing API carries no logo -- of every board
+with a job on the page that `Store.logos` has not seen (plus, for a Greenhouse board
+with no logo, its job descriptions), and keeps the answer: a URL, or
+`null` for a page with no logo. Logos almost never change, so nothing re-reads them;
+delete `logos` from `jobs.json` to read them all again. A page that failed to load
+records nothing, so the next run retries it. `internships.html` shows no logos -- it
+must render with the network off.
+
+No uploaded logo -- or an Ashby one under 64px, which blurs in the 80px tile (Bedrock
+uploaded 50px) -- and the logo is the company website's favicon via Google's favicon
+service, which answers 404 (so the card's initials) for a site without one. The website
+must come from the board: Ashby's `publicWebsite`, a Greenhouse board's job descriptions
+(Scale AI, Vercel), or where the board redirects (Stripe). Descriptions and redirects
+only count when the domain's name is in the board token or company name
+(`logos.stated_site`) -- descriptions also link eeoc.gov and TikTok, and Accenture's
+board redirects to a Salesforce host. Never a website guessed from the company name:
+"Workshop" is not workshop.com. A board that gives us nothing usable (Moment Energy: a
+banner and no links; Waymo: a 32px careers-site icon) can be listed in
+`logos.CHECKED_WEBSITES`, which wins over everything -- but only with a site a person
+opened and confirmed is the same company.
+
+**`logos.PATTERN` only accepts each ATS's own image host, `favicon` only Google's, and
+those hosts must match `frontend/next.config.ts`'s `images.remotePatterns` exactly.** `next/image` throws on
+any other host, which fails the whole Jobs page, not one card. Greenhouse is read from
+`job-boards.greenhouse.io` because `boards.` redirects there cross-origin; Lever's
+`og:image` is a 1200x630 banner, so its header `<img>` is used instead.
+
 ## Committed data
 
 Only `boards.csv` is committed, marked `linguist-generated` so it stays collapsed in
@@ -193,4 +239,4 @@ offline fallback in one file -- and it is gitignored, at a reviewer's request: i
 megabytes per run, and few people on the team run the scraper. So each machine keeps
 its own history. A fresh clone has none: its first live run counts nothing as new
 (see "New today" above), and `--offline` refuses to run until a live run has written
-the file. `internships.html` is gitignored output of either command.
+the file. `internships.html` and `feed.json` are gitignored output of either command.

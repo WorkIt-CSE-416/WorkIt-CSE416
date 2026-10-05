@@ -10,7 +10,8 @@ Python API.
 `backend/` is the whole Python project: its own `pyproject.toml`, `.venv`,
 lockfile and tooling. Nothing above it is part of this build, and nothing in
 `frontend/` is importable from here. The two halves communicate over HTTP and
-share no code.
+share no code. The scraper is no exception: `GET /jobs` reads
+`scraper/feed.json` as data and imports none of its code.
 
 **This folder owns the database.** Connection strings, schema and migrations
 all live on this side. The Next.js app holds no ORM and no credentials.
@@ -73,9 +74,12 @@ app/
   security.py     Verifies Supabase access tokens against the project's JWKS
   deps.py         get_current_account — the dependency every protected route uses
   schemas/        Pydantic request/response shapes, separate from models/
+    auth.py       Signup body, /auth/me response
+    jobs.py       JobListing — also the parser for scraper/feed.json
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
+    jobs.py       GET /jobs — the scraper's feed.json, public, no DB
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
                   text from PDF/DOCX and parses it into structured JSON
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
@@ -224,7 +228,10 @@ exists — so `page.tsx` is untouched either way. Design endpoints against those
 fixture shapes; they are the closest thing to a agreed contract that exists.
 
 **The app must keep running without this service.** Every screen renders its
-`data.ts` fixture, so a clone with no environment file still boots. On this
+`data.ts` fixture, so a clone with no environment file still boots. A screen
+whose data has gone live renders a clear error instead of its fixture — never
+the fixture in its place, which would pass made-up rows off as real. The Jobs
+feed is the first (`frontend/src/app/(seeker)/jobs/listings.ts`). On this
 side, `/health` and every fixture route work without the root `.env`; only
 `/health/db` needs it. Keep both true — it is what lets someone work on one
 half without the other, and it makes a failure point at one side or the other
