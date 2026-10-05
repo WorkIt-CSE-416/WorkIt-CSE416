@@ -117,11 +117,13 @@ export function Composer({ job }: { job?: CompanyJob }) {
 
   /** Pause or Resume. The badge and the next save's updatedAt both follow
    *  the response, since `editing` is built once and a refresh wouldn't
-   *  reach it; the form's own edits are left alone. */
-  function setStatus(id: string, status: "published" | "paused") {
+   *  reach it; the form's own edits are left alone. The updatedAt the form
+   *  holds goes along, so the API refuses the change if someone else saved
+   *  first, rather than handing this form a fresh one to save over them. */
+  function setStatus(id: string, status: "published" | "paused", loadedAt: string) {
     setStatusError(null);
     startChangingStatus(async () => {
-      const result = await changeJobStatus(id, status);
+      const result = await changeJobStatus(id, status, loadedAt);
       if (result.error || !result.updatedAt) {
         setStatusError(result.error);
         return;
@@ -256,7 +258,11 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     size="sm"
                     disabled={isChangingStatus}
                     onClick={() =>
-                      setStatus(editing.id, editing.status === "paused" ? "published" : "paused")
+                      setStatus(
+                        editing.id,
+                        editing.status === "paused" ? "published" : "paused",
+                        editing.updatedAt,
+                      )
                     }
                   >
                     {editing.status === "paused" ? "Resume" : "Pause"}

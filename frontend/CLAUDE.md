@@ -104,7 +104,8 @@ src/lib/          Framework-free helpers
   avatar-actions.ts  Server actions for the profile photo: get/upload/remove
   job-actions.ts  Server actions for the company's jobs: saveJob (create, or
                   update with the updated_at it was loaded with, so a save over
-                  someone else's is a 409)
+                  someone else's is a 409) and changeJobStatus (pause, resume,
+                  close)
   job-queries.ts  Server-only reads of the company's jobs for Server
                   Components: listCompanyJobs (pages through the API) and
                   getCompanyJob. Not actions, so not public endpoints

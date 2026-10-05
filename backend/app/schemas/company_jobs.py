@@ -71,15 +71,9 @@ class JobPostingCreate(BaseModel):
             raise ValueError("salaryMin cannot be greater than salaryMax")
         if self.location_state is not None and not self.location_state.startswith(f"{self.location_country}-"):
             raise ValueError("locationState must be a state of locationCountry")
-        # The date picker blocks past days, but a direct call or a form left
-        # open past its own closing date could otherwise publish a job that
-        # has already closed. A draft may keep a stale date until it goes live.
-        if (
-            self.status == dto.job_post_status.published
-            and self.closes_at is not None
-            and self.closes_at < datetime.datetime.now(datetime.UTC)
-        ):
-            raise ValueError("closesAt is in the past; pick a later closing date")
+        # A closing date in the past is checked by the routes, not here: an
+        # edit to a live job whose date has already lapsed is fine as long as
+        # the date itself isn't being set, which only the route can tell.
         return self
 
 
@@ -95,9 +89,15 @@ class JobPostingUpdate(JobPostingCreate):
 class JobStatusChange(BaseModel):
     '''
     POST body for moving a job along its lifecycle, separate from editing its
-    details so a status button never saves half-finished form changes
+    details so a status button never saves half-finished form changes.
+
+    updatedAt is optional: the row menu acts on whatever the job is now, but
+    the edit form sends the one it loaded. The form takes the new updated_at
+    from the response for its next save, so without this check a pause could
+    launder a stale form past PUT's conflict check.
     '''
     status: dto.job_post_status
+    updated_at: AwareDatetime | None = Field(None, alias="updatedAt")
 
 
 class JobPostingSummary(BaseModel):
