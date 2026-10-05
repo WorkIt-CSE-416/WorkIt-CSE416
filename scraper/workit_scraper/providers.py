@@ -197,7 +197,11 @@ def ashby(token: str, company: str) -> list[Job]:
             apply_url=row.get("applyUrl") or row.get("jobUrl") or "",
             location=row.get("location"),
             department=row.get("department"),
-            work_style=_work_style(row.get("workplaceType"), row.get("location")),
+            # Some boards leave `workplaceType` unset but still flag `isRemote`.
+            work_style=_work_style(
+                row.get("workplaceType") or ("Remote" if row.get("isRemote") else None),
+                row.get("location"),
+            ),
             posted_at=_iso(row.get("publishedAt")),
         )
         for row in payload.get("jobs") or []

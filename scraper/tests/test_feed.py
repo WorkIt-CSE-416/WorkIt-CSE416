@@ -48,7 +48,7 @@ class RowTest(unittest.TestCase):
         row = feed_row(role())
         self.assertEqual(row["work_style"], "onsite")
         self.assertEqual(row["experience_level"], "internship")
-        self.assertEqual(row["id"], "Terranova|Software Engineering Intern")
+        self.assertEqual(row["id"], "https://jobs.ashbyhq.com/terranova/a8e5a8d2/application")
 
     def test_new_grad_whatever_the_topic(self) -> None:
         # Quora: "Software Engineer New Grad, Machine Learning Platform" -- two topics.

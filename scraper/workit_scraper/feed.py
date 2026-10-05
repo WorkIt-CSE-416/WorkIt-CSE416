@@ -26,8 +26,8 @@ WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
 
 def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
     return {
-        # classify() keys roles on (company, title), so the pair is unique per feed.
-        "id": f"{role.company}|{role.title}",
+        # pick() keys roles on their apply URL, so it is unique per feed.
+        "id": role.apply_url,
         "title": role.title,
         "company": role.company,
         "apply_url": role.apply_url,

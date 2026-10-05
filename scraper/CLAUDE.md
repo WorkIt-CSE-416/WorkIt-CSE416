@@ -231,8 +231,12 @@ any other host, which fails the whole Jobs page, not one card. Greenhouse is rea
 
 ## Committed data
 
+Only `boards.csv` is committed, marked `linguist-generated` so it stays collapsed in
+review.
+
 `jobs.json` is the store, the `first_seen_at` history, the per-board read ledger and the
-offline fallback in one file, written with sorted keys so a re-run diffs readably. It
-and `boards.csv` are marked `linguist-generated` so they stay collapsed in review.
-`internships.html` and `feed.json` are output and are gitignored: on a fresh clone,
-`python3 -m workit_scraper --offline` writes both in about a second, with no network.
+offline fallback in one file -- and it is gitignored, at a reviewer's request: it is
+megabytes per run, and few people on the team run the scraper. So each machine keeps
+its own history. A fresh clone has none: its first live run counts nothing as new
+(see "New today" above), and `--offline` refuses to run until a live run has written
+the file. `internships.html` and `feed.json` are gitignored output of either command.

@@ -1,8 +1,8 @@
 """jobs.json: the store, the first_seen_at history, and the offline fallback.
 
-The whole file is one `Store`, loaded and rewritten each run. It is committed, which
-is why it is written with sorted keys: a re-run should produce a readable diff, not a
-reshuffled file.
+The whole file is one `Store`, loaded and rewritten each run, with sorted keys so two
+runs can be diffed rather than compared as reshuffled files. It is gitignored: each
+machine that runs the scraper keeps its own.
 
 It also answers the two questions the page's header asks of it -- which postings are
 still listed, and which are new today -- because both are claims about time, and

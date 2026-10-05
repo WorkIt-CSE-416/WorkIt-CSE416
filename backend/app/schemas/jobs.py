@@ -20,7 +20,7 @@ from app.models.dto import work_style
 
 
 class JobListing(BaseModel):
-    # `company|title` — the scraper dedupes on exactly that pair, so it is unique
+    # The role's apply URL — the scraper dedupes on exactly that, so it is unique
     # within one feed. Not a database id; nothing can reference it yet.
     id: str
     title: str
