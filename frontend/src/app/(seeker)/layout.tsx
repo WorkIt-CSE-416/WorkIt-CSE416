@@ -1,15 +1,14 @@
-import Link from "next/link";
-
 import { signOut } from "@/app/actions";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { BellIcon, GearIcon } from "@/components/icons";
-import { Logo } from "@/components/logo";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
+import { cn } from "@/lib/cn";
 
+import { SEEKER_GUTTER } from "./gutter";
 import { SeekerSidebar } from "./seeker-sidebar";
+import { CollapsedLogo, SidebarBrand } from "./sidebar-brand";
 
 /**
  * Chrome shared by every signed-in seeker screen: a full-width bar across the
@@ -25,9 +24,8 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * came to ~420px, so "My Profile" wrapped and the avatar fell off the edge.
  * On a phone the panel opens as a sheet from the toggle instead.
  *
- * The toggle sits left of the logo, as it does on the company side. It is
- * shadcn's own button, which owns the open state, so it takes its tooltip
- * here rather than being an IconButton.
+ * The toggle sits left of the logo, as it does on the company side, in a
+ * corner cell the panel's own width; see ./sidebar-brand.tsx.
  *
  * The search field comes from the search mockup, the only one that draws it.
  * It sits in the shared bar rather than on that page because searching jobs
@@ -78,38 +76,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           so nothing can slide it and nothing bounces underneath it. shrink-0
           so a tall page cannot squeeze it, and z-20 to stay over the fixed
           panel's z-10. */}
-      <header className="bg-panel border-border relative z-20 h-(--seeker-bar) shrink-0 border-b">
-        <div className="flex h-full w-full items-center gap-4 px-4 sm:gap-5 sm:px-6">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-transparent" />
-              }
-            />
-            <TooltipContent>Toggle sidebar</TooltipContent>
-          </Tooltip>
+      {/* Two cells, ruled where the panel's edge is: <SidebarBrand> on the
+          left is the panel's width, and the content side is the page's own
+          container — max-w-app and SEEKER_GUTTER inside the space beside
+          the panel, exactly as the page below lays itself out — so the
+          search field starts on the page heading's left edge and the avatar
+          ends on the cards' right edge. */}
+      <header className="bg-panel border-border relative z-20 flex h-(--seeker-bar) shrink-0 border-b">
+        <SidebarBrand />
 
-          <Link
-            href="/"
-            className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+        <div className="flex h-full min-w-0 flex-1">
+          <div
+            className={cn(
+              "max-w-app mx-auto flex h-full w-full items-center gap-4 sm:gap-5",
+              SEEKER_GUTTER,
+            )}
           >
-            <Logo size="bar" priority />
-          </Link>
+            <CollapsedLogo />
 
-          <SearchField
-            id="job-search"
-            label="Search jobs"
-            name="q"
-            placeholder="Job title, keywords, or company"
-            className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
-          />
+            <SearchField
+              id="job-search"
+              label="Search jobs"
+              name="q"
+              placeholder="Job title, keywords, or company"
+              className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
+            />
 
-          <div className="ml-auto flex items-center gap-5">
-            <IconButton label="Notifications" className="hidden sm:inline-flex">
-              <BellIcon className="size-5" />
-            </IconButton>
+            <div className="ml-auto flex items-center gap-5">
+              <IconButton label="Notifications" className="hidden sm:inline-flex">
+                <BellIcon className="size-5" />
+              </IconButton>
 
-            <AccountMenu name="Alex Chen" items={ACCOUNT_ITEMS} onSignOut={signOut} />
+              <AccountMenu name="Alex Chen" items={ACCOUNT_ITEMS} onSignOut={signOut} />
+            </div>
           </div>
         </div>
       </header>
