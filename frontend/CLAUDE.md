@@ -221,7 +221,11 @@ side:
   `GET /auth/me` with the new access token to learn the account type and
   onboarding state, and redirects off that: an applicant to
   `/onboarding/applicant` until onboarded and `/jobs` after, a company
-  account always to `/company`. Companies skip the onboarding check because
+  account always to `/company`. **Skipped for now (KAN-141):** the applicant
+  onboarding check is commented out in both `login/actions.ts` and
+  `signup/actions.ts`, and every applicant goes straight to `/profile`. The
+  API still reports `onboarding_completed` and the onboarding screen still
+  works by URL; uncomment those blocks to turn it back on. Companies skip the onboarding check because
   nothing sets their `onboarding_completed_at` yet, so it would send every
   company login to the `/onboarding/company` stub — restore it when company
   onboarding is built. If the account type doesn't match the tab the user
