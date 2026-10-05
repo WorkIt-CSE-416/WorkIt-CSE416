@@ -68,15 +68,22 @@ export async function listCompanyJobs(): Promise<{
     if (!token) return { jobs: [], error: SIGNED_OUT };
 
     const jobs: CompanyJobSummary[] = [];
-    for (;;) {
+    // Offset paging shifts by one if a job is posted mid-way, which would
+    // show the row at the page boundary twice. Skipping ids already seen
+    // closes that; a job posted mid-way just waits for the next load.
+    const seen = new Set<string>();
+    for (let offset = 0; ; offset += PAGE_SIZE) {
       const res = await apiFetch(
-        `/company/jobs?limit=${PAGE_SIZE}&offset=${jobs.length}`,
+        `/company/jobs?limit=${PAGE_SIZE}&offset=${offset}`,
         { method: "GET" },
         token,
       );
       if (!res.ok) return { jobs: [], error: await extractErrorMessage(res) };
       const page: CompanyJobSummary[] = await res.json();
-      jobs.push(...page);
+      for (const job of page) {
+        if (!seen.has(job.id)) jobs.push(job);
+        seen.add(job.id);
+      }
       if (page.length < PAGE_SIZE) return { jobs, error: null };
     }
   } catch {

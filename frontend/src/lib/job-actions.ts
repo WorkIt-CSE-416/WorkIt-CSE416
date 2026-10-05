@@ -20,6 +20,9 @@ export type JobPayload = {
   minYearsExperience: number | null;
   workStyle: "remote" | "hybrid" | "onsite";
   locationCountry: string;
+  /** "US-NY". The composer can't pick a state yet; it only carries one
+   *  through from a saved job, so a save doesn't wipe it. */
+  locationState: string | null;
   salary: number | null;
   salaryMin: number | null;
   salaryMax: number | null;
