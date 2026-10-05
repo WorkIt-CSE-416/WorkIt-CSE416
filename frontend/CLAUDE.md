@@ -170,12 +170,14 @@ the bar — deadlines go first once the tracker has a backend, and not before.
 Settings lives in the panel's footer, not the account menu.
 
 `components/stat-tile.tsx` is shared by both dashboards. The seeker Dashboard
-is deliberately short — the headline numbers, Up next (its version of the
-company's Needs your attention) and New matches from the live feed — because
-every chart it once had redrew a number the tiles already show; its page
-docblock says what a new card has to add to earn a place. Fixtures are in
+is two tiers: on the first screen, the headline numbers, then Up next (its
+version of the company's Needs your attention) beside New matches from the
+live feed; below, under Insights, the charts that redraw those numbers
+through stages and over time (pipeline funnel, activity, waiting to hear
+back). Keep anything that repeats a tile in the lower tier — on top, three
+views of one number read as clutter. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real. Its range is
-`?range=`, links rather than client state, and scopes only the numbers.
+`?range=`, links rather than client state.
 
 Name a variant for the role it plays, never for how it looks: `primary`,
 `positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette

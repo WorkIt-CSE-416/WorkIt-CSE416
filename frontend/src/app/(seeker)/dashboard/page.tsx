@@ -9,10 +9,13 @@ import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
-import { RANGES, STATS, parseRange } from "./data";
+import { Activity } from "./activity";
+import { ACTIVITY, PIPELINE, RANGES, STATS, parseRange } from "./data";
 import { NewMatches } from "./new-matches";
+import { Pipeline } from "./pipeline";
 import { RangeSwitch } from "./range-switch";
 import { UpNext } from "./up-next";
+import { Waiting } from "./waiting";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -21,19 +24,22 @@ export const metadata: Metadata = {
 
 /**
  * /dashboard — the seeker's home, first in the panel and where sign-in lands.
- * It answers two questions and stops: is my search working (the numbers), and
- * what do I do next (Up next, and what is new in the feed).
+ * At a glance it answers two questions — is my search working (the numbers),
+ * and what do I do next (Up next, and what is new in the feed) — and below
+ * that, why.
  *
- * KEPT SHORT ON PURPOSE. It used to carry a pipeline funnel, a waiting-by-age
- * chart and a weekly activity chart as well, and each was a second drawing of
- * a number already in the row of tiles — the funnel was the four tiles as a
- * band, the waiting chart was the response rate by age, the activity chart
- * was Applications sent over time. Three views of one figure read as clutter,
- * not depth. If one comes back, it should say something the tiles cannot.
+ * TWO TIERS. The top is the glance: the headline numbers, then Up next
+ * beside New matches — everything a visit needs, on the first screen. Under
+ * an Insights heading sit the charts for when the numbers raise a question:
+ * the funnel (where applications drop off), activity (whether the pace is
+ * holding) and what is waiting (who to follow up with). They draw the same
+ * figures as the tiles, through stages and over time, which is why they sit
+ * below them rather than among them: on top they read as the same number
+ * three times, down here as the answer to "why".
  *
- * The numbers lead, as a dashboard's do; the range above them scopes only
- * them, since Up next and New matches are about now. The stat tile is the
- * company dashboard's, shared.
+ * The range above scopes the numbers, the funnel and the activity; Up next,
+ * New matches and Waiting are about now. The stat tile is the company
+ * dashboard's, shared.
  *
  * Most of it is fixtures (./data.ts) until the application tracker has a
  * backend; New matches is the live feed.
@@ -90,6 +96,24 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           <NewMatches />
         </Suspense>
       </div>
+
+      <section aria-labelledby="insights" className="mt-10">
+        <h2 id="insights" className="text-title text-ink">
+          Insights
+        </h2>
+        <p className="text-body text-ink-meta mt-1">
+          Where your applications drop off, and whether your pace is holding.
+        </p>
+
+        <div className="mt-4">
+          <Pipeline stages={PIPELINE[range]} />
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 items-stretch gap-3 @4xl/main:grid-cols-[3fr_2fr]">
+          <Activity points={ACTIVITY[range].points} goal={ACTIVITY[range].goal} />
+          <Waiting />
+        </div>
+      </section>
     </div>
   );
 }
