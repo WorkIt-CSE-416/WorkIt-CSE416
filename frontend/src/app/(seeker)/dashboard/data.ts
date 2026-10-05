@@ -24,11 +24,13 @@ export const RANGES: {
   period: string | null;
   /** The window in a sentence: "How far your applications got, this week." */
   scope: string;
+  /** Under each headline number where there is no delta to show. */
+  note?: string;
 }[] = [
   { key: "week", label: "This week", period: "last week", scope: "this week" },
   { key: "month", label: "30 days", period: "prior 30 days", scope: "in the last 30 days" },
   // A season has nothing before it to compare against, so no deltas.
-  { key: "season", label: "Season", period: null, scope: "this season" },
+  { key: "season", label: "Season", period: null, scope: "this season", note: "Since Aug 4" },
 ];
 
 export function parseRange(value: string | string[] | undefined): RangeKey {

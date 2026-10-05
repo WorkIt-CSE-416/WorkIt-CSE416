@@ -77,6 +77,7 @@ export function StatTile({
   value,
   suffix = "",
   delta,
+  note,
   plain = false,
 }: {
   label: string;
@@ -86,6 +87,10 @@ export function StatTile({
   /** Printed after the value and its delta — "%" for a rate. */
   suffix?: string;
   delta?: StatDelta;
+  /** Plain only: what the line under the value says when there is no delta
+   *  ("Since Aug 4"). The line is always drawn, so a row of tiles keeps one
+   *  height whether or not its window has anything to compare against. */
+  note?: string;
   /** Open on the page instead of in a card: the label sits on a hairline and
    *  the direction is a small round marker beside it, the way the seeker
    *  Dashboard's headline row reads. The company dashboard keeps the card. */
@@ -119,6 +124,10 @@ export function StatTile({
           {suffix}
         </p>
 
+        {/* Always present, with a non-breaking space at worst: the Season
+            window has no delta, and dropping the line shortened the whole
+            row, so everything under it jumped when the range changed. */}
+        {!delta && <p className="text-note text-ink-meta mt-0.5">{note ?? "\u00a0"}</p>}
         {delta && (
           <p className="text-note text-ink-meta mt-0.5">
             {/* "Same as" rather than "No change vs": a narrow column wrapped

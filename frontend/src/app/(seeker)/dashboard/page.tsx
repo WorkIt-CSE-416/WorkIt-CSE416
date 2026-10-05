@@ -55,7 +55,7 @@ const STAT_ICONS = [BriefcaseIcon, MailIcon, CalendarIcon, AwardIcon];
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const range = parseRange((await searchParams).range);
-  const { period, scope } = RANGES.find((option) => option.key === range)!;
+  const { period, scope, note } = RANGES.find((option) => option.key === range)!;
   const account = await getCurrentAccount();
   const firstName = account?.full_name.split(" ")[0];
   const [next, ...later] = UP_NEXT;
@@ -86,6 +86,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                 Icon={STAT_ICONS[i]}
                 value={stat.value}
                 suffix={stat.suffix}
+                note={note}
                 delta={
                   stat.previous !== null && period
                     ? { value: stat.value - stat.previous, period, upIsGood: true }
