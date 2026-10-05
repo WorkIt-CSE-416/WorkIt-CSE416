@@ -103,7 +103,7 @@ export function StatTile({
       </p>
 
       {delta && (
-        <p className="mt-2 flex items-center gap-1.5">
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1">
           {delta.value === 0 ? (
             <Badge variant="status" tone="inert">
               No change

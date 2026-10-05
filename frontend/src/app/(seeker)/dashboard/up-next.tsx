@@ -43,7 +43,7 @@ export function UpNext() {
         Up next
       </SectionHeading>
       <p className="text-note text-ink-meta mt-1">
-        Interviews, offers and deadlines, soonest first.
+        Interviews and offers first, then deadlines and follow-ups.
       </p>
 
       <ul className="mt-4 flex flex-1 flex-col gap-2">

@@ -9,13 +9,10 @@ import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
-import { Activity } from "./activity";
-import { ACTIVITY, PIPELINE, RANGES, STATS, parseRange } from "./data";
+import { RANGES, STATS, parseRange } from "./data";
 import { NewMatches } from "./new-matches";
-import { Pipeline } from "./pipeline";
 import { RangeSwitch } from "./range-switch";
 import { UpNext } from "./up-next";
-import { Waiting } from "./waiting";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -24,15 +21,19 @@ export const metadata: Metadata = {
 
 /**
  * /dashboard — the seeker's home, first in the panel and where sign-in lands.
- * Built from the company dashboard's parts (the stat tile is shared; Up next,
- * Waiting and Pipeline are the seeker's versions of Needs your attention, Time
- * in stage and Application Status) around one question: what should I do
- * today, and is my search working?
+ * It answers two questions and stops: is my search working (the numbers), and
+ * what do I do next (Up next, and what is new in the feed).
  *
- * ORDER IS PRIORITY. Up next leads, because a student's next commitment is
- * worth more than any total, with what is waiting beside it. Then the numbers
- * for the window, the funnel they come from, the pace behind them, and what is
- * new in the feed.
+ * KEPT SHORT ON PURPOSE. It used to carry a pipeline funnel, a waiting-by-age
+ * chart and a weekly activity chart as well, and each was a second drawing of
+ * a number already in the row of tiles — the funnel was the four tiles as a
+ * band, the waiting chart was the response rate by age, the activity chart
+ * was Applications sent over time. Three views of one figure read as clutter,
+ * not depth. If one comes back, it should say something the tiles cannot.
+ *
+ * The numbers lead, as a dashboard's do; the range above them scopes only
+ * them, since Up next and New matches are about now. The stat tile is the
+ * company dashboard's, shared.
  *
  * Most of it is fixtures (./data.ts) until the application tracker has a
  * backend; New matches is the live feed.
@@ -63,12 +64,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         <RangeSwitch current={range} />
       </header>
 
-      <div className="mt-5 grid grid-cols-1 items-stretch gap-3 @4xl/main:grid-cols-[3fr_2fr]">
-        <UpNext />
-        <Waiting />
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-3 @xl/main:grid-cols-2 @4xl/main:grid-cols-4">
+      {/* Two across even on a phone: one a row, the four tiles were the whole
+          first screen, and Up next — the reason to open the page — sat
+          below the fold. */}
+      <div className="mt-5 grid grid-cols-2 gap-3 @4xl/main:grid-cols-4">
         {STATS[range].map((stat, i) => (
           <StatTile
             key={stat.label}
@@ -85,12 +84,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         ))}
       </div>
 
-      <div className="mt-6">
-        <Pipeline stages={PIPELINE[range]} />
-      </div>
-
       <div className="mt-6 grid grid-cols-1 items-stretch gap-3 @4xl/main:grid-cols-[3fr_2fr]">
-        <Activity points={ACTIVITY[range].points} goal={ACTIVITY[range].goal} />
+        <UpNext />
         <Suspense fallback={<Card padding="md" className="min-h-64" />}>
           <NewMatches />
         </Suspense>

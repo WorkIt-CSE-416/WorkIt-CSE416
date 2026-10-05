@@ -1,10 +1,10 @@
 import { COLUMNS } from "../applications/data";
 
 /**
- * The seeker Dashboard's fixtures. Everything here stands in for the
- * application tracker, which has no backend yet; New matches and the profile
- * strength card read the live API instead and live beside the components that
- * fetch them.
+ * The seeker Dashboard's fixtures: the headline numbers per window, and Up
+ * next. Both stand in for the application tracker, which has no backend yet;
+ * New matches and the profile strength card read the live API instead and
+ * live beside the components that fetch them.
  *
  * UP NEXT IS DERIVED FROM THE BOARD'S OWN FIXTURE (../applications/data.ts),
  * not written again here, so the Dashboard and the board name the same
@@ -60,92 +60,6 @@ export const STATS: Record<RangeKey, DashboardStat[]> = {
     { label: "Offers", value: 1, previous: null },
   ],
 };
-
-/* Pipeline --------------------------------------------------------------- */
-
-export type PipelineStage = { label: string; count: number };
-
-/** Applied, then each later step as a subset of the one before it. */
-export const PIPELINE: Record<RangeKey, PipelineStage[]> = {
-  week: [
-    { label: "Applied", count: 5 },
-    { label: "Heard back", count: 2 },
-    { label: "Interviewed", count: 1 },
-    { label: "Offer", count: 0 },
-  ],
-  month: [
-    { label: "Applied", count: 18 },
-    { label: "Heard back", count: 6 },
-    { label: "Interviewed", count: 3 },
-    { label: "Offer", count: 1 },
-  ],
-  season: [
-    { label: "Applied", count: 42 },
-    { label: "Heard back", count: 12 },
-    { label: "Interviewed", count: 5 },
-    { label: "Offer", count: 1 },
-  ],
-};
-
-/* Activity --------------------------------------------------------------- */
-
-export type ActivityPoint = { label: string; count: number };
-
-/** Applications per day this week, and per week over the longer windows. The
- *  goal is weekly, so the week view carries no goal line: five a day is not
- *  the ask. */
-export const ACTIVITY: Record<RangeKey, { points: ActivityPoint[]; goal: number | null }> = {
-  week: {
-    goal: null,
-    points: [
-      { label: "Mon", count: 2 },
-      { label: "Tue", count: 0 },
-      { label: "Wed", count: 1 },
-      { label: "Thu", count: 2 },
-      { label: "Fri", count: 0 },
-      { label: "Sat", count: 0 },
-      { label: "Sun", count: 0 },
-    ],
-  },
-  month: {
-    goal: 5,
-    points: [
-      { label: "Sep 8", count: 3 },
-      { label: "Sep 15", count: 4 },
-      { label: "Sep 22", count: 6 },
-      { label: "Sep 29", count: 5 },
-    ],
-  },
-  season: {
-    goal: 5,
-    points: [
-      { label: "Aug 4", count: 2 },
-      { label: "Aug 11", count: 3 },
-      { label: "Aug 18", count: 5 },
-      { label: "Aug 25", count: 4 },
-      { label: "Sep 1", count: 6 },
-      { label: "Sep 8", count: 3 },
-      { label: "Sep 15", count: 4 },
-      { label: "Sep 22", count: 6 },
-      { label: "Sep 29", count: 5 },
-      { label: "Oct 6", count: 4 },
-    ],
-  },
-};
-
-/* Waiting to hear back -------------------------------------------------- */
-
-export type WaitBucket = { label: string; count: number; tone: "fresh" | "due" | "stale" };
-
-/** Applications with no reply yet, by how long they have waited, as of today
- *  rather than per window: they add up to the season's 42 sent less the 12
- *  that heard back. Past two weeks is when a follow-up is worth sending. */
-export const WAITING: WaitBucket[] = [
-  { label: "0–7 days", count: 6, tone: "fresh" },
-  { label: "8–14 days", count: 9, tone: "fresh" },
-  { label: "15–30 days", count: 11, tone: "due" },
-  { label: "30+ days", count: 4, tone: "stale" },
-];
 
 /* Up next ---------------------------------------------------------------- */
 
