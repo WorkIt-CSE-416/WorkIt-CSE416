@@ -238,6 +238,16 @@ Seeded by migrations, frozen inline from pycountry 26.2.16:
 | --- | --- |
 | `cca905583de8` | 15 of ISO's 249 countries — see below |
 | `6b5bd2831d18` | 57 US subdivisions: 50 states, DC, 6 outlying areas (PR, GU…) |
+| `4b3c00b5167d` | "Other": country `ZZ`, state `ZZ-ZZ` |
+
+**`ZZ` is a catch-all for places outside the seed**, not a real country. It is
+ISO's user-assigned "unknown" code, so it can never collide with one ISO
+assigns later. Never use it for Remote — that is `work_style` (above); a job
+remote from anywhere is `work_style = remote` with country `ZZ`.
+The state is `ZZ-ZZ`, not `ZZ`, because the API requires a state code to be
+`<country>-<sub>` and start with its country (`schemas/company_jobs.py`).
+Anything filed under it cannot be told apart later, so the resolver should
+still return nothing on a miss rather than fall back to `OT`.
 
 **The countries list is incomplete on purpose.** It holds 15: Australia,
 Canada, China, Denmark, France, Germany, Hong Kong, Italy, Japan, New Zealand,
