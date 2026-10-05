@@ -45,7 +45,7 @@ export function EmptyState({
       <h2 className="text-subtitle text-ink mt-3">{title}</h2>
       {children && <p className="text-body text-ink-meta mt-1 max-w-md">{children}</p>}
       {action && <div className="mt-4">{action}</div>}
-      {detail && <p className="text-note text-ink-faint mt-3 max-w-md">{detail}</p>}
+      {detail && <p className="text-note text-ink-meta mt-3 max-w-md">{detail}</p>}
     </Card>
   );
 }

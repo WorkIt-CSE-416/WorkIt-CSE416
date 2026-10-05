@@ -9,7 +9,9 @@ import { cn } from "@/lib/cn";
 
 import { QUESTION_TYPES, type ScreeningQuestion } from "./data";
 import { SelectField } from "@/components/ui/select-field";
-import { GripIcon, PlusIcon, TrashIcon } from "./icons";
+import { PlusIcon } from "@/components/icons";
+
+import { GripIcon, TrashIcon } from "./icons";
 
 /**
  * The editable list of questions an applicant answers before they can apply.

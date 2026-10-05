@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import type { ComponentProps } from "react";
 import { useState } from "react";
 
-import { CalendarIcon, ChevronDownIcon } from "@/components/icons";
+import { CalendarIcon, ChevronDownIcon, PlusIcon } from "@/components/icons";
 import { Calendar, CalendarDayButton } from "@/components/shadcn/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import {
   parseCloseDate,
   type SavedLocation,
 } from "./data";
-import { PlusIcon } from "./icons";
 
 /**
  * The controls this form needs that <TextField> is not: a multi-line box, a

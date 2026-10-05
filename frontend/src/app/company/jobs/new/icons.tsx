@@ -28,16 +28,6 @@ export function EyeIcon({ className }: IconProps) {
   );
 }
 
-/** Add a screening question. */
-export function PlusIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M8 3.4v9.2" />
-      <path d="M3.4 8h9.2" />
-    </svg>
-  );
-}
-
 /** Remove a screening question. */
 export function TrashIcon({ className }: IconProps) {
   return (

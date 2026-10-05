@@ -73,7 +73,7 @@ function ApplicationCard({ item }: { item: Application }) {
         </div>
       )}
 
-      <p className="border-border-subtle text-note text-ink-faint truncate border-t pt-2.5">
+      <p className="border-border-subtle text-note text-ink-meta truncate border-t pt-2.5">
         {item.meta.text}
       </p>
 

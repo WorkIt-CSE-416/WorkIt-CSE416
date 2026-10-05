@@ -119,6 +119,16 @@ export function PencilIcon({ className }: IconProps) {
   );
 }
 
+/** Add a row: a screening question, a work-history entry. */
+export function PlusIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
+      <path d="M8 3.4v9.2" />
+      <path d="M3.4 8h9.2" />
+    </svg>
+  );
+}
+
 /* App shell ---------------------------------------------------------------- */
 
 /**
