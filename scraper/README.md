@@ -6,7 +6,7 @@ Lever, Ashby) and renders them as one self-contained HTML page.
 ```sh
 cd scraper
 python3 -m workit_scraper              # scrape live, then render
-python3 -m workit_scraper --offline    # no network; render from jobs.json
+python3 -m workit_scraper --offline    # no network; re-render from the last live run
 ```
 
 Then open `internships.html` in any browser (double-click it in your file manager).

@@ -22,6 +22,7 @@ def job(
     seen: str = "2026-09-27",
     eid: str = "1",
     posted_at: str | None = "2026-09-20T00:00:00+00:00",
+    url: str | None = None,
 ) -> Job:
     return Job(
         ats="greenhouse",
@@ -29,7 +30,7 @@ def job(
         company=company,
         external_id=eid,
         title=title,
-        apply_url=f"https://example.test/{eid}",
+        apply_url=url or f"https://example.test/{eid}",
         location=location,
         posted_at=posted_at,
         first_seen_at=seen,
@@ -123,7 +124,9 @@ def roles_of(jobs: list[Job]) -> list:
 
 
 class TestPick(unittest.TestCase):
-    def test_collapses_one_role_posted_per_office(self):
+    def test_each_application_is_its_own_role(self):
+        # Stripe posts "Software Engineer, New Grad" once per office, each with its
+        # own application. Collapsing them would leave one link and hide six jobs.
         postings = [
             job("Software Engineer, New Grad", location=city, eid=str(i))
             for i, city in enumerate(
@@ -131,8 +134,19 @@ class TestPick(unittest.TestCase):
             )
         ]
         roles = roles_of(postings)
+        assert len(roles) == 7
+        assert {role.location_label for role in roles} == {job.location for job in postings}
+
+    def test_copies_of_one_application_collapse(self):
+        url = "https://example.test/shared"
+        roles = roles_of(
+            [
+                job("Software Engineer, Intern", location="Toronto", eid="a", url=url),
+                job("Software Engineer, Intern", location="Seattle", eid="b", url=url),
+            ]
+        )
         assert len(roles) == 1
-        assert roles[0].location_label == "7 locations"
+        assert roles[0].location_label == "2 locations"
 
     def test_keeps_suffixed_variants_separate(self):
         roles = roles_of(
@@ -161,15 +175,16 @@ class TestPick(unittest.TestCase):
         assert {role.company for role in roles} == {"Stripe", "Figma"}
 
     def test_the_earliest_copy_decides_whether_a_role_is_new(self):
-        # A new office for an old role is not a new role.
+        # A new copy of an application we already knew is not a new role.
+        url = "https://example.test/shared"
         roles = pick(
             [
-                job("Software Engineer, Intern", seen="2026-09-27", eid="a"),
-                job("Software Engineer, Intern", seen="2026-09-20", eid="b"),
+                job("Software Engineer, Intern", seen="2026-09-27", eid="a", url=url),
+                job("Software Engineer, Intern", seen="2026-09-20", eid="b", url=url),
             ],
             is_new=lambda posting: posting.first_seen_at == "2026-09-27",
         )
-        assert (roles[0].new, roles[0].apply_url) == (False, "https://example.test/b")
+        assert [role.new for role in roles] == [False]
 
     def test_drops_everything_that_does_not_classify(self):
         assert roles_of([job("Senior Software Engineer"), job("Marketing Intern")]) == []

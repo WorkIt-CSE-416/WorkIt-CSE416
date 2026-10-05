@@ -1,4 +1,4 @@
-"""Decide which postings belong on the page, and collapse the duplicates.
+"""Decide which postings belong on the page, and collapse true duplicates.
 
 The scraper's densest logic, and the place a bug is quietest. Two steps:
 
@@ -8,11 +8,12 @@ The scraper's densest logic, and the place a bug is quietest. Two steps:
    check "Sales Engineer Intern" and "Mechanical Engineering Co-op" both pass on
    the word "engineer" alone.
 
-2. **Dedupe** on exact `(company, title)`. Boards post one row per office, so
-   Stripe lists "Software Engineer, New Grad" seven times; those collapse into one
-   role carrying a location count. The match is exact on purpose -- Palantir's
-   variants ("... Internship - US Government", "... - Commercial") are genuinely
-   different roles, and normalising the suffix away would merge them.
+2. **Dedupe** on `apply_url`. Each URL is its own job: Stripe posting "Software
+   Engineer, New Grad" once per office, each with its own application, is seven
+   jobs and seven rows. Only copies sharing one URL -- the same application
+   reached from several places -- collapse into one role carrying their locations.
+   Keying on `(company, title)` instead merged those seven and kept one link,
+   hiding six applications.
 
 Deduping is presentation only: every posting that classifies is stored in jobs.json
 as its own row. (Postings that do not classify are counted and never stored.)
@@ -133,17 +134,16 @@ def classify(title: str) -> tuple[Tag, ...]:
 
 def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
     """Classify, dedupe, and order newest-first by the provider's posted date."""
-    # Tags depend only on the title, and the title is half the key, so one
-    # classification per group is the only one there is.
-    grouped: dict[tuple[str, str], tuple[tuple[Tag, ...], list[Job]]] = {}
+    # Copies at one URL are one posting, so its first copy's title and company
+    # speak for all of them; tags depend only on the title.
+    grouped: dict[str, tuple[tuple[Tag, ...], list[Job]]] = {}
     for job in jobs:
-        key = (job.company, job.title)
-        if key not in grouped:
-            grouped[key] = (classify(job.title), [])
-        grouped[key][1].append(job)
+        if job.apply_url not in grouped:
+            grouped[job.apply_url] = (classify(job.title), [])
+        grouped[job.apply_url][1].append(job)
 
     roles = []
-    for (company, title), (tags, postings) in grouped.items():
+    for tags, postings in grouped.values():
         if not tags:
             continue
         # The oldest copy speaks for the role: it has been known to us since we first
@@ -152,8 +152,8 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
         locations = tuple(dict.fromkeys(job.location for job in postings if job.location))
         roles.append(
             Role(
-                title=title,
-                company=company,
+                title=postings[0].title,
+                company=postings[0].company,
                 apply_url=oldest.apply_url,
                 ats=oldest.ats,
                 tags=tags,

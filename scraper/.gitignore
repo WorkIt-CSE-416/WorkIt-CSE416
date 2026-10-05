@@ -2,3 +2,6 @@
 # source. Python caches and .venv are already ignored by the repo root's .gitignore
 # (unanchored, so they match here too) -- do not repeat them.
 internships.html
+# The store. Each machine that runs the scraper keeps its own; at a few megabytes a
+# run it was too heavy to commit for a tool few people on the team run.
+jobs.json
