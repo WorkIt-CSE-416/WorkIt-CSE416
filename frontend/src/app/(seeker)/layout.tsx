@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "./gutter";
 import { SeekerSidebar } from "./seeker-sidebar";
-import { CollapsedLogo, SidebarBrand } from "./sidebar-brand";
+import { SidebarBrand } from "./sidebar-brand";
 
 /**
  * Chrome shared by every signed-in seeker screen: a full-width bar across the
@@ -92,8 +92,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               SEEKER_GUTTER,
             )}
           >
-            <CollapsedLogo />
-
             <SearchField
               id="job-search"
               label="Search jobs"

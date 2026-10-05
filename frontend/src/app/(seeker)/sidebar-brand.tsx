@@ -19,11 +19,11 @@ import { cn } from "@/lib/cn";
  * same 200ms linear as the panel's gap, so the rule moves with the edge.
  *
  * COLLAPSED, THE CELL IS THE RAIL'S 48px AND HOLDS THE TOGGLE ALONE, centred
- * over the rail's icons. The lockup does not fit in 48px, so it steps out of
- * the cell to the far side of the rule (<CollapsedLogo>, rendered in the
- * bar's content area) rather than disappearing: the brand stays on screen at
- * every state. The toggle sits 10px in when open for the same reason, which
- * puts its centre on the rail icons' 24px line in both states.
+ * over the rail's icons. The logo is hidden rather than moved: the lockup
+ * does not fit in 48px, and carrying it over the rule to sit beside the
+ * search field put the brand in two different places depending on a toggle.
+ * The toggle sits 10px in when open so its centre is on the rail icons' 24px
+ * line in both states.
  *
  * BELOW md THERE IS NO PANEL TO MATCH — it opens as a sheet — so the cell
  * drops its width and rule and is just the toggle and the logo. md is 768px,
@@ -56,15 +56,6 @@ export function SidebarBrand() {
       {!collapsed && <LogoLink />}
     </div>
   );
-}
-
-/** The logo on the content side of the rule, while the cell is too narrow to
- *  hold it. See <SidebarBrand>. */
-export function CollapsedLogo() {
-  const { state, isMobile } = useSidebar();
-  if (isMobile || state !== "collapsed") return null;
-
-  return <LogoLink />;
 }
 
 function LogoLink() {
