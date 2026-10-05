@@ -117,7 +117,9 @@ export type SidebarNavItem = {
   exact?: boolean;
 };
 
-export type SidebarNavGroup = { label: string; items: SidebarNavItem[] };
+/** `label` is the small heading over the group; leave it out when the panel
+ *  has one group and the rows speak for themselves, as the seeker's does. */
+export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
 
 export function AppSidebar({
   groups,
@@ -148,9 +150,9 @@ export function AppSidebar({
       aria-label={label}
     >
       <SidebarContent className="pt-2">
-        {groups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+        {groups.map((group, i) => (
+          <SidebarGroup key={group.label ?? i}>
+            {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
             <SidebarMenu className={MENU}>
               {group.items.map((item) => (
                 <NavRow key={item.href} item={item} pathname={pathname} />

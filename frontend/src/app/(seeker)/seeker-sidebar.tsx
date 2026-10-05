@@ -38,7 +38,7 @@ import {
  */
 const GROUPS: SidebarNavGroup[] = [
   {
-    label: "Job search",
+    // No group heading: one group of four rows needs no title over it.
     items: [
       { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
