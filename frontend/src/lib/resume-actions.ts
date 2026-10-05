@@ -1,7 +1,7 @@
 "use server";
 
 import { apiUpload, apiGet, apiDelete } from "@/lib/api";
-import { extractErrorMessage } from "@/lib/auth";
+import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import { getApplicantSession } from "@/lib/session";
 
 // Mirrors ParsedResume in backend/app/models/dto.py. Dates are ISO
@@ -77,6 +77,40 @@ export async function deleteResume(resumeId: string): Promise<{ error: string | 
 //
 //   return { id: claimsData.claims.sub, token };
 // }
+
+// One resume's parsed content; the list endpoint leaves it out.
+export async function getParsedResume(
+  resumeId: string,
+): Promise<{ parsed: ParsedResume | null; error: string | null }> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiGet(`/applicants/${id}/resumes/${resumeId}`, token);
+    if (!res.ok) return { parsed: null, error: await extractErrorMessage(res) };
+    const { parsed_json } = await res.json();
+    return { parsed: parsed_json, error: null };
+  } catch {
+    return { parsed: null, error: "Could not reach the server." };
+  }
+}
+
+// Replaces a saved resume's parsed content — the profile's per-entry edits.
+export async function updateParsedResume(
+  resumeId: string,
+  parsed: ParsedResume,
+): Promise<{ error: string | null }> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiFetch(
+      `/applicants/${id}/resumes/${resumeId}`,
+      { method: "PATCH", body: JSON.stringify(parsed) },
+      token,
+    );
+    if (!res.ok) return { error: await extractErrorMessage(res) };
+    return { error: null };
+  } catch {
+    return { error: "Could not reach the server." };
+  }
+}
 
 // Parses without saving, so the applicant can review the result first.
 // parsed is null when the file had no readable text or no recognisable sections.

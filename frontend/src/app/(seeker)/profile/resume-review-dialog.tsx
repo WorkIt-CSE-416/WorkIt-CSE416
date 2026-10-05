@@ -30,8 +30,8 @@ import type { ParsedResume } from "@/lib/resume-actions";
  * beside the job form, and a resume needs a dozen of them on one screen.
  */
 
-type SectionKey = keyof ParsedResume;
-type Field = {
+export type SectionKey = keyof ParsedResume;
+export type Field = {
   key: string;
   label: string;
   type?: "date" | "number" | "textarea";
@@ -44,10 +44,12 @@ const DATES: Field[] = [
   { key: "end_date", label: "End date", type: "date" },
 ];
 
-const SECTIONS: { key: SectionKey; title: string; fields: Field[] }[] = [
+/** Shared with the profile's single-entry editor (entry-dialog.tsx). */
+export const SECTIONS: { key: SectionKey; title: string; noun: string; fields: Field[] }[] = [
   {
     key: "experience",
     title: "Work Experience",
+    noun: "experience",
     fields: [
       { key: "title", label: "Title", required: true },
       { key: "company_name", label: "Company", required: true },
@@ -59,6 +61,7 @@ const SECTIONS: { key: SectionKey; title: string; fields: Field[] }[] = [
   {
     key: "education",
     title: "Education",
+    noun: "education",
     fields: [
       { key: "institution", label: "Institution", required: true },
       { key: "degree", label: "Degree" },
@@ -71,6 +74,7 @@ const SECTIONS: { key: SectionKey; title: string; fields: Field[] }[] = [
   {
     key: "projects",
     title: "Projects",
+    noun: "project",
     fields: [
       { key: "project_name", label: "Name", required: true },
       { key: "url", label: "URL" },
@@ -81,6 +85,7 @@ const SECTIONS: { key: SectionKey; title: string; fields: Field[] }[] = [
   {
     key: "skills",
     title: "Skills",
+    noun: "skill",
     fields: [
       { key: "skill_name", label: "Skill", required: true },
       { key: "category", label: "Category" },
@@ -89,6 +94,7 @@ const SECTIONS: { key: SectionKey; title: string; fields: Field[] }[] = [
   {
     key: "certifications",
     title: "Certifications",
+    noun: "certification",
     fields: [
       { key: "cert_name", label: "Certification", required: true },
       { key: "issuer", label: "Issuer" },
@@ -100,32 +106,35 @@ function blankEntry(fields: Field[]) {
   return Object.fromEntries(fields.map((f) => [f.key, ""]));
 }
 
+/** One parsed entry as editable strings; null (adding) gives blanks. */
+export function entryToDraft(fields: Field[], entry: object | null): Record<string, string> {
+  const values = (entry ?? {}) as Record<string, unknown>;
+  return Object.fromEntries(fields.map((f) => [f.key, String(values[f.key] ?? "")]));
+}
+
+/** Back to the API's shape: blanks become null, numbers become numbers. */
+export function draftToEntry(fields: Field[], draft: Record<string, string>) {
+  return Object.fromEntries(
+    fields.map((f) => {
+      const value = draft[f.key].trim();
+      if (!value) return [f.key, null];
+      return [f.key, f.type === "number" ? Number(value) : value];
+    }),
+  );
+}
+
 function toDraft(parsed: ParsedResume | null): Draft {
   return Object.fromEntries(
     SECTIONS.map(({ key, fields }) => [
       key,
-      (parsed?.[key] ?? []).map((entry) => {
-        const values = entry as Record<string, unknown>;
-        return Object.fromEntries(fields.map((f) => [f.key, String(values[f.key] ?? "")]));
-      }),
+      (parsed?.[key] ?? []).map((entry) => entryToDraft(fields, entry)),
     ]),
   ) as Draft;
 }
 
 function toParsed(draft: Draft): ParsedResume {
   return Object.fromEntries(
-    SECTIONS.map(({ key, fields }) => [
-      key,
-      draft[key].map((entry) =>
-        Object.fromEntries(
-          fields.map((f) => {
-            const value = entry[f.key].trim();
-            if (!value) return [f.key, null];
-            return [f.key, f.type === "number" ? Number(value) : value];
-          }),
-        ),
-      ),
-    ]),
+    SECTIONS.map(({ key, fields }) => [key, draft[key].map((e) => draftToEntry(fields, e))]),
   ) as ParsedResume;
 }
 
@@ -255,14 +264,14 @@ export function ResumeReviewDialog({
   );
 }
 
-type EntryFieldProps = {
+export type EntryFieldProps = {
   id: string;
   field: Field;
   value: string;
   onChange: (value: string) => void;
 };
 
-function EntryField({ id, field, value, onChange }: EntryFieldProps) {
+export function EntryField({ id, field, value, onChange }: EntryFieldProps) {
   const common = {
     id,
     value,

@@ -306,6 +306,56 @@ async def list_resumes(
         for r in resumes
     ]
 
+
+async def _get_owned_resume(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
+) -> Resume:
+    resume = (
+        await session.execute(
+            select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
+        )
+    ).scalar_one_or_none()
+    if not resume:
+        raise HTTPException(404, "Resume not found")
+    return resume
+
+
+# The list leaves parsed_json out to stay small; the profile reads it per resume.
+@router.get("/applicants/{applicant_id}/resumes/{resume_id}")
+async def get_resume(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    _assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    return {"id": str(resume.id), "parsed_json": resume.parsed_json}
+
+
+@router.patch("/applicants/{applicant_id}/resumes/{resume_id}")
+async def update_resume(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    body: ParsedResume,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    """Replace the parsed content with the applicant's edits from the profile.
+    The whole ParsedResume is sent, so one entry's edit is a full replace."""
+    _assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    resume.parsed_json = body.model_dump(mode="json")
+    resume.status = ResumeStatus.parsed
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        logger.exception("Failed to update resume", extra={"resume_id": str(resume_id)})
+        raise HTTPException(500, "Failed to save resume changes")
+    return {"id": str(resume.id), "parsed_json": resume.parsed_json}
+
+
 @router.delete("/applicants/{applicant_id}/resumes/{resume_id}")
 async def delete_resume(
     applicant_id: uuid.UUID,
@@ -315,14 +365,7 @@ async def delete_resume(
 ):
     _assert_applicant_owns(account, applicant_id)
 
-    resume = (
-        await session.execute(
-            select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
-        )
-    ).scalar_one_or_none()
-
-    if not resume:
-        raise HTTPException(404, "Resume not found")
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
 
     # Delete DB row first (reversible via rollback), then Storage
     storage_path = resume.storage_path

@@ -3,7 +3,7 @@
 import { FileText, Phone } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
-import { MailIcon, PdfIcon, PencilIcon, PinIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { MailIcon, PdfIcon, PencilIcon, PinIcon, TrashIcon } from "@/components/icons";
 import {
   Dialog,
   DialogClose,
@@ -21,27 +21,30 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
-import { PROFILE, ROLES, SKILLS } from "./data";
+import { PROFILE } from "./data";
 import { SectionAction } from "./section-action";
 import { ResumeUpload } from "@/components/resume-upload";
 import {
   uploadResume,
   deleteResume,
+  getParsedResume,
   listResumes,
   parseResume,
+  updateParsedResume,
   type ParsedResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
-import { ResumeReviewDialog } from "./resume-review-dialog";
+import { ResumeReviewDialog, type SectionKey } from "./resume-review-dialog";
+import { ExperienceCard, SkillsCard } from "./resume-sections";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
 import { SEEKER_GUTTER } from "../gutter";
 
 /**
- * The profile screen. Resumes and the profile photo are live (resume-actions,
- * avatar-actions); name, contact details, roles and skills still render the
- * fixtures in ./data, and their edit affordances are inert until endpoints
- * exist. The autofill switch is a bare checkbox with role="switch" that styles
+ * The profile screen. Resumes, the profile photo, and Work Experience/Skills
+ * are live: the last two render the newest resume's parsed content and save
+ * edits back to it. Name and contact details still render the fixture in
+ * ./data. The autofill switch is a bare checkbox with role="switch" that styles
  * its own on state. The tab title is set in ./layout.tsx, because a client
  * page cannot export metadata.
  *
@@ -74,6 +77,14 @@ import { SEEKER_GUTTER } from "../gutter";
  * failed resume list holds the first row's place in grey rather than red, so
  * a list that did not load is not mistaken for one with nothing in it.
  */
+const EMPTY_RESUME: ParsedResume = {
+  education: [],
+  experience: [],
+  skills: [],
+  projects: [],
+  certifications: [],
+};
+
 const CONTACT = [
   { Icon: MailIcon, label: "Email", value: PROFILE.email },
   { Icon: Phone, label: "Phone", value: PROFILE.phone },
@@ -118,6 +129,9 @@ export default function ProfilePage() {
   const [listFailed, setListFailed] = useState(false);
   // A parsed file waiting on the review dialog; nothing is saved until Save.
   const [pending, setPending] = useState<{ file: File; parsed: ParsedResume | null } | null>(null);
+  // The newest resume's parsed content, which Work Experience and Skills show
+  // and edit. null when there is no resume.
+  const [profile, setProfile] = useState<{ id: string; parsed: ParsedResume } | null>(null);
 
   // The resume the delete dialog asks about. It outlives `confirmOpen` so the
   // filename does not vanish while the dialog fades out.
@@ -191,6 +205,20 @@ export default function ProfilePage() {
     setAvatarUrl(null);
   }
 
+  async function loadProfile(newest: ResumeItem | undefined) {
+    if (!newest) {
+      setProfile(null);
+      return;
+    }
+    const { parsed, error } = await getParsedResume(newest.id);
+    if (error) {
+      setLoadFailed(true);
+      return;
+    }
+    // A resume that failed to parse can still be filled in by hand.
+    setProfile({ id: newest.id, parsed: parsed ?? EMPTY_RESUME });
+  }
+
   // Load the resumes initially
   useEffect(() => {
     listResumes().then(({ resumes, error }) => {
@@ -200,8 +228,20 @@ export default function ProfilePage() {
         setListFailed(true);
       }
       setLoaded(true);
+      loadProfile(resumes[0]);
     });
   }, []);
+
+  // One entry added, edited or removed on the profile: replace that section
+  // and save the whole parsed resume back.
+  async function handleSectionChange(section: SectionKey, entries: object[]) {
+    if (!profile) return "Upload a resume first.";
+    const parsed = { ...profile.parsed, [section]: entries } as ParsedResume;
+    const { error } = await updateParsedResume(profile.id, parsed);
+    if (error) return error;
+    setProfile({ id: profile.id, parsed });
+    return null;
+  }
 
   // Parses without saving: the review dialog opens on the result, and only its
   // Save uploads the file. `uploading` names the file while it is being read.
@@ -239,7 +279,10 @@ export default function ProfilePage() {
     fd.append("parsed_json", JSON.stringify(edited));
     const { resume, error } = await uploadResume(fd);
     if (error) return error;
-    if (resume) setResumeList((prev) => [resume, ...prev]);
+    if (resume) {
+      setResumeList((prev) => [resume, ...prev]);
+      setProfile({ id: resume.id, parsed: resume.parsed_json ?? edited });
+    }
     setPending(null);
     return null;
   }
@@ -254,7 +297,9 @@ export default function ProfilePage() {
         setResumeError(error);
         return;
       }
-      setResumeList((prev) => prev.filter((r) => r.id !== resumeId));
+      const remaining = resumeList.filter((r) => r.id !== resumeId);
+      setResumeList(remaining);
+      if (resumeId === profile?.id) await loadProfile(remaining[0]);
     } catch {
       // The server action call itself failed
       // or the page came back from the back-forward cache with stale action IDs.
@@ -505,79 +550,10 @@ export default function ProfilePage() {
           Experience and Skills. Both tracks have a zero minimum, so a long
           line truncates instead of widening its column past the screen. */}
       <div className="mt-10 grid grid-cols-1 items-start gap-10 @3xl/main:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <section aria-labelledby="experience">
-          <SectionHeading
-            id="experience"
-            action={
-              <SectionAction aria-label="Add Work Experience">
-                <PlusIcon />
-                Add
-              </SectionAction>
-            }
-          >
-            Work Experience
-          </SectionHeading>
-
-          {/* One rail for the whole list, drawn by the <ol> from under the
-              first dot (top-3) so no stub shows above it. A border on each
-              <li> broke at every gap between roles. The meta line wraps
-              between its parts, never inside "San Francisco, CA". */}
-          <ol className="before:bg-border relative mt-4 flex flex-col gap-5 before:absolute before:top-3 before:bottom-1 before:left-0 before:w-0.5 before:content-['']">
-            {ROLES.map((role) => (
-              <li key={role.company} className="relative pl-5">
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "absolute top-1.5 -left-1 size-2.5 rounded-full",
-                    role.current ? "bg-brand" : "bg-ink-faint",
-                  )}
-                />
-                <h3 className="text-subtitle text-ink">{role.title}</h3>
-                <p className="text-note text-ink-meta mt-0.5 flex flex-wrap gap-x-1.5">
-                  <span className="whitespace-nowrap">
-                    <span className="text-ink-muted font-medium">{role.company}</span>
-                    <span aria-hidden="true" className="text-ink-faint ml-1.5">
-                      ·
-                    </span>
-                  </span>
-                  <span className="whitespace-nowrap">
-                    {role.period}
-                    <span aria-hidden="true" className="text-ink-faint ml-1.5">
-                      ·
-                    </span>
-                  </span>
-                  <span className="whitespace-nowrap">{role.location}</span>
-                </p>
-                <p className="text-body text-ink-muted mt-1.5">{role.summary}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <ExperienceCard parsed={profile?.parsed ?? null} onChange={handleSectionChange} />
 
         <div className="flex flex-col gap-10">
-          {/* The design kit's skill pill: a fact about the seeker, so a tag,
-              not a status. */}
-          <section aria-labelledby="skills">
-            <SectionHeading
-              id="skills"
-              action={
-                <SectionAction aria-label="Edit Skills">
-                  <PencilIcon />
-                  Edit
-                </SectionAction>
-              }
-            >
-              Skills
-            </SectionHeading>
-
-            <ul className="mt-4 flex flex-wrap gap-1.5">
-              {SKILLS.map((skill) => (
-                <li key={skill} className="flex">
-                  <Badge variant="tag">{skill}</Badge>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <SkillsCard parsed={profile?.parsed ?? null} onChange={handleSectionChange} />
 
           <section aria-labelledby="settings">
             <SectionHeading id="settings">Application Settings</SectionHeading>

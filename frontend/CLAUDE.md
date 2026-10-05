@@ -425,9 +425,14 @@ result, and only Save calls `uploadResume` with the file plus the edited
 `parsed_json`; Cancel discards it. Both actions live in
 `src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's. The `ResumeUpload` component
 (`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
-knows nothing about upload logic or limits. Skill detection from resumes was
-stubbed with mock data and has been removed; add it back when the backend
-has a parsing endpoint.
+knows nothing about upload logic or limits.
+
+**The profile's Work Experience and Skills come from the newest resume's
+`parsed_json`** (`getParsedResume`), not from fixtures — there is no default-
+resume column yet, so "newest" stands in. Each role and skill opens
+`entry-dialog.tsx`, which reuses the review dialog's field table, and every
+add/edit/delete PATCHes the whole `ParsedResume` back (`updateParsedResume`).
+Deleting the newest resume switches the cards to the next one.
 
 **Profile photo upload is wired** on the seeker profile. The pencil button
 opens a file picker restricted to JPEG/PNG/WebP; the file is checked against
