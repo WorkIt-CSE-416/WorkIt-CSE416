@@ -42,7 +42,8 @@ const VARIANTS = {
  *
  * `neutral` stays exactly as it was. It is the default for every `tag` — skill
  * pills, salary bands, the search screen's result count — and the mockups draw
- * all of those blue-tinted. `inert` is the grey that statuses wanted from it.
+ * all of those brand-tinted (blue in the mockups, violet since KAN-140).
+ * `inert` is the grey that statuses wanted from it.
  *
  * `positive` wears --color-positive-ink rather than --color-positive, which is
  * the one tone whose text colour is not simply its fill colour darkened by
@@ -56,7 +57,7 @@ const TONES = {
   brand: "bg-brand-tint text-brand",
   /** In flight, late — the expensive half, where a team's time is committed. */
   advanced: "bg-advanced-tint text-advanced",
-  /** A tag's fill. Blue-tinted, and the default for `tag` rather than a state. */
+  /** A tag's fill. Brand-tinted, and the default for `tag` rather than a state. */
   neutral: "bg-brand-tint text-ink-muted",
   /** Finished well — an offer, a live posting. */
   positive: "bg-positive-tint text-positive-ink",

@@ -14,6 +14,9 @@ import { cn } from "@/lib/cn";
  * dashboard's corner does, instead of a bar whose logo and search float at
  * their own offsets above a panel edge that lines up with nothing.
  *
+ * It is painted the rail's lavender (--color-rail) with the rail's border, so
+ * from md the corner and the panel are one coloured L around the white page.
+ *
  * The widths are shadcn's own --sidebar-width and --sidebar-width-icon, set on
  * the provider, so the cell cannot drift from the panel; and it eases on the
  * same 200ms linear as the panel's gap, so the rule moves with the edge.
@@ -54,7 +57,7 @@ export function SidebarBrand() {
     <div
       className={cn(
         "flex h-full shrink-0 items-center gap-3 overflow-hidden px-4 sm:px-6",
-        "md:border-border md:w-(--sidebar-width) md:border-r md:pr-4 md:pl-2.5 md:transition-[width] md:duration-200 md:ease-linear",
+        "md:border-rail-border md:bg-rail md:w-(--sidebar-width) md:border-r md:pr-4 md:pl-2.5 md:transition-[width] md:duration-200 md:ease-linear",
         collapsed && "md:w-(--sidebar-width-icon)",
       )}
     >

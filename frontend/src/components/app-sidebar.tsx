@@ -68,11 +68,12 @@ const MENU_BUTTON = "h-9";
 /**
  * What marks the item you are on, once the fill stopped being brand-coloured.
  *
- * A deeper grey than a hover plus a brand label, where stock shadcn gives the
+ * A deeper lavender than a hover (--color-rail-selected over
+ * --color-rail-hover) plus a brand label, where stock shadcn gives the
  * current item the same fill as a hovered one and separates the two by
- * font-weight alone. With both of them grey that reads as "something is under
- * the pointer" twice; the brand on the label says which one you are on without
- * putting a coloured slab behind it.
+ * font-weight alone. With both fills alike that reads as "something is under
+ * the pointer" twice; the brand on the label says which one you are on
+ * without putting a saturated slab behind it.
  *
  * EVERY STATE IS RESTATED, INCLUDING THE HOVER ONES, and that is not padding.
  * The obvious spelling is `data-active:*` alone, which loses: Tailwind compiles
@@ -92,9 +93,9 @@ const MENU_BUTTON = "h-9";
  * this fill, under what AA asks of a 14px label. See the token in globals.css.
  */
 const CURRENT_ITEM =
-  "data-active:bg-selected data-active:text-brand-ink " +
-  "hover:bg-selected hover:text-brand-ink " +
-  "active:bg-selected active:text-brand-ink";
+  "data-active:bg-rail-selected data-active:text-brand-ink " +
+  "hover:bg-rail-selected hover:text-brand-ink " +
+  "active:bg-rail-selected active:text-brand-ink";
 
 export type SidebarNavItem = {
   href: string;
@@ -129,7 +130,7 @@ export function AppSidebar({
   return (
     <Sidebar
       collapsible="icon"
-      className={cn("border-border h-auto", className)}
+      className={cn("border-rail-border h-auto", className)}
       aria-label={label}
     >
       <SidebarContent className="pt-2">
