@@ -1,8 +1,33 @@
 "use client";
 
-import { STATS } from "./data";
+import type { ComponentType } from "react";
+
+import { BriefcaseIcon, CalendarIcon, UserIcon } from "@/components/icons";
+import { StatTile } from "@/components/stat-tile";
+
+import { STATS, type Stat } from "./data";
+import { ClockIcon } from "./icons";
 import { rangeLength, useRange } from "./range";
-import { StatTile } from "./stat-tile";
+
+/**
+ * The glyph each stat wears, resolved from the key its fixture carries.
+ *
+ * Three of the four come from src/components/icons.tsx, which is where a glyph
+ * lives once more than one route wants it — a briefcase is also the company
+ * nav's Job Postings and a calendar is also an applicant's date. ClockIcon is
+ * the company shell's own, and moves over the day a second route needs it.
+ * The map lives with the row rather than in the tile, which is shared with
+ * the seeker Dashboard and takes the glyph itself.
+ *
+ * The map is here rather than in ./data.ts so the fixtures stay free of
+ * components; see the note on Stat.icon.
+ */
+const ICONS: Record<Stat["icon"], ComponentType<{ className?: string }>> = {
+  roles: BriefcaseIcon,
+  applicants: UserIcon,
+  review: ClockIcon,
+  interviews: CalendarIcon,
+};
 
 /**
  * The headline row, with each tile resolved against its own scope.
@@ -33,7 +58,15 @@ export function StatsRow() {
     <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {STATS.map((stat) => {
         if (stat.scope === "today") {
-          return <StatTile key={stat.label} {...stat} />;
+          return (
+            <StatTile
+              key={stat.label}
+              label={stat.label}
+              Icon={ICONS[stat.icon]}
+              value={stat.value}
+              delta={stat.delta}
+            />
+          );
         }
 
         const total = days.reduce((sum, day) => sum + day.count, 0);
@@ -47,7 +80,7 @@ export function StatsRow() {
           <StatTile
             key={stat.label}
             label={stat.label}
-            icon={stat.icon}
+            Icon={ICONS[stat.icon]}
             value={total}
             delta={
               previousDays.length

@@ -1,11 +1,17 @@
 import type { ComponentType } from "react";
 
-import { BriefcaseIcon, CalendarIcon, UserIcon } from "@/components/icons";
+import { TrendIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-import type { Delta, Stat } from "./data";
-import { ClockIcon, TrendIcon } from "./icons";
+export type StatDelta = {
+  value: number;
+  /** "last week" — printed after "vs". */
+  period: string;
+  /** Whether a rise is the good direction. More applicants: yes. More sitting
+   *  unreviewed: no. Decides how the delta is coloured. */
+  upIsGood: boolean;
+};
 
 /**
  * One headline number.
@@ -15,11 +21,12 @@ import { ClockIcon, TrendIcon } from "./icons";
  * unit. So each tile is a label and its glyph, the value, and a change against
  * a named period.
  *
- * PRESENTATION ONLY: it takes a resolved value and delta rather than a Stat.
- * Three of the four tiles are snapshots the fixture already knows, and one is
- * measured over the selected window, so SOMETHING has to decide which — and it
- * must not be the thing drawing the box. ./stats-row.tsx does that and hands
- * this component numbers that are already true.
+ * PRESENTATION ONLY: it takes a resolved value, delta and glyph rather than a
+ * fixture record. Each dashboard decides what its numbers are — the company's
+ * Hiring Overview resolves one tile against the selected window
+ * (company/stats-row.tsx), the seeker's Dashboard reads its own fixture — and
+ * neither decision belongs to the thing drawing the box. Moved here from
+ * company/ when the seeker Dashboard became its second consumer.
  *
  * The value uses the font's proportional figures rather than tabular ones.
  * tabular-nums gives every digit the width of a zero, which is what keeps a
@@ -63,37 +70,21 @@ import { ClockIcon, TrendIcon } from "./icons";
  * on colour.
  * ------------------------------------------------------------------------- */
 
-/**
- * The glyph each stat wears, resolved from the key its fixture carries.
- *
- * Three of the four come from src/components/icons.tsx, which is where a glyph
- * lives once more than one route wants it — a briefcase is also the company
- * nav's Job Postings and a calendar is also an applicant's date. ClockIcon is
- * the company shell's own, and moves over the day a second route needs it.
- *
- * The map is here rather than in ./data.ts so the fixtures stay free of
- * components; see the note on Stat.icon.
- */
-const ICONS: Record<Stat["icon"], ComponentType<{ className?: string }>> = {
-  roles: BriefcaseIcon,
-  applicants: UserIcon,
-  review: ClockIcon,
-  interviews: CalendarIcon,
-};
-
 export function StatTile({
   label,
-  icon,
+  Icon,
   value,
+  suffix = "",
   delta,
 }: {
   label: string;
-  icon: Stat["icon"];
+  /** Decoration beside the label; see the note on the glyph below. */
+  Icon: ComponentType<{ className?: string }>;
   value: number;
-  delta?: Delta;
+  /** Printed after the value and its delta — "%" for a rate. */
+  suffix?: string;
+  delta?: StatDelta;
 }) {
-  const Icon = ICONS[icon];
-
   return (
     <Card padding="md">
       {/* The glyph is decoration, not information: the label beside it already
@@ -106,7 +97,10 @@ export function StatTile({
         <Icon aria-hidden="true" className="text-ink-subtle size-4 shrink-0" />
       </div>
 
-      <p className="text-display text-ink mt-1.5">{format(value)}</p>
+      <p className="text-display text-ink mt-1.5">
+        {format(value)}
+        {suffix}
+      </p>
 
       {delta && (
         <p className="mt-2 flex items-center gap-1.5">
@@ -122,22 +116,20 @@ export function StatTile({
               <TrendIcon className="mr-1 size-3 shrink-0" down={delta.value < 0} />
               {delta.value > 0 ? "+" : ""}
               {format(delta.value)}
+              {suffix}
             </Badge>
           )}
-          <span className="text-meta text-ink-meta">vs {delta.period}</span>
+          <span className="text-note text-ink-meta">vs {delta.period}</span>
         </p>
       )}
     </Card>
   );
 }
 
-/** A rise is good only when rising is the direction you wanted. Only asked
- *  about a delta that actually moved — zero is handled before this. */
 function isGood(value: number, upIsGood: boolean) {
   return value > 0 === upIsGood;
 }
 
-/** Compact above five figures, so a tile never wraps its own number. */
 function format(value: number) {
   const abs = Math.abs(value);
   if (abs < 10_000) return value.toLocaleString();

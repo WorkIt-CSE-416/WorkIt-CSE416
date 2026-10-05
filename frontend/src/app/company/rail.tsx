@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 
 import { HIGHLIGHTS, ACTIVE_APPLICATIONS, STAGE_REACH } from "./data";
-import { TrendIcon } from "./icons";
+import { TrendIcon } from "@/components/icons";
 
 /**
  * The column beside the trend chart.

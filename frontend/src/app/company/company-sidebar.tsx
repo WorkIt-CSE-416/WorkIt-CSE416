@@ -1,9 +1,9 @@
 "use client";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
-import { BriefcaseIcon, UserIcon } from "@/components/icons";
+import { BriefcaseIcon, GridIcon, UserIcon } from "@/components/icons";
 
-import { BuildingIcon, GridIcon } from "./icons";
+import { BuildingIcon } from "./icons";
 
 /**
  * The company shell's left panel.

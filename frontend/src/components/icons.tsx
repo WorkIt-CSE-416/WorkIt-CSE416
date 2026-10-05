@@ -119,6 +119,35 @@ export function PencilIcon({ className }: IconProps) {
   );
 }
 
+/** A dashboard — four panes, the conventional mark. The company's Overview
+ *  and the seeker's Dashboard. */
+export function GridIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
+      <rect x="2.2" y="2.2" width="5" height="5" rx="1.2" />
+      <rect x="8.8" y="2.2" width="5" height="5" rx="1.2" />
+      <rect x="2.2" y="8.8" width="5" height="5" rx="1.2" />
+      <rect x="8.8" y="8.8" width="5" height="5" rx="1.2" />
+    </svg>
+  );
+}
+
+/** Delta direction on a stat tile. Rotated for a fall, so one path serves both
+ *  and the two arrows are guaranteed to mirror each other exactly. */
+export function TrendIcon({ className, down = false }: IconProps & { down?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      {...strokeProps}
+      className={className}
+      style={down ? { transform: "rotate(180deg)" } : undefined}
+    >
+      <path d="M8 12.8V3.6" />
+      <path d="m4.4 7.2 3.6-3.6 3.6 3.6" />
+    </svg>
+  );
+}
+
 /** Add a row: a screening question, a work-history entry. */
 export function PlusIcon({ className }: IconProps) {
   return (
