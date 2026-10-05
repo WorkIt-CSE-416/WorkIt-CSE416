@@ -52,11 +52,13 @@ class Job_Post(BaseModel):
 
     work_style: Mapped[dto.work_style]
     # nullable: "United States" or a country with no ISO subdivisions has no
-    # state. Country is required; a remote posting still names one.
+    # state.
     location_state: Mapped[str | None]
+    # nullable: a posting may name no location at all. ZZ is for a place the
+    # seed doesn't cover; NULL is for no place given.
     # own FK because Postgres skips the composite one below once location_state
     # is NULL, which would leave a country-only row unchecked
-    location_country: Mapped[str] = mapped_column(ForeignKey("countries.code"))
+    location_country: Mapped[str | None] = mapped_column(ForeignKey("countries.code"))
 
     salary: Mapped[float | None]
     salary_min: Mapped[float | None]

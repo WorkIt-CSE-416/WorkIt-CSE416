@@ -22,7 +22,7 @@ export type CompanyJob = {
   experience_level: JobPayload["experienceLevel"];
   min_years_experience: number | null;
   work_style: JobPayload["workStyle"];
-  location_country: string;
+  location_country: string | null;
   location_state: string | null;
   salary: number | null;
   salary_min: number | null;

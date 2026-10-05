@@ -216,16 +216,19 @@ Postgres does not index a foreign key column by itself.
 
 ### How job_postings references them
 
-- `location_country` — required, with its **own** FK to `countries`. Postgres
-  skips a composite FK when any of its columns is NULL (`MATCH SIMPLE`), so
-  without this a country-only row would go unchecked.
+- `location_country` — nullable since `e6230622efb3`, with its **own** FK to
+  `countries`. Postgres skips a composite FK when any of its columns is NULL
+  (`MATCH SIMPLE`), so without this a country-only row would go unchecked.
+  NULL means the posting names no location; `ZZ` means it names one the seed
+  does not cover. The `state_requires_country` CHECK still forbids a state
+  without a country.
 - `location_state` — nullable. "United States" or a country with no seeded
   subdivisions has no state.
 - The composite FK `(location_state, location_country)` → `states(code,
   country_code)` rejects a state from the wrong country: `('US-NY', 'CA')`
   fails.
-- **Remote is `work_style`, not a location.** A remote posting still names a
-  country ("Remote, US"). Never add a sentinel "REMOTE" code; it duplicates
+- **Remote is `work_style`, not a location.** A remote posting may still name
+  a country ("Remote, US"). Never add a sentinel "REMOTE" code; it duplicates
   `work_style` and cannot say "remote, US only".
 
 A bad code raises `IntegrityError` on insert.

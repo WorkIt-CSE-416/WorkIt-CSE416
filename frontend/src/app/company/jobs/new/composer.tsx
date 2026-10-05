@@ -106,7 +106,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
   const [draft, setDraft] = useState<JobDraft>(initialDraft);
   const [questions, setQuestions] = useState<ScreeningQuestion[]>(INITIAL_QUESTIONS);
   const [locations, setLocations] = useState<SavedLocation[]>(
-    editing ? [editing.location, ...SAVED_LOCATIONS] : SAVED_LOCATIONS,
+    editing?.location ? [editing.location, ...SAVED_LOCATIONS] : SAVED_LOCATIONS,
   );
   const isLive = editing !== undefined && editing.status !== "draft";
   const steps = isLive ? LIVE_STEPS : STEPS;
@@ -178,8 +178,9 @@ export function Composer({ job }: { job?: CompanyJob }) {
    * why Work Style/Job Type/Experience Level can be blank here at all (Currency
    * and Pay Period are NOT NULL too, but the schema itself defaults them, so
    * this form does too, and there is nothing to catch for them). Location is
-   * required even for Remote because `location_country` is NOT NULL: a remote
-   * posting still names the country it hires in. The salary amount fields
+   * required even for Remote — a form choice, not the schema's: the API takes
+   * a null `location_country`, but a remote posting should still name the
+   * country it hires in. The salary amount fields
    * follow the `salary_exist` CHECK, which wants either `salary` alone or
    * `salary_min` AND `salary_max` together.
    */
