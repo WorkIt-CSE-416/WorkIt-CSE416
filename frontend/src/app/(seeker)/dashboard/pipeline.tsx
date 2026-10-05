@@ -14,22 +14,32 @@ import type { PipelineStage } from "./data";
 
 /**
  * Applied, then how many of those heard back, interviewed, got an offer — as
- * a lavender band that sets this section apart from everything above it.
+ * a neutral grey band that sets this section apart from everything above it.
  *
  * WHY A BAND AND NOT ANOTHER CARD. The page is open sections on white, one
- * violet hero, and this: a tinted panel holding four small white cards, each
+ * violet hero, and this: a grey panel holding four small white cards, each
  * with a coloured badge that breaks its top edge, and a violet "Full board"
  * tile closing the row. The change of surface is what tells the eye "this is
  * a different kind of thing" without a heading having to.
  *
- * Each stage's badge takes the colour the app already gives that point in a
- * search: brand for applying, the advanced blue for a reply, amber for the
- * interview (the expensive, nerve-racking step), positive for an offer.
+ * EACH STAGE HAS ONE COLOUR, and the badge and the funnel both wear it:
+ * brand violet for applying, the advanced blue for a reply, amber for the
+ * interview (the expensive, nerve-racking step), green for an offer. The band
+ * was lavender with a funnel in four shades of violet, which made the whole
+ * section one purple and left the badges' colours meaning nothing below
+ * them. The panel is neutral now so the stage colours carry it; only the Full
+ * board tile keeps the brand, as the section's one action.
+ *
+ * The interview amber is --color-warning-fill, with an ink glyph: the text
+ * amber renders brown at this size, and white on the bright one is 2.1:1.
+ * The offer green is --color-positive-ink: a white glyph on the lighter
+ * #17b076 is 2.8:1, under the 3:1 an icon needs; the deeper green is 5.4:1.
  *
  * THE FUNNEL runs under the cards across the same four columns, so each
  * segment sits beneath its stage: a band whose thickness is that stage's
- * share of Applied, easing into the next across the last quarter of the
- * column, deepening a step in violet each time. A zero still draws a
+ * share of Applied, in that stage's colour, easing into the next stage's
+ * thickness and colour together across the last quarter of the column (a
+ * gradient over the same span the curve takes), so it reads as one flow. A zero still draws a
  * hairline (MIN_SHARE), or a week with no offers would end the band in
  * mid-air. Plain SVG, stretched with preserveAspectRatio="none"; the numbers
  * are real text in the cards above it. Shown only once the cards sit four
@@ -40,27 +50,34 @@ import type { PipelineStage } from "./data";
  * heard back"): a low first rate says the targeting or the resume needs
  * work, a low last one says interview practice does.
  */
-const STAGE_STYLE: { Icon: ComponentType<{ className?: string }>; badge: string }[] = [
-  { Icon: BriefcaseIcon, badge: "bg-brand" },
-  { Icon: MailIcon, badge: "bg-advanced" },
-  { Icon: CalendarIcon, badge: "bg-warning" },
-  // positive-ink, not positive: a white glyph on #17b076 is 2.8:1, under the
-  // 3:1 an icon needs; the deeper green is 5.4:1.
-  { Icon: AwardIcon, badge: "bg-positive-ink" },
+const STAGE_STYLE: {
+  Icon: ComponentType<{ className?: string }>;
+  /** The badge's fill and glyph colour. */
+  badge: string;
+  /** The same colour for the funnel's SVG. */
+  color: string;
+}[] = [
+  { Icon: BriefcaseIcon, badge: "bg-brand text-white", color: "var(--color-brand)" },
+  { Icon: MailIcon, badge: "bg-advanced text-white", color: "var(--color-advanced)" },
+  {
+    Icon: CalendarIcon,
+    badge: "bg-warning-fill text-ink",
+    color: "var(--color-warning-fill)",
+  },
+  { Icon: AwardIcon, badge: "bg-positive-ink text-white", color: "var(--color-positive-ink)" },
 ];
 
 const W = 100; // per column, in viewBox units
 const H = 60;
 const MIN_SHARE = 0.05;
 const EASE = 0.25;
-const SHADES = [0.3, 0.5, 0.75, 1];
 
 export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: string }) {
   const first = stages[0]?.count || 1;
   const heights = stages.map((stage) => Math.max(stage.count / first, MIN_SHARE) * H);
 
   return (
-    <section aria-labelledby="pipeline" className="bg-brand-tint rounded-[1.25rem] p-5 sm:p-6">
+    <section aria-labelledby="pipeline" className="bg-app rounded-[1.25rem] p-5 sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 id="pipeline" className="text-title text-ink">
@@ -88,7 +105,7 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
               <span
                 aria-hidden="true"
                 className={cn(
-                  "ring-brand-tint absolute -top-5 left-1/2 flex size-10 -translate-x-1/2 items-center justify-center rounded-full text-white ring-4",
+                  "ring-app absolute -top-5 left-1/2 flex size-10 -translate-x-1/2 items-center justify-center rounded-full ring-4",
                   badge,
                 )}
               >
@@ -123,6 +140,28 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
           aria-hidden="true"
           className="hidden h-14 w-full @3xl/main:col-span-4 @3xl/main:block"
         >
+          <defs>
+            {heights.map((_, i) => {
+              const x1 = i * W + W * (1 - EASE);
+              const from = STAGE_STYLE[i]?.color ?? STAGE_STYLE[0].color;
+              const to = STAGE_STYLE[i + 1]?.color ?? from;
+
+              return (
+                <linearGradient
+                  key={i}
+                  id={`pipeline-stage-${i}`}
+                  gradientUnits="userSpaceOnUse"
+                  x1={x1}
+                  x2={i * W + W}
+                  y1={0}
+                  y2={0}
+                >
+                  <stop offset="0" style={{ stopColor: from }} />
+                  <stop offset="1" style={{ stopColor: to }} />
+                </linearGradient>
+              );
+            })}
+          </defs>
           {heights.map((h, i) => {
             const next = heights[i + 1] ?? h;
             const x0 = i * W;
@@ -144,8 +183,7 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
                   `L${x0},${bottom}`,
                   "Z",
                 ].join(" ")}
-                className="fill-brand"
-                fillOpacity={SHADES[i] ?? 1}
+                fill={`url(#pipeline-stage-${i})`}
               />
             );
           })}
