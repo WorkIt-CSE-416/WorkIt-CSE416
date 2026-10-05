@@ -24,15 +24,16 @@ export function OnboardingForm() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  function addExpertise(value: string) {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    setExpertise((current) =>
-      current.some((v) => v.toLowerCase() === trimmed.toLowerCase())
-        ? current
-        : [...current, trimmed],
-    );
-  }
+  // Unused: the expertise field calls setExpertise directly.
+  // function addExpertise(value: string) {
+  //   const trimmed = value.trim();
+  //   if (!trimmed) return;
+  //   setExpertise((current) =>
+  //     current.some((v) => v.toLowerCase() === trimmed.toLowerCase())
+  //       ? current
+  //       : [...current, trimmed],
+  //   );
+  // }
 
   // require applicant to select at least one of each.
   const canContinue = expertise.length > 0 && jobTypes.length > 0;

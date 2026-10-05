@@ -23,7 +23,9 @@ import {
   type SavedLocation,
   type ScreeningQuestion,
 } from "./data";
-import { DateField, LocationField, SelectField, TextAreaField } from "./fields";
+import { SelectField } from "@/components/ui/select-field";
+
+import { DateField, LocationField, TextAreaField } from "./fields";
 import { EyeIcon } from "./icons";
 import { JobPreview } from "./preview";
 import { ScreeningQuestions } from "./screening-questions";

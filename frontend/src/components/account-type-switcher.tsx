@@ -31,8 +31,28 @@ const TYPES = [
   { value: "company", label: "Company" },
 ] as const;
 
-export function AccountTypeSwitcher({ form }: { form: string }) {
-  const [type, setType] = useState<string>(TYPES[0].value);
+export type AccountTypeValue = (typeof TYPES)[number]["value"];
+
+/**
+ * Uncontrolled by default (login only needs the hidden input). Pass `value`
+ * and `onValueChange` when the screen has to react to the choice — signup
+ * swaps its fields per type.
+ */
+export function AccountTypeSwitcher({
+  form,
+  value,
+  onValueChange,
+}: {
+  form: string;
+  value?: AccountTypeValue;
+  onValueChange?: (next: AccountTypeValue) => void;
+}) {
+  const [ownType, setOwnType] = useState<AccountTypeValue>(TYPES[0].value);
+  const type = value ?? ownType;
+  const setType = (next: AccountTypeValue) => {
+    setOwnType(next);
+    onValueChange?.(next);
+  };
 
   return (
     <>
@@ -42,7 +62,7 @@ export function AccountTypeSwitcher({ form }: { form: string }) {
          * group as deselectable. An account type has no "neither", so an empty
          * change is dropped and the current choice stands. */
         onValueChange={([next]) => {
-          if (next) setType(next);
+          if (next) setType(next as AccountTypeValue);
         }}
         aria-label="Account type"
         spacing={0}

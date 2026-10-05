@@ -74,25 +74,28 @@ src/app/          App Router routes, layouts, pages
 src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
   icons.tsx       Glyphs used by more than one route
-  avatar.tsx      Initials stand-in for a profile photo
+  avatar.tsx      Profile photo when given `src`, initials otherwise
   nav-link.tsx    Top-bar tab that underlines itself on its own route
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
   account-menu.tsx  The avatar dropdown; each shell passes its own items
   ui/             Presentational primitives: badge, button, card, company-tile,
                   fact, filter-chip, icon-button, search-field, section-heading,
-                  text-field, text-link
+                  select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
-  api.ts          Server-only apiUpload (multipart). Guarded with
-                  `import "server-only"`. Uses API_URL (not NEXT_PUBLIC_*).
-  resume-actions.ts  Server action wrapping apiUpload for resume upload.
-                  Used by both onboarding and profile. Hardcodes a
-                  placeholder applicant UUID — TODO: read from session
-                  once /auth/me is wired.
+  api.ts          Server-only apiUpload (multipart, POST or PUT), apiGet,
+                  apiDelete. Guarded with `import "server-only"`. Uses
+                  API_URL (not NEXT_PUBLIC_*).
+  session.ts      getApplicantSession() — the signed-in id + access token.
+                  Server-only, and never in a "use server" file (see below)
+  resume-actions.ts  Server actions for resume upload/list/delete.
+                  Used by both onboarding and profile.
+  avatar-actions.ts  Server actions for the profile photo: get/upload/remove
+  avatar-rules.ts Accepted photo types and size, for the client-side check
   auth.ts         apiFetch() to the Python API (with optional Bearer token),
                   extractErrorMessage, and auth types. Server-only.
   supabase/server.ts  Per-request Supabase client — auth only, never data
@@ -188,7 +191,7 @@ pool, no schema and no migrations here — that is the Python API's job, and it
 owns the connection string. A query belongs in an endpoint, and a `page.tsx`
 reaches it through that screen's `data.ts`.
 
-**Auth is Supabase Auth, wired up for applicant accounts.** Supabase Auth
+**Auth is Supabase Auth, wired up for applicants and company owners.** Supabase Auth
 issues and refreshes the session; the Python API verifies the access token
 and owns authorization. `backend/CLAUDE.md`'s Auth section owns the flow and
 its rules — **read it before touching auth or adding an API call.** The Next
@@ -196,14 +199,26 @@ side:
 
 - `login/actions.ts` calls `supabase.auth.signInWithPassword()`, then
   `GET /auth/me` with the new access token to learn the account type and
-  onboarding state, and redirects off that. If the account type doesn't match
-  the tab the user signed in on, it signs out again and shows the
-  wrong-password message.
+  onboarding state, and redirects off that: an applicant to
+  `/onboarding/applicant` until onboarded and `/jobs` after, a company
+  account always to `/company`. Companies skip the onboarding check because
+  nothing sets their `onboarding_completed_at` yet, so it would send every
+  company login to the `/onboarding/company` stub — restore it when company
+  onboarding is built. If the account type doesn't match the tab the user
+  signed in on, it signs out again and shows the wrong-password message.
 - `signup/actions.ts` calls `POST /auth/signup` — **not**
   `supabase.auth.signUp()`, which can only write `user_metadata`, a field the
   user can edit, so it cannot be trusted with the account type — and then
-  signs in. Company signup gets the API's `501` back and shows it; don't build
-  the company-signup fields until `onboarding/company` exists to receive them.
+  signs in. The Company tab asks Create Company or Join a Company first
+  (`signup/signup-form.tsx`). Create Company sends the owner's fields plus a
+  nested `company` object (name, websiteUrl, contactEmail, contactPhone,
+  sizeRange — a `company_size_range` value from `backend/app/models/dto.py`),
+  sent only when `accountType` is `company`. The API creates the company and
+  the owner's membership, and the action then redirects an applicant to
+  onboarding and a company to `/company`. Join a Company has no form yet.
+- **A key the API's Pydantic schema doesn't declare is dropped silently**
+  (the default `extra="ignore"`), not rejected. A field added to a request
+  body here does nothing until `backend/app/schemas/` declares it too.
 - `src/proxy.ts` refreshes the session on every request. @supabase/ssr
   requires it: Server Components cannot write cookies, so without it sessions
   die when the hour-long access token does. It does nothing when the Supabase
@@ -235,6 +250,27 @@ optimistic add with rollback on failure). Both call `uploadResume` from
 knows nothing about upload logic or limits. Skill detection from resumes was
 stubbed with mock data and has been removed; add it back when the backend
 has a parsing endpoint.
+
+**Profile photo upload is wired** on the seeker profile. The pencil button
+opens a file picker restricted to JPEG/PNG/WebP; the file is checked against
+`avatar-rules.ts`, previewed immediately, and sent through `uploadAvatar`,
+rolling back on failure. The API re-encodes it to a 512px WebP and returns a
+signed URL valid for an hour — so it is fetched per page load, never stored.
+`backend/db/avatar.md` owns the formats, limits and why. The top-bar avatar
+in `account-menu.tsx` still shows initials; wiring it means fetching the URL
+in the shell layout.
+
+**The upload limit is in three places that must agree:** the API's
+`MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES` here, and `serverActions.bodySizeLimit`
+in `next.config.ts`, which must stay above 5 MB plus multipart overhead or
+Next rejects the request with a generic error before the action runs. Resumes
+share the same 5 MB / `6mb` pair.
+
+**Never export a token-returning helper from a `"use server"` file.** Every
+export of one becomes an endpoint the browser can call, so exporting
+`getApplicantSession` from `resume-actions.ts` would hand any page script the
+access token. Helpers like it live in `server-only` modules (`session.ts`)
+and are imported by the action files.
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.

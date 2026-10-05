@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { AccountTypeSwitcher } from "@/components/account-type-switcher";
 import { BrandPanel } from "@/components/brand-panel";
 import { GoogleIcon, LinkedInIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
   description: "Join WorkIt to find your next role or your next hire.",
 };
 
-/** Ties the switcher's hidden input to the form it sits above. */
+/** Ties the switcher's hidden input (inside SignupForm) to the form below it. */
 const FORM_ID = "create-account";
 
 /**
@@ -23,10 +22,10 @@ const FORM_ID = "create-account";
  * this as one screen with two doors, not two different products.
  *
  * Create Account calls POST /auth/signup (see ./actions.ts and
- * src/lib/auth.ts) for applicant accounts; a company submission still
- * round-trips to the API and shows whatever it says back (501 today — see
- * backend/db/auth_methodology.md §2 decision 4, deliberately not resolved
- * until onboarding/company exists to send a new company account to).
+ * src/lib/auth.ts) for applicant accounts. The Company tab asks Create or
+ * Join first (see ./signup-form.tsx); Create Company sends the company's
+ * fields along with the owner's, and shows whatever the API says back — 501
+ * until the backend handles company signup. Join has no form yet.
  */
 export default function SignUpPage() {
   return (
@@ -44,8 +43,6 @@ export default function SignUpPage() {
           <p className="text-body text-ink-muted mt-1 text-center">
             Join WorkIt to find your next role or your next hire
           </p>
-
-          <AccountTypeSwitcher form={FORM_ID} />
 
           <SignupForm formId={FORM_ID} />
 

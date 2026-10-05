@@ -11,13 +11,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // (a taken email, say) would wipe every field the user just typed along with
 // it. password/confirmPassword don't need this — signup-form.tsx already
 // keeps them in local state, and echoing a password back isn't good practice
-// regardless.
+// regardless. The company* fields are only filled on the Create Company path.
 export type SignupState = {
   error: string | null;
   firstName: string;
   middleName: string;
   lastName: string;
   email: string;
+  companyName: string;
+  websiteUrl: string;
+  contactEmail: string;
+  contactPhone: string;
 };
 
 /**
@@ -39,10 +43,27 @@ export async function createAccount(
   _prevState: SignupState,
   formData: FormData,
 ): Promise<SignupState> {
+  // select all values, they will be None if not for the type 
   const firstName = fieldValue(formData, "firstName");
   const middleName = fieldValue(formData, "middleName");
   const lastName = fieldValue(formData, "lastName");
   const email = fieldValue(formData, "email");
+  const accountType = fieldValue(formData, "accountType");
+  const companyName = fieldValue(formData, "companyName");
+  const websiteUrl = fieldValue(formData, "websiteUrl");
+  const contactEmail = fieldValue(formData, "contactEmail");
+  const contactPhone = fieldValue(formData, "contactPhone");
+  const companySize = fieldValue(formData, "companySize");
+  const echo = {
+    firstName,
+    middleName,
+    lastName,
+    email,
+    companyName,
+    websiteUrl,
+    contactEmail,
+    contactPhone,
+  };
 
   // clear the white spaces
   const name = [firstName, middleName, lastName]
@@ -55,11 +76,27 @@ export async function createAccount(
   // create the user in backend with supabase
   const response = await apiFetch("/auth/signup", {
     method: "POST",
-    body: JSON.stringify({ accountType: formData.get("accountType"), name, email, password }),
+    body: JSON.stringify({
+      accountType,
+      name,
+      email,
+      password,
+      
+      // fields for company sign up
+      ...(accountType === "company" && {
+        company: {
+          name: companyName.trim(),
+          websiteUrl: websiteUrl.trim() || null,
+          contactEmail: contactEmail.trim(),
+          contactPhone: contactPhone.trim() || null,
+          sizeRange: companySize,
+        },
+      }),
+    }),
   });
 
   if (!response.ok) {
-    return { error: await extractErrorMessage(response), firstName, middleName, lastName, email };
+    return { error: await extractErrorMessage(response), ...echo };
   }
 
   const account: AuthenticatedAccount = await response.json();
@@ -72,14 +109,17 @@ export async function createAccount(
   if (error) {
     return {
       error: "Your account was created, but signing in failed. Please log in again.",
-      firstName,
-      middleName,
-      lastName,
-      email,
+      ...echo,
     };
   }
 
-  // A brand-new account is never past onboarding — no onboarding_completed
-  // branch to check here, unlike login's redirect below.
-  redirect(`/onboarding/${account.account_type}`);
+  // only send to onboarding if it's profile 
+  if (account.account_type=="applicant")
+  {
+    redirect(`/onboarding/${account.account_type}`);
+  }
+  else 
+  {
+    redirect('/company'); 
+  }
 }
