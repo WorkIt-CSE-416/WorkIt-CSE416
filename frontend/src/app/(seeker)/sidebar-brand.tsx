@@ -18,12 +18,24 @@ import { cn } from "@/lib/cn";
  * the provider, so the cell cannot drift from the panel; and it eases on the
  * same 200ms linear as the panel's gap, so the rule moves with the edge.
  *
- * COLLAPSED, THE CELL IS THE RAIL'S 48px AND HOLDS THE TOGGLE ALONE, centred
- * over the rail's icons. The logo is hidden rather than moved: the lockup
- * does not fit in 48px, and carrying it over the rule to sit beside the
- * search field put the brand in two different places depending on a toggle.
- * The toggle sits 10px in when open so its centre is on the rail icons' 24px
- * line in both states.
+ * COLLAPSED, THE CELL IS THE RAIL'S 48px AND HOLDS THE TOGGLE ALONE. The logo
+ * is hidden rather than moved: the lockup does not fit in 48px, and carrying
+ * it over the rule to sit beside the search field put the brand in two
+ * different places depending on a toggle.
+ *
+ * NOTHING ABOUT THE TOGGLE CHANGES WITH THE STATE — only the cell's width
+ * does — because the width animates and everything else would not. The cell
+ * used to switch to justify-center and drop its padding on collapse, which
+ * applied at once while the width was still 256px, so the toggle leapt to
+ * the middle of the wide cell, out from under the pointer, and slid back as
+ * the cell closed. Unmounting the logo had the mirror fault on the way out:
+ * it reappeared at full size in a 48px cell, and the flex row squeezed the
+ * toggle to its 16px glyph until the width caught up. So: the toggle keeps
+ * one 10px inset, which is already centred on the rail icons' 24px line in a
+ * 48px cell, and is shrink-0; and the logo stays mounted at its full size,
+ * clipped by the narrowing cell's overflow-hidden while it fades on the same
+ * 200ms. `inert` takes it out of the tab order and the accessibility tree
+ * while it can't be seen, which unmounting used to do.
  *
  * BELOW md THERE IS NO PANEL TO MATCH — it opens as a sheet — so the cell
  * drops its width and rule and is just the toggle and the logo. md is 768px,
@@ -43,26 +55,32 @@ export function SidebarBrand() {
       className={cn(
         "flex h-full shrink-0 items-center gap-3 overflow-hidden px-4 sm:px-6",
         "md:border-border md:w-(--sidebar-width) md:border-r md:pr-4 md:pl-2.5 md:transition-[width] md:duration-200 md:ease-linear",
-        collapsed && "md:w-(--sidebar-width-icon) md:justify-center md:px-0",
+        collapsed && "md:w-(--sidebar-width-icon)",
       )}
     >
       <Tooltip>
         <TooltipTrigger
-          render={<SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-transparent" />}
+          render={
+            <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent" />
+          }
         />
         <TooltipContent>Toggle sidebar</TooltipContent>
       </Tooltip>
 
-      {!collapsed && <LogoLink />}
+      <LogoLink hidden={collapsed} />
     </div>
   );
 }
 
-function LogoLink() {
+function LogoLink({ hidden }: { hidden: boolean }) {
   return (
     <Link
       href="/"
-      className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+      inert={hidden}
+      className={cn(
+        "focus-visible:ring-brand-ring flex shrink-0 rounded-xs transition-opacity duration-200 ease-linear focus-visible:ring-2 focus-visible:outline-none",
+        hidden && "opacity-0",
+      )}
     >
       <Logo size="bar" priority />
     </Link>
