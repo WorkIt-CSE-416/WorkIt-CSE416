@@ -10,7 +10,8 @@ Python API.
 `backend/` is the whole Python project: its own `pyproject.toml`, `.venv`,
 lockfile and tooling. Nothing above it is part of this build, and nothing in
 `frontend/` is importable from here. The two halves communicate over HTTP and
-share no code.
+share no code. The scraper is no exception: `GET /jobs` reads
+`scraper/feed.json` as data and imports none of its code.
 
 **This folder owns the database.** Connection strings, schema and migrations
 all live on this side. The Next.js app holds no ORM and no credentials.
@@ -18,7 +19,8 @@ all live on this side. The Next.js app holds no ORM and no credentials.
 ## Stack
 
 FastAPI · Uvicorn · SQLAlchemy 2.0 (async, over asyncpg) · Alembic ·
-pydantic-settings · supabase-py (Storage, Auth admin) · PyJWT. Python 3.12,
+pydantic-settings · supabase-py (Storage, Auth admin) · PyJWT · Pillow
+(profile-photo re-encoding). Python 3.12,
 pinned by `requires-python = ">=3.12,<3.13"`.
 
 Dependencies are managed by **uv**. `uv add <pkg>` to add one, `uv sync` to
@@ -48,7 +50,16 @@ uv run alembic current                         which revision the DB is on
 uv run alembic check                           fail if models lack a migration
 ```
 
-There is no test runner yet. When one is added, document it here.
+```
+uv run pytest                                  run the tests in tests/
+```
+
+Tests cover the resume parser only. `tests/fixtures/*.txt` are extracted text
+of real resumes, each in a layout that once broke parsing, cut to start at the
+first section header so no contact details are committed. The heuristics
+interact — a fix for one layout has broken another more than once — so when a
+new resume parses wrong, add it as a fixture with its expected output in
+`tests/test_resume_parser.py` before touching `app/utils/resume_parser.py`.
 
 **Never run `alembic init` again** — it overwrites `alembic/env.py` and undoes
 the schema filters. `alembic/CLAUDE.md` explains what that costs.
@@ -57,18 +68,30 @@ the schema filters. `alembic/CLAUDE.md` explains what that costs.
 
 ```
 app/
-  main.py         FastAPI app. /health (liveness) and /health/db (readiness)
+  main.py         FastAPI app. /health (liveness) and /health/db (readiness);
+                  the 422 handler that keeps a non-finite number from a 500
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
   db.py           Async engine, session factory, declarative Base, Supabase client
   security.py     Verifies Supabase access tokens against the project's JWKS
   deps.py         get_current_account — the dependency every protected route uses;
                   get_company_member on top of it for company-scoped routes
   schemas/        Pydantic request/response shapes, separate from models/
+    auth.py       Signup body, /auth/me response
+    jobs.py       JobListing — also the parser for scraper/feed.json
+    company_jobs.py  JobPostingCreate and JobPosting, for /company/jobs
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
-    resumes.py    POST /applicants/{id}/resumes — file upload to Storage + DB
-    jobs.py       /company/jobs: create, list, load, update and close a company's own jobs
+    jobs.py       GET /jobs — the scraper's feed.json, public, no DB
+    company_jobs.py  /company/jobs: create, list, load, update and close a company's own jobs
+    resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
+                  text from PDF/DOCX and parses it into structured JSON
+    avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
+  services/       Logic with no HTTP or DB of its own. Never in models/,
+                  whose __init__ imports every file as a model
+    avatar.py     Validates and re-encodes an upload to a 512px WebP
+  utils/
+    resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
@@ -76,16 +99,18 @@ app/
     jobs.py       Job postings
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
-    dto.py        Enums
+    dto.py        Enums and Pydantic schemas (ParsedResume, Education, etc.)
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
+tests/            pytest; resume parser regression tests and their fixtures
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
   resume.md       Same, for resume storage and parsing
+  avatar.md       Profile photo: formats, limits, storage, bucket setup
 pyproject.toml    Dependencies, and the pinned Python series
 uv.lock           Exact resolved versions — committed
 ```
@@ -207,7 +232,10 @@ exists — so `page.tsx` is untouched either way. Design endpoints against those
 fixture shapes; they are the closest thing to a agreed contract that exists.
 
 **The app must keep running without this service.** Every screen renders its
-`data.ts` fixture, so a clone with no environment file still boots. On this
+`data.ts` fixture, so a clone with no environment file still boots. A screen
+whose data has gone live renders a clear error instead of its fixture — never
+the fixture in its place, which would pass made-up rows off as real. The Jobs
+feed is the first (`frontend/src/app/(seeker)/jobs/listings.ts`). On this
 side, `/health` and every fixture route work without the root `.env`; only
 `/health/db` needs it. Keep both true — it is what lets someone work on one
 half without the other, and it makes a failure point at one side or the other
@@ -383,6 +411,8 @@ goes to `frontend/`** — the frontend gets the anon key only.
 ### Still open
 
 - Email verification and password reset: supported by Supabase, not wired up.
+- Deleting an account cascades its rows but not its Storage objects
+  (`Resume/<id>/`, `Avatar/<id>/`). Nothing cleans those up yet.
 - Joining an existing company: no endpoint, and the form's Join tab is a
   placeholder.
 - Every `IntegrityError` at signup answers "An account with this email already
@@ -392,6 +422,3 @@ goes to `frontend/`** — the frontend gets the anon key only.
   always reports a company account as not onboarded. The frontend routes
   around it (companies skip onboarding); whatever builds company onboarding
   must set it.
-- `routers/resumes.py` takes `applicant_id` from the URL and does not depend on
-  `get_current_account` yet. Anyone who can reach the API can upload against
-  any applicant until it does.

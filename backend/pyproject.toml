@@ -10,8 +10,12 @@ dependencies = [
     "asyncpg>=0.31.0",
     "email-validator>=2.3.0",
     "fastapi>=0.141.1",
+    "ftfy>=6.3.1",
+    "pillow>=12.3.0",
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.14.0",
+    "pypdf>=6.19.0",
+    "python-docx>=1.2.0",
     "python-multipart>=0.0.32",
     "sqlalchemy[asyncio]>=2.0.53",
     "supabase>=2.31.0",
@@ -27,8 +31,13 @@ python-preference = "only-managed"
 
 [dependency-groups]
 dev = [
+    "pytest>=9.1.1",
     "ruff>=0.16.8",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
 
 [tool.ruff]
 exclude = ["alembic/versions"]

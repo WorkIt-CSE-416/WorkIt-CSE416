@@ -1,4 +1,4 @@
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { formatDistanceToNowStrict } from "date-fns";
 
 import type { ExperienceLevel, JobType, Recommendation, WorkStyle } from "./data";
 
@@ -39,12 +39,6 @@ export function formatWorkStyle(workStyle: WorkStyle) {
 
 export function formatExperienceLevel(level: ExperienceLevel) {
   return EXPERIENCE_LABEL[level];
-}
-
-/** Null when the role has no minimum, which is what tells the card to drop
- *  the fact rather than print an empty one. */
-export function formatMinYearsExperience(minYears?: number) {
-  return minYears ? `${minYears}+ yrs exp` : null;
 }
 
 export function formatLocation(city: string | null, country: string | null) {
@@ -111,11 +105,4 @@ export function formatSalary(
 
 export function formatPosted(uploadedAt: string) {
   return `Posted ${formatDistanceToNowStrict(new Date(uploadedAt))} ago`;
-}
-
-/** The 6th fact slot: a close date when the posting has one, else recency. */
-export function formatTiming(uploadedAt: string, closesAt?: string) {
-  return closesAt
-    ? `Closes ${format(new Date(closesAt), "MMM d, yyyy")}`
-    : formatPosted(uploadedAt);
 }

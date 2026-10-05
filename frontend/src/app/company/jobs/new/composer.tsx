@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type MouseEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextField } from "@/components/ui/text-field";
 import { saveJob, type JobPayload } from "@/lib/job-actions";
+import type { CompanyJob } from "@/lib/job-queries";
 
 import {
   DEPARTMENTS,
@@ -30,7 +31,7 @@ import { SelectField } from "@/components/ui/select-field";
 
 import { DateField, LocationField, TextAreaField } from "./fields";
 import { EyeIcon } from "./icons";
-import { toJobPayload } from "./payload";
+import { fromCompanyJob, toJobPayload } from "./payload";
 import { JobPreview } from "./preview";
 import { ScreeningQuestions } from "./screening-questions";
 import { Stepper } from "./stepper";
@@ -72,9 +73,14 @@ const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
  * free text; Employment Type split into Job Type and Experience Level; and
  * Salary gained a type toggle plus currency and period.
  *
- * EDITING REUSES THIS SCREEN. /company/jobs/[jobId]/edit passes `editing`,
- * which fills the form from the saved job and makes both buttons update it
- * instead of creating a new one. A published job can't go back to draft, and
+ * EDITING REUSES THIS SCREEN. /company/jobs/[jobId]/edit passes the saved
+ * `job`, which fills the form and makes both buttons update it instead of
+ * creating a new one. The form is built from it here, in the browser, not on
+ * the server: `closes_at` becomes a calendar day in the recruiter's own
+ * timezone, and a UTC server would hand back the next day to anyone in the
+ * Americas, so every save would push the date a day later. The initializer
+ * runs again during hydration, and the date only renders on the last step,
+ * so the server's version never reaches the screen. A published job can't go back to draft, and
  * is already live, so editing one drops the publishing language entirely: the
  * last step is Review, and the one primary action is Update Job, offered on
  * every step so a quick fix needn't walk through all three.
@@ -84,18 +90,19 @@ const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
  * lives beside the status badge rather than among the save buttons. A closed
  * job is final: the form still opens so it can be read, but nothing saves.
  */
-export function Composer({
-  editing,
-}: {
-  editing?: {
-    id: string;
-    status: "draft" | "published" | "closed";
-    draft: JobDraft;
-    location: SavedLocation;
-  };
-}) {
+export function Composer({ job }: { job?: CompanyJob }) {
+  const [editing] = useState(
+    () =>
+      job && {
+        id: job.id,
+        status: job.status,
+        updatedAt: job.updated_at,
+        ...fromCompanyJob(job),
+      },
+  );
+  const initialDraft = editing?.draft ?? EMPTY_DRAFT;
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<JobDraft>(editing?.draft ?? EMPTY_DRAFT);
+  const [draft, setDraft] = useState<JobDraft>(initialDraft);
   const [questions, setQuestions] = useState<ScreeningQuestion[]>(INITIAL_QUESTIONS);
   const [locations, setLocations] = useState<SavedLocation[]>(
     editing ? [editing.location, ...SAVED_LOCATIONS] : SAVED_LOCATIONS,
@@ -107,6 +114,26 @@ export function Composer({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
   const router = useRouter();
+
+  /** Questions count too, though they aren't saved yet: losing them to a
+   *  stray reload is still losing work. A closed job can't be saved, so
+   *  there is nothing to lose there. */
+  const isDirty =
+    !isClosed &&
+    (JSON.stringify(draft) !== JSON.stringify(initialDraft) || questions !== INITIAL_QUESTIONS);
+
+  // Reloading or closing the tab with unsaved edits asks first. In-app links
+  // don't fire beforeunload, so Cancel asks for itself (see `confirmLeave`).
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
+
+  function confirmLeave(event: MouseEvent) {
+    if (isDirty && !window.confirm("Discard your unsaved changes?")) event.preventDefault();
+  }
 
   function set<K extends keyof JobDraft>(key: K, value: JobDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -142,13 +169,28 @@ export function Composer({
   if (!draft.jobType) missingFields.push("Job Type");
   if (!draft.experienceLevel) missingFields.push("Experience Level");
   if (draft.salaryType === "Exact figure") {
-    if (!draft.salary) missingFields.push("Salary Amount");
+    if (isBlankNumber(draft.salary)) missingFields.push("Salary Amount");
   } else {
-    if (!draft.salaryMin) missingFields.push("Salary Min");
-    if (!draft.salaryMax) missingFields.push("Salary Max");
+    if (isBlankNumber(draft.salaryMin)) missingFields.push("Salary Min");
+    if (isBlankNumber(draft.salaryMax)) missingFields.push("Salary Max");
   }
   if (!draft.description.trim()) missingFields.push("Job Description");
-  const canLeaveBasicDetails = missingFields.length === 0;
+
+  /** The API's other limits, caught here so they name the field. Its 422s
+   *  only say "Input should be less than or equal to 50", and the preview
+   *  would otherwise show "$150k – $100k" before that. Title's 200 is held by
+   *  the input's maxLength. */
+  const invalidFields: string[] = [];
+  if (
+    draft.salaryType === "Range" &&
+    !isBlankNumber(draft.salaryMin) &&
+    !isBlankNumber(draft.salaryMax) &&
+    Number(draft.salaryMin) > Number(draft.salaryMax)
+  )
+    invalidFields.push("Salary Min can't be more than Salary Max");
+  if (draft.experienceLevel === "Experienced" && Number(draft.minYearsExperience) > 50)
+    invalidFields.push("Min Years Experience can be at most 50");
+  const canLeaveBasicDetails = missingFields.length === 0 && invalidFields.length === 0;
 
   /** Every required field lives on Basic Details, so a draft that can leave
    *  it is one the API will accept. Pending blocks a second click from
@@ -156,7 +198,10 @@ export function Composer({
   function save(status: JobPayload["status"]) {
     setSaveError(null);
     startSaving(async () => {
-      const { error } = await saveJob(toJobPayload(draft, locations, status), editing?.id);
+      const { error } = await saveJob(
+        toJobPayload(draft, locations, status),
+        editing && { id: editing.id, updatedAt: editing.updatedAt },
+      );
       if (error) {
         setSaveError(error);
         return;
@@ -237,14 +282,17 @@ export function Composer({
                   label="Job Title"
                   placeholder="e.g. Senior Frontend Engineer"
                   required
+                  maxLength={200}
                   value={draft.title}
                   onChange={(event) => set("title", event.target.value)}
                 />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {/* No column holds department or city yet, so both are
+                      labelled rather than silently dropped on save. */}
                   <SelectField
                     id="department"
-                    label="Department"
+                    label="Department (not saved yet)"
                     value={draft.department}
                     onValueChange={(department) => set("department", department)}
                     options={DEPARTMENTS}
@@ -277,6 +325,9 @@ export function Composer({
                   options={locations}
                   onAddLocation={addLocation}
                 />
+                <p className="text-meta text-ink-faint -mt-3">
+                  Only the country is saved for now. The city isn&apos;t stored yet.
+                </p>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <SelectField
@@ -385,6 +436,10 @@ export function Composer({
 
           {step === 1 && (
             <div className="p-4.5">
+              <p className="text-meta text-ink-meta mb-4">
+                Screening questions aren&apos;t saved yet. You can draft them here, but they
+                won&apos;t be kept with the job.
+              </p>
               <ScreeningQuestions questions={questions} onChange={setQuestions} />
             </div>
           )}
@@ -420,6 +475,12 @@ export function Composer({
               Complete the required fields to continue: {missingFields.join(", ")}.
             </p>
           )}
+          {step === 0 &&
+            invalidFields.map((problem) => (
+              <p key={problem} className="text-meta text-danger px-4.5 pt-3">
+                {problem}.
+              </p>
+            ))}
 
           {saveError && <p className="text-meta text-danger px-4.5 pt-3">{saveError}</p>}
 
@@ -432,11 +493,13 @@ export function Composer({
               </Button>
             )}
 
+            {/* Every mode gets a way out, a new job and a draft included. */}
+            <ButtonLink href="/company/jobs" variant="ghost" onClick={confirmLeave}>
+              Cancel
+            </ButtonLink>
+
             {isLive ? (
               <>
-                <ButtonLink href="/company/jobs" variant="ghost">
-                  Cancel
-                </ButtonLink>
                 {!isPublishStep && (
                   <Button
                     variant="secondary"
@@ -537,6 +600,11 @@ function NumberField({
       onChange={(event) => onValueChange(sanitizeNumeric(event.target.value, allowDecimal))}
     />
   );
+}
+
+/** Nothing typed, or only the "." on the way to "27.50": no amount yet. */
+function isBlankNumber(value: string) {
+  return value === "" || value === ".";
 }
 
 /** Digits only, or digits with at most one "." and two digits after it. */

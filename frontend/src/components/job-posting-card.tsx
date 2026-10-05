@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Avatar } from "@/components/avatar";
+import { CompanyLogo } from "@/components/company-logo";
 import {
   AwardIcon,
   BriefcaseIcon,
@@ -13,24 +13,24 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
+import { cn } from "@/lib/cn";
 
 /**
- * The job posting card a seeker sees on their Jobs feed: a square initials
- * tile standing in for the employer's logo, a posted/closes badge, title,
+ * The job posting card a seeker sees on their Jobs feed: the employer's logo
+ * (or its initials) in a square tile, a posted/closes badge, title,
  * company name, and a six-fact grid (location, job type, salary, work style,
  * experience level, years required). Moved here from (seeker)/jobs/page.tsx
  * so the company composer's Publish-step preview can show a recruiter the
  * same card a seeker will actually see, rather than a second card that only
  * resembles it.
  *
- * THE TILE IS <Avatar> RESHAPED, NOT A SEPARATE COMPONENT. <Avatar> is built
- * for people (profile photos, account menus) and is circular everywhere else
- * it is used; a company mark reads as a square the way `<CompanyTile>` draws
- * it elsewhere in the app. Rather than fork a second initials component for
- * one shape difference, the className override wins — `rounded-card` beats
- * `<Avatar>`'s own `rounded-full` under tailwind-merge's conflict resolution,
- * since both set the same CSS property. Reach for `<CompanyTile>` instead once
- * this card has a real per-company logo to draw rather than initials.
+ * THE TILE IS <CompanyLogo>: the logo the employer uploaded to its job board,
+ * falling back to <Avatar> initials when there is none or it fails to load.
+ * <Avatar> is circular everywhere else it is used; a company mark reads as a
+ * square, so the className override wins — `rounded-card` beats `<Avatar>`'s
+ * own `rounded-full` under tailwind-merge's conflict resolution, since both
+ * set the same CSS property. Not `<CompanyTile>`: that draws an icon glyph,
+ * not an image.
  *
  * THE BADGE ABOVE THE TITLE IS TIMING, NOT ROLE TAGS. An earlier version put
  * role-tag badges there ("Frontend Engineer", "Software Engineer"), but the
@@ -71,6 +71,8 @@ import { Fact } from "@/components/ui/fact";
  */
 export type JobPostingCardData = {
   company: string;
+  /** The company's logo; omit (or null) for its initials instead. */
+  logoUrl?: string | null;
   /** Omit to render the company name in the same ink without a real `<a>`
    *  under it — the composer's preview has nowhere to send a click that
    *  wouldn't abandon the draft being edited. */
@@ -79,20 +81,24 @@ export type JobPostingCardData = {
   /** The posting's expanded view. Omit for a plain heading, for the same
    *  reason `companyHref` is optional. */
   titleHref?: string;
-  /** "Posted 3 hours ago" or "Closes Sep 29, 2026" — see (seeker)/jobs/format.ts's
-   *  `formatTiming`. Printed as a badge above the title, not as a grid fact. */
-  timing: string;
-  /** Null omits the fact entirely rather than printing it empty. A fully
-   *  remote posting has no location — `workStyle` already says "Remote", and
-   *  repeating it under the pin icon reads as two different facts agreeing by
-   *  coincidence rather than as one fact. */
+  /** "Posted 3 hours ago" — see (seeker)/jobs/format.ts's `formatPosted`.
+   *  Printed as a badge above the title, not as a grid fact. Null drops the
+   *  badge: a scraped role whose board never dated it. */
+  timing: string | null;
+  /** Null omits the fact entirely rather than printing it empty — the rule for
+   *  every nullable fact below. A fully remote posting has no location —
+   *  `workStyle` already says "Remote", and repeating it under the pin icon
+   *  reads as two different facts agreeing by coincidence rather than as one
+   *  fact. */
   location: string | null;
-  jobType: string;
-  salary: string;
-  workStyle: string;
+  /** Null for a scraped role: job boards rarely state salary, job type or work
+   *  style, and a guessed "Full-time" would be a fact no employer stated. */
+  jobType: string | null;
+  salary: string | null;
+  workStyle: string | null;
   experienceLevel: string;
   /** "3+ yrs exp" — null when the role has no minimum (an internship, a new
-   *  grad role), which omits the fact rather than printing an empty one. */
+   *  grad role). */
   minYearsExperience: string | null;
 };
 
@@ -111,6 +117,18 @@ export function JobPostingCard({
   actions?: ReactNode;
   rail?: ReactNode;
 }) {
+  // Grid order, with a null dropped rather than printed empty.
+  const facts = (
+    [
+      ["location", PinIcon, job.location],
+      ["jobType", BriefcaseIcon, job.jobType],
+      ["salary", CoinIcon, job.salary],
+      ["workStyle", MonitorIcon, job.workStyle],
+      ["experienceLevel", AwardIcon, job.experienceLevel],
+      ["minYearsExperience", CalendarIcon, job.minYearsExperience],
+    ] as const
+  ).filter(([, , text]) => text != null);
+
   return (
     <Card as="article" padding="none" className="flex flex-col overflow-hidden md:flex-row">
       <div className="min-w-0 flex-1 p-4">
@@ -121,17 +139,20 @@ export function JobPostingCard({
               guessed pixel value that happens to match today's content. Only
               the width is fixed, so there is a cross-axis size for stretch to
               fill. */}
-          <Avatar
+          <CompanyLogo
             name={job.company}
+            src={job.logoUrl}
             className="text-heading rounded-card w-20 shrink-0 self-stretch"
           />
 
           <div className="min-w-0 flex-1">
-            <Badge variant="status" tone="positive">
-              {job.timing}
-            </Badge>
+            {job.timing != null && (
+              <Badge variant="status" tone="positive">
+                {job.timing}
+              </Badge>
+            )}
 
-            <h3 className="text-title text-ink mt-1.5">
+            <h3 className={cn("text-title text-ink", job.timing != null && "mt-1.5")}>
               {job.titleHref ? (
                 <Link href={job.titleHref} className={INK_LINK}>
                   {job.title}
@@ -160,14 +181,11 @@ export function JobPostingCard({
             a stack of these scannable. Timing lives in the badge above the
             title now, not here — see the note on <JobPostingCardData>. */}
         <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 sm:grid-cols-3">
-          {job.location != null && <Fact Icon={PinIcon}>{job.location}</Fact>}
-          <Fact Icon={BriefcaseIcon}>{job.jobType}</Fact>
-          <Fact Icon={CoinIcon}>{job.salary}</Fact>
-          <Fact Icon={MonitorIcon}>{job.workStyle}</Fact>
-          <Fact Icon={AwardIcon}>{job.experienceLevel}</Fact>
-          {job.minYearsExperience != null && (
-            <Fact Icon={CalendarIcon}>{job.minYearsExperience}</Fact>
-          )}
+          {facts.map(([name, Icon, text]) => (
+            <Fact key={name} Icon={Icon}>
+              {text}
+            </Fact>
+          ))}
         </div>
 
         {actions && (

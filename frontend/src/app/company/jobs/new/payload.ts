@@ -1,4 +1,5 @@
-import type { CompanyJob, JobPayload } from "@/lib/job-actions";
+import type { JobPayload } from "@/lib/job-actions";
+import type { CompanyJob } from "@/lib/job-queries";
 
 import {
   DEPARTMENTS,
@@ -39,8 +40,10 @@ const SALARY_PERIOD = {
   Hour: "hour",
 } as const satisfies Record<string, JobPayload["salaryPeriod"]>;
 
+/** "" (and a lone "." typed on the way to "27.50") is no number at all.
+ *  Number(".") is NaN, which JSON would send as null. */
 function toNumber(value: string) {
-  return value === "" ? null : Number(value);
+  return value === "" || value === "." ? null : Number(value);
 }
 
 /**
@@ -95,6 +98,10 @@ function labelFor<T extends string>(map: Record<string, T>, value: T) {
 
 /**
  * A saved job turned back into the composer's draft, for the edit page.
+ *
+ * Browser only: `closes_at` becomes a calendar day in the timezone this runs
+ * in. On a UTC server that is the day after for anyone in the Americas, and
+ * every save would push the closing date a day later.
  *
  * The location comes back as a country-only entry: no city was stored, so
  * guessing one from the company's saved locations could show the wrong

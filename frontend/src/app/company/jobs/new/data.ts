@@ -86,12 +86,14 @@ export const INITIAL_QUESTIONS: ScreeningQuestion[] = [
  *  note in ./stepper.tsx about why the rail draws all three anyway. */
 export const STEPS = ["Basic Details", "Screening", "Publish"] as const;
 
+/** Only countries the `countries` table is seeded with (cca905583de8): a
+ *  code it lacks fails the `location_country` foreign key on save. Adding
+ *  one means seeding it in a new migration first. */
 export const COUNTRIES = [
   { code: "US", name: "United States" },
   { code: "CA", name: "Canada" },
   { code: "GB", name: "United Kingdom" },
   { code: "DE", name: "Germany" },
-  { code: "IN", name: "India" },
   { code: "AU", name: "Australia" },
 ] as const;
 

@@ -19,7 +19,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.models.dto import company_size_range
+from app.models.dto import company_size_range, profile_status
 
 # Case shouldn't matter for an email address — "Jane@Example.com" and
 # "jane@example.com" are the same account — but it must for a password.
@@ -91,3 +91,7 @@ class AuthenticatedAccount(BaseModel):
     account_type: AccountType
     onboarding_completed: bool
     company_id: UUID | None = None
+    # For get_company_member, so it needn't load the membership row a second
+    # time. exclude=True keeps it out of /auth/me's response: it decides
+    # access, and the frontend has no use for it.
+    membership_status: profile_status | None = Field(None, exclude=True)

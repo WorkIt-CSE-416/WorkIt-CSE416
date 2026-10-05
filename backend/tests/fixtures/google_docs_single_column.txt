@@ -1,0 +1,48 @@
+EDUCATION
+Stony Brook University | Stony Brook, NY  Expected December 2026
+B.S. in Computer Science  |  Minor in Writing & Rhetoric
+Relevant Courses: Visual Rhetoric, Software Engineering, Technical Communications, Analysis of Algorithms
+SKILLS
+Design: Figma, Prototyping, Design Systems, User Flows, Information Architecture, Interaction Design
+Tools: Storybook, PostHog, Jira, Notion
+Languages: Java, Python, JavaScript, TypeScript, C, HTML/CSS
+Engineering: TypeScript, React, Next.js, Tailwind CSS, Node.js, PostgreSQL, MongoDB
+Certificates: NSF I-Corps (Customer Discovery), Google Project Management
+EXPERIENCE
+Pulp Internet Corporation (Seed-Stage AI Startup)
+Product Designer & Engineer  October 2025 - August 2026
+• Served as sole product designer for Pulp's four AI content applications, owning every screen and user flow end to end
+across a connected platform where content authored in one application is published to another for public discussion.
+• Rebuilt Pulp's design process, replacing scattered Figma mocks with a rapid iteration workflow that turned stakeholder
+requirements into high-fidelity, build-ready prototypes, establishing a single source of truth for leadership approval and
+engineering handoff.
+• Created a distinct design system for each product and site, with tokens for color, typography, and elevation and a 30+
+component Storybook library, keeping visual quality consistent as new features shipped.
+Product & Operations Lead Intern  January 2025 - August 2025
+• Led delivery of a job-matching platform for a client organization in three months, shaping a resume scorer that surfaced
+ATS compatibility and ranking feedback as scored suggestions inline on the resume.
+• Translated research findings and startup constraints into PRDs, user stories, and milestone plans that guided 20+
+contributors.
+• Ran roadmapping and prioritization across six interdisciplinary pods, matching engineering capacity to scope and turning
+pod progress into founder-facing reporting.
+PROJECTS
+thinkwell (Pulp) |AI Communications Intelligence Platform  April 2026 - July 2026
+Figma, Next.js, TypeScript, Tailwind CSS, Storybook, Mapbox
+• Unified six modules (intelligence feed, analytics dashboards, mail, calendar, stakeholders, and a document editor) under
+one navigation model, with an Ask Thinkwell AI assistant for search and inline editing available throughout.
+• Visualized news intelligence through a feed that tags each story by topic and political lean, and an interactive globe with
+heatmap and cluster views that maps coverage by location.
+• Structured a stakeholder CRM covering nearly 1,000 organizations with FEC-sourced records, and a relationship graph that
+separates warm paths the team owns from known ties to guide outreach.
+pulp101.com (Pulp) | Editorial & Discussion Platform  May 2026 - July 2026
+Next.js, TypeScript, Tailwind CSS, Framer Motion
+• Consolidated 31 article layouts into one flexible template system, letting editors launch new content formats without
+engineering support, and wrote the specification the team adopted as its standard.
+• Defined sentence- and region-level commenting so readers discuss a specific claim instead of a whole article, specifying
+how selections, overlapping comments, and voting behave.
+AI Pitch Room (Pulp) |Interactive Investor Experience  March 2026 - April 2026
+Next.js, TypeScript, Claude API, PostHog
+• Designed and built a gated portal pairing fundraising materials with an AI assistant that answers investor questions, using
+a three-layer prompt architecture so updating content once propagates to every answer.
+• Scoped each investor's access to the materials they were cleared to see, and instrumented engagement to learn which
+materials investors actually read.
