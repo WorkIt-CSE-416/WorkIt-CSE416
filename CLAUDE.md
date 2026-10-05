@@ -139,6 +139,15 @@ The team develops on both macOS and Windows. Keep it that way:
 
 **Guidance for Claude belongs in a `CLAUDE.md`, never in a `README.md`.**
 
+**Hard requirement: every code change updates `CLAUDE.md` in the same
+change.** Edit the nearest `CLAUDE.md` that covers the code you touched — a
+new file in a layout tree, a new command, a changed convention or invariant,
+a decision made or reversed, a "still open" item closed. Not optional, not a
+follow-up PR: a change that leaves its `CLAUDE.md` describing the old
+behaviour is incomplete and does not merge. These files are only worth
+loading into context while they are true, and they drift one skipped update
+at a time.
+
 - `CLAUDE.md` — conventions, invariants, rationale, the things that must not be
   changed and why, and what is still undecided. Written for whoever picks the
   work up next, human or agent. The root file is always in context;
