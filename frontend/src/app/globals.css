@@ -288,6 +288,11 @@
    * needs the amber people recognise as "caution". White text on this is
    * 2.1:1, so nothing is ever printed on it. */
   --color-warning-fill: #f2a516;
+  /* Amber deep enough to carry a white glyph: 3.19:1, over the 3:1 a glyph
+   * needs. A seeker's Interviewing stage wears it (badge, bar, funnel), so
+   * its icon is white like every other stage's rather than ink on the bright
+   * fill above, which read as the one stage drawn differently. */
+  --color-warning-strong: #d97706;
   --color-danger: #c02a3d; /* unmeasured: rejected, ended badly */
   --color-danger-tint: #fce9eb;
 

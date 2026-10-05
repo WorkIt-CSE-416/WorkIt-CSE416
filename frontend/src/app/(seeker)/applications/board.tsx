@@ -133,9 +133,8 @@ export function ApplicationsBoard() {
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "flex size-6 shrink-0 items-center justify-center rounded-full",
+                    "flex size-6 shrink-0 items-center justify-center rounded-full text-white",
                     STAGE_COLOR[column.stage].fill,
-                    STAGE_COLOR[column.stage].onFill,
                   )}
                 >
                   <StageIcon className="size-3.5" />

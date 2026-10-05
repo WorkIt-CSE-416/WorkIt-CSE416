@@ -15,15 +15,17 @@ import type { BadgeTone } from "@/components/ui/badge";
  *   offer         green   finished well
  *
  * Each stage carries every form the screens need, as literal class names so
- * Tailwind sees them: a solid fill (a badge, a bar) and the glyph that reads
- * on it, a tint and the text that reads on that, a panel (the board column
+ * Tailwind sees them: a solid fill (a badge, a bar), a tint and the text that
+ * reads on that, a panel (the board column
  * that holds a stage's cards: its tint and a faint border in the same hue),
  * the <Badge> tone, and the raw colour for SVG.
  *
- * Amber is --color-warning-fill with ink on it, not white: the text amber
- * renders brown as a fill, and white on the bright one is 2.1:1. Green is
- * --color-positive-ink, not --color-positive: white on the lighter green is
- * 2.8:1, under the 3:1 a glyph needs.
+ * EVERY FILL CARRIES A WHITE GLYPH, at 3:1 or better, so a stage's icon is
+ * drawn the same way on every stage. That rules out three lighter colours:
+ * grey is --color-ink-meta, not --color-ink-subtle (white on it is 2.95:1);
+ * amber is --color-warning-strong, not --color-warning-fill (2.1:1, which is
+ * why Interviewing once had a black icon among white ones); green is
+ * --color-positive-ink, not --color-positive (2.8:1).
  */
 export type StageKey = "saved" | "applied" | "heardBack" | "interviewing" | "offer";
 
@@ -41,7 +43,6 @@ export const STAGE_COLOR: Record<
   StageKey,
   {
     fill: string;
-    onFill: string;
     tint: string;
     onTint: string;
     panel: string;
@@ -50,17 +51,15 @@ export const STAGE_COLOR: Record<
   }
 > = {
   saved: {
-    fill: "bg-ink-subtle",
-    onFill: "text-white",
+    fill: "bg-ink-meta",
     tint: "bg-inert-tint",
     onTint: "text-ink-meta",
     panel: "bg-app border-border-subtle",
     tone: "inert",
-    css: "var(--color-ink-subtle)",
+    css: "var(--color-ink-meta)",
   },
   applied: {
     fill: "bg-brand",
-    onFill: "text-white",
     tint: "bg-brand-tint",
     onTint: "text-brand-ink",
     panel: "bg-brand-tint border-brand/20",
@@ -69,7 +68,6 @@ export const STAGE_COLOR: Record<
   },
   heardBack: {
     fill: "bg-advanced",
-    onFill: "text-white",
     tint: "bg-advanced-tint",
     onTint: "text-advanced",
     panel: "bg-advanced-tint border-advanced/20",
@@ -77,17 +75,15 @@ export const STAGE_COLOR: Record<
     css: "var(--color-advanced)",
   },
   interviewing: {
-    fill: "bg-warning-fill",
-    onFill: "text-ink",
+    fill: "bg-warning-strong",
     tint: "bg-warning-tint",
     onTint: "text-warning",
     panel: "bg-warning-tint border-warning-fill/40",
     tone: "warning",
-    css: "var(--color-warning-fill)",
+    css: "var(--color-warning-strong)",
   },
   offer: {
     fill: "bg-positive-ink",
-    onFill: "text-white",
     tint: "bg-positive-tint",
     onTint: "text-positive-ink",
     panel: "bg-positive-tint border-positive/30",

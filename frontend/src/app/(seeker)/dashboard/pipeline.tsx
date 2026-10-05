@@ -78,7 +78,7 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
               ? Math.round((stage.count / previous.count) * 100)
               : null;
           const key = STAGES[i] ?? STAGES[0];
-          const { fill, onFill } = STAGE_COLOR[key];
+          const { fill } = STAGE_COLOR[key];
           const Icon = STAGE_ICON[key];
 
           return (
@@ -89,9 +89,8 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
               <span
                 aria-hidden="true"
                 className={cn(
-                  "ring-app absolute -top-5 left-1/2 flex size-10 -translate-x-1/2 items-center justify-center rounded-full ring-4",
+                  "ring-app absolute -top-5 left-1/2 flex size-10 -translate-x-1/2 items-center justify-center rounded-full text-white ring-4",
                   fill,
-                  onFill,
                 )}
               >
                 <Icon className="size-4" />
