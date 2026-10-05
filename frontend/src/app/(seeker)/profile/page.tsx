@@ -34,7 +34,7 @@ import {
   type ParsedResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
-import { ResumeReviewDialog, type SectionKey } from "./resume-review-dialog";
+import { EMPTY_RESUME, ResumeEditDialog, type SectionKey } from "./resume-edit-dialog";
 import { ExperienceCard, SkillsCard } from "./resume-sections";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
@@ -77,14 +77,6 @@ import { SEEKER_GUTTER } from "../gutter";
  * failed resume list holds the first row's place in grey rather than red, so
  * a list that did not load is not mistaken for one with nothing in it.
  */
-const EMPTY_RESUME: ParsedResume = {
-  education: [],
-  experience: [],
-  skills: [],
-  projects: [],
-  certifications: [],
-};
-
 const CONTACT = [
   { Icon: MailIcon, label: "Email", value: PROFILE.email },
   { Icon: Phone, label: "Phone", value: PROFILE.phone },
@@ -456,9 +448,15 @@ export default function ProfilePage() {
             </p>
           )}
           {pending && (
-            <ResumeReviewDialog
-              fileName={pending.file.name}
+            <ResumeEditDialog
+              title="Review your resume"
+              description={
+                pending.parsed
+                  ? `Check what we read from ${pending.file.name} and fix anything we got wrong before saving.`
+                  : `We couldn't read any sections from ${pending.file.name}. Add them below, or save it as is.`
+              }
               parsed={pending.parsed}
+              saveLabel="Save resume"
               onSave={handleReviewSave}
               onCancel={() => setPending(null)}
             />

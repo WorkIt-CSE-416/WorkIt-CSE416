@@ -420,18 +420,25 @@ prefix puts it in every browser.
 **Resume upload is wired.** The onboarding form (`onboarding/applicant`)
 uploads on Continue, unreviewed. The seeker profile (`(seeker)/profile`)
 supports up to 5 resumes, newest first: on file select it calls
-`parseResume` (nothing saved), opens `resume-review-dialog.tsx` on the
-result, and only Save calls `uploadResume` with the file plus the edited
-`parsed_json`; Cancel discards it. Both actions live in
+`parseResume` (nothing saved), opens `resume-edit-dialog.tsx` on every
+section of the result, and only Save calls `uploadResume` with the file plus
+the edited `parsed_json`; Cancel discards it. Both actions live in
 `src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's. The `ResumeUpload` component
 (`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
 knows nothing about upload logic or limits.
 
 **The profile's Work Experience and Skills come from the newest resume's
 `parsed_json`** (`getParsedResume`), not from fixtures — there is no default-
-resume column yet, so "newest" stands in. Each role and skill opens
-`entry-dialog.tsx`, which reuses the review dialog's field table, and every
-add/edit/delete PATCHes the whole `ParsedResume` back (`updateParsedResume`).
+resume column yet, so "newest" stands in. Work Experience's Edit opens
+`resume-edit-dialog.tsx` on that one section, so all roles are edited in one
+modal; each skill opens `entry-dialog.tsx`, which reuses the same field
+table. Every save PATCHes the whole `ParsedResume` back (`updateParsedResume`).
+Collapsed, Work Experience previews the first two roles with descriptions cut
+to two lines, and one chevron in its header expands the whole section. The
+chevron appears only when the preview hides something; whether a description
+overflows depends on the card's width, so `resume-sections.tsx` measures it
+with a ResizeObserver. The one-section edit modal numbers its entries
+("Experience 1", …) since it has no section headings to go by.
 Deleting the newest resume switches the cards to the next one.
 
 **Profile photo upload is wired** on the seeker profile. The pencil button

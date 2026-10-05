@@ -18,14 +18,16 @@ import { cn } from "@/lib/cn";
 import type { ParsedResume } from "@/lib/resume-actions";
 
 /**
- * Shown between parsing a resume and saving it: the applicant corrects what
- * the parser got wrong, and only Save writes anything. Cancel (or closing the
- * dialog) discards the upload entirely.
+ * Edits whole sections of a parsed resume in one modal. Two callers: right
+ * after parsing, the profile opens it on every section so the applicant can
+ * correct the parser before anything is saved (Cancel discards the upload);
+ * and the Work Experience card opens it on that one section, so all roles are
+ * edited together. Sections it is not showing pass through untouched.
  *
  * Every section is the same shape — a list of entries with a few fields — so
  * one table drives all five rather than five hand-written forms. Inputs hold
- * strings while editing; toParsed() turns blanks back into nulls and the GPA
- * into a number, which is what the API's Pydantic schema expects. Native
+ * strings while editing; draftToEntry() turns blanks back into nulls and the
+ * GPA into a number, which is what the API's Pydantic schema expects. Native
  * <input type="date"> rather than fields.tsx's Popover picker: that one lives
  * beside the job form, and a resume needs a dozen of them on one screen.
  */
@@ -37,7 +39,16 @@ export type Field = {
   type?: "date" | "number" | "textarea";
   required?: boolean;
 };
-type Draft = Record<SectionKey, Record<string, string>[]>;
+/** Only the sections on show have a draft. */
+type Draft = Partial<Record<SectionKey, Record<string, string>[]>>;
+
+export const EMPTY_RESUME: ParsedResume = {
+  education: [],
+  experience: [],
+  skills: [],
+  projects: [],
+  certifications: [],
+};
 
 const DATES: Field[] = [
   { key: "start_date", label: "Start date", type: "date" },
@@ -123,36 +134,48 @@ export function draftToEntry(fields: Field[], draft: Record<string, string>) {
   );
 }
 
-function toDraft(parsed: ParsedResume | null): Draft {
+type Section = (typeof SECTIONS)[number];
+
+function toDraft(parsed: ParsedResume | null, shown: Section[]): Draft {
   return Object.fromEntries(
-    SECTIONS.map(({ key, fields }) => [
+    shown.map(({ key, fields }) => [
       key,
       (parsed?.[key] ?? []).map((entry) => entryToDraft(fields, entry)),
     ]),
-  ) as Draft;
+  );
 }
 
-function toParsed(draft: Draft): ParsedResume {
+function toParsed(draft: Draft, shown: Section[]): Partial<ParsedResume> {
   return Object.fromEntries(
-    SECTIONS.map(({ key, fields }) => [key, draft[key].map((e) => draftToEntry(fields, e))]),
-  ) as ParsedResume;
+    shown.map(({ key, fields }) => [key, (draft[key] ?? []).map((e) => draftToEntry(fields, e))]),
+  );
 }
 
-type ResumeReviewDialogProps = {
-  fileName: string;
+type ResumeEditDialogProps = {
+  title: string;
+  description: string;
+  /** Which sections to edit; all of them when omitted. */
+  sections?: SectionKey[];
   parsed: ParsedResume | null;
-  /** Resolves to an error message, or null once saved. */
+  saveLabel?: string;
+  /** Gets the whole resume back. Resolves to an error message, or null once saved. */
   onSave: (edited: ParsedResume) => Promise<string | null>;
   onCancel: () => void;
 };
 
-export function ResumeReviewDialog({
-  fileName,
+export function ResumeEditDialog({
+  title,
+  description,
+  sections,
   parsed,
+  saveLabel = "Save",
   onSave,
   onCancel,
-}: ResumeReviewDialogProps) {
-  const [draft, setDraft] = useState(() => toDraft(parsed));
+}: ResumeEditDialogProps) {
+  const shown = sections ? SECTIONS.filter((s) => sections.includes(s.key)) : SECTIONS;
+  // A one-section dialog's own title already names its section.
+  const headed = shown.length > 1;
+  const [draft, setDraft] = useState(() => toDraft(parsed, shown));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -166,9 +189,9 @@ export function ResumeReviewDialog({
     setSaving(true);
     setError(null);
     try {
-      setError(await onSave(toParsed(draft)));
+      setError(await onSave({ ...EMPTY_RESUME, ...parsed, ...toParsed(draft, shown) }));
     } catch {
-      setError("Could not save the resume. Refresh the page and try again.");
+      setError("Could not save. Refresh the page and try again.");
     } finally {
       setSaving(false);
     }
@@ -178,74 +201,85 @@ export function ResumeReviewDialog({
     <Dialog open onOpenChange={(open) => !open && !saving && onCancel()}>
       <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Review your resume</DialogTitle>
-          <DialogDescription>
-            {parsed
-              ? `Check what we read from ${fileName} and fix anything we got wrong before saving.`
-              : `We couldn't read any sections from ${fileName}. Add them below, or save it as is.`}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-col gap-4">
           <div className="-mx-4 flex min-h-0 flex-col gap-6 overflow-y-auto px-4">
-            {SECTIONS.map(({ key, title, fields }) => (
-              <section key={key} aria-labelledby={`review-${key}`}>
-                {/* Not <SectionHeading>: its fixed text-title would outrank the
-                    dialog's own title. */}
-                <div className="flex items-baseline justify-between gap-4">
-                  <h3 id={`review-${key}`} className="text-subtitle text-ink">
-                    {title}
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    onClick={() => update(key, [...draft[key], blankEntry(fields)])}
-                  >
-                    + Add
-                  </Button>
-                </div>
-
-                {draft[key].length === 0 && (
-                  <p className="text-meta text-ink-meta mt-1">None found.</p>
-                )}
-
-                <ol className="mt-2 flex flex-col gap-2">
-                  {draft[key].map((entry, i) => (
-                    <li
-                      key={i}
-                      className="border-border-subtle rounded-control flex items-start gap-2 border p-3"
+            {shown.map(({ key, title: heading, noun, fields }) => {
+              const entries = draft[key] ?? [];
+              return (
+                <section key={key} aria-labelledby={headed ? `edit-${key}` : undefined}>
+                  {/* Not <SectionHeading>: its fixed text-title would outrank the
+                      dialog's own title. */}
+                  <div className="flex items-baseline justify-between gap-4">
+                    {headed && (
+                      <h3 id={`edit-${key}`} className="text-subtitle text-ink">
+                        {heading}
+                      </h3>
+                    )}
+                    {/* New entries go first, right under the button that added
+                        them — at the end they could land below the fold. */}
+                    <Button
+                      variant="ghost"
+                      className="ml-auto"
+                      onClick={() => update(key, [blankEntry(fields), ...entries])}
                     >
-                      <div className="grid flex-1 gap-2 sm:grid-cols-2">
-                        {fields.map((f) => (
-                          <EntryField
-                            key={f.key}
-                            id={`review-${key}-${i}-${f.key}`}
-                            field={f}
-                            value={entry[f.key]}
-                            onChange={(value) =>
-                              update(
-                                key,
-                                draft[key].map((e, j) => (j === i ? { ...e, [f.key]: value } : e)),
-                              )
-                            }
-                          />
-                        ))}
-                      </div>
-                      <IconButton
-                        label={`Remove ${title.toLowerCase()} entry`}
-                        onClick={() =>
-                          update(
-                            key,
-                            draft[key].filter((_, j) => j !== i),
-                          )
-                        }
+                      + Add {noun}
+                    </Button>
+                  </div>
+
+                  {entries.length === 0 && (
+                    <p className="text-meta text-ink-meta mt-1">None yet.</p>
+                  )}
+
+                  <ol className="mt-2 flex flex-col gap-2">
+                    {entries.map((entry, i) => (
+                      <li
+                        key={i}
+                        className="border-border-subtle rounded-control flex items-start gap-2 border p-3"
                       >
-                        <TrashIcon className="size-4" />
-                      </IconButton>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            ))}
+                        <div className="grid flex-1 gap-2 sm:grid-cols-2">
+                          {/* With no section headings to go by, long entries are
+                              numbered instead: "Experience 1", "Experience 2". */}
+                          {!headed && (
+                            <h3 className="text-label text-ink font-medium capitalize sm:col-span-2">
+                              {noun} {i + 1}
+                            </h3>
+                          )}
+                          {fields.map((f) => (
+                            <EntryField
+                              key={f.key}
+                              id={`edit-${key}-${i}-${f.key}`}
+                              field={f}
+                              value={entry[f.key]}
+                              onChange={(value) =>
+                                update(
+                                  key,
+                                  entries.map((e, j) => (j === i ? { ...e, [f.key]: value } : e)),
+                                )
+                              }
+                            />
+                          ))}
+                        </div>
+                        <IconButton
+                          label={`Remove ${noun} ${i + 1}`}
+                          onClick={() =>
+                            update(
+                              key,
+                              entries.filter((_, j) => j !== i),
+                            )
+                          }
+                        >
+                          <TrashIcon className="size-4" />
+                        </IconButton>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              );
+            })}
           </div>
 
           {error && <p className="text-meta text-red-600">{error}</p>}
@@ -255,7 +289,7 @@ export function ResumeReviewDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save resume"}
+              {saving ? "Saving…" : saveLabel}
             </Button>
           </DialogFooter>
         </form>

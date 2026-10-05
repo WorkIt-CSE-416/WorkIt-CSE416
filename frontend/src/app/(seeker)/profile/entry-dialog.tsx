@@ -17,11 +17,12 @@ import {
   draftToEntry,
   entryToDraft,
   type SectionKey,
-} from "./resume-review-dialog";
+} from "./resume-edit-dialog";
 
 /**
- * Edits one entry of a saved resume from the profile — a single role or a
- * single skill — with the same fields the review dialog uses. Every handler
+ * Edits one entry of a saved resume from the profile — today a single skill;
+ * roles are edited together in resume-edit-dialog.tsx — with the same fields
+ * that dialog uses. Every handler
  * resolves to an error message (kept in the dialog) or null (the caller
  * closes it).
  */
