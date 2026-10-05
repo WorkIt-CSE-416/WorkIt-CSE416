@@ -1,8 +1,8 @@
 """
-Shared FastAPI dependencies. Currently just get_current_account — the
-token-verification dependency backend/CLAUDE.md's Auth section requires:
-"whoever acts on a token verifies its signature... one place, used by every
-protected route."
+Shared FastAPI dependencies. get_current_account is the token-verification
+dependency backend/CLAUDE.md's Auth section requires: "whoever acts on a token
+verifies its signature... one place, used by every protected route."
+get_company_member builds on it for company-scoped routes.
 
 The token is a Supabase access token, sent as `Authorization: Bearer`. Its
 `sub` is the auth.users id, which is also the profile row's primary key, and
@@ -28,16 +28,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
+from app.models.dto import profile_status
 from app.models.profiles import Applicant_Profile, Company_Membership
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.security import decode_access_token
 
-# One instance, one message: whether the header is missing, the token is
-# malformed, it's expired, or the account it names is gone, the caller gets
-# the same 401 — none of those distinctions are the client's business, and
-# folding the branches keeps a future edit (adding a fifth rejection reason)
-# from picking a different wording by accident.
-_NOT_AUTHENTICATED = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated.")
+
+# One message: whether the header is missing, the token is malformed, it's
+# expired, or the account it names is gone, the caller gets the same 401 —
+# none of those distinctions are the client's business, and folding the
+# branches keeps a future edit (adding a fifth rejection reason) from picking
+# a different wording by accident.
+#
+# A function, not a shared instance: raising an exception object again appends
+# that request's frames to its __traceback__, so a module-level one would keep
+# every failed request's frames (session included) alive for good.
+def _not_authenticated() -> HTTPException:
+    return HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated.")
 
 # auto_error=False so a missing header lands on the same 401 as every other
 # failure, instead of HTTPBearer's own 403 with a different message.
@@ -52,7 +59,7 @@ async def get_current_account(
     resolve bearer token to get account information
     '''
     if credentials is None:
-        raise _NOT_AUTHENTICATED
+        raise _not_authenticated()
 
     try:
         claims = await decode_access_token(credentials.credentials)
@@ -63,7 +70,7 @@ async def get_current_account(
         # that isn't a uuid. A user created outside /auth/signup (the
         # dashboard, say) has no account_type and no profile row either, so
         # this is the same "not an account here" as a bad token.
-        raise _NOT_AUTHENTICATED
+        raise _not_authenticated()
 
     # retrieve user from corresponding table 
     model = Applicant_Profile if account_type is AccountType.APPLICANT else Company_Membership
@@ -71,7 +78,7 @@ async def get_current_account(
         await db.execute(select(model).where(model.id == account_id))
     ).scalar_one_or_none()
     if account is None:
-        raise _NOT_AUTHENTICATED
+        raise _not_authenticated()
 
     return AuthenticatedAccount(
         id=account.id,
@@ -80,4 +87,26 @@ async def get_current_account(
         account_type=account_type,
         onboarding_completed=account.onboarding_completed_at is not None,
         company_id=account.company_id if isinstance(account, Company_Membership) else None,
+        membership_status=account.status if isinstance(account, Company_Membership) else None,
     )
+
+
+def _not_a_company_member() -> HTTPException:
+    return HTTPException(status.HTTP_403_FORBIDDEN, "Only active company members can do this.")
+
+
+async def get_company_member(
+    account: AuthenticatedAccount = Depends(get_current_account),
+) -> AuthenticatedAccount:
+    '''
+    for company-scoped routes: the caller must be a company account whose
+    membership is active. An invited or disabled member still holds a valid
+    token, so get_current_account alone would let them through. The status
+    comes from the row get_current_account already loaded, not a second query.
+    '''
+    if account.account_type is not AccountType.COMPANY:
+        raise _not_a_company_member()
+    if account.membership_status != profile_status.active:
+        raise _not_a_company_member()
+
+    return account

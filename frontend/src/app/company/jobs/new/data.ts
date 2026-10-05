@@ -86,12 +86,14 @@ export const INITIAL_QUESTIONS: ScreeningQuestion[] = [
  *  note in ./stepper.tsx about why the rail draws all three anyway. */
 export const STEPS = ["Basic Details", "Screening", "Publish"] as const;
 
+/** Only countries the `countries` table is seeded with (cca905583de8): a
+ *  code it lacks fails the `location_country` foreign key on save. Adding
+ *  one means seeding it in a new migration first. */
 export const COUNTRIES = [
   { code: "US", name: "United States" },
   { code: "CA", name: "Canada" },
   { code: "GB", name: "United Kingdom" },
   { code: "DE", name: "Germany" },
-  { code: "IN", name: "India" },
   { code: "AU", name: "Australia" },
 ] as const;
 
@@ -100,6 +102,9 @@ export type SavedLocation = {
   city: string;
   /** ISO 3166-1 alpha-2, matching `location_country`. */
   country: string;
+  /** ISO 3166-2, matching `location_state`. Only set on a location reopened
+   *  from a saved job; the picker has no state field of its own yet. */
+  state?: string;
 };
 
 /**
@@ -115,10 +120,13 @@ export const SAVED_LOCATIONS: SavedLocation[] = [
   { id: "toronto", city: "Toronto", country: "CA" },
 ];
 
-/** "San Francisco, United States" from a city and an ISO country code. */
+/** "San Francisco, United States" from a city and an ISO country code, or
+ *  just the country for a location reopened from a saved job, which stores
+ *  no city. */
 export function formatLocation(city: string, country: string) {
   const match = COUNTRIES.find((c) => c.code === country);
-  return `${city}, ${match?.name ?? country}`;
+  const name = match?.name ?? country;
+  return city ? `${city}, ${name}` : name;
 }
 
 /** "US" -> "United States", with no city attached — what a Remote posting

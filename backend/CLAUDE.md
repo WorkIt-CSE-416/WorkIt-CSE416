@@ -68,18 +68,22 @@ the schema filters. `alembic/CLAUDE.md` explains what that costs.
 
 ```
 app/
-  main.py         FastAPI app. /health (liveness) and /health/db (readiness)
+  main.py         FastAPI app. /health (liveness) and /health/db (readiness);
+                  the 422 handler that keeps a non-finite number from a 500
   config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
   db.py           Async engine, session factory, declarative Base, Supabase client
   security.py     Verifies Supabase access tokens against the project's JWKS
-  deps.py         get_current_account — the dependency every protected route uses
+  deps.py         get_current_account — the dependency every protected route uses;
+                  get_company_member on top of it for company-scoped routes
   schemas/        Pydantic request/response shapes, separate from models/
     auth.py       Signup body, /auth/me response
     jobs.py       JobListing — also the parser for scraper/feed.json
+    company_jobs.py  JobPostingCreate and JobPosting, for /company/jobs
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
     jobs.py       GET /jobs — the scraper's feed.json, public, no DB
+    company_jobs.py  /company/jobs: create, list, load and update a company's own jobs
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
                   text from PDF/DOCX and parses it into structured JSON
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo

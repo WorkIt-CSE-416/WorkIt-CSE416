@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition, type MouseEvent } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextField } from "@/components/ui/text-field";
+import { saveJob, type JobPayload } from "@/lib/job-actions";
+import type { CompanyJob } from "@/lib/job-queries";
 
 import {
   DEPARTMENTS,
@@ -27,9 +30,13 @@ import { SelectField } from "@/components/ui/select-field";
 
 import { DateField, LocationField, TextAreaField } from "./fields";
 import { EyeIcon } from "./icons";
+import { fromCompanyJob, toJobPayload } from "./payload";
 import { JobPreview } from "./preview";
 import { ScreeningQuestions } from "./screening-questions";
 import { Stepper } from "./stepper";
+
+/** STEPS for a job that is already live: nothing is left to publish. */
+const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
 
 /**
  * /company/jobs/new — the screen behind the top bar's "Post a Job".
@@ -45,9 +52,10 @@ import { Stepper } from "./stepper";
  * before then and would otherwise sit above every step with nothing to
  * preview yet. It is stacked above the form rather than beside it: what it
  * shows is the thing being confirmed before Publish, not a running sidebar
- * for a field still being typed into. `Save Draft` and the final `Publish`
- * stay inert: there is still no backend, and a button that pretends to save
- * or go live is worse than one that visibly does not.
+ * for a field still being typed into. `Save Draft` and `Publish` both save
+ * through /company/jobs (see `save`), differing only in the status they ask
+ * for, and land back on /company/jobs so the saved row is the first thing seen.
+ * Screening questions are not sent: no table holds them yet.
  *
  * SAVED LOCATIONS LIVE HERE, NOT IN THE DRAFT. A location a recruiter adds
  * belongs to the company, not to this one posting — it has to survive if the
@@ -61,12 +69,59 @@ import { Stepper } from "./stepper";
  * internal and off the job card a seeker sees; Location is picked rather than
  * free text; Employment Type split into Job Type and Experience Level; and
  * Salary gained a type toggle plus currency and period.
+ *
+ * EDITING REUSES THIS SCREEN. /company/jobs/[jobId]/edit passes the saved
+ * `job`, which fills the form and makes both buttons update it instead of
+ * creating a new one. The form is built from it here, in the browser, not on
+ * the server: `closes_at` becomes a calendar day in the recruiter's own
+ * timezone, and a UTC server would hand back the next day to anyone in the
+ * Americas, so every save would push the date a day later. The initializer
+ * runs again during hydration, and the date only renders on the last step,
+ * so the server's version never reaches the screen. A published job can't go back to draft, and
+ * is already live, so editing one drops the publishing language entirely: the
+ * last step is Review, and the one primary action is Update Job, offered on
+ * every step so a quick fix needn't walk through all three.
  */
-export function Composer() {
+export function Composer({ job }: { job?: CompanyJob }) {
+  const [editing] = useState(
+    () =>
+      job && {
+        id: job.id,
+        status: job.status,
+        updatedAt: job.updated_at,
+        ...fromCompanyJob(job),
+      },
+  );
+  const initialDraft = editing?.draft ?? EMPTY_DRAFT;
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<JobDraft>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<JobDraft>(initialDraft);
   const [questions, setQuestions] = useState<ScreeningQuestion[]>(INITIAL_QUESTIONS);
-  const [locations, setLocations] = useState<SavedLocation[]>(SAVED_LOCATIONS);
+  const [locations, setLocations] = useState<SavedLocation[]>(
+    editing ? [editing.location, ...SAVED_LOCATIONS] : SAVED_LOCATIONS,
+  );
+  const isLive = editing !== undefined && editing.status !== "draft";
+  const steps = isLive ? LIVE_STEPS : STEPS;
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, startSaving] = useTransition();
+  const router = useRouter();
+
+  /** Questions count too, though they aren't saved yet: losing them to a
+   *  stray reload is still losing work. */
+  const isDirty =
+    JSON.stringify(draft) !== JSON.stringify(initialDraft) || questions !== INITIAL_QUESTIONS;
+
+  // Reloading or closing the tab with unsaved edits asks first. In-app links
+  // don't fire beforeunload, so Cancel asks for itself (see `confirmLeave`).
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
+
+  function confirmLeave(event: MouseEvent) {
+    if (isDirty && !window.confirm("Discard your unsaved changes?")) event.preventDefault();
+  }
 
   function set<K extends keyof JobDraft>(key: K, value: JobDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -89,39 +144,73 @@ export function Composer() {
    * What `job_postings` actually requires — see EMPTY_DRAFT in ./data.ts for
    * why Work Style/Job Type/Experience Level can be blank here at all (Currency
    * and Pay Period are NOT NULL too, but the schema itself defaults them, so
-   * this form does too, and there is nothing to catch for them). Location and
-   * the salary amount fields are the schema's own conditional cases, not an
-   * invented stricter rule: `job_postings` allows NULL `location_city`/
-   * `location_country` together, and its `salary_exist` CHECK wants either
-   * `salary` alone or `salary_min` AND `salary_max` together — see
-   * backend/db/job_posting.md.
+   * this form does too, and there is nothing to catch for them). Location is
+   * required even for Remote because `location_country` is NOT NULL: a remote
+   * posting still names the country it hires in. The salary amount fields
+   * follow the `salary_exist` CHECK, which wants either `salary` alone or
+   * `salary_min` AND `salary_max` together.
    */
   const missingFields: string[] = [];
   if (!draft.title.trim()) missingFields.push("Job Title");
   if (!draft.workStyle) missingFields.push("Work Style");
-  if (!isRemote && !draft.locationId) missingFields.push("Location");
+  if (!draft.locationId) missingFields.push("Location");
   if (!draft.jobType) missingFields.push("Job Type");
   if (!draft.experienceLevel) missingFields.push("Experience Level");
   if (draft.salaryType === "Exact figure") {
-    if (!draft.salary) missingFields.push("Salary Amount");
+    if (isBlankNumber(draft.salary)) missingFields.push("Salary Amount");
   } else {
-    if (!draft.salaryMin) missingFields.push("Salary Min");
-    if (!draft.salaryMax) missingFields.push("Salary Max");
+    if (isBlankNumber(draft.salaryMin)) missingFields.push("Salary Min");
+    if (isBlankNumber(draft.salaryMax)) missingFields.push("Salary Max");
   }
   if (!draft.description.trim()) missingFields.push("Job Description");
-  const canLeaveBasicDetails = missingFields.length === 0;
+
+  /** The API's other limits, caught here so they name the field. Its 422s
+   *  only say "Input should be less than or equal to 50", and the preview
+   *  would otherwise show "$150k – $100k" before that. Title's 200 is held by
+   *  the input's maxLength. */
+  const invalidFields: string[] = [];
+  if (
+    draft.salaryType === "Range" &&
+    !isBlankNumber(draft.salaryMin) &&
+    !isBlankNumber(draft.salaryMax) &&
+    Number(draft.salaryMin) > Number(draft.salaryMax)
+  )
+    invalidFields.push("Salary Min can't be more than Salary Max");
+  if (draft.experienceLevel === "Experienced" && Number(draft.minYearsExperience) > 50)
+    invalidFields.push("Min Years Experience can be at most 50");
+  const canLeaveBasicDetails = missingFields.length === 0 && invalidFields.length === 0;
+
+  /** Every required field lives on Basic Details, so a draft that can leave
+   *  it is one the API will accept. Pending blocks a second click from
+   *  posting the same job twice. */
+  function save(status: JobPayload["status"]) {
+    setSaveError(null);
+    startSaving(async () => {
+      const { error } = await saveJob(
+        toJobPayload(draft, locations, status),
+        editing && { id: editing.id, updatedAt: editing.updatedAt },
+      );
+      if (error) {
+        setSaveError(error);
+        return;
+      }
+      router.push("/company/jobs");
+    });
+  }
 
   return (
     <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
       <div className="min-w-0">
         <header>
-          <h1 className="text-heading text-ink">Post a New Job</h1>
+          <h1 className="text-heading text-ink">{editing ? "Edit Job" : "Post a New Job"}</h1>
           <p className="text-body text-ink-meta mt-1">
-            Fill out the details below to create a new job posting.
+            {editing
+              ? "Change the details below, then save."
+              : "Fill out the details below to create a new job posting."}
           </p>
         </header>
 
-        <Stepper steps={STEPS} current={step} className="mt-4" />
+        <Stepper steps={steps} current={step} className="mt-4" />
 
         {/* Above the form on Publish, not beside it — it is what the posting
             will look like once it is live, which reads as the thing being
@@ -155,14 +244,17 @@ export function Composer() {
                   label="Job Title"
                   placeholder="e.g. Senior Frontend Engineer"
                   required
+                  maxLength={200}
                   value={draft.title}
                   onChange={(event) => set("title", event.target.value)}
                 />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {/* No column holds department or city yet, so both are
+                      labelled rather than silently dropped on save. */}
                   <SelectField
                     id="department"
-                    label="Department"
+                    label="Department (not saved yet)"
                     value={draft.department}
                     onValueChange={(department) => set("department", department)}
                     options={DEPARTMENTS}
@@ -179,23 +271,25 @@ export function Composer() {
                   />
                 </div>
 
-                {/* Shown for Remote too, not just Hybrid/On-site: "remote"
-                    is not always "anywhere" — a lot of postings mean "remote,
-                    but based in the United States". Left blank on a Remote
-                    posting, it stays open to anywhere; set, the preview shows
-                    just the country (see ./preview.tsx's `locationLabel`) —
-                    a remote hire isn't tied to the specific city a saved
-                    location happens to carry, the way an office is. */}
+                {/* Required for Remote too: "remote" usually means "remote,
+                    but based in the United States", and the table stores a
+                    country for every posting. On a Remote posting the preview
+                    shows just the country (see ./preview.tsx's
+                    `locationLabel`), since a remote hire isn't tied to the
+                    city a saved location happens to carry. */}
                 <LocationField
                   id="location"
-                  label={isRemote ? "Location (optional)" : "Location"}
-                  placeholder={isRemote ? "Open to anywhere" : "Select a location"}
-                  required={!isRemote}
+                  label="Location"
+                  placeholder={isRemote ? "Where hires must be based" : "Select a location"}
+                  required
                   value={draft.locationId}
                   onValueChange={(locationId) => set("locationId", locationId)}
                   options={locations}
                   onAddLocation={addLocation}
                 />
+                <p className="text-meta text-ink-faint -mt-3">
+                  Only the country is saved for now. The city isn&apos;t stored yet.
+                </p>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <SelectField
@@ -304,6 +398,10 @@ export function Composer() {
 
           {step === 1 && (
             <div className="p-4.5">
+              <p className="text-meta text-ink-meta mb-4">
+                Screening questions aren&apos;t saved yet. You can draft them here, but they
+                won&apos;t be kept with the job.
+              </p>
               <ScreeningQuestions questions={questions} onChange={setQuestions} />
             </div>
           )}
@@ -311,13 +409,14 @@ export function Composer() {
           {isPublishStep && (
             <section className="p-4.5">
               <SectionHeading as="h2" className="border-border-subtle border-b pb-3">
-                Ready to Publish
+                {isLive ? "Review Changes" : "Ready to Publish"}
               </SectionHeading>
 
               <div className="mt-4 flex flex-col gap-4">
                 <p className="text-body text-ink-meta">
-                  Check the live preview above against what you entered, then publish the role or
-                  save it as a draft to come back to.
+                  {isLive
+                    ? "Check the live preview above, then update the job. Applicants see the changes right away."
+                    : "Check the live preview above against what you entered, then publish the role or save it as a draft to come back to."}
                 </p>
 
                 <DateField
@@ -338,6 +437,14 @@ export function Composer() {
               Complete the required fields to continue: {missingFields.join(", ")}.
             </p>
           )}
+          {step === 0 &&
+            invalidFields.map((problem) => (
+              <p key={problem} className="text-meta text-danger px-4.5 pt-3">
+                {problem}.
+              </p>
+            ))}
+
+          {saveError && <p className="text-meta text-danger px-4.5 pt-3">{saveError}</p>}
 
           <hr className="border-border-subtle mx-4.5" />
 
@@ -348,17 +455,56 @@ export function Composer() {
               </Button>
             )}
 
-            <Button variant="secondary">Save Draft</Button>
+            {/* Every mode gets a way out, a new job and a draft included. */}
+            <ButtonLink href="/company/jobs" variant="ghost" onClick={confirmLeave}>
+              Cancel
+            </ButtonLink>
 
-            {step === 0 && (
-              <Button onClick={() => setStep(1)} disabled={!canLeaveBasicDetails}>
-                Continue to Screening
-              </Button>
+            {isLive ? (
+              <>
+                {!isPublishStep && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setStep(step + 1)}
+                    disabled={step === 0 && !canLeaveBasicDetails}
+                  >
+                    Continue to {steps[step + 1]}
+                  </Button>
+                )}
+                <Button
+                  onClick={() => save("published")}
+                  disabled={!canLeaveBasicDetails || isSaving}
+                >
+                  Update Job
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => save("draft")}
+                  disabled={!canLeaveBasicDetails || isSaving}
+                >
+                  Save Draft
+                </Button>
+
+                {step === 0 && (
+                  <Button onClick={() => setStep(1)} disabled={!canLeaveBasicDetails}>
+                    Continue to Screening
+                  </Button>
+                )}
+                {step === 1 && <Button onClick={() => setStep(2)}>Continue to Publish</Button>}
+                {isPublishStep && (
+                  <Button
+                    variant="positive"
+                    onClick={() => save("published")}
+                    disabled={!canLeaveBasicDetails || isSaving}
+                  >
+                    Publish
+                  </Button>
+                )}
+              </>
             )}
-            {step === 1 && <Button onClick={() => setStep(2)}>Continue to Publish</Button>}
-            {/* No backend yet, so this stays inert like Save Draft always
-                  has — see the note above the component. */}
-            {isPublishStep && <Button variant="positive">Publish</Button>}
           </div>
         </Card>
       </div>
@@ -414,6 +560,11 @@ function NumberField({
       onChange={(event) => onValueChange(sanitizeNumeric(event.target.value, allowDecimal))}
     />
   );
+}
+
+/** Nothing typed, or only the "." on the way to "27.50": no amount yet. */
+function isBlankNumber(value: string) {
+  return value === "" || value === ".";
 }
 
 /** Digits only, or digits with at most one "." and two digits after it. */

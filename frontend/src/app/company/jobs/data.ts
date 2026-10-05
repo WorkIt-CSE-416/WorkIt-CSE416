@@ -1,6 +1,13 @@
 import type { BadgeTone } from "@/components/ui/badge";
+import type { CompanyJobSummary } from "@/lib/job-queries";
 
-/** What /company/jobs lists. Fixtures — one file to swap for real data. */
+import { formatCountry } from "./new/data";
+
+/**
+ * What /company/jobs lists. The rows come from GET /company/jobs through
+ * `toPosting` below; `POSTINGS` is still the fixture the per-job detail
+ * screen (src/components/job-detail/data.ts) reads until it is wired too.
+ */
 
 export type JobStatus = "Open" | "Paused" | "Closed" | "Draft";
 
@@ -119,3 +126,35 @@ export const POSTINGS: Posting[] = [
     location: "Remote",
   },
 ];
+
+/** "Open" is what a recruiter calls a published job. Paused has no stored
+ *  status yet, so nothing maps to it. */
+const STATUS_LABEL: Record<CompanyJobSummary["status"], JobStatus> = {
+  draft: "Draft",
+  published: "Open",
+  closed: "Closed",
+};
+
+/**
+ * A job from the API as a table row. Team and the applicant counts have no
+ * source yet (no department column, no applications table), so they stay
+ * empty and zero rather than invented.
+ */
+export function toPosting(job: CompanyJobSummary): Posting {
+  // "US-NY" -> "NY". Only the US has states seeded. The country is spelled
+  // out, the way the composer shows it.
+  const place = [job.location_state?.split("-")[1], formatCountry(job.location_country)]
+    .filter(Boolean)
+    .join(", ");
+
+  return {
+    id: job.id,
+    role: job.title,
+    team: "",
+    status: STATUS_LABEL[job.status],
+    applicants: 0,
+    unreviewed: 0,
+    posted: job.created_at,
+    location: job.work_style === "remote" ? `Remote, ${place}` : place,
+  };
+}
