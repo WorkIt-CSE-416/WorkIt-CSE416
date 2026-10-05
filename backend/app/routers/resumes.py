@@ -8,13 +8,14 @@ import zipfile
 from datetime import UTC, datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
 from app.deps import get_current_account
-from app.models.dto import ResumeStatus
+from app.models.dto import ParsedResume, ResumeStatus
 from app.models.resume import Resume
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.utils.resume_parser import count_sections, parse_resume
@@ -137,19 +138,9 @@ def _assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUI
         raise HTTPException(403, "Forbidden")
 
 
-# Depends grabs get_session before function runs and passes the session into function.
-# FastAPI handles the lifecycle
-
-# TODO: Reinforce the 5 resume limit rule in the backend
-@router.post("/applicants/{applicant_id}/resumes")
-async def upload_resume(
-    applicant_id: uuid.UUID,
-    file: UploadFile,
-    account: AuthenticatedAccount = Depends(get_current_account),
-    session: AsyncSession = Depends(get_session)
-):
-    _assert_applicant_owns(account, applicant_id)
-
+async def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
+    """Size and type checks shared by parse and upload. Returns the bytes,
+    extension and MIME type."""
     # check size metadata
     if file.size is not None and file.size > MAX_SIZE:
         raise HTTPException(413, "File must be under 5 MB")
@@ -161,13 +152,66 @@ async def upload_resume(
 
     # validate magic bytes — content_type is client-supplied and untrustworthy
     if contents.startswith(PDF_MAGIC):
-        ext = ".pdf"
-        mime = "application/pdf"
-    elif contents.startswith(DOCX_MAGIC) and _is_docx(contents):
-        ext = ".docx"
-        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    else:
-        raise HTTPException(400, "Only PDF and DOCX files are accepted")
+        return contents, ".pdf", "application/pdf"
+    if contents.startswith(DOCX_MAGIC) and _is_docx(contents):
+        return contents, ".docx", (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    raise HTTPException(400, "Only PDF and DOCX files are accepted")
+
+
+async def _extract(contents: bytes, ext: str) -> str | None:
+    extract = _extract_pdf_text if ext == ".pdf" else _extract_docx_text
+    return await asyncio.to_thread(extract, contents)
+
+
+def _safe_parse(raw_text: str | None) -> ParsedResume | None:
+    if not raw_text:
+        return None
+    try:
+        return parse_resume(raw_text)
+    except Exception:
+        logger.exception("Resume parsing failed")
+        return None
+
+
+@router.post("/applicants/{applicant_id}/resumes/parse")
+async def parse_resume_preview(
+    applicant_id: uuid.UUID,
+    file: UploadFile,
+    account: AuthenticatedAccount = Depends(get_current_account),
+):
+    """Parse without saving, so the applicant can review and edit the result
+    before it is stored. Touches neither Storage nor the database."""
+    _assert_applicant_owns(account, applicant_id)
+    contents, ext, _ = await _read_upload(file)
+    parsed = _safe_parse(await _extract(contents, ext))
+    return {"parsed_json": parsed.model_dump(mode="json") if parsed else None}
+
+
+# Depends grabs get_session before function runs and passes the session into function.
+# FastAPI handles the lifecycle
+
+# TODO: Reinforce the 5 resume limit rule in the backend
+@router.post("/applicants/{applicant_id}/resumes")
+async def upload_resume(
+    applicant_id: uuid.UUID,
+    file: UploadFile,
+    # The applicant's reviewed copy of the /parse result. When present it is
+    # stored instead of re-parsing; onboarding omits it and gets the parser's.
+    parsed_json: str | None = Form(None),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session)
+):
+    _assert_applicant_owns(account, applicant_id)
+
+    reviewed = None
+    if parsed_json is not None:
+        try:
+            reviewed = ParsedResume.model_validate_json(parsed_json)
+        except ValidationError as exc:
+            raise HTTPException(422, "Invalid resume details") from exc
+
+    contents, ext, mime = await _read_upload(file)
 
     resume_id = uuid.uuid4()
     storage_path = f"{applicant_id}/{resume_id}{ext}"
@@ -188,15 +232,9 @@ async def upload_resume(
         raise HTTPException(502, "File upload failed")
 
 
-    extract = _extract_pdf_text if ext == ".pdf" else _extract_docx_text
-    raw_text = await asyncio.to_thread(extract, contents)
-
-    parsed = None
-    if raw_text:
-        try:
-            parsed = parse_resume(raw_text)
-        except Exception:
-            logger.exception("Resume parsing failed")
+    # raw_text always comes from the file, never from the client
+    raw_text = await _extract(contents, ext)
+    parsed = reviewed if reviewed is not None else _safe_parse(raw_text)
 
     # Resume ORM object
     resume = Resume(

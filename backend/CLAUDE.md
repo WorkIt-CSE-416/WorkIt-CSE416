@@ -55,7 +55,10 @@ uv run pytest                                  run the tests in tests/
 ```
 
 Tests cover the resume parser (`test_resume_parser.py`) and DOCX text
-extraction (`test_resume_extraction.py`). `tests/fixtures/*.txt` are extracted text
+extraction (`test_resume_extraction.py`). A test that calls the resume routes
+must monkeypatch `resumes.get_supabase`: the router calls it directly rather
+than through `Depends`, so a dependency override misses it and the test
+uploads to the real bucket. `tests/fixtures/*.txt` are extracted text
 of real resumes, each in a layout that once broke parsing, cut to start at the
 first section header so no contact details are committed. The heuristics
 interact — a fix for one layout has broken another more than once — so when a

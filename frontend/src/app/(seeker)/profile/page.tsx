@@ -24,7 +24,15 @@ import { Avatar } from "@/components/avatar";
 import { PROFILE, ROLES, SKILLS } from "./data";
 import { SectionAction } from "./section-action";
 import { ResumeUpload } from "@/components/resume-upload";
-import { uploadResume, deleteResume, listResumes, type ResumeItem } from "@/lib/resume-actions";
+import {
+  uploadResume,
+  deleteResume,
+  listResumes,
+  parseResume,
+  type ParsedResume,
+  type ResumeItem,
+} from "@/lib/resume-actions";
+import { ResumeReviewDialog } from "./resume-review-dialog";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
 import { SEEKER_GUTTER } from "../gutter";
@@ -108,6 +116,8 @@ export default function ProfilePage() {
   const [loaded, setLoaded] = useState(false);
   // A failed list hides the "2 of 5" count: "0 of 5" would say there are none.
   const [listFailed, setListFailed] = useState(false);
+  // A parsed file waiting on the review dialog; nothing is saved until Save.
+  const [pending, setPending] = useState<{ file: File; parsed: ParsedResume | null } | null>(null);
 
   // The resume the delete dialog asks about. It outlives `confirmOpen` so the
   // filename does not vanish while the dialog fades out.
@@ -193,8 +203,10 @@ export default function ProfilePage() {
     });
   }, []);
 
+  // Parses without saving: the review dialog opens on the result, and only its
+  // Save uploads the file. `uploading` names the file while it is being read.
   async function handleResumeFileAdd(file: File) {
-    if (!loaded || uploading !== null) return;
+    if (!loaded || uploading !== null || pending) return;
     if (resumeList.length >= MAX_RESUMES) {
       setResumeError(`You can keep up to ${MAX_RESUMES} resumes. Remove one to add another.`);
       return;
@@ -205,17 +217,31 @@ export default function ProfilePage() {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const { resume, error } = await uploadResume(fd);
+      const { parsed, error } = await parseResume(fd);
       if (error) {
         setResumeError(error);
         return;
       }
-      if (resume) {
-        setResumeList((prev) => [resume, ...prev]);
-      }
+      setPending({ file, parsed });
+    } catch {
+      setResumeError("Could not read the resume. Refresh the page and try again.");
     } finally {
       setUploading(null);
     }
+  }
+
+  // Sends the file again with the applicant's edits; the API stores those
+  // instead of re-parsing.
+  async function handleReviewSave(edited: ParsedResume): Promise<string | null> {
+    if (!pending) return null;
+    const fd = new FormData();
+    fd.append("file", pending.file);
+    fd.append("parsed_json", JSON.stringify(edited));
+    const { resume, error } = await uploadResume(fd);
+    if (error) return error;
+    if (resume) setResumeList((prev) => [resume, ...prev]);
+    setPending(null);
+    return null;
   }
 
   async function handleRemove(resumeId: string) {
@@ -384,6 +410,14 @@ export default function ProfilePage() {
               {resumeError}
             </p>
           )}
+          {pending && (
+            <ResumeReviewDialog
+              fileName={pending.file.name}
+              parsed={pending.parsed}
+              onSave={handleReviewSave}
+              onCancel={() => setPending(null)}
+            />
+          )}
         </div>
 
         <div className="@4xl/main:mt-2">
@@ -414,7 +448,7 @@ export default function ProfilePage() {
               <PdfIcon className="size-5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-label text-ink truncate">{uploading}</p>
-                <p className="text-note text-ink-meta">Uploading…</p>
+                <p className="text-note text-ink-meta">Reading…</p>
               </div>
             </div>
           )}

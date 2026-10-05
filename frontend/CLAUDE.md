@@ -418,10 +418,12 @@ service-role key must never appear in this folder** — one `NEXT_PUBLIC_`
 prefix puts it in every browser.
 
 **Resume upload is wired.** The onboarding form (`onboarding/applicant`)
-uploads on Continue; the seeker profile (`(seeker)/profile`) uploads
-immediately on file select and supports up to 5 resumes (newest first,
-optimistic add with rollback on failure). Both call `uploadResume` from
-`src/lib/resume-actions.ts`. The `ResumeUpload` component
+uploads on Continue, unreviewed. The seeker profile (`(seeker)/profile`)
+supports up to 5 resumes, newest first: on file select it calls
+`parseResume` (nothing saved), opens `resume-review-dialog.tsx` on the
+result, and only Save calls `uploadResume` with the file plus the edited
+`parsed_json`; Cancel discards it. Both actions live in
+`src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's. The `ResumeUpload` component
 (`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
 knows nothing about upload logic or limits. Skill detection from resumes was
 stubbed with mock data and has been removed; add it back when the backend
