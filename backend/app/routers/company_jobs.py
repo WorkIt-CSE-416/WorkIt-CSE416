@@ -213,7 +213,9 @@ async def change_job_status(
     move a job along its lifecycle, e.g. close it. Only the moves in
     _NEXT_STATUSES are allowed; anything else is a 409.
     '''
-    job = await _own_job(db, job_id, account)
+    # Locked, or two moves could both pass the check below against the same
+    # old status, and the later commit could undo a close.
+    job = await _own_job(db, job_id, account, lock=True)
 
     if body.status not in _NEXT_STATUSES.get(job.status, set()):
         raise HTTPException(
