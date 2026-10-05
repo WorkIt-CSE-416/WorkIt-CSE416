@@ -10,15 +10,14 @@ import {
   MonitorIcon,
   PinIcon,
 } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
 import { cn } from "@/lib/cn";
 
 /**
  * The job posting card a seeker sees on their Jobs feed: the employer's logo
- * (or its initials) in a square tile, a posted/closes badge, title,
- * company name, and a six-fact grid (location, job type, salary, work style,
+ * (or its initials) in a square tile, the title, a company-and-timing line,
+ * and a row of up to six facts (location, job type, salary, work style,
  * experience level, years required). Moved here from (seeker)/jobs/page.tsx
  * so the company composer's Publish-step preview can show a recruiter the
  * same card a seeker will actually see, rather than a second card that only
@@ -32,23 +31,25 @@ import { cn } from "@/lib/cn";
  * set the same CSS property. Not `<CompanyTile>`: that draws an icon glyph,
  * not an image.
  *
- * THE BADGE ABOVE THE TITLE IS TIMING, NOT ROLE TAGS. An earlier version put
- * role-tag badges there ("Frontend Engineer", "Software Engineer"), but the
- * title already states the role — "Staff Frontend Engineer" restating
- * "Frontend Engineer" above it is the card repeating itself, not adding
- * information. Timing is the thing that slot was missing: it used to live as
- * a seventh grid fact under a calendar icon, buried at the same weight as
- * salary and job type, when "posted 3 hours ago" is closer to a headline than
- * a fact — recency is often what a seeker scans for first. It reads as a badge
- * (`variant="status"`) rather than plain text for the same reason a status
- * chip does anywhere else in the app: it is a small, discrete state, not a
- * sentence.
+ * TIMING SITS BESIDE THE COMPANY NAME, NOT IN A BADGE ABOVE THE TITLE. It was
+ * a green status badge there, which put a pill on every card in the feed, in
+ * the one colour the app keeps for good news, and pushed the title down off
+ * the logo's top edge. "Posted 5 days ago" is a fact about the posting rather
+ * than a state to flag, so it reads as quiet text after the employer:
+ * recency is still the second thing the eye lands on, without competing with
+ * the title for the first.
  *
  * EXPERIENCE IS TWO FACTS, NOT ONE. `experienceLevel` and `minYearsExperience`
  * used to print as a single joined string ("Experienced · 8+ yrs") under one
- * icon. Splitting them back into their own facts is what fills the grid back
- * out to six now that timing moved to the badge above, and gives level and
- * years their own icon each rather than asking one glyph to stand for both.
+ * icon. Split, level and years get their own icon each rather than asking one
+ * glyph to stand for both.
+ *
+ * THE FACTS ARE A WRAPPING ROW UNDER THE TITLE, NOT A FULL-WIDTH GRID. A
+ * three-column grid across the whole card kept one fact under another from
+ * card to card, but a scraped role states only three, so on a 928px card they
+ * sat ~300px apart with nothing between them, below a rule of their own. As
+ * a row they sit beside each other under the title they describe, indented
+ * to the title's edge rather than the logo's.
  *
  * Every field is a pre-formatted string, not a raw `job_postings` value: the
  * seeker feed formats real schema enums (see (seeker)/jobs/format.ts) while the
@@ -64,10 +65,10 @@ import { cn } from "@/lib/cn";
  * title reads as a mistake rather than an affordance.
  *
  * `headerAction`, `actions` and `rail` are slots because what surrounds the
- * card differs by audience. A seeker's card carries a more-options menu, a
- * Save / Ask WorkIt / Apply row, and the match rail; the composer's preview
- * carries none of that — the role is not live, so there is nothing to save,
- * match against, or apply to yet.
+ * card differs by audience. A seeker's card carries a Save / Ask WorkIt /
+ * Apply row, and the match rail; the composer's preview carries none of that
+ * — the role is not live, so there is nothing to save, match against, or
+ * apply to yet.
  */
 export type JobPostingCardData = {
   company: string;
@@ -82,8 +83,8 @@ export type JobPostingCardData = {
    *  reason `companyHref` is optional. */
   titleHref?: string;
   /** "Posted 3 hours ago" — see (seeker)/jobs/format.ts's `formatPosted`.
-   *  Printed as a badge above the title, not as a grid fact. Null drops the
-   *  badge: a scraped role whose board never dated it. */
+   *  Printed after the company name, not as a fact. Null drops it: a
+   *  scraped role whose board never dated it. */
   timing: string | null;
   /** Null omits the fact entirely rather than printing it empty — the rule for
    *  every nullable fact below. A fully remote posting has no location —
@@ -131,65 +132,72 @@ export function JobPostingCard({
 
   return (
     <Card as="article" padding="none" className="flex flex-col overflow-hidden md:flex-row">
-      <div className="min-w-0 flex-1 p-4">
-        <div className="flex items-start gap-3">
-          {/* self-stretch rather than a fixed size: the tile should read as
-              tall as the badge/title/company block beside it, whatever that
-              block's height turns out to be (a wrapped title, say), not a
-              guessed pixel value that happens to match today's content. Only
-              the width is fixed, so there is a cross-axis size for stretch to
-              fill. */}
+      {/* From md the actions sit on the header's own row, centred against
+          it, instead of a ruled-off row underneath: at desktop width that row
+          was mostly empty space, and it made every card a third taller than
+          what it says. Below md there is no room beside the title, so they
+          drop under a rule again. */}
+      <div className="min-w-0 flex-1 p-4 sm:p-5 md:flex md:items-center md:gap-6">
+        <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+          {/* A fixed 48px square, the height of the title and company line
+              beside it. It used to stretch to the full height of that block
+              at 80px wide, which on a phone took a quarter of the card and
+              squeezed the title into a column three words wide. */}
           <CompanyLogo
             name={job.company}
             src={job.logoUrl}
-            className="text-heading rounded-card w-20 shrink-0 self-stretch"
+            className="text-label rounded-control size-11 shrink-0 sm:size-12"
           />
 
           <div className="min-w-0 flex-1">
-            {job.timing != null && (
-              <Badge variant="status" tone="positive">
-                {job.timing}
-              </Badge>
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-subtitle text-ink">
+                  {job.titleHref ? (
+                    <Link href={job.titleHref} className={INK_LINK}>
+                      {job.title}
+                    </Link>
+                  ) : (
+                    job.title
+                  )}
+                </h3>
+
+                <p className="text-label text-ink-meta mt-0.5 font-normal">
+                  {job.companyHref ? (
+                    <Link href={job.companyHref} className={cn(INK_LINK, "font-medium")}>
+                      {job.company}
+                    </Link>
+                  ) : (
+                    <span className="text-ink font-medium">{job.company}</span>
+                  )}
+                  {job.timing != null && (
+                    <>
+                      <span aria-hidden="true" className="text-ink-faint mx-1.5">
+                        ·
+                      </span>
+                      {job.timing}
+                    </>
+                  )}
+                </p>
+              </div>
+
+              {headerAction}
+            </div>
+
+            {facts.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                {facts.map(([name, Icon, text]) => (
+                  <Fact key={name} Icon={Icon}>
+                    {text}
+                  </Fact>
+                ))}
+              </div>
             )}
-
-            <h3 className={cn("text-title text-ink", job.timing != null && "mt-1.5")}>
-              {job.titleHref ? (
-                <Link href={job.titleHref} className={INK_LINK}>
-                  {job.title}
-                </Link>
-              ) : (
-                job.title
-              )}
-            </h3>
-
-            <p className="text-note text-ink mt-0.5 font-semibold">
-              {job.companyHref ? (
-                <Link href={job.companyHref} className={INK_LINK}>
-                  {job.company}
-                </Link>
-              ) : (
-                job.company
-              )}
-            </p>
           </div>
-
-          {headerAction}
-        </div>
-
-        {/* Facts on a grid rather than a wrapping row: fixed columns keep the
-            salary under the salary of the card above it, which is what makes
-            a stack of these scannable. Timing lives in the badge above the
-            title now, not here — see the note on <JobPostingCardData>. */}
-        <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 sm:grid-cols-3">
-          {facts.map(([name, Icon, text]) => (
-            <Fact key={name} Icon={Icon}>
-              {text}
-            </Fact>
-          ))}
         </div>
 
         {actions && (
-          <div className="border-border-subtle mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+          <div className="border-border-subtle mt-4 flex flex-wrap items-center gap-2 border-t pt-3 md:mt-0 md:shrink-0 md:flex-nowrap md:border-t-0 md:pt-0">
             {actions}
           </div>
         )}

@@ -7,6 +7,9 @@ import { Logo } from "@/components/logo";
 import { NavLink } from "@/components/nav-link";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
+import { cn } from "@/lib/cn";
+
+import { SEEKER_GUTTER } from "./gutter";
 
 /**
  * Chrome shared by every signed-in seeker screen.
@@ -17,9 +20,16 @@ import { SearchField } from "@/components/ui/search-field";
  *
  * The bar is a full-bleed band with contained content: <header> paints the
  * surface and the rule edge to edge, and the <nav> inside it takes the same
- * container every page takes — max-w-app, centred, px-12 — so the wordmark and
- * the account cluster land on the same two vertical edges as the cards below
- * them, at every viewport width.
+ * container every page takes — max-w-app, centred, and SEEKER_GUTTER from ./gutter —
+ * so the wordmark and the account cluster land on the same two vertical edges
+ * as the cards below them, at every viewport width.
+ *
+ * Below sm the bar was wider than the phone: a 48px gutter each side, the
+ * 112px lockup, three tabs, the bell and the avatar came to ~420px, so "My
+ * Profile" wrapped and the avatar fell off the right edge. Under sm the
+ * gutter narrows, the lockup becomes the mark alone, and the bell steps out;
+ * it has nothing behind it yet, and the avatar's menu is the one control in
+ * that cluster a phone cannot do without.
  *
  * It was padded asymmetrically before this — 48px left, 16px right — copied
  * from what the mockup measures. A mockup is one width, though, and those are
@@ -124,13 +134,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="bg-panel border-border relative z-20 h-(--seeker-bar) shrink-0 border-b">
         <nav
           aria-label="Main"
-          className="max-w-app mx-auto flex h-full w-full items-center gap-5 px-12"
+          className={cn(
+            "max-w-app mx-auto flex h-full w-full items-center gap-4 sm:gap-5",
+            SEEKER_GUTTER,
+          )}
         >
           <Link
             href="/"
             className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
           >
-            <Logo size="bar" priority />
+            <Logo size="mark" priority className="sm:hidden" />
+            <Logo size="bar" priority className="hidden sm:block" />
           </Link>
 
           <SearchField
@@ -141,7 +155,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
           />
 
-          <ul className="flex items-center gap-5">
+          <ul className="flex items-center gap-4 sm:gap-5">
             {NAV_ITEMS.map((item) => (
               <li key={item.href}>
                 <NavLink href={item.href}>{item.label}</NavLink>
@@ -150,7 +164,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </ul>
 
           <div className="ml-auto flex items-center gap-5">
-            <IconButton label="Notifications">
+            <IconButton label="Notifications" className="hidden sm:inline-flex">
               <BellIcon className="size-5" />
             </IconButton>
 

@@ -16,6 +16,7 @@ import { ResumeUpload } from "@/components/resume-upload";
 import { uploadResume, deleteResume, listResumes, type ResumeItem } from "@/lib/resume-actions";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
+import { SEEKER_GUTTER } from "../gutter";
 
 /**
  * The profile screen. Resumes and the profile photo are live (resume-actions,
@@ -47,7 +48,7 @@ export default function ProfilePage() {
   useEffect(() => {
     getAvatar().then(({ url, error }) => {
       setAvatarUrl(url);
-      setAvatarBusy(false); 
+      setAvatarBusy(false);
       if (error) setAvatarError(error);
     });
   }, []);
@@ -146,7 +147,7 @@ export default function ProfilePage() {
       }
       setResumeList((prev) => prev.filter((r) => r.id !== resumeId));
     } catch {
-      // The server action call itself failed 
+      // The server action call itself failed
       // or the page came back from the back-forward cache with stale action IDs.
       setResumeError("Could not remove the resume. Refresh the page and try again.");
     } finally {
@@ -157,7 +158,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
+    <main className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_2fr]">
         <div className="flex flex-col gap-5">
           <Card as="section" aria-labelledby="identity">

@@ -166,35 +166,38 @@ export function JobFilters() {
         options={JOB_TYPE_OPTIONS}
         values={facets.jobType}
         onChange={(values) => set("jobType", values)}
-        className="w-36"
+        className="w-40 max-sm:hidden"
       />
       <Facet
         label="Workplace"
         options={WORKPLACE_OPTIONS}
         values={facets.workplace}
         onChange={(values) => set("workplace", values)}
-        className="w-40"
+        className="w-40 max-sm:hidden"
       />
       <Facet
         label="Experience"
         options={EXPERIENCE_OPTIONS}
         values={facets.experience}
         onChange={(values) => set("experience", values)}
-        className="w-40"
+        className="w-40 max-sm:hidden"
       />
       <Facet
         label="Date Posted"
         options={DATE_POSTED_OPTIONS}
         values={facets.datePosted}
         onChange={(values) => set("datePosted", values)}
-        className="w-40"
+        className="w-40 max-sm:hidden"
       />
 
+      {/* Below sm the four facets step out and this is the whole row: at a
+          phone's width they stacked one per line at four different widths,
+          and the sheet it opens already holds every one of them. */}
       <Button
         variant="secondary"
         size="sm"
         onClick={() => setAllFiltersOpen(true)}
-        className="bg-panel hover:bg-panel ml-auto"
+        className="bg-panel hover:bg-panel ml-auto max-sm:ml-0 max-sm:w-full"
       >
         <FilterIcon className="size-4" />
         All Filters

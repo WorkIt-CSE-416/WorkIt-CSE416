@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { FilterIcon } from "@/components/icons";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 
 import { ApplicationsBoard } from "./board";
@@ -8,6 +9,7 @@ import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
 import { ViewSwitcher } from "./view-switcher";
 import { parseView } from "./views";
+import { SEEKER_GUTTER } from "../gutter";
 
 export const metadata: Metadata = {
   title: "Applications",
@@ -23,7 +25,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const view = parseView((await searchParams).view);
 
   return (
-    <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
+    <main className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-heading text-ink">My Applications</h1>

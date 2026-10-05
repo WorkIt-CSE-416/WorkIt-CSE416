@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Avatar } from "@/components/avatar";
+import { cn } from "@/lib/cn";
 import { ArrowLeftIcon, BookmarkIcon } from "@/components/icons";
 import { getJobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
@@ -11,6 +12,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Points, Section } from "@/components/ui/section";
 
 import { MatchRail } from "../match-rail";
+import { SEEKER_GUTTER } from "../../gutter";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
@@ -31,7 +33,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
   if (!posting) notFound();
 
   return (
-    <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
+    <main className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <ButtonLink href="/jobs" variant="secondary" size="sm" className="mb-3">
         <ArrowLeftIcon className="size-3.5" />
         Back to Jobs

@@ -16,8 +16,9 @@ import { cn } from "@/lib/cn";
  * same 40px height redraws the mark at exactly its old size and adds the
  * wordmark to its right, leaving the mark's height alone (the 2.5px lift below
  * came later, and applies to both halves). That crop still ships as
- * public/workit-icon.png because
- * scripts/make-favicon.mjs builds the favicon from it, but no size renders it.
+ * public/workit-icon.png because scripts/make-favicon.mjs builds the favicon
+ * from it, and the `mark` size renders it where the lockup does not fit: a
+ * phone-width bar has no room for the wordmark beside three tabs.
  *
  * The bar size is lifted 2.5px because the artwork is bottom-heavy and a box
  * centred by its edges puts the ink low. Alpha-weighted centroids of the sheet,
@@ -48,6 +49,13 @@ const SIZES = {
     intrinsic: { width: 1256, height: 448 },
     classes: "h-10 w-auto -translate-y-[2.5px]",
     rendered: "112px",
+  },
+  /** Phone-width top bar — the mark alone. 32px tall renders ~34px wide. */
+  mark: {
+    src: "/workit-icon.png",
+    intrinsic: { width: 481, height: 448 },
+    classes: "h-8 w-auto",
+    rendered: "34px",
   },
   /** Auth card — the full lockup. 48px tall renders ~135px wide. */
   card: {
