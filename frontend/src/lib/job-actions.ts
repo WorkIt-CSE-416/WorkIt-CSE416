@@ -4,7 +4,7 @@ import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /** POST /company/jobs body. Keys and enum values are the API's, not the
- *  composer's display labels; see backend/app/schemas/jobs.py. */
+ *  composer's display labels; see backend/app/schemas/company_jobs.py. */
 export type JobPayload = {
   status: "draft" | "published";
   title: string;
@@ -23,7 +23,7 @@ export type JobPayload = {
   closesAt: string | null;
 };
 
-/** A job as GET /company/jobs returns it (backend/app/schemas/jobs.py's
+/** A job as GET /company/jobs returns it (backend/app/schemas/company_jobs.py's
  *  JobPosting). Responses are snake_case, unlike the camelCase request. */
 export type CompanyJob = {
   id: string;

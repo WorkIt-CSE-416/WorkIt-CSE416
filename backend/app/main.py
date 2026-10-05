@@ -10,6 +10,8 @@ from sqlalchemy import text
 
 from app.db import get_sessionmaker
 from app.routers.auth import router as auth_router
+from app.routers.avatars import router as avatar_router
+from app.routers.company_jobs import router as company_jobs_router
 from app.routers.jobs import router as jobs_router
 from app.routers.resumes import router as resume_router
 
@@ -20,8 +22,10 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
-app.include_router(resume_router)
 app.include_router(jobs_router)
+app.include_router(resume_router)
+app.include_router(avatar_router)
+app.include_router(company_jobs_router)
 
 @app.get("/health")
 async def health() -> dict[str, str]:

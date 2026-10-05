@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_key: str | None = None
 
+    # The scraper's output, served by GET /jobs. Data, read at request time —
+    # nothing from scraper/ is imported, so it stays out of this build.
+    scraper_feed: Path = ENV_FILE.parent / "scraper" / "feed.json"
+
     @property
     def app_url(self) -> str:
         if not self.database_url:

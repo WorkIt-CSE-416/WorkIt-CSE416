@@ -74,7 +74,11 @@ src/app/          App Router routes, layouts, pages
 src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
   icons.tsx       Glyphs used by more than one route
-  avatar.tsx      Initials stand-in for a profile photo
+  avatar.tsx      Profile photo when given `src`, initials otherwise
+  company-logo.tsx  A company's job-board logo via next/image, falling back
+                  to <Avatar> initials. Its hosts are allow-listed in
+                  next.config.ts and must match scraper/workit_scraper/logos.py —
+                  an unlisted host throws and fails the whole page.
   nav-link.tsx    Top-bar tab that underlines itself on its own route
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
@@ -87,12 +91,15 @@ src/components/   Shared components
                   `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
-  api.ts          Server-only apiUpload (multipart). Guarded with
-                  `import "server-only"`. Uses API_URL (not NEXT_PUBLIC_*).
-  resume-actions.ts  Server action wrapping apiUpload for resume upload.
-                  Used by both onboarding and profile. Hardcodes a
-                  placeholder applicant UUID — TODO: read from session
-                  once /auth/me is wired.
+  api.ts          Server-only apiUpload (multipart, POST or PUT), apiGet,
+                  apiDelete. Guarded with `import "server-only"`. Uses
+                  API_URL (not NEXT_PUBLIC_*).
+  session.ts      getApplicantSession() — the signed-in id + access token.
+                  Server-only, and never in a "use server" file (see below)
+  resume-actions.ts  Server actions for resume upload/list/delete.
+                  Used by both onboarding and profile.
+  avatar-actions.ts  Server actions for the profile photo: get/upload/remove
+  avatar-rules.ts Accepted photo types and size, for the client-side check
   auth.ts         apiFetch() to the Python API (with optional Bearer token),
                   extractErrorMessage, and auth types. Server-only.
   supabase/server.ts  Per-request Supabase client — auth only, never data
@@ -175,7 +182,13 @@ survive — which is why `ui/card.tsx` sets its accent edge one side at a time.
 
 A screen's fixture data lives in a sibling `data.ts`, not inside `page.tsx`, so
 a page file is layout and the swap to real data touches one file per screen.
-When the backend lands, that is the seam it plugs into.
+When the backend lands, that is the seam it plugs into — unless a client
+component imports that `data.ts`. The server-only API helpers cannot go there
+without breaking the build, so the fetch gets its own sibling marked
+`import "server-only"`. The Jobs feed is the first case: `(seeker)/jobs/listings.ts`
+fetches `GET /jobs`, and its `data.ts` still holds the fixtures `filters.tsx`
+(client) and the `/jobs/[jobId]` detail view use. A live fetch in a page calls
+`await connection()` so `next build` does not prerender it with no API running.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
 — there is no `tailwind.config.js`. Add design tokens there. The file also
@@ -247,6 +260,27 @@ optimistic add with rollback on failure). Both call `uploadResume` from
 knows nothing about upload logic or limits. Skill detection from resumes was
 stubbed with mock data and has been removed; add it back when the backend
 has a parsing endpoint.
+
+**Profile photo upload is wired** on the seeker profile. The pencil button
+opens a file picker restricted to JPEG/PNG/WebP; the file is checked against
+`avatar-rules.ts`, previewed immediately, and sent through `uploadAvatar`,
+rolling back on failure. The API re-encodes it to a 512px WebP and returns a
+signed URL valid for an hour — so it is fetched per page load, never stored.
+`backend/db/avatar.md` owns the formats, limits and why. The top-bar avatar
+in `account-menu.tsx` still shows initials; wiring it means fetching the URL
+in the shell layout.
+
+**The upload limit is in three places that must agree:** the API's
+`MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES` here, and `serverActions.bodySizeLimit`
+in `next.config.ts`, which must stay above 5 MB plus multipart overhead or
+Next rejects the request with a generic error before the action runs. Resumes
+share the same 5 MB / `6mb` pair.
+
+**Never export a token-returning helper from a `"use server"` file.** Every
+export of one becomes an endpoint the browser can call, so exporting
+`getApplicantSession` from `resume-actions.ts` would hand any page script the
+access token. Helpers like it live in `server-only` modules (`session.ts`)
+and are imported by the action files.
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.

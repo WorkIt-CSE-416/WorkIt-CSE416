@@ -1,99 +1,38 @@
 """
-Request/response shapes for company job postings. Separate from
-app/models/jobs.py on purpose, see backend/CLAUDE.md: "SQLAlchemy models and
-Pydantic schemas are separate layers."
+Response shape for GET /jobs: one scraped role, as the seeker feed's card needs
+it. Typed values, not display strings — formatting belongs to the frontend's
+(seeker)/jobs/format.ts, the same as it does for every other screen.
 
-Request keys follow the job composer's JobDraft
-(frontend/src/app/company/jobs/new/data.ts), so wiring the form is a rename of
-nothing. The composer's display strings ("Full-time", "On-site") are not
-accepted: the enums here are the stored values, and translating labels is the
-form's job.
+Also the parser for scraper/feed.json, which the scraper writes in exactly this
+shape (scraper/workit_scraper/feed.py). That row and this model are the whole
+contract between the two: add a field to both or neither.
+
+Deliberately not `job_postings`. That table is for roles a company posts on
+WorkIt and requires a company account, a description and a salary, none of
+which a scraped posting has.
 """
 
-import datetime
-from typing import Annotated, Literal
-from uuid import UUID
+from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel
 
-from app.models import dto
-
-# Money is >= 0 here so a bad figure is a 422 naming the field, rather than an
-# IntegrityError from the salary_non_negative constraint.
-Money = Annotated[float, Field(ge=0)]
+from app.models.dto import work_style
 
 
-class JobPostingCreate(BaseModel):
-    '''
-    POST body for a new job. A new job is either saved as a draft or published
-    straight away; closing a job is a later change, never a starting state.
-    '''
-    model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
-
-    status: Literal[dto.job_post_status.draft, dto.job_post_status.published] = dto.job_post_status.draft
-    title: str = Field(min_length=1, max_length=200)
-    description: str = Field(min_length=1)
-
-    job_type: dto.job_type = Field(alias="jobType")
-    experience_level: dto.experience_level = Field(alias="experienceLevel")
-    min_years_experience: int | None = Field(None, alias="minYearsExperience", ge=0, le=50)
-    work_style: dto.work_style = Field(alias="workStyle")
-
-    # ISO codes, checked against the seeded countries/states by the foreign
-    # keys. A remote job still names a country (backend/app/models/CLAUDE.md).
-    location_country: str = Field(alias="locationCountry", pattern=r"^[A-Z]{2}$")
-    location_state: str | None = Field(None, alias="locationState", pattern=r"^[A-Z]{2}-[A-Z0-9]{1,3}$")
-
-    salary: Money | None = None
-    salary_min: Money | None = Field(None, alias="salaryMin")
-    salary_max: Money | None = Field(None, alias="salaryMax")
-    salary_currency: str = Field("USD", alias="currency", pattern=r"^[A-Z]{3}$")
-    salary_period: dto.salary_period = Field(dto.salary_period.year, alias="salaryPeriod")
-
-    # Timezone required: a bare "2026-10-10" would be stored as UTC midnight
-    # and show as the day before for anyone west of UTC.
-    closes_at: AwareDatetime | None = Field(None, alias="closesAt")
-
-    @model_validator(mode="after")
-    def salary_and_location_agree(self):
-        '''
-        mirror the table's salary_exist, salary_range_ordered and state/country
-        checks, so the form gets a readable 422 instead of a database error
-        '''
-        if self.salary is not None and (self.salary_min is not None or self.salary_max is not None):
-            raise ValueError("send either salary or salaryMin and salaryMax, not both")
-        if self.salary is None and (self.salary_min is None or self.salary_max is None):
-            raise ValueError("salary, or both salaryMin and salaryMax, is required")
-        if self.salary_min is not None and self.salary_max is not None and self.salary_min > self.salary_max:
-            raise ValueError("salaryMin cannot be greater than salaryMax")
-        if self.location_state is not None and not self.location_state.startswith(f"{self.location_country}-"):
-            raise ValueError("locationState must be a state of locationCountry")
-        return self
-
-
-class JobPosting(BaseModel):
-    '''
-    a job posting as the API returns it
-    '''
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    company_id: UUID
-    posted_by_recruiter_id: UUID | None
+class JobListing(BaseModel):
+    # The role's apply URL — the scraper dedupes on exactly that, so it is unique
+    # within one feed. Not a database id; nothing can reference it yet.
+    id: str
     title: str
-    description: str
-    job_type: dto.job_type
-    experience_level: dto.experience_level
-    min_years_experience: int | None
-    work_style: dto.work_style
-    location_country: str
-    location_state: str | None
-    salary: float | None
-    salary_min: float | None
-    salary_max: float | None
-    salary_currency: str
-    salary_period: dto.salary_period
-    status: dto.job_post_status
-    closes_at: datetime.datetime | None
-    created_at: datetime.datetime
-    updated_at: datetime.datetime
+    company: str
+    apply_url: str
+    # Narrower than the shared `experience_level` enum on purpose: the scraper
+    # keeps intern and new-grad roles only, and the type says so.
+    experience_level: Literal["internship", "new_grad"]
+    # None rather than a guess: most Greenhouse boards never say.
+    work_style: work_style | None
+    # One place, or "N locations" for a role posted to several offices.
+    location: str | None
+    posted_at: str | None
+    # The logo the company uploaded to its job board; None when it has none.
+    logo_url: str | None
