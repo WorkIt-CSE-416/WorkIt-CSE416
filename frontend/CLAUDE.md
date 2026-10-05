@@ -58,7 +58,8 @@ src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
-  (seeker)/       Job-seeker shell — top bar, and every screen behind it
+  (seeker)/       Job-seeker shell — a left panel plus a top bar, the same
+                  dashboard layout as company/, and every screen behind it
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -81,13 +82,16 @@ src/components/   Shared components
                   to <Avatar> initials. Its hosts are allow-listed in
                   next.config.ts and must match scraper/workit_scraper/logos.py —
                   an unlisted host throws and fails the whole page.
-  nav-link.tsx    Top-bar tab that underlines itself on its own route
+  app-sidebar.tsx The left panel both shells use: shadcn's Sidebar with
+                  WorkIt's row spacing and current-item marking. Each shell
+                  passes its own groups and its bar's height as the offset
+  nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
   account-menu.tsx  The avatar dropdown; each shell passes its own items
   ui/             Presentational primitives: badge, button, card, company-tile,
-                  fact, filter-chip, icon-button, search-field, section-heading,
-                  select-field, text-field, text-link
+                  empty-state, fact, filter-chip, icon-button, search-field,
+                  section-heading, select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
@@ -143,9 +147,17 @@ cannot both define `/profile`, and both audiences need one — hence the prefix 
 the company side rather than a second invisible group. It also means the auth
 guard is one path check covering routes nobody has written yet.
 
-The two top bars are separate files on purpose. Their shared parts are already
-shared components; what is left is a tab list and one button. Lift a `<TopBar>`
-out only if they are still near-identical once both sides are real screens.
+The two shells are separate layouts on purpose. Their shared parts are shared
+components — the panel is `app-sidebar.tsx`, the account menu and search field
+are in `src/components` — and what is left is each bar's search, its account
+items and the company's post button. Lift a `<TopBar>` out only if they are
+still near-identical once both sides are real screens.
+
+Seeker pages break on the width they actually get, not the window's: the shell
+makes its scroller `@container/main`, because an open panel takes 256px. A
+layout that splits into columns uses `@3xl/main:` and friends, and a card that
+rearranges itself (the job card) is its own `@container`. Pages render a
+`<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
 Name a variant for the role it plays, never for how it looks: `primary`,
 `positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette

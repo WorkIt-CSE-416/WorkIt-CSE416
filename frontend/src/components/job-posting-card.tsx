@@ -131,13 +131,18 @@ export function JobPostingCard({
   ).filter(([, , text]) => text != null);
 
   return (
-    <Card as="article" padding="none" className="flex flex-col overflow-hidden md:flex-row">
-      {/* From md the actions sit on the header's own row, centred against
-          it, instead of a ruled-off row underneath: at desktop width that row
-          was mostly empty space, and it made every card a third taller than
-          what it says. Below md there is no room beside the title, so they
-          drop under a rule again. */}
-      <div className="min-w-0 flex-1 p-4 sm:p-5 md:flex md:items-center md:gap-6">
+    <Card
+      as="article"
+      padding="none"
+      className="@container flex flex-col overflow-hidden md:flex-row"
+    >
+      {/* On a card 672px or wider the actions sit on the header's own row,
+          centred against it, instead of a ruled-off row underneath: at that
+          width the row was mostly empty space, and it made every card a third
+          taller than what it says. Narrower, there is no room beside the
+          title, so they drop under a rule again. The card's own width, not
+          the window's, because the shell's panel can take 256px of it. */}
+      <div className="min-w-0 flex-1 p-4 sm:p-5 @2xl:flex @2xl:items-center @2xl:gap-6">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
           {/* A fixed 48px square, the height of the title and company line
               beside it. It used to stretch to the full height of that block
@@ -197,7 +202,7 @@ export function JobPostingCard({
         </div>
 
         {actions && (
-          <div className="border-border-subtle mt-4 flex flex-wrap items-center gap-2 border-t pt-3 md:mt-0 md:shrink-0 md:flex-nowrap md:border-t-0 md:pt-0">
+          <div className="border-border-subtle mt-4 flex flex-wrap items-center gap-2 border-t pt-3 @2xl:mt-0 @2xl:shrink-0 @2xl:flex-nowrap @2xl:border-t-0 @2xl:pt-0">
             {actions}
           </div>
         )}

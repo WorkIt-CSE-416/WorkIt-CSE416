@@ -33,7 +33,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
   if (!posting) notFound();
 
   return (
-    <main className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <ButtonLink href="/jobs" variant="secondary" size="sm" className="mb-3">
         <ArrowLeftIcon className="size-3.5" />
         Back to Jobs
@@ -85,6 +85,6 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
       <Section title="Qualifications">
         <Points items={posting.qualifications} marker />
       </Section>
-    </main>
+    </div>
   );
 }

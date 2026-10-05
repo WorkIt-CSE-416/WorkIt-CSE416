@@ -84,16 +84,17 @@ export default function SearchPage() {
     /* Contained like every other seeker screen, not a full-bleed workspace.
        The results pane used to start at x=0 under a bar whose logo starts at
        the container's edge, so nothing on the page lined up with the bar
-       above it. Below md the detail pane steps out and the results take the
+       above it. Under 896px of page (the shell's @container/main, which an
+       open panel narrows) the detail pane steps out and the results take the
        width: two fixed panes side by side were wider than a phone, so the
        whole page scrolled sideways to reach the job. */
     <div
       className={cn(
-        "max-w-app mx-auto flex w-full flex-1 flex-col gap-6 py-6 md:flex-row md:items-start",
+        "max-w-app mx-auto flex w-full flex-1 flex-col gap-6 py-6 @4xl/main:flex-row @4xl/main:items-start",
         SEEKER_GUTTER,
       )}
     >
-      <aside aria-labelledby="results-heading" className="flex shrink-0 flex-col md:w-80">
+      <aside aria-labelledby="results-heading" className="flex shrink-0 flex-col @4xl/main:w-80">
         <div className="flex items-center justify-between gap-3">
           <SectionHeading as="h1" id="results-heading">
             Search Results
@@ -121,7 +122,7 @@ export default function SearchPage() {
         </ul>
       </aside>
 
-      <main className="hidden min-w-0 flex-1 md:block">
+      <section aria-label="Job details" className="hidden min-w-0 flex-1 @4xl/main:block">
         {/* text-title, not text-display: at 28px the title outweighed the page
             heading of every other screen, and in a pane beside the results it
             wrapped long before the header ran out of room. */}
@@ -192,7 +193,7 @@ export default function SearchPage() {
         <Section title="Qualifications">
           <Points items={DETAIL.qualifications} marker />
         </Section>
-      </main>
+      </section>
     </div>
   );
 }

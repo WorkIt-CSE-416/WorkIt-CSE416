@@ -25,7 +25,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const view = parseView((await searchParams).view);
 
   return (
-    <main className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* Wraps below sm, where the title and the controls don't share a
           line: the controls were shrink-0, so on a phone they pushed past the
           right edge and the whole page scrolled sideways. */}
@@ -48,6 +48,6 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
       {view === "list" && <ApplicationsList />}
 
       {view === "board" && <ApplicationsBoard />}
-    </main>
+    </div>
   );
 }

@@ -4,85 +4,43 @@ import { signOut } from "@/app/actions";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { BellIcon, GearIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
-import { NavLink } from "@/components/nav-link";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
-import { cn } from "@/lib/cn";
 
-import { SEEKER_GUTTER } from "./gutter";
+import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
- * Chrome shared by every signed-in seeker screen.
+ * Chrome shared by every signed-in seeker screen: a full-width bar across the
+ * top, and the sections in a panel down the left, the same dashboard layout
+ * the company shell uses (src/app/company/layout.tsx). The two are still
+ * separate files rather than one shell taking props — each bar carries its
+ * own search, account items and, on the company side, a post button — but
+ * the panel is one component, @/components/app-sidebar, so it cannot drift.
  *
- * The company shell has its own bar at src/app/company/layout.tsx. The two are
- * deliberately separate files rather than one bar taking props — the note there
- * explains why, and is the place to revisit if they stop drifting apart.
+ * Jobs, Applications and My Profile were tabs in this bar. They moved to the
+ * panel because that is where a dashboard keeps its sections, and because a
+ * phone had no room for them: three tabs beside the lockup and the avatar
+ * came to ~420px, so "My Profile" wrapped and the avatar fell off the edge.
+ * On a phone the panel opens as a sheet from the toggle instead.
  *
- * The bar is a full-bleed band with contained content: <header> paints the
- * surface and the rule edge to edge, and the <nav> inside it takes the same
- * container every page takes — max-w-app, centred, and SEEKER_GUTTER from ./gutter —
- * so the wordmark and the account cluster land on the same two vertical edges
- * as the cards below them, at every viewport width.
- *
- * Below sm the bar was wider than the phone: a 48px gutter each side, the
- * 112px lockup, three tabs, the bell and the avatar came to ~420px, so "My
- * Profile" wrapped and the avatar fell off the right edge. Under sm the
- * gutter narrows, the lockup becomes the mark alone, and the bell steps out;
- * it has nothing behind it yet, and the avatar's menu is the one control in
- * that cluster a phone cannot do without.
- *
- * It was padded asymmetrically before this — 48px left, 16px right — copied
- * from what the mockup measures. A mockup is one width, though, and those are
- * viewport-anchored gutters against a centred container: the left edges agreed
- * at exactly 1024px and drifted apart by half the overflow past it, and the
- * right edges never agreed at all. The mockup's ~17px right gap is read as an
- * artefact of its single width rather than an intent.
- *
- * /search used to be the screen this did not align to: a full-bleed two-pane
- * workspace whose results pane started at x=0. It takes the container now,
- * like the other three, so every seeker screen shares the bar's two edges.
- *
- * The mockup leaves the left of the bar empty, with the first nav link starting
- * 128px in. That slot holds the icon rather than the full lockup: at 32px tall
- * the mark is only ~34px wide, which is the point — the search field sits right
- * beside it, and the lockup at 2.8:1 would crowd both. The mockup's 128px no
- * longer maps onto one thing, since the field now intervenes: above md the
- * first nav link lands well past that mark, and below md, where the field is
- * hidden, well short of it (48 + 34 + 20 = ~102px).
+ * The toggle sits left of the logo, as it does on the company side. It is
+ * shadcn's own button, which owns the open state, so it takes its tooltip
+ * here rather than being an IconButton.
  *
  * The search field comes from the search mockup, the only one that draws it.
- * It sits in the shared bar rather than on that page because that is where the
- * mockup puts it, and because searching jobs is global rather than something
- * one screen owns — but it does mean profile and applications now carry a
- * field their own mockups do not. Hidden below md, where the bar has no room.
+ * It sits in the shared bar rather than on that page because searching jobs
+ * is global rather than something one screen owns. Hidden below md, where the
+ * bar has no room. It grows into whatever the bar has spare and stops at
+ * 320px, rather than taking a fixed width somebody has to recompute every
+ * time the bar's contents change.
  *
- * It grows into whatever the bar has spare and stops at 320px, rather than
- * taking a fixed width. Its width was hard-coded at 236px, and that is the kind
- * of number somebody has to recompute by hand every time the bar's contents
- * change — which is exactly what dropping the Search tab would have required.
- * The cap is what keeps it from crowding the nav once it has room.
+ * The bell steps out below sm: it has nothing behind it yet, and the avatar's
+ * menu is the one control in that cluster a phone cannot do without.
  */
 
-/**
- * Search is the one thing that used to sit here and does not: /search is where
- * the bar's own field would land a query, and a tab beside that field would be
- * a second, contradictory way to reach it. The route still exists and still
- * renders; it has no tab.
- *
- * My Profile is a tab rather than a row in the account menu. It briefly was one
- * — the reasoning is still in @/components/account-menu — and the trade did not
- * hold: a profile is not somewhere you visit once and leave, it is somewhere a
- * job seeker goes back to all through a hunt, and a click of depth is the wrong
- * price for that. "My" is what separates it from an employer's profile, which
- * the company shell also has to name.
- */
-const NAV_ITEMS = [
-  { href: "/jobs", label: "Jobs" },
-  { href: "/applications", label: "Applications" },
-  { href: "/profile", label: "My Profile" },
-];
-
-/* One row, now that My Profile is a tab again and Sign out is its own slot
+/* One row, now that My Profile is in the panel and Sign out is its own slot
  * below a separator (AccountMenu's onSignOut) rather than a row here. A menu
  * holding a single item is worth a second look — the alternative is the bare
  * gear this replaced, back beside the bell — but it is the right shape to
@@ -98,50 +56,44 @@ const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      /* bg-background, which is white — the same page the company shell
-         paints. It was bg-app, a grey; see the note on --background in
-         globals.css. */
-      className="bg-background flex h-svh flex-col"
+    /* flex-col, because SidebarProvider lays its children out in a row by
+       default and this shell stacks the bar over the panel and the page.
+
+       h-svh rather than min-h-full is what moves the scrollbar under the bar:
+       a min-height leaves the document scrolling, and a document scrollbar
+       runs the full window height, past the bar it has nothing to do with. An
+       exact viewport height makes this column the window, so the only thing
+       left to scroll is the region below the bar. */
+    <SidebarProvider
+      className="bg-background h-svh flex-col"
       /* Read by the canvas rule in globals.css, which paints the overscroll
          strip white to match — the company shell sets the same attribute. */
       data-shell="seeker"
-      /* The bar's height, in one place, the way the company shell keeps its
-         own. Nothing below reserves it any more — the bar is back in flow, so
-         it takes its own room — but it stays a token because it is one number
-         two shells and a fixed panel all measure against.
-
-         h-svh rather than min-h-full is what moves the scrollbar under the bar:
-         a min-height leaves the document scrolling, and a document scrollbar
-         runs the full window height, past the bar it has nothing to do with. An
-         exact viewport height makes this column the window, so the only thing
-         left to scroll is the region below the bar. */
+      /* The bar's height, in one place. The panel is `fixed` and positioned
+         by the viewport, so it has to be told where the bar ends; see "WHY IT
+         IS OFFSET" in @/components/app-sidebar. */
       style={{ "--seeker-bar": "4rem" } as React.CSSProperties}
     >
-      {/* BACK IN FLOW, which it was long ago for the wrong reason and is again
-          for the right one. In flow it used to scroll away with the document,
-          so it was pulled out to `fixed` — the note that stood here weighed
-          fixed against sticky on how each behaves during a rubber-band
-          overscroll.
-
-          None of that applies once the document is not what scrolls. The bar is
-          a sibling of the scroller now, not a layer over it, so nothing can
-          slide it and nothing bounces underneath it. shrink-0 so a tall page
-          cannot squeeze it. */}
+      {/* In flow, as a sibling of the scroller rather than a layer over it,
+          so nothing can slide it and nothing bounces underneath it. shrink-0
+          so a tall page cannot squeeze it, and z-20 to stay over the fixed
+          panel's z-10. */}
       <header className="bg-panel border-border relative z-20 h-(--seeker-bar) shrink-0 border-b">
-        <nav
-          aria-label="Main"
-          className={cn(
-            "max-w-app mx-auto flex h-full w-full items-center gap-4 sm:gap-5",
-            SEEKER_GUTTER,
-          )}
-        >
+        <div className="flex h-full w-full items-center gap-4 px-4 sm:gap-5 sm:px-6">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-transparent" />
+              }
+            />
+            <TooltipContent>Toggle sidebar</TooltipContent>
+          </Tooltip>
+
           <Link
             href="/"
             className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
           >
-            <Logo size="mark" priority className="sm:hidden" />
-            <Logo size="bar" priority className="hidden sm:block" />
+            <Logo size="bar" priority />
           </Link>
 
           <SearchField
@@ -152,14 +104,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
           />
 
-          <ul className="flex items-center gap-4 sm:gap-5">
-            {NAV_ITEMS.map((item) => (
-              <li key={item.href}>
-                <NavLink href={item.href}>{item.label}</NavLink>
-              </li>
-            ))}
-          </ul>
-
           <div className="ml-auto flex items-center gap-5">
             <IconButton label="Notifications" className="hidden sm:inline-flex">
               <BellIcon className="size-5" />
@@ -167,7 +111,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
             <AccountMenu name="Alex Chen" items={ACCOUNT_ITEMS} onSignOut={signOut} />
           </div>
-        </nav>
+        </div>
       </header>
 
       {/* The one scrolling element in the shell. min-h-0 because a flex item
@@ -175,20 +119,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           column past h-svh and hand the scroll back to the document.
 
           overscroll-contain for the same reason from the other direction: a
-          trackpad fling that outruns the list's own travel would otherwise
-          chain onto the document once this div hits its scroll limit, and
-          since the document is the whole h-svh column, that drags the header
-          along with it — a second, page-level scrollbar stacked on this
-          one's. Containing it stops the chain right at this div's edge.
+          trackpad fling that outruns the page's own travel would otherwise
+          chain onto the document once the inset hits its scroll limit, and
+          drag the bar along with it.
 
-          relative so this div clips everything inside it. An absolutely
-          positioned descendant with no positioned ancestor (every sr-only
-          span, for one) is placed against the viewport instead, escapes this
-          div's overflow, and makes the document itself taller than h-svh —
-          scrollable behind a modal, header and all. */}
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-        {children}
+          @container/main because the page's room depends on the panel, not
+          just the window: an open panel takes 256px, so a 1024px window
+          leaves the page 768. Layouts that split into columns (search,
+          profile) break on this width rather than on the viewport's.
+
+          SidebarInset renders the <main>, so the pages inside it don't. */}
+      <div className="flex min-h-0 w-full flex-1">
+        <SeekerSidebar />
+        <SidebarInset className="@container/main flex-1 overflow-y-auto overscroll-contain">
+          {children}
+        </SidebarInset>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

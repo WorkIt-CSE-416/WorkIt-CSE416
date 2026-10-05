@@ -88,7 +88,7 @@ export default async function JobsPage() {
   const { jobs, error } = await getJobListings();
 
   return (
-    <main className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div>
         <h1 className="text-heading text-ink">Recommended for You</h1>
         <p className="text-body text-ink-meta mt-1">
@@ -126,6 +126,6 @@ export default async function JobsPage() {
           ))}
         </ul>
       )}
-    </main>
+    </div>
   );
 }

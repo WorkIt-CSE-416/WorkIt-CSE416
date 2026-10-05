@@ -158,8 +158,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <div className="grid items-start gap-5 lg:grid-cols-[1fr_2fr]">
+    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      <div className="grid items-start gap-5 @3xl/main:grid-cols-[1fr_2fr]">
         <div className="flex flex-col gap-5">
           <Card as="section" aria-labelledby="identity">
             <div className="flex flex-col items-center text-center">
@@ -316,6 +316,6 @@ export default function ProfilePage() {
           </Card>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
