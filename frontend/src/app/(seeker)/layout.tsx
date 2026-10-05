@@ -1,11 +1,12 @@
-import { signOut } from "@/app/actions";
-import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
-import { BellIcon, GearIcon } from "@/components/icons";
+import { Suspense } from "react";
+
+import { BellIcon } from "@/components/icons";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
+import { SeekerAccount, SeekerStatusLine } from "./account-status";
 import { SEEKER_GUTTER } from "./gutter";
 import { SeekerSidebar } from "./seeker-sidebar";
 import { SidebarBrand } from "./sidebar-brand";
@@ -37,20 +38,6 @@ import { SidebarBrand } from "./sidebar-brand";
  * The bell steps out below sm: it has nothing behind it yet, and the avatar's
  * menu is the one control in that cluster a phone cannot do without.
  */
-
-/* One row, now that My Profile is in the panel and Sign out is its own slot
- * below a separator (AccountMenu's onSignOut) rather than a row here. A menu
- * holding a single item is worth a second look — the alternative is the bare
- * gear this replaced, back beside the bell — but it is the right shape to
- * leave in place while the account rows are still arriving: billing and
- * notification preferences have nowhere else to go yet.
- *
- * /settings is not built yet. It is a link that 404s rather than a control
- * that does nothing, which is the more honest placeholder and the one that
- * stops needing a note the day the route lands. */
-const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
-  { href: "/settings", label: "Settings", icon: <GearIcon className="size-4" /> },
-];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -100,12 +87,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
             />
 
-            <div className="ml-auto flex items-center gap-5">
+            <div className="ml-auto flex items-center gap-4 sm:gap-5">
+              {/* Streamed: each waits on the API, and nothing else in the
+                  bar or the page should wait with it. The account's
+                  fallback holds the avatar's 32px so the bar doesn't shift
+                  when it lands. */}
+              <Suspense fallback={null}>
+                <SeekerStatusLine />
+              </Suspense>
+
               <IconButton label="Notifications" className="hidden sm:inline-flex">
                 <BellIcon className="size-5" />
               </IconButton>
 
-              <AccountMenu name="Alex Chen" items={ACCOUNT_ITEMS} onSignOut={signOut} />
+              <Suspense
+                fallback={<span aria-hidden="true" className="bg-hover size-8 rounded-full" />}
+              >
+                <SeekerAccount />
+              </Suspense>
             </div>
           </div>
         </div>

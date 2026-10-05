@@ -1,7 +1,7 @@
 "use client";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
-import { BriefcaseIcon, UserIcon } from "@/components/icons";
+import { BriefcaseIcon, GearIcon, UserIcon } from "@/components/icons";
 
 import { BoardIcon } from "./applications/icons";
 
@@ -17,6 +17,11 @@ import { BoardIcon } from "./applications/icons";
  * There is no Search row. /search is where the bar's own field lands a query,
  * and a row beside that field would be a second, contradictory way to reach
  * it; the route still renders.
+ *
+ * Settings is pinned to the panel's foot rather than living in the account
+ * menu: it is where you change how the app works, not part of the hunt, and
+ * a dashboard keeps that at the bottom of its panel. /settings is not built
+ * yet; it is a link that 404s rather than a control that does nothing.
  *
  * My Profile is a row rather than an item in the account menu: a profile is
  * somewhere a job seeker goes back to all through a hunt, not somewhere they
@@ -35,6 +40,15 @@ const GROUPS: SidebarNavGroup[] = [
   },
 ];
 
+const FOOTER = [{ href: "/settings", label: "Settings", Icon: GearIcon }];
+
 export function SeekerSidebar() {
-  return <AppSidebar groups={GROUPS} label="Job search sections" className="top-(--seeker-bar)!" />;
+  return (
+    <AppSidebar
+      groups={GROUPS}
+      footer={FOOTER}
+      label="Job search sections"
+      className="top-(--seeker-bar)!"
+    />
+  );
 }

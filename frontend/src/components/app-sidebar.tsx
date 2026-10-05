@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
@@ -109,10 +110,15 @@ export type SidebarNavGroup = { label: string; items: SidebarNavItem[] };
 
 export function AppSidebar({
   groups,
+  footer,
   label,
   className,
 }: {
   groups: SidebarNavGroup[];
+  /** Rows pinned to the bottom of the panel, apart from the sections: the
+   *  things you visit to change how the app works rather than to work in it,
+   *  like Settings. */
+  footer?: SidebarNavItem[];
   /** The panel's accessible name, e.g. "Company sections". */
   label: string;
   /** The shell's bar offset — see "WHY IT IS OFFSET" above. */
@@ -128,38 +134,45 @@ export function AppSidebar({
     >
       <SidebarContent className="pt-2">
         {groups.map((group) => (
-          <Group key={group.label} group={group} pathname={pathname} />
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarMenu className={MENU}>
+              {group.items.map((item) => (
+                <NavRow key={item.href} item={item} pathname={pathname} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
         ))}
       </SidebarContent>
+
+      {footer && footer.length > 0 && (
+        <SidebarFooter className="pb-3">
+          <SidebarMenu className={MENU}>
+            {footer.map((item) => (
+              <NavRow key={item.href} item={item} pathname={pathname} />
+            ))}
+          </SidebarMenu>
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }
 
-function Group({ group, pathname }: { group: SidebarNavGroup; pathname: string }) {
-  return (
-    <SidebarGroup>
-      <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-      <SidebarMenu className={MENU}>
-        {group.items.map(({ href, label, Icon, exact }) => {
-          const active = exact
-            ? pathname === href
-            : pathname === href || pathname.startsWith(`${href}/`);
+function NavRow({ item, pathname }: { item: SidebarNavItem; pathname: string }) {
+  const { href, label, Icon, exact } = item;
+  const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
-          return (
-            <SidebarMenuItem key={href}>
-              <SidebarMenuButton
-                isActive={active}
-                tooltip={label}
-                render={<Link href={href} />}
-                className={cn(MENU_BUTTON, active && CURRENT_ITEM)}
-              >
-                <Icon className="size-4" />
-                <span>{label}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          );
-        })}
-      </SidebarMenu>
-    </SidebarGroup>
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        isActive={active}
+        tooltip={label}
+        render={<Link href={href} />}
+        className={cn(MENU_BUTTON, active && CURRENT_ITEM)}
+      >
+        <Icon className="size-4" />
+        <span>{label}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }

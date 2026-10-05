@@ -159,6 +159,13 @@ layout that splits into columns uses `@3xl/main:` and friends, and a card that
 rearranges itself (the job card) is its own `@container`. Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
+The seeker bar shows the signed-in account's real name and photo
+(`getCurrentAccount()` in `lib/session.ts`, cached per render) and one status
+line, chosen in `(seeker)/status.ts`: new roles, then a resume nudge, then a
+greeting. Only messages backed by real data belong there — deadlines and
+application progress go first once the tracker has a backend, and not before.
+Settings lives in the panel's footer, not the account menu.
+
 Name a variant for the role it plays, never for how it looks: `primary`,
 `positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette
 change; colours do not.
