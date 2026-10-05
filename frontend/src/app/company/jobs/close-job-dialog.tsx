@@ -21,7 +21,7 @@ import { changeJobStatus } from "@/lib/job-actions";
  * Controlled (`open`/`onOpenChange`) rather than owning a trigger, because the
  * row menu opens it from a menu item, and a dialog nested inside the menu
  * would unmount the moment the menu closed. Closing is final, which is the
- * whole reason this asks first; pausing, when it exists, won't.
+ * whole reason this asks first; pausing is undone with Resume, so it doesn't.
  */
 export function CloseJobDialog({
   jobId,

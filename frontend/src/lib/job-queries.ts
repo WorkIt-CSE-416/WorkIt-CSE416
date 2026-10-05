@@ -17,7 +17,7 @@ export type CompanyJob = {
   id: string;
   title: string;
   description: string;
-  status: "draft" | "published" | "closed";
+  status: "draft" | "published" | "paused" | "closed";
   job_type: JobPayload["jobType"];
   experience_level: JobPayload["experienceLevel"];
   min_years_experience: number | null;

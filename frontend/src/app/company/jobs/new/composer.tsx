@@ -8,7 +8,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextField } from "@/components/ui/text-field";
-import { saveJob, type JobPayload } from "@/lib/job-actions";
+import { changeJobStatus, saveJob, type JobPayload } from "@/lib/job-actions";
 import type { CompanyJob } from "@/lib/job-queries";
 
 import {
@@ -36,7 +36,7 @@ import { JobPreview } from "./preview";
 import { ScreeningQuestions } from "./screening-questions";
 import { Stepper } from "./stepper";
 import { CloseJobDialog } from "../close-job-dialog";
-import { STATUS_TONE } from "../data";
+import { STATUS_LABEL, STATUS_TONE } from "../data";
 
 /** STEPS for a job that is already live: nothing is left to publish. */
 const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
@@ -85,13 +85,14 @@ const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
  * last step is Review, and the one primary action is Update Job, offered on
  * every step so a quick fix needn't walk through all three.
  *
- * STATUS SITS UNDER THE TITLE, APART FROM THE FORM. Close job acts at once
- * through its own route and never saves form edits along with it, so it
- * lives beside the status badge rather than among the save buttons. A closed
- * job is final: the form still opens so it can be read, but nothing saves.
+ * STATUS SITS UNDER THE TITLE, APART FROM THE FORM. Pause, Resume and Close
+ * act at once through their own route and never save form edits along with
+ * them, so they live beside the status badge rather than among the save
+ * buttons, and unsaved edits survive a pause. A closed job is final: the form
+ * still opens so it can be read, but nothing saves.
  */
 export function Composer({ job }: { job?: CompanyJob }) {
-  const [editing] = useState(
+  const [editing, setEditing] = useState(
     () =>
       job && {
         id: job.id,
@@ -111,6 +112,26 @@ export function Composer({ job }: { job?: CompanyJob }) {
   const steps = isLive ? LIVE_STEPS : STEPS;
   const isClosed = editing?.status === "closed";
   const [isClosing, setIsClosing] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [isChangingStatus, startChangingStatus] = useTransition();
+
+  /** Pause or Resume. The badge and the next save's updatedAt both follow
+   *  the response, since `editing` is built once and a refresh wouldn't
+   *  reach it; the form's own edits are left alone. The updatedAt the form
+   *  holds goes along, so the API refuses the change if someone else saved
+   *  first, rather than handing this form a fresh one to save over them. */
+  function setStatus(id: string, status: "published" | "paused", loadedAt: string) {
+    setStatusError(null);
+    startChangingStatus(async () => {
+      const result = await changeJobStatus(id, status, loadedAt);
+      if (result.error || !result.updatedAt) {
+        setStatusError(result.error);
+        return;
+      }
+      const updatedAt = result.updatedAt;
+      setEditing((current) => current && { ...current, status, updatedAt });
+    });
+  }
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
   const router = useRouter();
@@ -223,8 +244,8 @@ export function Composer({ job }: { job?: CompanyJob }) {
 
           {editing && isLive && (
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Badge variant="status" tone={STATUS_TONE[isClosed ? "Closed" : "Open"]}>
-                {isClosed ? "Closed" : "Open"}
+              <Badge variant="status" tone={STATUS_TONE[STATUS_LABEL[editing.status]]}>
+                {STATUS_LABEL[editing.status]}
               </Badge>
               {isClosed ? (
                 <p className="text-meta text-ink-meta">
@@ -232,6 +253,20 @@ export function Composer({ job }: { job?: CompanyJob }) {
                 </p>
               ) : (
                 <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={isChangingStatus}
+                    onClick={() =>
+                      setStatus(
+                        editing.id,
+                        editing.status === "paused" ? "published" : "paused",
+                        editing.updatedAt,
+                      )
+                    }
+                  >
+                    {editing.status === "paused" ? "Resume" : "Pause"}
+                  </Button>
                   <Button variant="secondary" size="sm" onClick={() => setIsClosing(true)}>
                     Close job
                   </Button>
@@ -244,6 +279,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
                   />
                 </>
               )}
+              {statusError && <p className="text-meta text-danger">{statusError}</p>}
             </div>
           )}
         </header>

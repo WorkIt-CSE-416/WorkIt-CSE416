@@ -39,7 +39,8 @@ _LOCATION_CONSTRAINTS = {"job_postings_location_country_fkey", "country_state_re
 # published isn't here: publishing goes through PUT with the full form, so the
 # details are checked at the moment the job goes live. Closed is final.
 _NEXT_STATUSES: dict[job_post_status, set[job_post_status]] = {
-    job_post_status.published: {job_post_status.closed},
+    job_post_status.published: {job_post_status.paused, job_post_status.closed},
+    job_post_status.paused: {job_post_status.published, job_post_status.closed},
 }
 
 
@@ -170,9 +171,11 @@ async def update_job(
     form always sends every field, and the salary rules need all of them at
     once to check.
 
-    Status may only stay put or move forward: a draft can be published, but a
-    published job can't return to draft, and a closed job can't be edited.
-    A form loaded before someone else's save is refused (409), never merged.
+    Only a draft's status changes here (to published, when Publish is
+    pressed). A live job keeps its status, paused included, because pausing,
+    resuming and closing go through the status route; a closed job can't be
+    edited at all. A form loaded before someone else's save is refused (409),
+    never merged.
     '''
     # Locked, or two saves could both pass the updated_at check below before
     # either commits.
@@ -185,8 +188,8 @@ async def update_job(
         )
     if job.status == job_post_status.closed:
         raise HTTPException(status.HTTP_409_CONFLICT, "A closed job can't be edited.")
-    if job.status == job_post_status.published and body.status == job_post_status.draft:
-        raise HTTPException(status.HTTP_409_CONFLICT, "A published job can't go back to being a draft.")
+    if job.status != job_post_status.draft and body.status == job_post_status.draft:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A live job can't go back to being a draft.")
 
     # Checked only when the date matters now: a draft going live, or a live
     # job's date being moved. Fixing a typo on a live job whose closing date
@@ -196,7 +199,8 @@ async def update_job(
     if goes_live or date_moved:
         _reject_past_close(body.closes_at)
 
-    for field, value in body.model_dump(exclude={"updated_at"}).items():
+    keep = {"updated_at"} if job.status == job_post_status.draft else {"updated_at", "status"}
+    for field, value in body.model_dump(exclude=keep).items():
         setattr(job, field, value)
     await _commit(db, job)
     return job
@@ -210,12 +214,19 @@ async def change_job_status(
     db: AsyncSession = Depends(get_session),
 ) -> Job_Post:
     '''
-    move a job along its lifecycle, e.g. close it. Only the moves in
-    _NEXT_STATUSES are allowed; anything else is a 409.
+    pause, resume or close a job. Only the moves in _NEXT_STATUSES are
+    allowed; anything else is a 409. A caller holding the form sends the
+    updatedAt it loaded, and is refused (409) if the job changed since.
     '''
     # Locked, or two moves could both pass the check below against the same
     # old status, and the later commit could undo a close.
     job = await _own_job(db, job_id, account, lock=True)
+
+    if body.updated_at is not None and body.updated_at != job.updated_at:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Someone else changed this job since you opened it. Reload to see their changes.",
+        )
 
     if body.status not in _NEXT_STATUSES.get(job.status, set()):
         raise HTTPException(

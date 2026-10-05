@@ -89,9 +89,15 @@ class JobPostingUpdate(JobPostingCreate):
 class JobStatusChange(BaseModel):
     '''
     POST body for moving a job along its lifecycle, separate from editing its
-    details so a status button never saves half-finished form changes
+    details so a status button never saves half-finished form changes.
+
+    updatedAt is optional: the row menu acts on whatever the job is now, but
+    the edit form sends the one it loaded. The form takes the new updated_at
+    from the response for its next save, so without this check a pause could
+    launder a stale form past PUT's conflict check.
     '''
     status: dto.job_post_status
+    updated_at: AwareDatetime | None = Field(None, alias="updatedAt")
 
 
 class JobPostingSummary(BaseModel):

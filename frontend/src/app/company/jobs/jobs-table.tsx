@@ -3,7 +3,7 @@
 import { createColumnHelper, useTable } from "@tanstack/react-table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
 import {
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { changeJobStatus } from "@/lib/job-actions";
 
 import {
   DataTable,
@@ -145,18 +146,38 @@ const columns = helper.columns([
 
 /**
  * The "⋯" menu at the end of a row: what a recruiter does to a job without
- * opening it. Only an Open job can be closed; a Draft was never live and a
- * Closed one is final, so they offer Edit alone.
+ * opening it. An Open job can be paused, a Paused one resumed, and either
+ * closed; a Draft was never live and a Closed one is final, so they offer
+ * Edit alone. Pause and Resume act at once, since Resume undoes Pause; only
+ * Close asks first.
  *
  * relative z-10 lifts the trigger above <RowLink>'s row-wide overlay, the same
  * way the checkbox is lifted, or opening the menu would open the job.
  */
 function RowActions({ posting }: { posting: Posting }) {
   const [isClosing, setIsClosing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isChanging, startChanging] = useTransition();
   const router = useRouter();
+  const isLive = posting.status === "Open" || posting.status === "Paused";
+
+  function setStatus(status: "published" | "paused") {
+    setError(null);
+    startChanging(async () => {
+      const result = await changeJobStatus(posting.id, status);
+      if (result.error) setError(result.error);
+      // Re-runs the server page, so the row comes back with its new status.
+      else router.refresh();
+    });
+  }
 
   return (
     <>
+      {error && (
+        <span role="alert" className="text-meta text-danger mr-2">
+          {error}
+        </span>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`Actions for ${posting.role}`}
@@ -169,8 +190,17 @@ function RowActions({ posting }: { posting: Posting }) {
           <DropdownMenuItem render={<Link href={`/company/jobs/${posting.id}/edit`} />}>
             Edit
           </DropdownMenuItem>
-          {posting.status === "Open" && (
+          {isLive && (
             <>
+              {posting.status === "Open" ? (
+                <DropdownMenuItem disabled={isChanging} onClick={() => setStatus("paused")}>
+                  Pause
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled={isChanging} onClick={() => setStatus("published")}>
+                  Resume
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={() => setIsClosing(true)}>
                 Close job

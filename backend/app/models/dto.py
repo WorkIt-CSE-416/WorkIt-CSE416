@@ -110,4 +110,6 @@ class job_post_status(enum.StrEnum):
     '''
     draft= "draft"
     published= "published"
+    # added by 1ea834081a48; ALTER TYPE, not an edit here, is what changes the column
+    paused= "paused"
     closed= "closed"

@@ -61,23 +61,36 @@ export async function saveJob(
   }
 }
 
-/** Moves a job along its lifecycle. Only closing is offered today; the API
- *  rejects any move it doesn't allow, so nothing is checked here. */
+/**
+ * Pauses ("paused"), resumes ("published") or closes ("closed") a job. The
+ * API rejects any move it doesn't allow, so nothing is checked here.
+ * `expectedUpdatedAt`, from a form open on the job, makes the API refuse
+ * the change (409) if the job has changed since the form loaded it. The
+ * returned `updatedAt` is the job's new one: a status change counts as a
+ * change, so that form needs it for its next save.
+ */
 export async function changeJobStatus(
   jobId: string,
-  status: "closed",
-): Promise<{ error: string | null }> {
+  status: "published" | "paused" | "closed",
+  expectedUpdatedAt?: string,
+): Promise<{ error: string | null; updatedAt: string | null }> {
   try {
     const token = await getAccessToken();
-    if (!token) return { error: SIGNED_OUT };
+    if (!token) return { error: SIGNED_OUT, updatedAt: null };
     const res = await apiFetch(
       `/company/jobs/${encodeURIComponent(jobId)}/status`,
-      { method: "POST", body: JSON.stringify({ status }) },
+      {
+        method: "POST",
+        body: JSON.stringify(
+          expectedUpdatedAt ? { status, updatedAt: expectedUpdatedAt } : { status },
+        ),
+      },
       token,
     );
-    if (!res.ok) return { error: await extractErrorMessage(res) };
-    return { error: null };
+    if (!res.ok) return { error: await extractErrorMessage(res), updatedAt: null };
+    const job: { updated_at: string } = await res.json();
+    return { error: null, updatedAt: job.updated_at };
   } catch {
-    return { error: "Could not reach the server. Is the backend running?" };
+    return { error: "Could not reach the server. Is the backend running?", updatedAt: null };
   }
 }

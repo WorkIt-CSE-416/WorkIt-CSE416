@@ -83,7 +83,7 @@ app/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
     jobs.py       GET /jobs — the scraper's feed.json, public, no DB
-    company_jobs.py  /company/jobs: create, list, load, update and close a company's own jobs
+    company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
                   text from PDF/DOCX and parses it into structured JSON
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
