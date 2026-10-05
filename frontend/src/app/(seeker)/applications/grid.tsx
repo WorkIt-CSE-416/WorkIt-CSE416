@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 
 import { Avatar } from "@/components/avatar";
+import { STAGE_COLOR } from "../stage-colors";
 import { APPLICATIONS, type StagedApplication } from "./data";
 import { ProgressBar } from "./progress-bar";
 
@@ -28,7 +29,12 @@ function GridCard({ item }: { item: StagedApplication }) {
   const { Icon, stage } = item;
 
   return (
-    <Card as="li" padding="none" className="flex flex-col overflow-hidden">
+    <Card
+      as="li"
+      padding="none"
+      accent={STAGE_COLOR[stage.stage].edge}
+      className="flex flex-col overflow-hidden"
+    >
       <div className="bg-well border-border-subtle flex items-start gap-2 border-b p-3">
         <CompanyTile Icon={Icon} size="sm" tone={item.tone ?? "brand"} />
         <div className="min-w-0 flex-1">
@@ -44,7 +50,7 @@ function GridCard({ item }: { item: StagedApplication }) {
           <span className="text-note text-ink-meta">Progress</span>
           <span className="text-note text-ink font-semibold">{stage.progress}%</span>
         </div>
-        <ProgressBar value={stage.progress} accent={stage.accent} className="mt-1.5" />
+        <ProgressBar value={stage.progress} stage={stage.stage} className="mt-1.5" />
 
         {/* mt-auto rather than a fixed margin: some titles wrap to two lines and
             some do not, and this keeps every footer in a row on one line. */}
@@ -54,7 +60,7 @@ function GridCard({ item }: { item: StagedApplication }) {
           ) : (
             <span aria-hidden="true" />
           )}
-          <Badge tone={stage.accent === "positive" ? "positive" : "brand"}>{stage.title}</Badge>
+          <Badge tone={STAGE_COLOR[stage.stage].tone}>{stage.title}</Badge>
         </div>
       </div>
     </Card>

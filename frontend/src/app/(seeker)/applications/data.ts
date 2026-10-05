@@ -11,6 +11,8 @@ import {
 
 import { BuildingIcon, ClockIcon, CloudIcon, CubeIcon, NodesIcon, StorefrontIcon } from "./icons";
 
+import type { StageKey } from "../stage-colors";
+
 export type Tone = "brand" | "positive";
 
 export type Application = {
@@ -55,8 +57,10 @@ export type Application = {
 
 export type Column = {
   title: string;
-  /** Painted along the card's top edge, so a card carries its column with it. */
-  accent: "pale" | "brand" | "positive";
+  /** Which stage's colour the column wears — on its header dot and count, its
+   *  cards' top edge, and the grid and list's bars and badges. One map for
+   *  every screen: ../stage-colors.ts. */
+  stage: StageKey;
   /**
    * How far through the pipeline this stage is. The grid and list draw a bar
    * where the board draws a column, and this is what fills it — progress is a
@@ -95,7 +99,7 @@ export type Column = {
 export const COLUMNS: Column[] = [
   {
     title: "Saved",
-    accent: "pale",
+    stage: "saved",
     progress: 25,
     items: [
       {
@@ -137,7 +141,7 @@ export const COLUMNS: Column[] = [
   },
   {
     title: "Applied",
-    accent: "brand",
+    stage: "applied",
     progress: 50,
     items: [
       {
@@ -176,7 +180,7 @@ export const COLUMNS: Column[] = [
   },
   {
     title: "Interviewing",
-    accent: "brand",
+    stage: "interviewing",
     progress: 75,
     items: [
       {
@@ -217,7 +221,7 @@ export const COLUMNS: Column[] = [
   },
   {
     title: "Offer",
-    accent: "positive",
+    stage: "offer",
     progress: 100,
     items: [
       {
