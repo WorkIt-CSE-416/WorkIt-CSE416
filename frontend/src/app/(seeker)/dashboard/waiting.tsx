@@ -1,9 +1,7 @@
-import Link from "next/link";
-
-import { ArrowRightIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 import { WAITING, type WaitBucket } from "./data";
+import { SectionHeader } from "./section-header";
 
 /**
  * Applications with no reply yet, by how long they have waited — the seeker's
@@ -11,15 +9,18 @@ import { WAITING, type WaitBucket } from "./data";
  * question is how much of the pile is old, which a row of lengths answers in
  * one look.
  *
- * The colour carries the advice. Under two weeks is normal and stays brand
- * (the full brand, not its pale tint, which all but vanishes on the track);
- * fifteen to thirty is when a short follow-up note helps, so it turns amber;
- * past thirty it is probably a silent no, in red. The link under the bars says
- * the same thing in words, so nothing depends on telling the colours apart.
+ * THE COLOUR IS A TRAFFIC LIGHT, because that is the question: is this fine,
+ * should I act, or is it gone. Green under two weeks (a normal wait), amber
+ * from fifteen to thirty days (when a short follow-up note helps), red past
+ * thirty (probably a silent no). It was brand purple shading into a dark
+ * amber and red, which read as a palette rather than as a verdict — purple
+ * says "brand", not "fine", and the text amber reads brown as a bar. The
+ * figures beside the bars and the line under the headline say the same in
+ * words, so nothing depends on telling the colours apart.
  */
 const TONE: Record<WaitBucket["tone"], string> = {
-  fresh: "bg-brand",
-  due: "bg-warning",
+  fresh: "bg-positive",
+  due: "bg-warning-fill",
   stale: "bg-danger",
 };
 
@@ -33,18 +34,29 @@ export function Waiting() {
 
   return (
     <section aria-labelledby="waiting" className="flex flex-col">
-      <h2 id="waiting" className="text-title text-ink">
-        Waiting to hear back
-      </h2>
+      <SectionHeader
+        id="waiting"
+        title="Waiting to hear back"
+        link={
+          due > 0
+            ? { href: "/applications", text: "Follow up", label: "Follow up on applications" }
+            : undefined
+        }
+      />
       <p className="text-body text-ink-meta mt-1">No reply yet, as of today.</p>
 
-      {/* The headline first, so the card answers "how many" before "how
-          old" — and fills the height Up next gives this row with a figure
-          rather than with space around four bars. */}
+      {/* The headline first, so the section answers "how many" before "how
+          old"; the line under it is the reason to act, which used to be a
+          sentence-long link at the bottom. */}
       <p className="mt-4 flex items-baseline gap-2">
         <span className="text-display text-ink">{total}</span>
         <span className="text-body text-ink-meta">applications waiting</span>
       </p>
+      {due > 0 && (
+        <p className="text-note text-ink-meta mt-0.5">
+          <span className="text-ink font-semibold">{due}</span> over two weeks, worth a follow-up
+        </p>
+      )}
 
       <ul className="mt-4 flex flex-col gap-3.5">
         {WAITING.map((bucket) => (
@@ -60,16 +72,6 @@ export function Waiting() {
           </li>
         ))}
       </ul>
-
-      {due > 0 && (
-        <Link
-          href="/applications"
-          className="text-label text-brand-ink focus-visible:ring-brand-ring mt-5 inline-flex items-center gap-1 self-start rounded-xs hover:underline focus-visible:ring-2 focus-visible:outline-none"
-        >
-          Follow up on the {due} waiting over two weeks
-          <ArrowRightIcon className="size-3.5" />
-        </Link>
-      )}
     </section>
   );
 }

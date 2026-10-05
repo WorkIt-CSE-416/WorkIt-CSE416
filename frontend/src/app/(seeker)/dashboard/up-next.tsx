@@ -1,10 +1,10 @@
-import Link from "next/link";
 import type { ComponentType } from "react";
 
-import { ArrowRightIcon, AwardIcon, CalendarIcon, MailIcon } from "@/components/icons";
+import { AwardIcon, CalendarIcon, MailIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 import type { UpNextItem, UpNextKind } from "./data";
+import { SectionHeader } from "./section-header";
 
 /**
  * The rest of what needs the seeker next — the top item is the violet card
@@ -29,9 +29,11 @@ const KIND: Record<UpNextKind, { Icon: ComponentType<{ className?: string }>; to
 export function UpNext({ items }: { items: UpNextItem[] }) {
   return (
     <section aria-labelledby="up-next">
-      <h2 id="up-next" className="text-title text-ink">
-        Up next
-      </h2>
+      <SectionHeader
+        id="up-next"
+        title="Up next"
+        link={{ href: "/applications", text: "View all", label: "View all applications" }}
+      />
 
       <ul className="mt-3 flex flex-col">
         {items.map((item) => {
@@ -69,14 +71,6 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
           );
         })}
       </ul>
-
-      <Link
-        href="/applications"
-        className="text-label text-ink-muted hover:text-ink focus-visible:ring-brand-ring mt-2 inline-flex items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
-      >
-        View all applications
-        <ArrowRightIcon className="size-3.5" />
-      </Link>
     </section>
   );
 }

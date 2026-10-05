@@ -283,6 +283,11 @@
   --color-inert-tint: #e1e6ea; /* measured: the board's "Applied" chip */
   --color-warning: #a06800; /* unmeasured: paused, needs a decision */
   --color-warning-tint: #fdf0d9;
+  /* Amber as a FILL — bars and dots, never text. --color-warning is dark
+   * enough to read as text, which makes a bar of it read as brown; a bar
+   * needs the amber people recognise as "caution". White text on this is
+   * 2.1:1, so nothing is ever printed on it. */
+  --color-warning-fill: #f2a516;
   --color-danger: #c02a3d; /* unmeasured: rejected, ended badly */
   --color-danger-tint: #fce9eb;
 

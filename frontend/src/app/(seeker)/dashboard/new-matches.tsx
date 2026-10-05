@@ -1,10 +1,8 @@
-import Link from "next/link";
-
 import { CompanyLogo } from "@/components/company-logo";
-import { ArrowRightIcon } from "@/components/icons";
 
 import { formatPosted } from "../jobs/format";
 import { getJobListings } from "../jobs/listings";
+import { SectionHeader } from "./section-header";
 
 /**
  * The newest roles from the live feed — the one Dashboard card that is real
@@ -27,18 +25,11 @@ export async function NewMatches() {
 
   return (
     <section aria-labelledby="new-matches">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="new-matches" className="text-title text-ink">
-          New matches
-        </h2>
-        <Link
-          href="/jobs"
-          className="text-label text-ink-muted hover:text-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
-        >
-          All jobs
-          <ArrowRightIcon className="size-3.5" />
-        </Link>
-      </div>
+      <SectionHeader
+        id="new-matches"
+        title="New matches"
+        link={{ href: "/jobs", text: "All jobs" }}
+      />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 
       {error != null || latest.length === 0 ? (
