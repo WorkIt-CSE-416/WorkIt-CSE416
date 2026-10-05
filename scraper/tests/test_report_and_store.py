@@ -7,8 +7,6 @@ ways the count was, or could have been, wrong.
 
 from __future__ import annotations
 
-import tempfile
-import unittest
 from pathlib import Path
 
 from workit_scraper import report, store
@@ -42,7 +40,7 @@ def new_ids(run: Store) -> set[str]:
     return {j.external_id for j in run.jobs if run.is_listed(j) and run.is_new(j)}
 
 
-class TestNewToday(unittest.TestCase):
+class TestNewToday:
     def test_a_first_run_has_no_number_to_report(self):
         run = scrape(None, MON, job("1"))
         assert not run.counts_new
@@ -86,7 +84,7 @@ class TestNewToday(unittest.TestCase):
         assert new_ids(run) == {"10"}
 
 
-class TestOpenRoles(unittest.TestCase):
+class TestOpenRoles:
     def test_a_posting_gone_from_a_complete_read_is_kept_but_not_listed(self):
         run = scrape(scrape(None, MON, job("1"), job("2")), TUE, job("1"))
         assert {j.external_id for j in run.jobs} == {"1", "2"}
@@ -101,7 +99,7 @@ class TestOpenRoles(unittest.TestCase):
         assert (run.jobs[0].first_seen_at, run.jobs[0].last_seen_at) == (MON, TUE)
 
 
-class TestPage(unittest.TestCase):
+class TestPage:
     def page(self, run: Store) -> str:
         roles = pick([j for j in run.jobs if run.is_listed(j)], is_new=run.is_new)
         return report.render(roles, run.stats, run.scraped_at, counts_new=run.counts_new)
@@ -123,12 +121,11 @@ class TestPage(unittest.TestCase):
         assert "Scraped Sep 29, 2026, 09:00 UTC" in self.page(scrape(None, TUE, job("1")))
 
 
-class TestFile(unittest.TestCase):
-    def test_round_trip(self):
+class TestFile:
+    def test_round_trip(self, tmp_path: Path):
         saved = Store(
             TUE, RunStats(postings=3, boards_ok=1), [job("1")], {STRIPE: BoardReads(MON, TUE)}
         )
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "jobs.json"
-            store.save(saved, path)
-            assert store.load(path) == saved
+        path = tmp_path / "jobs.json"
+        store.save(saved, path)
+        assert store.load(path) == saved

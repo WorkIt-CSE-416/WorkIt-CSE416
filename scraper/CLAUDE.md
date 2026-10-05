@@ -8,7 +8,7 @@ cd scraper
 python3 -m workit_scraper                          # scrape, then write the page and feed.json
 python3 -m workit_scraper --offline                # no network; rewrite both from jobs.json
 python3 build_boards.py                            # regenerate boards.csv
-python3 -m unittest discover -s tests -t . -v      # the tests
+uvx pytest                                         # the tests
 ```
 
 ## How it fits together
@@ -41,8 +41,14 @@ All three providers return a whole board in one request, so there is no paginati
 `dependencies = []` in `pyproject.toml` is load-bearing, not an accident.
 `python3 -m workit_scraper` has to work on a fresh clone with no install step, no
 virtualenv and no `uv` — a demo that needs a dependency resolver first is a demo that
-can fail in the room. HTTP, JSON, CSV, robots.txt, threads, HTML escaping and the test
-runner are all in the stdlib. Keep reaching for it.
+can fail in the room. HTTP, JSON, CSV, robots.txt, threads and HTML escaping are all in
+the stdlib. Keep reaching for it.
+
+The tests and the linter are the one exception, and they stay out of the package:
+pytest and ruff sit in the `dev` dependency group and run as one-off tools (`uvx pytest`,
+`uvx ruff`), so nothing in `workit_scraper/` may import either, and running the scraper
+still needs no install. `[tool.pytest.ini_options]` sets `pythonpath = ["."]` because
+`uvx` runs pytest in its own environment, where the package is not installed.
 
 ## Adding a provider
 
@@ -170,7 +176,8 @@ renders identically with the network off, which is the point of `--offline`.
 
 ## Tests
 
-Tested where a bug would be silent: the shortlist (above), and the "new today" and
+pytest, in plain-`assert` style: `Test*` classes group cases without subclassing
+`unittest.TestCase`, files get the `tmp_path` fixture rather than `tempfile`. Tested where a bug would be silent: the shortlist (above), and the "new today" and
 "open roles" path through `store.py` and `report.py` — a lost `first_seen_at` or a
 wrong row flag still renders a plausible page. One shipped marking every row "just
 added"; `tests/test_report_and_store.py` has a case for each way that count has been,

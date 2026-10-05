@@ -54,7 +54,8 @@ uv run alembic check                           fail if models lack a migration
 uv run pytest                                  run the tests in tests/
 ```
 
-Tests cover the resume parser only. `tests/fixtures/*.txt` are extracted text
+Tests cover the resume parser (`test_resume_parser.py`) and DOCX text
+extraction (`test_resume_extraction.py`). `tests/fixtures/*.txt` are extracted text
 of real resumes, each in a layout that once broke parsing, cut to start at the
 first section header so no contact details are committed. The heuristics
 interact — a fix for one layout has broken another more than once — so when a
@@ -105,7 +106,7 @@ alembic/
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
-tests/            pytest; resume parser regression tests and their fixtures
+tests/            pytest; resume parser and DOCX extraction tests, and fixtures
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
@@ -143,10 +144,11 @@ the frontend can replace its `data.ts` fixtures with real calls while the
 schema churns underneath. The API contract should be designed deliberately
 rather than falling out of whatever the tables happen to look like.
 
-There is no CI. Two gates are worth adding now that migrations exist:
-`alembic heads` failing when it returns more than one, and `alembic check`
-failing on model drift. Both would have caught the 2026-09-21 breakage before
-it reached anyone else.
+CI (`.github/workflows/ci.yml`) runs `ruff check .` and `pytest` on every PR,
+but nothing about migrations yet. Two gates are worth adding: `alembic heads`
+failing when it returns more than one, and `alembic check` failing on model
+drift. Both would have caught the 2026-09-21 breakage before it reached anyone
+else.
 
 ## The database
 

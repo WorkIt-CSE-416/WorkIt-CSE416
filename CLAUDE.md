@@ -17,8 +17,9 @@ backend/          The Python API (FastAPI, SQLAlchemy, Alembic). It owns the
                   on this side. Self-contained: its own pyproject.toml, .venv
                   and lockfile. See backend/CLAUDE.md.
 scraper/          The job-board scraper (KAN-55). Standalone and stdlib-only:
-                  no dependencies, never touches the database. Runs with plain
-                  `python3 -m workit_scraper`. See scraper/CLAUDE.md.
+                  no runtime dependencies, never touches the database. Runs
+                  with plain `python3 -m workit_scraper`; tests run under
+                  `uvx pytest`. See scraper/CLAUDE.md.
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to
@@ -113,8 +114,9 @@ GitHub Actions runs on every PR to `main`. The workflow lives at
 `.github/workflows/ci.yml` and has three jobs:
 
 - **frontend** — `npm ci`, `lint`, `typecheck`, `build`
-- **backend** — `uv sync`, `ruff check .`
-- **scraper** — `ruff check .`, `ruff format --check .`, the unit tests
+- **backend** — `uv sync`, `ruff check .`, `pytest`
+- **scraper** — `ruff check .`, `ruff format --check .`, `pytest` (via `uvx`, so
+  the scraper still installs nothing)
 
 PRs show a green check or red X based on the result. Do not merge with failing
 checks.

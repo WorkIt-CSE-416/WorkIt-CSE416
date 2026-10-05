@@ -6,15 +6,21 @@ description = "Scrapes internship and new-grad software roles from company job b
 # dependency resolver from picking different wheels on different laptops; with zero
 # dependencies there is nothing to resolve, so any 3.12+ interpreter behaves the same.
 requires-python = ">=3.12"
-# Empty on purpose, and worth keeping empty. Everything needed -- HTTP, JSON, CSV,
-# robots.txt, threads, HTML escaping, the test runner -- is in the standard library.
+# Empty on purpose, and worth keeping empty. Everything the scraper needs -- HTTP,
+# JSON, CSV, robots.txt, threads, HTML escaping -- is in the standard library.
 # That means `python3 -m workit_scraper` works on a fresh clone with no install step,
 # no virtualenv and no uv. A demo that needs `uv sync` first is a demo that can fail.
 dependencies = []
 
-# Optional, only for linting. Nothing in the verification steps requires it.
+# Development only: linting and the tests. Run them as one-off tools (`uvx ruff`,
+# `uvx pytest`) so the scraper itself still never needs a virtualenv.
 [dependency-groups]
-dev = ["ruff>=0.16.8"]
+dev = ["pytest>=9.1.1", "ruff>=0.16.8"]
+
+[tool.pytest.ini_options]
+# `uvx pytest` runs in its own environment, so the package is found by path, not install.
+pythonpath = ["."]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
