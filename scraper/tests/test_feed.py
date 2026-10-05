@@ -21,6 +21,7 @@ def role(**changes: object) -> Role:
         "company": "Terranova",
         "apply_url": "https://jobs.ashbyhq.com/terranova/a8e5a8d2/application",
         "ats": "ashby",
+        "board_key": "ashby/terranova",
         "tags": (Tag.INTERN, Tag.SWE),
         "posted_at": "2026-09-26T02:53:16.063000+00:00",
         "new": False,
@@ -31,9 +32,20 @@ def role(**changes: object) -> Role:
     return Role(**{**base, **changes})
 
 
+LOGO = "https://app.ashbyhq.com/api/images/org-theme-logo/f789d90e/terranova.png"
+
+
+def feed_row(r: Role) -> dict[str, object]:
+    return feed.row(r, {"ashby/terranova": LOGO})
+
+
 class RowTest(unittest.TestCase):
+    def test_logo_is_looked_up_by_board(self) -> None:
+        self.assertEqual(feed_row(role())["logo_url"], LOGO)
+        self.assertIsNone(feed_row(role(board_key="lever/nologo"))["logo_url"])
+
     def test_labels_become_the_schemas_enum_values(self) -> None:
-        row = feed.row(role())
+        row = feed_row(role())
         self.assertEqual(row["work_style"], "onsite")
         self.assertEqual(row["experience_level"], "internship")
         self.assertEqual(row["id"], "Terranova|Software Engineering Intern")
@@ -41,22 +53,22 @@ class RowTest(unittest.TestCase):
     def test_new_grad_whatever_the_topic(self) -> None:
         # Quora: "Software Engineer New Grad, Machine Learning Platform" -- two topics.
         tags = (Tag.NEW_GRAD, Tag.AI_ML, Tag.SWE)
-        self.assertEqual(feed.row(role(tags=tags))["experience_level"], "new_grad")
+        self.assertEqual(feed_row(role(tags=tags))["experience_level"], "new_grad")
 
     def test_unstated_facts_are_null_not_guessed(self) -> None:
         # A Greenhouse board states no work model, and a role can lack a date.
-        row = feed.row(role(work_style=None, posted_at=None, locations=()))
+        row = feed_row(role(work_style=None, posted_at=None, locations=()))
         self.assertIsNone(row["work_style"])
         self.assertIsNone(row["posted_at"])
         self.assertIsNone(row["location"])
 
     def test_several_offices_read_as_a_count(self) -> None:
-        row = feed.row(role(locations=("New York, NY", "Seattle, WA", "Remote")))
+        row = feed_row(role(locations=("New York, NY", "Seattle, WA", "Remote")))
         self.assertEqual(row["location"], "3 locations")
 
     def test_an_unknown_work_style_label_fails_loudly(self) -> None:
         with self.assertRaises(KeyError):
-            feed.row(role(work_style="Flexible"))
+            feed_row(role(work_style="Flexible"))
 
 
 class WriteTest(unittest.TestCase):
@@ -64,7 +76,7 @@ class WriteTest(unittest.TestCase):
         roles = [role(title="B Intern"), role(title="A Intern")]
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "feed.json"
-            feed.write(roles, path)
+            feed.write(roles, {}, path)
             rows = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual([r["title"] for r in rows], ["B Intern", "A Intern"])
 

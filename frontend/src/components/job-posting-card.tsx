@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Avatar } from "@/components/avatar";
+import { CompanyLogo } from "@/components/company-logo";
 import {
   AwardIcon,
   BriefcaseIcon,
@@ -16,22 +16,21 @@ import { Fact } from "@/components/ui/fact";
 import { cn } from "@/lib/cn";
 
 /**
- * The job posting card a seeker sees on their Jobs feed: a square initials
- * tile standing in for the employer's logo, a posted/closes badge, title,
+ * The job posting card a seeker sees on their Jobs feed: the employer's logo
+ * (or its initials) in a square tile, a posted/closes badge, title,
  * company name, and a six-fact grid (location, job type, salary, work style,
  * experience level, years required). Moved here from (seeker)/jobs/page.tsx
  * so the company composer's Publish-step preview can show a recruiter the
  * same card a seeker will actually see, rather than a second card that only
  * resembles it.
  *
- * THE TILE IS <Avatar> RESHAPED, NOT A SEPARATE COMPONENT. <Avatar> is built
- * for people (profile photos, account menus) and is circular everywhere else
- * it is used; a company mark reads as a square the way `<CompanyTile>` draws
- * it elsewhere in the app. Rather than fork a second initials component for
- * one shape difference, the className override wins — `rounded-card` beats
- * `<Avatar>`'s own `rounded-full` under tailwind-merge's conflict resolution,
- * since both set the same CSS property. Reach for `<CompanyTile>` instead once
- * this card has a real per-company logo to draw rather than initials.
+ * THE TILE IS <CompanyLogo>: the logo the employer uploaded to its job board,
+ * falling back to <Avatar> initials when there is none or it fails to load.
+ * <Avatar> is circular everywhere else it is used; a company mark reads as a
+ * square, so the className override wins — `rounded-card` beats `<Avatar>`'s
+ * own `rounded-full` under tailwind-merge's conflict resolution, since both
+ * set the same CSS property. Not `<CompanyTile>`: that draws an icon glyph,
+ * not an image.
  *
  * THE BADGE ABOVE THE TITLE IS TIMING, NOT ROLE TAGS. An earlier version put
  * role-tag badges there ("Frontend Engineer", "Software Engineer"), but the
@@ -72,6 +71,8 @@ import { cn } from "@/lib/cn";
  */
 export type JobPostingCardData = {
   company: string;
+  /** The company's logo; omit (or null) for its initials instead. */
+  logoUrl?: string | null;
   /** Omit to render the company name in the same ink without a real `<a>`
    *  under it — the composer's preview has nowhere to send a click that
    *  wouldn't abandon the draft being edited. */
@@ -138,8 +139,9 @@ export function JobPostingCard({
               guessed pixel value that happens to match today's content. Only
               the width is fixed, so there is a cross-axis size for stretch to
               fill. */}
-          <Avatar
+          <CompanyLogo
             name={job.company}
+            src={job.logoUrl}
             className="text-heading rounded-card w-20 shrink-0 self-stretch"
           />
 

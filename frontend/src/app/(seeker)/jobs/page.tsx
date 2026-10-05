@@ -29,8 +29,8 @@ function ListingCard({ job }: { job: JobListing }) {
   return (
     <JobPostingCard
       job={{
-        // Initials stand in until `companies` has a logo.
         company: job.company,
+        logoUrl: job.logo_url,
         title: job.title,
         timing: job.posted_at ? formatPosted(job.posted_at) : null,
         location: job.location,

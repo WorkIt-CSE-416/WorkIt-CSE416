@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from enum import Enum, auto
 from pathlib import Path
 
-from workit_scraper import feed, providers, report, store
+from workit_scraper import feed, logos, providers, report, store
 from workit_scraper.polite import Robots
 from workit_scraper.providers import Board, BoardNotFound, Job
 from workit_scraper.shortlist import classify, pick
@@ -130,11 +130,21 @@ def main(argv: list[str] | None = None) -> int:
         fresh = [job for job in scanned if classify(job.title)]
         stats = replace(stats, kept=len(fresh))
         run = store.update(previous, fresh, read, stats, datetime.now(UTC).isoformat())
+        # Only boards with a job on the page need a logo, and each is read once.
+        unread = sorted(
+            {
+                (j.ats, j.token, j.company)
+                for j in run.jobs
+                if run.is_listed(j) and j.board_key not in run.logos
+            }
+        )
+        print(f"\nreading {len(unread)} board pages for logos")
+        run = replace(run, logos={**run.logos, **logos.fetch(unread)})
         store.save(run, JOBS_JSON)
 
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
-    feed.write(roles, FEED_JSON)
+    feed.write(roles, run.logos, FEED_JSON)
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
