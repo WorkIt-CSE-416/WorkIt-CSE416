@@ -19,7 +19,7 @@ import { MatchBadge } from "./match-badge";
  * Adapted rather than copied, for the same reason as the grid: the source is
  * monochrome with a black primary button and red/amber/blue priority dots, and
  * WorkIt has a palette of its own. Structure is what carries over — a panelled
- * column, a card of title + description + a company/match row + a ruled
+ * column, a card of company + title + match, a description, and a ruled
  * footer of small facts. The design's footer counts (attachments, comments) were
  * dropped as noise the card did not need.
  *
@@ -40,40 +40,42 @@ function ApplicationCard({ item }: { item: Application }) {
 
   return (
     <Card as="li" padding="sm" selected={item.active} className="flex flex-col gap-2.5">
-      <div>
-        <h3 className="text-subtitle text-ink leading-5">{item.role}</h3>
-        {item.summary && (
-          <p className="text-note text-ink-meta mt-1 line-clamp-2">{item.summary}</p>
-        )}
+      {/* Who and what together: the company tile leads the title, the way a
+          job card does, and the match sits at the end of the company line.
+          They used to sit in a row of their own below the summary. The match
+          stays off the title's line so a two-word role isn't squeezed into
+          wrapping in a 288px column. */}
+      <div className="flex items-start gap-2.5">
+        <CompanyTile Icon={Icon} size="sm" tone={item.tone ?? "brand"} />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-subtitle text-ink leading-5">{item.role}</h3>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <p className="text-note text-ink-meta truncate">{item.company}</p>
+            <MatchBadge score={item.match} />
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <CompanyTile Icon={Icon} size="sm" tone={item.tone ?? "brand"} />
-          <span className="text-note text-ink-meta truncate">{item.company}</span>
-        </span>
-        <MatchBadge score={item.match} />
-      </div>
+      {item.summary && <p className="text-note text-ink-meta line-clamp-2">{item.summary}</p>}
 
       {/* The one place an application's next commitment appears on the board —
           the design has no slot for it, and dropping it would lose the only
-          forward-looking thing a card says. */}
+          forward-looking thing a card says. A brand icon rather than a grey
+          box: the box was a third nested panel (column, card, box), and the
+          colour alone is enough to mark it as the thing to act on. */}
       {item.next && (
-        <div className="bg-well rounded-control flex items-start gap-2 p-2">
-          <CalendarIcon className="text-ink-meta mt-0.5 size-3.5 shrink-0" />
+        <div className="flex items-start gap-2">
+          <CalendarIcon className="text-brand mt-0.5 size-3.5 shrink-0" />
           <div className="min-w-0">
             <p className="text-note text-ink font-medium">{item.next.label}</p>
-            <p className="text-meta text-ink-meta">{item.next.when}</p>
+            <p className="text-note text-ink-meta">{item.next.when}</p>
           </div>
         </div>
       )}
 
-      <div className="border-border-subtle flex items-center gap-2 border-t pt-2.5">
-        <span className="text-meta text-ink-meta flex min-w-0 items-center gap-1">
-          <CalendarIcon className="size-3.5 shrink-0" />
-          <span className="truncate">{item.meta.text}</span>
-        </span>
-      </div>
+      <p className="border-border-subtle text-note text-ink-faint truncate border-t pt-2.5">
+        {item.meta.text}
+      </p>
 
       {/* Also not in the design. An offer has a date it expires on, so the one
           card carrying a deadline keeps its action; the saved cards' "Apply"
