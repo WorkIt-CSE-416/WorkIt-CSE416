@@ -4,6 +4,7 @@ Company job postings: the routes behind the job composer
 company, taken from the verified token, never from the request.
 """
 
+import datetime
 import logging
 import uuid
 
@@ -78,6 +79,19 @@ async def _own_job(
     return job
 
 
+def _reject_past_close(closes_at: datetime.datetime | None) -> None:
+    '''
+    the date picker blocks past days, but a direct call or a form left open
+    past its own closing date could otherwise put a job live that has
+    already closed
+    '''
+    if closes_at is not None and closes_at < datetime.datetime.now(datetime.UTC):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "The closing date has already passed. Pick a later one, or clear it.",
+        )
+
+
 @router.post("", response_model=JobPosting, status_code=status.HTTP_201_CREATED)
 async def create_job(
     body: JobPostingCreate,
@@ -87,6 +101,8 @@ async def create_job(
     '''
     save a new job, as a draft or published, under the caller's company
     '''
+    if body.status == job_post_status.published:
+        _reject_past_close(body.closes_at)
     job = Job_Post(
         **body.model_dump(),
         company_id=account.company_id,
@@ -162,6 +178,14 @@ async def update_job(
         raise HTTPException(status.HTTP_409_CONFLICT, "A closed job can't be edited.")
     if job.status == job_post_status.published and body.status == job_post_status.draft:
         raise HTTPException(status.HTTP_409_CONFLICT, "A published job can't go back to being a draft.")
+
+    # Checked only when the date matters now: a draft going live, or a live
+    # job's date being moved. Fixing a typo on a live job whose closing date
+    # has lapsed doesn't make anyone pick a new date first.
+    goes_live = job.status == job_post_status.draft and body.status != job_post_status.draft
+    date_moved = job.status != job_post_status.draft and body.closes_at != job.closes_at
+    if goes_live or date_moved:
+        _reject_past_close(body.closes_at)
 
     for field, value in body.model_dump(exclude={"updated_at"}).items():
         setattr(job, field, value)

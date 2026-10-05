@@ -71,6 +71,7 @@ export function toJobPayload(
       draft.experienceLevel === "Experienced" ? toNumber(draft.minYearsExperience) : null,
     workStyle: WORK_STYLE[draft.workStyle as keyof typeof WORK_STYLE],
     locationCountry: location?.country ?? "",
+    locationState: location?.state ?? null,
     salary: isRange ? null : toNumber(draft.salary),
     salaryMin: isRange ? toNumber(draft.salaryMin) : null,
     salaryMax: isRange ? toNumber(draft.salaryMax) : null,
@@ -108,10 +109,12 @@ function labelFor<T extends string>(map: Record<string, T>, value: T) {
  * office. Department isn't stored either, so it reopens on the default.
  */
 export function fromCompanyJob(job: CompanyJob): { draft: JobDraft; location: SavedLocation } {
-  const location = {
+  const location: SavedLocation = {
     id: `country-${job.location_country}`,
     city: "",
     country: job.location_country,
+    // Kept so saving the form doesn't clear a state the picker can't show.
+    state: job.location_state ?? undefined,
   };
   const isRange = job.salary === null;
   const closeDate = job.closes_at ? new Date(job.closes_at) : null;

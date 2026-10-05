@@ -102,6 +102,9 @@ export type SavedLocation = {
   city: string;
   /** ISO 3166-1 alpha-2, matching `location_country`. */
   country: string;
+  /** ISO 3166-2, matching `location_state`. Only set on a location reopened
+   *  from a saved job; the picker has no state field of its own yet. */
+  state?: string;
 };
 
 /**
