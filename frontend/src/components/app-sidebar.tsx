@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import {
   Sidebar,
@@ -23,6 +23,15 @@ import { cn } from "@/lib/cn";
  * the two panels cannot drift apart one fix at a time. What goes in it is
  * each shell's call; see company/company-sidebar.tsx and
  * (seeker)/seeker-sidebar.tsx.
+ *
+ * THE ICONS ARE LUCIDE'S, shadcn's own set (components.json's iconLibrary),
+ * not the hand-drawn glyphs in components/icons.tsx. The house glyphs are
+ * fine at 14px beside a label in a card, but at nav size, in a column of six,
+ * they read as approximations of familiar marks rather than the marks
+ * themselves. Lucide's are the ones people know from every other dashboard,
+ * drawn on one grid by one hand. At 16px Lucide's 2-unit stroke on its
+ * 24-unit grid lands at ~1.3px, beside the house set's 1.4, so the weights
+ * still agree where the two meet.
  *
  * WHY IT IS OFFSET RATHER THAN FULL-HEIGHT: shadcn's Sidebar positions itself
  * `fixed inset-y-0 h-svh`, which assumes it owns the left edge of the viewport
@@ -100,7 +109,8 @@ const CURRENT_ITEM =
 export type SidebarNavItem = {
   href: string;
   label: string;
-  Icon: (props: { className?: string }) => ReactNode;
+  /** A Lucide icon — see "THE ICONS ARE LUCIDE'S" above. */
+  Icon: ComponentType<{ className?: string }>;
   /** Lit on this exact path only. Without it an item owns its whole subtree,
    *  so /company/jobs/new still lights Job Postings; a shell's root item
    *  (/company) needs it, or it would be lit on every screen. */

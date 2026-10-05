@@ -4,11 +4,9 @@ type IconProps = { className?: string };
  * Glyphs the company shell needs and no other route does.
  *
  * Drawn on the same 16-unit grid and the same 1.4 stroke as
- * src/components/icons.tsx, because they sit in a nav beside BriefcaseIcon and
- * UserIcon from that file. lucide-react is installed — the shadcn components
- * pull it — but its glyphs are 24-unit with a 2 stroke, so a lucide icon in
- * this nav reads heavier than the two beside it. Matching the house grid costs
- * a few paths and keeps one row of icons looking like one set.
+ * src/components/icons.tsx, so they sit beside that file's glyphs as one set.
+ * The panel's nav rows are the exception: they use Lucide, shadcn's own
+ * icon set, for the reason given in src/components/app-sidebar.tsx.
  *
  * They move to src/components/icons.tsx the moment a second route wants them.
  */

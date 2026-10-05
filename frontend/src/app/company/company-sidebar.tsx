@@ -1,9 +1,7 @@
 "use client";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
-import { BriefcaseIcon, GridIcon, UserIcon } from "@/components/icons";
-
-import { BuildingIcon } from "./icons";
+import { BriefcaseBusiness, Building2, LayoutDashboard, UsersRound } from "lucide-react";
 
 /**
  * The company shell's left panel.
@@ -31,10 +29,10 @@ const GROUPS: SidebarNavGroup[] = [
   {
     label: "Hiring",
     items: [
-      { href: "/company", label: "Overview", Icon: GridIcon, exact: true },
-      { href: "/company/jobs", label: "Job Postings", Icon: BriefcaseIcon },
-      { href: "/company/applicants", label: "Applicants", Icon: UserIcon },
-      { href: "/company/profile", label: "Company Profile", Icon: BuildingIcon },
+      { href: "/company", label: "Overview", Icon: LayoutDashboard, exact: true },
+      { href: "/company/jobs", label: "Job Postings", Icon: BriefcaseBusiness },
+      { href: "/company/applicants", label: "Applicants", Icon: UsersRound },
+      { href: "/company/profile", label: "Company Profile", Icon: Building2 },
     ],
   },
 ];

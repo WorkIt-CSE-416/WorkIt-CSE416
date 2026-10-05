@@ -3,9 +3,13 @@
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
 import type { ReactNode } from "react";
 
-import { BriefcaseIcon, GearIcon, GridIcon, UserIcon } from "@/components/icons";
-
-import { BoardIcon } from "./applications/icons";
+import {
+  BriefcaseBusiness,
+  CircleUserRound,
+  LayoutDashboard,
+  Settings,
+  SquareKanban,
+} from "lucide-react";
 
 /**
  * The seeker shell's left panel: the sections a job seeker moves between all
@@ -36,15 +40,15 @@ const GROUPS: SidebarNavGroup[] = [
   {
     label: "Job search",
     items: [
-      { href: "/dashboard", label: "Dashboard", Icon: GridIcon },
-      { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
-      { href: "/applications", label: "Applications", Icon: BoardIcon },
-      { href: "/profile", label: "My Profile", Icon: UserIcon },
+      { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+      { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
+      { href: "/applications", label: "Applications", Icon: SquareKanban },
+      { href: "/profile", label: "My Profile", Icon: CircleUserRound },
     ],
   },
 ];
 
-const FOOTER = [{ href: "/settings", label: "Settings", Icon: GearIcon }];
+const FOOTER = [{ href: "/settings", label: "Settings", Icon: Settings }];
 
 /** `card` is the profile strength card, rendered on the server by the layout
  *  (it reads the API) and passed through, since this panel is a client
