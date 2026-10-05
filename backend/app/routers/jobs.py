@@ -36,6 +36,6 @@ async def list_jobs(limit: int = Query(50, ge=1, le=500)) -> list[JobListing]:
     except FileNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No scraped jobs yet. Run `python3 -m workit_scraper --offline` in scraper/.",
+            detail="No scraped jobs yet. Run `python3 -m workit_scraper` in scraper/.",
         ) from None
     return _FEED.validate_json(raw)[:limit]
