@@ -26,7 +26,7 @@ export const RANGES: {
   scope: string;
 }[] = [
   { key: "week", label: "This week", period: "last week", scope: "this week" },
-  { key: "month", label: "30 days", period: "the 30 days before", scope: "in the last 30 days" },
+  { key: "month", label: "30 days", period: "prior 30 days", scope: "in the last 30 days" },
   // A season has nothing before it to compare against, so no deltas.
   { key: "season", label: "Season", period: null, scope: "this season" },
 ];

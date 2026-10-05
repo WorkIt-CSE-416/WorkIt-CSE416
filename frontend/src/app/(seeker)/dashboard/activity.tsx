@@ -1,5 +1,6 @@
 "use client";
 
+import { Send, Target } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from "recharts";
 
 import {
@@ -8,6 +9,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/shadcn/chart";
+import { Badge } from "@/components/ui/badge";
 
 import type { ActivityPoint } from "./data";
 
@@ -41,16 +43,30 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
       <h2 id="activity" className="text-title text-ink">
         Activity
       </h2>
-      <p className="text-body text-ink-meta mt-1">
-        {total} {total === 1 ? "application" : "applications"} sent
+      {/* Two chips, not a sentence: the total, and the goal coloured by how
+          it went — green when the goal was hit in at least half the weeks,
+          amber when it wasn't. The colour is the verdict a reader would
+          otherwise have to work out from "met 2 of 4 weeks"; the words stay
+          in the chip so nothing depends on the colour alone. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Badge variant="tag" tone="brand" pill>
+          <Send aria-hidden="true" className="mr-1.5 size-3.5" />
+          <span>
+            <span className="font-semibold">{total}</span> sent
+          </span>
+        </Badge>
         {goal !== null && (
-          <>
-            {" "}
-            · goal of {goal} a week met {hit} of {points.length} weeks
-          </>
+          <Badge variant="tag" tone={hit * 2 >= points.length ? "positive" : "warning"} pill>
+            <Target aria-hidden="true" className="mr-1.5 size-3.5" />
+            <span>
+              <span className="font-semibold">
+                {hit}/{points.length}
+              </span>{" "}
+              weeks at goal
+            </span>
+          </Badge>
         )}
-        .
-      </p>
+      </div>
 
       <ChartContainer config={config} className="mt-4 aspect-auto h-56 w-full">
         <AreaChart data={points} margin={{ left: 0, right: 12, top: 12, bottom: 0 }}>
