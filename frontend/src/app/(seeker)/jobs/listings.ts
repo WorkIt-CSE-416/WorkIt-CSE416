@@ -33,6 +33,7 @@ export type JobListing = {
   work_style: WorkStyle | null;
   location: string | null;
   posted_at: string | null;
+  logo_url: string | null;
 };
 
 /** Public, so no token. An error is a message to print, never fixture jobs in

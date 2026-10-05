@@ -99,6 +99,8 @@ class Role:
     company: str
     apply_url: str
     ats: str
+    #: The oldest copy's board -- whose logo the feed shows.
+    board_key: str
     tags: tuple[Tag, ...]
     posted_at: str | None
     #: No posting behind this role was known to us before today. See `Store.is_new`.
@@ -156,6 +158,7 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 company=postings[0].company,
                 apply_url=oldest.apply_url,
                 ats=oldest.ats,
+                board_key=oldest.board_key,
                 tags=tags,
                 posted_at=min((job.posted_at for job in postings if job.posted_at), default=None),
                 new=is_new(oldest),

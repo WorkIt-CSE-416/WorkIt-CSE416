@@ -75,6 +75,10 @@ src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
   icons.tsx       Glyphs used by more than one route
   avatar.tsx      Profile photo when given `src`, initials otherwise
+  company-logo.tsx  A company's job-board logo via next/image, falling back
+                  to <Avatar> initials. Its hosts are allow-listed in
+                  next.config.ts and must match scraper/workit_scraper/logos.py —
+                  an unlisted host throws and fails the whole page.
   nav-link.tsx    Top-bar tab that underlines itself on its own route
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.

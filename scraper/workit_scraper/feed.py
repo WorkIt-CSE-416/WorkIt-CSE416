@@ -24,7 +24,7 @@ from workit_scraper.shortlist import Role, Tag
 WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
 
 
-def row(role: Role) -> dict[str, object]:
+def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
     return {
         # classify() keys roles on (company, title), so the pair is unique per feed.
         "id": f"{role.company}|{role.title}",
@@ -35,9 +35,11 @@ def row(role: Role) -> dict[str, object]:
         "work_style": WORK_STYLE[role.work_style] if role.work_style else None,
         "location": role.location_label or None,
         "posted_at": role.posted_at,
+        "logo_url": logos.get(role.board_key),
     }
 
 
-def write(roles: list[Role], path: Path) -> None:
+def write(roles: list[Role], logos: dict[str, str | None], path: Path) -> None:
     """Newest first, in `pick()`'s order: the API serves a prefix of this list."""
-    path.write_text(json.dumps([row(role) for role in roles], indent=1) + "\n", encoding="utf-8")
+    rows = [row(role, logos) for role in roles]
+    path.write_text(json.dumps(rows, indent=1) + "\n", encoding="utf-8")

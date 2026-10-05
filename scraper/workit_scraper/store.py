@@ -12,7 +12,7 @@ the store is what holds the timestamps.
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -48,6 +48,9 @@ class Store:
     jobs: list[Job]
     #: Keyed by `Board.key`. Only successful reads count: a timeout says nothing.
     boards: dict[str, BoardReads]
+    #: Keyed by `Board.key`: the board page's logo, or None if the page had none.
+    #: Absent means not read yet -- see `logos.fetch`.
+    logos: dict[str, str | None] = field(default_factory=dict)
 
     def is_listed(self, job: Job) -> bool:
         """Whether the posting was on its board the last time we read that board.
@@ -112,7 +115,8 @@ def update(
     for key in read:
         first = boards[key].first_read_at if key in boards else now
         boards[key] = BoardReads(first_read_at=first, last_read_at=now)
-    return Store(scraped_at=now, stats=stats, jobs=merged, boards=boards)
+    logos = dict(previous.logos) if previous else {}
+    return Store(scraped_at=now, stats=stats, jobs=merged, boards=boards, logos=logos)
 
 
 def load(path: Path) -> Store | None:
@@ -124,6 +128,7 @@ def load(path: Path) -> Store | None:
         stats=RunStats(**payload["stats"]),
         jobs=[Job.from_row(row) for row in payload["jobs"]],
         boards={key: BoardReads(**reads) for key, reads in payload["boards"].items()},
+        logos=payload.get("logos", {}),
     )
 
 
@@ -132,6 +137,7 @@ def save(store: Store, path: Path) -> None:
         "scraped_at": store.scraped_at,
         "stats": asdict(store.stats),
         "boards": {key: asdict(reads) for key, reads in store.boards.items()},
+        "logos": store.logos,
         "jobs": [job.to_row() for job in sorted(store.jobs, key=lambda job: job.key)],
     }
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")

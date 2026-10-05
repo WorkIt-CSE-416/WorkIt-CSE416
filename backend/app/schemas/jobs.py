@@ -34,3 +34,5 @@ class JobListing(BaseModel):
     # One place, or "N locations" for a role posted to several offices.
     location: str | None
     posted_at: str | None
+    # The logo the company uploaded to its job board; None when it has none.
+    logo_url: str | None
