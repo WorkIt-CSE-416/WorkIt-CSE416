@@ -242,6 +242,7 @@ Seeded by migrations, frozen inline from pycountry 26.2.16:
 | `cca905583de8` | 15 of ISO's 249 countries — see below |
 | `6b5bd2831d18` | 57 US subdivisions: 50 states, DC, 6 outlying areas (PR, GU…) |
 | `4b3c00b5167d` | "Other": country `ZZ`, state `ZZ-ZZ` |
+| `4623ff1e8bb1` | Removes every country but US; their postings move to `ZZ` |
 
 **`ZZ` is a catch-all for places outside the seed**, not a real country. It is
 ISO's user-assigned "unknown" code, so it can never collide with one ISO
@@ -250,14 +251,17 @@ remote from anywhere is `work_style = remote` with country `ZZ`.
 The state is `ZZ-ZZ`, not `ZZ`, because the API requires a state code to be
 `<country>-<sub>` and start with its country (`schemas/company_jobs.py`).
 Anything filed under it cannot be told apart later, so the resolver should
-still return nothing on a miss rather than fall back to `OT`.
+still return nothing on a miss rather than fall back to `ZZ`.
 
-**The countries list is incomplete on purpose.** It holds 15: Australia,
-Canada, China, Denmark, France, Germany, Hong Kong, Italy, Japan, New Zealand,
-Singapore, Spain, Taiwan, the United Kingdom and the United States. Everything
-else was cut on 2026-09-22 to keep the seed small while the product is young —
-not for storage, which was never the constraint (all 249 fit in about 50 KB).
-Any of them can be added back when real postings need it.
+**The countries list is incomplete on purpose.** It holds `US` and `ZZ`
+only. `cca905583de8` seeded 15 (Australia, Canada, China, Denmark, France,
+Germany, Hong Kong, Italy, Japan, New Zealand, Singapore, Spain, Taiwan, the
+United Kingdom and the United States); the rest of ISO's 249 were cut on
+2026-09-22, and `4623ff1e8bb1` removed all but the US on 2026-10-05, to keep
+the product US-only while it is young — not for storage, which was never the
+constraint (all 249 fit in about 50 KB). Any of them can be added back when
+real postings need it. `frontend/src/app/company/jobs/new/data.ts`'s
+`COUNTRIES` mirrors this table by hand and must change with it.
 
 Consequences, until someone adds them back:
 
