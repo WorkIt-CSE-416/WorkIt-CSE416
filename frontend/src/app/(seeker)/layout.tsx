@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import Form from "next/form";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { LogoLockup } from "@/components/logo";
@@ -77,6 +78,14 @@ import { SeekerSidebar } from "./seeker-sidebar";
  */
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Request time, not build time. The sign-in check below needs the Supabase
+  // keys, and `next build` prerenders any page that has not yet asked for a
+  // request: CI has no keys, so /applications failed its build with "must
+  // both be set" the moment the check came first. connection() marks the
+  // whole shell per-request before anything reads the session, the same rule
+  // as a live fetch in a page (frontend/CLAUDE.md).
+  await connection();
+
   // Every seeker screen is for a signed-in seeker, so the shell never draws
   // a signed-out state: no account, no shell. Verified claims rather than
   // /auth/me, so the check never waits on the API.
