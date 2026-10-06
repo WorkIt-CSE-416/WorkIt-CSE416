@@ -11,6 +11,8 @@ import {
 
 import { BuildingIcon, ClockIcon, CloudIcon, CubeIcon, NodesIcon, StorefrontIcon } from "./icons";
 
+import type { StageKey } from "../stage-colors";
+
 export type Tone = "brand" | "positive";
 
 export type Application = {
@@ -55,8 +57,10 @@ export type Application = {
 
 export type Column = {
   title: string;
-  /** Painted along the card's top edge, so a card carries its column with it. */
-  accent: "pale" | "brand" | "positive";
+  /** Which stage the column is: its panel's tint, the icon and count in its
+   *  header, and the grid and list's bars and badges. One map for every
+   *  screen: ../stage-colors.ts. */
+  stage: StageKey;
   /**
    * How far through the pipeline this stage is. The grid and list draw a bar
    * where the board draws a column, and this is what fills it — progress is a
@@ -95,7 +99,7 @@ export type Column = {
 export const COLUMNS: Column[] = [
   {
     title: "Saved",
-    accent: "pale",
+    stage: "saved",
     progress: 25,
     items: [
       {
@@ -137,7 +141,7 @@ export const COLUMNS: Column[] = [
   },
   {
     title: "Applied",
-    accent: "brand",
+    stage: "applied",
     progress: 50,
     items: [
       {
@@ -149,7 +153,7 @@ export const COLUMNS: Column[] = [
         Icon: NodesIcon,
         status: "Applied",
         next: { label: "Next: Hear Back By", when: "Oct 26, per the recruiter" },
-        meta: { text: "Oct 12, 2023", Icon: CalendarIcon },
+        meta: { text: "Applied Sep 28", Icon: CalendarIcon },
       },
       {
         role: "Senior UI Designer",
@@ -159,7 +163,7 @@ export const COLUMNS: Column[] = [
         Icon: StorefrontIcon,
         status: "Applied",
         next: { label: "Next: Recruiter Screen", when: "Oct 17, 11:30 AM EST" },
-        meta: { text: "Oct 10, 2023", Icon: CalendarIcon },
+        meta: { text: "Applied Sep 25", Icon: CalendarIcon },
       },
       {
         role: "Product Engineer",
@@ -170,13 +174,13 @@ export const COLUMNS: Column[] = [
         Icon: BriefcaseIcon,
         status: "Applied",
         next: { label: "Next: Follow Up", when: "Oct 15, if no reply" },
-        meta: { text: "Oct 8, 2023", Icon: CalendarIcon },
+        meta: { text: "Applied Sep 22", Icon: CalendarIcon },
       },
     ],
   },
   {
     title: "Interviewing",
-    accent: "brand",
+    stage: "interviewing",
     progress: 75,
     items: [
       {
@@ -188,7 +192,7 @@ export const COLUMNS: Column[] = [
         Icon: CloudIcon,
         status: "Round 2",
         next: { label: "Next: Technical Interview", when: "Tomorrow, 2:00 PM EST" },
-        meta: { text: "14 days active", Icon: ClockIcon },
+        meta: { text: "Interviewing for 14 days", Icon: ClockIcon },
         owner: "Alex Chen",
       },
       {
@@ -200,7 +204,7 @@ export const COLUMNS: Column[] = [
         Icon: PinIcon,
         status: "Round 1",
         next: { label: "Next: Hiring Manager Call", when: "Oct 16, 3:30 PM EST" },
-        meta: { text: "6 days active", Icon: ClockIcon },
+        meta: { text: "Interviewing for 6 days", Icon: ClockIcon },
       },
       {
         role: "Product Designer II",
@@ -211,13 +215,13 @@ export const COLUMNS: Column[] = [
         Icon: BuildingIcon,
         status: "Final Round",
         next: { label: "Next: Onsite Interview", when: "Oct 19, 9:00 AM EST" },
-        meta: { text: "21 days active", Icon: ClockIcon },
+        meta: { text: "Interviewing for 21 days", Icon: ClockIcon },
       },
     ],
   },
   {
     title: "Offer",
-    accent: "positive",
+    stage: "offer",
     progress: 100,
     items: [
       {
@@ -228,7 +232,7 @@ export const COLUMNS: Column[] = [
         Icon: CoinIcon,
         tone: "positive",
         next: { label: "Next: Negotiation Call", when: "Oct 17, 4:00 PM EST" },
-        meta: { text: "Deadline to accept: Oct 20, 2023" },
+        meta: { text: "Respond by Oct 20" },
       },
       {
         role: "Frontend Developer",
@@ -239,7 +243,7 @@ export const COLUMNS: Column[] = [
         Icon: BriefcaseIcon,
         tone: "positive",
         next: { label: "Next: Benefits Review", when: "Oct 18, 11:00 AM EST" },
-        meta: { text: "Deadline to accept: Oct 27, 2023" },
+        meta: { text: "Respond by Oct 27" },
       },
       {
         role: "UI/UX Designer",
@@ -250,7 +254,7 @@ export const COLUMNS: Column[] = [
         Icon: AwardIcon,
         tone: "positive",
         next: { label: "Next: Reference Check", when: "Oct 18, 2:00 PM EST" },
-        meta: { text: "Deadline to accept: Nov 3, 2023" },
+        meta: { text: "Respond by Nov 3" },
       },
     ],
   },

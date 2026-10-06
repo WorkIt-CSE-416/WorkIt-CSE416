@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Avatar } from "@/components/avatar";
-import { SignOutIcon } from "@/components/icons";
+import { SignOutIcon, UserIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { cn } from "@/lib/cn";
 
 /**
  * The account cluster's menu — everything that is about you rather than about
@@ -59,7 +60,14 @@ export type AccountMenuItem = {
 };
 
 type AccountMenuProps = {
-  name: string;
+  /** The account's full name. Omit when nobody is signed in (or the API is
+   *  down), and the trigger shows a person glyph rather than a made-up name. */
+  name?: string;
+  /** The profile photo's signed URL; initials when absent. */
+  src?: string | null;
+  /** Print the name beside the photo from md up. The seeker bar does; the
+   *  company bar keeps the bare avatar. */
+  showName?: boolean;
   items: readonly AccountMenuItem[];
   /**
    * A Server Action, passed down from the shell's layout — see
@@ -70,7 +78,7 @@ type AccountMenuProps = {
   onSignOut?: () => void | Promise<void>;
 };
 
-export function AccountMenu({ name, items, onSignOut }: AccountMenuProps) {
+export function AccountMenu({ name, src, showName = false, items, onSignOut }: AccountMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -78,9 +86,21 @@ export function AccountMenu({ name, items, onSignOut }: AccountMenuProps) {
         /* cursor-pointer is not redundant: Tailwind v4's preflight sets
          * `cursor: default` on buttons, so a <button> trigger shows an arrow
          * where the <Link> this replaced showed a hand. */
-        className="focus-visible:ring-brand-ring cursor-pointer rounded-full focus-visible:ring-2 focus-visible:outline-none"
+        className={cn(
+          "focus-visible:ring-brand-ring flex cursor-pointer items-center gap-2.5 rounded-full focus-visible:ring-2 focus-visible:outline-none",
+          showName && name && "md:hover:bg-hover md:-my-1 md:py-1 md:pr-3 md:pl-1",
+        )}
       >
-        <Avatar name={name} className="text-note size-8" />
+        {name ? (
+          <Avatar name={name} src={src} className="text-note size-8" />
+        ) : (
+          <span className="bg-brand-tint text-brand flex size-8 items-center justify-center rounded-full">
+            <UserIcon className="size-4" />
+          </span>
+        )}
+        {showName && name && (
+          <span className="text-label text-ink hidden max-w-40 truncate md:block">{name}</span>
+        )}
       </DropdownMenuTrigger>
 
       {/* align="end" because the trigger is the last thing in the bar: a menu
@@ -97,7 +117,10 @@ export function AccountMenu({ name, items, onSignOut }: AccountMenuProps) {
 
         {onSignOut && (
           <>
-            <DropdownMenuSeparator />
+            {/* Only between rows: with Settings moved to the seeker's panel,
+                Sign out can be the menu's one item, and a rule above it
+                would separate it from nothing. */}
+            {items.length > 0 && <DropdownMenuSeparator />}
             <DropdownMenuItem
               onClick={() => {
                 void onSignOut();

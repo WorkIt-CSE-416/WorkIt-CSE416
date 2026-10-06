@@ -67,8 +67,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/signup/choose-account-type`);
   }
 
-  // Same destination login/actions.ts and signup/actions.ts send a
-  // password account to (KAN-141: applicant onboarding is skipped for now).
-  const destination = oauthStatus.account?.account_type === "company" ? "/company" : "/profile";
+  // A returning sign-in: the same destination login/actions.ts sends a
+  // password account to, the Dashboard for an applicant. A first sign-in
+  // went to choose-account-type above, which sends an applicant to /profile
+  // in onboarding's place (KAN-141: applicant onboarding is skipped for now).
+  const destination = oauthStatus.account?.account_type === "company" ? "/company" : "/dashboard";
   return NextResponse.redirect(`${origin}${destination}`);
 }

@@ -58,7 +58,9 @@ src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
-  (seeker)/       Job-seeker shell — top bar, and every screen behind it
+  (seeker)/       Job-seeker shell — a left panel plus a top bar, the same
+                  dashboard layout as company/, and every screen behind it.
+                  /dashboard is the seeker's home: sign-in lands there
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -81,13 +83,16 @@ src/components/   Shared components
                   to <Avatar> initials. Its hosts are allow-listed in
                   next.config.ts and must match scraper/workit_scraper/logos.py —
                   an unlisted host throws and fails the whole page.
-  nav-link.tsx    Top-bar tab that underlines itself on its own route
+  app-sidebar.tsx The left panel both shells use: shadcn's Sidebar with
+                  WorkIt's row spacing and current-item marking. Each shell
+                  passes its own groups and its bar's height as the offset
+  nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
   account-menu.tsx  The avatar dropdown; each shell passes its own items
   ui/             Presentational primitives: badge, button, card, company-tile,
-                  fact, filter-chip, icon-button, search-field, section-heading,
-                  select-field, text-field, text-link
+                  empty-state, fact, filter-chip, icon-button, search-field,
+                  section-heading, select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
@@ -114,7 +119,8 @@ src/lib/          Framework-free helpers
                   extractErrorMessage, and auth types. Server-only.
   supabase/server.ts  Per-request Supabase client — auth only, never data
 public/           Static assets served from /
-  workit-logo.png Full lockup, 1256x448 — auth card and app top bar
+  workit-logo.png Full lockup, 1256x448, violet — the auth card
+  workit-logo-ink.png  The same lockup in --color-ink — the app top bar
   workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
@@ -143,9 +149,39 @@ cannot both define `/profile`, and both audiences need one — hence the prefix 
 the company side rather than a second invisible group. It also means the auth
 guard is one path check covering routes nobody has written yet.
 
-The two top bars are separate files on purpose. Their shared parts are already
-shared components; what is left is a tab list and one button. Lift a `<TopBar>`
-out only if they are still near-identical once both sides are real screens.
+The two shells are separate layouts on purpose. Their shared parts are shared
+components — the panel is `app-sidebar.tsx`, the account menu and search field
+are in `src/components` — and what is left is each bar's search, its account
+items and the company's post button. Lift a `<TopBar>` out only if they are
+still near-identical once both sides are real screens.
+
+Seeker pages break on the width they actually get, not the window's: the shell
+makes its scroller `@container/main`, because an open panel takes 256px. A
+layout that splits into columns uses `@3xl/main:` and friends, and a card that
+rearranges itself (the job card) is its own `@container`. Pages render a
+`<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
+
+The seeker bar shows the signed-in account's real name and photo
+(`getCurrentAccount()` in `lib/session.ts`, cached per render), and a pill
+for roles posted in the last 24 hours when there are any (`(seeker)/status.ts`).
+The greeting is the Dashboard's heading, and the resume nudge is the profile
+strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
+counts only steps the API can see. Only messages backed by real data belong in
+the bar — deadlines go first once the tracker has a backend, and not before.
+Settings lives in the panel's footer, not the account menu.
+
+`components/stat-tile.tsx` is shared by both dashboards; the seeker one uses
+its `plain` variant. The seeker Dashboard gives each kind of content its own
+surface instead of a white card each: the numbers open under the greeting, one
+violet Next up hero (the only solid colour), open sections for Activity and
+the lists, and a grey pipeline band of small badge cards with a violet
+Full board tile. Each stage has one colour and one icon,
+`(seeker)/stage-colors.ts`, read by the pipeline and the Applications board,
+grid and list alike; on the board the stage tints the column panel, never the
+cards inside it. Keep it that way — a page of identical boxes has no first
+place to look; the page docblock says what goes where. Fixtures are in
+`(seeker)/dashboard/data.ts` until the tracker is real. Its range is
+`?range=`, links rather than client state.
 
 Name a variant for the role it plays, never for how it looks: `primary`,
 `positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette
@@ -220,10 +256,13 @@ side:
 - `login/actions.ts` calls `supabase.auth.signInWithPassword()`, then
   `GET /auth/me` with the new access token to learn the account type and
   onboarding state, and redirects off that: an applicant to
-  `/onboarding/applicant` until onboarded and `/jobs` after, a company
+  `/onboarding/applicant` until onboarded and `/dashboard` after, a company
   account always to `/company`. **Skipped for now (KAN-141):** the applicant
   onboarding check is commented out in both `login/actions.ts` and
-  `signup/actions.ts`, and every applicant goes straight to `/profile`. The
+  `signup/actions.ts`. A new applicant (signup, or a first Google/LinkedIn
+  sign-in through `/signup/choose-account-type`) goes straight to `/profile`
+  in onboarding's place; a returning one (login, or a returning OAuth sign-in
+  in `auth/callback/route.ts`) lands on `/dashboard`, the seeker's home. The
   API still reports `onboarding_completed` and the onboarding screen still
   works by URL; uncomment those blocks to turn it back on. Companies skip the onboarding check because
   nothing sets their `onboarding_completed_at` yet, so it would send every

@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 
+import { STAGE_COLOR } from "../stage-colors";
 import { APPLICATIONS, type StagedApplication } from "./data";
 import { ProgressBar } from "./progress-bar";
 
@@ -36,14 +37,14 @@ function ListRow({ item }: { item: StagedApplication }) {
           <span className="text-meta text-ink-meta">Progress</span>
           <span className="text-meta text-ink font-semibold">{stage.progress}%</span>
         </div>
-        <ProgressBar value={stage.progress} accent={stage.accent} className="mt-1" />
+        <ProgressBar value={stage.progress} stage={stage.stage} className="mt-1" />
       </div>
 
       <p className="text-meta text-ink-meta hidden w-44 shrink-0 truncate md:block">
         {item.meta.text}
       </p>
 
-      <Badge tone={stage.accent === "positive" ? "positive" : "brand"}>{stage.title}</Badge>
+      <Badge tone={STAGE_COLOR[stage.stage].tone}>{stage.title}</Badge>
     </Card>
   );
 }

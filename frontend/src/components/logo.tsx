@@ -42,9 +42,12 @@ import { cn } from "@/lib/cn";
  * to stylesheet order rather than to the override.
  */
 const SIZES = {
-  /** App top bar — the full lockup. 40px tall renders ~112px wide, lifted 2.5px. */
+  /** App top bar — the full lockup in ink (#121a28, --color-ink), not violet:
+   *  the bar's other text is ink, and a coloured mark there competed with the
+   *  one coloured thing on the page below it. 40px tall renders ~112px wide,
+   *  lifted 2.5px. */
   bar: {
-    src: "/workit-logo.png",
+    src: "/workit-logo-ink.png",
     intrinsic: { width: 1256, height: 448 },
     classes: "h-10 w-auto -translate-y-[2.5px]",
     rendered: "112px",

@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 
-import { BookmarkIcon, EllipsisIcon } from "@/components/icons";
+import { BookmarkIcon, BriefcaseIcon, SearchIcon } from "@/components/icons";
 import { JobPostingCard } from "@/components/job-posting-card";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { cn } from "@/lib/cn";
 
 import { JobFilters } from "./filters";
 import { formatExperienceLevel, formatPosted, formatWorkStyle } from "./format";
 import { CircleSlashIcon, SparkleIcon } from "./icons";
 import { getJobListings, type JobListing } from "./listings";
+import { SEEKER_GUTTER } from "../gutter";
 
 export const metadata: Metadata = {
   title: "Jobs",
@@ -40,11 +43,10 @@ function ListingCard({ job }: { job: JobListing }) {
         experienceLevel: formatExperienceLevel(job.experience_level),
         minYearsExperience: null,
       }}
-      headerAction={
-        <IconButton label={`More options for ${job.title}`} tooltip="More options">
-          <EllipsisIcon className="size-4" />
-        </IconButton>
-      }
+      /* One row of actions rather than a "⋯" up top as well: the menu had
+         nothing in it, and two places to look for what a card can do is one
+         too many. Quick, quiet verdicts on the left, the two steps toward
+         applying on the right. */
       actions={
         <>
           <IconButton
@@ -68,7 +70,7 @@ function ListingCard({ job }: { job: JobListing }) {
           {/* Secondary, not primary: asking about a job is the step before
               applying to it, and only one control on a card can be the one
               being pointed at. */}
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" className="ml-auto">
             <SparkleIcon className="size-4" />
             Ask WorkIt
           </Button>
@@ -86,7 +88,7 @@ export default async function JobsPage() {
   const { jobs, error } = await getJobListings();
 
   return (
-    <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
+    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div>
         <h1 className="text-heading text-ink">Recommended for You</h1>
         <p className="text-body text-ink-meta mt-1">
@@ -99,9 +101,22 @@ export default async function JobsPage() {
       </div>
 
       {error != null ? (
-        <p role="alert" className="text-body text-ink-meta mt-4">
-          Couldn&apos;t load jobs. {error}
-        </p>
+        <EmptyState
+          Icon={SearchIcon}
+          title="Jobs aren't loading right now"
+          className="mt-4"
+          /* The API's own message is for whoever runs this locally ("No
+             scraped jobs yet. Run `python3 -m workit_scraper`"), not for a
+             seeker, who can't act on it. */
+          detail={process.env.NODE_ENV === "development" ? error : undefined}
+        >
+          We couldn&apos;t reach the job feed. Refresh the page, or check back in a few minutes.
+        </EmptyState>
+      ) : jobs.length === 0 ? (
+        <EmptyState Icon={BriefcaseIcon} title="No roles yet" className="mt-4">
+          New internship and new-grad roles land here as companies post them. Check back tomorrow
+          morning.
+        </EmptyState>
       ) : (
         <ul className="mt-4 flex flex-col gap-3">
           {jobs.map((job) => (
@@ -111,6 +126,6 @@ export default async function JobsPage() {
           ))}
         </ul>
       )}
-    </main>
+    </div>
   );
 }
