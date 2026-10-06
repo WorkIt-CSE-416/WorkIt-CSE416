@@ -304,7 +304,13 @@ fetches `GET /jobs` for /jobs, /search and the Dashboard's New Matches, and
 its `data.ts` still holds the fixtures `filters.tsx` (client) and the
 `/jobs/[jobId]` detail view use. A live role cannot open at `/jobs/[jobId]`
 yet: its id is the employer's apply URL and the detail view reads fixtures
-only, so its card's Apply Now goes to the employer's posting instead. A live fetch in a page calls
+only, so its card's Apply Now goes to the employer's posting instead.
+A live card still has the full shape of a fixture card: every `job_postings`
+fact the scraper cannot give (job type, salary, years) is passed as
+`NOT_LISTED` from `components/job-posting-card.tsx` and drawn as its icon with
+"Salary not listed" in italic, and the match rail is its placeholder
+(`score={null}`: an empty ring and "Score Coming Soon") until matching
+exists. Null still means a fact the posting has none of, and is left out. A live fetch in a page calls
 `await connection()` so `next build` does not prerender it with no API running.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`

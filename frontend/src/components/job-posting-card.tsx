@@ -72,12 +72,43 @@ import { cn } from "@/lib/cn";
  * contrast left to draw attention with, and a blue company name under a black
  * title reads as a mistake rather than an affordance.
  *
+ * A FACT CAN BE NOT LISTED, which is not the same as null. Null means the
+ * posting has nothing there (a remote role has no office location), and the
+ * fact is left out. NOT_LISTED means the posting should say it but its source
+ * didn't: a scraped role's board gives no salary, job type or years. The card
+ * keeps that fact's glyph in its usual place with "Salary not listed" beside
+ * it, in italic, so every live card has the full shape of a stated posting
+ * and shows where each value will land once the data exists, rather than
+ * shrinking to the three facts a board happens to give. The words say it
+ * outright; the italic is only a second cue, so the text stays ink-meta and
+ * readable rather than fading under AA.
+ *
  * `headerAction`, `actions` and `rail` are slots because what surrounds the
  * card differs by audience. A seeker's card carries a Save / Ask WorkIt /
  * Apply row, and the match rail; the composer's preview carries none of that
  * — the role is not live, so there is nothing to save, match against, or
  * apply to yet.
  */
+/** A field this posting should state but whose source did not. See "A FACT
+ *  CAN BE NOT LISTED" above. A plain object, not a symbol, so it survives
+ *  being passed as a prop anywhere a string can. */
+export const NOT_LISTED = { notListed: true } as const;
+export type NotListed = typeof NOT_LISTED;
+
+function isNotListed(value: unknown): value is NotListed {
+  return typeof value === "object" && value !== null && "notListed" in value;
+}
+
+/** What each fact is called when it is not listed: "Salary not listed". */
+const FACT_NAME = {
+  location: "Location",
+  jobType: "Job type",
+  salary: "Salary",
+  workStyle: "Work style",
+  experienceLevel: "Level",
+  minYearsExperience: "Years of experience",
+} as const;
+
 export type JobPostingCardData = {
   company: string;
   /** The company's logo; omit (or null) for its initials instead. */
@@ -91,24 +122,25 @@ export type JobPostingCardData = {
    *  reason `companyHref` is optional. */
   titleHref?: string;
   /** "Posted 3 hours ago" — see (seeker)/jobs/format.ts's `formatPosted`.
-   *  Printed after the company name, not as a fact. Null drops it: a
-   *  scraped role whose board never dated it. */
-  timing: string | null;
+   *  Printed after the company name, not as a fact. NOT_LISTED prints "Post
+   *  date not listed", for a scraped role whose board never dated it. */
+  timing: string | null | NotListed;
   /** Null omits the fact entirely rather than printing it empty — the rule for
    *  every nullable fact below. A fully remote posting has no location —
    *  `workStyle` already says "Remote", and repeating it under the pin icon
    *  reads as two different facts agreeing by coincidence rather than as one
    *  fact. */
-  location: string | null;
-  /** Null for a scraped role: job boards rarely state salary, job type or work
-   *  style, and a guessed "Full-Time" would be a fact no employer stated. */
-  jobType: string | null;
-  salary: string | null;
-  workStyle: string | null;
-  experienceLevel: string;
+  location: string | null | NotListed;
+  /** NOT_LISTED for a scraped role: job boards rarely state salary, job type
+   *  or work style, and a guessed "Full-Time" would be a fact no employer
+   *  stated, so the card says it is not listed instead. */
+  jobType: string | null | NotListed;
+  salary: string | null | NotListed;
+  workStyle: string | null | NotListed;
+  experienceLevel: string | NotListed;
   /** "3+ yrs exp" — null when the role has no minimum (an internship, a new
    *  grad role). */
-  minYearsExperience: string | null;
+  minYearsExperience: string | null | NotListed;
 };
 
 /** Ink at rest, brand on hover — see the note on the title and company name. */
@@ -126,97 +158,119 @@ export function JobPostingCard({
   actions?: ReactNode;
   rail?: ReactNode;
 }) {
-  // Grid order, with a null dropped rather than printed empty.
+  // Row order, with a null dropped rather than printed empty; a NOT_LISTED
+  // keeps its place.
+  const workStyle = isNotListed(job.workStyle) ? null : job.workStyle;
   const facts = (
     [
       ["location", PinIcon, job.location],
       ["jobType", BriefcaseIcon, job.jobType],
       ["salary", CoinIcon, job.salary],
-      ["workStyle", workStyleIcon(job.workStyle), job.workStyle],
+      ["workStyle", workStyleIcon(workStyle), job.workStyle],
       ["experienceLevel", LevelIcon, job.experienceLevel],
       ["minYearsExperience", CalendarIcon, job.minYearsExperience],
     ] as const
   ).filter(([, , text]) => text != null);
 
   return (
-    <Card
-      as="article"
-      padding="none"
-      className="@container flex flex-col overflow-hidden md:flex-row"
-    >
-      {/* On a card 672px or wider the actions sit on the header's own row,
+    <Card as="article" padding="none" className="@container overflow-hidden">
+      {/* The rail goes beside the body once the card is 576px wide (its own
+          width, so the shell's panel is accounted for), under it below that.
+          It was a window breakpoint, md, which put a 208px rail beside the
+          body of a 400px card whenever the panel was open. */}
+      <div className="flex flex-col @xl:flex-row">
+        {/* THE BODY IS ITS OWN CONTAINER, so everything inside it breaks on
+            the room it actually has, not the whole card's. With the match
+            rail beside it, the card measured 700px and put the actions on the
+            title's row while the body had 490px, which crushed the title to
+            three words a line and cut every fact to "Austi…". */}
+        <div className="@container min-w-0 flex-1">
+          {/* On a body 672px or wider the actions sit on the header's own row,
           centred against it, instead of a ruled-off row underneath: at that
           width the row was mostly empty space, and it made every card a third
           taller than what it says. Narrower, there is no room beside the
-          title, so they drop under a rule again. The card's own width, not
-          the window's, because the shell's panel can take 256px of it. */}
-      <div className="min-w-0 flex-1 p-4 sm:p-5 @2xl:flex @2xl:items-center @2xl:gap-6">
-        <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
-          {/* A fixed 48px square, the height of the title and company line
+          title, so they drop under a rule again. */}
+          <div className="p-4 sm:p-5 @2xl:flex @2xl:items-center @2xl:gap-6">
+            <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+              {/* A fixed 48px square, the height of the title and company line
               beside it. It used to stretch to the full height of that block
               at 80px wide, which on a phone took a quarter of the card and
               squeezed the title into a column three words wide. */}
-          <CompanyLogo
-            name={job.company}
-            src={job.logoUrl}
-            className="text-label rounded-control size-11 shrink-0 sm:size-12"
-          />
+              <CompanyLogo
+                name={job.company}
+                src={job.logoUrl}
+                className="text-label rounded-control size-11 shrink-0 sm:size-12"
+              />
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
-                <h3 className="text-subtitle text-ink">
-                  {job.titleHref ? (
-                    <Link href={job.titleHref} className={INK_LINK}>
-                      {job.title}
-                    </Link>
-                  ) : (
-                    job.title
-                  )}
-                </h3>
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-subtitle text-ink">
+                      {job.titleHref ? (
+                        <Link href={job.titleHref} className={INK_LINK}>
+                          {job.title}
+                        </Link>
+                      ) : (
+                        job.title
+                      )}
+                    </h3>
 
-                <p className="text-label text-ink-meta mt-0.5 font-normal">
-                  {job.companyHref ? (
-                    <Link href={job.companyHref} className={cn(INK_LINK, "font-medium")}>
-                      {job.company}
-                    </Link>
-                  ) : (
-                    <span className="text-ink font-medium">{job.company}</span>
-                  )}
-                  {job.timing != null && (
-                    <>
-                      <span aria-hidden="true" className="text-ink-faint mx-1.5 @max-md:hidden">
-                        ·
-                      </span>
-                      <span className="whitespace-nowrap @max-md:block">{job.timing}</span>
-                    </>
-                  )}
-                </p>
+                    <p className="text-label text-ink-meta mt-0.5 font-normal">
+                      {job.companyHref ? (
+                        <Link href={job.companyHref} className={cn(INK_LINK, "font-medium")}>
+                          {job.company}
+                        </Link>
+                      ) : (
+                        <span className="text-ink font-medium">{job.company}</span>
+                      )}
+                      {job.timing != null && (
+                        <>
+                          <span aria-hidden="true" className="text-ink-faint mx-1.5 @max-md:hidden">
+                            ·
+                          </span>
+                          {isNotListed(job.timing) ? (
+                            <span className="whitespace-nowrap italic @max-md:block">
+                              Post date not listed
+                            </span>
+                          ) : (
+                            <span className="whitespace-nowrap @max-md:block">{job.timing}</span>
+                          )}
+                        </>
+                      )}
+                    </p>
+                  </div>
+
+                  {headerAction}
+                </div>
+
+                {facts.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    {facts.map(([name, Icon, text]) =>
+                      isNotListed(text) ? (
+                        <Fact key={name} Icon={Icon} className="italic">
+                          {FACT_NAME[name]} not listed
+                        </Fact>
+                      ) : (
+                        <Fact key={name} Icon={Icon}>
+                          {text}
+                        </Fact>
+                      ),
+                    )}
+                  </div>
+                )}
               </div>
-
-              {headerAction}
             </div>
 
-            {facts.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                {facts.map(([name, Icon, text]) => (
-                  <Fact key={name} Icon={Icon}>
-                    {text}
-                  </Fact>
-                ))}
+            {actions && (
+              <div className="border-border-subtle mt-4 flex flex-wrap items-center gap-2 border-t pt-3 @2xl:mt-0 @2xl:shrink-0 @2xl:flex-nowrap @2xl:border-t-0 @2xl:pt-0">
+                {actions}
               </div>
             )}
           </div>
         </div>
 
-        {actions && (
-          <div className="border-border-subtle mt-4 flex flex-wrap items-center gap-2 border-t pt-3 @2xl:mt-0 @2xl:shrink-0 @2xl:flex-nowrap @2xl:border-t-0 @2xl:pt-0">
-            {actions}
-          </div>
-        )}
+        {rail}
       </div>
-
-      {rail}
     </Card>
   );
 }
