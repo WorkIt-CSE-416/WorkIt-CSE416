@@ -25,9 +25,9 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * GENERAL is everything about the app rather than the work: Settings, Help
  * and Sign Out. Settings sat alone at the panel's foot; Help and Sign Out
  * joined it when the shell took the floating layout, which groups them under
- * one caption straight after the sections. Sign Out is the only way out of
- * an account in this shell: the bar's photo, name and email are a label,
- * not a menu (see SeekerAccount in ./account-status.tsx). There is no Sign
+ * one caption straight after the sections. The bar's photo opens a menu
+ * with Sign Out as well (SeekerAccount in ./account-status.tsx); this row
+ * stays for anyone who looks in the panel first. There is no Sign
  * In row because the shell only renders for someone signed in; the layout
  * sends anyone else to /login. Sign Out is a button, not a link: it is an
  * action, and it is never lit as the current page.

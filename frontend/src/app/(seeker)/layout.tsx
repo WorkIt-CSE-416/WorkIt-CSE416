@@ -45,8 +45,9 @@ import { SeekerSidebar } from "./seeker-sidebar";
  *
  * THE BAR holds the toggle, the job search and, on the right, the account:
  * the new-roles status when there is news (from xl), the bell, and the photo
- * with the full name and email beside it from lg. That last is a label, not
- * a menu: Sign Out is a row in the panel's General group.
+ * with the full name and email beside it from lg. That last opens the
+ * account menu, whose one row is Sign Out (the panel's General group has it
+ * too).
  *
  * SIGNED OUT, NOTHING HERE RENDERS: the layout sends the visitor to /login
  * before drawing anything, because every screen behind it is someone's own
