@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * /help, a row in the panel's General group beside Settings. There are no
+ * /help, a row in the account menu the bar's photo opens, beside Settings. There are no
  * guides yet, so like /settings it says so inside the shell, under the same
  * heading block as every other seeker screen, rather than leaving a row that
  * opens a 404. It offers the one useful next step meanwhile: the feed. A
