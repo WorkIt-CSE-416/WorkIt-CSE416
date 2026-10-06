@@ -8,7 +8,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
 const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
-const MAX_SIZE = 4 * 1024 * 1024;
+const MAX_SIZE = 5 * 1024 * 1024;
 
 type ResumeUploadProps = {
   file: File | null;
@@ -44,7 +44,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
       return;
     }
     if (next.size > MAX_SIZE) {
-      setFileError("File must be under 4 MB.");
+      setFileError("File must be under 5 MB.");
       return;
     }
     setFileError(null);
@@ -101,7 +101,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
             </>
           )}
         </p>
-        <p className="text-meta text-ink-meta mt-1.5">Supported formats: PDF, DOCX (up to 4 MB)</p>
+        <p className="text-meta text-ink-meta mt-1.5">Supported formats: PDF, DOCX (up to 5 MB)</p>
         <Button type="button" variant="outline" className="mt-2" disabled={busy}>
           Browse Files
         </Button>

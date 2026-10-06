@@ -64,7 +64,8 @@ key never goes here.
   setting — but Supabase silently falls back to its Site URL for any origin
   not on the list.
 - **Request bodies over 4.5 MB are refused by Vercel** before Next runs,
-  which caps uploads at 4 MB (see the upload limit below).
+  but uploads are still capped at 5 MB (see the upload limit below), so a
+  4.5–5 MB upload fails on the deployment with a bare 413. Still open.
 
 ## Architecture
 
@@ -455,13 +456,9 @@ shows initials.
 
 **The upload limit is in three places that must agree:** the API's
 `MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES` here, and `serverActions.bodySizeLimit`
-in `next.config.ts`, which must stay above 4 MB plus multipart overhead or
+in `next.config.ts`, which must stay above 5 MB plus multipart overhead or
 Next rejects the request with a generic error before the action runs. Resumes
-share the same 4 MB / `4.5mb` pair. **The ceiling is Vercel's**, not ours:
-Vercel Functions refuse a request body over 4.5 MB with a bare 413 before
-Next runs, so the cap was cut from 5 MB to 4 MB for the deploy (KAN-146).
-Raising it means uploading straight to Supabase Storage from the browser
-instead of through a server action.
+share the same 5 MB / `6mb` pair.
 
 **Never export a token-returning helper from a `"use server"` file.** Every
 export of one becomes an endpoint the browser can call, so exporting

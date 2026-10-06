@@ -103,10 +103,10 @@ async def upload_avatar(
     _assert_can_edit(account, applicant_id)
 
     if file.size is not None and file.size > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Image must be under 4 MB")
+        raise HTTPException(413, "Image must be under 5 MB")
     contents = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(contents) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Image must be under 4 MB")
+        raise HTTPException(413, "Image must be under 5 MB")
 
     # file.content_type is whatever the client claimed; normalize_avatar
     # decides the format from the bytes instead.

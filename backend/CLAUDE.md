@@ -107,9 +107,6 @@ alembic/
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
 tests/            pytest; resume parser and DOCX extraction tests, and fixtures
-data/
-  feed.json       Committed snapshot of scraper/feed.json, served in production
-                  (SCRAPER_FEED). See Deployment
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
@@ -165,20 +162,15 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
 - **Entrypoint** is `[tool.vercel] entrypoint` in `pyproject.toml`; the whole
   app becomes one Vercel Function. Vercel installs from `uv.lock` itself.
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
-  `SUPABASE_SERVICE_KEY`, `SCRAPER_FEED=data/feed.json`. **Never
-  `DIRECT_URL`:** migrations are run by hand, locally
-  (`alembic/CLAUDE.md`); the deployed API has no business holding the
-  migration connection.
-- **`data/feed.json` is a snapshot**, because `scraper/feed.json` is
-  gitignored and a deployment has no scraper run. `SCRAPER_FEED` points
-  `GET /jobs` at it; locally the default still reads `scraper/feed.json`.
-  Refresh it by running the scraper and copying its `feed.json` here, in the
-  same commit as any change to `schemas/jobs.py` — a stale snapshot that no
-  longer matches the schema makes `/jobs` 500. A scheduled refresh is still
-  open.
-- **Request bodies over 4.5 MB never arrive** — Vercel refuses them first.
-  That is why uploads are capped at 4 MB (`db/avatar.md`). Keep any new upload
-  under it.
+  `SUPABASE_SERVICE_KEY`. **Never `DIRECT_URL`:** migrations are run by
+  hand, locally (`alembic/CLAUDE.md`); the deployed API has no business
+  holding the migration connection.
+- **Still open: the deployed `GET /jobs` has no feed.** `scraper/feed.json`
+  is gitignored and a deployment has no scraper run, so `/jobs` answers 503
+  until the feed has a production home (`SCRAPER_FEED` can point at one).
+- **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
+  them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
+  4.5–5 MB upload fails on the deployment with a bare 413.
 - **`NullPool` is what makes this safe** (see The database): every
   invocation opens one connection through Supavisor's transaction pooler,
   which does the pooling, so serverless scale-out cannot exhaust Postgres.

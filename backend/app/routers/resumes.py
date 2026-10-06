@@ -125,7 +125,7 @@ def _is_docx(data: bytes) -> bool:
         return False
 
 
-MAX_SIZE = 4 * 1024 * 1024
+MAX_SIZE = 5 * 1024 * 1024
 BUCKET = "Resume"
 PDF_MAGIC = b"%PDF"
 DOCX_MAGIC = b"PK\x03\x04"
@@ -152,12 +152,12 @@ async def upload_resume(
 
     # check size metadata
     if file.size is not None and file.size > MAX_SIZE:
-        raise HTTPException(413, "File must be under 4 MB")
+        raise HTTPException(413, "File must be under 5 MB")
 
     contents = await file.read(MAX_SIZE + 1)
 
     if len(contents) > MAX_SIZE:
-        raise HTTPException(413, "File must be under 4 MB")
+        raise HTTPException(413, "File must be under 5 MB")
 
     # validate magic bytes — content_type is client-supplied and untrustworthy
     if contents.startswith(PDF_MAGIC):

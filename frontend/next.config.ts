@@ -1,12 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Resumes and profile photos are both capped at 4 MB (resumes.py,
+  // Resumes and profile photos are both capped at 5 MB (resumes.py,
   // services/avatar.py, src/lib/avatar-rules.ts); this must stay above that
   // plus multipart overhead, or Next rejects the upload before the action runs.
-  // And below 4.5 MB: Vercel refuses any larger request body with a bare 413
-  // before Next sees it, which is why the cap is 4 MB and not 5.
-  experimental: { serverActions: { bodySizeLimit: "4.5mb" } },
+  experimental: { serverActions: { bodySizeLimit: "6mb" } },
   // Company logos on the Jobs feed, as the scraper found them on each job board's
   // page. Must match scraper/workit_scraper/logos.py's PATTERN hosts exactly:
   // next/image throws on any other host, failing the whole page. Object form,
