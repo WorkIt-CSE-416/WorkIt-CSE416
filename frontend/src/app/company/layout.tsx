@@ -60,8 +60,8 @@ import { CompanySidebar } from "./company-sidebar";
  * the account rows are still arriving: sign out has nowhere else to go, and
  * neither will billing or notification preferences.
  *
- * /company/settings is not built. A link that 404s rather than a control that
- * does nothing, which is the placeholder both shells already use. */
+ * /company/settings holds Password for now — the one setting with a real
+ * backing action (src/lib/password-actions.ts), same as (seeker)/settings. */
 const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
   { href: "/company/settings", label: "Settings", icon: <GearIcon className="size-4" /> },
 ];
