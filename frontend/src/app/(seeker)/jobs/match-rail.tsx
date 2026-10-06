@@ -15,17 +15,19 @@ import type { Highlight } from "./data";
  * recessed surface the profile dropzone already established, and earns its
  * prominence from the ring instead.
  *
- * The arc and the dot before the tier label colour by band, violet through
- * red, from `matchColor` in @/lib/match, rather than one brand colour at every
- * score. See the note on `TIERS` there for why that reverses this file's own
- * earlier reasoning, and why it's a safe reversal even so. Length still carries
- * the magnitude and the label still carries the band; colour is a third, faster
+ * The arc and the dot before the tier label colour by band, light to deep
+ * magenta, from `matchColor` in @/lib/match, rather than one brand colour at
+ * every score: the brand is the Applied stage's colour, so a violet ring read
+ * as a status. See the note on `TIERS` there. Length still carries the
+ * magnitude and the label still carries the band; colour is a third, faster
  * read of the same two facts, not a replacement for either.
  *
- * The label's words are ink-muted, not the band colour. Painted in it, three
- * of the four bands measured 1.79 to 3.51:1 on the well (yellow worst), so the
- * one-word verdict a seeker reads before applying was the hardest thing on the
- * rail to read. The dot keeps the colour; the words keep the contrast.
+ * The label's words are ink-muted, not the band colour. Painted in the old
+ * green, yellow and red bands, three of the four measured 1.79 to 3.51:1 on
+ * the well, so the one-word verdict a seeker reads before applying was the
+ * hardest thing on the rail to read. The magenta ramp is drawn for strokes
+ * (its lightest step is 3.22:1 on the well, short of the 4.5:1 a label
+ * needs), so the dot keeps the colour and the words keep the contrast.
  *
  * Caveats sit in ink-meta, a step quieter than the wins in ink-muted but still
  * clear of AA: the tick and the dot already tell the two kinds apart, so fading
@@ -105,7 +107,7 @@ export function MatchRail({
 }) {
   return (
     <aside
-      aria-label="Why this matches"
+      aria-label="Why This Matches"
       className={cn(
         "bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 p-4 @xl:w-52",
         standalone ? "rounded-card border" : "border-t @xl:border-t-0 @xl:border-l",

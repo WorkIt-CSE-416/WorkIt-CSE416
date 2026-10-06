@@ -29,7 +29,7 @@ export default function ButtonsPage() {
       </Group>
 
       <Group
-        title="Icon sizes"
+        title="Icon Sizes"
         note="Square, for shadcn components that ask for them. A bare glyph in WorkIt's own chrome is IconButton, under Display."
       >
         {BUTTON_ICON_SIZES.map((size) => (
@@ -41,9 +41,9 @@ export default function ButtonsPage() {
         ))}
       </Group>
 
-      <Group title="As a link" note="Navigation stays an anchor rather than becoming a button.">
+      <Group title="As a Link" note="Navigation stays an anchor rather than becoming a button.">
         <Row name="<ButtonLink>" role="Renders a Next <Link> with button styling">
-          <ButtonLink href="/jobs">Browse jobs</ButtonLink>
+          <ButtonLink href="/jobs">Browse Jobs</ButtonLink>
         </Row>
       </Group>
     </KitPage>

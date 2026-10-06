@@ -19,10 +19,10 @@ export function Section({ title, children }: { title: string; children: ReactNod
 }
 
 /**
- * The search detail pane's mockup indents these and draws no markers, so
- * that screen drops the marker rather than faking one — `marker` defaults to
- * false to keep that look. role="list" keeps the semantics Safari removes
- * when a list has no marker either way.
+ * `marker` defaults to false, an indented list with no markers, for a list
+ * that reads as one run of text. Every current caller passes `marker`; the
+ * unmarked default came from the search detail pane, which is gone. role="list"
+ * keeps the semantics Safari removes when a list has no marker either way.
  *
  * The job-detail pages pass `marker`: a "What You'll Do" or "Qualifications"
  * list reads as a list of separate items, and indentation alone left it

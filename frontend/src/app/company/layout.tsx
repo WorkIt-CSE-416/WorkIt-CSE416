@@ -105,7 +105,7 @@ export default async function CompanyLayout({ children }: { children: React.Reac
         href="#content"
         className="bg-panel rounded-control text-label text-ink shadow-panel focus-visible:ring-brand-ring sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus-visible:ring-2 focus-visible:outline-none"
       >
-        Skip to content
+        Skip to Content
       </a>
 
       {/* IN FLOW, AND IT NO LONGER NEEDS TO BE ANYTHING ELSE.
@@ -136,7 +136,7 @@ export default async function CompanyLayout({ children }: { children: React.Reac
             >
               <SearchField
                 id="applicant-search"
-                label="Search applicants"
+                label="Search Applicants"
                 name="q"
                 placeholder="Search applicants by name"
                 enterKeyHint="search"

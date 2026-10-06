@@ -60,7 +60,11 @@ src/app/          App Router routes, layouts, pages
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
   (seeker)/       Job-seeker shell — a left panel plus a top bar, the same
                   dashboard layout as company/, and every screen behind it.
-                  /dashboard is the seeker's home: sign-in lands there
+                  /dashboard is the seeker's home: sign-in lands there.
+                  /search narrows the live /jobs feed to roles whose title
+                  or company contains ?q, and draws them with
+                  jobs/listing-card.tsx, the feed's own card, skeleton and
+                  error state, so a role looks the same on both pages
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -79,8 +83,9 @@ src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
   icons.tsx       Glyphs used by more than one route, as thin wrappers over
                   Lucide at its default stroke (the brand marks stay drawn).
-                  A per-route icons.tsx still drawn by hand moves to Lucide
-                  when it is next touched
+                  Every per-route icons.tsx is the same kind of wrapper;
+                  draw no new glyph by hand
+  hero-arcs.tsx   The corner arcs on both Dashboards' violet hero
   avatar.tsx      Profile photo when given `src`, initials otherwise
   company-logo.tsx  A company's job-board logo via next/image, falling back
                   to <Avatar> initials. Its hosts are allow-listed in
@@ -100,7 +105,8 @@ src/components/   Shared components
   account-menu.tsx  The avatar dropdown: name and email header, then Sign Out
                   (Sign In when signed out)
   ui/             Presentational primitives: badge, button, card, company-tile,
-                  empty-state, fact, filter-chip, icon-button, search-field,
+                  empty-state, fact, filter-chip (only the design kit shows
+                  it today), icon-button, search-field, section,
                   section-heading, section-link, select-field, text-field,
                   text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
@@ -164,8 +170,10 @@ components (the panel is `app-sidebar.tsx`; the corner cell, the bell, the
 account menu and the search field are in `src/components`), and what is left
 is each bar's search target and copy. Each bar's search is a GET `next/form`
 to its own results page: `/search` for a seeker, `/company/applicants` for a
-company. Lift a `<TopBar>` out only if they are still near-identical once both
-sides are real screens.
+company. The seeker field is `(seeker)/search/query-field.tsx`, a client
+component that shows `?q` while on /search and empties elsewhere, because a
+layout never receives searchParams. Lift a `<TopBar>` out only if they are
+still near-identical once both sides are real screens.
 
 Seeker pages break on the width they actually get, not the window's: the shell
 makes its scroller `@container/main`, because an open panel takes 256px. A
@@ -184,18 +192,41 @@ In both shells Settings lives in the panel's footer, not the account menu,
 which holds only the account header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.
 
-`components/stat-tile.tsx` is shared by both dashboards; the seeker one uses
-its `plain` variant. The seeker Dashboard gives each kind of content its own
-surface instead of a white card each: the numbers open under the greeting, one
-violet Next up hero (the only solid colour), open sections for Activity and
-the lists, and a grey pipeline band of small badge cards with a violet
-Full board tile. Each stage has one colour and one icon,
-`(seeker)/stage-colors.ts`, read by the pipeline and the Applications board,
-grid and list alike; on the board the stage tints the column panel, never the
-cards inside it. Keep it that way — a page of identical boxes has no first
-place to look; the page docblock says what goes where. Fixtures are in
+`components/stat-tile.tsx` is shared by both dashboards, and both use its
+`plain` variant; its card form has no caller today. The seeker Dashboard gives
+each kind of content its own surface instead of a white card each: the numbers
+open under the greeting, one violet Next Up hero (the only solid colour), open
+sections for Activity and the lists, and a grey pipeline band of small badge
+cards with a violet Full Board tile. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real. Its range is
 `?range=`, links rather than client state.
+
+The company Dashboard and the seeker Profile follow the same surfaces. On
+/company: open KPI tiles beside one violet Most Urgent hero, open sections for
+the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
+with no cards inside it, and one white card, the Recent Applicants table. On
+/profile: an open identity band, Resume as the only card, and open sections
+for Work Experience, Skills and Application Settings. Both heroes draw
+`components/hero-arcs.tsx`. An open section's one way onward sits at the top
+right of its heading: `ui/section-link.tsx` for a link, `<Button
+variant="section">` for an action. Keep it that way: a page of identical boxes
+has no first place to look. Each page's docblock says what goes where.
+
+Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
+the pipeline and the Applications board, grid and list alike; on the board
+the stage tints the column panel, never the cards inside it. The three views
+also say the same thing about an application: each shows its next step
+through `(seeker)/applications/next-step.tsx` ("Nothing scheduled" when
+there is none). There is no progress bar; it only restated the stage.
+
+A match score has its own colour and never borrows a stage's. The four
+`--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a
+better match, read only through `matchColor()` in `lib/match.ts`: the board's
+match badge, the job page's match rail and the company Dashboard's match bar.
+They paint strokes, dots and bars, never text; the tier words stay ink-muted.
+Stages and statuses own violet, blue, amber, green, grey and red, so a new
+score display takes `matchColor()` and a new stage display takes its stage
+map, never the other's.
 
 Name a variant for the role it plays, never for how it looks: `primary`,
 `positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette
@@ -246,8 +277,11 @@ When the backend lands, that is the seam it plugs into — unless a client
 component imports that `data.ts`. The server-only API helpers cannot go there
 without breaking the build, so the fetch gets its own sibling marked
 `import "server-only"`. The Jobs feed is the first case: `(seeker)/jobs/listings.ts`
-fetches `GET /jobs`, and its `data.ts` still holds the fixtures `filters.tsx`
-(client) and the `/jobs/[jobId]` detail view use. A live fetch in a page calls
+fetches `GET /jobs` for /jobs, /search and the Dashboard's New Matches, and
+its `data.ts` still holds the fixtures `filters.tsx` (client) and the
+`/jobs/[jobId]` detail view use. A live role cannot open at `/jobs/[jobId]`
+yet: its id is the employer's apply URL and the detail view reads fixtures
+only, so its card's Apply Now goes to the employer's posting instead. A live fetch in a page calls
 `await connection()` so `next build` does not prerender it with no API running.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
@@ -392,6 +426,19 @@ right for date-only strings.
 `frontend/tsconfig.json`. It does not reach outside this folder.
 
 ## Conventions
+
+**Copy is Title Case, with named exceptions.** Title Case for page titles;
+section, card and dialog headings; empty-state titles; buttons and links that
+act as actions; menu items; tabs and segments; filter and field labels and
+their options; column headers; badges, pills and stage names; and an
+accessible name with no visible text (a landmark, a group, a hidden field
+label). Sentence case only for helper text, descriptions and subtitles,
+tooltips (so an icon button's label, which is its tooltip, too),
+placeholders, empty-state body copy, error and validation messages, and a
+measured value or annotation outside a badge ("Over 7 days", "vs last week").
+Fixture data (job titles, companies, people) stays as written. A label that
+doubles as a value, like the composer's "Full-Time", moves together with
+every comparison against it, never on its own.
 
 Prettier owns formatting for code. It runs from this folder, so it never sees
 the repo root's `CLAUDE.md` or `README.md`; `.prettierignore` here excludes

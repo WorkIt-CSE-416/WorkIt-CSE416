@@ -47,16 +47,16 @@ export const DEPARTMENTS = [
   "People",
 ] as const;
 
-export const JOB_TYPES = ["Full-time", "Part-time", "Contract"] as const;
+export const JOB_TYPES = ["Full-Time", "Part-Time", "Contract"] as const;
 export const EXPERIENCE_LEVELS = ["Internship", "New Grad", "Experienced"] as const;
-export const WORK_STYLES = ["Remote", "Hybrid", "On-site"] as const;
-export const SALARY_TYPES = ["Exact figure", "Range"] as const;
+export const WORK_STYLES = ["Remote", "Hybrid", "On-Site"] as const;
+export const SALARY_TYPES = ["Exact Figure", "Range"] as const;
 export const SALARY_PERIODS = ["Year", "Hour"] as const;
 export const CURRENCIES = ["USD", "EUR", "GBP", "CAD"] as const;
 
 /** What a screening answer is expected to look like, which is what decides the
  *  control an applicant is shown. */
-export const QUESTION_TYPES = ["Short text", "Long text", "Number", "Yes / No"] as const;
+export const QUESTION_TYPES = ["Short Text", "Long Text", "Number", "Yes / No"] as const;
 
 export type ScreeningQuestion = {
   id: string;

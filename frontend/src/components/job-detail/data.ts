@@ -24,9 +24,8 @@ import {
  * the per-id `*_EXTRAS` records below.
  *
  * `companyAbout`/`about`/`responsibilities`/`qualifications` stand in for
- * the schema's single markdown `description` column — nothing renders
- * markdown yet, the same call (seeker)/search/data.ts already made for each
- * job's `detail` fixture.
+ * the schema's single markdown `description` column, because nothing renders
+ * markdown yet.
  */
 export type JobPosting = {
   id: string;
@@ -156,7 +155,7 @@ function fromRecommendation(source: Recommendation, extra: SeekerExtra): JobPost
 
 const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
   j1: {
-    jobType: "Full-time",
+    jobType: "Full-Time",
     salary: "$95k - $120k",
     level: "New Grad",
     starts: "Immediate start",
@@ -175,7 +174,7 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
     ],
   },
   j2: {
-    jobType: "Full-time",
+    jobType: "Full-Time",
     salary: "$150k - $190k",
     level: "Experienced",
     starts: "Immediate start",
@@ -194,7 +193,7 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
     ],
   },
   j3: {
-    jobType: "Full-time",
+    jobType: "Full-Time",
     salary: "$28/hr",
     level: "Internship",
     starts: "Summer 2027",
@@ -213,7 +212,7 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
     ],
   },
   j4: {
-    jobType: "Full-time",
+    jobType: "Full-Time",
     salary: "$130k - $165k",
     level: "Experienced",
     starts: "Start date TBD",
@@ -233,7 +232,7 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
     ],
   },
   j5: {
-    jobType: "Full-time",
+    jobType: "Full-Time",
     salary: "$145k - $180k",
     level: "Experienced",
     starts: "Immediate start",
@@ -252,7 +251,7 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
     ],
   },
   j6: {
-    jobType: "Full-time",
+    jobType: "Full-Time",
     salary: "$90k - $115k",
     level: "Experienced",
     starts: "Not yet published",
@@ -271,7 +270,7 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
     ],
   },
   j7: {
-    jobType: "Full-time",
+    jobType: "Full-Time",
     salary: "$160k - $200k",
     level: "Experienced",
     starts: "Position filled",
@@ -292,7 +291,7 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
     ],
   },
   j8: {
-    jobType: "Full-time",
+    jobType: "Full-Time",
     salary: "$155k - $195k",
     level: "Experienced",
     starts: "Immediate start",

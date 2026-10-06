@@ -1,4 +1,11 @@
-import { Building2, ChevronDown, ChevronsUpDown, ChevronUp, Download } from "lucide-react";
+import {
+  ArrowUpToLine,
+  Building2,
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
+  Download,
+} from "lucide-react";
 
 type IconProps = { className?: string };
 
@@ -24,6 +31,12 @@ export function BuildingIcon({ className }: IconProps) {
  *  on your disk, not upload one. */
 export function DownloadIcon({ className }: IconProps) {
   return <Download aria-hidden className={className} />;
+}
+
+/** The Applications chart's busiest point: an arrow up to a ceiling, the
+ *  highest the line reached in the window. */
+export function PeakIcon({ className }: IconProps) {
+  return <ArrowUpToLine aria-hidden className={className} />;
 }
 
 /**

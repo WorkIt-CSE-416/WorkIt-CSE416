@@ -59,7 +59,7 @@ export function SeekerSidebar({ card }: { card?: ReactNode }) {
       groups={GROUPS}
       footer={FOOTER}
       footerCard={card}
-      label="Job search sections"
+      label="Job Search Sections"
       className="top-(--seeker-bar)!"
     />
   );

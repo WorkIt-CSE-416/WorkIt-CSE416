@@ -1,20 +1,23 @@
 import type { ComponentProps } from "react";
 
 import { SearchIcon } from "@/components/icons";
+import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 /**
  * The compact search input that lives in the app top bar.
  *
  * Separate from <TextField> rather than a flag on it: this one carries no
- * visible label and is always a search input. It is h-10, 40px, sized to the
- * top bar rather than to the 42px form fields; it was 33px while the bar was
- * 48px tall, and grew with the bar rather than floating in the middle of it.
- * Like a form field, its type is 16px below `sm` so iOS Safari does not zoom
- * on focus (the audit log shows it at phone width), with the same 20px line,
- * so the box does not move. `label` is still required and rendered for screen
- * readers — a placeholder is not an accessible name, and it disappears the
- * moment anyone types.
+ * visible label and is always a search input. `label` is still required and
+ * rendered for screen readers: a placeholder is not an accessible name, and
+ * it disappears the moment anyone types.
+ *
+ * THE SAME BOX AS EVERY OTHER FIELD. It is drawn from TextField's
+ * FIELD_CONTROL and padded as a TextField with a leading icon is, so it is
+ * 42px tall, outlined in --color-border-control (3:1 or better) and puts its
+ * glyph where a form field puts one. It used to be a 40px box sized to the
+ * top bar, outlined in --color-border-subtle at 1.19:1, which made the one
+ * field on every screen the faintest and the only one drawn differently.
  *
  * type="search" is deliberate. It gives the field a clear button and the
  * Escape-to-clear behaviour people expect, which matters more here than the
@@ -32,11 +35,11 @@ export function SearchField({ id, label, className, ...input }: SearchFieldProps
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
-      <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+      <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2" />
       <input
         id={id}
         type="search"
-        className="border-border-subtle bg-panel rounded-control sm:text-body text-ink placeholder:text-ink-meta focus-visible:border-brand focus-visible:ring-brand-ring h-10 w-full border py-0 pr-3 pl-10 text-base/5 focus-visible:ring-[3px] focus-visible:outline-none"
+        className={cn(FIELD_CONTROL, "py-2.5 pr-3.5 pl-11")}
         {...input}
       />
     </div>

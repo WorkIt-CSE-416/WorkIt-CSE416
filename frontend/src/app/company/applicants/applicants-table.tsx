@@ -72,7 +72,7 @@ const columns = helper.columns([
   }),
 
   helper.accessor("role", {
-    header: ({ column }) => <SortHeader column={column}>Applied to</SortHeader>,
+    header: ({ column }) => <SortHeader column={column}>Applied To</SortHeader>,
     sortFn: "alphanumeric",
     filterFn: "arrIncludesSome",
     cell: ({ getValue }) => (
@@ -128,6 +128,7 @@ export function ApplicantsTable({ query = "" }: { query?: string }) {
         table={table}
         searchColumnId="name"
         searchPlaceholder="Search applicants"
+        searchLabel="Search Applicants"
         filters={FILTERS}
       />
       <DataTable table={table} empty="No applicants match those filters." />

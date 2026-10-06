@@ -132,7 +132,7 @@ export function SelectAllHeader({ table }: { table: SelectAllTable }) {
       checked={all}
       indeterminate={!all && table.getIsSomeRowsSelected()}
       onCheckedChange={(checked) => table.toggleAllRowsSelected(checked)}
-      aria-label="Select all rows"
+      aria-label="Select All Rows"
       // ink-faint, not shadcn's input hairline: 3.11:1 on white against 1.19:1,
       // so an empty box can be seen at all.
       className="border-ink-faint"
@@ -244,11 +244,11 @@ export type FilterSpec = {
   /** Accessible name for the trigger. The column, singular: "Stage". */
   label: string;
   /**
-   * Plural of `label`, for the row that clears the filter: "All stages". Its
+   * Plural of `label`, for the row that clears the filter: "All Stages". Its
    * own field because English will not derive it — "status" pluralises to
    * "statuses" — and because one string cannot be both a good accessible name
    * and good display copy. Reusing `label` for both is what had these reading
-   * "All stage" beside "All roles".
+   * "All Stage" beside "All Roles".
    */
   plural: string;
   options: string[];
@@ -270,11 +270,17 @@ export function TableToolbar<T extends RowData>({
   table,
   searchColumnId,
   searchPlaceholder,
+  searchLabel,
   filters = [],
 }: {
   table: CompanyTable<T>;
   searchColumnId: string;
+  /** Hint inside the empty box, sentence case: "Search applicants". */
   searchPlaceholder: string;
+  /** Accessible name for the box, Title Case like the bar's own search field:
+   *  "Search Applicants". Its own prop for the reason FilterSpec has `plural`:
+   *  one string cannot be both a sentence-case hint and a Title Case name. */
+  searchLabel: string;
   filters?: FilterSpec[];
 }) {
   const selected = table.getSelectedRowIds?.() ?? {};
@@ -293,7 +299,7 @@ export function TableToolbar<T extends RowData>({
             value={(table.getColumn(searchColumnId)?.getFilterValue() as string) ?? ""}
             onChange={(e) => table.getColumn(searchColumnId)?.setFilterValue(e.target.value)}
             placeholder={searchPlaceholder}
-            aria-label={searchPlaceholder}
+            aria-label={searchLabel}
             className="h-8 w-full pl-8"
           />
         </div>
@@ -309,7 +315,7 @@ export function TableToolbar<T extends RowData>({
              closed filter read "__all__"; every other option was unaffected
              because its value and its label are the same string. */
           const items = [
-            { value: ALL, label: `All ${plural.toLowerCase()}` },
+            { value: ALL, label: `All ${plural}` },
             ...options.map((option) => ({ value: option, label: option })),
           ];
 

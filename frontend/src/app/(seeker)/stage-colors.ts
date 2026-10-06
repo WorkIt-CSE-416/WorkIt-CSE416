@@ -15,10 +15,11 @@ import type { BadgeTone } from "@/components/ui/badge";
  *   offer         green   finished well
  *
  * Each stage carries every form the screens need, as literal class names so
- * Tailwind sees them: a solid fill (a badge, a bar), a tint and the text that
- * reads on that, a panel (the board column
- * that holds a stage's cards: its tint and a faint border in the same hue),
- * the <Badge> tone, and the raw colour for SVG.
+ * Tailwind sees them: a solid fill (the disc behind a stage's white glyph: a
+ * board column header, a pipeline badge, an Up Next row), a tint and the text
+ * that reads on that, a panel (the board column that holds a stage's cards:
+ * its tint and a faint border in the same hue), the <Badge> tone, and the raw
+ * colour for SVG.
  *
  * EVERY FILL CARRIES A WHITE GLYPH, at 3:1 or better, so a stage's icon is
  * drawn the same way on every stage. That rules out three lighter colours:

@@ -4,14 +4,13 @@ import { cn } from "@/lib/cn";
 
 /**
  * Save a job, or take it back out of saved: the one Save control on every job
- * surface (the feed card, a /search result, the /search detail pane, the job
- * page).
+ * surface (the listing card on /jobs and /search, and the job page).
  *
  * It was drawn four ways, as a 32px outline button, a borderless 32px glyph, a
  * 36px outline button and a bare 14px glyph, so a seeker met a different Save
- * on each screen, and the /search detail could disagree with the card beside
- * it about whether the job was saved. One component means one look, one
- * label and one state per job.
+ * on each screen, and one surface could disagree with another about whether
+ * the job was saved. One component means one look, one label and one state
+ * per job.
  *
  * Bordered at 32px, the `sm` button height, so it lines up with the actions
  * beside it. Saved is a filled bookmark in brand, a step deeper on hover

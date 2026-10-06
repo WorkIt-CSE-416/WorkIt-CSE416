@@ -15,7 +15,7 @@ import { apiGet } from "@/lib/api";
  * Deadlines ("Interview tomorrow at 2:00 PM") outrank roles here once the
  * application tracker has a backend; until then they are fixtures, and a bar
  * that invents a deadline is worse than one that says nothing. The Dashboard's
- * Up next shows them from the fixture, labelled as such by where it lives.
+ * Up Next shows them from the fixture, labelled as such by where it lives.
  *
  * "Since yesterday" is a rolling 24 hours, not a calendar day: the server runs
  * in UTC and does not know the seeker's midnight (frontend/CLAUDE.md).

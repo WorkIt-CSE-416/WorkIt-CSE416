@@ -24,8 +24,8 @@ export const metadata: Metadata = {
 
 /**
  * /dashboard — the seeker's home, first in the panel and where sign-in lands.
- * At a glance it answers two questions — is my search working (the numbers),
- * and what do I do next (the violet card, then Up next) — and below that,
+ * At a glance it answers two questions: is my search working (the numbers),
+ * and what do I do next (the violet card, then Up Next). Below that, it shows
  * why, and what is new.
  *
  * NOT EVERYTHING IN A WHITE CARD. It used to be eight identical white boxes,
@@ -33,27 +33,27 @@ export const metadata: Metadata = {
  * thing has its own surface:
  *
  *   the numbers     open on the page under the greeting, on hairlines
- *   Next up         the one solid colour: a violet card with the single most
+ *   Next Up         the one solid colour: a violet card with the single most
  *                   pressing commitment, where the eye lands first
  *   Activity, lists open sections under plain headings
  *   the pipeline    a grey band of small white cards with coloured
- *                   badges and a violet "Full board" tile
+ *                   badges and a violet "Full Board" tile
  *
  * so the page reads as a layout rather than a grid of containers. Whitespace
  * separates the open sections; only the hero and the band are filled.
  *
- * The range scopes the numbers, the activity and the pipeline; Next up, Up
- * next, New matches and Waiting are about now.
+ * The range scopes the numbers, the activity and the pipeline; Next Up, Up
+ * Next, New Matches and Waiting are about now.
  *
  * Most of it is fixtures (./data.ts) until the application tracker has a
- * backend; New matches is the live feed.
+ * backend; New Matches is the live feed.
  *
  * Columns break on @container/main, the page's own width, since the panel
  * takes 256px of the window when open. What lives inside one of those columns
  * breaks on the column instead: the headline numbers go four across at
- * @lg/kpis and Up next moves its dates at @md/upnext. Keyed to the page, the
+ * @lg/kpis and Up Next moves its dates at @md/upnext. Keyed to the page, the
  * numbers went four across in a 3fr column too narrow for them, and "Response
- * rate" wrapped and dropped its value below the other three.
+ * Rate" wrapped and dropped its value below the other three.
  */
 const STAT_ICONS = [BriefcaseIcon, MailIcon, CalendarIcon, AwardIcon];
 

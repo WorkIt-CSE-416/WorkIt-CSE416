@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
-import { Card } from "@/components/ui/card";
+import { ArrowLeftIcon, ClockIcon } from "@/components/icons";
+import { ButtonLink } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * The body of a company screen that has a route but not a design yet.
@@ -20,6 +22,11 @@ import { Card } from "@/components/ui/card";
  * gutter as every built company page), so a stub and a finished screen line
  * up when you click between them.
  *
+ * THE BODY IS FOR THE RECRUITER WHO LANDS HERE, not for whoever builds the
+ * page next: the seeker /settings page's <EmptyState>, saying the page is
+ * coming and offering the way back to the Overview. It said "Not built yet:
+ * route and shell only." once, which is a note to a developer.
+ *
  * It is a <div> rather than a <main>: the company shell's SidebarInset is the
  * <main> for every screen under /company, and a page cannot nest a second one
  * inside it. Seeker pages still own their own, because that shell provides no
@@ -28,21 +35,33 @@ import { Card } from "@/components/ui/card";
 type PlaceholderProps = {
   title: string;
   description: string;
-  /** What this screen is expected to hold. Written for the person who picks the
-   *  ticket up, so keep it to the shape of the screen, not a feature list. */
+  /** The empty state's glyph. A clock, for "later", unless the page has a
+   *  glyph of its own (Settings' gear, say). */
+  Icon?: ComponentType<{ className?: string }>;
+  /** The empty state's line, for the person using the app: what will be here,
+   *  in a sentence. Defaults to a plain "still building it". */
   children?: ReactNode;
 };
 
-export function Placeholder({ title, description, children }: PlaceholderProps) {
+export function Placeholder({ title, description, Icon = ClockIcon, children }: PlaceholderProps) {
   return (
     <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
       <h1 className="text-heading text-ink">{title}</h1>
       <p className="text-body text-ink-meta mt-1">{description}</p>
 
-      <Card className="mt-4 border-dashed" elevated={false}>
-        <p className="text-note text-ink-meta">Not built yet: route and shell only.</p>
-        {children ? <div className="text-body text-ink-meta mt-2">{children}</div> : null}
-      </Card>
+      <EmptyState
+        Icon={Icon}
+        title="Coming Soon"
+        className="mt-4"
+        action={
+          <ButtonLink href="/company" variant="secondary" size="sm">
+            <ArrowLeftIcon className="size-3.5" />
+            Back to Overview
+          </ButtonLink>
+        }
+      >
+        {children ?? "We're still building this page."}
+      </EmptyState>
     </div>
   );
 }

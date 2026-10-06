@@ -23,7 +23,7 @@ export function LoadError({
   retryHref,
 }: {
   error: string;
-  /** The heading when the load fails, e.g. "Job postings aren't loading right now". */
+  /** The heading when the load fails, e.g. "Job Postings Aren't Loading Right Now". */
   title: string;
   /** What could not be reached, e.g. "your job postings". */
   subject: string;
@@ -34,7 +34,7 @@ export function LoadError({
     return (
       <EmptyState
         Icon={LockIcon}
-        title="You're signed out"
+        title="You're Signed Out"
         action={
           <ButtonLink href="/login" variant="secondary" size="sm">
             Sign In Again

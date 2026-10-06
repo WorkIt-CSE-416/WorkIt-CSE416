@@ -117,7 +117,15 @@ const columns = helper.columns([
       const count = getValue();
 
       return (
-        <span className={cn("tabular-nums", count > 0 ? "text-ink" : "text-ink-faint")}>
+        <span
+          className={cn(
+            "tabular-nums",
+            /* A zero is quieter by weight, in ink-meta (5.59:1 on white),
+               never in a grey too faint to read: ink-faint is 3.11:1, under
+               the 4.5:1 text needs, and this is a number people scan for. */
+            count > 0 ? "text-ink font-semibold" : "text-ink-meta",
+          )}
+        >
           {count}
         </span>
       );
@@ -223,7 +231,7 @@ function RowActions({ posting }: { posting: Posting }) {
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={() => setIsClosing(true)}>
-                Close job
+                Close Job
               </DropdownMenuItem>
             </>
           )}
@@ -283,6 +291,7 @@ export function JobsTable({ postings, empty }: { postings: Posting[]; empty: str
         table={table}
         searchColumnId="role"
         searchPlaceholder="Search roles"
+        searchLabel="Search Roles"
         filters={FILTERS}
       />
       <DataTable table={table} empty={empty} />

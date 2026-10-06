@@ -26,11 +26,11 @@ import { APPLICATIONS_BY_DAY, type DayCount } from "./data";
  *   wiring them to it would produce a number that looks authoritative and
  *   means nothing.
  *
- * So the picker drives the Applications chart and the New applicants tile, and
+ * So the picker drives the Applications chart and the New Applicants tile, and
  * deliberately leaves the ring, the role bars, the review queue, the stage
- * ages and the arrivals feed alone. Those cards say "right now" or "today" in
- * their own subtitles rather than carrying a badge each — the copy is cheaper
- * than the chrome and harder to ignore.
+ * ages and the arrivals feed alone. Those sections say "right now" or "today"
+ * in their own subtitles rather than carrying a badge each, since the copy is
+ * cheaper than the chrome and harder to ignore.
  *
  * There is a third category this app cannot serve yet. A stock metric CAN be
  * scoped by COHORT — "where are the applications RECEIVED in this window
@@ -186,17 +186,17 @@ export function matchPreset<T extends { range: DateRange }>(range: DateRange, li
  * selected because its nearest entry was 28. Two lists means every window is
  * either in both or looks broken in one.
  *
- * `short` exists because a toggle is three chips in a card header and cannot
- * carry "Last 28 Days" three times over. It is a display label for the same
+ * `short` exists because a toggle is three chips in a section header and
+ * cannot carry "Last 28 Days" three times over. It is a display label for the same
  * window, not a different window — the `range` is the shared one, by reference.
  * "Max" for the widest, because clamped to a ninety-day fixture "This Year" is
- * simply all the data there is, and a toggle saying "This Year" beside "7 days"
+ * simply all the data there is, and a toggle saying "This Year" beside "7 Days"
  * invites the reader to think it is a longer span than the chart can draw.
  */
 const TOGGLE_LABELS = ["Last 7 Days", "Last 28 Days", "This Year"] as const;
 const SHORT: Record<(typeof TOGGLE_LABELS)[number], string> = {
-  "Last 7 Days": "7 days",
-  "Last 28 Days": "28 days",
+  "Last 7 Days": "7 Days",
+  "Last 28 Days": "28 Days",
   "This Year": "Max",
 };
 
@@ -216,7 +216,7 @@ export const TOGGLE_PRESETS: (Preset & { short: string })[] = TOGGLE_LABELS.map(
  * Twenty-eight days rather than the full ninety, for two reasons that point the
  * same way. It is the span a recruiter means by "lately", and it is the widest
  * one with a comparable span behind it inside a ninety-day fixture — at ninety
- * there is no preceding ninety, so the New applicants tile would open with no
+ * there is no preceding ninety, so the New Applicants tile would open with no
  * delta at all. It is a named preset rather than a day count so the picker
  * opens with that entry already highlighted.
  */

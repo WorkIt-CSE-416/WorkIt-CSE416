@@ -6,7 +6,7 @@ import { matchColor, matchTier } from "@/lib/match";
  * The small version of the Jobs screen's match rail, coloured by the same bands
  * through `matchColor`, so a score reads the same on both screens. It used to
  * show the stage's progress in the stage's accent, which put one number on
- * every card in a column; the grid and list still draw that progress as a bar.
+ * every card in a column.
  *
  * A ring rather than a bar because a card in a column has no width to spare,
  * and it shares the card's ruled footer with the meta text, where a bar would

@@ -46,12 +46,11 @@ import { cn } from "@/lib/cn";
  * glyph to stand for both.
  *
  * EACH GLYPH SAYS WHAT ITS FACT SAYS. Work style picks its icon by value, a
- * building for On-site, a house for Remote and two arrows for Hybrid, where
- * one desktop screen used to sit beside "On-site" on most of the feed. The
+ * building for On-Site, a house for Remote and two arrows for Hybrid, where
+ * one desktop screen used to sit beside "On-Site" on most of the feed. The
  * level is a mortarboard, not a prize rosette beside "Internship". The
  * choices live in components/icons.tsx (workStyleIcon, LevelIcon), not here,
- * so the job page and the /search detail can draw the same glyph for the
- * same fact as this card.
+ * so the job page can draw the same glyph for the same fact as this card.
  *
  * THE FACTS ARE A WRAPPING ROW UNDER THE TITLE, NOT A FULL-WIDTH GRID. A
  * three-column grid across the whole card kept one fact under another from
@@ -102,7 +101,7 @@ export type JobPostingCardData = {
    *  fact. */
   location: string | null;
   /** Null for a scraped role: job boards rarely state salary, job type or work
-   *  style, and a guessed "Full-time" would be a fact no employer stated. */
+   *  style, and a guessed "Full-Time" would be a fact no employer stated. */
   jobType: string | null;
   salary: string | null;
   workStyle: string | null;

@@ -191,7 +191,7 @@ export function ScreeningQuestions({ questions, onChange, disabled }: ScreeningQ
               <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 pl-9.5">
                 <SelectField
                   id={`${question.id}-type`}
-                  label={`Answer type for question ${index + 1}`}
+                  label={`Answer Type for Question ${index + 1}`}
                   hideLabel
                   value={question.type}
                   onValueChange={(type) => update(index, { type })}

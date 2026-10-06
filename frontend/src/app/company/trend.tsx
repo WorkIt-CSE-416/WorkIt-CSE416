@@ -8,15 +8,20 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/shadcn/chart";
+import { UserIcon } from "@/components/icons";
 import { useIsMobile } from "@/components/shadcn/hooks/use-mobile";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
+import { Badge } from "@/components/ui/badge";
 import { SectionHeading } from "@/components/ui/section-heading";
 
 import type { DayCount } from "./data";
+import { PeakIcon } from "./icons";
 import { formatRange, matchPreset, rangeLength, TOGGLE_PRESETS, useRange } from "./range";
 
 /**
- * Applications over time, with the window under the reader's control.
+ * Applications over time, with the window under the reader's control. Open on
+ * the page under its heading, as the seeker Dashboard's Activity is, rather
+ * than in a card.
  *
  * THE ONLY CHART HERE THAT EARNS RECHARTS. The other two are bars on a shared
  * baseline and are drawn in HTML — see ./status-by-role.tsx for why that is usually
@@ -26,14 +31,14 @@ import { formatRange, matchPreset, rangeLength, TOGGLE_PRESETS, useRange } from 
  * end up with a worse version of this library.
  *
  * SINGLE SERIES, SO NO LEGEND. A legend for one line is a box that repeats the
- * card's own title. The window's total and its busiest bucket are printed in
- * the header instead, which is the same reason the HTML bars direct-label: a
- * value that exists only inside a tooltip is unreachable by keyboard, invisible
- * in a screenshot and gone on touch.
+ * section's own title. The window's total and its busiest bucket are printed
+ * as chips under the heading instead, which is the same reason the HTML bars
+ * direct-label: a value that exists only inside a tooltip is unreachable by
+ * keyboard, invisible in a screenshot and gone on touch.
  *
  * WHY BRAND AND NOT A STAGE COLOUR: this counts arrivals, and an arrival has no
  * stage yet. --chart-1 is the brand slot, which is also the only slot that
- * clears 3:1 against a white card on its own — see the contrast WARN recorded
+ * clears 3:1 against white on its own; see the contrast WARN recorded
  * in globals.css. A single-series area is where that matters most, because a
  * 2px line has no interior for a label to sit in.
  */
@@ -78,7 +83,7 @@ function toWeeks(daily: DayCount[]): DayCount[] {
 /** Days is the unit up to a month; past that the sawtooth wins and it is weeks. */
 const WEEKLY_ABOVE = 30;
 
-/** Roughly how many x-axis labels fit across this card before they touch.
+/** Roughly how many x-axis labels fit across this chart before they touch.
  *  Measured against the widest tick the formatter produces ("Aug 27"). A
  *  phone's plot is about 245px, which holds four of those with clear gaps;
  *  seven ran them together into "Aug 6Aug 10Aug 14". */
@@ -122,14 +127,18 @@ function pointLabel(iso: string, weekly: boolean) {
   return weekly ? `Week of ${pointDate(iso, true)}` : pointDate(iso, false);
 }
 
-/** The same point, mid-sentence in the card's subtitle, where it needs a
- *  preposition and no capital. */
-function pointPhrase(iso: string, weekly: boolean) {
-  return weekly ? `in the week of ${pointDate(iso, true)}` : `on ${pointDate(iso, false)}`;
+/** The same point, after "Peak 7" in its chip or "peaking at 7" in the
+ *  screen-reader sentence, where it needs a preposition. `title` capitalises
+ *  "Week" for the chip, which is a badge and so Title Case; the sentence keeps
+ *  it lower case. */
+function pointPhrase(iso: string, weekly: boolean, title = false) {
+  return weekly
+    ? `in the ${title ? "Week" : "week"} of ${pointDate(iso, true)}`
+    : `on ${pointDate(iso, false)}`;
 }
 
 export function Trend() {
-  /* THE WINDOW IS THE PAGE'S, NOT THIS CARD'S. It used to be local state here,
+  /* THE WINDOW IS THE PAGE'S, NOT THIS CHART'S. It used to be local state here,
    * which made the toggle below the only thing that knew what period the chart
    * covered. Once the header could set a window too, two controls owned one
    * fact — so both now write the same state and the toggle is a shortcut
@@ -157,20 +166,14 @@ export function Trend() {
   );
 
   return (
-    <>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <SectionHeading as="h2">Applications</SectionHeading>
-          <p className="text-note text-ink-meta mt-1">
-            {total.toLocaleString()} over {formatRange(range)}
-            {busiest.count > 0 && (
-              <>
-                , peaking at {busiest.count} {pointPhrase(busiest.date, weekly)}
-              </>
-            )}
-            .
-          </p>
-        </div>
+    <section aria-labelledby="applications">
+      {/* One row that never wraps: the heading and the toggle are both fixed
+          widths, so nothing under them moves when the window does. The
+          toggle's -my-[3px] lets its 34px sit centred on the 28px heading
+          without making the row taller, so this heading starts on the same
+          line as Highlights beside it. */}
+      <div className="flex items-center justify-between gap-3">
+        <SectionHeading id="applications">Applications</SectionHeading>
 
         {/* Base UI's ToggleGroup gives this arrow-key navigation and one tab
             stop, which a row of buttons would not.
@@ -186,14 +189,14 @@ export function Trend() {
             const preset = TOGGLE_PRESETS.find((p) => p.label === next);
             if (preset) setRange(preset.range);
           }}
-          aria-label="Time range"
+          aria-label="Time Range"
           /* 0.5, not 0: spacing={0} switches on the vendored group's
              joined-segment rules, which square off the pressed chip's inner
              corners. 0.5 is a 2px gap, the same as the track's padding, and
              each chip's 5px radius is the track's 8px less its 1px border and
              that padding, so the corners nest. */
           spacing={0.5}
-          className="border-border-subtle bg-well rounded-control shrink-0 border p-0.5"
+          className="border-border-subtle bg-well rounded-control -my-[3px] shrink-0 border p-0.5"
         >
           {TOGGLE_PRESETS.map((preset) => (
             <ToggleGroupItem
@@ -210,7 +213,39 @@ export function Trend() {
         </ToggleGroup>
       </div>
 
-      {/* h-56 rather than the container's own aspect-video: the card beside
+      {/* Two chips, not a sentence, as on the seeker Dashboard's Activity: the
+          window's total and its busiest point. A sentence here ran to two
+          lines for some windows and one for others, and the chart under it
+          jumped by a line when the range changed; a chip row is one height
+          whatever it says. The window itself is in the header's picker. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Badge variant="tag" tone="brand" pill>
+          <UserIcon className="mr-1.5 size-3.5" />
+          <span>
+            <span className="font-semibold">{total.toLocaleString()}</span> Received
+          </span>
+        </Badge>
+        {busiest.count > 0 && (
+          <Badge variant="tag" tone="inert" pill>
+            <PeakIcon className="mr-1.5 size-3.5" />
+            <span>
+              Peak <span className="font-semibold">{busiest.count}</span>{" "}
+              {pointPhrase(busiest.date, weekly, true)}
+            </span>
+          </Badge>
+        )}
+      </div>
+      {/* What the chips and the chart say, as one sentence for a screen
+          reader. The chart is drawn for the eye, so recharts'
+          accessibilityLayer is off below: it made the svg an unnamed
+          role="application" tab stop with no visible focus, as
+          (seeker)/dashboard/activity.tsx found. */}
+      <p className="sr-only">
+        {total.toLocaleString()} applications over {formatRange(range)}
+        {busiest.count > 0 && `, peaking at ${busiest.count} ${pointPhrase(busiest.date, weekly)}`}.
+      </p>
+
+      {/* h-56 rather than the container's own aspect-video: the column beside
           this one is a fixed stack of rows, and an aspect-ratio chart grows
           with the column width until the two are wildly different heights. */}
       <ChartContainer config={config} className="mt-4 aspect-auto h-56 w-full">
@@ -219,7 +254,11 @@ export function Trend() {
             crosses the SVG edge, so the newest week rendered as "Aug 2" with
             its own digits cut off — the one label on the axis a reader is most
             likely to want. */}
-        <AreaChart data={visible} margin={{ left: 0, right: 26, top: 8, bottom: 0 }}>
+        <AreaChart
+          accessibilityLayer={false}
+          data={visible}
+          margin={{ left: 0, right: 26, top: 8, bottom: 0 }}
+        >
           <defs>
             {/* A fill under the line, not a second encoding — it fades out so
                 the area reads as one region rather than as a stacked band. */}
@@ -292,7 +331,7 @@ export function Trend() {
                makes the first read of the data wait on a 1.5s reveal that
                replays on every navigation back to this screen, ignores
                prefers-reduced-motion, and leaves the clip rect at width="0" in
-               any headless capture, so a screenshot of this card shows empty
+               any headless capture, so a screenshot of this chart shows empty
                axes. A dashboard should be readable the instant it paints. */
             isAnimationActive={false}
             /* A dot per point is noise at thirteen weeks and unreadable at
@@ -303,7 +342,7 @@ export function Trend() {
                THE EXCEPTION IS A WINDOW OF ONE OR TWO DAYS, which Today,
                Yesterday and This Month can all produce. An area needs width to
                be visible at all: at a single point the fill has none and the
-               stroke has nowhere to run, so the card renders axes over an empty
+               stroke has nowhere to run, so the chart renders axes over an empty
                plot and looks broken rather than sparse. A dot is the mark a
                one-point series actually has. */
             dot={visible.length <= 2 ? { r: 3.5 } : false}
@@ -311,6 +350,6 @@ export function Trend() {
           />
         </AreaChart>
       </ChartContainer>
-    </>
+    </section>
   );
 }

@@ -68,7 +68,7 @@ const FOOTER_BUTTON = "w-full sm:w-auto";
  * belongs to the company, not to this one posting — it has to survive if the
  * draft is discarded and be there the next time someone posts a role. Real
  * data would fetch and mutate it server-side; this fixture keeps it in a
- * sibling `useState` so <LocationField>'s "Add a new location" is not a dead
+ * sibling `useState` so <LocationField>'s "Add a New Location" is not a dead
  * end.
  *
  * WHAT IS SCHEMA-SHAPED NOW, AND WHY, is explained field by field at the top
@@ -204,7 +204,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
   if (!draft.locationId) missingFields.push("Location");
   if (!draft.jobType) missingFields.push("Job Type");
   if (!draft.experienceLevel) missingFields.push("Experience Level");
-  if (draft.salaryType === "Exact figure") {
+  if (draft.salaryType === "Exact Figure") {
     if (isBlankNumber(draft.salary)) missingFields.push("Salary Amount");
   } else {
     if (isBlankNumber(draft.salaryMin)) missingFields.push("Salary Min");
@@ -301,7 +301,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     className="text-danger hover:bg-danger-tint"
                     onClick={() => setIsClosing(true)}
                   >
-                    Close job
+                    Close Job
                   </Button>
                   <CloseJobDialog
                     jobId={editing.id}
@@ -394,7 +394,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     <SelectField
                       id="work-style"
                       label="Work Style"
-                      placeholder="Choose Work Style"
+                      placeholder="Choose work style"
                       required
                       invalid={isMissing("Work Style")}
                       value={draft.workStyle}
@@ -429,7 +429,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     <SelectField
                       id="job-type"
                       label="Job Type"
-                      placeholder="Choose Job Type"
+                      placeholder="Choose job type"
                       required
                       invalid={isMissing("Job Type")}
                       value={draft.jobType}
@@ -440,7 +440,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     <SelectField
                       id="experience-level"
                       label="Experience Level"
-                      placeholder="Choose Experience Level"
+                      placeholder="Choose experience level"
                       required
                       invalid={isMissing("Experience Level")}
                       value={draft.experienceLevel}
@@ -486,7 +486,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     />
                   </div>
 
-                  {draft.salaryType === "Exact figure" ? (
+                  {draft.salaryType === "Exact Figure" ? (
                     <NumberField
                       id="salary"
                       label="Amount"
@@ -562,7 +562,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
 
                   <DateField
                     id="closes-at"
-                    label="Applications Close (optional)"
+                    label="Applications Close (Optional)"
                     value={draft.closesAt}
                     onValueChange={(value) => set("closesAt", value)}
                   />

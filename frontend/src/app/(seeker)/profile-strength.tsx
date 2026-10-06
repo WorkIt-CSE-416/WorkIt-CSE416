@@ -29,8 +29,8 @@ export async function ProfileStrength() {
   if (resumes.error != null || avatar.error != null) return null;
 
   const steps = [
-    { done: resumes.resumes.length > 0, todo: "Upload your resume" },
-    { done: avatar.url != null, todo: "Add a profile photo" },
+    { done: resumes.resumes.length > 0, todo: "Upload Your Resume" },
+    { done: avatar.url != null, todo: "Add a Profile Photo" },
   ];
   const done = steps.filter((step) => step.done).length;
   const next = steps.find((step) => !step.done);
@@ -39,7 +39,7 @@ export async function ProfileStrength() {
   return (
     <div className="border-rail-border bg-panel rounded-card border p-3 group-data-[collapsible=icon]:hidden">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-label text-ink">Profile strength</p>
+        <p className="text-label text-ink">Profile Strength</p>
         <p className="text-note text-ink-meta tabular-nums">
           {done} of {steps.length} done
         </p>
@@ -47,7 +47,7 @@ export async function ProfileStrength() {
 
       <div
         role="progressbar"
-        aria-label="Profile strength"
+        aria-label="Profile Strength"
         aria-valuemin={0}
         aria-valuemax={steps.length}
         aria-valuenow={done}

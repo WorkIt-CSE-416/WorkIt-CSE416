@@ -18,12 +18,12 @@ export default function FormsPage() {
         </Row>
         <Row name="<SearchField>" role="Visually-hidden label, leading search glyph">
           <div className="w-72">
-            <SearchField id="dk-search" label="Search jobs" placeholder="Search jobs" />
+            <SearchField id="dk-search" label="Search Jobs" placeholder="Search jobs" />
           </div>
         </Row>
         <Row name="<FilterChip>" role="Toggle in a filter rail">
           <FilterChip label="Remote" active />
-          <FilterChip label="Full-time" />
+          <FilterChip label="Full-Time" />
           <FilterChip label="Internship" />
         </Row>
       </div>

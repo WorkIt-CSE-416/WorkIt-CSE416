@@ -36,16 +36,16 @@ import { Button } from "@/components/ui/button";
 export function DialogSpecimen() {
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant="secondary">Withdraw application</Button>} />
+      <DialogTrigger render={<Button variant="secondary">Withdraw Application</Button>} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Withdraw this application?</DialogTitle>
+          <DialogTitle>Withdraw This Application?</DialogTitle>
           <DialogDescription>
             Northwind will no longer see your profile for this role. You can apply again later.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep it</Button>} />
+          <DialogClose render={<Button variant="secondary">Keep It</Button>} />
           <DialogClose render={<Button variant="destructive">Withdraw</Button>} />
         </DialogFooter>
       </DialogContent>
@@ -56,7 +56,7 @@ export function DialogSpecimen() {
 export function DropdownSpecimen() {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="secondary">Sort by</Button>} />
+      <DropdownMenuTrigger render={<Button variant="secondary">Sort By</Button>} />
       <DropdownMenuContent align="start" sideOffset={8} className="w-48">
         {/* The label has to sit inside a Group. Base UI's GroupLabel reads a
             context that only Menu.Group and Menu.RadioGroup provide, and throws
@@ -64,14 +64,14 @@ export function DropdownSpecimen() {
             a group, so a label with no group has nothing to name. Wrapping the
             items with it is also what gives the group its aria-labelledby. */}
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Sort results</DropdownMenuLabel>
-          <DropdownMenuItem>Best match</DropdownMenuItem>
-          <DropdownMenuItem>Most recent</DropdownMenuItem>
-          <DropdownMenuItem>Salary, high to low</DropdownMenuItem>
+          <DropdownMenuLabel>Sort Results</DropdownMenuLabel>
+          <DropdownMenuItem>Best Match</DropdownMenuItem>
+          <DropdownMenuItem>Most Recent</DropdownMenuItem>
+          <DropdownMenuItem>Salary, High to Low</DropdownMenuItem>
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem>Reset to default</DropdownMenuItem>
+        <DropdownMenuItem>Reset to Default</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

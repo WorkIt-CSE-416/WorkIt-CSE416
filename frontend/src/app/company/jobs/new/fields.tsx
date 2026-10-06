@@ -190,7 +190,7 @@ export function LocationField({
         <PopoverContent align="start" className="w-72 p-2">
           {adding ? (
             <div className="flex flex-col gap-2.5">
-              <p className="text-label text-ink">Add a new location</p>
+              <p className="text-label text-ink">Add a New Location</p>
 
               <input
                 autoFocus
@@ -231,7 +231,7 @@ export function LocationField({
                     reset();
                   }}
                 >
-                  Add location
+                  Add Location
                 </Button>
               </div>
             </div>
@@ -239,7 +239,7 @@ export function LocationField({
             <>
               <input
                 autoFocus
-                aria-label="Search locations"
+                aria-label="Search Locations"
                 placeholder="Search locations…"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -277,7 +277,7 @@ export function LocationField({
                 className="text-label text-brand mt-1.5 flex items-center gap-1 rounded-md px-2 py-1 hover:underline"
               >
                 <PlusIcon className="size-3.5" />
-                Add {query ? `"${query}"` : "a new location"}
+                Add {query ? `"${query}"` : "a New Location"}
               </button>
             </>
           )}
@@ -309,7 +309,7 @@ type DateFieldProps = {
  * why this exists instead of `<input type="date">`.
  *
  * CLEARING IS A BUTTON IN THE POPOVER, NOT AN ICON ON THE TRIGGER. This field
- * is optional ("Applications Close (optional)"), so it needs a way back to
+ * is optional ("Applications Close (Optional)"), so it needs a way back to
  * empty. react-day-picker's single mode already toggles a date off when it is
  * clicked again, but that is not discoverable — nothing about a filled day
  * cell suggests clicking it a second time undoes it. Sitting the trigger

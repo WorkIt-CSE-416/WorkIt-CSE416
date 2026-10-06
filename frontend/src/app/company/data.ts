@@ -30,11 +30,12 @@
 type StatBase = {
   label: string;
   /**
-   * Which glyph sits in the tile's top corner.
+   * Which glyph the tile carries. The plain tiles the Dashboard draws now show
+   * none, but StatTile still takes one for its card variant.
    *
    * A KEY, NOT A COMPONENT. Holding the icon itself would make this fixtures
    * file import from src/components and decide what a stat looks like, which
-   * is the one thing a data file should not do — ./stat-tile.tsx resolves the
+   * is the one thing a data file should not do. ./stats-row.tsx resolves the
    * key to a glyph. Keying off `label` instead would work until the day
    * somebody rewords a label and silently loses an icon.
    */
@@ -60,23 +61,23 @@ export type Stat =
  */
 export const STATS: Stat[] = [
   {
-    label: "Open roles",
+    label: "Open Roles",
     scope: "today",
     value: 7,
     icon: "roles",
     delta: { value: 2, period: "last month", upIsGood: true },
   },
   /* The only flow in the row, and the only tile the picker changes. */
-  { label: "New applicants", scope: "range", icon: "applicants" },
+  { label: "New Applicants", scope: "range", icon: "applicants" },
   {
-    label: "Awaiting your review",
+    label: "Awaiting Your Review",
     scope: "today",
     value: 18,
     icon: "review",
     delta: { value: 6, period: "last week", upIsGood: false },
   },
   {
-    label: "Interviews this week",
+    label: "Interviews This Week",
     scope: "today",
     value: 5,
     icon: "interviews",
@@ -122,23 +123,40 @@ export type Attention = {
   id: string;
   role: string;
   need: string;
+  /** The stage the held-up applicants are sitting in, which decides the
+   *  glyph and colour their row wears. Never Rejected: nobody waits on one. */
+  stage: Exclude<RoleStage, "Rejected">;
   /** Whole days the item has been waiting on the company. */
   waitingDays: number;
 };
 
 /**
- * Waiting on the company rather than on the applicant — the half of the queue
- * a recruiter can actually clear today.
+ * Waiting on the company rather than on the applicant: the half of the queue
+ * a recruiter can actually clear today. The Dashboard lifts the longest wait
+ * onto its violet hero and lists the rest below (./attention.tsx).
  */
 export const NEEDS_ATTENTION: Attention[] = [
   {
     id: "a1",
     role: "Frontend Engineer, New Grad",
-    need: "6 applicants unreviewed past SLA",
+    need: "6 Applicants Unreviewed Past SLA",
+    stage: "Applied",
     waitingDays: 4,
   },
-  { id: "a2", role: "Data Analyst Intern", need: "Interview feedback missing", waitingDays: 3 },
-  { id: "a3", role: "Platform Engineer", need: "Offer approval pending", waitingDays: 2 },
+  {
+    id: "a2",
+    role: "Data Analyst Intern",
+    need: "Interview Feedback Missing",
+    stage: "Interview",
+    waitingDays: 3,
+  },
+  {
+    id: "a3",
+    role: "Platform Engineer",
+    need: "Offer Approval Pending",
+    stage: "Offer",
+    waitingDays: 2,
+  },
 ];
 
 /**
@@ -172,7 +190,7 @@ export const RECENT_APPLICANTS: RecentApplicant[] = [
  * reconciles with the fixtures the rest of /company already renders: the role
  * totals are jobs/data.ts's applicant counts, the stage totals sum to
  * STAGE_REACH's first number, and the trend's last seven days are the "New
- * applicants" tile's 34. A dashboard whose two charts disagree teaches a reader
+ * Applicants" tile's 34. A dashboard whose two charts disagree teaches a reader
  * to trust neither, and fixtures are where that starts.
  * ------------------------------------------------------------------------- */
 
@@ -192,7 +210,7 @@ export type DayCount = { date: string; count: number };
  *
  * Three sums are exact rather than approximate, so the chart cannot contradict
  * the tiles above it:
- *   last 7 days      34   = STATS "New applicants"
+ *   last 7 days      34   = STATS "New Applicants"
  *   previous 7 days  22   = the +12 that tile reports against last week
  *   all 90 days      271  = applicants across the five Open postings
  *
@@ -375,7 +393,7 @@ export type StageAge = {
 /**
  * How long people are waiting, per stage.
  *
- * The chart form of "Needs your attention": that card names three specific
+ * The chart form of "Needs Your Attention": that list names the specific
  * items, this says whether the delay is one bad week or the shape of the
  * process. Rejected is absent because nobody is waiting on a rejection — an
  * aging chart is about queues, and that stage is not one.
@@ -413,9 +431,9 @@ export type Highlight = {
  * be two fields to keep in step for no gain at four call sites.
  */
 export const HIGHLIGHTS: Highlight[] = [
-  { label: "Median time to hire", value: "24 days", direction: "down", upIsGood: false },
-  { label: "Offer accept rate", value: "83%", direction: "up", upIsGood: true },
-  { label: "Avg. match score", value: "79%", direction: "up", upIsGood: true },
+  { label: "Median Time to Hire", value: "24 days", direction: "down", upIsGood: false },
+  { label: "Offer Accept Rate", value: "83%", direction: "up", upIsGood: true },
+  { label: "Avg. Match Score", value: "79%", direction: "up", upIsGood: true },
 ];
 
 /**

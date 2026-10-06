@@ -97,7 +97,7 @@ export function AccountMenu({
       <DropdownMenuTrigger
         /* Starts with the visible name, so a voice user who says it reaches
          * the button (WCAG 2.5.3). */
-        aria-label={name ? `${name}, account menu` : "Your account"}
+        aria-label={name ? `${name}, account menu` : "Your Account"}
         /* cursor-pointer is not redundant: Tailwind v4's preflight sets
          * `cursor: default` on buttons, so a <button> trigger shows an arrow
          * where the <Link> this replaced showed a hand. */

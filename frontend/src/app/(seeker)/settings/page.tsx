@@ -23,7 +23,7 @@ export default function SettingsPage() {
       <h1 className="text-heading text-ink">Settings</h1>
       <p className="text-body text-ink-meta mt-1">Notifications, privacy and your account.</p>
 
-      <EmptyState Icon={GearIcon} title="Settings are on the way" className="mt-4">
+      <EmptyState Icon={GearIcon} title="Settings Are on the Way" className="mt-4">
         Nothing to change here yet.
       </EmptyState>
     </div>

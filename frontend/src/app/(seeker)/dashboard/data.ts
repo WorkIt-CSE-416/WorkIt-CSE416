@@ -2,9 +2,9 @@ import { COLUMNS } from "../applications/data";
 
 /**
  * The seeker Dashboard's fixtures: the headline numbers, pipeline and activity
- * per window, what is waiting, and Up next. All of it stands in for the
+ * per window, what is waiting, and Up Next. All of it stands in for the
  * application tracker, which has no backend yet;
- * New matches and the profile strength card read the live API instead and
+ * New Matches and the profile strength card read the live API instead and
  * live beside the components that fetch them.
  *
  * UP NEXT IS DERIVED FROM THE BOARD'S OWN FIXTURE (../applications/data.ts),
@@ -27,8 +27,8 @@ export const RANGES: {
   /** Under each headline number where there is no delta to show. */
   note?: string;
 }[] = [
-  { key: "week", label: "This week", period: "last week", scope: "this week" },
-  { key: "month", label: "30 days", period: "prior 30 days", scope: "in the last 30 days" },
+  { key: "week", label: "This Week", period: "last week", scope: "this week" },
+  { key: "month", label: "30 Days", period: "prior 30 days", scope: "in the last 30 days" },
   // A season has nothing before it to compare against, so no deltas.
   { key: "season", label: "Season", period: null, scope: "this season", note: "Since Aug 4" },
 ];
@@ -53,19 +53,19 @@ export type DashboardStat = {
 export const STATS: Record<RangeKey, DashboardStat[]> = {
   week: [
     { label: "Applications", value: 5, previous: 7 },
-    { label: "Response rate", value: 40, previous: 29, suffix: "%" },
+    { label: "Response Rate", value: 40, previous: 29, suffix: "%" },
     { label: "Interviews", value: 1, previous: 1 },
     { label: "Offers", value: 0, previous: 0 },
   ],
   month: [
     { label: "Applications", value: 18, previous: 12 },
-    { label: "Response rate", value: 33, previous: 25, suffix: "%" },
+    { label: "Response Rate", value: 33, previous: 25, suffix: "%" },
     { label: "Interviews", value: 3, previous: 1 },
     { label: "Offers", value: 1, previous: 0 },
   ],
   season: [
     { label: "Applications", value: 42, previous: null },
-    { label: "Response rate", value: 29, previous: null, suffix: "%" },
+    { label: "Response Rate", value: 29, previous: null, suffix: "%" },
     { label: "Interviews", value: 5, previous: null },
     { label: "Offers", value: 1, previous: null },
   ],
@@ -79,19 +79,19 @@ export type PipelineStage = { label: string; count: number };
 export const PIPELINE: Record<RangeKey, PipelineStage[]> = {
   week: [
     { label: "Applied", count: 5 },
-    { label: "Heard back", count: 2 },
+    { label: "Heard Back", count: 2 },
     { label: "Interviewing", count: 1 },
     { label: "Offer", count: 0 },
   ],
   month: [
     { label: "Applied", count: 18 },
-    { label: "Heard back", count: 6 },
+    { label: "Heard Back", count: 6 },
     { label: "Interviewing", count: 3 },
     { label: "Offer", count: 1 },
   ],
   season: [
     { label: "Applied", count: 42 },
-    { label: "Heard back", count: 12 },
+    { label: "Heard Back", count: 12 },
     { label: "Interviewing", count: 5 },
     { label: "Offer", count: 1 },
   ],
@@ -143,7 +143,7 @@ export const ACTIVITY: Record<RangeKey, { points: ActivityPoint[]; goal: number 
   },
 };
 
-/* Waiting to hear back -------------------------------------------------- */
+/* Waiting to Hear Back -------------------------------------------------- */
 
 export type WaitBucket = { label: string; count: number; tone: "fresh" | "due" | "stale" };
 
@@ -157,7 +157,7 @@ export const WAITING: WaitBucket[] = [
   { label: "30+ days", count: 4, tone: "stale" },
 ];
 
-/* Up next ---------------------------------------------------------------- */
+/* Up Next ---------------------------------------------------------------- */
 
 export type UpNextKind = "interview" | "offer" | "deadline" | "follow-up";
 

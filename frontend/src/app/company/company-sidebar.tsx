@@ -47,7 +47,7 @@ export function CompanySidebar() {
     <AppSidebar
       groups={GROUPS}
       footer={FOOTER}
-      label="Company sections"
+      label="Company Sections"
       className="top-(--company-bar)!"
     />
   );
