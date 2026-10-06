@@ -81,7 +81,8 @@ src/app/          App Router routes, layouts, pages
                   each page heading cannot disagree.
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
-  logo.tsx        The WorkIt logo — picks lockup or icon per size
+  logo.tsx        The WorkIt logo: <Logo> picks a lockup or half per size,
+                  <LogoLockup> is the seeker shell's mark-plus-word pair
   icons.tsx       Glyphs used by more than one route, as thin wrappers over
                   Lucide at its default stroke (the brand marks stay drawn).
                   Every per-route icons.tsx is the same kind of wrapper;
@@ -137,7 +138,12 @@ src/lib/          Framework-free helpers
   supabase/server.ts  Per-request Supabase client — auth only, never data
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448, violet — the auth card
-  workit-logo-ink.png  The same lockup in --color-ink — the app top bar
+  workit-logo-ink.png  The same lockup in --color-ink, for the company top bar
+  workit-icon-ink.png  The ink mark alone, the lockup cut at x=481
+  workit-wordmark-ink.png  The ink "WorkIt" alone, cropped to its letters.
+                  The two make <LogoLockup> in logo.tsx, the seeker shell's
+                  logo, which sets the word at ~55% of the mark's height
+                  (the drawn lockup has it at 40%, which read as too small)
   workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team

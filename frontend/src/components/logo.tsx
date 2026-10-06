@@ -3,8 +3,9 @@ import Image from "next/image";
 import { cn } from "@/lib/cn";
 
 /**
- * The WorkIt logo: the full lockup at the two heights the app uses, and the
- * same lockup in two halves for the seeker panel's header.
+ * The WorkIt logo: the full lockup at the two heights the app uses, and
+ * <LogoLockup> below, the mark and the wordmark as separate images for the
+ * seeker shell.
  *
  * The asset is complete artwork — the wordmark is drawn into the lockup, not
  * rendered as HTML beside it — so nothing here draws text. It carries 16px of
@@ -54,23 +55,24 @@ const SIZES = {
     classes: "h-10 w-auto -translate-y-[2.5px]",
     rendered: "112px",
   },
-  /** The lockup in two halves, for the seeker panel's header: the ink lockup
-   *  cut at x=481, the edge of the violet icon's own crop. Set side by side at
-   *  the same 40px they are the `bar` lockup pixel for pixel, so the panel
-   *  can keep the mark still on the rail icons' line and fade only the
-   *  wordmark as it collapses, rather than swapping one image for another
-   *  mid-animation. Both carry the bar's 2.5px lift. */
+  /** The mark alone: the ink lockup cut at x=481, the edge of the violet
+   *  icon's own crop, so it sits in the same 16px of padding. */
   mark: {
     src: "/workit-icon-ink.png",
     intrinsic: { width: 481, height: 448 },
     classes: "h-10 w-auto -translate-y-[2.5px]",
     rendered: "43px",
   },
+  /** The wordmark alone, cropped to its letters plus 2px, so its height is
+   *  the height of "WorkIt" and nothing else. The lockup artwork sets the
+   *  word at about 40% of the mark's height inside 37% of empty padding,
+   *  which read as a small word beside a big icon; cut free, <LogoLockup>
+   *  sizes it against the mark on its own. 20px tall renders ~83px wide. */
   wordmark: {
     src: "/workit-wordmark-ink.png",
-    intrinsic: { width: 775, height: 448 },
-    classes: "h-10 w-auto -translate-y-[2.5px]",
-    rendered: "70px",
+    intrinsic: { width: 709, height: 170 },
+    classes: "h-5 w-auto",
+    rendered: "84px",
   },
   /** Auth card — the full lockup. 48px tall renders ~135px wide. */
   card: {
@@ -104,5 +106,45 @@ export function Logo({ size = "bar", priority = false, decorative = false, class
       priority={priority}
       className={cn("block", classes, className)}
     />
+  );
+}
+
+/**
+ * The seeker shell's logo: the mark and the wordmark as two images, so the
+ * word can be sized against the mark instead of inheriting the artwork's
+ * proportion. The mark's ink is 37px tall and the word's letters 20px, about
+ * 55%, where the drawn lockup has the word at 40% of the mark and it read as
+ * too small beside it. The mark drops the bar lockup's 2.5px lift (that lift
+ * centred a bottom-heavy word and mark together), and the word sits 2px below
+ * the mark's box centre instead: the mark's weight is low (its thin handle is
+ * on top, its body below), with its alpha-weighted centre about 2px under the
+ * middle of the 40px box, and the word centred on the box read as riding high
+ * beside it.
+ *
+ * Two images also let the seeker panel fade only the word when it collapses
+ * to its rail (`wordmarkHidden`), keeping the mark where it is.
+ */
+export function LogoLockup({
+  priority = false,
+  wordmarkHidden = false,
+  className,
+}: {
+  priority?: boolean;
+  wordmarkHidden?: boolean;
+  className?: string;
+}) {
+  return (
+    <span className={cn("flex items-center gap-2", className)}>
+      <Logo size="mark" priority={priority} className="translate-y-0" />
+      <Logo
+        size="wordmark"
+        decorative
+        priority={priority}
+        className={cn(
+          "translate-y-0.5 transition-opacity duration-200 ease-linear",
+          wordmarkHidden && "opacity-0",
+        )}
+      />
+    </span>
   );
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 
-import { Logo } from "@/components/logo";
+import { Logo, LogoLockup } from "@/components/logo";
 import {
   Sidebar,
   SidebarContent,
@@ -238,7 +238,7 @@ export function AppSidebar({
         {isMobile && (
           <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
             <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
-            <Logo size="bar" />
+            {floating ? <LogoLockup /> : <Logo size="bar" />}
           </SidebarHeader>
         )}
 
@@ -281,13 +281,14 @@ export function AppSidebar({
 }
 
 /**
- * The floating panel's logo: the lockup as its two halves (see `mark` in
- * @/components/logo), 32px tall, so the mark's ink is about 30px square.
+ * The floating panel's logo: <LogoLockup> from @/components/logo, the mark
+ * 40px tall (its ink about 37px square) beside the wordmark sized to about
+ * 55% of it.
  *
  * Open, the mark's ink starts on the panel's 28px line with the captions and
- * the row icons (the image carries 1px of transparent padding, so the box
- * sits at 27px). Collapsed, it is centred in the 72px rail instead, its box
- * at 19px: a mark as wide as two icons cannot share both their left edge and
+ * the row icons (the image carries 1.4px of transparent padding, so the box
+ * sits at 27px). Collapsed, it is centred in the 72px rail instead, its 43px
+ * box at 14px: a mark wider than two icons cannot share both their left edge and
  * their centre. So the inset slides between the two on the panel's own 200ms
  * linear, the same time the width takes, while the wordmark fades and the
  * narrowing panel clips it. Nothing swaps mid-way and nothing jumps. The link
@@ -305,23 +306,14 @@ function PanelBrand({ href }: { href: string }) {
     <SidebarHeader
       className={cn(
         "h-16 shrink-0 flex-row items-center p-0 pl-[27px] transition-[padding] duration-200 ease-linear",
-        collapsed && "pl-[19px]",
+        collapsed && "pl-3.5",
       )}
     >
       <Link
         href={href}
         className="focus-visible:ring-brand-ring flex shrink-0 items-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
       >
-        <Logo size="mark" priority className="h-8" />
-        <Logo
-          size="wordmark"
-          decorative
-          priority
-          className={cn(
-            "h-8 transition-opacity duration-200 ease-linear",
-            collapsed && "opacity-0",
-          )}
-        />
+        <LogoLockup priority wordmarkHidden={collapsed} />
       </Link>
     </SidebarHeader>
   );

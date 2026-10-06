@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { Logo } from "@/components/logo";
+import { LogoLockup } from "@/components/logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
@@ -137,7 +137,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             href="/dashboard"
             className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none md:hidden"
           >
-            <Logo size="bar" priority className="h-9" />
+            <LogoLockup priority />
           </Link>
 
           <Form
