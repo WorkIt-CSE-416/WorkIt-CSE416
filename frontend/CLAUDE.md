@@ -105,7 +105,6 @@ src/components/   Shared components
   notifications-menu.tsx  The bar's bell, a popover holding an empty state.
                   Shared by both shells
   save-button.tsx The one Save control on every job surface
-  nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
   account-menu.tsx  Both bars' account dropdown: name and email header, then
@@ -159,7 +158,8 @@ components.json   shadcn config — see docs/shadcn.md before changing its alias
 Anything shared by more than one route lives in `src/components`; anything used
 by exactly one route stays beside it (`company/placeholder.tsx`, the per-route
 `icons.tsx` files). Promote on the second consumer, not in anticipation of one —
-the app shell's avatar, nav link and account menu moved to `src/components` the
+the app shell's avatar and account menu (and a top-bar nav link, deleted once
+both shells moved to a left panel) went to `src/components` the
 day the company shell became that second consumer.
 Styling for a control belongs in its component, not inline at the call site —
 `src/components/ui/button.tsx` is the only place button classes are written, and
