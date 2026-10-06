@@ -82,23 +82,43 @@ type AccountMenuProps = {
    * API could not name them; without it the menu offers Sign In instead.
    */
   onSignOut?: () => void | Promise<void>;
-  /** What the trigger shows, in place of the default 32px avatar. */
+  /** The trigger's accessible name when there is no `name` to build it from.
+   *  Pass the words the trigger shows ("Signed In, account menu") so a voice
+   *  user can say what they see (WCAG 2.5.3); defaults to "Your Account". */
+  label?: string;
+  /** What the trigger shows, in place of the default 32px avatar. Inline
+   *  elements only: the trigger is a <button>, which may not hold a div or a
+   *  p. */
   children?: ReactNode;
 };
 
-export function AccountMenu({ name, email, src, items, onSignOut, children }: AccountMenuProps) {
+export function AccountMenu({
+  name,
+  email,
+  src,
+  items,
+  onSignOut,
+  label = "Your Account",
+  children,
+}: AccountMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         /* Starts with the visible name, so a voice user who says it reaches
          * the button (WCAG 2.5.3). */
-        aria-label={name ? `${name}, account menu` : "Your Account"}
+        aria-label={name ? `${name}, account menu` : label}
         /* cursor-pointer is not redundant: Tailwind v4's preflight sets
          * `cursor: default` on buttons, so a <button> trigger shows an arrow
          * where the <Link> this replaced showed a hand. */
+        /* A passed-in trigger (the seeker's photo, name and email) is a
+         * wide block that opens a menu, so from lg, where the name and email
+         * show, it fills as a pill on hover to read as a control rather than
+         * a label. Below lg it is the photo alone, like the company bar's
+         * avatar. */
         className={cn(
           "focus-visible:ring-brand-ring flex cursor-pointer items-center rounded-full focus-visible:ring-2 focus-visible:outline-none",
-          children && "min-w-0 gap-3 text-left",
+          children &&
+            "lg:hover:bg-hover min-w-0 gap-3 text-left transition-colors lg:py-1 lg:pr-4 lg:pl-1",
         )}
       >
         {children ??
@@ -117,8 +137,14 @@ export function AccountMenu({ name, email, src, items, onSignOut, children }: Ac
           size the menu to the 32px avatar and leave min-w-32 to rescue it;
           224px fits a name and an email beside the header's photo. */}
       <DropdownMenuContent align="end" sideOffset={8} className="w-56">
+        {/* Who you are, unless the trigger already says so. A passed-in
+            trigger (the seeker's) prints the name and email beside the photo
+            from lg, so repeating them atop the menu there is noise; below lg
+            it is the photo alone, and the header is the one place on a phone
+            that names the account. The company bar's bare avatar always
+            needs it. */}
         {name && (
-          <>
+          <div className={cn(children && "lg:hidden")}>
             <div className="flex items-center gap-2.5 px-2 py-1.5">
               <Avatar name={name} src={src} className="text-note size-8" />
               <div className="min-w-0">
@@ -127,7 +153,7 @@ export function AccountMenu({ name, email, src, items, onSignOut, children }: Ac
               </div>
             </div>
             <DropdownMenuSeparator />
-          </>
+          </div>
         )}
 
         {items.map(({ href, label, icon }) => (
@@ -137,9 +163,8 @@ export function AccountMenu({ name, email, src, items, onSignOut, children }: Ac
           </DropdownMenuItem>
         ))}
 
-        {/* The rule only between rows: with Settings in both panels' footers,
-            Sign Out is usually the one row under the header, which already
-            has its own. */}
+        {/* A rule between the rows and Sign Out, so the one row that ends
+            the session stands apart from the ones that go somewhere. */}
         {onSignOut ? (
           <>
             {items.length > 0 && <DropdownMenuSeparator />}
