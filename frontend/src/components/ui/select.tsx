@@ -79,6 +79,10 @@ function SelectContent({
  * - No `**:text-accent-foreground` on the highlighted row, unlike the vendored
  *   item. That rule recolours every descendant, which turns the white check
  *   dark on hover; the row's own text colour is all the highlight needs.
+ * - `border-ink-meta`, not shadcn's `border-input`. The empty box is what says
+ *   a facet takes several picks, and the input hairline drew it at 1.19:1 on
+ *   the white popup. This is 5.59:1 there and 4.90:1 on the hovered row;
+ *   ink-faint would drop to 2.73:1 on hover.
  */
 function SelectCheckboxItem({ className, children, ...props }: SelectPrimitive.Item.Props) {
   return (
@@ -93,7 +97,7 @@ function SelectCheckboxItem({ className, children, ...props }: SelectPrimitive.I
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
       <span
         aria-hidden
-        className="border-input text-primary-foreground group-data-[selected]/select-item:border-primary group-data-[selected]/select-item:bg-primary pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors"
+        className="border-ink-meta text-primary-foreground group-data-[selected]/select-item:border-primary group-data-[selected]/select-item:bg-primary pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors"
       >
         <CheckIcon className="size-3.5 opacity-0 group-data-[selected]/select-item:opacity-100" />
       </span>

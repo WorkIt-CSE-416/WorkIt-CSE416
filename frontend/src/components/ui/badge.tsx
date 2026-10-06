@@ -68,8 +68,10 @@ const TONES = {
   /** Over or not yet begun; nothing is happening and nothing is owed. */
   inert: "bg-inert-tint text-ink-meta",
   /** Not live at all. No fill, because there is nothing to fill in yet — a
-   *  draft is the one state that has never been published. */
-  outline: "border-border-strong text-ink-meta border bg-transparent",
+   *  draft is the one state that has never been published. An inset ring, not
+   *  a border, so the pill is the same 23px as its siblings; --color-ink-faint
+   *  gives the edge 3.11:1 on white. */
+  outline: "text-ink-meta ring-ink-faint bg-transparent ring-1 ring-inset",
 } as const;
 
 export type BadgeVariant = keyof typeof VARIANTS;

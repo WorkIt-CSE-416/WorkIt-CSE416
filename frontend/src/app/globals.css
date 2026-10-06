@@ -36,8 +36,9 @@
    * `ghostwhite`: red and green at 248 with blue at 255, and the page at
    * #f7f9fc. Seven points on one channel is invisible in a swatch and reads
    * as a cool cast once it is a whole field or a whole page, which is what it
-   * became: --color-surface is the fill of every text input, select and
-   * secondary button, not just the login card.
+   * became: --color-surface was the fill of every text input and select (they
+   * are white now, so a field does not vanish into the login card) and is
+   * still the fill of every secondary button.
    *
    * The blue channel is dropped and the red/green kept, so the card sits at
    * the lightness it was measured at. The page moves further, down to the
@@ -49,19 +50,25 @@
 
   /* Borders ------------------------------------------------------------- */
   --color-border: #e3e9f0; /* card outline */
-  --color-border-subtle: #e8ebf5; /* inputs, secondary buttons, rules */
+  --color-border-subtle: #e8ebf5; /* secondary buttons, rules */
+  --color-border-control: #8a8f9a; /* input outline: 3.05:1 on surface, 3.24:1 on panel (WCAG 1.4.11) */
 
   /* Ink ----------------------------------------------------------------- */
   --color-ink: #121a28; /* headings, secondary-button labels */
   --color-ink-muted: #3b3e46; /* body copy, field labels, divider label */
-  --color-ink-subtle: #94969d; /* placeholders, input icons */
+  --color-ink-subtle: #94969d; /* de-emphasised glyphs; placeholders are ink-meta */
 
   /* Brand --------------------------------------------------------------- */
   --color-brand: #6d3fd8; /* primary fill and links — white on it is 6.26:1 */
   --color-on-brand: #ffffff; /* label sitting on a brand fill */
   --color-brand-hover: #5b30c0; /* derived: one step deeper */
   --color-brand-active: #4c27a3; /* derived: two steps deeper */
-  --color-brand-ring: rgb(109 63 216 / 0.35); /* derived: focus ring */
+  /* Focus ring: the brand itself, the same solid ring the sidebar rows draw.
+   * Measured 6.26:1 on white, 5.75:1 on --color-app and 5.80:1 on the rail,
+   * over the 3:1 WCAG 1.4.11 asks of a focus indicator. The 35% violet it
+   * replaced blended to 1.75:1 on white. A ring around a brand fill sits off
+   * it with ring-offset-2, so it reads as focus rather than a bigger button. */
+  --color-brand-ring: var(--color-brand);
 
   /* Type ----------------------------------------------------------------
    * Four sizes carry the whole login screen. Weights and tracking are baked
@@ -92,7 +99,7 @@
   --shadow-card: 0 1px 2px rgb(18 26 40 / 0.04), 0 8px 20px rgb(18 26 40 / 0.06);
 
   /* Layout --------------------------------------------------------------- */
-  --container-auth: 22.5rem; /* 360px — auth card, 320px content + 20px pad */
+  --container-auth: 22.5rem; /* 360px: the auth card, 310px of content inside p-6 and a 1px border */
 
   /* -------------------------------------------------------------------------
    * App shell — added for the KAN-43 profile mockup
@@ -240,7 +247,9 @@
   --color-positive-tint: #e3f7f0; /* the offer card's company tile */
   --color-positive-hover: #139564; /* derived: positive at 33% lightness */
   --color-positive-active: #107a52; /* derived: positive at 27% lightness */
-  --color-positive-ring: rgb(23 176 118 / 0.35); /* derived: focus ring */
+  /* Focus ring for a positive fill: 5.35:1 on white. The 35% green it replaced
+   * was 1.43:1, and no alpha of --color-positive reaches 3:1 (0.7 is 2.05:1). */
+  --color-positive-ring: var(--color-positive-ink);
 
   /* Positive as *text*, for a label on a --color-positive-tint fill.
    *
@@ -280,8 +289,14 @@
    * does on its own tint, which is a deliberate break: that pairing is only
    * about 2.5:1 and these are more legible rather than matched to a
    * shortcoming. Replace all of it when a designer draws the set. */
-  --color-inert-tint: #e1e6ea; /* measured: the board's "Applied" chip */
-  --color-warning: #a06800; /* unmeasured: paused, needs a decision */
+  /* Lightened from the board's measured #e1e6ea, where --color-ink-meta was
+   * 4.45:1, short of the 4.5:1 an 11px pill needs. On this it is 4.70:1, in
+   * line with the other tones' 4.7-5.3. */
+  --color-inert-tint: #e8ecef;
+  /* Unmeasured: paused, needs a decision. Only ever text (a pill, the
+   * Interviewing stage on its tint, a deadline). Measured: 5.26:1 on
+   * --color-warning-tint, 5.93:1 on white; the #a06800 before it was 4.17:1. */
+  --color-warning: #8a5a00;
   --color-warning-tint: #fdf0d9;
   /* Amber as a FILL — bars and dots, never text. --color-warning is dark
    * enough to read as text, which makes a bar of it read as brown; a bar
@@ -489,15 +504,19 @@ body:has([data-shell]) {
 
   /* Lines and focus */
   --border: var(--color-border);
-  --input: var(--color-border-subtle); /* matches ui/text-field.tsx */
+  /* shadcn's own inputs and checkboxes. WorkIt's fields (ui/text-field.tsx)
+   * draw --color-border-control instead. */
+  --input: var(--color-border-subtle);
   --ring: var(--color-brand);
 
   --radius: var(--radius-card); /* 10px, same value shadcn defaults to */
 
-  /* OPEN — WorkIt has no red. The mockups never draw a destructive action, so
-   * this is shadcn's stock red rather than a sampled one. Replace when a
-   * delete/withdraw flow gets designed. */
-  --destructive: oklch(0.577 0.245 27.325);
+  /* WorkIt's one red, the Rejected chip's. This was shadcn's stock oklch red
+   * while the palette had none, which left two reds side by side once
+   * --color-danger arrived: audit Failed, the row menu's Close and the close
+   * dialog in one, every danger pill in the other. Still unmeasured, since no
+   * mockup draws a destructive action; it moves with --color-danger. */
+  --destructive: var(--color-danger);
 
   /* Chart palette — the status tones, in a fixed order.
    *
@@ -552,9 +571,9 @@ body:has([data-shell]) {
    * would compete with the four that carry meaning.
    *
    * --color-ink-subtle rather than a new token: it is already the app's grey
-   * for a mark that is present but not the subject (placeholders, input
-   * glyphs), and inventing a solid `inert` nobody designed to sit beside
-   * --color-inert-tint would put an unmeasured colour on the dashboard. */
+   * for a mark that is present but not the subject (a stat tile's glyph, a
+   * picker's chevron), and inventing a solid `inert` nobody designed to sit
+   * beside --color-inert-tint would put an unmeasured colour on the dashboard. */
   --chart-5: var(--color-ink-subtle);
 
   /* No sidebar exists yet — the shell is a top bar. These are mapped anyway so

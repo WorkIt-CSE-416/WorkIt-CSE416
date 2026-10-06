@@ -29,17 +29,17 @@ export function Section({ title, children }: { title: string; children: ReactNod
  * looking like one run-on paragraph split across lines rather than points.
  * A small drawn dot, not the browser's own disc, to match the dot `MatchRail`
  * already draws for a caveat rather than introducing a second bullet shape.
+ *
+ * Body type, not the 13px label size, and capped at 68ch: these are sentences
+ * of job copy, and across a 928px column a line ran to about 140 characters.
  */
 export function Points({ items, marker = false }: { items: string[]; marker?: boolean }) {
   return (
-    <ul role="list" className="mt-3 flex flex-col gap-1.5 pl-4">
+    <ul role="list" className="mt-3 flex max-w-[68ch] flex-col gap-1.5 pl-4">
       {items.map((item) => (
         <li
           key={item}
-          className={cn(
-            "text-label text-ink-muted leading-5 font-normal",
-            marker && "flex items-start gap-2",
-          )}
+          className={cn("text-body text-ink-muted", marker && "flex items-start gap-2")}
         >
           {marker && (
             <span aria-hidden="true" className="bg-ink-faint mt-2 size-1.5 shrink-0 rounded-full" />

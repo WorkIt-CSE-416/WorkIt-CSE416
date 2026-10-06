@@ -87,9 +87,10 @@ export function StatTile({
   /** Printed after the value and its delta — "%" for a rate. */
   suffix?: string;
   delta?: StatDelta;
-  /** Plain only: what the line under the value says when there is no delta
-   *  ("Since Aug 4"). The line is always drawn, so a row of tiles keeps one
-   *  height whether or not its window has anything to compare against. */
+  /** What the line under the value says when there is no delta ("Since
+   *  Aug 4"). The line is always drawn, in both variants, so a row of tiles
+   *  keeps one height whether or not its window has anything to compare
+   *  against. */
   note?: string;
   /** Open on the page instead of in a card: the label sits on a hairline and
    *  the direction is a small round marker beside it, the way the seeker
@@ -111,10 +112,12 @@ export function StatTile({
               aria-hidden="true"
               className={cn(
                 "flex size-4 shrink-0 items-center justify-center rounded-full text-white",
-                good ? "bg-positive" : "bg-danger",
+                // positive-ink, not positive: white on #17b076 is 2.80:1, and
+                // the delta text under it is already this green (5.35:1).
+                good ? "bg-positive-ink" : "bg-danger",
               )}
             >
-              <TrendIcon className="size-2.5" down={delta.value < 0} />
+              <TrendIcon className="size-3" down={delta.value < 0} />
             </span>
           )}
         </div>
@@ -166,26 +169,34 @@ export function StatTile({
         {suffix}
       </p>
 
-      {delta && (
-        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-          {delta.value === 0 ? (
-            <Badge variant="status" tone="inert">
-              No change
-            </Badge>
-          ) : (
-            <Badge
-              variant="status"
-              tone={isGood(delta.value, delta.upIsGood) ? "positive" : "danger"}
-            >
-              <TrendIcon className="mr-1 size-3 shrink-0" down={delta.value < 0} />
-              {delta.value > 0 ? "+" : ""}
-              {format(delta.value)}
-              {suffix}
-            </Badge>
-          )}
-          <span className="text-note text-ink-meta">vs {delta.period}</span>
-        </p>
-      )}
+      {/* Always drawn, like the plain variant's line: a window with no
+          earlier span (Max) dropped it, and the tile shrank by 31px on a
+          phone, moving everything under the row. min-h-6 holds the 23px
+          badge row's height when only the note is there. */}
+      <p className="mt-2 flex min-h-6 flex-wrap items-center gap-x-1.5 gap-y-1">
+        {!delta ? (
+          <span className="text-note text-ink-meta">{note ?? "\u00a0"}</span>
+        ) : (
+          <>
+            {delta.value === 0 ? (
+              <Badge variant="status" tone="inert">
+                No change
+              </Badge>
+            ) : (
+              <Badge
+                variant="status"
+                tone={isGood(delta.value, delta.upIsGood) ? "positive" : "danger"}
+              >
+                <TrendIcon className="mr-1 size-3 shrink-0" down={delta.value < 0} />
+                {delta.value > 0 ? "+" : ""}
+                {format(delta.value)}
+                {suffix}
+              </Badge>
+            )}
+            <span className="text-note text-ink-meta">vs {delta.period}</span>
+          </>
+        )}
+      </p>
     </Card>
   );
 }

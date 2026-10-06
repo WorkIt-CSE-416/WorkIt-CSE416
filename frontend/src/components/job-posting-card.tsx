@@ -3,12 +3,12 @@ import type { ReactNode } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
 import {
-  AwardIcon,
   BriefcaseIcon,
   CalendarIcon,
   CoinIcon,
-  MonitorIcon,
+  LevelIcon,
   PinIcon,
+  workStyleIcon,
 } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
@@ -37,12 +37,21 @@ import { cn } from "@/lib/cn";
  * the logo's top edge. "Posted 5 days ago" is a fact about the posting rather
  * than a state to flag, so it reads as quiet text after the employer:
  * recency is still the second thing the eye lands on, without competing with
- * the title for the first.
+ * the title for the first. On a card under 448px it takes a line of its own
+ * with no dot, rather than wrapping and leaving "ago" alone on the next line.
  *
  * EXPERIENCE IS TWO FACTS, NOT ONE. `experienceLevel` and `minYearsExperience`
  * used to print as a single joined string ("Experienced · 8+ yrs") under one
  * icon. Split, level and years get their own icon each rather than asking one
  * glyph to stand for both.
+ *
+ * EACH GLYPH SAYS WHAT ITS FACT SAYS. Work style picks its icon by value, a
+ * building for On-site, a house for Remote and two arrows for Hybrid, where
+ * one desktop screen used to sit beside "On-site" on most of the feed. The
+ * level is a mortarboard, not a prize rosette beside "Internship". The
+ * choices live in components/icons.tsx (workStyleIcon, LevelIcon), not here,
+ * so the job page and the /search detail can draw the same glyph for the
+ * same fact as this card.
  *
  * THE FACTS ARE A WRAPPING ROW UNDER THE TITLE, NOT A FULL-WIDTH GRID. A
  * three-column grid across the whole card kept one fact under another from
@@ -124,8 +133,8 @@ export function JobPostingCard({
       ["location", PinIcon, job.location],
       ["jobType", BriefcaseIcon, job.jobType],
       ["salary", CoinIcon, job.salary],
-      ["workStyle", MonitorIcon, job.workStyle],
-      ["experienceLevel", AwardIcon, job.experienceLevel],
+      ["workStyle", workStyleIcon(job.workStyle), job.workStyle],
+      ["experienceLevel", LevelIcon, job.experienceLevel],
       ["minYearsExperience", CalendarIcon, job.minYearsExperience],
     ] as const
   ).filter(([, , text]) => text != null);
@@ -177,10 +186,10 @@ export function JobPostingCard({
                   )}
                   {job.timing != null && (
                     <>
-                      <span aria-hidden="true" className="text-ink-faint mx-1.5">
+                      <span aria-hidden="true" className="text-ink-faint mx-1.5 @max-md:hidden">
                         ·
                       </span>
-                      {job.timing}
+                      <span className="whitespace-nowrap @max-md:block">{job.timing}</span>
                     </>
                   )}
                 </p>
