@@ -89,8 +89,8 @@ app/
     jobs.py       GET /jobs — the scraper's feed.json, public, no DB
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, get, patch,
-                  delete; extracts text from PDF/DOCX and parses it into
-                  structured JSON
+                  delete, set default, signed file link; extracts text from
+                  PDF/DOCX and parses it into structured JSON
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
   services/       Logic with no HTTP or DB of its own. Never in models/,
                   whose __init__ imports every file as a model

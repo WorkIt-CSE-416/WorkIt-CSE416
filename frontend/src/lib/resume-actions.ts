@@ -33,8 +33,17 @@ export type ResumeItem = {
   parsed_json?: ParsedResume | null;
   storage_path: string;
   status: string;
+  /** The applicant's primary resume — the one the profile shows. */
+  is_default: boolean;
   created_at: string | null;
 };
+
+// A server action is an endpoint any page script can call with any argument.
+// Encoding the id keeps a crafted one ("../avatar") from walking the request
+// onto another API route, which fetch would otherwise resolve before sending.
+function resumePath(applicantId: string, resumeId: string) {
+  return `/applicants/${applicantId}/resumes/${encodeURIComponent(resumeId)}`;
+}
 
 export async function listResumes(): Promise<{ resumes: ResumeItem[]; error: string | null }> {
   try {
@@ -54,7 +63,7 @@ export async function listResumes(): Promise<{ resumes: ResumeItem[]; error: str
 export async function deleteResume(resumeId: string): Promise<{ error: string | null }> {
   try {
     const { id, token } = await getApplicantSession();
-    const res = await apiDelete(`/applicants/${id}/resumes/${resumeId}`, token);
+    const res = await apiDelete(resumePath(id, resumeId), token);
     if (!res.ok) {
       const msg = await extractErrorMessage(res);
       return { error: msg };
@@ -84,7 +93,7 @@ export async function getParsedResume(
 ): Promise<{ parsed: ParsedResume | null; error: string | null }> {
   try {
     const { id, token } = await getApplicantSession();
-    const res = await apiGet(`/applicants/${id}/resumes/${resumeId}`, token);
+    const res = await apiGet(resumePath(id, resumeId), token);
     if (!res.ok) return { parsed: null, error: await extractErrorMessage(res) };
     const { parsed_json } = await res.json();
     return { parsed: parsed_json, error: null };
@@ -93,7 +102,7 @@ export async function getParsedResume(
   }
 }
 
-// Replaces a saved resume's parsed content — the profile's per-entry edits.
+// Replaces a saved resume's parsed content — every edit made on the profile.
 export async function updateParsedResume(
   resumeId: string,
   parsed: ParsedResume,
@@ -101,7 +110,7 @@ export async function updateParsedResume(
   try {
     const { id, token } = await getApplicantSession();
     const res = await apiFetch(
-      `/applicants/${id}/resumes/${resumeId}`,
+      resumePath(id, resumeId),
       { method: "PATCH", body: JSON.stringify(parsed) },
       token,
     );
@@ -109,6 +118,34 @@ export async function updateParsedResume(
     return { error: null };
   } catch {
     return { error: "Could not reach the server." };
+  }
+}
+
+// Makes this the applicant's primary resume.
+export async function setPrimaryResume(resumeId: string): Promise<{ error: string | null }> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiFetch(`${resumePath(id, resumeId)}/default`, { method: "PUT" }, token);
+    if (!res.ok) return { error: await extractErrorMessage(res) };
+    return { error: null };
+  } catch {
+    return { error: "Could not reach the server." };
+  }
+}
+
+// A short-lived link to the uploaded file: a PDF opens in the browser's
+// viewer, a DOCX downloads under its original name.
+export async function getResumeFileUrl(
+  resumeId: string,
+): Promise<{ url: string | null; error: string | null }> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiGet(`${resumePath(id, resumeId)}/file`, token);
+    if (!res.ok) return { url: null, error: await extractErrorMessage(res) };
+    const { url } = await res.json();
+    return { url, error: null };
+  } catch {
+    return { url: null, error: "Could not reach the server." };
   }
 }
 

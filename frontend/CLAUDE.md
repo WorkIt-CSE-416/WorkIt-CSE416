@@ -126,8 +126,10 @@ src/lib/          Framework-free helpers
   session.ts      getApplicantSession() — the signed-in id + access token —
                   and getAccessToken() for any account type. Server-only, and
                   never in a "use server" file (see below)
-  resume-actions.ts  Server actions for resume upload/list/delete.
-                  Used by both onboarding and profile.
+  resume-actions.ts  Server actions for resumes: parse (saves nothing),
+                  upload, list, delete, read and replace one's parsed
+                  content, make one primary, and a signed file link. Used
+                  by both onboarding and profile.
   avatar-actions.ts  Server actions for the profile photo: get/upload/remove
   job-actions.ts  Server actions for the company's jobs: saveJob (create, or
                   update with the updated_at it was loaded with, so a save over
@@ -422,24 +424,52 @@ uploads on Continue, unreviewed. The seeker profile (`(seeker)/profile`)
 supports up to 5 resumes, newest first: on file select it calls
 `parseResume` (nothing saved), opens `resume-edit-dialog.tsx` on every
 section of the result, and only Save calls `uploadResume` with the file plus
-the edited `parsed_json`; Cancel discards it. Both actions live in
-`src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's. The `ResumeUpload` component
-(`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
-knows nothing about upload logic or limits.
+the edited `parsed_json`; Cancel discards it. When nothing was read and
+nothing typed, Save leaves `parsed_json` out, so the API parses the file
+itself and marks it `parse_failed` rather than "parsed". That dialog is a
+panel sliding in from the right over a darkened page, built from the
+vendored dialog's parts because the vendored Sheet's 10% overlay cannot be
+darkened from outside. A click on the darkened page does not close it — that
+would throw away every unsaved edit — but › and Escape do. Each resume row (`resume-row.tsx`) has an eye — a short-lived signed
+link from `getResumeFileUrl`: a PDF opens in a new tab, opened inside the
+click so it is not blocked as a popup (if it is blocked anyway, the page says
+so rather than leaving the profile); a DOCX downloads — and a star that
+makes it primary (`setPrimaryResume`). All of these actions live in
+`src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's.
+The `ResumeUpload` component (`src/components/resume-upload.tsx`) is a pure
+dropzone + file preview — it knows nothing about upload logic or limits.
 
-**The profile's Work Experience and Skills come from the newest resume's
-`parsed_json`** (`getParsedResume`), not from fixtures — there is no default-
-resume column yet, so "newest" stands in. Work Experience's Edit opens
+**The profile's Work Experience and Skills come from the primary resume's
+`parsed_json`** (`getParsedResume`), or the newest one's when none is primary —
+`shownResume` in `page.tsx`. Work Experience's Edit opens
 `resume-edit-dialog.tsx` on that one section, so all roles are edited in one
 modal; each skill opens `entry-dialog.tsx`, which reuses the same field
 table. Every save PATCHes the whole `ParsedResume` back (`updateParsedResume`).
 Collapsed, Work Experience previews the first two roles with descriptions cut
-to two lines, and one chevron in its header expands the whole section. The
+to two lines, and one chevron in its heading expands the whole section. The
 chevron appears only when the preview hides something; whether a description
-overflows depends on the card's width, so `resume-sections.tsx` measures it
+overflows depends on the column's width, so `resume-sections.tsx` measures it
 with a ResizeObserver. The one-section edit modal numbers its entries
 ("Experience 1", …) since it has no section headings to go by.
-Deleting the newest resume switches the cards to the next one.
+Deleting the resume the sections show switches them to whichever `shownResume`
+picks next.
+
+**The sections' editors stay shut while the shown resume switches.** Every
+editor saves onto whichever resume is shown, so from a star or delete click
+until the sections have moved to the next resume (`switching` and
+`profileLoading` in `page.tsx`), Edit, Add and the skill chips are disabled.
+An editor left open across a switch saved one resume's roles over another's.
+
+**My Profile is cached for the life of the seeker shell.**
+`(seeker)/profile-cache.tsx` keeps the page's last state (resumes, the shown
+resume's content, the photo URL) in a provider in `(seeker)/layout.tsx`. A
+return visit renders it at once and refetches in the background. Only
+settled state is saved: not mid-load, not while a photo upload's `blob:`
+preview is on screen (that URL is revoked once the upload ends), and not
+after a failed load. It lives in the layout, not a module variable, because
+sign-out redirects to `/login`, outside the shell, and that unmount is what
+drops it — a module variable would show one account's resumes to the next
+person to sign in in that tab.
 
 **Profile photo upload is wired** on the seeker profile. The pencil button
 opens a file picker restricted to JPEG/PNG/WebP; the file is checked against

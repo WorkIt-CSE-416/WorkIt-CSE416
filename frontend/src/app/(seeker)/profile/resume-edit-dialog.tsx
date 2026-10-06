@@ -1,14 +1,14 @@
 "use client";
 
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState, type FormEvent } from "react";
 
-import { TrashIcon } from "@/components/icons";
+import { ChevronDownIcon, TrashIcon } from "@/components/icons";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
@@ -197,103 +197,119 @@ export function ResumeEditDialog({
     }
   }
 
+  // A panel sliding in from the right over a darkened page, rather than the
+  // vendored centred dialog. Built from the dialog's parts: the vendored Sheet
+  // bakes in a 10% overlay that a caller cannot darken. A click on that
+  // darkened half does not close it — that would throw away every unsaved
+  // edit, and in review the upload too; › and Escape still do.
   return (
-    <Dialog open onOpenChange={(open) => !open && !saving && onCancel()}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+    <Dialog open disablePointerDismissal onOpenChange={(open) => !open && !saving && onCancel()}>
+      <DialogPortal>
+        <DialogOverlay className="bg-black/40 supports-backdrop-filter:backdrop-blur-none" />
+        <DialogPrimitive.Popup className="bg-panel data-open:animate-in data-open:slide-in-from-right fixed inset-y-0 right-0 z-50 flex w-full flex-col shadow-xl duration-300 ease-out outline-none sm:max-w-2xl">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <div className="border-border-subtle flex items-center gap-3 border-b px-5 py-3">
+              <IconButton
+                label="Close"
+                variant="outline"
+                className="size-8"
+                disabled={saving}
+                onClick={onCancel}
+              >
+                <ChevronDownIcon className="size-4 -rotate-90" />
+              </IconButton>
+              <DialogTitle className="text-title text-ink flex-1">{title}</DialogTitle>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving…" : saveLabel}
+              </Button>
+            </div>
+            <DialogDescription className="bg-surface text-meta text-ink-meta px-5 py-2 text-center">
+              {description}
+            </DialogDescription>
+            {error && (
+              <p role="alert" className="text-meta px-5 pt-3 text-red-600">
+                {error}
+              </p>
+            )}
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-col gap-4">
-          <div className="-mx-4 flex min-h-0 flex-col gap-6 overflow-y-auto px-4">
-            {shown.map(({ key, title: heading, noun, fields }) => {
-              const entries = draft[key] ?? [];
-              return (
-                <section key={key} aria-labelledby={headed ? `edit-${key}` : undefined}>
-                  {/* Not <SectionHeading>: its fixed text-title would outrank the
+            <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-4">
+              {shown.map(({ key, title: heading, noun, fields }) => {
+                const entries = draft[key] ?? [];
+                return (
+                  <section key={key} aria-labelledby={headed ? `edit-${key}` : undefined}>
+                    {/* Not <SectionHeading>: its fixed text-title would outrank the
                       dialog's own title. */}
-                  <div className="flex items-baseline justify-between gap-4">
-                    {headed && (
-                      <h3 id={`edit-${key}`} className="text-subtitle text-ink">
-                        {heading}
-                      </h3>
-                    )}
-                    {/* New entries go first, right under the button that added
+                    <div className="flex items-baseline justify-between gap-4">
+                      {headed && (
+                        <h3 id={`edit-${key}`} className="text-subtitle text-ink">
+                          {heading}
+                        </h3>
+                      )}
+                      {/* New entries go first, right under the button that added
                         them — at the end they could land below the fold. */}
-                    <Button
-                      variant="ghost"
-                      className="ml-auto"
-                      onClick={() => update(key, [blankEntry(fields), ...entries])}
-                    >
-                      + Add {noun}
-                    </Button>
-                  </div>
-
-                  {entries.length === 0 && (
-                    <p className="text-meta text-ink-meta mt-1">None yet.</p>
-                  )}
-
-                  <ol className="mt-2 flex flex-col gap-2">
-                    {entries.map((entry, i) => (
-                      <li
-                        key={i}
-                        className="border-border-subtle rounded-control flex items-start gap-2 border p-3"
+                      <Button
+                        variant="ghost"
+                        className="ml-auto"
+                        onClick={() => update(key, [blankEntry(fields), ...entries])}
                       >
-                        <div className="grid flex-1 gap-2 sm:grid-cols-2">
-                          {/* With no section headings to go by, long entries are
-                              numbered instead: "Experience 1", "Experience 2". */}
-                          {!headed && (
-                            <h3 className="text-label text-ink font-medium capitalize sm:col-span-2">
-                              {noun} {i + 1}
-                            </h3>
-                          )}
-                          {fields.map((f) => (
-                            <EntryField
-                              key={f.key}
-                              id={`edit-${key}-${i}-${f.key}`}
-                              field={f}
-                              value={entry[f.key]}
-                              onChange={(value) =>
-                                update(
-                                  key,
-                                  entries.map((e, j) => (j === i ? { ...e, [f.key]: value } : e)),
-                                )
-                              }
-                            />
-                          ))}
-                        </div>
-                        <IconButton
-                          label={`Remove ${noun} ${i + 1}`}
-                          onClick={() =>
-                            update(
-                              key,
-                              entries.filter((_, j) => j !== i),
-                            )
-                          }
+                        + Add {noun}
+                      </Button>
+                    </div>
+
+                    {entries.length === 0 && (
+                      <p className="text-meta text-ink-meta mt-1">None yet.</p>
+                    )}
+
+                    <ol className="mt-2 flex flex-col gap-2">
+                      {entries.map((entry, i) => (
+                        <li
+                          key={i}
+                          className="border-border-subtle rounded-control flex items-start gap-2 border p-3"
                         >
-                          <TrashIcon className="size-4" />
-                        </IconButton>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-              );
-            })}
-          </div>
-
-          {error && <p className="text-meta text-red-600">{error}</p>}
-
-          <DialogFooter>
-            <Button variant="secondary" disabled={saving} onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : saveLabel}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+                          <div className="grid flex-1 gap-2 sm:grid-cols-2">
+                            {/* With no section headings to go by, long entries are
+                              numbered instead: "Experience 1", "Experience 2". */}
+                            {!headed && (
+                              <h3 className="text-title text-ink capitalize sm:col-span-2">
+                                {noun} {i + 1}
+                              </h3>
+                            )}
+                            {fields.map((f) => (
+                              <EntryField
+                                key={f.key}
+                                id={`edit-${key}-${i}-${f.key}`}
+                                field={f}
+                                value={entry[f.key]}
+                                onChange={(value) =>
+                                  update(
+                                    key,
+                                    entries.map((e, j) => (j === i ? { ...e, [f.key]: value } : e)),
+                                  )
+                                }
+                              />
+                            ))}
+                          </div>
+                          <IconButton
+                            label={`Remove ${noun} ${i + 1}`}
+                            onClick={() =>
+                              update(
+                                key,
+                                entries.filter((_, j) => j !== i),
+                              )
+                            }
+                          >
+                            <TrashIcon className="size-4" />
+                          </IconButton>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                );
+              })}
+            </div>
+          </form>
+        </DialogPrimitive.Popup>
+      </DialogPortal>
     </Dialog>
   );
 }
@@ -323,7 +339,9 @@ export function EntryField({ id, field, value, onChange }: EntryFieldProps) {
       ) : (
         <input
           type={field.type ?? "text"}
-          step={field.type === "number" ? "0.01" : undefined}
+          // "any", not 0.01: the parser keeps every decimal of a GPA ("3.856"),
+          // and a value off the step blocks the whole form from submitting.
+          step={field.type === "number" ? "any" : undefined}
           min={field.type === "number" ? 0 : undefined}
           // Whitespace alone would pass `required`, then trim to null and 422
           pattern={field.required ? ".*\\S.*" : undefined}
