@@ -330,12 +330,29 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
   not built.
 - **Two Supabase dashboard settings back this up, and live nowhere in code.**
   The anon key and project URL ship to the browser, so anyone can call
-  Supabase Auth directly and skip both the form and this API. Authentication
-  → "Allow new users to sign up" is **off**, so a direct `signUp()` is refused
-  (the service-role `admin.create_user` here is unaffected). Minimum password
-  length is **8**, matching `SignupRequest.password` and the form's
+  Supabase Auth directly and skip both the form and this API. Minimum
+  password length is **8**, matching `SignupRequest.password` and the form's
   `PASSWORD_MIN_LENGTH`, so a signed-in user can't `updateUser()` their way to
-  a shorter one. Set both on any new Supabase project.
+  a shorter one — set this on any new Supabase project.
+
+  Authentication → **"Allow new users to sign up" must be ON.** It reads as
+  the opposite of what it should be — turning it off was the original plan,
+  to refuse a direct `signUp()` and force account creation through this API
+  (the service-role `admin.create_user` is unaffected either way) — but
+  GoTrue applies that same switch to **every** path that creates a new
+  `auth.users` row, OAuth included: a first-time Google/LinkedIn sign-in *is*
+  a new signup from its side. Off, `signInWithOAuth()` fails with
+  `access_denied` / `signup_disabled` ("Signups not allowed for this
+  instance") before ever reaching this API — the OAuth section below depends
+  on this being on. It stopped being a real guard the day
+  `/auth/oauth/account-type` shipped: that endpoint already lets any
+  authenticated, type-less identity self-report `account_type` the same way
+  the signup form's body always has (trusted at the same level, never
+  escalated afterward — `user_metadata` still isn't). A bare `signUp()` just
+  reaches that same self-service step through a different front door, and a
+  type-less account can't do anything protected regardless
+  (`get_current_account` 401s it). Turning this on does not reopen the
+  privilege the original setting was guarding.
 - **Login does not touch this API's database code for the password.** Supabase
   Auth checks it against `auth.users`. The Next action then calls `/auth/me`
   to learn the account type and onboarding state.
@@ -364,6 +381,39 @@ base64-encoded besides. It then:
    and onboarding state come from that row, never from the token.
 
 Never read `user_metadata` for anything that decides access.
+
+### OAuth (Google, LinkedIn)
+
+**Decided: Supabase Auth's native `google` and `linkedin_oidc` providers, with a
+"Choose Account Type" step filling the gap signup() closes for a password
+account.** `signInWithOAuth()` lets Supabase create the `auth.users` row
+itself after the identity provider redirects back — it never goes through
+this API, so `app_metadata.account_type` and the profile row are both
+missing afterward, the same two things `/auth/signup` sets atomically for a
+password account.
+
+`GET /auth/oauth/status` and `POST /auth/oauth/account-type` close that gap,
+both behind `get_verified_identity` (`app/deps.py`) rather than
+`get_current_account` — the one dependency that verifies the token without
+requiring a profile row to already exist, which is exactly the state a
+first-time OAuth sign-in is in. `/oauth/account-type` sets
+`app_metadata.account_type` through the same admin API `/auth/signup` uses,
+then creates the profile row; on failure it resets `account_type` back to
+`None` rather than deleting the auth user, since — unlike signup() — that
+user's Google/LinkedIn session is real and didn't originate here.
+
+Each provider needs its Client ID/Secret pasted into the Supabase dashboard
+(Authentication → Providers) from the corresponding developer console —
+Google Cloud Console for `google`, a LinkedIn Developer app with the
+"Sign In with LinkedIn using OpenID Connect" product for `linkedin_oidc` (the
+older `linkedin` provider is deprecated). Neither lives in code; both are
+dashboard-only settings, same category as the minimum password length two
+sections up.
+
+**Needs "Allow new users to sign up" on** (two sections up) — without it,
+`signInWithOAuth()` for a first-time identity fails with `access_denied` /
+`signup_disabled` before any redirect back here, since GoTrue treats a new
+Google/LinkedIn identity as a signup same as a password one.
 
 ### Identity rules
 

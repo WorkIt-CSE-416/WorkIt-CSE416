@@ -19,6 +19,14 @@ export type AuthenticatedAccount = {
   company_id: string | null;
 };
 
+/** GET /auth/oauth/status's shape — what /auth/callback checks after a
+ *  Google/LinkedIn redirect to decide between Choose Account Type and the
+ *  same destination a password sign-in would land on. */
+export type OAuthStatus = {
+  needs_account_type: boolean;
+  account: AuthenticatedAccount | null;
+};
+
 /**
  * `accessToken` is the Supabase session's access token
  */

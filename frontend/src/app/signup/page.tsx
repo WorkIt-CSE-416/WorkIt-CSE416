@@ -5,6 +5,7 @@ import { GoogleIcon, LinkedInIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { TextLink } from "@/components/ui/text-link";
+import { signInWithOAuth } from "@/lib/oauth-actions";
 
 import { SignupForm } from "./signup-form";
 
@@ -53,14 +54,18 @@ export default function SignUpPage() {
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <Button variant="secondary">
-              <GoogleIcon className="size-4" />
-              Google
-            </Button>
-            <Button variant="secondary">
-              <LinkedInIcon className="size-4" />
-              LinkedIn
-            </Button>
+            <form action={signInWithOAuth.bind(null, "google")}>
+              <Button type="submit" variant="secondary" className="w-full">
+                <GoogleIcon className="size-4" />
+                Google
+              </Button>
+            </form>
+            <form action={signInWithOAuth.bind(null, "linkedin_oidc")}>
+              <Button type="submit" variant="secondary" className="w-full">
+                <LinkedInIcon className="size-4" />
+                LinkedIn
+              </Button>
+            </form>
           </div>
 
           <p className="text-body text-ink-muted mt-4 text-center">

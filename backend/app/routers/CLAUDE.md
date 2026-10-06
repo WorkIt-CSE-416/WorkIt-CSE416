@@ -17,7 +17,7 @@ Every router follows the same structure:
 
 | File | Prefix | What it does |
 |------|--------|--------------|
-| `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user, then the applicant profile or the company + owner membership; `GET /me` returns the caller's account |
+| `auth.py` | `/auth` | `POST /signup` creates the Supabase auth user, then the applicant profile or the company + owner membership; `GET /me` returns the caller's account; `GET /oauth/status` and `POST /oauth/account-type` let a Google/LinkedIn sign-in pick Applicant or Company and finish what `/signup` does for a password account |
 | `jobs.py` | `/jobs` | Public `GET` of the scraper's shortlist, newest first. Reads `scraper/feed.json` (path: `Settings.scraper_feed`); imports no scraper code, no DB |
 | `company_jobs.py` | `/company/jobs` | `POST` saves a new job (draft or published), `GET` lists summaries a page at a time (`limit`/`offset`) or loads one, `PUT /{job_id}` updates one if its `updatedAt` still matches (409 otherwise), `POST /{job_id}/status` pauses, resumes or closes one. All scoped to the caller's company; another company's job is a 404. Depends on `get_company_member`, so only active company members get in |
 | `resumes.py` | `/applicants/{applicant_id}/resumes` | Upload (POST), list (GET), delete (DELETE) resumes; extracts text from PDF/DOCX and parses into structured JSON |

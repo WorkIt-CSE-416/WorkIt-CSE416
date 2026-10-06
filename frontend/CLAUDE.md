@@ -247,6 +247,33 @@ side:
   requires it: Server Components cannot write cookies, so without it sessions
   die when the hour-long access token does. It does nothing when the Supabase
   variables are unset, which keeps a clone with no env file booting.
+- **Google and LinkedIn sign-in** go through Supabase's native OAuth
+  providers (`google`, `linkedin_oidc` — backend/CLAUDE.md's Auth section has
+  the dashboard setup). `src/lib/oauth-actions.ts`'s `signInWithOAuth` server
+  action, bound to each provider, backs the Google/LinkedIn buttons on both
+  `/login` and `/signup`; it calls Supabase's own `signInWithOAuth()` with
+  `skipBrowserRedirect: true` and redirects to the URL it returns, since a
+  Server Action can't navigate the browser itself. The provider sends the
+  browser back to `src/app/auth/callback/route.ts`, which exchanges the code
+  for a session, then calls `GET /auth/oauth/status`: Supabase creates
+  `auth.users` itself for an OAuth sign-in, bypassing `POST /auth/signup`
+  entirely, so a first-time sign-in has no `account_type` and no profile row
+  yet. That sends it to `/signup/choose-account-type` — the same
+  `AccountTypeSwitcher` as `/login` and `/signup`, plus `CompanyFields`
+  (promoted out of `signup-form.tsx`, its second consumer) when the choice is
+  Company — whose `actions.ts` calls `POST /auth/oauth/account-type` and then
+  `supabase.auth.refreshSession()`, because the access token already in hand
+  was issued before that endpoint set `account_type` and won't carry it until
+  refreshed. An already-completed identity gets `needs_account_type: false`
+  and goes straight to the same destination a password sign-in would.
+  **The Google button sends `queryParams: { prompt: "select_account" }`.**
+  Without it, a Google account Google itself rejects (unverified app,
+  not a test user — decided entirely on Google's side, before any redirect
+  back here) looks stuck on retry: Google silently reuses the browser's
+  last-picked account and shows the same "Access blocked" page again. The
+  prompt forces the account chooser open every attempt, so a blocked try can
+  retry with a different account instead of repeating the same dead end.
+  LinkedIn's OIDC prompt support isn't the same, so this stays Google-only.
 
 **The token travels server-side.** The browser holds only Supabase's
 `sb-*` cookies, on this origin. Server code reads the access token from the
