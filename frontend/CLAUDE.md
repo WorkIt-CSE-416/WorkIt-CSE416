@@ -78,7 +78,11 @@ src/app/          App Router routes, layouts, pages
   design-kit/     Every token and component, one route per section, resolved
                   from the live stylesheet — outside both shells on purpose.
                   Section titles and notes live in its data.ts so the nav and
-                  each page heading cannot disagree.
+                  each page heading cannot disagree. A new token or shared
+                  component gets its row there in the same change. Shell
+                  holds the bars' logo, bell and account menu; the left
+                  panel and the auth forms are not shown, since they need a
+                  shell's provider or a server action
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
   logo.tsx        The WorkIt logo: <Logo> picks a lockup or half per size,

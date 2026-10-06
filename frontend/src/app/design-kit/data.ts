@@ -24,12 +24,12 @@ export const SECTIONS = {
   type: {
     slug: "type",
     title: "Type",
-    note: "Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px — caption carries uppercase tracking and weight 600, meta carries neither.",
+    note: "One typeface, Geist, with Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too.",
   },
   shape: {
     slug: "shape",
     title: "Shape and Elevation",
-    note: "Two radii and two shadows. WorkIt's own; stock Tailwind's rounded-sm/md/lg keep their default values, which is what existing call sites were measured against.",
+    note: "Three radii, two shadows and two content widths. WorkIt's own; stock Tailwind's rounded-sm/md/lg keep their default values, which is what existing call sites were measured against.",
   },
   buttons: {
     slug: "buttons",
@@ -46,10 +46,15 @@ export const SECTIONS = {
     title: "Display",
     note: "Everything that shows a value without accepting one. The status rows render from the same maps the company tables read, so they cannot drift from what the app paints.",
   },
+  shell: {
+    slug: "shell",
+    title: "Shell",
+    note: "The pieces both bars are built from: the logo, the bell and the account menu. The left panel itself (AppSidebar, SidebarBrand) needs a shell's SidebarProvider, so the shells are its specimen, and the auth screens are the specimen for their own parts.",
+  },
   vendored: {
     slug: "vendored",
     title: "Vendored",
-    note: "Pulled in with `npx shadcn add` and not restyled. They look like WorkIt because globals.css maps shadcn's role names onto WorkIt's tokens, and because they compose against the same Button as everything above.",
+    note: "Pulled in with `npx shadcn add` and not restyled. They look like WorkIt because globals.css maps shadcn's colour roles and stock text sizes onto WorkIt's tokens, and because they compose against the same Button as everything above.",
   },
 } as const;
 
@@ -60,6 +65,7 @@ export const SECTION_ORDER = [
   SECTIONS.buttons,
   SECTIONS.forms,
   SECTIONS.display,
+  SECTIONS.shell,
   SECTIONS.vendored,
 ];
 
@@ -77,6 +83,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-app", role: "Home and design kit ground; uploaded-file row" },
       { token: "--color-panel", role: "Top bar and cards" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
+      { token: "--color-frame", role: "Seeker shell ground, under its floating panels" },
     ],
   },
   {
@@ -85,6 +92,16 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--color-hover", role: "Row or control under the pointer" },
       { token: "--color-selected", role: "Current nav item, chosen option" },
+    ],
+  },
+  {
+    title: "Rail",
+    note: "The left panel's lavender. The company shell paints its docked panel and the bar's corner cell in it, so the two read as one frame around the white page. The seeker's floating panel is white and keeps only the border. Hover and current rows are lavender too, where the grey Interaction pair would read as smudges on a coloured panel.",
+    tokens: [
+      { token: "--color-rail", role: "Company panel and its corner cell" },
+      { token: "--color-rail-hover", role: "Row under the pointer on the rail" },
+      { token: "--color-rail-selected", role: "Current nav row in both shells" },
+      { token: "--color-rail-border", role: "Rail edge, and the seeker panel's outline" },
     ],
   },
   {
@@ -178,18 +195,37 @@ export const COLOR_GROUPS: ColorGroup[] = [
     note: "Aliases, not new colours. Every one points at a token above, which is why a stock shadcn component renders in WorkIt's palette with no editing. --destructive was the exception, shadcn's stock red, until it was pointed at --color-danger so a destructive action and a Rejected pill are one red. The chart ramp used to be a second exception and is now its own group above.",
     tokens: [
       { token: "--primary", role: "→ --color-brand" },
+      { token: "--primary-foreground", role: "→ --color-on-brand" },
       { token: "--secondary", role: "→ --color-surface" },
+      { token: "--secondary-foreground", role: "→ --color-ink" },
       { token: "--background", role: "→ --color-panel · signed-in page ground" },
       { token: "--foreground", role: "→ --color-ink" },
       { token: "--card", role: "→ --color-panel" },
+      { token: "--card-foreground", role: "→ --color-ink" },
       { token: "--popover", role: "→ --color-panel" },
+      { token: "--popover-foreground", role: "→ --color-ink" },
       { token: "--muted", role: "→ --color-well" },
       { token: "--muted-foreground", role: "→ --color-ink-meta" },
       { token: "--accent", role: "→ --color-hover" },
+      { token: "--accent-foreground", role: "→ --color-ink" },
       { token: "--border", role: "→ --color-border" },
       { token: "--input", role: "→ --color-border-subtle" },
       { token: "--ring", role: "→ --color-brand" },
       { token: "--destructive", role: "→ --color-danger · unmeasured" },
+    ],
+  },
+  {
+    title: "shadcn Sidebar Roles",
+    note: "The same aliasing for shadcn's Sidebar, which draws both shells' left panel. The panel's fill is the rail, its rows hover in rail lavender, and its focus ring is the brand.",
+    tokens: [
+      { token: "--sidebar", role: "→ --color-rail" },
+      { token: "--sidebar-foreground", role: "→ --color-ink" },
+      { token: "--sidebar-primary", role: "→ --color-brand" },
+      { token: "--sidebar-primary-foreground", role: "→ --color-on-brand" },
+      { token: "--sidebar-accent", role: "→ --color-rail-hover" },
+      { token: "--sidebar-accent-foreground", role: "→ --color-ink" },
+      { token: "--sidebar-border", role: "→ --color-rail-border" },
+      { token: "--sidebar-ring", role: "→ --color-brand" },
     ],
   },
 ];
@@ -211,9 +247,58 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-display", cls: "text-display", role: "Dashboard headline figures" },
 ];
 
+/** The faces themselves come from next/font in app/layout.tsx. */
+export const TYPEFACES: { token: string; cls: string; role: string }[] = [
+  { token: "--font-sans", cls: "font-sans", role: "Geist · every word in the app" },
+  {
+    token: "--font-mono",
+    cls: "font-mono",
+    role: "Geist Mono · the audit log's action names, a chart tooltip's figures, token names here",
+  },
+  {
+    token: "--font-heading",
+    cls: "font-heading",
+    role: "→ --font-sans · shadcn's title face, so a dialog title is Geist too",
+  },
+];
+
+/**
+ * The stock Tailwind sizes shadcn's components are written in, and what each
+ * resolves to here. globals.css binds the first two to WorkIt's tokens, so a
+ * vendored menu row is --text-body by construction rather than by luck.
+ */
+export const SHADCN_SIZES: { token: string; cls: string; role: string }[] = [
+  {
+    token: "text-xs → --text-note",
+    cls: "text-xs",
+    role: "Tooltips, a menu's group label, a chart tooltip",
+  },
+  {
+    token: "text-sm → --text-body",
+    cls: "text-sm",
+    role: "Menu rows, select options, dialog and popover body, table cells, sidebar rows",
+  },
+  {
+    token: "text-base · stock 16px, unbound",
+    cls: "text-base",
+    role: "Inputs below sm, where less makes iOS zoom on focus. A dialog or sheet title takes text-subtitle font-semibold instead",
+  },
+];
+
 export const RADII: { token: string; cls: string; role: string }[] = [
   { token: "--radius-control", cls: "rounded-control", role: "Inputs, buttons" },
   { token: "--radius-card", cls: "rounded-card", role: "Cards" },
+  {
+    token: "--radius-shell",
+    cls: "rounded-shell",
+    role: "Seeker shell panels, both Dashboard heroes",
+  },
+  { token: "--radius", cls: "rounded-(--radius)", role: "→ --radius-card · shadcn's base radius" },
+];
+
+export const WIDTHS: { token: string; cls: string; role: string }[] = [
+  { token: "--container-auth", cls: "max-w-auth", role: "The sign-in and sign-up card" },
+  { token: "--container-app", cls: "max-w-app", role: "Every page's content column" },
 ];
 
 export const SHADOWS: { token: string; cls: string; role: string }[] = [
