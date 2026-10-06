@@ -266,6 +266,18 @@ hand edits there are a fork. shadcn's colour roles are aliased onto WorkIt's
 tokens at the bottom of `globals.css`, which is why a generated component needs
 no restyling — fix the mapping there rather than the component.
 
+Its stock text sizes are bound the same way: `text-xs` is `--text-note` and
+`text-sm` is `--text-body`, so a menu row or a select option is body type by
+construction and moves when the scale does. WorkIt's own code still writes the
+token names, never `text-sm`. Where a vendored piece draws something the scale
+has no token for, the call site sets the token, since the file is not ours to
+edit: a `DialogTitle` or `SheetTitle` takes `text-subtitle font-semibold`
+(stock is 16px medium, a pairing nothing else uses), and a `Calendar` takes
+`[&_.rdp-weekday]:text-note` for its 12.8px weekday row. `text-base` stays
+unbound on purpose: it is the 16px that keeps iOS from zooming into the text
+and search fields below sm. `/design-kit/type` shows what each stock size
+resolves to.
+
 The two company list screens share `app/company/table.tsx` — a TanStack Table
 shell over shadcn's `Table`, with sorting, filtering and row selection. **It is
 TanStack v9, and every shadcn data-table example in circulation is v8**: v8's

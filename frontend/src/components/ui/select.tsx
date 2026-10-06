@@ -89,7 +89,7 @@ function SelectCheckboxItem({ className, children, ...props }: SelectPrimitive.I
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "group/select-item data-highlighted:bg-accent data-highlighted:text-accent-foreground flex w-full cursor-default items-center justify-between gap-2 rounded-md py-1 pr-1.5 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+        "group/select-item data-highlighted:bg-accent data-highlighted:text-accent-foreground text-body flex w-full cursor-default items-center justify-between gap-2 rounded-md py-1 pr-1.5 pl-2 outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
       )}
       {...props}

@@ -211,7 +211,7 @@ names. Rather than edit every component we pull in, the bottom of
 
 | shadcn role            | WorkIt token            |
 | ---------------------- | ----------------------- |
-| `--background`         | `--color-app`           |
+| `--background`         | `--color-panel`         |
 | `--foreground`         | `--color-ink`           |
 | `--card`, `--popover`  | `--color-panel`         |
 | `--primary`            | `--color-brand`         |
@@ -244,6 +244,20 @@ Three lines `init` generated were removed, each for a reason recorded in
 - The `--radius-sm … --radius-4xl` rebind — it reshaped `ui/badge.tsx`'s tag
   pill (6px → 8px) and `ui/text-link.tsx`'s focus ring (4px → 6px). Stock
   Tailwind radii are what existing call sites were measured against.
+
+shadcn's stock **text sizes** are bound in the same block, so a vendored menu
+row is WorkIt's body type rather than Tailwind's:
+
+| Stock size  | WorkIt token                                         |
+| ----------- | ---------------------------------------------------- |
+| `text-xs`   | `--text-note` (12px)                                 |
+| `text-sm`   | `--text-body` (14px)                                 |
+| `text-base` | not bound: the 16px that stops iOS zooming on inputs |
+
+Size and line height only; a component that asks for `font-medium` keeps it. A
+vendored title (`DialogTitle`, `SheetTitle`) is 16px medium, which the scale
+has no token for, so each call site passes `text-subtitle font-semibold`. The
+rendered mapping is on `/design-kit/type`.
 
 `--chart-1…5` used to be `OPEN`. They are now the badge tones in a fixed
 order — brand, advanced, positive, danger, then a de-emphasis grey — so a stage

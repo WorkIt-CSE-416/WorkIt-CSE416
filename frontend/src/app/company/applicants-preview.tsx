@@ -145,7 +145,7 @@ export function ApplicantsPreview() {
               <TableRow key={id}>
                 <TableCell className="px-4">
                   <span className="flex items-center gap-2.5">
-                    <Avatar name={name} className="size-7 shrink-0 text-[0.625rem]" />
+                    <Avatar name={name} className="text-meta size-7 shrink-0" />
                     <span className="text-label text-ink truncate">{name}</span>
                   </span>
                 </TableCell>

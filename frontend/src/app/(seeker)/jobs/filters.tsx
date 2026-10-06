@@ -241,7 +241,7 @@ export function JobFilters() {
             against the right edge. */}
         <SheetContent className="rounded-card border data-[side=right]:inset-y-3 data-[side=right]:right-3 data-[side=right]:h-auto">
           <SheetHeader>
-            <SheetTitle>All Filters</SheetTitle>
+            <SheetTitle className="text-subtitle font-semibold">All Filters</SheetTitle>
             <SheetDescription>Narrow the feed by role, workplace and pay.</SheetDescription>
           </SheetHeader>
 
