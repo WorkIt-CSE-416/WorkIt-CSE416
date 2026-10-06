@@ -11,16 +11,6 @@ const strokeProps = {
 
 /* Card actions ------------------------------------------------------------ */
 
-/** Asking the assistant about a job. Filled, so it holds up beside a label. */
-export function SparkleIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className={className}>
-      <path d="M6.6 1.8c.6 3 1.9 4.4 4.9 5-3 .6-4.3 2-4.9 5-.6-3-1.9-4.4-4.9-5 3-.6 4.3-2 4.9-5Z" />
-      <path d="M12.6 9.4c.25 1.2.75 1.7 1.9 1.95-1.15.25-1.65.75-1.9 1.95-.25-1.2-.75-1.7-1.9-1.95 1.15-.25 1.65-.75 1.9-1.95Z" />
-    </svg>
-  );
-}
-
 /** Dismissing a recommendation, so it stops being recommended. */
 export function CircleSlashIcon({ className }: IconProps) {
   return (

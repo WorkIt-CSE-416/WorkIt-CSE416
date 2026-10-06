@@ -36,3 +36,7 @@ class JobListing(BaseModel):
     posted_at: str | None
     # The logo the company uploaded to its job board; None when it has none.
     logo_url: str | None
+    # Plain text, capped by the scraper. Scout reads it; GET /jobs leaves it out
+    # (the cards never show it). Defaulted so a feed.json written before the
+    # scraper captured descriptions still parses.
+    description: str | None = None

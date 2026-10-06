@@ -16,6 +16,10 @@ backend/          The Python API (FastAPI, SQLAlchemy, Alembic). It owns the
                   database — connection strings, schema and migrations all live
                   on this side. Self-contained: its own pyproject.toml, .venv
                   and lockfile. See backend/CLAUDE.md.
+scout/            Scout, the job assistant's brain (KAN-138): prompt, model
+                  seam, agent loop. A plain Python package the API installs;
+                  no database, no HTTP. Running it locally needs Ollama and
+                  `ollama pull qwen3.5:4b`. See scout/CLAUDE.md.
 scraper/          The job-board scraper (KAN-55). Standalone and stdlib-only:
                   no runtime dependencies, never touches the database. Runs
                   with plain `python3 -m workit_scraper`; tests run under
@@ -121,7 +125,8 @@ GitHub Actions runs on every PR to `main`. The workflow lives at
 `.github/workflows/ci.yml` and has three jobs:
 
 - **frontend** — `npm ci`, `lint`, `typecheck`, `build`
-- **backend** — `uv sync`, `ruff check .`, `pytest`
+- **backend** — `uv sync`, `ruff check .`, `pytest`, then `ruff check` and the
+  tests for `scout/` too (the backend installs it, so it has no CI job of its own)
 - **scraper** — `ruff check .`, `ruff format --check .`, `pytest` (via `uvx`, so
   the scraper still installs nothing)
 

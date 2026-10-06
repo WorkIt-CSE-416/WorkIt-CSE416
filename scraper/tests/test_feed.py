@@ -28,6 +28,7 @@ def role(**changes: object) -> Role:
         "department": None,
         "work_style": "On site",
         "locations": ("Berkeley",),
+        "description": None,
     }
     return Role(**{**base, **changes})
 
@@ -54,6 +55,11 @@ class TestRow:
         # Quora: "Software Engineer New Grad, Machine Learning Platform" -- two topics.
         tags = (Tag.NEW_GRAD, Tag.AI_ML, Tag.SWE)
         assert feed_row(role(tags=tags))["experience_level"] == "new_grad"
+
+    def test_description_is_passed_through(self) -> None:
+        # Scout reads it; the backend's JobListing carries the same field.
+        assert feed_row(role(description="Build robots."))["description"] == "Build robots."
+        assert feed_row(role())["description"] is None
 
     def test_unstated_facts_are_null_not_guessed(self) -> None:
         # A Greenhouse board states no work model, and a role can lack a date.
