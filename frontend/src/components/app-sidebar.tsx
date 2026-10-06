@@ -4,15 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 
+import { Logo } from "@/components/logo";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
+  useSidebar,
 } from "@/components/shadcn/sidebar";
 import { cn } from "@/lib/cn";
 
@@ -24,14 +28,11 @@ import { cn } from "@/lib/cn";
  * each shell's call; see company/company-sidebar.tsx and
  * (seeker)/seeker-sidebar.tsx.
  *
- * THE ICONS ARE LUCIDE'S, shadcn's own set (components.json's iconLibrary),
- * not the hand-drawn glyphs in components/icons.tsx. The house glyphs are
- * fine at 14px beside a label in a card, but at nav size, in a column of six,
- * they read as approximations of familiar marks rather than the marks
- * themselves. Lucide's are the ones people know from every other dashboard,
- * drawn on one grid by one hand. At 16px Lucide's 2-unit stroke on its
- * 24-unit grid lands at ~1.3px, beside the house set's 1.4, so the weights
- * still agree where the two meet.
+ * THE ICONS ARE LUCIDE'S, shadcn's own set (components.json's iconLibrary).
+ * Lucide's are the ones people know from every other dashboard, drawn on one
+ * grid by one hand. The panel was the first place they were used; the shared
+ * glyphs in components/icons.tsx have since moved to Lucide too, at its
+ * default stroke, so a nav row and a card's glyph weigh the same.
  *
  * WHY IT IS OFFSET RATHER THAN FULL-HEIGHT: shadcn's Sidebar positions itself
  * `fixed inset-y-0 h-svh`, which assumes it owns the left edge of the viewport
@@ -50,6 +51,21 @@ import { cn } from "@/lib/cn";
  * emitted them into the stylesheet rather than by anything written here. That
  * is the failure cn() cannot close, described in cn.ts and in CLAUDE.md; the
  * important is what makes the outcome deterministic instead of incidental.
+ *
+ * ON A PHONE THE PANEL IS A SHEET, and the sheet opens at the top of the
+ * viewport, over the bar and the toggle that opened it. So it carries its own
+ * 64px header, the toggle and the logo on the bar's own insets, ruled where
+ * the bar is: the control that opened the sheet sits in the same spot and
+ * closes it. Tapping a row closes it too. shadcn's sheet only closes on a
+ * scrim tap or Escape, and this shell stays mounted across the navigation, so
+ * the sheet would otherwise sit open over the page the row just opened.
+ *
+ * THE ROWS ARE A <nav> named by `label`. shadcn's Sidebar renders a plain
+ * div, so the name used to sit on an element with no role and the panel was
+ * not a landmark. The <nav> wraps the footer as well as the sections, which
+ * keeps Settings inside the landmark, and is the flex column that keeps the
+ * footer pinned to the bottom. The current row carries aria-current="page",
+ * so it is announced and not only coloured.
  */
 /**
  * Room around a row, and between one row and the next.
@@ -136,42 +152,48 @@ export function AppSidebar({
    *  things you visit to change how the app works rather than to work in it,
    *  like Settings. */
   footer?: SidebarNavItem[];
-  /** The panel's accessible name, e.g. "Company sections". */
+  /** The name of the panel's <nav> landmark, e.g. "Company sections". */
   label: string;
   /** The shell's bar offset — see "WHY IT IS OFFSET" above. */
   className?: string;
 }) {
   const pathname = usePathname();
+  const { isMobile } = useSidebar();
 
   return (
-    <Sidebar
-      collapsible="icon"
-      className={cn("border-rail-border h-auto", className)}
-      aria-label={label}
-    >
-      <SidebarContent className="pt-2">
-        {groups.map((group, i) => (
-          <SidebarGroup key={group.label ?? i}>
-            {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+    <Sidebar collapsible="icon" className={cn("border-rail-border h-auto", className)}>
+      {isMobile && (
+        <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
+          <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
+          <Logo size="bar" />
+        </SidebarHeader>
+      )}
+
+      <nav aria-label={label} className="flex min-h-0 flex-1 flex-col">
+        <SidebarContent className="pt-2">
+          {groups.map((group, i) => (
+            <SidebarGroup key={group.label ?? i}>
+              {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+              <SidebarMenu className={MENU}>
+                {group.items.map((item) => (
+                  <NavRow key={item.href} item={item} pathname={pathname} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
+          ))}
+        </SidebarContent>
+
+        {(footerCard || (footer && footer.length > 0)) && (
+          <SidebarFooter className="gap-3 pb-3">
+            {footerCard}
             <SidebarMenu className={MENU}>
-              {group.items.map((item) => (
+              {footer?.map((item) => (
                 <NavRow key={item.href} item={item} pathname={pathname} />
               ))}
             </SidebarMenu>
-          </SidebarGroup>
-        ))}
-      </SidebarContent>
-
-      {(footerCard || (footer && footer.length > 0)) && (
-        <SidebarFooter className="gap-3 pb-3">
-          {footerCard}
-          <SidebarMenu className={MENU}>
-            {footer?.map((item) => (
-              <NavRow key={item.href} item={item} pathname={pathname} />
-            ))}
-          </SidebarMenu>
-        </SidebarFooter>
-      )}
+          </SidebarFooter>
+        )}
+      </nav>
     </Sidebar>
   );
 }
@@ -179,13 +201,16 @@ export function AppSidebar({
 function NavRow({ item, pathname }: { item: SidebarNavItem; pathname: string }) {
   const { href, label, Icon, exact } = item;
   const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  const { setOpenMobile } = useSidebar();
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={active}
         tooltip={label}
-        render={<Link href={href} />}
+        render={<Link href={href} aria-current={active ? "page" : undefined} />}
+        // Closes the phone sheet on the way out; a no-op on the desktop panel.
+        onClick={() => setOpenMobile(false)}
         className={cn(MENU_BUTTON, active && CURRENT_ITEM)}
       >
         <Icon className="size-4" />

@@ -67,9 +67,20 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
           </Badge>
         )}
       </div>
+      {/* The chart is drawn for the eye; this line is what a screen reader
+          gets instead. Recharts' accessibilityLayer made the svg an unnamed
+          role="application" tab stop with no visible focus, so it is off. */}
+      <p className="sr-only">
+        {total} applications sent in this range
+        {goal !== null ? `, ${hit} of ${points.length} weeks at goal` : ""}.
+      </p>
 
       <ChartContainer config={config} className="mt-4 aspect-auto h-56 w-full">
-        <AreaChart data={points} margin={{ left: 0, right: 12, top: 12, bottom: 0 }}>
+        <AreaChart
+          accessibilityLayer={false}
+          data={points}
+          margin={{ left: 0, right: 12, top: 12, bottom: 0 }}
+        >
           <defs>
             <linearGradient id="activity-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--color-count)" stopOpacity={0.22} />

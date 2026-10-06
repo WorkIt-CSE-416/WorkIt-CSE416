@@ -25,8 +25,8 @@ import {
  *
  * `companyAbout`/`about`/`responsibilities`/`qualifications` stand in for
  * the schema's single markdown `description` column — nothing renders
- * markdown yet, the same call (seeker)/search/data.ts already made for its
- * DETAIL fixture.
+ * markdown yet, the same call (seeker)/search/data.ts already made for each
+ * job's `detail` fixture.
  */
 export type JobPosting = {
   id: string;
@@ -69,6 +69,9 @@ export type JobPosting = {
   /** Seeker side only. */
   match?: number;
   highlights?: Highlight[];
+  /** Seeker side only: whether this seeker has saved the job, so the job
+   *  page's Save agrees with the feed card's. */
+  saved?: boolean;
 };
 
 /** What `Posting` has no field for: the two facts a company posting still
@@ -147,6 +150,7 @@ function fromRecommendation(source: Recommendation, extra: SeekerExtra): JobPost
     qualifications: extra.qualifications,
     match: source.match,
     highlights: source.highlights,
+    saved: source.saved,
   };
 }
 

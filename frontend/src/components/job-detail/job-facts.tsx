@@ -1,10 +1,10 @@
 import {
-  AwardIcon,
   BriefcaseIcon,
   CalendarIcon,
   CoinIcon,
-  MonitorIcon,
+  LevelIcon,
   PinIcon,
+  workStyleIcon,
 } from "@/components/icons";
 import { Fact } from "@/components/ui/fact";
 
@@ -17,11 +17,12 @@ import type { JobPosting } from "./data";
  * now separates the title from this row and the rail beside it together,
  * rather than each owning a fragment of it.
  *
- * The same six facts, in the same order, as `RecommendationCard`'s grid on
- * the seeker feed — location, job type, salary, work style, level, starts —
- * because this is the expanded view of the same posting that card is a row
- * for, and a detail page that describes a job differently than its own card
- * does is the inconsistency a "detail" view exists to resolve, not add.
+ * Location, job type, salary, work style and level draw the same glyphs as
+ * `JobPostingCard` on the seeker feed (see the job facts note in
+ * components/icons.tsx), because this is the expanded view of the same
+ * posting that card is a row for, and a detail page that describes a job
+ * differently than its own card does is the inconsistency a "detail" view
+ * exists to resolve, not add. The sixth fact is when it starts.
  */
 export function JobFacts({ posting }: { posting: JobPosting }) {
   return (
@@ -29,8 +30,8 @@ export function JobFacts({ posting }: { posting: JobPosting }) {
       <Fact Icon={PinIcon}>{posting.locationCity}</Fact>
       <Fact Icon={BriefcaseIcon}>{posting.jobType}</Fact>
       <Fact Icon={CoinIcon}>{posting.salary}</Fact>
-      <Fact Icon={MonitorIcon}>{posting.workStyle}</Fact>
-      <Fact Icon={AwardIcon}>{posting.level}</Fact>
+      <Fact Icon={workStyleIcon(posting.workStyle)}>{posting.workStyle}</Fact>
+      <Fact Icon={LevelIcon}>{posting.level}</Fact>
       <Fact Icon={CalendarIcon}>{posting.starts}</Fact>
     </div>
   );

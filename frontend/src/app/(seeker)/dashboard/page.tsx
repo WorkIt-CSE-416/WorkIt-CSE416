@@ -10,7 +10,7 @@ import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
 import { Activity } from "./activity";
 import { ACTIVITY, PIPELINE, RANGES, STATS, UP_NEXT, parseRange } from "./data";
-import { NewMatches } from "./new-matches";
+import { NewMatches, NewMatchesSkeleton } from "./new-matches";
 import { NextUpHero } from "./next-up-hero";
 import { Pipeline } from "./pipeline";
 import { RangeSwitch } from "./range-switch";
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
  *   Next up         the one solid colour: a violet card with the single most
  *                   pressing commitment, where the eye lands first
  *   Activity, lists open sections under plain headings
- *   the pipeline    a lavender band of small white cards with coloured
+ *   the pipeline    a grey band of small white cards with coloured
  *                   badges and a violet "Full board" tile
  *
  * so the page reads as a layout rather than a grid of containers. Whitespace
@@ -49,7 +49,11 @@ export const metadata: Metadata = {
  * backend; New matches is the live feed.
  *
  * Columns break on @container/main, the page's own width, since the panel
- * takes 256px of the window when open.
+ * takes 256px of the window when open. What lives inside one of those columns
+ * breaks on the column instead: the headline numbers go four across at
+ * @lg/kpis and Up next moves its dates at @md/upnext. Keyed to the page, the
+ * numbers went four across in a 3fr column too narrow for them, and "Response
+ * rate" wrapped and dropped its value below the other three.
  */
 const STAT_ICONS = [BriefcaseIcon, MailIcon, CalendarIcon, AwardIcon];
 
@@ -63,7 +67,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div className="grid grid-cols-1 items-stretch gap-8 @4xl/main:grid-cols-[3fr_2fr]">
-        <div className="flex flex-col">
+        <div className="@container/kpis flex flex-col">
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div>
               {firstName ? (
@@ -77,7 +81,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             <RangeSwitch current={range} />
           </header>
 
-          <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-6 pt-8 @xl/main:grid-cols-4">
+          <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-6 pt-8 @lg/kpis:grid-cols-4">
             {STATS[range].map((stat, i) => (
               <StatTile
                 key={stat.label}
@@ -110,7 +114,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       </div>
 
       <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
-        <Suspense fallback={<div className="min-h-64" />}>
+        <Suspense fallback={<NewMatchesSkeleton />}>
           <NewMatches />
         </Suspense>
         <Waiting />
