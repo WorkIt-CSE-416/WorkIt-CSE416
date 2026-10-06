@@ -15,9 +15,10 @@ import { Card } from "@/components/ui/card";
  * generalised: every page that grows a real layout stops importing it, and the
  * file goes when the last one does.
  *
- * The heading block matches what the built seeker screens use — text-heading
- * over text-body in ink-meta, inside the same max-w-app container — so a stub
- * and a finished screen line up when you click between them.
+ * The heading block matches what the built seeker screens use (text-heading
+ * over text-body in ink-meta, inside the same max-w-app container and the same
+ * gutter as every built company page), so a stub and a finished screen line
+ * up when you click between them.
  *
  * It is a <div> rather than a <main>: the company shell's SidebarInset is the
  * <main> for every screen under /company, and a page cannot nest a second one
@@ -34,12 +35,12 @@ type PlaceholderProps = {
 
 export function Placeholder({ title, description, children }: PlaceholderProps) {
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
+    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
       <h1 className="text-heading text-ink">{title}</h1>
       <p className="text-body text-ink-meta mt-1">{description}</p>
 
       <Card className="mt-4 border-dashed" elevated={false}>
-        <p className="text-note text-ink-faint">Not built yet — route and shell only.</p>
+        <p className="text-note text-ink-meta">Not built yet: route and shell only.</p>
         {children ? <div className="text-body text-ink-meta mt-2">{children}</div> : null}
       </Card>
     </div>

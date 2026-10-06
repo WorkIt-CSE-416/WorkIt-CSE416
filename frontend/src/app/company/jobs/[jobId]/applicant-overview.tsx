@@ -5,13 +5,15 @@ import { formatDate } from "@/lib/format-date";
 /**
  * The company-side right rail, filling the seeker page's `MatchRail(standalone)`
  * slot in `JobDetailHeader` — a rounded card of its own, the same width, so
- * the two page variants read as one layout rather than two.
+ * the two page variants read as one layout rather than two. Like the match
+ * rail it takes that width at the header card's `@xl`, and stacks full width
+ * under the facts on a narrower card.
  */
 export function ApplicantOverviewPanel({ posting }: { posting: JobPosting }) {
   return (
     <aside
       aria-label="Applicant overview"
-      className="bg-well border-border-subtle rounded-card flex shrink-0 flex-col gap-3 border p-4 md:w-52"
+      className="bg-well border-border-subtle rounded-card flex shrink-0 flex-col gap-3 border p-4 @xl:w-52"
     >
       <h2 className="text-title text-ink">Applicants</h2>
 

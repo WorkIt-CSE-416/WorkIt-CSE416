@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { SectionLink } from "@/components/ui/section-link";
 
 import { ApplicantsPreview } from "./applicants-preview";
 import { NEEDS_ATTENTION } from "./data";
@@ -86,7 +87,7 @@ export default function CompanyHomePage() {
      * those consumers re-render when the window changes; every snapshot card
      * below was rendered on the server and stays exactly as it was. */
     <RangeProvider>
-      <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+      <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-heading text-ink">Hiring Overview</h1>
@@ -136,7 +137,11 @@ export default function CompanyHomePage() {
           <Card padding="md" className="flex flex-col">
             <SectionHeading
               as="h2"
-              action={<ButtonLink href="/company/applicants">View all</ButtonLink>}
+              action={
+                <SectionLink href="/company/applicants" label="View all applicants">
+                  View all
+                </SectionLink>
+              }
             >
               Status by Role
             </SectionHeading>
@@ -160,16 +165,13 @@ export default function CompanyHomePage() {
 
             <ul className="mt-4 flex flex-1 flex-col justify-between gap-2.5">
               {NEEDS_ATTENTION.map(({ id, role, need, waitingDays }) => (
-                <li
-                  key={id}
-                  className="border-border-subtle bg-well rounded-control flex items-start gap-3 border p-3"
-                >
+                <li key={id} className="bg-well rounded-control flex items-start gap-3 p-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-label text-ink truncate">{role}</p>
                     <p className="text-note text-ink-meta mt-0.5">{need}</p>
                   </div>
 
-                  <Badge variant="status" tone={waitingDays >= 4 ? "brand" : "neutral"}>
+                  <Badge variant="status" tone={waitingDays >= 4 ? "warning" : "inert"}>
                     {waitingDays}d
                   </Badge>
                 </li>
@@ -193,7 +195,11 @@ export default function CompanyHomePage() {
         <Card padding="md" className="mt-6">
           <SectionHeading
             as="h2"
-            action={<ButtonLink href="/company/applicants">Review queue</ButtonLink>}
+            action={
+              <SectionLink href="/company/applicants" label="View all applicants">
+                View all
+              </SectionLink>
+            }
           >
             Recent applicants
           </SectionHeading>

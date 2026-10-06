@@ -8,6 +8,8 @@ import {
 } from "@/components/shadcn/table";
 import { Avatar } from "@/components/avatar";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/cn";
+
 import { STAGE_TONE, type Stage } from "./applicants/data";
 import { RECENT_APPLICANTS } from "./data";
 
@@ -99,17 +101,26 @@ const STAGE_BY_NAME: Record<string, Stage> = {
   "Tom Whitfield": "Applied",
 };
 
+/** The full list's heading style (its SortHeader), not shadcn's 14px ink. */
+const TH = "px-4 text-note text-ink-meta font-medium";
+
 export function ApplicantsPreview() {
   return (
-    <div className="border-border-subtle mt-4 overflow-hidden rounded-[8px] border">
+    /* No frame of its own. It sits in a bordered Card already, and a second
+     * rounded border inside it drew a box in a box; the rules between rows
+     * are enough to read it as a table. */
+    <div className="mt-4">
       <Table className="min-w-[34rem]">
+        {/* Heading style follows the full list at /company/applicants: 12px
+            ink-meta, Stage second as it is there so a phone sees it without
+            scrolling, Stage and Applied centred over their values. */}
         <TableHeader>
           <TableRow>
-            <TableHead className="px-4">Applicant</TableHead>
-            <TableHead className="px-4">Role</TableHead>
-            <TableHead className="px-4">Stage</TableHead>
-            <TableHead className="px-4">Applied</TableHead>
-            <TableHead className="px-4 text-right">Match</TableHead>
+            <TableHead className={TH}>Applicant</TableHead>
+            <TableHead className={cn(TH, "text-center")}>Stage</TableHead>
+            <TableHead className={TH}>Role</TableHead>
+            <TableHead className={cn(TH, "text-center")}>Applied</TableHead>
+            <TableHead className={cn(TH, "text-right")}>Match</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -126,6 +137,14 @@ export function ApplicantsPreview() {
                   </span>
                 </TableCell>
 
+                <TableCell className="px-4 text-center">
+                  {stage && (
+                    <Badge variant="status" tone={STAGE_TONE[stage]}>
+                      {stage}
+                    </Badge>
+                  )}
+                </TableCell>
+
                 {/* Capped and truncating, on the reasoning ./table.tsx records:
                     content sizes the column, and the cap decides how far
                     content may push before it gives up its tail. */}
@@ -135,15 +154,7 @@ export function ApplicantsPreview() {
                   </span>
                 </TableCell>
 
-                <TableCell className="px-4">
-                  {stage && (
-                    <Badge variant="status" tone={STAGE_TONE[stage]}>
-                      {stage}
-                    </Badge>
-                  )}
-                </TableCell>
-
-                <TableCell className="text-note text-ink-meta px-4 whitespace-nowrap">
+                <TableCell className="text-note text-ink-meta px-4 text-center whitespace-nowrap">
                   {relative(hoursAgo)}
                 </TableCell>
 
