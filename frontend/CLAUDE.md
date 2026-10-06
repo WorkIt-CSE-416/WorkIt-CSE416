@@ -190,8 +190,8 @@ rearranges itself (the job card) is its own `@container`. Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
 The seeker bar shows the signed-in account's real photo, with the full name
-and email beside it from lg, at 40px like the bar's white round bell and
-search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
+and email beside it from lg, at 40px like the bar's grey-filled round
+bell and search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
 `lib/session.ts`, cached per render, and is a label, not a menu. From xl the
 bar adds a pill for roles posted in the last 24 hours when there are any
 (`(seeker)/status.ts`).

@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
  * since a seeker and a company wait for different news.
  *
  * A 32px circle with a 16px glyph and the hover fill, unless the shell passes
- * its own circle: the seeker bar draws it white with a border, at 40px,
+ * its own circle: the seeker bar fills it light grey with no border, at 40px,
  * matching its phone search magnifier and the account photo. It steps out
  * below sm in both shells, where the bar's room goes to the toggle, the logo
  * and the account.
@@ -34,7 +34,8 @@ export function NotificationsMenu({
   className,
 }: {
   children: ReactNode;
-  /** The seeker bar draws it as a white 40px circle (see (seeker)/bar.ts);
+  /** The seeker bar draws it as a grey-filled 40px circle (see
+   *  (seeker)/bar.ts);
    *  the company bar keeps the bare 32px glyph. */
   className?: string;
 }) {

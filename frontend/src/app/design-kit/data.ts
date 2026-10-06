@@ -168,7 +168,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-border-subtle", role: "Secondary buttons, rules" },
       {
         token: "--color-border-control",
-        role: "Input outline: 3.05:1 on surface, 3.24:1 on panel",
+        role: "Form field outline: 3.05:1 on surface, 3.24:1 on panel (the search pill has none)",
       },
       { token: "--color-border-strong", role: "Dashed dropzone, spent timeline dot" },
     ],

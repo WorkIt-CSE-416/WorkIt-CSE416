@@ -53,9 +53,11 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * offers Sign Out. The proxy only refreshes sessions (see src/proxy.ts); the
  * API checks every token itself, so this is the shell's rule, not security. The logo moved into the panel's header, which
  * now owns the top-left corner; below md, where the panel is a sheet, the bar
- * shows it again beside the toggle. The bell and the phone's search
- * magnifier are white 40px circles (./bar.ts), the photo's size, so the
- * right-hand cluster is one height.
+ * shows it again beside the toggle. The search is a light grey pill and the
+ * bell and the phone's search magnifier are 40px circles in the same grey
+ * (./bar.ts), none of them outlined, all the photo's height, so the bar
+ * reads as one family of soft shapes. The toggle is a bare glyph that takes
+ * the same fill on hover.
  *
  * The search field sits in the shared bar rather than on a page because
  * searching jobs is global. It is a GET form to /search, so Enter lands the
@@ -123,7 +125,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Tooltip>
             <TooltipTrigger
               render={
-                <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-hover size-10 shrink-0 rounded-full [&_svg]:size-4" />
+                <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full [&_svg]:size-4" />
               }
             />
             <TooltipContent>Toggle sidebar</TooltipContent>

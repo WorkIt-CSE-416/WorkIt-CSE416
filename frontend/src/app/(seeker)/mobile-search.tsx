@@ -25,7 +25,7 @@ import { QueryField } from "./search/query-field";
  * form is the bar's own: a GET to /search with the query as ?q, and the field
  * opens holding the current query on a results page, as the bar's does.
  *
- * The bell's white 40px circle (./bar.ts), so the two read as one pair beside
+ * The bell's grey 40px circle (./bar.ts), so the two read as one pair beside
  * the avatar.
  *
  * The sheet is controlled so a search closes it. next/form navigates on the
