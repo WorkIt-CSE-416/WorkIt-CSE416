@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 import { Avatar } from "@/components/avatar";
-import { ArrowRightIcon } from "@/components/icons";
+import { ArrowRightIcon, UserIcon } from "@/components/icons";
 import { getAvatar } from "@/lib/avatar-actions";
-import { getCurrentAccount } from "@/lib/session";
+import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
 import { countNewRoles } from "./status";
 
@@ -56,21 +56,44 @@ export async function SeekerStatusLine() {
  * Who is signed in: the photo (initials when there is none), then the full
  * name over the email, as the reference dashboard shows its account.
  *
- * A label, not a control. It used to open the account menu, whose only rows
- * were Sign Out (or Sign In when signed out); both now live in the panel's
- * General group, so there is nothing left for a menu to hold, and a block
- * that looks clickable and does nothing is worse than one that plainly isn't.
+ * A label, not a control. It used to open the account menu, whose only row
+ * was Sign Out; that now lives in the panel's General group, so there is
+ * nothing left for a menu to hold, and a block that looks clickable and does
+ * nothing is worse than one that plainly isn't.
  *
  * The name and email show from lg, where the bar has room for them beside
  * the search field (the new-roles pill steps out until xl for the same
  * reason). Below that the photo stands alone and the two lines stay in the
  * accessibility tree, so the bar still says who is signed in. The photo is
- * the bar's 40px, the size of its round bell and search controls. Signed
- * out, it renders nothing: the panel's Sign In row is the way back.
+ * the bar's 40px, the size of its round bell and search controls.
+ *
+ * IT IS ALWAYS THERE. The shell only renders for a signed-in seeker (the
+ * layout sends anyone else to /login), so there is always someone to show.
+ * The name comes from the API's profile row; if /auth/me cannot be reached,
+ * the block falls back to what the session itself knows, a person glyph and
+ * the email, rather than leaving the corner empty.
  */
 export async function SeekerAccount() {
   const account = await getCurrentAccount();
-  if (!account) return null;
+
+  if (!account) {
+    const user = await getSessionUser();
+    return (
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="bg-brand-tint text-brand flex size-10 shrink-0 items-center justify-center rounded-full"
+        >
+          <UserIcon className="size-4" />
+        </span>
+        <div className="sr-only min-w-0 lg:not-sr-only">
+          <p className="text-label text-ink max-w-48 truncate font-semibold">Signed In</p>
+          {user?.email && <p className="text-note text-ink-meta max-w-48 truncate">{user.email}</p>}
+        </div>
+      </div>
+    );
+  }
+
   const avatar = await getAvatar();
 
   return (

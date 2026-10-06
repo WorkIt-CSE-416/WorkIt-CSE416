@@ -1,13 +1,14 @@
 import { cookies } from "next/headers";
 import Form from "next/form";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { Logo } from "@/components/logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { getAccessToken } from "@/lib/session";
+import { getSessionUser } from "@/lib/session";
 
 import { SeekerAccount, SeekerStatusLine } from "./account-status";
 import { BAR_CIRCLE } from "./bar";
@@ -44,7 +45,13 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * THE BAR holds the toggle, the job search and, on the right, the account:
  * the new-roles status when there is news (from xl), the bell, and the photo
  * with the full name and email beside it from lg. That last is a label, not
- * a menu: Sign In and Sign Out are rows in the panel's General group. The logo moved into the panel's header, which
+ * a menu: Sign Out is a row in the panel's General group.
+ *
+ * SIGNED OUT, NOTHING HERE RENDERS: the layout sends the visitor to /login
+ * before drawing anything, because every screen behind it is someone's own
+ * search. So the bar always has an account to show and the panel always
+ * offers Sign Out. The proxy only refreshes sessions (see src/proxy.ts); the
+ * API checks every token itself, so this is the shell's rule, not security. The logo moved into the panel's header, which
  * now owns the top-left corner; below md, where the panel is a sheet, the bar
  * shows it again beside the toggle. The bell and the phone's search
  * magnifier are white 40px circles (./bar.ts), the photo's size, so the
@@ -68,10 +75,12 @@ import { SeekerSidebar } from "./seeker-sidebar";
  */
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Every seeker screen is for a signed-in seeker, so the shell never draws
+  // a signed-out state: no account, no shell. Verified claims rather than
+  // /auth/me, so the check never waits on the API.
+  if (!(await getSessionUser())) redirect("/login");
+
   const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false";
-  // Read from the session cookie, not /auth/me, so the panel's Sign In or
-  // Sign Out row never waits on the API.
-  const signedIn = (await getAccessToken()) != null;
 
   return (
     /* h-svh makes this row the window, so the only thing left to scroll is
@@ -102,7 +111,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </a>
 
       <SeekerSidebar
-        signedIn={signedIn}
         card={
           <Suspense fallback={null}>
             <ProfileStrength />

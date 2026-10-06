@@ -200,10 +200,11 @@ strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
 The seeker panel groups its rows under two captions: Menu (Dashboard, Jobs,
-Applications, My Profile) and General (Settings, Help, and Sign Out or Sign
-In, picked from the session cookie so the panel never waits on the API). That
-row is the seeker's only way in or out; `account-menu.tsx` is the company
-bar's alone. The company panel keeps
+Applications, My Profile) and General (Settings, Help, Sign Out). Sign Out is
+the seeker's only way out; `account-menu.tsx` is the company bar's alone. The
+seeker layout redirects to /login when `getSessionUser()` finds no session,
+so the shell never draws a signed-out state and the bar's account block is
+always filled (from the session's email if /auth/me is down). The company panel keeps
 Settings alone in its footer, and its account menu holds only the account
 header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.
