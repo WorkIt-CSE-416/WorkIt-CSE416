@@ -41,7 +41,7 @@ class AccountType(StrEnum):
     COMPANY = "company"
 
 class CompanySignup(BaseModel):
-    ''' 
+    '''
     stores checks and normalizations for company field in post request
     '''
     model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
@@ -51,21 +51,18 @@ class CompanySignup(BaseModel):
     contact_phone: str | None = Field(None, alias="contactPhone", max_length=30)
     size_range: company_size_range = Field(alias="sizeRange")
 
-class SignupRequest(BaseModel):
-    """POST body for signup. Mirrors frontend/src/app/signup/page.tsx's form
-    exactly — name, email, password — with one deliberate omission:
-    confirmPassword never reaches here. It's a client-side match check only
-    (see that file's own docblock); sending it to the API would just be a
-    second, redundant place the same rule could drift out of sync."""
+
+class AccountTypeSelection(BaseModel):
+    """Which account table a request is for, plus the company fields when it
+    is one. Split out from SignupRequest so /auth/oauth/account-type — which
+    has no email or password to collect, Supabase Auth already has those from
+    the identity provider — can share the same validation rather than
+    re-stating it."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     account_type: AccountType = Field(alias="accountType")
-    full_name: str = Field(alias="name", min_length=1, max_length=50)
-    email: NormalizedEmail
-    password: str = Field(min_length=8)
-    # company sign up 
-    company: CompanySignup | None = None 
+    company: CompanySignup | None = None
 
     @model_validator(mode="after")
     def company_matches_account_type(self):
@@ -77,6 +74,18 @@ class SignupRequest(BaseModel):
         if self.account_type is AccountType.APPLICANT and self.company is not None:
             raise ValueError("company is only accepted for a company signup")
         return self
+
+
+class SignupRequest(AccountTypeSelection):
+    """POST body for signup. Mirrors frontend/src/app/signup/page.tsx's form
+    exactly — name, email, password — with one deliberate omission:
+    confirmPassword never reaches here. It's a client-side match check only
+    (see that file's own docblock); sending it to the API would just be a
+    second, redundant place the same rule could drift out of sync."""
+
+    full_name: str = Field(alias="name", min_length=1, max_length=50)
+    email: NormalizedEmail
+    password: str = Field(min_length=8)
 
 
 class AuthenticatedAccount(BaseModel):
@@ -95,3 +104,27 @@ class AuthenticatedAccount(BaseModel):
     # time. exclude=True keeps it out of /auth/me's response: it decides
     # access, and the frontend has no use for it.
     membership_status: profile_status | None = Field(None, exclude=True)
+
+
+class VerifiedIdentity(BaseModel):
+    """What a verified Supabase access token alone proves, before any
+    profile row is assumed to exist. get_current_account additionally
+    requires the row; get_verified_identity is for the one place that must
+    handle it being absent — completing a Google/LinkedIn sign-in. Supabase
+    creates auth.users itself for an OAuth sign-in, bypassing /auth/signup,
+    so account_type is None and full_name is only ever a best-effort guess
+    from the identity provider until that completion step runs."""
+
+    id: UUID
+    email: EmailStr
+    account_type: AccountType | None
+    full_name: str | None
+
+
+class OAuthStatus(BaseModel):
+    """What GET /auth/oauth/status answers: whether this identity still
+    needs to pick Applicant or Company (a first-time OAuth sign-in), or is
+    already a real account the way /auth/me would see it."""
+
+    needs_account_type: bool
+    account: AuthenticatedAccount | None = None
