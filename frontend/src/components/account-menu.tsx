@@ -82,23 +82,43 @@ type AccountMenuProps = {
    * API could not name them; without it the menu offers Sign In instead.
    */
   onSignOut?: () => void | Promise<void>;
-  /** What the trigger shows, in place of the default 32px avatar. */
+  /** The trigger's accessible name when there is no `name` to build it from.
+   *  Pass the words the trigger shows ("Signed In, account menu") so a voice
+   *  user can say what they see (WCAG 2.5.3); defaults to "Your Account". */
+  label?: string;
+  /** What the trigger shows, in place of the default 32px avatar. Inline
+   *  elements only: the trigger is a <button>, which may not hold a div or a
+   *  p. */
   children?: ReactNode;
 };
 
-export function AccountMenu({ name, email, src, items, onSignOut, children }: AccountMenuProps) {
+export function AccountMenu({
+  name,
+  email,
+  src,
+  items,
+  onSignOut,
+  label = "Your Account",
+  children,
+}: AccountMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         /* Starts with the visible name, so a voice user who says it reaches
          * the button (WCAG 2.5.3). */
-        aria-label={name ? `${name}, account menu` : "Your Account"}
+        aria-label={name ? `${name}, account menu` : label}
         /* cursor-pointer is not redundant: Tailwind v4's preflight sets
          * `cursor: default` on buttons, so a <button> trigger shows an arrow
          * where the <Link> this replaced showed a hand. */
+        /* A passed-in trigger (the seeker's photo, name and email) is a
+         * wide block that opens a menu, so from lg, where the name and email
+         * show, it fills as a pill on hover to read as a control rather than
+         * a label. Below lg it is the photo alone, like the company bar's
+         * avatar. */
         className={cn(
           "focus-visible:ring-brand-ring flex cursor-pointer items-center rounded-full focus-visible:ring-2 focus-visible:outline-none",
-          children && "min-w-0 gap-3 text-left",
+          children &&
+            "lg:hover:bg-hover min-w-0 gap-3 text-left transition-colors lg:py-1 lg:pr-4 lg:pl-1",
         )}
       >
         {children ??

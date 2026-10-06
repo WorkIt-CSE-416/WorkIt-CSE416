@@ -75,7 +75,11 @@ export async function SeekerStatusLine() {
  * the block falls back to what the session itself knows, a person glyph and
  * the email, rather than leaving the corner empty. That fallback still
  * opens the menu with Sign Out, since the session is real even when the API
- * is not answering.
+ * is not answering, and its button is named "Signed In, account menu" after
+ * the words it shows.
+ *
+ * Spans, not a div and paragraphs: the whole block sits inside the menu's
+ * <button>, which may only hold inline content.
  */
 export async function SeekerAccount() {
   const account = await getCurrentAccount();
@@ -83,17 +87,21 @@ export async function SeekerAccount() {
   if (!account) {
     const user = await getSessionUser();
     return (
-      <AccountMenu items={[]} onSignOut={signOut}>
+      <AccountMenu items={[]} onSignOut={signOut} label="Signed In, account menu">
         <span
           aria-hidden="true"
           className="bg-brand-tint text-brand flex size-10 shrink-0 items-center justify-center rounded-full"
         >
           <UserIcon className="size-4" />
         </span>
-        <div className="sr-only min-w-0 lg:not-sr-only">
-          <p className="text-label text-ink max-w-48 truncate font-semibold">Signed In</p>
-          {user?.email && <p className="text-note text-ink-meta max-w-48 truncate">{user.email}</p>}
-        </div>
+        <span className="sr-only min-w-0 lg:not-sr-only">
+          <span className="text-label text-ink block max-w-48 truncate font-semibold">
+            Signed In
+          </span>
+          {user?.email && (
+            <span className="text-note text-ink-meta block max-w-48 truncate">{user.email}</span>
+          )}
+        </span>
       </AccountMenu>
     );
   }
@@ -109,10 +117,12 @@ export async function SeekerAccount() {
       onSignOut={signOut}
     >
       <Avatar name={account.full_name} src={avatar.url} className="text-label size-10" />
-      <div className="sr-only min-w-0 lg:not-sr-only">
-        <p className="text-label text-ink max-w-48 truncate font-semibold">{account.full_name}</p>
-        <p className="text-note text-ink-meta max-w-48 truncate">{account.email}</p>
-      </div>
+      <span className="sr-only min-w-0 lg:not-sr-only">
+        <span className="text-label text-ink block max-w-48 truncate font-semibold">
+          {account.full_name}
+        </span>
+        <span className="text-note text-ink-meta block max-w-48 truncate">{account.email}</span>
+      </span>
     </AccountMenu>
   );
 }
