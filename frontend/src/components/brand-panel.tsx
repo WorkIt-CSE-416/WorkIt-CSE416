@@ -1,7 +1,5 @@
+import { Building2, Search, SquareKanban } from "lucide-react";
 import type { ComponentType } from "react";
-
-import { AwardIcon, BriefcaseIcon, SearchIcon } from "@/components/icons";
-import { cn } from "@/lib/cn";
 
 /**
  * The copy the brand half of an auth screen renders.
@@ -16,7 +14,12 @@ import { cn } from "@/lib/cn";
  * The third point names companies deliberately. Both account types sign in
  * (or sign up) through the one form on the right, so a panel that only spoke
  * to seekers would tell half of the people reading it they were on the wrong
- * screen.
+ * screen. It says "sign in here too", not "the same account": they are two
+ * account types, and signing in on the other type's tab is refused.
+ *
+ * The icons are the ones the signed-in app uses for the same ideas: the
+ * search glass, the Applications board's SquareKanban, and the company's
+ * Building2.
  */
 type Pillar = {
   Icon: ComponentType<{ className?: string }>;
@@ -26,19 +29,19 @@ type Pillar = {
 
 const pillars: Pillar[] = [
   {
-    Icon: SearchIcon,
+    Icon: Search,
     title: "Search by what the job asks for",
     body: "Filter on the skills, pay and location in the posting — not on its title.",
   },
   {
-    Icon: BriefcaseIcon,
+    Icon: SquareKanban,
     title: "Every application on one board",
     body: "Follow each role from applied through to offer without a spreadsheet.",
   },
   {
-    Icon: AwardIcon,
-    title: "Hiring? The same account",
-    body: "Companies sign in here too, straight into their applicant pipeline.",
+    Icon: Building2,
+    title: "Hiring? Sign in here too",
+    body: "Company accounts sign in on this page and land in their applicant pipeline.",
   },
 ];
 
@@ -48,12 +51,15 @@ const pillars: Pillar[] = [
  *
  * It is hidden below `lg` rather than stacked above the card. Stacked, it
  * would push the form off a phone screen and make a returning user scroll
- * past the pitch to type a password they already know; the card centred on
- * its own is exactly the screen KAN-43 shipped with, so narrow viewports lose
- * nothing.
+ * past the pitch to type a password they already know; the card on its own
+ * is the screen KAN-43 shipped with, so narrow viewports lose nothing.
  *
- * The two halves are `flex-1` siblings, which is `flex: 1 1 0%` — equal
- * widths regardless of which side's content is taller or wider. The card
+ * The split is 5:7 on both screens: this panel is `lg:flex-[5]` and each
+ * page's right column is `lg:flex-[7]`, both with a 0 basis, so neither
+ * side's content moves the divide. The panel's share is set here rather than
+ * at the call sites so /login and /signup cannot disagree; at 1:1 and 5:7
+ * they put the violet edge 91px apart. The ratio divides what is left after
+ * each side's padding, so at 1280px the panel is about 569px wide. The card
  * keeps its own border and shadow: it is the same card, moved, not a panel
  * welded to a wall.
  *
@@ -62,31 +68,22 @@ const pillars: Pillar[] = [
  * reversed asset to sit on brand blue, and two logos on one screen is one too
  * many.
  *
+ * Its text is paragraphs, not headings. The copy is decorative, and as an h2
+ * and three h3s it came before the card's h1, so a screen reader moving by
+ * heading started in the pitch instead of at "Welcome Back".
+ *
  * Promoted from login/brand-panel.tsx the day signup became a second
  * consumer — same reasoning as this file's siblings (nav-link, account-menu).
- *
- * `className` exists so signup can hand it a smaller flex-grow than login's
- * default 1:1 split — its card carries more fields and wants the room. The
- * override is `lg:`-prefixed, same as the panel's own `lg:flex`, so it wins
- * on the cascade rather than needing cn() to drop the base `flex-1`: Tailwind
- * emits responsive rules after the unprefixed ones, so `lg:flex-[…]` beats
- * `flex-1` at the breakpoint where either could apply — the same reasoning
- * that makes plain `w-full lg:w-1/2` work anywhere else in this codebase.
  */
-export function BrandPanel({ className }: { className?: string }) {
+export function BrandPanel() {
   return (
-    <section
-      className={cn(
-        "bg-brand text-on-brand hidden flex-1 flex-col justify-center gap-9 p-12 lg:flex",
-        className,
-      )}
-    >
+    <section className="bg-brand text-on-brand hidden flex-col justify-center gap-9 p-12 lg:flex lg:flex-[5]">
       <div className="max-w-md">
-        <h2 className="text-display">Find the work. Track the search.</h2>
+        <p className="text-display">Find the work. Track the search.</p>
         {/* 80% white rather than a token: the ink scale is built for light
          * grounds and has no role for secondary text on a brand fill. */}
         <p className="text-body text-on-brand/80 mt-3">
-          One account for the people applying and the teams hiring.
+          One place for the people applying and the teams hiring.
         </p>
       </div>
 
@@ -97,7 +94,7 @@ export function BrandPanel({ className }: { className?: string }) {
               <Icon className="size-4.5" />
             </span>
             <div>
-              <h3 className="text-subtitle">{title}</h3>
+              <p className="text-subtitle">{title}</p>
               <p className="text-body text-on-brand/80 mt-1">{body}</p>
             </div>
           </li>

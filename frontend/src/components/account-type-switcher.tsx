@@ -65,7 +65,11 @@ export function AccountTypeSwitcher({
           if (next) setType(next as AccountTypeValue);
         }}
         aria-label="Account type"
-        spacing={0}
+        /* 0.5, not 0: a 2px gap that matches the track's p-0.5. Spacing 0
+         * switches on the vendored item's joined-segment rules, which square
+         * the inner corners of the pressed fill and outrank a className
+         * radius. */
+        spacing={0.5}
         size="lg"
         /* The top margin is here rather than at the call site because the
          * fragment has no element to hang it on, and this control has exactly
@@ -82,8 +86,9 @@ export function AccountTypeSwitcher({
              * card is the submit button, and a chosen segment is not a second
              * action. The label darkens to --color-brand-ink because plain
              * --color-brand on this tint measures 4.43:1 — see the note in
-             * globals.css. */
-            className="text-body text-ink-muted hover:text-ink aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex-1 rounded-[6px]"
+             * globals.css. 5px is the track's inner radius (its 8px less the
+             * 1px border and 2px padding), so the fill nests inside it. */
+            className="text-body text-ink-muted hover:text-ink aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex-1 rounded-[5px]"
           >
             {label}
           </ToggleGroupItem>

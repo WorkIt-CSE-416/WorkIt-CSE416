@@ -77,7 +77,10 @@ src/app/          App Router routes, layouts, pages
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
   logo.tsx        The WorkIt logo — picks lockup or icon per size
-  icons.tsx       Glyphs used by more than one route
+  icons.tsx       Glyphs used by more than one route, as thin wrappers over
+                  Lucide at its default stroke (the brand marks stay drawn).
+                  A per-route icons.tsx still drawn by hand moves to Lucide
+                  when it is next touched
   avatar.tsx      Profile photo when given `src`, initials otherwise
   company-logo.tsx  A company's job-board logo via next/image, falling back
                   to <Avatar> initials. Its hosts are allow-listed in
@@ -86,13 +89,20 @@ src/components/   Shared components
   app-sidebar.tsx The left panel both shells use: shadcn's Sidebar with
                   WorkIt's row spacing and current-item marking. Each shell
                   passes its own groups and its bar's height as the offset
+  sidebar-brand.tsx  The bar's corner cell: the panel toggle and the logo, as
+                  wide as the panel below it. Shared by both shells
+  notifications-menu.tsx  The bar's bell, a popover holding an empty state.
+                  Shared by both shells
+  save-button.tsx The one Save control on every job surface
   nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
-  account-menu.tsx  The avatar dropdown; each shell passes its own items
+  account-menu.tsx  The avatar dropdown: name and email header, then Sign Out
+                  (Sign In when signed out)
   ui/             Presentational primitives: badge, button, card, company-tile,
                   empty-state, fact, filter-chip, icon-button, search-field,
-                  section-heading, select-field, text-field, text-link
+                  section-heading, section-link, select-field, text-field,
+                  text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
@@ -150,10 +160,12 @@ the company side rather than a second invisible group. It also means the auth
 guard is one path check covering routes nobody has written yet.
 
 The two shells are separate layouts on purpose. Their shared parts are shared
-components — the panel is `app-sidebar.tsx`, the account menu and search field
-are in `src/components` — and what is left is each bar's search, its account
-items and the company's post button. Lift a `<TopBar>` out only if they are
-still near-identical once both sides are real screens.
+components (the panel is `app-sidebar.tsx`; the corner cell, the bell, the
+account menu and the search field are in `src/components`), and what is left
+is each bar's search target and copy. Each bar's search is a GET `next/form`
+to its own results page: `/search` for a seeker, `/company/applicants` for a
+company. Lift a `<TopBar>` out only if they are still near-identical once both
+sides are real screens.
 
 Seeker pages break on the width they actually get, not the window's: the shell
 makes its scroller `@container/main`, because an open panel takes 256px. A
@@ -168,7 +180,9 @@ The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-Settings lives in the panel's footer, not the account menu.
+In both shells Settings lives in the panel's footer, not the account menu,
+which holds only the account header and Sign Out. The company bar's Sign Out
+is real, but its name is still hard-coded in `company/layout.tsx`.
 
 `components/stat-tile.tsx` is shared by both dashboards; the seeker one uses
 its `plain` variant. The seeker Dashboard gives each kind of content its own
@@ -272,8 +286,9 @@ side:
 - `signup/actions.ts` calls `POST /auth/signup` — **not**
   `supabase.auth.signUp()`, which can only write `user_metadata`, a field the
   user can edit, so it cannot be trusted with the account type — and then
-  signs in. The Company tab asks Create Company or Join a Company first
-  (`signup/signup-form.tsx`). Create Company sends the owner's fields plus a
+  signs in. The Company tab opens on Create Company; Join a Company is shown
+  disabled with a Soon badge until it has a form (`signup/signup-form.tsx`).
+  Create Company sends the owner's fields plus a
   nested `company` object (name, websiteUrl, contactEmail, contactPhone,
   sizeRange — a `company_size_range` value from `backend/app/models/dto.py`),
   sent only when `accountType` is `company`. The API creates the company and
@@ -290,7 +305,8 @@ side:
   providers (`google`, `linkedin_oidc` — backend/CLAUDE.md's Auth section has
   the dashboard setup). `src/lib/oauth-actions.ts`'s `signInWithOAuth` server
   action, bound to each provider, backs the Google/LinkedIn buttons on both
-  `/login` and `/signup`; it calls Supabase's own `signInWithOAuth()` with
+  `/login` and `/signup` (one shared row, `components/auth-alternatives.tsx`,
+  so the two cards cannot drift apart); it calls Supabase's own `signInWithOAuth()` with
   `skipBrowserRedirect: true` and redirects to the URL it returns, since a
   Server Action can't navigate the browser itself. The provider sends the
   browser back to `src/app/auth/callback/route.ts`, which exchanges the code
@@ -346,9 +362,9 @@ opens a file picker restricted to JPEG/PNG/WebP; the file is checked against
 `avatar-rules.ts`, previewed immediately, and sent through `uploadAvatar`,
 rolling back on failure. The API re-encodes it to a 512px WebP and returns a
 signed URL valid for an hour — so it is fetched per page load, never stored.
-`backend/db/avatar.md` owns the formats, limits and why. The top-bar avatar
-in `account-menu.tsx` still shows initials; wiring it means fetching the URL
-in the shell layout.
+`backend/db/avatar.md` owns the formats, limits and why. The seeker bar
+fetches it per render (`(seeker)/account-status.tsx`); the company bar still
+shows initials.
 
 **The upload limit is in three places that must agree:** the API's
 `MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES` here, and `serverActions.bodySizeLimit`
