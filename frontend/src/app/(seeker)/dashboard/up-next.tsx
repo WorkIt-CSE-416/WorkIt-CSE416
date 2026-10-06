@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 
-import { When } from "../local-time";
+import { DayLink, When } from "../local-time";
 import { KIND_STAGE, STAGE_COLOR, STAGE_ICON } from "../stage-colors";
 import type { UpNextItem } from "./data";
 import { SectionHeader } from "./section-header";
@@ -29,7 +29,11 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
       <SectionHeader
         id="up-next"
         title="Up Next"
-        link={{ href: "/applications", text: "View All", label: "View All Applications" }}
+        link={{
+          href: "/calendar?view=agenda",
+          text: "View All",
+          label: "View All in the Calendar Agenda",
+        }}
       />
 
       <ul className="mt-3 flex flex-col">
@@ -40,7 +44,7 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
           return (
             <li
               key={item.id}
-              className="border-border-subtle flex items-center gap-3 border-b py-3 last:border-b-0"
+              className="border-border-subtle relative flex items-center gap-3 border-b py-3 last:border-b-0"
             >
               <span
                 className={cn(
@@ -57,7 +61,15 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
                   company cut to "TechNova I…". */}
               <div className="min-w-0 flex-1 @md/upnext:flex @md/upnext:items-center @md/upnext:gap-3">
                 <div className="min-w-0 @md/upnext:flex-1">
-                  <p className="text-label text-ink truncate font-semibold">{item.title}</p>
+                  {/* The row opens its day in the Calendar's Agenda: the title
+                      is the link, stretched over the row. */}
+                  <DayLink
+                    at={item.at}
+                    view="agenda"
+                    className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+                  >
+                    {item.title}
+                  </DayLink>
                   <p className="text-note text-ink-meta truncate">
                     {item.role} · {item.company}
                   </p>

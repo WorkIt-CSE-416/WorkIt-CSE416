@@ -51,11 +51,15 @@ export function DetailPanel({
   tile,
   steps,
   closeHref,
+  footer,
 }: {
   application: PanelApplication;
   tile: ReactNode;
   steps: TimelineStep[];
   closeHref: string;
+  /** The way on from the page it was opened over: Show on Calendar from
+   *  Applications, Open in Applications from the Calendar. */
+  footer?: ReactNode;
 }) {
   const router = useRouter();
   const { stage } = application;
@@ -104,6 +108,8 @@ export function DetailPanel({
             ))}
           </ol>
         </div>
+
+        {footer && <div className="border-border-subtle border-t p-4">{footer}</div>}
       </SheetContent>
     </Sheet>
   );

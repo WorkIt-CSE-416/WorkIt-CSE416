@@ -1,7 +1,7 @@
 import { CalendarIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
-import { When } from "../local-time";
+import { DayLink, When } from "../local-time";
 import type { TrackerEvent } from "../tracker";
 
 /**
@@ -23,8 +23,12 @@ import type { TrackerEvent } from "../tracker";
  * would make that row taller than the rest. The cards let a label wrap.
  *
  * The caller picks the event (`nextEvent` in ../tracker.ts) and the date is
- * printed in the viewer's own time by <When>, so this stays a plain component
- * the server views and the client detail panel can both render.
+ * printed in the viewer's own time by <When>.
+ *
+ * The step is a link to its week on the Calendar. It sits inside a card whose
+ * role link is stretched over the whole card, so it is `relative`: a
+ * positioned box later in the card paints over that link and takes its own
+ * clicks.
  */
 export function NextStep({
   next,
@@ -39,14 +43,23 @@ export function NextStep({
     <div className={cn("flex min-h-8 items-start gap-2", className)}>
       <CalendarIcon className="text-ink-meta mt-0.5 size-3.5 shrink-0" />
       {next ? (
-        <div className="min-w-0">
-          <p className={cn("text-note text-ink font-medium", truncate && "truncate")}>
+        <DayLink
+          at={next.at}
+          view="week"
+          className="group/step focus-visible:ring-brand-ring relative min-w-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <span
+            className={cn(
+              "text-note text-ink block font-medium group-hover/step:underline",
+              truncate && "truncate",
+            )}
+          >
             {next.title}
-          </p>
-          <p className={cn("text-note text-ink-meta", truncate && "truncate")}>
+          </span>
+          <span className={cn("text-note text-ink-meta block", truncate && "truncate")}>
             <When at={next.at} />
-          </p>
-        </div>
+          </span>
+        </DayLink>
       ) : (
         <p className="text-note text-ink-meta">Nothing scheduled</p>
       )}

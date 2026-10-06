@@ -7,8 +7,8 @@ import type { EventKind } from "./tracker";
 
 /**
  * One colour per stage of a search, for every screen that shows one (the
- * Applications board, grid, list and detail panel, and the Dashboard's Up
- * Next) so a colour means the same stage wherever it appears:
+ * Applications board, grid, list and detail panel, the Dashboard's Up Next,
+ * and the Calendar) so a colour means the same stage wherever it appears:
  *
  *   saved         grey    not applied yet
  *   applied       violet  the brand: in, and waiting

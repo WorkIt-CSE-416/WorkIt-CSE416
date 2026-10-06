@@ -89,7 +89,11 @@ src/app/          App Router routes, layouts, pages
                   URL (applications/query.ts), ?app= opening one application
                   in the detail panel. tracker.ts is the tracker's shape and
                   date logic; local-time.tsx prints its dates in the
-                  viewer's own zone
+                  viewer's own zone and links them to the Calendar.
+                  /calendar puts the same entries on a Month, Week or
+                  Agenda (calendar/), rendered in the browser.
+                  segmented-links.tsx is the row of link segments the
+                  Calendar's views and the Dashboard's range share
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -242,8 +246,8 @@ The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-The seeker panel holds only the search (Dashboard, Jobs, Applications, My
-Profile), with no caption over it. Settings, Help and Sign Out, once its General
+The seeker panel holds only the search (Dashboard, Jobs, Applications,
+Calendar, My Profile), with no caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
@@ -260,8 +264,12 @@ sections for Activity and the lists. There is no pipeline section: its
 funnel only restated the headline numbers. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real, except Next Up and Up
 Next, which take the tracker fixture's upcoming events (`getUpNext`). Next
-Up's arrow opens that application's detail panel, and Waiting's Follow Up
-opens the list filtered to Applied. Its range is `?range=`, links rather than
+Up's arrow opens that application's detail panel and its date that week on
+the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
+All the Agenda; Waiting's Follow Up opens the Applications list filtered to
+Applied. The stat tiles do not link: their figures are a separate fixture
+from the tracker's twelve applications, so a tile would open a list that
+disagrees with its number. Its range is `?range=`, links rather than
 client state.
 
 The company Dashboard and the seeker Profile follow the same surfaces. On
@@ -276,8 +284,8 @@ variant="section">` for an action. Keep it that way: a page of identical boxes
 has no first place to look. Each page's docblock says what goes where.
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the Dashboard's Up Next and the Applications board, grid, list and detail
-panel alike; on the board the stage tints the column panel, never the cards
+the Dashboard's Up Next, the Applications board, grid, list and detail panel,
+and the Calendar alike; on the board the stage tints the column panel, never the cards
 inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
 interview is Interviewing's amber, an offer Offer's green, a deadline Saved's
 grey, the applied date and a follow-up Applied's violet. The three views also
@@ -302,7 +310,21 @@ viewer's own "Tomorrow, 2:00 PM" after hydration.
 the application open in the detail panel. Links and a GET form, not client
 state, so every view stays a server component and the Dashboard can link to a
 filtered list or one application. A card or row is one link: its role,
-stretched over it.
+stretched over it. Its next step is a second, `relative` link to that week on
+the Calendar, which paints over the stretched one.
+
+**The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
+application went in, interviews, offers and their deadlines, closing dates
+and follow-ups, in their kind's stage colour, with a legend. `?view=` picks
+Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
+`?app=` opens the same detail panel Applications does, with a way across.
+Without `?date=` it opens on the viewer's today, which the server cannot
+know, so the views render in the browser behind a placeholder
+(`calendar-view.tsx`, `useHydrated`). Month chips name the company, since the
+colour already says what kind of entry it is; Week and Agenda name both. A
+link into the Calendar from anywhere else goes through `DayLink` in
+`(seeker)/local-time.tsx`, which picks the viewer's local day the way
+`<When>` picks their words.
 
 A match score has its own colour and never borrows a stage's. The four
 `--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a

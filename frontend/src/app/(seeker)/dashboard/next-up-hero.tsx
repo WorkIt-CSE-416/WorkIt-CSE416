@@ -3,7 +3,7 @@ import Link from "next/link";
 import { HeroArcs } from "@/components/hero-arcs";
 import { ArrowRightIcon, CalendarIcon } from "@/components/icons";
 
-import { When } from "../local-time";
+import { DayLink, When } from "../local-time";
 import type { UpNextItem } from "./data";
 
 /**
@@ -25,7 +25,8 @@ import type { UpNextItem } from "./data";
  *
  * The arrow opens this application's detail panel on /applications, so the
  * one thing that most needs the seeker is one click from its whole timeline.
- * The date is the viewer's own clock (<When>), "Tomorrow, 2:00 PM".
+ * The date is the viewer's own clock (<When>), "Tomorrow, 2:00 PM", and a link
+ * to that week on the Calendar.
  *
  * With nothing coming up it says so and points at the feed, rather than
  * disappearing and leaving a hole beside the numbers.
@@ -61,10 +62,14 @@ export function NextUpHero({ item }: { item: UpNextItem | undefined }) {
 
         <div className="mt-auto flex items-end justify-between gap-4 pt-6">
           {item && (
-            <p className="text-label flex items-center gap-1.5 font-semibold">
+            <DayLink
+              at={item.at}
+              view="week"
+              className="text-label flex items-center gap-1.5 rounded-xs font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+            >
               <CalendarIcon className="size-4 shrink-0" />
               <When at={item.at} />
-            </p>
+            </DayLink>
           )}
 
           <Link

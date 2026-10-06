@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { SearchIcon } from "@/components/icons";
+import { CalendarIcon, SearchIcon } from "@/components/icons";
 import { buttonClasses } from "@/components/ui/button";
 import { CompanyTile } from "@/components/ui/company-tile";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
+import { DayLink } from "../local-time";
 import { STAGE_ORDER, type StageKey } from "../stage-colors";
-import { timelineOf } from "../tracker";
+import { nextEvent, timelineOf } from "../tracker";
 import { ApplicationsBoard } from "./board";
 import { getApplications, getNow } from "./data";
 import { DetailPanel } from "./detail-panel";
@@ -116,6 +117,17 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           tile={<CompanyTile Icon={open.Icon} size="md" tone="outline" />}
           steps={timelineOf(open, now)}
           closeHref={applicationsHref(query, { app: null })}
+          footer={
+            // The week of what it is waiting on, or of when it went in.
+            <DayLink
+              at={nextEvent(open, now)?.at ?? open.appliedOn ?? open.savedOn}
+              view="week"
+              className={buttonClasses({ variant: "secondary", size: "sm" })}
+            >
+              <CalendarIcon className="size-4" />
+              Show on Calendar
+            </DayLink>
+          }
         />
       )}
     </div>

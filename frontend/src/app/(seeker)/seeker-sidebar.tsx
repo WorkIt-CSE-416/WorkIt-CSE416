@@ -1,6 +1,12 @@
 "use client";
 
-import { BriefcaseBusiness, CircleUserRound, LayoutDashboard, SquareKanban } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CalendarDays,
+  CircleUserRound,
+  LayoutDashboard,
+  SquareKanban,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
@@ -23,6 +29,11 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * (and, on a phone, the bar's magnifier), and a row beside that field would
  * be a second, contradictory way to reach it.
  *
+ * Calendar sits after Applications, as the same applications read by date.
+ * Its glyph is CalendarDays, not Calendar: the plain calendar is the
+ * Interviewing stage's glyph (../stage-colors.ts), and a nav row wearing it
+ * would read as a stage.
+ *
  * My Profile is a row rather than something behind the account in the bar:
  * a profile is somewhere a job seeker goes back to all through a hunt, not
  * somewhere they visit once, and a click of depth is the wrong price for
@@ -36,6 +47,7 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
       { href: "/applications", label: "Applications", Icon: SquareKanban },
+      { href: "/calendar", label: "Calendar", Icon: CalendarDays },
       { href: "/profile", label: "My Profile", Icon: CircleUserRound },
     ],
   },
