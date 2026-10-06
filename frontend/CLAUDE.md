@@ -212,8 +212,8 @@ The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-The seeker panel holds only the search, under one caption: Menu (Dashboard,
-Jobs, Applications, My Profile). Settings, Help and Sign Out, once its General
+The seeker panel holds only the search (Dashboard, Jobs, Applications, My
+Profile), with no caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is

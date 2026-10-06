@@ -7,9 +7,9 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
 
 /**
  * The seeker shell's left panel, floating (see FLOATING in
- * @/components/app-sidebar): MENU, the hunt itself, the sections a job
- * seeker moves between all through a search, Dashboard first as the home.
- * These used to be tabs in the top bar.
+ * @/components/app-sidebar): the hunt itself, the sections a job seeker
+ * moves between all through a search, Dashboard first as the home, with no
+ * caption over them. These used to be tabs in the top bar.
  *
  * Nothing about the app rather than the work lives here. Settings, Help and
  * Sign Out were a second group, General, under this one; they moved to the
@@ -31,7 +31,7 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  */
 const GROUPS: SidebarNavGroup[] = [
   {
-    label: "Menu",
+    // No caption: with one group there is nothing to tell it apart from.
     items: [
       { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
