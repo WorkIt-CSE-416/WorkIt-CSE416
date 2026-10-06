@@ -102,7 +102,7 @@ app/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
     auth_users.py Stub of Supabase's auth.users, for foreign keys only
-    jobs.py       Job postings
+    jobs.py       Job postings, company-posted and scraped (NULL `company_id`)
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
     dto.py        Enums and Pydantic schemas (ParsedResume, Education, etc.)
@@ -181,8 +181,10 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   env var is needed (`SCRAPER_FEED` still overrides both). Refresh it by
   running the scraper and copying its `feed.json` here, **in the same commit
   as any change to `schemas/jobs.py`** — a snapshot that no longer validates
-  turns the 503 into a 500. Still open: a scheduled refresh, or moving the
-  rows into a table.
+  turns the 503 into a 500. `job_postings` can hold these rows since
+  `b40588efa7b7` (NULL `company_id`, `app/models/CLAUDE.md`). Still open:
+  an import that upserts the feed into it on `apply_url`, a scheduled run of
+  scraper + import, and pointing `/jobs` at the table.
 - **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
   them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
   4.5–5 MB upload fails on the deployment with a bare 413.

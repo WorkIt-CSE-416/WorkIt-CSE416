@@ -7,9 +7,9 @@ Also the parser for scraper/feed.json, which the scraper writes in exactly this
 shape (scraper/workit_scraper/feed.py). That row and this model are the whole
 contract between the two: add a field to both or neither.
 
-Deliberately not `job_postings`. That table is for roles a company posts on
-WorkIt and requires a company account, a description and a salary, none of
-which a scraped posting has.
+Not read from `job_postings` yet. That table can hold scraped rows since
+b40588efa7b7 (`company_id` NULL, models/CLAUDE.md), but nothing imports the
+feed into it, so GET /jobs still serves the file.
 """
 
 from typing import Literal

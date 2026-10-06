@@ -25,7 +25,7 @@ from app.models.profiles import BaseModel
 class Job_Post(BaseModel):
     '''
     schema for a job posting, one row per job
-    created_at / updated_at come from BaseModel
+    serves both jobs that are scraped (external) or posted by recruiters
     '''
     __tablename__ = "job_postings"
     id:Mapped[uuid.UUID] = mapped_column(
@@ -33,8 +33,7 @@ class Job_Post(BaseModel):
                         default=uuid.uuid4,
                         server_default=text("gen_random_uuid()"))
     
-    # index company id for faster look up/filtering by Company 
-    company_id: Mapped[uuid.UUID] = mapped_column(
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("company_profiles.id", ondelete="CASCADE"),
         index=True
     )
@@ -42,29 +41,26 @@ class Job_Post(BaseModel):
         ForeignKey("company_memberships.id", ondelete="SET NULL"),    # if the recruiter is deleted, job remains
         index=True
     )
+    company_name: Mapped[str | None] = mapped_column(Text)
+    company_logo_url: Mapped[str | None] = mapped_column(Text)
+    apply_url: Mapped[str | None] = mapped_column(Text, unique=True)
 
     title: Mapped[str] = mapped_column(Text)
-    description: Mapped[str] = mapped_column(Text) 
+    description: Mapped[str | None] = mapped_column(Text)
 
-    job_type: Mapped[dto.job_type]
-    experience_level: Mapped[dto.experience_level]
+    job_type: Mapped[dto.job_type | None]
+    experience_level: Mapped[dto.experience_level | None]
     min_years_experience: Mapped[int | None] = mapped_column(SmallInteger)
 
-    work_style: Mapped[dto.work_style]
-    # nullable: "United States" or a country with no ISO subdivisions has no
-    # state.
+    work_style: Mapped[dto.work_style | None]
+    location_raw: Mapped[str | None] = mapped_column(Text)
     location_state: Mapped[str | None]
-    # nullable: a posting may name no location at all. ZZ is for a place the
-    # seed doesn't cover; NULL is for no place given.
-    # own FK because Postgres skips the composite one below once location_state
-    # is NULL, which would leave a country-only row unchecked
     location_country: Mapped[str | None] = mapped_column(ForeignKey("countries.code"))
 
     salary: Mapped[float | None]
     salary_min: Mapped[float | None]
     salary_max: Mapped[float | None]
     
-    # use defaults as backup, but should be defined from backend 
     salary_currency: Mapped[str] = mapped_column(
                         CHAR(3),
                         default="USD",
@@ -73,9 +69,10 @@ class Job_Post(BaseModel):
                         default=dto.salary_period.year,
                         server_default=dto.salary_period.year.name)
     status: Mapped[dto.job_post_status] = mapped_column(
-                        default=dto.job_post_status.draft,
-                        server_default=dto.job_post_status.draft.name)
+                        default=dto.job_post_status.published,
+                        server_default=dto.job_post_status.published.name)
     closes_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    posted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint(
@@ -87,8 +84,13 @@ class Job_Post(BaseModel):
             name="salary_non_negative"
         ),
         CheckConstraint(
-            "salary IS NOT NULL OR (salary_min IS NOT NULL AND salary_max IS NOT NULL)",
-            name= "salary_exist"
+            "company_id IS NULL OR (description IS NOT NULL AND job_type IS NOT NULL"
+            " AND experience_level IS NOT NULL AND work_style IS NOT NULL)",
+            name="company_job_complete"
+        ),
+        CheckConstraint(
+            "company_id IS NOT NULL OR (company_name IS NOT NULL AND apply_url IS NOT NULL)",
+            name="scraped_job_completed"
         ),
 
         ForeignKeyConstraint(

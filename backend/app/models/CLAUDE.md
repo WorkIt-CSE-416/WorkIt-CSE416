@@ -404,9 +404,50 @@ San Francisco / Remote / ""           None
 **What it cannot do.** A city alone ("San Francisco") has no ISO entry; that
 needs city data such as GeoNames `cities15000.txt` (city → country + admin1),
 picking the most populous match for a repeated name. Until then, do not guess
-on a miss: log it, since misses show which aliases to add. `job_postings` has
-no column for the raw text, so an unresolved posting cannot be stored for a
-later retry. Add a `location_raw` column if that matters.
+on a miss: log it, since misses show which aliases to add. Store the posting
+anyway with both codes NULL: `location_raw` (`b40588efa7b7`) keeps the text, so
+it can be resolved again once the resolver learns more.
+
+## job_postings holds company-posted and scraped jobs
+
+One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
+
+- **Set** — posted through the company form by that company.
+- **NULL** — scraped, imported from the scraper's `feed.json`. The employer is
+  `company_name`/`company_logo_url`, and `apply_url` is where the seeker
+  applies. `apply_url` is unique because the scraper dedupes on it, which
+  makes it the key an import upserts on.
+
+Chosen over a separate scraped-jobs table so a seeker feed, search and
+location filter are one query over one table, and saves/applications can
+reference either kind with one foreign key. There is no `source` column on
+purpose: it would only restate whether `company_id` is NULL, and the two
+could disagree. If a company ever claims a scraped job, setting `company_id`
+is what makes it theirs.
+
+**The nullable columns are nullable for scraped rows only.** `company_id`,
+`description`, `job_type`, `experience_level` and `work_style` were
+`NOT NULL`; the `company_job_complete` CHECK still requires the last four when
+`company_id` is set, and `external_job_complete` requires `company_name` and
+`apply_url` when it is not. Add a column one kind needs to the matching CHECK,
+not a bare `NOT NULL`.
+
+**No salary is required at the database level** — `salary_exist` was dropped,
+since job boards rarely state one. `JobPostingCreate` in
+`schemas/company_jobs.py` still requires one from the company form; that is
+a product rule, kept in the API.
+
+**`status` defaults to `published`** in the model and the database, so an
+import that sends no status lists the job at once. The company form always
+sends one (draft unless published), so a company's job is unaffected.
+
+**Company routes stay safe without changes:** they filter on
+`company_id = account.company_id`, which a scraped row's NULL never matches.
+Anything that lists jobs *across* companies must decide whether it wants
+`company_id IS NULL` filtered.
+
+`posted_at` is when the job board says the job went up; `created_at` is when
+the row was stored. Nothing sets `posted_at` for a company's job yet.
 
 ## Identity lives in auth.users
 
