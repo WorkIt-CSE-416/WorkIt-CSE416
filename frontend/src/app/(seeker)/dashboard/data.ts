@@ -1,4 +1,5 @@
-import { COLUMNS } from "../applications/data";
+import { getApplications, getNow } from "../applications/data";
+import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
 
 /**
  * The seeker Dashboard's fixtures: the headline numbers and activity per
@@ -7,7 +8,7 @@ import { COLUMNS } from "../applications/data";
  * New Matches and the profile strength card read the live API instead and
  * live beside the components that fetch them.
  *
- * UP NEXT IS DERIVED FROM THE BOARD'S OWN FIXTURE (../applications/data.ts),
+ * UP NEXT IS DERIVED FROM THE TRACKER'S OWN FIXTURE (../applications/data.ts),
  * not written again here, so the Dashboard and the board name the same
  * companies and the same dates. The season-level numbers below cannot come
  * from it: the board holds twelve cards, which is a week of a search, not a
@@ -131,53 +132,34 @@ export const WAITING: WaitBucket[] = [
 
 /* Up Next ---------------------------------------------------------------- */
 
-export type UpNextKind = "interview" | "offer" | "deadline" | "follow-up";
+/** What Next Up and Up Next list: a tracker entry still ahead, with whose it
+ *  is. Its kind picks its stage colour (KIND_STAGE in ../stage-colors.ts). */
+export type UpNextItem = TrackerEvent;
 
-export type UpNextItem = {
-  kind: UpNextKind;
-  /** "Technical Interview" — the board's "Next: " prefix dropped. */
-  title: string;
-  role: string;
-  company: string;
-  when: string;
-};
-
-/** Which column's next step is which kind, and the order they lead in:
- *  someone waiting on you outranks a deadline, which outranks a nudge. */
-const KIND_BY_COLUMN: Record<string, UpNextKind> = {
-  Interviewing: "interview",
-  Offer: "offer",
-  Saved: "deadline",
-  Applied: "follow-up",
-};
-const KIND_ORDER: UpNextKind[] = ["interview", "offer", "deadline", "follow-up"];
-
-const ALL_NEXT: UpNextItem[] = COLUMNS.flatMap((column) =>
-  column.items
-    .filter((item) => item.next)
-    .map((item) => ({
-      kind: KIND_BY_COLUMN[column.title] ?? "follow-up",
-      title: item.next!.label.replace(/^Next:\s*/, ""),
-      role: item.role,
-      company: item.company,
-      when: item.next!.when,
-    })),
-);
-
-/** The next commitment on the board's cards, five at most, taken a kind at a
- *  time in KIND_ORDER — one of each, then a second of each — so a week full
- *  of interviews can't push a closing deadline off the list. Sorting by kind
- *  alone did exactly that: three interviews and two offers filled all five.
- *  Within a kind they keep the board's own order. The chosen five are then
- *  shown in KIND_ORDER, not in the order they were picked: the interleave put
- *  the second interview last, under a nudge. With this fixture that also reads
- *  soonest first; sort by real timestamps once the tracker supplies them. */
+/** The order kinds are taken in when choosing what to show: someone waiting
+ *  on you outranks a deadline, which outranks a nudge. */
+const KIND_ORDER: EventKind[] = ["interview", "offer", "deadline", "follow-up"];
 const SHOWN = 5;
-const byKind = KIND_ORDER.map((kind) => ALL_NEXT.filter((item) => item.kind === kind));
-export const UP_NEXT: UpNextItem[] = Array.from(
-  { length: Math.max(...byKind.map((items) => items.length)) },
-  (_, round) => byKind.flatMap((items) => (items[round] ? [items[round]] : [])),
-)
-  .flat()
-  .slice(0, SHOWN)
-  .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
+
+/**
+ * What is coming up, five at most: the first becomes the violet Next Up card,
+ * the rest the Up Next list.
+ *
+ * Chosen a kind at a time in KIND_ORDER (the soonest of each, then the
+ * second soonest of each), so a week full of interviews can't push a closing
+ * deadline off the list; taking the five soonest outright did exactly that.
+ * The five chosen are then shown soonest first, by their real times, so Next
+ * Up is always the very next thing whatever its kind.
+ */
+export function getUpNext(): UpNextItem[] {
+  const upcoming = upcomingEvents(getApplications(), getNow());
+  const byKind = KIND_ORDER.map((kind) => upcoming.filter((event) => event.kind === kind));
+  const rounds = Math.max(0, ...byKind.map((events) => events.length));
+
+  return Array.from({ length: rounds }, (_, round) =>
+    byKind.flatMap((events) => (events[round] ? [events[round]] : [])),
+  )
+    .flat()
+    .slice(0, SHOWN)
+    .sort((a, b) => upcoming.indexOf(a) - upcoming.indexOf(b));
+}

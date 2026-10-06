@@ -39,7 +39,13 @@ export function Waiting() {
         title="Waiting to Hear Back"
         link={
           due > 0
-            ? { href: "/applications", text: "Follow Up", label: "Follow Up on Applications" }
+            ? {
+                // The list, filtered to what has been sent and is still
+                // waiting: the applications a follow-up is for.
+                href: "/applications?view=list&stage=applied",
+                text: "Follow Up",
+                label: "Follow Up on Applications",
+              }
             : undefined
         }
       />

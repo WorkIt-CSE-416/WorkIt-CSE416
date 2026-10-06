@@ -83,7 +83,13 @@ src/app/          App Router routes, layouts, pages
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
-                  error state, so a role looks the same on both pages
+                  error state, so a role looks the same on both pages.
+                  /applications is the tracker: a board, grid and list over
+                  the fixture in applications/data.ts, every choice in the
+                  URL (applications/query.ts), ?app= opening one application
+                  in the detail panel. tracker.ts is the tracker's shape and
+                  date logic; local-time.tsx prints its dates in the
+                  viewer's own zone
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -252,8 +258,11 @@ each kind of content its own surface instead of a white card each: the numbers
 open under the greeting, one violet Next Up hero (the only solid colour), open
 sections for Activity and the lists. There is no pipeline section: its
 funnel only restated the headline numbers. Fixtures are in
-`(seeker)/dashboard/data.ts` until the tracker is real. Its range is
-`?range=`, links rather than client state.
+`(seeker)/dashboard/data.ts` until the tracker is real, except Next Up and Up
+Next, which take the tracker fixture's upcoming events (`getUpNext`). Next
+Up's arrow opens that application's detail panel, and Waiting's Follow Up
+opens the list filtered to Applied. Its range is `?range=`, links rather than
+client state.
 
 The company Dashboard and the seeker Profile follow the same surfaces. On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
@@ -267,11 +276,33 @@ variant="section">` for an action. Keep it that way: a page of identical boxes
 has no first place to look. Each page's docblock says what goes where.
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the Dashboard's Up Next and the Applications board, grid and list alike; on the board
-the stage tints the column panel, never the cards inside it. The three views
-also say the same thing about an application: each shows its next step
-through `(seeker)/applications/next-step.tsx` ("Nothing scheduled" when
-there is none). There is no progress bar; it only restated the stage.
+the Dashboard's Up Next and the Applications board, grid, list and detail
+panel alike; on the board the stage tints the column panel, never the cards
+inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
+interview is Interviewing's amber, an offer Offer's green, a deadline Saved's
+grey, the applied date and a follow-up Applied's violet. The three views also
+say the same thing about an application: each shows its next step through
+`(seeker)/applications/next-step.tsx` ("Nothing scheduled" when there is
+none). There is no progress bar; it only restated the stage.
+
+**Application dates are real dates.** The tracker fixture
+(`(seeker)/applications/data.ts`) dates every application against the
+request (`getApplications` and `getNow`, both `cache()`d), on a New York
+clock, so the sample search is always mid-flight; a timed event that lands on
+a weekend moves to the Monday after. The shape is `(seeker)/tracker.ts`, and
+it is what the tracker's backend should return: an ISO instant for something
+at a time, a bare ISO date for something due on a day. The server decides
+what is upcoming against `getNow()` (a day-only entry stays upcoming until
+its day has ended in UTC-12) but never which day an instant falls on: it
+prints the UTC date, and `<When>` in `(seeker)/local-time.tsx` swaps in the
+viewer's own "Tomorrow, 2:00 PM" after hydration.
+
+**The Applications page keeps every choice in its URL** (`applications/query.ts`):
+`?view=`, `?stage=` (a comma list), `?q=`, the list's `?sort=` and `?app=`,
+the application open in the detail panel. Links and a GET form, not client
+state, so every view stays a server component and the Dashboard can link to a
+filtered list or one application. A card or row is one link: its role,
+stretched over it.
 
 A match score has its own colour and never borrows a stage's. The four
 `--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a

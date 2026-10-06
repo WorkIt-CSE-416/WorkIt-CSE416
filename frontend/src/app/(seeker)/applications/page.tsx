@@ -1,55 +1,123 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
-import { FilterIcon } from "@/components/icons";
+import { SearchIcon } from "@/components/icons";
+import { buttonClasses } from "@/components/ui/button";
+import { CompanyTile } from "@/components/ui/company-tile";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui/button";
 
+import { SEEKER_GUTTER } from "../gutter";
+import { STAGE_ORDER, type StageKey } from "../stage-colors";
+import { timelineOf } from "../tracker";
 import { ApplicationsBoard } from "./board";
+import { getApplications, getNow } from "./data";
+import { DetailPanel } from "./detail-panel";
+import { FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
+import { applicationsHref, filterApplications, parseQuery } from "./query";
 import { ViewSwitcher } from "./view-switcher";
-import { parseView } from "./views";
-import { SEEKER_GUTTER } from "../gutter";
 
 export const metadata: Metadata = {
   title: "Applications",
   description: "Track and manage your career progress.",
 };
 
-/* KAN-43 renders the applications mockup only, against the fixture in ./data.
- * Nothing here reads or writes yet, so Filter, the column menus, the bookmarks
- * and the two card actions are all inert on purpose. The mockup's New Entry
- * button has been removed rather than left inert. */
-
+/**
+ * /applications — every application the seeker is tracking, as a board, a
+ * grid or a list, from the tracker fixture in ./data.ts.
+ *
+ * The URL carries all of it (./query.ts): the view, the stage chips and
+ * search in the filter bar, the list's sort, and ?app=, the application open
+ * in the detail panel. So every view stays a server component, and the
+ * Dashboard can link straight to a filtered list or one application.
+ *
+ * Nothing writes yet. The board's column menus and an offer card's button are
+ * still inert, and a card opens its panel rather than an editor.
+ */
 export default async function ApplicationsPage({ searchParams }: PageProps<"/applications">) {
-  const view = parseView((await searchParams).view);
+  const query = parseQuery(await searchParams);
+  const now = getNow();
+  const all = getApplications();
+
+  // The search alone, for the chips' counts: each says what turning its
+  // stage on would show. Then the stages too, for the views.
+  const searched = filterApplications(all, { stages: [], q: query.q });
+  const shown = filterApplications(searched, query);
+  const counts = Object.fromEntries(
+    STAGE_ORDER.map((stage) => [stage, searched.filter((app) => app.stage === stage).length]),
+  ) as Record<StageKey, number>;
+
+  const open = query.app ? all.find((app) => app.id === query.app) : undefined;
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* Wraps below sm, where the title and the controls don't share a
-          line: the controls were shrink-0, so on a phone they pushed past the
-          right edge and the whole page scrolled sideways. items-start, as on
-          the Dashboard, so the controls sit level with the title rather than
-          the subtitle. */}
+      {/* Wraps below sm, where the title and the switcher don't share a
+          line. items-start, as on the Dashboard, so the switcher sits level
+          with the title rather than the subtitle. */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-heading text-ink">My Applications</h1>
           <p className="text-body text-ink-meta mt-1">Track and manage your career progress.</p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
-          <ViewSwitcher current={view} />
-          <Button variant="secondary" size="sm">
-            <FilterIcon className="size-4" />
-            Filter
-          </Button>
-        </div>
+        <ViewSwitcher query={query} />
       </div>
 
-      {view === "grid" && <ApplicationsGrid />}
-      {view === "list" && <ApplicationsList />}
+      <FilterBar query={query} counts={counts} />
 
-      {view === "board" && <ApplicationsBoard />}
+      {shown.length === 0 ? (
+        <EmptyState
+          Icon={SearchIcon}
+          title="No Matching Applications"
+          className="mt-4"
+          action={
+            <Link
+              href={applicationsHref(query, { stages: [], q: "", app: null })}
+              className={buttonClasses({ variant: "secondary", size: "sm" })}
+            >
+              Clear Filters
+            </Link>
+          }
+        >
+          Nothing you&apos;re tracking matches these filters.
+        </EmptyState>
+      ) : (
+        <>
+          {query.view === "board" && (
+            <ApplicationsBoard
+              applications={shown}
+              stages={query.stages.length > 0 ? query.stages : STAGE_ORDER}
+              query={query}
+              now={now}
+            />
+          )}
+          {query.view === "grid" && (
+            <ApplicationsGrid applications={shown} query={query} now={now} />
+          )}
+          {query.view === "list" && (
+            <ApplicationsList applications={shown} query={query} now={now} />
+          )}
+        </>
+      )}
+
+      {open && (
+        <DetailPanel
+          application={{
+            id: open.id,
+            role: open.role,
+            company: open.company,
+            stage: open.stage,
+            status: open.status,
+            summary: open.summary,
+            match: open.match,
+          }}
+          tile={<CompanyTile Icon={open.Icon} size="md" tone="outline" />}
+          steps={timelineOf(open, now)}
+          closeHref={applicationsHref(query, { app: null })}
+        />
+      )}
     </div>
   );
 }

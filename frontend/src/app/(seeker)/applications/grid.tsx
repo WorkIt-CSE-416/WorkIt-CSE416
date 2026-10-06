@@ -1,10 +1,13 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 
-import { STAGE_COLOR } from "../stage-colors";
-import { APPLICATIONS, type StagedApplication } from "./data";
+import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
+import { nextEvent, sinceLabel, type Application } from "../tracker";
 import { NextStep } from "./next-step";
+import { applicationsHref, type ApplicationsQuery } from "./query";
 
 /**
  * The applications as a grid of cards, one card per application.
@@ -41,39 +44,67 @@ import { NextStep } from "./next-step";
  * counts down weeks remaining, which only an offer has here. Ungrouping the
  * board throws away the column headings, so the pill names the stage instead,
  * which is the thing the grid would otherwise stop telling you.
+ *
+ * Like a board card, the whole card opens the application's detail panel:
+ * the role is the link, stretched over the card.
  */
-function GridCard({ item }: { item: StagedApplication }) {
+function GridCard({ item, href, now }: { item: Application; href: string; now: Date }) {
   const { Icon, stage } = item;
 
   return (
-    <Card as="li" padding="none" className="flex flex-col overflow-hidden">
+    <Card
+      as="li"
+      padding="none"
+      className="hover:border-brand/40 relative flex flex-col overflow-hidden transition-colors"
+    >
       <div className="bg-well border-border-subtle flex items-start gap-2 border-b p-3">
         <CompanyTile Icon={Icon} size="sm" tone="outline" />
         <div className="min-w-0 flex-1 @xl/main:min-h-15">
-          <h2 className="text-subtitle text-ink line-clamp-2 leading-5">{item.role}</h2>
+          <h2 className="text-subtitle text-ink line-clamp-2 leading-5">
+            <Link
+              href={href}
+              scroll={false}
+              className="after:rounded-card focus-visible:after:ring-brand-ring after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+            >
+              {item.role}
+            </Link>
+          </h2>
           <p className="text-note text-ink-meta mt-1 truncate">{item.company}</p>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-3">
-        <NextStep next={item.next} />
+        <NextStep next={nextEvent(item, now)} />
 
         {/* mt-auto rather than a fixed margin, so every footer in a row sits on
             one line even if a label above it wraps. */}
         <div className="border-border-subtle mt-auto flex items-center justify-between gap-2 border-t pt-2.5">
-          <p className="text-note text-ink-meta min-w-0 truncate">{item.meta.text}</p>
-          <Badge tone={STAGE_COLOR[stage.stage].tone}>{stage.title}</Badge>
+          <p className="text-note text-ink-meta min-w-0 truncate">{sinceLabel(item)}</p>
+          <Badge tone={STAGE_COLOR[stage].tone}>{STAGE_LABEL[stage]}</Badge>
         </div>
       </div>
     </Card>
   );
 }
 
-export function ApplicationsGrid() {
+export function ApplicationsGrid({
+  applications,
+  query,
+  now,
+}: {
+  applications: Application[];
+  query: ApplicationsQuery;
+  now: Date;
+}) {
   return (
     <ul className="mt-4 grid gap-4 @xl/main:grid-cols-2 @3xl/main:grid-cols-3 @5xl/main:grid-cols-4">
-      {APPLICATIONS.map((item) => (
-        <GridCard key={`${item.company}-${item.role}`} item={item} />
+      {applications.map((item) => (
+        <GridCard
+          key={item.id}
+          item={item}
+          href={applicationsHref(query, { app: item.id })}
+          now={now}
+        />
       ))}
     </ul>
   );

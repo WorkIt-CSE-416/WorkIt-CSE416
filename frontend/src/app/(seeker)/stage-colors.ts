@@ -3,10 +3,12 @@ import type { ComponentType } from "react";
 import { AwardIcon, BookmarkIcon, BriefcaseIcon, CalendarIcon } from "@/components/icons";
 import type { BadgeTone } from "@/components/ui/badge";
 
+import type { EventKind } from "./tracker";
+
 /**
  * One colour per stage of a search, for every screen that shows one (the
- * Applications board, grid and list, and the Dashboard's Up Next) so a
- * colour means the same stage wherever it appears:
+ * Applications board, grid, list and detail panel, and the Dashboard's Up
+ * Next) so a colour means the same stage wherever it appears:
  *
  *   saved         grey    not applied yet
  *   applied       violet  the brand: in, and waiting
@@ -31,6 +33,19 @@ import type { BadgeTone } from "@/components/ui/badge";
  * --color-positive-ink, not --color-positive (2.8:1).
  */
 export type StageKey = "saved" | "applied" | "interviewing" | "offer";
+
+/** The stages in the order a search moves through them: the board's columns
+ *  left to right, and the Applications filter's chips. */
+export const STAGE_ORDER: StageKey[] = ["saved", "applied", "interviewing", "offer"];
+
+/** Each stage's name, wherever one is printed: a column heading, a badge, a
+ *  filter chip. */
+export const STAGE_LABEL: Record<StageKey, string> = {
+  saved: "Saved",
+  applied: "Applied",
+  interviewing: "Interviewing",
+  offer: "Offer",
+};
 
 /** Each stage's glyph, wherever the stage is labelled: a board column's
  *  header and an Up Next row. */
@@ -79,4 +94,24 @@ export const STAGE_COLOR: Record<
     panel: "bg-positive-tint border-positive/30",
     tone: "positive",
   },
+};
+
+/**
+ * Which stage's colour and glyph each kind of dated entry wears, on every
+ * screen that lists them: the Dashboard's Up Next, the detail panel's
+ * timeline, the Calendar. An interview is Interviewing's amber calendar
+ * wherever it appears, and the day an application went in is Applied's violet
+ * briefcase. A deadline is a saved job's closing date, so it is Saved's grey
+ * bookmark, not danger red: red means rejected. A follow-up is a nudge on
+ * something already sent, so it is Applied's violet too.
+ *
+ * It maps kinds, not the application's own stage, so an offer-stage job's
+ * past interviews still read as interviews.
+ */
+export const KIND_STAGE: Record<EventKind, StageKey> = {
+  applied: "applied",
+  interview: "interviewing",
+  offer: "offer",
+  deadline: "saved",
+  "follow-up": "applied",
 };

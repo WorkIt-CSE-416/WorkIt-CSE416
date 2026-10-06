@@ -1,7 +1,8 @@
 import { cn } from "@/lib/cn";
 
-import { STAGE_COLOR, STAGE_ICON, type StageKey } from "../stage-colors";
-import type { UpNextItem, UpNextKind } from "./data";
+import { When } from "../local-time";
+import { KIND_STAGE, STAGE_COLOR, STAGE_ICON } from "../stage-colors";
+import type { UpNextItem } from "./data";
 import { SectionHeader } from "./section-header";
 
 /**
@@ -16,19 +17,12 @@ import { SectionHeader } from "./section-header";
  *
  * EACH ROW WEARS ITS STAGE, from ../stage-colors.ts: the same fill and the
  * same white glyph as that stage's board column header.
- * A kind is the board column its card sits in (data.ts, KIND_BY_COLUMN), so
- * an interview is Interviewing's amber calendar, an offer is Offer's green
- * award, a closing application is a saved job (grey bookmark) and a follow-up
- * is Applied's violet briefcase. Its own tones here once painted an interview
+ * A kind wears one stage (KIND_STAGE in ../stage-colors.ts), so an interview
+ * is Interviewing's amber calendar, an offer is Offer's green award, a closing
+ * application is a saved job (grey bookmark) and a follow-up is Applied's
+ * violet briefcase. The detail panel's timeline uses the same map. Its own tones here once painted an interview
  * violet and a deadline in Interviewing's amber, contradicting the board. Not danger red for a deadline: red means rejected.
  */
-const STAGE_BY_KIND: Record<UpNextKind, StageKey> = {
-  interview: "interviewing",
-  offer: "offer",
-  deadline: "saved",
-  "follow-up": "applied",
-};
-
 export function UpNext({ items }: { items: UpNextItem[] }) {
   return (
     <section aria-labelledby="up-next" className="@container/upnext">
@@ -40,12 +34,12 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
 
       <ul className="mt-3 flex flex-col">
         {items.map((item) => {
-          const key = STAGE_BY_KIND[item.kind];
+          const key = KIND_STAGE[item.kind];
           const Icon = STAGE_ICON[key];
 
           return (
             <li
-              key={`${item.company}-${item.title}`}
+              key={item.id}
               className="border-border-subtle flex items-center gap-3 border-b py-3 last:border-b-0"
             >
               <span
@@ -69,7 +63,7 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
                   </p>
                 </div>
                 <p className="text-note text-ink-muted mt-0.5 @md/upnext:mt-0 @md/upnext:shrink-0 @md/upnext:text-right">
-                  {item.when}
+                  <When at={item.at} />
                 </p>
               </div>
             </li>

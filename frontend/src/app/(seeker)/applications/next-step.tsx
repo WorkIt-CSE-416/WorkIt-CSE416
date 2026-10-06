@@ -1,7 +1,8 @@
 import { CalendarIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
-import type { Application } from "./data";
+import { When } from "../local-time";
+import type { TrackerEvent } from "../tracker";
 
 /**
  * An application's next commitment: what it is, then when. The board card, the
@@ -20,13 +21,17 @@ import type { Application } from "./data";
  *
  * `truncate` holds each line to one row, for the list, where a wrapped label
  * would make that row taller than the rest. The cards let a label wrap.
+ *
+ * The caller picks the event (`nextEvent` in ../tracker.ts) and the date is
+ * printed in the viewer's own time by <When>, so this stays a plain component
+ * the server views and the client detail panel can both render.
  */
 export function NextStep({
   next,
   truncate = false,
   className,
 }: {
-  next: Application["next"];
+  next: TrackerEvent | undefined;
   truncate?: boolean;
   className?: string;
 }) {
@@ -36,9 +41,11 @@ export function NextStep({
       {next ? (
         <div className="min-w-0">
           <p className={cn("text-note text-ink font-medium", truncate && "truncate")}>
-            {next.label}
+            {next.title}
           </p>
-          <p className={cn("text-note text-ink-meta", truncate && "truncate")}>{next.when}</p>
+          <p className={cn("text-note text-ink-meta", truncate && "truncate")}>
+            <When at={next.at} />
+          </p>
         </div>
       ) : (
         <p className="text-note text-ink-meta">Nothing scheduled</p>

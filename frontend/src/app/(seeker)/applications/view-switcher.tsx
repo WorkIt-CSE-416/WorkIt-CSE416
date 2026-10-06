@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import { cn } from "@/lib/cn";
 
 import { BoardIcon, GridIcon, ListIcon } from "./icons";
-import { viewHref, type View } from "./views";
+import { applicationsHref, type ApplicationsQuery, type View } from "./query";
 
 /**
  * Picks the layout the applications are drawn in.
@@ -26,7 +26,10 @@ import { viewHref, type View } from "./views";
  * The raised segment carries a 1px ring as well as its shadow: white on the
  * well's grey is 1.07:1, so without an edge the active option barely shows.
  * Each option is 26px, which with the well's padding and border makes the
- * group 32px, the height of the Filter button beside it.
+ * group 32px, the height of the stage chips below it.
+ *
+ * Switching keeps the filters, so a search survives a change of layout. It
+ * closes the detail panel, which belongs to the view it was opened from.
  */
 const OPTIONS: { view: View; label: string; Icon: typeof BoardIcon }[] = [
   { view: "board", label: "Board", Icon: BoardIcon },
@@ -34,7 +37,7 @@ const OPTIONS: { view: View; label: string; Icon: typeof BoardIcon }[] = [
   { view: "list", label: "List", Icon: ListIcon },
 ];
 
-export function ViewSwitcher({ current }: { current: View }) {
+export function ViewSwitcher({ query }: { query: ApplicationsQuery }) {
   return (
     <div
       role="group"
@@ -42,14 +45,14 @@ export function ViewSwitcher({ current }: { current: View }) {
       className="bg-well border-border-subtle rounded-control flex shrink-0 items-center gap-0.5 border p-0.5"
     >
       {OPTIONS.map(({ view, label, Icon }) => {
-        const isActive = view === current;
+        const isActive = view === query.view;
 
         return (
           <Tooltip key={view}>
             <TooltipTrigger
               render={
                 <Link
-                  href={viewHref(view)}
+                  href={applicationsHref(query, { view, app: null })}
                   aria-label={`${label} View`}
                   aria-current={isActive ? "true" : undefined}
                   className={cn(
