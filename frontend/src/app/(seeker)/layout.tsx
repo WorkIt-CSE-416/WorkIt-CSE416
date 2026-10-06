@@ -82,9 +82,9 @@ const NAV_ITEMS = [
  * leave in place while the account rows are still arriving: billing and
  * notification preferences have nowhere else to go yet.
  *
- * /settings is not built yet. It is a link that 404s rather than a control
- * that does nothing, which is the more honest placeholder and the one that
- * stops needing a note the day the route lands. */
+ * /settings holds Password for now — the one setting with a real backing
+ * action (src/lib/password-actions.ts), for an account that signed up
+ * through Google or LinkedIn and wants email+password sign-in too. */
 const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
   { href: "/settings", label: "Settings", icon: <GearIcon className="size-4" /> },
 ];
