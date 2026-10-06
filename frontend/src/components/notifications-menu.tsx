@@ -16,9 +16,9 @@ import { cn } from "@/lib/cn";
  *
  * A 32px circle with a 16px glyph and the hover fill, unless the shell passes
  * its own circle: the seeker bar draws it white with a border, at 40px,
- * matching its phone search magnifier and avatar. It steps out
- * below sm in both shells, where the avatar's menu is the one control in the
- * cluster a phone cannot do without.
+ * matching its phone search magnifier and the account photo. It steps out
+ * below sm in both shells, where the bar's room goes to the toggle, the logo
+ * and the account.
  *
  * The popup is named "Notifications" with aria-label, because Base UI names
  * it only from a Popover.Title and this one has none; without it a screen

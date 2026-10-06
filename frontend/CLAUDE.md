@@ -103,8 +103,8 @@ src/components/   Shared components
   nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
-  account-menu.tsx  The avatar dropdown: name and email header, then Sign Out
-                  (Sign In when signed out)
+  account-menu.tsx  The company bar's avatar dropdown: name and email header,
+                  then Sign Out (Sign In when signed out)
   ui/             Presentational primitives: badge, button, card, company-tile,
                   empty-state, fact, filter-chip (only the design kit shows
                   it today), icon-button, search-field, section,
@@ -190,17 +190,20 @@ rearranges itself (the job card) is its own `@container`. Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
 The seeker bar shows the signed-in account's real photo, with the full name
-and email beside it from xl, at 40px like the bar's white round bell and
-search controls (`(seeker)/bar.ts`)
-(`getCurrentAccount()` in `lib/session.ts`, cached per render), and a pill
-for roles posted in the last 24 hours when there are any (`(seeker)/status.ts`).
+and email beside it from lg, at 40px like the bar's white round bell and
+search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
+`lib/session.ts`, cached per render, and is a label, not a menu. From xl the
+bar adds a pill for roles posted in the last 24 hours when there are any
+(`(seeker)/status.ts`).
 The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
 The seeker panel groups its rows under two captions: Menu (Dashboard, Jobs,
-Applications, My Profile) and General (Settings, Help, Sign Out). Sign Out is
-a button row as well as the account menu's one item. The company panel keeps
+Applications, My Profile) and General (Settings, Help, and Sign Out or Sign
+In, picked from the session cookie so the panel never waits on the API). That
+row is the seeker's only way in or out; `account-menu.tsx` is the company
+bar's alone. The company panel keeps
 Settings alone in its footer, and its account menu holds only the account
 header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.

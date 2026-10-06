@@ -7,6 +7,7 @@ import { Logo } from "@/components/logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { getAccessToken } from "@/lib/session";
 
 import { SeekerAccount, SeekerStatusLine } from "./account-status";
 import { BAR_CIRCLE } from "./bar";
@@ -41,8 +42,9 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * when the user collapses it again.
  *
  * THE BAR holds the toggle, the job search and, on the right, the account:
- * the new-roles status when there is news, the bell, and the photo with the
- * full name and email from xl. The logo moved into the panel's header, which
+ * the new-roles status when there is news (from xl), the bell, and the photo
+ * with the full name and email beside it from lg. That last is a label, not
+ * a menu: Sign In and Sign Out are rows in the panel's General group. The logo moved into the panel's header, which
  * now owns the top-left corner; below md, where the panel is a sheet, the bar
  * shows it again beside the toggle. The bell and the phone's search
  * magnifier are white 40px circles (./bar.ts), the photo's size, so the
@@ -55,8 +57,8 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * it, since a layout gets no searchParams). It grows into whatever the bar
  * has spare and stops at 320px. Below md a magnifier takes its place and
  * opens the same field in a sheet; see ./mobile-search.tsx. The bell steps
- * out below sm, where the avatar's menu is the one control a phone cannot do
- * without.
+ * out below sm, where the bar has room for the toggle, the logo, the
+ * magnifier and the photo and little else.
  *
  * THE PAGE PANEL is the one scrolling element, so the bar and the section
  * panel stay put and a scrollbar runs only beside the page. It is
@@ -67,6 +69,9 @@ import { SeekerSidebar } from "./seeker-sidebar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false";
+  // Read from the session cookie, not /auth/me, so the panel's Sign In or
+  // Sign Out row never waits on the API.
+  const signedIn = (await getAccessToken()) != null;
 
   return (
     /* h-svh makes this row the window, so the only thing left to scroll is
@@ -97,6 +102,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </a>
 
       <SeekerSidebar
+        signedIn={signedIn}
         card={
           <Suspense fallback={null}>
             <ProfileStrength />
@@ -135,8 +141,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             {/* Streamed: each waits on the API, and nothing else in the bar
                 or the page should wait with it. The account's fallback holds
-                the photo's 40px, and the name and email beside it only show
-                from xl, so the bar doesn't shift when they land. */}
+                the photo's 40px and, from lg, the name and email's two
+                lines, so the bar doesn't shift when they land. */}
             <Suspense fallback={null}>
               <SeekerStatusLine />
             </Suspense>
@@ -147,9 +153,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               New matches and replies from employers will show up here.
             </NotificationsMenu>
 
-            <Suspense
-              fallback={<span aria-hidden="true" className="bg-hover size-10 rounded-full" />}
-            >
+            <Suspense fallback={<AccountSkeleton />}>
               <SeekerAccount />
             </Suspense>
           </div>
@@ -168,5 +172,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </SidebarInset>
       </div>
     </SidebarProvider>
+  );
+}
+
+/** The account's shape while /auth/me is in flight: the photo's circle and,
+ *  from lg, two bars where the name and email will be. */
+function AccountSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex items-center gap-3">
+      <span className="bg-hover size-10 rounded-full" />
+      <span className="hidden flex-col gap-1.5 lg:flex">
+        <span className="bg-hover h-3 w-28 rounded-full" />
+        <span className="bg-hover h-2.5 w-36 rounded-full" />
+      </span>
+    </div>
   );
 }

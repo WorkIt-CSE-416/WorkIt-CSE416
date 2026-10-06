@@ -1,7 +1,6 @@
 import Link from "next/link";
 
-import { signOut } from "@/app/actions";
-import { AccountMenu } from "@/components/account-menu";
+import { Avatar } from "@/components/avatar";
 import { ArrowRightIcon } from "@/components/icons";
 import { getAvatar } from "@/lib/avatar-actions";
 import { getCurrentAccount } from "@/lib/session";
@@ -23,8 +22,9 @@ import { countNewRoles } from "./status";
  * bar people stop reading. A trailing arrow makes it read as a way in rather
  * than a label. See ./status.ts for why it is the only message left here.
  *
- * From lg only. Below that the bar's width goes to the search field, and the
- * status is a convenience rather than the only route to anything. 40px tall,
+ * From xl only. Below that the bar's width goes to the search field and the
+ * account's name and email, and the status is a convenience rather than the
+ * only route to anything. 40px tall,
  * the height of the bar's round controls and the avatar beside it.
  */
 export async function SeekerStatusLine() {
@@ -37,7 +37,7 @@ export async function SeekerStatusLine() {
   return (
     <Link
       href="/jobs"
-      className="text-note focus-visible:ring-brand-ring bg-brand-tint text-brand-ink hover:bg-brand-pale hidden h-10 shrink-0 items-center gap-2 rounded-full px-4 font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none lg:inline-flex"
+      className="text-note focus-visible:ring-brand-ring bg-brand-tint text-brand-ink hover:bg-brand-pale hidden h-10 shrink-0 items-center gap-2 rounded-full px-4 font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none xl:inline-flex"
     >
       <span aria-hidden="true" className="relative flex size-2">
         <span className="bg-brand motion-safe:animate-status-ping absolute inset-0 rounded-full" />
@@ -52,21 +52,34 @@ export async function SeekerStatusLine() {
   );
 }
 
-/** The photo and full name, which open the account menu. Settings moved to
- *  the panel's footer, so under the name and email Sign Out is the menu's
- *  one item; signed out, it is Sign In. */
+/**
+ * Who is signed in: the photo (initials when there is none), then the full
+ * name over the email, as the reference dashboard shows its account.
+ *
+ * A label, not a control. It used to open the account menu, whose only rows
+ * were Sign Out (or Sign In when signed out); both now live in the panel's
+ * General group, so there is nothing left for a menu to hold, and a block
+ * that looks clickable and does nothing is worse than one that plainly isn't.
+ *
+ * The name and email show from lg, where the bar has room for them beside
+ * the search field (the new-roles pill steps out until xl for the same
+ * reason). Below that the photo stands alone and the two lines stay in the
+ * accessibility tree, so the bar still says who is signed in. The photo is
+ * the bar's 40px, the size of its round bell and search controls. Signed
+ * out, it renders nothing: the panel's Sign In row is the way back.
+ */
 export async function SeekerAccount() {
   const account = await getCurrentAccount();
-  const avatar = account ? await getAvatar() : null;
+  if (!account) return null;
+  const avatar = await getAvatar();
 
   return (
-    <AccountMenu
-      name={account?.full_name}
-      email={account?.email}
-      src={avatar?.url}
-      showName
-      items={[]}
-      onSignOut={signOut}
-    />
+    <div className="flex min-w-0 items-center gap-3">
+      <Avatar name={account.full_name} src={avatar.url} className="text-label size-10" />
+      <div className="sr-only min-w-0 lg:not-sr-only">
+        <p className="text-label text-ink max-w-48 truncate font-semibold">{account.full_name}</p>
+        <p className="text-note text-ink-meta max-w-48 truncate">{account.email}</p>
+      </div>
+    </div>
   );
 }
