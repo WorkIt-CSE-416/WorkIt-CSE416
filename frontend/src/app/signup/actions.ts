@@ -43,7 +43,7 @@ export async function createAccount(
   _prevState: SignupState,
   formData: FormData,
 ): Promise<SignupState> {
-  // select all values, they will be None if not for the type 
+  // select all values, they will be None if not for the type
   const firstName = fieldValue(formData, "firstName");
   const middleName = fieldValue(formData, "middleName");
   const lastName = fieldValue(formData, "lastName");
@@ -81,7 +81,7 @@ export async function createAccount(
       name,
       email,
       password,
-      
+
       // fields for company sign up
       ...(accountType === "company" && {
         company: {
@@ -108,7 +108,7 @@ export async function createAccount(
   const { error } = await supabase.auth.signInWithPassword({ email: account.email, password });
   if (error) {
     return {
-      error: "Your account was created, but signing in failed. Please log in again.",
+      error: "Your account was created, but signing in failed. Please sign in again.",
       ...echo,
     };
   }

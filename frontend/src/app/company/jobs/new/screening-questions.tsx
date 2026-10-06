@@ -9,7 +9,9 @@ import { cn } from "@/lib/cn";
 
 import { QUESTION_TYPES, type ScreeningQuestion } from "./data";
 import { SelectField } from "@/components/ui/select-field";
-import { GripIcon, PlusIcon, TrashIcon } from "./icons";
+import { PlusIcon, TrashIcon } from "@/components/icons";
+
+import { GripIcon } from "./icons";
 
 /**
  * The editable list of questions an applicant answers before they can apply.
@@ -35,9 +37,12 @@ import { GripIcon, PlusIcon, TrashIcon } from "./icons";
 type ScreeningQuestionsProps = {
   questions: ScreeningQuestion[];
   onChange: (next: ScreeningQuestion[]) => void;
+  /** A closed job's. The composer's disabled <fieldset> reaches every other
+   *  control here, but not the Checkbox, whose root is a <span>. */
+  disabled?: boolean;
 };
 
-export function ScreeningQuestions({ questions, onChange }: ScreeningQuestionsProps) {
+export function ScreeningQuestions({ questions, onChange, disabled }: ScreeningQuestionsProps) {
   /* Ids for questions added in this session. useId gives a per-instance prefix
      that is stable across a re-render and unique on the page, and the counter
      keeps them unique within the list — so a key never collides with a fixture
@@ -81,20 +86,31 @@ export function ScreeningQuestions({ questions, onChange }: ScreeningQuestionsPr
 
   return (
     <section>
-      <SectionHeading
-        as="h2"
-        action={
-          <Button variant="ghost" onClick={add}>
-            <PlusIcon className="size-3.5" />
-            Add Question
-          </Button>
-        }
-      >
-        Screening Questions
-      </SectionHeading>
+      {/* Ruled like the Basic Information and Publish headings. The rule goes
+          on a wrapper, not on the heading: with an action, SectionHeading
+          puts the heading in a flex row, and a border on it would stop short
+          of the button. */}
+      <div className="border-border-subtle border-b pb-3">
+        <SectionHeading
+          as="h2"
+          action={
+            <Button variant="ghost" onClick={add}>
+              <PlusIcon className="size-3.5" />
+              Add Question
+            </Button>
+          }
+        >
+          Screening Questions
+        </SectionHeading>
+      </div>
+
+      <p className="text-meta text-ink-meta mt-3">
+        Screening questions aren&apos;t saved yet. You can draft them here, but they won&apos;t be
+        kept with the job.
+      </p>
 
       {questions.length === 0 ? (
-        <p className="text-note text-ink-faint mt-3">
+        <p className="text-note text-ink-meta mt-3">
           No screening questions. Applicants will send their profile and nothing else.
         </p>
       ) : (
@@ -142,7 +158,7 @@ export function ScreeningQuestions({ questions, onChange }: ScreeningQuestionsPr
                     event.preventDefault();
                     move(index, index + (event.key === "ArrowUp" ? -1 : 1));
                   }}
-                  className="text-border-strong hover:text-ink-meta mt-2 cursor-grab active:cursor-grabbing"
+                  className="mt-1 size-7 cursor-grab active:cursor-grabbing"
                 >
                   <GripIcon className="size-4" />
                 </IconButton>
@@ -163,18 +179,19 @@ export function ScreeningQuestions({ questions, onChange }: ScreeningQuestionsPr
                   label={`Remove question ${index + 1}`}
                   tooltip="Remove question"
                   onClick={() => remove(index)}
-                  className="hover:text-ink mt-2"
+                  className="mt-1 size-7"
                 >
                   <TrashIcon className="size-4" />
                 </IconButton>
               </div>
 
-              {/* Indented to clear the handle, so the row's controls line up
-                  under the question they belong to. */}
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 pl-6.5">
+              {/* Indented to clear the handle (28px, plus the row's 10px gap),
+                  so the row's controls line up under the question they
+                  belong to. */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 pl-9.5">
                 <SelectField
                   id={`${question.id}-type`}
-                  label={`Answer type for question ${index + 1}`}
+                  label={`Answer Type for Question ${index + 1}`}
                   hideLabel
                   value={question.type}
                   onValueChange={(type) => update(index, { type })}
@@ -190,8 +207,14 @@ export function ScreeningQuestions({ questions, onChange }: ScreeningQuestionsPr
                     that input's .labels to find this element and points the
                     span's aria-labelledby at it after mount. The same hidden
                     input is what makes clicking the word toggle the box. */}
-                <label className="text-label text-ink-muted flex cursor-pointer items-center gap-2">
+                <label
+                  className={cn(
+                    "text-label text-ink-muted flex cursor-pointer items-center gap-2",
+                    disabled && "cursor-not-allowed opacity-50",
+                  )}
+                >
                   <Checkbox
+                    disabled={disabled}
                     checked={question.required}
                     onCheckedChange={(required) => update(index, { required })}
                   />

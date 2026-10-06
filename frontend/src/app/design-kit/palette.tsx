@@ -33,6 +33,12 @@ function useTokenValue(token: string) {
   );
 }
 
+/** A token's value as the live stylesheet resolves it, for the other
+ *  sections' rows (the Shape page's widths). Same read as a swatch's. */
+export function TokenValue({ token }: { token: string }) {
+  return <code className="text-note text-ink-meta font-mono">{useTokenValue(token)}</code>;
+}
+
 function Swatch({ token, role }: { token: string; role: string }) {
   const value = useTokenValue(token);
 

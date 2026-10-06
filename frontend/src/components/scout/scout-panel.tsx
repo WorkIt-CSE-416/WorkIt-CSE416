@@ -18,8 +18,8 @@ import { useSpeechInput } from "./use-speech-input";
  *
  * Docked beside the page rather than over it. A modal sheet would lock the
  * feed, and the point is to keep scrolling and pressing "Ask Scout" on other
- * cards while it is open. Below md there is no room beside anything, so it
- * covers the page under the top bar instead.
+ * cards while it is open. From md it is one more of the shell's floating
+ * panels; below md there is no room beside anything, so it covers the window.
  *
  * It only ever opens because someone clicked something: an assistant that
  * pops up uninvited is the complaint reviewers make most about Orion.
@@ -40,7 +40,7 @@ export function ScoutPanel() {
   return (
     <aside
       aria-label="Scout"
-      className="bg-panel border-border fixed inset-x-0 top-(--seeker-bar) bottom-0 z-10 flex flex-col md:static md:w-96 md:shrink-0 md:border-l"
+      className="bg-panel border-rail-border fixed inset-0 z-30 flex flex-col overflow-hidden md:static md:w-96 md:shrink-0 md:rounded-shell md:border md:shadow-panel"
     >
       <header className="border-border flex h-14 shrink-0 items-center gap-2 border-b px-4">
         <SparkleIcon className="text-brand size-5" />

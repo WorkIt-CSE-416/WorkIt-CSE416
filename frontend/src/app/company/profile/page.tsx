@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Building2, ChartColumn, Info } from "lucide-react";
 
 import { PencilIcon, PinIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -7,9 +8,7 @@ import { CompanyTile } from "@/components/ui/company-tile";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 
-import { BuildingIcon } from "../icons";
 import { COMPANY, OVERVIEW } from "./data";
-import { ChartIcon, InfoIcon } from "./icons";
 
 export const metadata: Metadata = {
   title: "Company Profile",
@@ -33,11 +32,19 @@ export const metadata: Metadata = {
  */
 export default function CompanyProfilePage() {
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-heading text-ink">Company Profile</h1>
+    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
+      {/* The Dashboard's header: title over a subtitle, and a small grey
+          action beside them rather than a violet one, since an inert edit is
+          not this page's primary action. */}
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-heading text-ink">Company Profile</h1>
+          <p className="text-body text-ink-meta mt-1">
+            What applicants see when they open one of your postings.
+          </p>
+        </div>
 
-        <Button variant="outline">
+        <Button variant="secondary" size="sm">
           <PencilIcon className="size-3.5" />
           Edit Profile
         </Button>
@@ -45,12 +52,13 @@ export default function CompanyProfilePage() {
 
       <Hero />
 
-      {/* items-start so the two cards keep their own heights rather than the
-          shorter one stretching to match the taller. */}
-      <div className="mt-5 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      {/* items-stretch so the two cards end on the same line, on the rule the
+          Dashboard's docblock records (../page.tsx). Overview spends the extra
+          height by spreading its rows. */}
+      <div className="mt-5 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Card as="section" padding="md" aria-labelledby="about-us">
           <SectionHeading as="h2" id="about-us" className="flex items-center gap-2">
-            <InfoIcon className="text-brand size-4.5 shrink-0" />
+            <Info className="text-brand size-4.5 shrink-0" />
             About Us
           </SectionHeading>
 
@@ -77,21 +85,26 @@ export default function CompanyProfilePage() {
           </blockquote>
         </Card>
 
-        <Card as="section" padding="md" aria-labelledby="overview">
+        <Card as="section" padding="md" aria-labelledby="overview" className="flex flex-col">
           <SectionHeading as="h2" id="overview" className="flex items-center gap-2">
-            <ChartIcon className="text-brand size-4.5 shrink-0" />
+            <ChartColumn className="text-brand size-4.5 shrink-0" />
             Overview
           </SectionHeading>
 
           {/* A <dl>, because every row is a term and its value. The wrapper
               div per row is what lets each pair be one flex line: dt and dd are
               siblings under dl, so without it the rules would run between every
-              element rather than between every fact. */}
-          <dl className="mt-2">
+              element rather than between every fact.
+
+              Beside the taller About Us, each row takes an equal share of the
+              spare height (flex-1) and centres its pair in it, so every fact
+              sits midway between its rules. Spacing the rows apart instead
+              would leave each rule hugging the fact above it. */}
+          <dl className="mt-2 flex flex-1 flex-col">
             {OVERVIEW.map(({ label, value, href }) => (
               <div
                 key={label}
-                className="border-border-subtle flex items-baseline justify-between gap-4 border-b py-3 last:border-b-0 last:pb-0"
+                className="border-border-subtle flex flex-1 items-center justify-between gap-4 border-b py-3 last:border-b-0 last:pb-0"
               >
                 <dt className="text-note text-ink-meta shrink-0">{label}</dt>
                 <dd className="text-label text-ink text-right font-semibold">
@@ -143,11 +156,24 @@ function Hero() {
       <div className="flex w-full items-end gap-4 p-5 sm:gap-5 sm:p-6">
         {/* tone="outline" paints the tile as a bordered white square, which is
             what the mockup draws and what keeps the mark readable against a
-            cover nobody has chosen yet. */}
-        <CompanyTile Icon={BuildingIcon} size="xl" tone="outline" className="shadow-panel" />
+            cover nobody has chosen yet. Building2 is the mark the sidebar's
+            Company Profile row draws for the same company.
+
+            Under sm it steps down to the lg tile (64px box, 28px glyph) and
+            the name to text-title, wrapping to two lines rather than
+            truncating: at 375px the 96px tile left the name 173px, which cut
+            even an 18-character company to "TechNova …". */}
+        <CompanyTile
+          Icon={Building2}
+          size="xl"
+          tone="outline"
+          className="shadow-panel max-sm:rounded-control max-sm:size-16 max-sm:[&>svg]:size-7"
+        />
 
         <div className="min-w-0 flex-1 pb-1">
-          <h2 className="text-display text-on-brand truncate">{COMPANY.name}</h2>
+          <h2 className="text-title sm:text-display text-on-brand line-clamp-2 break-words">
+            {COMPANY.name}
+          </h2>
 
           {/* Not <Fact>: that one is text-note in ink-meta, which is a grey for
               a card. This sits on a dark cover and has to be light. */}

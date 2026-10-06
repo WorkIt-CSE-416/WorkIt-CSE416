@@ -6,6 +6,7 @@ import { listCompanyJobs } from "@/lib/job-queries";
 
 import { toPosting } from "./data";
 import { JobsTable } from "./jobs-table";
+import { LoadError } from "./load-error";
 
 export const metadata: Metadata = {
   title: "Job Postings",
@@ -30,7 +31,7 @@ export default async function CompanyJobsPage() {
   const { jobs, error } = await listCompanyJobs();
 
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
       {/* The action sits with the list it adds to rather than in the shell's
           bar. items-start keeps the button on the heading's line rather than
           centred against a two-line block, so it lines up with the title
@@ -48,18 +49,27 @@ export default async function CompanyJobsPage() {
         </ButtonLink>
       </header>
 
-      {error && <p className="text-meta text-danger mb-4">{error}</p>}
-
-      {/* An empty company and an empty filter result are different news:
+      {/* A failed load replaces the table rather than sitting above it: an
+          empty table under the error said "0 total" and blamed the filters.
+          An empty company and an empty filter result are different news too:
           the first needs a way forward, the second a hint to loosen up. */}
-      <JobsTable
-        postings={jobs.map(toPosting)}
-        empty={
-          jobs.length === 0 && !error
-            ? "No job postings yet. Post your first role."
-            : "No postings match those filters."
-        }
-      />
+      {error ? (
+        <LoadError
+          error={error}
+          title="Job Postings Aren't Loading Right Now"
+          subject="your job postings"
+          retryHref="/company/jobs"
+        />
+      ) : (
+        <JobsTable
+          postings={jobs.map(toPosting)}
+          empty={
+            jobs.length === 0
+              ? "No job postings yet. Post your first role."
+              : "No postings match those filters."
+          }
+        />
+      )}
     </div>
   );
 }

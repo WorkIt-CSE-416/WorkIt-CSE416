@@ -20,11 +20,15 @@ export function AskScoutButton(job: { id: string; title: string; company: string
 
 /** The top bar's way in, for a question that isn't about one job. It toggles,
  *  so it also puts the panel away. */
-export function ScoutLauncher() {
+export function ScoutLauncher({ className }: { className?: string }) {
   const { open } = useScout();
   return (
-    <IconButton label={open ? "Close Scout" : "Open Scout"} onClick={() => setScoutOpen(!open)}>
-      <SparkleIcon className="text-brand size-5" />
+    <IconButton
+      label={open ? "Close Scout" : "Open Scout"}
+      className={className}
+      onClick={() => setScoutOpen(!open)}
+    >
+      <SparkleIcon className="text-brand size-4" />
     </IconButton>
   );
 }

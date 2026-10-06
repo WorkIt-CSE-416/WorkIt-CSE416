@@ -35,6 +35,12 @@ python-preference = "only-managed"
 # flags them hidden. ../scout/CLAUDE.md has the details.
 workit-scout = { path = "../scout" }
 
+[tool.vercel]
+# Where Vercel finds the ASGI app when this folder is deployed as its own
+# project (Root Directory = backend). app/main.py is also on Vercel's
+# auto-detect list; this pins it so a new main.py elsewhere can't win.
+entrypoint = "app.main:app"
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",

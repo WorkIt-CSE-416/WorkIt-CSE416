@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { BookmarkIcon, EllipsisIcon } from "@/components/icons";
-import { JobPostingCard } from "@/components/job-posting-card";
-import { AskScoutButton } from "@/components/scout/scout-buttons";
-import { ButtonLink } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
+import { BriefcaseIcon } from "@/components/icons";
+import { EmptyState } from "@/components/ui/empty-state";
+import { cn } from "@/lib/cn";
 
 import { JobFilters } from "./filters";
-import { formatExperienceLevel, formatPosted, formatWorkStyle } from "./format";
-import { CircleSlashIcon } from "./icons";
-import { getJobListings, type JobListing } from "./listings";
+import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
+import { getJobListings } from "./listings";
+import { SEEKER_GUTTER } from "../gutter";
 
 export const metadata: Metadata = {
   title: "Jobs",
@@ -17,72 +16,52 @@ export const metadata: Metadata = {
 };
 
 /* Built without a mockup, from the layout described in ./data. The feed is
- * live (./listings); Save and Not Interested are still
- * inert; Ask Scout opens the Scout panel. */
+ * live (./listings); Save, Not Interested and Ask WorkIt are still inert. The
+ * card and its loading and error states are ./listing-card, which /search
+ * shares. */
 
 /**
- * One scraped role in the shared <JobPostingCard> shell, with the seeker-only
- * chrome around it. What a scraped role lacks is null, and the card omits it:
- * no salary or job type (job boards rarely state them), no match rail (nothing
- * scores roles yet), and no title link (there is no expanded view for a role
- * with no description). Apply Now leaves for the employer's own posting.
+ * The live feed and the states that stand in for it. Its own async component
+ * so the page can stream: the heading and filter row paint at once and this
+ * fills in behind <ListingsSkeleton>, where awaiting the fetch in the page held
+ * the whole screen (about 840ms locally) with the previous page still showing.
+ * A Suspense boundary here rather than a route loading.tsx, which would also
+ * cover /jobs/[jobId].
  */
-function ListingCard({ job }: { job: JobListing }) {
+async function Feed() {
+  const { jobs, error } = await getJobListings();
+
+  if (error != null) return <ListingsError error={error} retryHref="/jobs" />;
+
+  if (jobs.length === 0) {
+    return (
+      <EmptyState Icon={BriefcaseIcon} title="No Roles Yet" className="mt-4">
+        New internship and new-grad roles land here as companies post them. Check back tomorrow
+        morning.
+      </EmptyState>
+    );
+  }
+
   return (
-    <JobPostingCard
-      job={{
-        company: job.company,
-        logoUrl: job.logo_url,
-        title: job.title,
-        timing: job.posted_at ? formatPosted(job.posted_at) : null,
-        location: job.location,
-        jobType: null,
-        salary: null,
-        workStyle: job.work_style ? formatWorkStyle(job.work_style) : null,
-        experienceLevel: formatExperienceLevel(job.experience_level),
-        minYearsExperience: null,
-      }}
-      headerAction={
-        <IconButton label={`More options for ${job.title}`} tooltip="More options">
-          <EllipsisIcon className="size-4" />
-        </IconButton>
-      }
-      actions={
-        <>
-          <IconButton
-            label={`Not interested in ${job.title}`}
-            tooltip="Not interested"
-            variant="outline"
-            className="size-8"
-          >
-            <CircleSlashIcon className="size-4" />
-          </IconButton>
-
-          <IconButton
-            label={`Save ${job.title}`}
-            tooltip="Save"
-            variant="outline"
-            className="size-8"
-          >
-            <BookmarkIcon className="size-4" />
-          </IconButton>
-
-          <AskScoutButton id={job.id} title={job.title} company={job.company} />
-
-          <ButtonLink href={job.apply_url} target="_blank" rel="noopener noreferrer" size="sm">
-            Apply Now
-          </ButtonLink>
-        </>
-      }
-    />
+    <>
+      {/* The level between the page's h1 and each card's h3. The card stays
+          an h3 because the company preview nests it under headings of its
+          own. */}
+      <h2 className="sr-only">Recommended Jobs</h2>
+      <ul className="mt-4 flex flex-col gap-3">
+        {jobs.map((job) => (
+          <li key={job.id}>
+            <ListingCard job={job} />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
-export default async function JobsPage() {
-  const { jobs, error } = await getJobListings();
-
+export default function JobsPage() {
   return (
-    <main className="max-w-app mx-auto w-full flex-1 px-12 py-4.5">
+    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div>
         <h1 className="text-heading text-ink">Recommended for You</h1>
         <p className="text-body text-ink-meta mt-1">
@@ -90,23 +69,15 @@ export default async function JobsPage() {
         </p>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      {/* A container, so the facets switch on the row's own width (see
+          ./filters), which an open sidebar narrows, not on the window's. */}
+      <div className="@container mt-4 flex flex-wrap items-center gap-2">
         <JobFilters />
       </div>
 
-      {error != null ? (
-        <p role="alert" className="text-body text-ink-meta mt-4">
-          Couldn&apos;t load jobs. {error}
-        </p>
-      ) : (
-        <ul className="mt-4 flex flex-col gap-3">
-          {jobs.map((job) => (
-            <li key={job.id}>
-              <ListingCard job={job} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
+      <Suspense fallback={<ListingsSkeleton />}>
+        <Feed />
+      </Suspense>
+    </div>
   );
 }

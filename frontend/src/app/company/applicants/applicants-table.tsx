@@ -34,7 +34,7 @@ const columns = helper.columns([
     filterFn: "includesString",
     cell: ({ row }) => (
       <div className="flex max-w-[18rem] min-w-0 items-center gap-2.5">
-        <Avatar name={row.original.name} className="size-7 shrink-0 text-[0.625rem]" />
+        <Avatar name={row.original.name} className="text-meta size-7 shrink-0" />
         <div className="min-w-0">
           <RowLink href={`/company/applicants/${row.original.id}`} className="text-label">
             {row.original.name}
@@ -45,15 +45,9 @@ const columns = helper.columns([
     ),
   }),
 
-  helper.accessor("role", {
-    header: ({ column }) => <SortHeader column={column}>Applied to</SortHeader>,
-    sortFn: "alphanumeric",
-    filterFn: "arrIncludesSome",
-    cell: ({ getValue }) => (
-      <span className="text-ink-meta block max-w-[16rem] truncate">{getValue()}</span>
-    ),
-  }),
-
+  /* Second, straight after the name: on a phone the scroller shows about two
+   * columns, and where an applicant stands is the one fact worth having
+   * without scrolling for it. */
   helper.accessor("stage", {
     meta: { className: "text-center" },
     header: ({ column }) => (
@@ -75,6 +69,15 @@ const columns = helper.columns([
         </Badge>
       );
     },
+  }),
+
+  helper.accessor("role", {
+    header: ({ column }) => <SortHeader column={column}>Applied To</SortHeader>,
+    sortFn: "alphanumeric",
+    filterFn: "arrIncludesSome",
+    cell: ({ getValue }) => (
+      <span className="text-ink-meta block max-w-[16rem] truncate">{getValue()}</span>
+    ),
   }),
 
   helper.accessor("match", {
@@ -109,8 +112,15 @@ const FILTERS: FilterSpec[] = [
   { columnId: "role", label: "Role", plural: "Roles", options: ROLES },
 ];
 
-export function ApplicantsTable() {
-  const table = useTable({ features: FEATURES, columns, data: APPLICANTS });
+/** `query` is the bar's ?q=, the starting value of the name search. The page
+ *  keys this component by it, since the table reads initialState only once. */
+export function ApplicantsTable({ query = "" }: { query?: string }) {
+  const table = useTable({
+    features: FEATURES,
+    columns,
+    data: APPLICANTS,
+    initialState: { columnFilters: query ? [{ id: "name", value: query }] : [] },
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -118,6 +128,7 @@ export function ApplicantsTable() {
         table={table}
         searchColumnId="name"
         searchPlaceholder="Search applicants"
+        searchLabel="Search Applicants"
         filters={FILTERS}
       />
       <DataTable table={table} empty="No applicants match those filters." />

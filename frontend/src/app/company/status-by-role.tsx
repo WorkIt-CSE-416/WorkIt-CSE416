@@ -48,7 +48,7 @@ import { STATUS_BY_ROLE, ROLE_STAGES, STAGE_PAINT, type RoleStatus } from "./dat
  * direct-labelled with its own total; and the per-role breakdown is spoken in
  * full for a screen reader, which is also the honest way to expose numbers
  * that a sighted reader gets from segment length. Per-applicant detail is one
- * click away in the table this card links to.
+ * click away in the table the band's View All links to.
  *
  * NO SORTING. Rows are in STATUS_BY_ROLE's order, widest first, and stay
  * there. A chart that re-sorts itself when the data moves makes a reader
@@ -63,13 +63,12 @@ function rowTotal(row: RoleStatus) {
 export function StatusByRole() {
   return (
     /* h-full and a column so the row list can take flex-1 and space its five
-     * rows across whatever height the band settled on — see the items-stretch
-     * note in ./page.tsx. The rows grow apart rather than bunching at the top
-     * over a blank half-card. */
+     * rows down the height the ring beside it sets, so the last bar ends level
+     * with the ring's footnote rather than over an empty corner of the band. */
     <div className="flex h-full flex-col">
       {/* The legend is always present: five series is well past the point
           where colour alone can carry identity. Names only, no counts — the
-          ring in the card beside this one is the same five stage totals, and
+          ring beside this one is the same five stage totals, and
           printing them twice in one band invites a reader to look for the
           difference between two copies of one number. */}
       <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
@@ -95,7 +94,7 @@ export function StatusByRole() {
                 <span className="text-ink-meta shrink-0 tabular-nums">{total}</span>
               </div>
 
-              {/* Every row is the full width of the card, so the bars compare
+              {/* Every row is the full width of the column, so the bars compare
                   composition and not size — a 27-applicant posting with half
                   its pipeline in screening should look better than an
                   86-applicant one sitting untouched, and it does. Row size is

@@ -58,7 +58,7 @@ export function OnboardingForm() {
         return;
       }
     }
-    router.push("/jobs");
+    router.push("/dashboard");
   }
 
   return (

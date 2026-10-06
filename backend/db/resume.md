@@ -31,9 +31,13 @@ the first upload — correct onboarding order (contact info first, then resume).
 ## Re-upload behavior
 
 Each upload creates a **new `resumes` row**. Old resumes and their content
-tables are kept. `resumes.is_default` marks which resume is the applicant's
-active one (enforced by a partial unique index — one default per applicant).
-The applicant can switch their default or delete old versions.
+tables are kept. The applicant's active ("primary") resume is
+`applicant_profiles.default_resume_id`, a nullable FK with `ON DELETE SET
+NULL` — one per applicant by construction, cleared when that resume is
+deleted. The `resumes.is_default` column and partial unique index sketched
+below were never built; the pointer replaced them. The applicant can switch
+their default (`PUT /applicants/{id}/resumes/{resume_id}/default`) or delete
+old versions.
 
 ## Authorization
 

@@ -21,7 +21,7 @@ import { KitPage } from "./specimen";
 export default function DesignKitIndexPage() {
   return (
     <KitPage
-      title="Design kit"
+      title="Design Kit"
       note="Every token in globals.css and every component in src/components, rendered from the same source the app uses. Nothing here is a screenshot — if a value changes, this page changes with it."
     >
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">

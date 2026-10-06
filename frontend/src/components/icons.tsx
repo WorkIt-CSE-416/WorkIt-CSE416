@@ -1,33 +1,62 @@
+import {
+  ArrowLeft,
+  ArrowLeftRight,
+  ArrowRight,
+  Award,
+  Banknote,
+  Bell,
+  Bookmark,
+  BriefcaseBusiness,
+  Building2,
+  Calendar,
+  Check,
+  ChevronDown,
+  Clock,
+  Ellipsis,
+  ExternalLink,
+  GraduationCap,
+  House,
+  ListFilter,
+  Lock,
+  LogOut,
+  Mail,
+  MapPin,
+  Monitor,
+  Pencil,
+  Plus,
+  Search,
+  Settings,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  Upload,
+  User,
+  X,
+} from "lucide-react";
+
 type IconProps = { className?: string };
 
 /**
  * Icons used by more than one route.
  *
  * Per-route icon sets stay beside their route; a glyph moves here the moment a
- * second route needs it. The search screen brought the first batch. The
- * Jobs screen brought the rest: the chevron and cross a filter chip
- * toggles between (now owned by ui/filter-chip), the four fact glyphs its
- * result rows share with the search detail pane, and the ellipsis it shares
- * with the applications board.
+ * second route needs it.
  *
- * Each keeps the geometry it was drawn with — PinIcon is on a 14-unit grid and
- * the rest on 16 — because redrawing them to match would change how they sit on
- * screens that are already signed off.
+ * THEY ARE LUCIDE'S, the set the sidebar, its toggle and shadcn's own
+ * components already draw. These used to be hand-drawn at a 1.4 stroke on 12-,
+ * 14-, 16- and 18-unit grids, which put two icon families on every screen: a
+ * Lucide toggle beside a house bell in the top bar, and strokes from 0.88px to
+ * 2px on the Dashboard. Each export is now a thin wrapper that keeps its old
+ * name and props, so no call site changed when the drawing did.
  *
- * MailIcon arrived differently: login and profile had each drawn their own, on
- * a 16- and a 14-unit grid. They were the same glyph to the eye, so the 16-unit
- * one won for matching the grid most of this file already uses. Profile's mail
- * glyph therefore renders a hair lighter than it did — 1.23px of stroke at 14px
- * rather than 1.4px — which is the cost of having one definition instead of two.
+ * Lucide's default stroke is kept (no strokeWidth, no absoluteStrokeWidth), so
+ * these weigh exactly what the sidebar's do at the same size. Lucide also marks
+ * a glyph aria-hidden on its own; it is passed here anyway so the rule is
+ * visible where the icons are defined.
+ *
+ * The three brand marks at the bottom (Google, LinkedIn, the PDF file) stay
+ * drawn: they are logos, not glyphs, and Lucide does not have them.
  */
-const strokeProps = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.4,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-  "aria-hidden": true,
-} as const;
 
 /* Chrome ------------------------------------------------------------------ */
 
@@ -43,228 +72,186 @@ export function SparkleIcon({ className }: IconProps) {
 }
 
 export function SearchIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <circle cx="7.2" cy="7.2" r="4.6" />
-      <path d="m10.6 10.6 3 3" />
-    </svg>
-  );
+  return <Search aria-hidden className={className} />;
 }
 
 export function FilterIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M2.5 4h11M4.5 8h7M6.5 12h3" />
-    </svg>
-  );
+  return <ListFilter aria-hidden className={className} />;
 }
 
 /** A filter chip's trailing glyph while it is still a dropdown. */
 export function ChevronDownIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="m4 6.5 4 4 4-4" />
-    </svg>
-  );
+  return <ChevronDown aria-hidden className={className} />;
 }
 
 /** The same chip's trailing glyph once it has something to remove. */
 export function CloseIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="m4.5 4.5 7 7M11.5 4.5l-7 7" />
-    </svg>
-  );
+  return <X aria-hidden className={className} />;
 }
 
-/**
- * A back link's arrow. Promoted from (seeker)/jobs the day the company job
- * detail page grew its own "Back to Jobs" — the second consumer.
- */
+/** A back link's arrow. */
 export function ArrowLeftIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M13.25 8h-10.5M6.75 4l-4 4 4 4" />
-    </svg>
-  );
+  return <ArrowLeft aria-hidden className={className} />;
+}
+
+export function ArrowRightIcon({ className }: IconProps) {
+  return <ArrowRight aria-hidden className={className} />;
 }
 
 /** Opens the overflow menu on a card or a column. */
 export function EllipsisIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className={className}>
-      <circle cx="3.5" cy="8" r="1.35" />
-      <circle cx="8" cy="8" r="1.35" />
-      <circle cx="12.5" cy="8" r="1.35" />
-    </svg>
-  );
+  return <Ellipsis aria-hidden className={className} />;
 }
 
 /** Filled is the saved state; the outline is the affordance to save. */
 export function BookmarkIcon({ className, filled = false }: IconProps & { filled?: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      {...strokeProps}
-      fill={filled ? "currentColor" : "none"}
-      className={className}
-    >
-      <path d="M4 2.6h8a.6.6 0 0 1 .6.6v10.2L8 10.9l-4.6 2.5V3.2a.6.6 0 0 1 .6-.6Z" />
-    </svg>
-  );
+  return <Bookmark aria-hidden fill={filled ? "currentColor" : "none"} className={className} />;
 }
 
-/**
- * Edit. Promoted from (seeker)/profile the day the company profile grew its own
- * edit affordance — the second consumer, which is what moves a glyph here.
- *
- * It keeps its 12-unit grid rather than being redrawn to 16, for the reason at
- * the top of this file: the seeker profile is signed off against how this sits
- * today, and a regrid would move it.
- */
+/** Edit: the profile pencils, seeker and company. */
 export function PencilIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 12 12" {...strokeProps} className={className}>
-      <path d="M8.4 1.6a1.4 1.4 0 0 1 2 2L4 10 1.4 10.6 2 8Z" />
-    </svg>
-  );
+  return <Pencil aria-hidden className={className} />;
+}
+
+/** Delta direction on a stat tile. */
+export function TrendIcon({ className, down = false }: IconProps & { down?: boolean }) {
+  const Glyph = down ? TrendingDown : TrendingUp;
+  return <Glyph aria-hidden className={className} />;
+}
+
+/** Add a row: a screening question, a work-history entry. */
+export function PlusIcon({ className }: IconProps) {
+  return <Plus aria-hidden className={className} />;
+}
+
+/** Done: a finished step, a chosen chip, a met requirement. */
+export function CheckIcon({ className }: IconProps) {
+  return <Check aria-hidden className={className} />;
+}
+
+export function ClockIcon({ className }: IconProps) {
+  return <Clock aria-hidden className={className} />;
+}
+
+/** After a link that leaves WorkIt, such as Apply on an employer's own site. */
+export function ExternalLinkIcon({ className }: IconProps) {
+  return <ExternalLink aria-hidden className={className} />;
 }
 
 /* App shell ---------------------------------------------------------------- */
 
-/**
- * The three glyphs the top bar and its account menu are built from. They moved
- * here from the seeker shell's own icons.tsx when the company shell became a
- * second consumer of the same bar.
- *
- * They are drawn on an 18-unit grid rather than this file's usual 16, and keep
- * it for the same reason PinIcon keeps its 14: redrawing a glyph that is
- * already signed off changes how it sits on screen for no gain.
- */
+/** The top bar and its account menu, shared by both shells. */
 export function BellIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 18 18" {...strokeProps} className={className}>
-      <path d="M4.5 7.5a4.5 4.5 0 0 1 9 0c0 3 .9 4.35 1.35 4.8H3.15C3.6 11.85 4.5 10.5 4.5 7.5Z" />
-      <path d="M7.35 14.4a1.8 1.8 0 0 0 3.3 0" />
-    </svg>
-  );
+  return <Bell aria-hidden className={className} />;
 }
 
 /** The account menu's Profile item. */
 export function UserIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 18 18" {...strokeProps} className={className}>
-      <circle cx="9" cy="6" r="2.9" />
-      <path d="M3.5 15.1c0-2.65 2.46-4.3 5.5-4.3s5.5 1.65 5.5 4.3" />
-    </svg>
-  );
+  return <User aria-hidden className={className} />;
 }
 
 export function GearIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 18 18" {...strokeProps} className={className}>
-      <circle cx="9" cy="9" r="2.4" />
-      <path d="M14.3 11.1a1.2 1.2 0 0 0 .24 1.32l.05.04a1.44 1.44 0 1 1-2.04 2.04l-.04-.05a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.72 1.1v.13a1.44 1.44 0 1 1-2.88 0v-.07a1.2 1.2 0 0 0-.78-1.1 1.2 1.2 0 0 0-1.32.24l-.04.05a1.44 1.44 0 1 1-2.04-2.04l.05-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.72h-.13a1.44 1.44 0 1 1 0-2.88h.07a1.2 1.2 0 0 0 1.1-.78 1.2 1.2 0 0 0-.24-1.32l-.05-.04a1.44 1.44 0 1 1 2.04-2.04l.04.05a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .72-1.1v-.13a1.44 1.44 0 1 1 2.88 0v.07a1.2 1.2 0 0 0 .72 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.05a1.44 1.44 0 1 1 2.04 2.04l-.05.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.72h.13a1.44 1.44 0 1 1 0 2.88h-.07a1.2 1.2 0 0 0-1.1.72Z" />
-    </svg>
-  );
+  return <Settings aria-hidden className={className} />;
 }
 
 /** The account menu's Sign out row. */
 export function SignOutIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 18 18" {...strokeProps} className={className}>
-      <path d="M7.5 3.6H4.8a1.2 1.2 0 0 0-1.2 1.2v8.4a1.2 1.2 0 0 0 1.2 1.2h2.7" />
-      <path d="M8.4 9h6.3M12.3 6l2.7 3-2.7 3" />
-    </svg>
-  );
+  return <LogOut aria-hidden className={className} />;
 }
 
-/* Facts about a job ------------------------------------------------------- */
+/* Facts about a job, and the stages of a search ---------------------------
+ * The listing card on /jobs and /search, the job page and the composer's
+ * preview all describe a job with these, so each fact keeps one glyph wherever it is printed:
+ * location PinIcon, job type BriefcaseIcon, salary CoinIcon, work style
+ * workStyleIcon(), level LevelIcon, years required (and the job page's start
+ * date) CalendarIcon. */
 
 export function CoinIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <circle cx="8" cy="8" r="5.8" />
-      <path d="M8 4.6v6.8M9.9 6.1a1.7 1.7 0 0 0-1.6-1h-.6a1.55 1.55 0 0 0-.3 3.07l1.4.28a1.6 1.6 0 0 1-.2 3.17h-.5a1.75 1.75 0 0 1-1.65-1.1" />
-    </svg>
-  );
+  return <Banknote aria-hidden className={className} />;
 }
 
 export function PinIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 14 14" {...strokeProps} className={className}>
-      <path d="M12 6.1c0 3.5-5 8.2-5 8.2S2 9.6 2 6.1a5 5 0 0 1 10 0Z" />
-      <circle cx="7" cy="6.1" r="1.7" />
-    </svg>
-  );
+  return <MapPin aria-hidden className={className} />;
 }
 
 export function BriefcaseIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <rect x="1.8" y="4.8" width="12.4" height="8.4" rx="1.4" />
-      <path d="M5.6 4.8V3.4a1.2 1.2 0 0 1 1.2-1.2h2.4a1.2 1.2 0 0 1 1.2 1.2v1.4" />
-    </svg>
-  );
+  return <BriefcaseBusiness aria-hidden className={className} />;
 }
 
+/** A company tile's glyph. A job's work style draws workStyleIcon() instead. */
 export function MonitorIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <rect x="1.8" y="2.8" width="12.4" height="8.4" rx="1.4" />
-      <path d="M5.5 13.8h5" />
-    </svg>
-  );
+  return <Monitor aria-hidden className={className} />;
 }
 
+/** The Offer stage (see (seeker)/stage-colors.ts), not a job's level. */
 export function AwardIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <circle cx="8" cy="6.3" r="4.1" />
-      <path d="m5.6 9.9-1 4.2L8 12.5l3.4 1.6-1-4.2" />
-    </svg>
-  );
+  return <Award aria-hidden className={className} />;
+}
+
+/** Experience level: a mortarboard, which reads for "Internship" as well as
+ *  "Senior", where the Offer stage's prize rosette did not. */
+export function LevelIcon({ className }: IconProps) {
+  return <GraduationCap aria-hidden className={className} />;
+}
+
+export function OnSiteIcon({ className }: IconProps) {
+  return <Building2 aria-hidden className={className} />;
+}
+
+export function RemoteIcon({ className }: IconProps) {
+  return <House aria-hidden className={className} />;
+}
+
+export function HybridIcon({ className }: IconProps) {
+  return <ArrowLeftRight aria-hidden className={className} />;
+}
+
+/* Keyed by the label with its case and punctuation stripped, because several
+ * spellings occur: the feed prints "On-Site", job-detail/data.ts writes
+ * "Onsite", and the composer keeps labels of its own. A recased label still
+ * finds its glyph rather than silently falling back to the building. */
+const WORK_STYLE_ICON = {
+  onsite: OnSiteIcon,
+  remote: RemoteIcon,
+  hybrid: HybridIcon,
+} as const;
+
+/**
+ * Work style's glyph, picked by its display label: a building, a house, or two
+ * arrows for a week split between them. A function returning the icon rather
+ * than an icon taking `workStyle`, because <Fact> and the facts tables take an
+ * icon component. An unknown or missing label falls back to the building.
+ */
+export function workStyleIcon(workStyle: string | null) {
+  const key = workStyle?.toLowerCase().replace(/[^a-z]/g, "");
+  return WORK_STYLE_ICON[key as keyof typeof WORK_STYLE_ICON] ?? OnSiteIcon;
 }
 
 export function CalendarIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <rect x="2.2" y="3.4" width="11.6" height="10.4" rx="1.4" />
-      <path d="M2.2 6.6h11.6M5.6 2.2v2.2M10.4 2.2v2.2" />
-    </svg>
-  );
+  return <Calendar aria-hidden className={className} />;
 }
 
 export function MailIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <rect x="1.75" y="3.75" width="12.5" height="8.5" rx="1.5" />
-      <path d="M2.25 4.5 8 8.75 13.75 4.5" />
-    </svg>
-  );
+  return <Mail aria-hidden className={className} />;
 }
 
-/* Auth ----------------------------------------------------------------------
- * Promoted from login/icons.tsx the day signup became a second consumer. */
+/* Auth --------------------------------------------------------------------- */
 
 export function LockIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <rect x="3.25" y="7" width="9.5" height="6.75" rx="1.5" />
-      <path d="M5.5 7V5.25a2.5 2.5 0 0 1 5 0V7" />
-    </svg>
-  );
+  return <Lock aria-hidden className={className} />;
 }
 
-export function ArrowRightIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M2.75 8h10.5M9.25 4l4 4-4 4" />
-    </svg>
-  );
+/* Resume upload ------------------------------------------------------------ */
+
+export function UploadIcon({ className }: IconProps) {
+  return <Upload aria-hidden className={className} />;
 }
 
-/**
+export function TrashIcon({ className }: IconProps) {
+  return <Trash2 aria-hidden className={className} />;
+}
+
+/* Brand marks ---------------------------------------------------------------
  * The two OAuth providers' own logos, in their own colours. Unlike every other
  * icon in this file these do not take `currentColor` — a brand mark recoloured
  * to the surrounding text is no longer the brand mark, and both companies'
@@ -273,8 +260,7 @@ export function ArrowRightIcon({ className }: IconProps) {
  * they must not follow a palette change.
  *
  * Both are drawn to fill their viewBox, so a single `size-*` at the call site
- * makes them optically equal.
- */
+ * makes them optically equal. */
 
 /** Google's four-colour "G". */
 export function GoogleIcon({ className }: IconProps) {
@@ -320,32 +306,8 @@ export function LinkedInIcon({ className }: IconProps) {
   );
 }
 
-/* Resume upload ------------------------------------------------------------
- * Promoted from (seeker)/profile the day the applicant onboarding screen
- * became a second consumer. Geometry is unchanged from profile's original
- * icons.tsx so neither screen moves a pixel. */
-
-export function UploadIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 24" {...strokeProps} className={className}>
-      <path d="M11.6 1.4H4.4A2.2 2.2 0 0 0 2.2 3.6v16.8a2.2 2.2 0 0 0 2.2 2.2h11.2a2.2 2.2 0 0 0 2.2-2.2V7.4Z" />
-      <path d="M11.6 1.4v6h6" />
-      <path d="M10 18.4v-6M7.4 15l2.6-2.6 2.6 2.6" />
-    </svg>
-  );
-}
-
-export function TrashIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M2.4 4h11.2M6 4V2.9a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V4" />
-      <path d="M12.5 4v8.6a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V4" />
-      <path d="M6.6 7v3.8M9.4 7v3.8" />
-    </svg>
-  );
-}
-
-/** The one icon the mockup renders in colour rather than the surrounding ink. */
+/** A PDF file: the one glyph the resume mockup renders in colour rather than
+ *  the surrounding ink, so it stays drawn. */
 export function PdfIcon({ className }: IconProps) {
   return (
     <svg

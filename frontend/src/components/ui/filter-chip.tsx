@@ -23,6 +23,9 @@ export function FilterChip({ label, active = false }: { label: string; active?: 
   return (
     <button
       type="button"
+      // The cross is drawn, not spoken, so an applied chip names what clicking
+      // it does; an unapplied one has no menu behind it yet to describe.
+      aria-label={active ? `Remove ${label} filter` : undefined}
       className={cn(
         "text-meta focus-visible:ring-brand-ring inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 font-medium focus-visible:ring-2 focus-visible:outline-none",
         active

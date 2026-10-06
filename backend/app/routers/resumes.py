@@ -8,13 +8,15 @@ import zipfile
 from datetime import UTC, datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
 from app.deps import get_current_account
-from app.models.dto import ResumeStatus
+from app.models.dto import ParsedResume, ResumeStatus
+from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.utils.resume_parser import count_sections, parse_resume
@@ -127,6 +129,13 @@ def _is_docx(data: bytes) -> bool:
 
 MAX_SIZE = 5 * 1024 * 1024
 BUCKET = "Resume"
+# The preview link is opened the moment it is made; this only has to outlast
+# the browser's PDF viewer loading a 5 MB file.
+FILE_URL_TTL_SECONDS = 5 * 60
+# Reviewed and edited resume content comes from the client, so its size is
+# capped where it is accepted; a long real resume is a few KB of JSON. Checked
+# on the whole document rather than per field, so parser output is unaffected.
+MAX_PARSED_JSON_BYTES = 256 * 1024
 PDF_MAGIC = b"%PDF"
 DOCX_MAGIC = b"PK\x03\x04"
 
@@ -137,19 +146,9 @@ def _assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUI
         raise HTTPException(403, "Forbidden")
 
 
-# Depends grabs get_session before function runs and passes the session into function.
-# FastAPI handles the lifecycle
-
-# TODO: Reinforce the 5 resume limit rule in the backend
-@router.post("/applicants/{applicant_id}/resumes")
-async def upload_resume(
-    applicant_id: uuid.UUID,
-    file: UploadFile,
-    account: AuthenticatedAccount = Depends(get_current_account),
-    session: AsyncSession = Depends(get_session)
-):
-    _assert_applicant_owns(account, applicant_id)
-
+async def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
+    """Size and type checks shared by parse and upload. Returns the bytes,
+    extension and MIME type."""
     # check size metadata
     if file.size is not None and file.size > MAX_SIZE:
         raise HTTPException(413, "File must be under 5 MB")
@@ -161,13 +160,72 @@ async def upload_resume(
 
     # validate magic bytes — content_type is client-supplied and untrustworthy
     if contents.startswith(PDF_MAGIC):
-        ext = ".pdf"
-        mime = "application/pdf"
-    elif contents.startswith(DOCX_MAGIC) and _is_docx(contents):
-        ext = ".docx"
-        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    else:
-        raise HTTPException(400, "Only PDF and DOCX files are accepted")
+        return contents, ".pdf", "application/pdf"
+    if contents.startswith(DOCX_MAGIC) and _is_docx(contents):
+        return contents, ".docx", (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    raise HTTPException(400, "Only PDF and DOCX files are accepted")
+
+
+async def _extract(contents: bytes, ext: str) -> str | None:
+    extract = _extract_pdf_text if ext == ".pdf" else _extract_docx_text
+    return await asyncio.to_thread(extract, contents)
+
+
+def _reject_oversized(parsed: ParsedResume) -> None:
+    if len(parsed.model_dump_json().encode()) > MAX_PARSED_JSON_BYTES:
+        raise HTTPException(413, "Resume details are too long")
+
+
+def _safe_parse(raw_text: str | None) -> ParsedResume | None:
+    if not raw_text:
+        return None
+    try:
+        return parse_resume(raw_text)
+    except Exception:
+        logger.exception("Resume parsing failed")
+        return None
+
+
+@router.post("/applicants/{applicant_id}/resumes/parse")
+async def parse_resume_preview(
+    applicant_id: uuid.UUID,
+    file: UploadFile,
+    account: AuthenticatedAccount = Depends(get_current_account),
+):
+    """Parse without saving, so the applicant can review and edit the result
+    before it is stored. Touches neither Storage nor the database."""
+    _assert_applicant_owns(account, applicant_id)
+    contents, ext, _ = await _read_upload(file)
+    parsed = _safe_parse(await _extract(contents, ext))
+    return {"parsed_json": parsed.model_dump(mode="json") if parsed else None}
+
+
+# Depends grabs get_session before function runs and passes the session into function.
+# FastAPI handles the lifecycle
+
+# TODO: Reinforce the 5 resume limit rule in the backend
+@router.post("/applicants/{applicant_id}/resumes")
+async def upload_resume(
+    applicant_id: uuid.UUID,
+    file: UploadFile,
+    # The applicant's reviewed copy of the /parse result. When present it is
+    # stored instead of re-parsing; onboarding omits it and gets the parser's.
+    parsed_json: str | None = Form(None),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session)
+):
+    _assert_applicant_owns(account, applicant_id)
+
+    reviewed = None
+    if parsed_json is not None:
+        try:
+            reviewed = ParsedResume.model_validate_json(parsed_json)
+        except ValidationError as exc:
+            raise HTTPException(422, "Invalid resume details") from exc
+        _reject_oversized(reviewed)
+
+    contents, ext, mime = await _read_upload(file)
 
     resume_id = uuid.uuid4()
     storage_path = f"{applicant_id}/{resume_id}{ext}"
@@ -188,15 +246,9 @@ async def upload_resume(
         raise HTTPException(502, "File upload failed")
 
 
-    extract = _extract_pdf_text if ext == ".pdf" else _extract_docx_text
-    raw_text = await asyncio.to_thread(extract, contents)
-
-    parsed = None
-    if raw_text:
-        try:
-            parsed = parse_resume(raw_text)
-        except Exception:
-            logger.exception("Resume parsing failed")
+    # raw_text always comes from the file, never from the client
+    raw_text = await _extract(contents, ext)
+    parsed = reviewed if reviewed is not None else _safe_parse(raw_text)
 
     # Resume ORM object
     resume = Resume(
@@ -236,6 +288,7 @@ async def upload_resume(
         "parsed_json": resume.parsed_json,
         "storage_path": resume.storage_path,
         "status": resume.status,
+        "is_default": False,
         "created_at": resume.created_at.isoformat() if resume.created_at else None,
     }
 
@@ -255,6 +308,10 @@ async def list_resumes(
     )
 
     resumes = result.scalars().all()
+    # The primary resume lives on the profile, not on the resume rows.
+    default_id = await session.scalar(
+        select(Applicant_Profile.default_resume_id).where(Applicant_Profile.id == applicant_id)
+    )
 
     return [
         {
@@ -263,10 +320,117 @@ async def list_resumes(
             "original_filename": r.original_filename,
             "storage_path": r.storage_path,
             "status": r.status,
+            "is_default": r.id == default_id,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
         for r in resumes
     ]
+
+
+async def _get_owned_resume(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
+) -> Resume:
+    resume = (
+        await session.execute(
+            select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
+        )
+    ).scalar_one_or_none()
+    if not resume:
+        raise HTTPException(404, "Resume not found")
+    return resume
+
+
+# The list leaves parsed_json out to stay small; the profile reads it per resume.
+@router.get("/applicants/{applicant_id}/resumes/{resume_id}")
+async def get_resume(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    _assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    return {"id": str(resume.id), "parsed_json": resume.parsed_json}
+
+
+@router.put("/applicants/{applicant_id}/resumes/{resume_id}")
+async def update_resume(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    body: ParsedResume,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    """Replace the parsed content with the applicant's edits from the profile.
+    The whole ParsedResume is sent, so one entry's edit is a full replace."""
+    _assert_applicant_owns(account, applicant_id)
+    _reject_oversized(body)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    resume.parsed_json = body.model_dump(mode="json")
+    resume.status = ResumeStatus.parsed
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        logger.exception("Failed to update resume", extra={"resume_id": str(resume_id)})
+        raise HTTPException(500, "Failed to save resume changes")
+    return {"id": str(resume.id), "parsed_json": resume.parsed_json}
+
+
+@router.put("/applicants/{applicant_id}/resumes/{resume_id}/default")
+async def set_default_resume(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    """Make this the applicant's primary resume. It is a pointer on the profile
+    (default_resume_id, ON DELETE SET NULL), so deleting the resume clears it."""
+    _assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    profile = await session.get(Applicant_Profile, applicant_id)
+    if profile is None:
+        raise HTTPException(404, "Applicant not found")
+    profile.default_resume_id = resume.id
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        logger.exception("Failed to set default resume", extra={"resume_id": str(resume_id)})
+        raise HTTPException(500, "Failed to set the primary resume")
+    return {"default_resume_id": str(resume.id)}
+
+
+@router.get("/applicants/{applicant_id}/resumes/{resume_id}/file")
+async def get_resume_file_url(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    """A short-lived link to the uploaded file, for the profile's preview. A
+    browser shows a PDF itself; it can't show a DOCX, so that link downloads
+    the file under the name it was uploaded with."""
+    _assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    if not resume.storage_path:
+        raise HTTPException(404, "Resume file not found")
+    options = (
+        {} if resume.storage_path.endswith(".pdf")
+        else {"download": resume.original_filename or True}
+    )
+    try:
+        signed = await asyncio.to_thread(
+            get_supabase().storage.from_(BUCKET).create_signed_url,
+            resume.storage_path,
+            FILE_URL_TTL_SECONDS,
+            options,
+        )
+    except Exception:
+        logger.exception("Failed to sign resume URL", extra={"storage_path": resume.storage_path})
+        raise HTTPException(502, "Could not open the resume")
+    return {"url": signed.get("signedUrl")}
+
 
 @router.delete("/applicants/{applicant_id}/resumes/{resume_id}")
 async def delete_resume(
@@ -277,14 +441,7 @@ async def delete_resume(
 ):
     _assert_applicant_owns(account, applicant_id)
 
-    resume = (
-        await session.execute(
-            select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
-        )
-    ).scalar_one_or_none()
-
-    if not resume:
-        raise HTTPException(404, "Resume not found")
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
 
     # Delete DB row first (reversible via rollback), then Storage
     storage_path = resume.storage_path

@@ -11,7 +11,8 @@ Python API.
 lockfile and tooling. Nothing above it is part of this build, and nothing in
 `frontend/` is importable from here. The two halves communicate over HTTP and
 share no code. The scraper is no exception: `GET /jobs` reads
-`scraper/feed.json` as data and imports none of its code.
+`scraper/feed.json` (or the committed `data/feed.json` snapshot) as data and
+imports none of its code.
 
 **The one exception is `../scout/`**, Scout's brain, installed here as the
 `workit-scout` package. It is a library with no database or HTTP of its own;
@@ -60,8 +61,10 @@ uv run pytest                                  run the tests in tests/
 ```
 
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
-extraction (`test_resume_extraction.py`) and Scout's route (`test_scout.py`).
-`tests/fixtures/*.txt` are extracted text
+extraction (`test_resume_extraction.py`) and Scout's route (`test_scout.py`). A test that calls the resume routes
+must monkeypatch `resumes.get_supabase`: the router calls it directly rather
+than through `Depends`, so a dependency override misses it and the test
+uploads to the real bucket. `tests/fixtures/*.txt` are extracted text
 of real resumes, each in a layout that once broke parsing, cut to start at the
 first section header so no contact details are committed. The heuristics
 interact — a fix for one layout has broken another more than once — so when a
@@ -92,8 +95,9 @@ app/
     jobs.py       GET /jobs — the scraper's feed.json, public, no DB, no descriptions;
                   `read_feed` is shared with scout.py
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
-    resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
-                  text from PDF/DOCX and parses it into structured JSON
+    resumes.py    CRUD /applicants/{id}/resumes — upload, list, get, replace,
+                  delete, set default, signed file link; extracts text from
+                  PDF/DOCX and parses it into structured JSON
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
     scout.py      POST /scout/chat — one Scout turn, streamed as NDJSON
   services/       Logic with no HTTP or DB of its own. Never in models/,
@@ -115,12 +119,15 @@ alembic/
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
 tests/            pytest; resume parser and DOCX extraction tests, and fixtures
+data/
+  feed.json       Committed snapshot of scraper/feed.json — what GET /jobs
+                  serves in production. See Deployment
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
   resume.md       Same, for resume storage and parsing
   avatar.md       Profile photo: formats, limits, storage, bucket setup
-pyproject.toml    Dependencies, and the pinned Python series
+pyproject.toml    Dependencies, the pinned Python series, and Vercel's entrypoint
 uv.lock           Exact resolved versions — committed
 ```
 
@@ -157,6 +164,45 @@ but nothing about migrations yet. Two gates are worth adding: `alembic heads`
 failing when it returns more than one, and `alembic check` failing on model
 drift. Both would have caught the 2026-09-21 breakage before it reached anyone
 else.
+
+## Deployment
+
+This folder deploys to **Vercel as its own project** (Root Directory
+`backend`), separate from the Next.js project, both from this repo. Merging
+to `main` deploys production; every PR gets a preview URL. Chosen in KAN-146
+over Render (free tier sleeps after 15 idle minutes and takes ~1 minute to
+wake — sign-in looked broken), Railway (no real free tier), Fly.io (no free
+tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
+
+- **Entrypoint** is `[tool.vercel] entrypoint` in `pyproject.toml`; the whole
+  app becomes one Vercel Function. Vercel installs from `uv.lock` itself.
+- **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
+  `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (values in
+  `../scout/CLAUDE.md`, "Which model, where"). Without `SCOUT_*` the API
+  points Scout at a local Ollama that a deployment does not have, and every
+  Scout reply is "offline". **Never `DIRECT_URL`:** migrations are run by
+  hand, locally (`alembic/CLAUDE.md`); the deployed API has no business
+  holding the migration connection.
+- **`GET /jobs` serves `data/feed.json` in production.** A deploy ships only
+  `backend/`, and `scraper/feed.json` is gitignored besides, so without the
+  snapshot `/jobs` answered 503 and the seeker Jobs page showed nothing.
+  `config.default_scraper_feed()` prefers `scraper/feed.json` when a local
+  scraper run has written one and falls back to the snapshot otherwise; no
+  env var is needed (`SCRAPER_FEED` still overrides both). Refresh it by
+  running the scraper and copying its `feed.json` here, **in the same commit
+  as any change to `schemas/jobs.py`** — a snapshot that no longer validates
+  turns the 503 into a 500. Still open: a scheduled refresh, or moving the
+  rows into a table.
+- **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
+  them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
+  4.5–5 MB upload fails on the deployment with a bare 413.
+- **`../scout` is bundled despite living outside `backend/`.** uv installs it
+  as a copy at build time, so the function carries it in site-packages; the
+  KAN-146-deploy previews with Scout built and answered. Keep it a non-editable
+  path source — an editable one would point at a folder the function lacks.
+- **`NullPool` is what makes this safe** (see The database): every
+  invocation opens one connection through Supavisor's transaction pooler,
+  which does the pooling, so serverless scale-out cannot exhaust Postgres.
 
 ## The database
 

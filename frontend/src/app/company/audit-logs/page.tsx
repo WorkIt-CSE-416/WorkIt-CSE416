@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
+import { DownloadIcon } from "../icons";
 import { AUDIT_LOG, type LogStatus } from "./data";
 
 export const metadata: Metadata = {
@@ -27,29 +28,32 @@ export const metadata: Metadata = {
  * from ./data.
  *
  * The mockup frames this as a health view: STATUS is the column that matters,
- * so it is the only coloured text in the table — positive for a clean action,
- * red for a failure or a row that needs a human, muted for an automated
- * rollback. --color-destructive is still shadcn's stock red (see globals.css);
- * it stands in until WorkIt designs one.
+ * so it is the only colour in the table, and it is a status pill like every
+ * other state in the app. Its tones are Badge's, by kind: positive for a clean
+ * action, danger for a failure, warning for a row waiting on a human to
+ * decide, inert for an automated rollback. A failure and a pending decision
+ * used to share one red, which raised the same alarm for both. The Action
+ * verb is plain code, so nothing else in a row competes with its status.
+ *
+ * Status is the second column, straight after the time, for the reason the
+ * Applicants table puts Stage second: on a phone the scroller shows about two
+ * columns, and whether an action failed is the one fact worth having without
+ * scrolling for it.
  */
-const STATUS_META: Record<LogStatus, { label: string; className: string }> = {
-  success: { label: "Success", className: "text-positive" },
-  failed: { label: "Failed", className: "text-destructive" },
-  "rolled-back": { label: "Rolled Back", className: "text-ink-meta" },
-  review: { label: "Needs Review", className: "text-destructive" },
+const STATUS_META: Record<LogStatus, { label: string; tone: BadgeTone }> = {
+  success: { label: "Success", tone: "positive" },
+  failed: { label: "Failed", tone: "danger" },
+  "rolled-back": { label: "Rolled Back", tone: "inert" },
+  review: { label: "Needs Review", tone: "warning" },
 };
 
-/** Automated actions read neutral; anything an admin types reads brand. */
-function actionTone(action: string): BadgeTone {
-  return /ROLLBACK|BACKUP|FAILURE/.test(action) ? "neutral" : "brand";
-}
-
-const TH = "text-caption text-ink-subtle px-4 py-3 uppercase";
+/** The company tables' heading style (their SortHeader): 12px ink-meta. */
+const TH = "px-4 py-3 text-left text-note text-ink-meta font-medium";
 const TD = "px-4 py-3";
 
 export default function CompanyAuditLogsPage() {
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
       <header className="mb-5">
         <h1 className="text-heading text-ink">System Audit Logs</h1>
         <p className="text-body text-ink-meta mt-1">
@@ -58,27 +62,16 @@ export default function CompanyAuditLogsPage() {
       </header>
 
       <Card padding="none" className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-end gap-3 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3">
           <SearchField
             id="audit-log-search"
-            label="Search logs"
+            label="Search Logs"
             name="q"
             placeholder="Search logs…"
             className="min-w-0 flex-1 sm:max-w-xs"
           />
           <Button variant="secondary" size="sm">
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.4}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-              className="size-4"
-            >
-              <path d="M8 2.5v7M5 6.5 8 9.5l3-3M3 12.5h10" />
-            </svg>
+            <DownloadIcon className="size-3.5" />
             Export CSV
           </Button>
         </div>
@@ -86,12 +79,12 @@ export default function CompanyAuditLogsPage() {
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="bg-well border-border-subtle border-y">
+              <tr className="border-border-subtle border-y">
                 <th className={TH}>Timestamp</th>
+                <th className={TH}>Status</th>
                 <th className={TH}>Actor</th>
                 <th className={TH}>Action</th>
                 <th className={TH}>Target</th>
-                <th className={TH}>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +96,11 @@ export default function CompanyAuditLogsPage() {
                   <td className={cn(TD, "text-body text-ink-meta whitespace-nowrap")}>
                     {entry.timestamp}
                   </td>
+                  <td className={cn(TD, "whitespace-nowrap")}>
+                    <Badge variant="status" tone={STATUS_META[entry.status].tone}>
+                      {STATUS_META[entry.status].label}
+                    </Badge>
+                  </td>
                   <td className={TD}>
                     <span className="flex items-center gap-2 whitespace-nowrap">
                       <Avatar name={entry.actor} className="text-meta size-6" />
@@ -110,20 +108,11 @@ export default function CompanyAuditLogsPage() {
                     </span>
                   </td>
                   <td className={TD}>
-                    <Badge variant="tag" tone={actionTone(entry.action)}>
-                      {entry.action}
-                    </Badge>
+                    <code className="text-note text-ink-muted font-mono">{entry.action}</code>
                   </td>
-                  <td className={cn(TD, "text-body text-ink")}>{entry.target}</td>
-                  <td
-                    className={cn(
-                      TD,
-                      "text-body font-medium whitespace-nowrap",
-                      STATUS_META[entry.status].className,
-                    )}
-                  >
-                    {STATUS_META[entry.status].label}
-                  </td>
+                  {/* nowrap so a long target cannot wrap its row to two lines;
+                      every row is one height, and the scroller takes the width. */}
+                  <td className={cn(TD, "text-body text-ink whitespace-nowrap")}>{entry.target}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 
+import { AuthAlternatives } from "@/components/auth-alternatives";
 import { BrandPanel } from "@/components/brand-panel";
-import { GoogleIcon, LinkedInIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
-import { Button } from "@/components/ui/button";
 import { TextLink } from "@/components/ui/text-link";
-import { signInWithOAuth } from "@/lib/oauth-actions";
 
 import { SignupForm } from "./signup-form";
 
@@ -23,21 +21,21 @@ const FORM_ID = "create-account";
  * this as one screen with two doors, not two different products.
  *
  * Create Account calls POST /auth/signup (see ./actions.ts and
- * src/lib/auth.ts) for applicant accounts. The Company tab asks Create or
- * Join first (see ./signup-form.tsx); Create Company sends the company's
- * fields along with the owner's, and shows whatever the API says back — 501
- * until the backend handles company signup. Join has no form yet.
+ * src/lib/auth.ts) for applicant accounts. The Company tab opens on Create
+ * Company, with Join a Company shown but disabled (see ./signup-form.tsx).
+ * Create Company sends the company's fields along with the owner's, and the
+ * API creates the company and its owner's membership. Join has no form yet.
+ *
+ * The right column is the same string as /login's, so the card hangs from the
+ * same 12vh and does not re-centre when the Company fields open below it.
  */
 export default function SignUpPage() {
   return (
     <main className="flex flex-1">
-      {/* 5:7 rather than login's 1:1 — this card carries twice the fields
-          (three name inputs, a confirm-password) and wants the width to lay
-          the name row out in one line instead of wrapping. */}
-      <BrandPanel className="lg:flex-[5]" />
+      <BrandPanel />
 
-      <div className="flex flex-1 items-center justify-center p-5 lg:flex-[7]">
-        <div className="rounded-card border-border bg-surface shadow-card w-full max-w-xl border p-5">
+      <div className="flex flex-1 items-start justify-center p-6 lg:flex-[7] lg:pt-[12vh]">
+        <div className="rounded-card border-border bg-surface shadow-card w-full max-w-xl border p-6">
           <Logo size="card" priority className="mx-auto" />
 
           <h1 className="text-title text-ink mt-2.5 text-center">Create Your Account</h1>
@@ -47,28 +45,9 @@ export default function SignUpPage() {
 
           <SignupForm formId={FORM_ID} />
 
-          <div className="mt-4 flex items-center gap-3">
-            <span className="bg-border-subtle h-px flex-1" />
-            <span className="text-caption text-ink-muted uppercase">Or continue with</span>
-            <span className="bg-border-subtle h-px flex-1" />
-          </div>
+          <AuthAlternatives />
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <form action={signInWithOAuth.bind(null, "google")}>
-              <Button type="submit" variant="secondary" className="w-full">
-                <GoogleIcon className="size-4" />
-                Google
-              </Button>
-            </form>
-            <form action={signInWithOAuth.bind(null, "linkedin_oidc")}>
-              <Button type="submit" variant="secondary" className="w-full">
-                <LinkedInIcon className="size-4" />
-                LinkedIn
-              </Button>
-            </form>
-          </div>
-
-          <p className="text-body text-ink-muted mt-4 text-center">
+          <p className="text-body text-ink-muted mt-6 text-center">
             Already have an account? <TextLink href="/login">Sign In</TextLink>
           </p>
         </div>
