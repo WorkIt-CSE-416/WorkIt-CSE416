@@ -86,15 +86,13 @@ export const INITIAL_QUESTIONS: ScreeningQuestion[] = [
  *  note in ./stepper.tsx about why the rail draws all three anyway. */
 export const STEPS = ["Basic Details", "Screening", "Publish"] as const;
 
-/** Only countries the `countries` table is seeded with (cca905583de8): a
- *  code it lacks fails the `location_country` foreign key on save. Adding
- *  one means seeding it in a new migration first. */
+/** Only countries the `countries` table holds: US, plus ZZ for anywhere else
+ *  (4623ff1e8bb1 removed the rest). A code it lacks fails the
+ *  `location_country` foreign key on save. Adding one means seeding it in a
+ *  new migration first. */
 export const COUNTRIES = [
   { code: "US", name: "United States" },
-  { code: "CA", name: "Canada" },
-  { code: "GB", name: "United Kingdom" },
-  { code: "DE", name: "Germany" },
-  { code: "AU", name: "Australia" },
+  { code: "ZZ", name: "Other" },
 ] as const;
 
 export type SavedLocation = {
@@ -117,7 +115,6 @@ export const SAVED_LOCATIONS: SavedLocation[] = [
   { id: "san-francisco", city: "San Francisco", country: "US" },
   { id: "new-york", city: "New York", country: "US" },
   { id: "austin", city: "Austin", country: "US" },
-  { id: "toronto", city: "Toronto", country: "CA" },
 ];
 
 /** "San Francisco, United States" from a city and an ISO country code, or

@@ -143,7 +143,10 @@ export const STATUS_LABEL: Record<CompanyJobSummary["status"], JobStatus> = {
 export function toPosting(job: CompanyJobSummary): Posting {
   // "US-NY" -> "NY". Only the US has states seeded. The country is spelled
   // out, the way the composer shows it.
-  const place = [job.location_state?.split("-")[1], formatCountry(job.location_country)]
+  const place = [
+    job.location_state?.split("-")[1],
+    job.location_country && formatCountry(job.location_country),
+  ]
     .filter(Boolean)
     .join(", ");
 
@@ -155,6 +158,6 @@ export function toPosting(job: CompanyJobSummary): Posting {
     applicants: 0,
     unreviewed: 0,
     posted: job.created_at,
-    location: job.work_style === "remote" ? `Remote, ${place}` : place,
+    location: [job.work_style === "remote" && "Remote", place].filter(Boolean).join(", "),
   };
 }

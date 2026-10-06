@@ -70,7 +70,7 @@ export function toJobPayload(
     minYearsExperience:
       draft.experienceLevel === "Experienced" ? toNumber(draft.minYearsExperience) : null,
     workStyle: WORK_STYLE[draft.workStyle as keyof typeof WORK_STYLE],
-    locationCountry: location?.country ?? "",
+    locationCountry: location?.country ?? null,
     locationState: location?.state ?? null,
     salary: isRange ? null : toNumber(draft.salary),
     salaryMin: isRange ? toNumber(draft.salaryMin) : null,
@@ -106,16 +106,22 @@ function labelFor<T extends string>(map: Record<string, T>, value: T) {
  *
  * The location comes back as a country-only entry: no city was stored, so
  * guessing one from the company's saved locations could show the wrong
- * office. Department isn't stored either, so it reopens on the default.
+ * office. A job saved with no country reopens with no location picked.
+ * Department isn't stored either, so it reopens on the default.
  */
-export function fromCompanyJob(job: CompanyJob): { draft: JobDraft; location: SavedLocation } {
-  const location: SavedLocation = {
-    id: `country-${job.location_country}`,
-    city: "",
-    country: job.location_country,
-    // Kept so saving the form doesn't clear a state the picker can't show.
-    state: job.location_state ?? undefined,
-  };
+export function fromCompanyJob(job: CompanyJob): {
+  draft: JobDraft;
+  location: SavedLocation | null;
+} {
+  const location: SavedLocation | null = job.location_country
+    ? {
+        id: `country-${job.location_country}`,
+        city: "",
+        country: job.location_country,
+        // Kept so saving the form doesn't clear a state the picker can't show.
+        state: job.location_state ?? undefined,
+      }
+    : null;
   const isRange = job.salary === null;
   const closeDate = job.closes_at ? new Date(job.closes_at) : null;
   const toText = (value: number | null) => (value === null ? "" : String(value));
@@ -126,7 +132,7 @@ export function fromCompanyJob(job: CompanyJob): { draft: JobDraft; location: Sa
       title: job.title,
       department: DEPARTMENTS[0],
       workStyle: labelFor(WORK_STYLE, job.work_style),
-      locationId: location.id,
+      locationId: location?.id ?? null,
       jobType: labelFor(JOB_TYPE, job.job_type),
       experienceLevel: labelFor(EXPERIENCE_LEVEL, job.experience_level),
       minYearsExperience: toText(job.min_years_experience),

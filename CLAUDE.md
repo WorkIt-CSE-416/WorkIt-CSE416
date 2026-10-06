@@ -49,6 +49,13 @@ Alembic is the single source of truth for schema. `backend/db/*.md` are design
 rationale, and schema edits through the Supabase dashboard are banned — they
 bypass Alembic silently.
 
+**Claude never runs `uv run alembic upgrade head` itself** — nor `downgrade`,
+`stamp`, or anything else that writes to the database. Write the migration,
+check it offline with `--sql`, then tell the user to run the command. Applying
+a migration changes a shared database, and applying one whose file isn't
+committed broke every teammate's Alembic on 2026-09-21
+(`backend/alembic/CLAUDE.md`).
+
 **Auth is decided: Supabase Auth issues the session, the Python API
 authorizes.** Supabase Auth stores credentials in `auth.users` and issues and
 refreshes tokens; the Next server holds the session in Supabase's cookies and
