@@ -49,6 +49,24 @@ There is no test runner yet. When one is added, document it here.
 `typecheck` runs `next typegen` first on purpose: `LayoutProps`/`PageProps` are
 generated route types that do not exist on a fresh clone, so bare `tsc` fails.
 
+## Deployment
+
+Deployed to **Vercel** as its own project, Root Directory `frontend` (root
+`CLAUDE.md`'s Deployment). Production env vars: `API_URL` (the API
+project's Vercel URL — server-only, never `NEXT_PUBLIC_`),
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. The service-role
+key never goes here.
+
+- **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
+  Configuration → Redirect URLs): production, a wildcard for preview URLs,
+  and `http://localhost:3000`, each with `/auth/callback`. `oauth-actions.ts`
+  builds `redirectTo` from `x-forwarded-host`, so the code needs no per-env
+  setting — but Supabase silently falls back to its Site URL for any origin
+  not on the list.
+- **Request bodies over 4.5 MB are refused by Vercel** before Next runs,
+  but uploads are still capped at 5 MB (see the upload limit below), so a
+  4.5–5 MB upload fails on the deployment with a bare 413. Still open.
+
 ## Architecture
 
 ```

@@ -128,6 +128,20 @@ GitHub Actions runs on every PR to `main`. The workflow lives at
 PRs show a green check or red X based on the result. Do not merge with failing
 checks.
 
+## Deployment
+
+Both halves deploy to **Vercel, as two projects from this one repo**: Root
+Directory `frontend` (the Next.js app) and Root Directory `backend` (the API,
+as a single Vercel Function). Merging to `main` deploys production; every PR
+gets preview URLs for both. The Next project's `API_URL` points at the API
+project's URL. Migrations are never part of a deploy — they stay a manual,
+local step (see The database).
+
+Each half's settings, env vars and limits live in its own CLAUDE.md
+(the Deployment section of `backend/CLAUDE.md` and of `frontend/CLAUDE.md`).
+Supabase's dashboard (Authentication → URL Configuration) must list each
+deployed origin's `/auth/callback`, or OAuth sign-in bounces.
+
 ## Cross-platform rules
 
 The team develops on both macOS and Windows. Keep it that way:

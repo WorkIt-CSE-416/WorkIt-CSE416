@@ -116,7 +116,7 @@ db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
   resume.md       Same, for resume storage and parsing
   avatar.md       Profile photo: formats, limits, storage, bucket setup
-pyproject.toml    Dependencies, and the pinned Python series
+pyproject.toml    Dependencies, the pinned Python series, and Vercel's entrypoint
 uv.lock           Exact resolved versions — committed
 ```
 
@@ -153,6 +153,31 @@ but nothing about migrations yet. Two gates are worth adding: `alembic heads`
 failing when it returns more than one, and `alembic check` failing on model
 drift. Both would have caught the 2026-09-21 breakage before it reached anyone
 else.
+
+## Deployment
+
+This folder deploys to **Vercel as its own project** (Root Directory
+`backend`), separate from the Next.js project, both from this repo. Merging
+to `main` deploys production; every PR gets a preview URL. Chosen in KAN-146
+over Render (free tier sleeps after 15 idle minutes and takes ~1 minute to
+wake — sign-in looked broken), Railway (no real free tier), Fly.io (no free
+tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
+
+- **Entrypoint** is `[tool.vercel] entrypoint` in `pyproject.toml`; the whole
+  app becomes one Vercel Function. Vercel installs from `uv.lock` itself.
+- **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
+  `SUPABASE_SERVICE_KEY`. **Never `DIRECT_URL`:** migrations are run by
+  hand, locally (`alembic/CLAUDE.md`); the deployed API has no business
+  holding the migration connection.
+- **Still open: the deployed `GET /jobs` has no feed.** `scraper/feed.json`
+  is gitignored and a deployment has no scraper run, so `/jobs` answers 503
+  until the feed has a production home (`SCRAPER_FEED` can point at one).
+- **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
+  them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
+  4.5–5 MB upload fails on the deployment with a bare 413.
+- **`NullPool` is what makes this safe** (see The database): every
+  invocation opens one connection through Supavisor's transaction pooler,
+  which does the pooling, so serverless scale-out cannot exhaust Postgres.
 
 ## The database
 
