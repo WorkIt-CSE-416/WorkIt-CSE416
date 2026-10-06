@@ -11,7 +11,8 @@ Python API.
 lockfile and tooling. Nothing above it is part of this build, and nothing in
 `frontend/` is importable from here. The two halves communicate over HTTP and
 share no code. The scraper is no exception: `GET /jobs` reads
-`scraper/feed.json` as data and imports none of its code.
+`scraper/feed.json` (or the committed `data/feed.json` snapshot) as data and
+imports none of its code.
 
 **This folder owns the database.** Connection strings, schema and migrations
 all live on this side. The Next.js app holds no ORM and no credentials.
@@ -111,6 +112,9 @@ alembic/
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
 tests/            pytest; resume parser and DOCX extraction tests, and fixtures
+data/
+  feed.json       Committed snapshot of scraper/feed.json — what GET /jobs
+                  serves in production. See Deployment
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
@@ -169,9 +173,16 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   `SUPABASE_SERVICE_KEY`. **Never `DIRECT_URL`:** migrations are run by
   hand, locally (`alembic/CLAUDE.md`); the deployed API has no business
   holding the migration connection.
-- **Still open: the deployed `GET /jobs` has no feed.** `scraper/feed.json`
-  is gitignored and a deployment has no scraper run, so `/jobs` answers 503
-  until the feed has a production home (`SCRAPER_FEED` can point at one).
+- **`GET /jobs` serves `data/feed.json` in production.** A deploy ships only
+  `backend/`, and `scraper/feed.json` is gitignored besides, so without the
+  snapshot `/jobs` answered 503 and the seeker Jobs page showed nothing.
+  `config.default_scraper_feed()` prefers `scraper/feed.json` when a local
+  scraper run has written one and falls back to the snapshot otherwise; no
+  env var is needed (`SCRAPER_FEED` still overrides both). Refresh it by
+  running the scraper and copying its `feed.json` here, **in the same commit
+  as any change to `schemas/jobs.py`** — a snapshot that no longer validates
+  turns the 503 into a 500. Still open: a scheduled refresh, or moving the
+  rows into a table.
 - **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
   them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
   4.5–5 MB upload fails on the deployment with a bare 413.

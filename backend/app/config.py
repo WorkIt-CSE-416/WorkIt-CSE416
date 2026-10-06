@@ -5,6 +5,7 @@ Environment configuration, imported by other files and migration
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +31,18 @@ def to_asyncpg(url: str) -> str:
 ENV_FILE = Path(__file__).parents[2] / ".env"
 
 
+def default_scraper_feed() -> Path:
+    """
+    scraper/feed.json when a local scraper run has written one, else the
+    committed snapshot in backend/data/. A Vercel deploy only ships backend/,
+    so it always gets the snapshot.
+    """
+    local = ENV_FILE.parent / "scraper" / "feed.json"
+    if local.is_file():
+        return local
+    return Path(__file__).parents[1] / "data" / "feed.json"
+
+
 class Settings(BaseSettings):
     """Everything the API reads from the environment."""
 
@@ -53,7 +66,7 @@ class Settings(BaseSettings):
 
     # The scraper's output, served by GET /jobs. Data, read at request time —
     # nothing from scraper/ is imported, so it stays out of this build.
-    scraper_feed: Path = ENV_FILE.parent / "scraper" / "feed.json"
+    scraper_feed: Path = Field(default_factory=default_scraper_feed)
 
     @property
     def app_url(self) -> str:
