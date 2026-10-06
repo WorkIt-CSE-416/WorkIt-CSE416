@@ -116,7 +116,10 @@ export async function createAccount(
   // only send to onboarding if it's profile 
   if (account.account_type=="applicant")
   {
-    redirect(`/onboarding/${account.account_type}`);
+    // KAN-141: onboarding is skipped for faster prototyping; restore this
+    // redirect to send new applicants through it again.
+    // redirect(`/onboarding/${account.account_type}`);
+    redirect(`/profile`);
   }
   else 
   {

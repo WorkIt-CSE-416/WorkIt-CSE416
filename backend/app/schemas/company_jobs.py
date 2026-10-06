@@ -43,8 +43,8 @@ class JobPostingCreate(BaseModel):
     work_style: dto.work_style = Field(alias="workStyle")
 
     # ISO codes, checked against the seeded countries/states by the foreign
-    # keys. A remote job still names a country (backend/app/models/CLAUDE.md).
-    location_country: str = Field(alias="locationCountry", pattern=r"^[A-Z]{2}$")
+    # keys. Null when the posting names no location (backend/app/models/CLAUDE.md).
+    location_country: str | None = Field(None, alias="locationCountry", pattern=r"^[A-Z]{2}$")
     location_state: str | None = Field(None, alias="locationState", pattern=r"^[A-Z]{2}-[A-Z0-9]{1,3}$")
 
     salary: Money | None = None
@@ -69,7 +69,9 @@ class JobPostingCreate(BaseModel):
             raise ValueError("salary, or both salaryMin and salaryMax, is required")
         if self.salary_min is not None and self.salary_max is not None and self.salary_min > self.salary_max:
             raise ValueError("salaryMin cannot be greater than salaryMax")
-        if self.location_state is not None and not self.location_state.startswith(f"{self.location_country}-"):
+        if self.location_state is not None and (
+            self.location_country is None or not self.location_state.startswith(f"{self.location_country}-")
+        ):
             raise ValueError("locationState must be a state of locationCountry")
         # A closing date in the past is checked by the routes, not here: an
         # edit to a live job whose date has already lapsed is fine as long as
@@ -111,7 +113,7 @@ class JobPostingSummary(BaseModel):
     title: str
     status: dto.job_post_status
     work_style: dto.work_style
-    location_country: str
+    location_country: str | None
     location_state: str | None
     closes_at: datetime.datetime | None
     created_at: datetime.datetime
@@ -133,7 +135,7 @@ class JobPosting(BaseModel):
     experience_level: dto.experience_level
     min_years_experience: int | None
     work_style: dto.work_style
-    location_country: str
+    location_country: str | None
     location_state: str | None
     salary: float | None
     salary_min: float | None

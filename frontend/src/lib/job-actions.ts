@@ -19,7 +19,8 @@ export type JobPayload = {
   experienceLevel: "internship" | "new_grad" | "other";
   minYearsExperience: number | null;
   workStyle: "remote" | "hybrid" | "onsite";
-  locationCountry: string;
+  /** Null when the posting names no location. */
+  locationCountry: string | null;
   /** "US-NY". The composer can't pick a state yet; it only carries one
    *  through from a saved job, so a save doesn't wipe it. */
   locationState: string | null;

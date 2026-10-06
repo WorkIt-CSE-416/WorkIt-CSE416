@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.models.dto import profile_status
 from app.models.profiles import Applicant_Profile, Company_Membership
-from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.schemas.auth import AccountType, AuthenticatedAccount, VerifiedIdentity
 from app.security import decode_access_token
 
 
@@ -51,11 +51,38 @@ def _not_authenticated() -> HTTPException:
 _bearer = HTTPBearer(auto_error=False)
 
 
+async def load_account(
+    db: AsyncSession, account_id: uuid.UUID, account_type: AccountType
+) -> AuthenticatedAccount | None:
+    '''
+    The one query get_current_account and the OAuth completion flow
+    (routers/auth.py's /oauth/status and /oauth/account-type) all share:
+    given an id and which table it should be in, load the row and shape it
+    into AuthenticatedAccount, or None if it isn't there yet.
+    '''
+    model = Applicant_Profile if account_type is AccountType.APPLICANT else Company_Membership
+    account = (
+        await db.execute(select(model).where(model.id == account_id))
+    ).scalar_one_or_none()
+    if account is None:
+        return None
+
+    return AuthenticatedAccount(
+        id=account.id,
+        email=account.email,
+        full_name=account.full_name,
+        account_type=account_type,
+        onboarding_completed=account.onboarding_completed_at is not None,
+        company_id=account.company_id if isinstance(account, Company_Membership) else None,
+        membership_status=account.status if isinstance(account, Company_Membership) else None,
+    )
+
+
 async def get_current_account(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: AsyncSession = Depends(get_session),
 ) -> AuthenticatedAccount:
-    ''' 
+    '''
     resolve bearer token to get account information
     '''
     if credentials is None:
@@ -67,28 +94,56 @@ async def get_current_account(
         account_id = uuid.UUID(claims["sub"])
     except (jwt.InvalidTokenError, ValueError):
         # ValueError: no account_type, one this API doesn't know, or a `sub`
-        # that isn't a uuid. A user created outside /auth/signup (the
-        # dashboard, say) has no account_type and no profile row either, so
-        # this is the same "not an account here" as a bad token.
+        # that isn't a uuid. A user created outside /auth/signup or
+        # /auth/oauth/account-type (the dashboard, say, or an OAuth sign-in
+        # that hasn't finished picking a type) has no account_type and no
+        # profile row either, so this is the same "not an account here" as a
+        # bad token.
         raise _not_authenticated()
 
-    # retrieve user from corresponding table 
-    model = Applicant_Profile if account_type is AccountType.APPLICANT else Company_Membership
-    account = (
-        await db.execute(select(model).where(model.id == account_id))
-    ).scalar_one_or_none()
+    account = await load_account(db, account_id, account_type)
     if account is None:
         raise _not_authenticated()
 
-    return AuthenticatedAccount(
-        id=account.id,
-        email=account.email,
-        full_name=account.full_name,
-        account_type=account_type,
-        onboarding_completed=account.onboarding_completed_at is not None,
-        company_id=account.company_id if isinstance(account, Company_Membership) else None,
-        membership_status=account.status if isinstance(account, Company_Membership) else None,
-    )
+    return account
+
+
+async def get_verified_identity(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> VerifiedIdentity:
+    '''
+    Verifies the token the same way get_current_account does, but never
+    requires a profile row to exist — the one case that's wrong for is a
+    Google/LinkedIn sign-in's first-ever request, after Supabase has created
+    auth.users itself but before this API has created anything at all. Used
+    only by routers/auth.py's /oauth/status and /oauth/account-type; every
+    other protected route still depends on get_current_account.
+    '''
+    if credentials is None:
+        raise _not_authenticated()
+
+    try:
+        claims = await decode_access_token(credentials.credentials)
+        account_id = uuid.UUID(claims["sub"])
+    except (jwt.InvalidTokenError, ValueError):
+        raise _not_authenticated()
+
+    email = claims.get("email")
+    if not email:
+        raise _not_authenticated()
+
+    raw_type = claims.get("app_metadata", {}).get("account_type")
+    try:
+        account_type = AccountType(raw_type) if raw_type else None
+    except ValueError:
+        # An account_type this API doesn't know — treat like having none,
+        # same leniency as a missing one.
+        account_type = None
+
+    user_metadata = claims.get("user_metadata") or {}
+    full_name = user_metadata.get("full_name") or user_metadata.get("name")
+
+    return VerifiedIdentity(id=account_id, email=email, account_type=account_type, full_name=full_name)
 
 
 def _not_a_company_member() -> HTTPException:
