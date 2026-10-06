@@ -91,9 +91,7 @@ src/app/          App Router routes, layouts, pages
                   date logic; local-time.tsx prints its dates in the
                   viewer's own zone and links them to the Calendar.
                   /calendar puts the same entries on a Month, Week or
-                  Agenda (calendar/), rendered in the browser.
-                  segmented-links.tsx is the row of link segments the
-                  Calendar's views and the Dashboard's range share
+                  Agenda (calendar/), rendered in the browser
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -144,8 +142,8 @@ src/components/   Shared components
   ui/             Presentational primitives: badge, button, card, company-tile,
                   empty-state, fact, filter-chip (only the design kit shows
                   it today), icon-button, search-field, section,
-                  section-heading, section-link, select-field, text-field,
-                  text-link
+                  section-heading, section-link, segmented-control,
+                  select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
@@ -312,6 +310,21 @@ state, so every view stays a server component and the Dashboard can link to a
 filtered list or one application. A card or row is one link: its role,
 stretched over it. Its next step is a second, `relative` link to that week on
 the Calendar, which paints over the stretched one.
+
+**Every choice of one among a few is `ui/segmented-control.tsx`**: the
+Calendar's Month, Week and Agenda, the Dashboard's range, the Applications
+layouts, the sign-in card's Applicant or Company, and the company chart's
+range. A pill-shaped track (a 5% ink wash, so it reads on the white page and
+the off-white auth card alike, and no outline) with a white thumb that slides
+to the chosen option on a 300ms ease-out, and jumps under reduced motion. The
+options are equal width, so the thumb is placed with CSS alone and the server
+renders it in place. `SegmentedLinks` is for a choice kept in the URL: the
+thumb moves on the click, before the new page arrives, so the motion never
+waits on the network. `SegmentedToggle` is for component state, on Base UI's
+ToggleGroup for its arrow keys and single tab stop; a null value hides the
+thumb. An icon option is a rendered element, not a component, since a server
+page passes the options. Build a new segmented choice from it rather than
+styling a ToggleGroup by hand.
 
 **The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
 application went in, interviews, offers and their deadlines, closing dates
