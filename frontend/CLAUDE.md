@@ -108,8 +108,11 @@ src/components/   Shared components
   scout/          Scout, the job assistant. scout-store holds the one chat per
                   tab (a module store, so no provider); scout-panel docks
                   beside the page, never over it, and opens only on a click;
-                  stream.ts mirrors the API's NDJSON events. The brain is
-                  the repo's scout/ — read its CLAUDE.md first.
+                  stream.ts mirrors the API's NDJSON events; reply-text
+                  renders a reply's **bold** and "- " bullets, the prompt's
+                  whole formatting vocabulary, with no markdown library (a
+                  reply stays escaped text otherwise). The brain is the
+                  repo's scout/ — read its CLAUDE.md first.
   ui/             Presentational primitives: badge, button, card, company-tile,
                   fact, filter-chip, icon-button, search-field, section-heading,
                   select-field, text-field, text-link

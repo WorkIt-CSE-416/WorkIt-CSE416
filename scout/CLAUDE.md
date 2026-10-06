@@ -52,9 +52,15 @@ the KAN-138 plan; the rules that follow from it are these:
 - **A daily per-account cap** (`SCOUT_DAILY_TURNS`, `quota.py`) stops one
   script from spending a free tier. It lives in memory and resets on restart,
   which errs toward letting people in.
-- **Replies are short.** The prompt asks for it; `agent.MAX_REPLY_CHARS` cuts a
-  reply that ignores it. Length is enforced here, not requested from the
-  provider, because providers name that parameter differently.
+- **Replies are short.** The prompt asks for under 80 words, one answer
+  sentence and at most three bullets — "two to four sentences, or a few
+  bullets" produced 150-word replies on Gemini Flash-Lite. `agent.MAX_REPLY_CHARS`
+  (2400) is only the backstop for a reply that ignores it; a cap near 80 words
+  would cut most replies mid-sentence. Length is enforced here, not requested
+  from the provider, because providers name that parameter differently.
+- **Formatting is `**bold**` and `- ` bullets, nothing else.** The panel's
+  `reply-text.tsx` renders exactly those, so widen the prompt's list and that
+  component together or the panel shows raw markdown again.
 - **Only parsed resume fields ever reach a model** — never a name, email,
   phone, link or the raw resume text. The production model is a free tier that
   may train on prompts. `backend/app/services/scout_facts.py` enforces it.

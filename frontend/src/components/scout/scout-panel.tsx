@@ -7,6 +7,7 @@ import { ChevronDownIcon, SparkleIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
+import { ReplyText } from "./reply-text";
 import { sendToScout, setScoutOpen, useScout } from "./scout-store";
 import type { ScoutMessage } from "./stream";
 import { useSpeechInput } from "./use-speech-input";
@@ -55,12 +56,12 @@ export function ScoutPanel() {
 
         {messages.map((message, i) => (
           <Message key={i} role={message.role}>
-            {message.content}
+            {message.role === "assistant" ? <ReplyText text={message.content} /> : message.content}
           </Message>
         ))}
         {answering && (
           <Message role="assistant">
-            {reply || <span className="text-ink-meta">Thinking…</span>}
+            {reply ? <ReplyText text={reply} /> : <span className="text-ink-meta">Thinking…</span>}
           </Message>
         )}
 
@@ -158,8 +159,11 @@ function Message({ role, children }: { role: ScoutMessage["role"]; children: Rea
   return (
     <div
       className={cn(
-        "text-body max-w-[85%] rounded-2xl px-4 py-2.5 whitespace-pre-wrap",
-        mine ? "bg-brand text-on-brand self-end" : "bg-surface text-ink self-start",
+        "text-body max-w-[85%] rounded-2xl px-4 py-2.5",
+        // The user's own text keeps its line breaks; Scout's are ReplyText's paragraphs.
+        mine
+          ? "bg-brand text-on-brand self-end whitespace-pre-wrap"
+          : "bg-surface text-ink self-start",
       )}
     >
       {children}
