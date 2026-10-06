@@ -11,17 +11,16 @@ import { SectionHeader } from "./section-header";
  * is second, when last.
  *
  * Open on the page, not in a card: a short list of rows with round glyphs
- * reads as a list without a box around it, and the page has the hero and the
- * pipeline band to carry its colour.
+ * reads as a list without a box around it, and the page has the hero to
+ * carry its colour.
  *
  * EACH ROW WEARS ITS STAGE, from ../stage-colors.ts: the same fill and the
- * same white glyph as that stage's pipeline badge below and its board column.
+ * same white glyph as that stage's board column header.
  * A kind is the board column its card sits in (data.ts, KIND_BY_COLUMN), so
  * an interview is Interviewing's amber calendar, an offer is Offer's green
  * award, a closing application is a saved job (grey bookmark) and a follow-up
  * is Applied's violet briefcase. Its own tones here once painted an interview
- * violet and a deadline in Interviewing's amber, contradicting the legend a
- * screen below. Not danger red for a deadline: red means rejected.
+ * violet and a deadline in Interviewing's amber, contradicting the board. Not danger red for a deadline: red means rejected.
  */
 const STAGE_BY_KIND: Record<UpNextKind, StageKey> = {
   interview: "interviewing",

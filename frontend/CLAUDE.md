@@ -219,8 +219,8 @@ is real, but its name is still hard-coded in `company/layout.tsx`.
 `plain` variant; its card form has no caller today. The seeker Dashboard gives
 each kind of content its own surface instead of a white card each: the numbers
 open under the greeting, one violet Next Up hero (the only solid colour), open
-sections for Activity and the lists, and a grey pipeline band of small badge
-cards with a violet Full Board tile. Fixtures are in
+sections for Activity and the lists. There is no pipeline section: its
+funnel only restated the headline numbers. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real. Its range is
 `?range=`, links rather than client state.
 
@@ -236,7 +236,7 @@ variant="section">` for an action. Keep it that way: a page of identical boxes
 has no first place to look. Each page's docblock says what goes where.
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the pipeline and the Applications board, grid and list alike; on the board
+the Dashboard's Up Next and the Applications board, grid and list alike; on the board
 the stage tints the column panel, never the cards inside it. The three views
 also say the same thing about an application: each shows its next step
 through `(seeker)/applications/next-step.tsx` ("Nothing scheduled" when
@@ -304,7 +304,13 @@ fetches `GET /jobs` for /jobs, /search and the Dashboard's New Matches, and
 its `data.ts` still holds the fixtures `filters.tsx` (client) and the
 `/jobs/[jobId]` detail view use. A live role cannot open at `/jobs/[jobId]`
 yet: its id is the employer's apply URL and the detail view reads fixtures
-only, so its card's Apply Now goes to the employer's posting instead. A live fetch in a page calls
+only, so its card's Apply Now goes to the employer's posting instead.
+A live card still has the full shape of a fixture card: every `job_postings`
+fact the scraper cannot give (job type, salary, years) is passed as
+`NOT_LISTED` from `components/job-posting-card.tsx` and drawn as its icon with
+"Salary not listed" in italic, and the match rail is its placeholder
+(`score={null}`: an empty ring and "Score Coming Soon") until matching
+exists. Null still means a fact the posting has none of, and is left out. A live fetch in a page calls
 `await connection()` so `next build` does not prerender it with no API running.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`

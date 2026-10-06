@@ -1,7 +1,7 @@
 import { Ban, CloudOff, Sparkles } from "lucide-react";
 
 import { ExternalLinkIcon } from "@/components/icons";
-import { JobPostingCard } from "@/components/job-posting-card";
+import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { SaveButton } from "@/components/save-button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { IconButton } from "@/components/ui/icon-button";
 
 import { formatExperienceLevel, formatPosted, formatWorkStyle } from "./format";
 import type { JobListing } from "./listings";
+import { MatchRail } from "./match-rail";
 
 /* The live feed's card, and the two states that stand in for a list of them.
  * Shared by /jobs and /search, so a role found by searching is the same card,
@@ -20,10 +21,27 @@ import type { JobListing } from "./listings";
 
 /**
  * One scraped role in the shared <JobPostingCard> shell, with the seeker-only
- * chrome around it. What a scraped role lacks is null, and the card omits it:
- * no salary or job type (job boards rarely state them), no match rail (nothing
- * scores roles yet), and no title link (there is no expanded view for a role
- * with no description). Apply Now leaves for the employer's own posting.
+ * chrome around it, in the full shape the card had when it showed fixture
+ * postings: six facts and the match rail.
+ *
+ * EVERY FACT IS A `job_postings` COLUMN, filled from the scraped row where the
+ * scraper has it and marked NOT_LISTED where it does not, so the card states
+ * the schema rather than whatever a board happened to give:
+ *
+ *   location_city/country  `location`, one string from the board; a remote
+ *                          role with none has nothing to list, so it is left
+ *                          out (Work Style says Remote), as on a fixture
+ *   job_type               not listed: boards rarely state it
+ *   salary_*               not listed
+ *   work_style             `work_style`, when the board states it
+ *   experience_level       `experience_level`, always: the scraper keeps
+ *                          internship and new-grad roles only
+ *   min_years_experience   not listed
+ *   uploaded_at            `posted_at`, when the board dated it
+ *
+ * The match rail is its placeholder (score null): nothing scores a role yet.
+ * There is no title link: there is no expanded view for a role with no
+ * description. Apply Now leaves for the employer's own posting.
  */
 export function ListingCard({ job }: { job: JobListing }) {
   return (
@@ -32,18 +50,19 @@ export function ListingCard({ job }: { job: JobListing }) {
         company: job.company,
         logoUrl: job.logo_url,
         title: job.title,
-        timing: job.posted_at ? formatPosted(job.posted_at) : null,
-        location: job.location,
-        jobType: null,
-        salary: null,
-        workStyle: job.work_style ? formatWorkStyle(job.work_style) : null,
+        timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
+        location: job.location ?? (job.work_style === "remote" ? null : NOT_LISTED),
+        jobType: NOT_LISTED,
+        salary: NOT_LISTED,
+        workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
         experienceLevel: formatExperienceLevel(job.experience_level),
-        minYearsExperience: null,
+        minYearsExperience: NOT_LISTED,
       }}
+      rail={<MatchRail score={null} highlights={[]} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
-         too many. Quick, quiet verdicts on the left, the two steps toward
-         applying on the right. */
+         too many. All four sit at the row's right end, as on the mock cards:
+         the quick verdicts first, then the two steps toward applying. */
       actions={
         <>
           <IconButton
@@ -60,7 +79,7 @@ export function ListingCard({ job }: { job: JobListing }) {
           {/* Secondary, not primary: asking about a job is the step before
               applying to it, and only one control on a card can be the one
               being pointed at. */}
-          <Button variant="secondary" size="sm" className="ml-auto">
+          <Button variant="secondary" size="sm">
             <Sparkles className="size-4" />
             Ask WorkIt
           </Button>
@@ -82,12 +101,12 @@ export function ListingCard({ job }: { job: JobListing }) {
 
 /**
  * A list's place while the feed loads: four cards in the listing card's own
- * shape (logo, title, company, facts), so the page does not jump when the
- * real ones land. It follows the card's narrow layout too, at the same
- * container widths: under 672px the actions drop to a ruled row of their own,
- * and under 448px the timing takes a line of its own. Without that row every
- * phone card nearly doubled in height as the feed streamed in. Stated once
- * for a screen reader; the shapes themselves are hidden.
+ * shape (the tall logo tile; badge, title and company; the ruled fact grid;
+ * the ruled action row; and the match rail), so the page does not jump when
+ * the real ones land. It is nested as the card is (a card container, a row
+ * that puts the rail beside the body from 576px of card, and a body
+ * container), so the tile, the grid and the rail break at the same widths.
+ * Stated once for a screen reader; the shapes themselves are hidden.
  */
 export function ListingsSkeleton() {
   return (
@@ -96,24 +115,38 @@ export function ListingsSkeleton() {
       <ul aria-hidden="true" className="flex flex-col gap-3">
         {Array.from({ length: 4 }, (_, index) => (
           <li key={index}>
-            {/* The padding on an inner box, as on the real card, so the
-                container query measures the same width there and here. */}
-            <Card padding="none" className="@container">
-              <div className="p-4 sm:p-5">
-                <div className="flex gap-3 sm:gap-4">
-                  <Skeleton className="rounded-control size-11 shrink-0 sm:size-12" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-5 w-2/3" />
-                    <Skeleton className="h-4 w-1/3" />
-                    <Skeleton className="hidden h-4 w-1/4 @max-md:block" />
-                    <Skeleton className="h-4 w-1/2" />
+            <Card padding="none" className="@container overflow-hidden">
+              <div className="flex flex-col @xl:flex-row">
+                <div className="@container min-w-0 flex-1 p-4">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="rounded-card w-14 shrink-0 self-stretch @md:w-20" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-6 w-32 rounded-full" />
+                      <Skeleton className="h-6 w-2/3" />
+                      <Skeleton className="h-4 w-1/3" />
+                    </div>
+                  </div>
+                  <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 border-t pt-3 @md:grid-cols-3">
+                    {Array.from({ length: 6 }, (_, fact) => (
+                      <Skeleton key={fact} className="h-3.5 w-4/5" />
+                    ))}
+                  </div>
+                  <div className="border-border-subtle mt-3 flex justify-end gap-2 border-t pt-3">
+                    <Skeleton className="size-8" />
+                    <Skeleton className="size-8" />
+                    <Skeleton className="h-8 w-28" />
+                    <Skeleton className="h-8 w-24" />
                   </div>
                 </div>
-                <div className="border-border-subtle mt-4 flex gap-2 border-t pt-3 @2xl:hidden">
-                  <Skeleton className="size-8" />
-                  <Skeleton className="size-8" />
-                  <Skeleton className="ml-auto h-8 w-28" />
-                  <Skeleton className="h-8 w-24" />
+                {/* The match rail's box: the ring, the tier line, three rows. */}
+                <div className="bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 border-t p-4 @xl:w-52 @xl:border-t-0 @xl:border-l">
+                  <Skeleton className="size-16 rounded-full" />
+                  <Skeleton className="h-3 w-24" />
+                  <div className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3">
+                    <Skeleton className="h-2 w-full" />
+                    <Skeleton className="h-2 w-4/5" />
+                    <Skeleton className="h-2 w-11/12" />
+                  </div>
                 </div>
               </div>
             </Card>

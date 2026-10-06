@@ -33,6 +33,14 @@ import type { Highlight } from "./data";
  * clear of AA: the tick and the dot already tell the two kinds apart, so fading
  * the reasons to hesitate further would only say they do not matter.
  *
+ * WITH NO SCORE (`score` null) IT IS A PLACEHOLDER, not absent. Nothing
+ * scores a live role yet, but the feed card keeps the rail so it has the
+ * shape it will have once matching exists: the ring's empty track with a
+ * dash in it, "Score Coming Soon" where the tier goes, and three grey bars
+ * where the reasons go. A screen reader hears that the score is not
+ * available yet rather than a dash. Not a made-up number: a fake 87% on a
+ * real role would read as a real verdict.
+ *
  * `standalone` only changes the shape — a card with its own rounded corners
  * and border, rather than a rail flush against a bigger card's edge — not the
  * fill.
@@ -46,8 +54,8 @@ import type { Highlight } from "./data";
 const RADIUS = (64 - 5) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-function MatchRing({ score }: { score: number }) {
-  const color = matchColor(score);
+function MatchRing({ score }: { score: number | null }) {
+  const color = score === null ? undefined : matchColor(score);
 
   return (
     <div className="relative size-16">
@@ -61,23 +69,31 @@ function MatchRing({ score }: { score: number }) {
           strokeWidth="5"
           className="stroke-border-strong"
         />
-        <circle
-          cx="32"
-          cy="32"
-          r={RADIUS}
-          fill="none"
-          strokeWidth="5"
-          strokeLinecap="round"
-          strokeDasharray={`${(CIRCUMFERENCE * score) / 100} ${CIRCUMFERENCE}`}
-          style={{ stroke: color }}
-        />
+        {score !== null && (
+          <circle
+            cx="32"
+            cy="32"
+            r={RADIUS}
+            fill="none"
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeDasharray={`${(CIRCUMFERENCE * score) / 100} ${CIRCUMFERENCE}`}
+            style={{ stroke: color }}
+          />
+        )}
       </svg>
 
       <p className="absolute inset-0 flex items-center justify-center">
-        <span className="flex items-baseline">
-          <span className="text-title text-ink">{score}</span>
-          <span className="text-meta text-ink-meta">%</span>
-        </span>
+        {score === null ? (
+          <span aria-hidden="true" className="text-title text-ink-subtle">
+            –
+          </span>
+        ) : (
+          <span className="flex items-baseline">
+            <span className="text-title text-ink">{score}</span>
+            <span className="text-meta text-ink-meta">%</span>
+          </span>
+        )}
       </p>
     </div>
   );
@@ -97,7 +113,8 @@ export function MatchRail({
   highlights,
   standalone = false,
 }: {
-  score: number;
+  /** Null draws the placeholder rail; see "WITH NO SCORE" above. */
+  score: number | null;
   highlights: Highlight[];
   /** A rounded card that floats on its own — the job detail page's layout,
    *  which sits it beside the facts rather than flush against a bigger
@@ -114,32 +131,62 @@ export function MatchRail({
       )}
     >
       <MatchRing score={score} />
-      <p className="text-caption text-ink-muted flex items-center gap-1.5 font-semibold uppercase">
-        <span
-          aria-hidden="true"
-          className="size-2 rounded-full"
-          style={{ background: matchColor(score) }}
-        />
-        {matchTier(score)}
-      </p>
+      {score === null ? (
+        <>
+          <p className="text-caption text-ink-meta flex items-center gap-1.5 font-semibold uppercase">
+            <span aria-hidden="true" className="bg-border-strong size-2 rounded-full" />
+            Score Coming Soon
+          </p>
+          <p className="sr-only">
+            This role has no match score yet. Reasons it fits you will show here once matching is
+            built.
+          </p>
+          {/* Where the reasons will go: a caveat's dot and a bar per row, at
+              the rows' own 15px rhythm. */}
+          <ul
+            aria-hidden="true"
+            className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3"
+          >
+            {["w-full", "w-4/5", "w-11/12"].map((width) => (
+              <li key={width} className="flex h-[15px] items-center gap-1.5">
+                <Dot />
+                <span className={cn("bg-border-strong h-2 rounded-full", width)} />
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="text-caption text-ink-muted flex items-center gap-1.5 font-semibold uppercase">
+          <span
+            aria-hidden="true"
+            className="size-2 rounded-full"
+            style={{ background: matchColor(score) }}
+          />
+          {matchTier(score)}
+        </p>
+      )}
 
-      <ul className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3">
-        {highlights.map((highlight) => (
-          <li key={highlight.text} className="flex items-start gap-1.5">
-            {/* The tick and the dot are the whole distinction on screen, so the
+      {score !== null && (
+        <ul className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3">
+          {highlights.map((highlight) => (
+            <li key={highlight.text} className="flex items-start gap-1.5">
+              {/* The tick and the dot are the whole distinction on screen, so the
                 same distinction is spelled out for anyone not seeing them. */}
-            <span className="sr-only">{highlight.met ? "In your favour:" : "Worth weighing:"}</span>
-            {highlight.met ? (
-              <CheckIcon className="text-positive mt-px size-3.5 shrink-0" />
-            ) : (
-              <Dot />
-            )}
-            <span className={cn("text-meta", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
-              {highlight.text}
-            </span>
-          </li>
-        ))}
-      </ul>
+              <span className="sr-only">
+                {highlight.met ? "In your favour:" : "Worth weighing:"}
+              </span>
+              {highlight.met ? (
+                <CheckIcon className="text-positive mt-px size-3.5 shrink-0" />
+              ) : (
+                <Dot />
+              )}
+              <span className={cn("text-meta", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
+                {highlight.text}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </aside>
   );
 }

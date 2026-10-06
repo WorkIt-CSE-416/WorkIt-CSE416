@@ -1,8 +1,8 @@
 import { COLUMNS } from "../applications/data";
 
 /**
- * The seeker Dashboard's fixtures: the headline numbers, pipeline and activity
- * per window, what is waiting, and Up Next. All of it stands in for the
+ * The seeker Dashboard's fixtures: the headline numbers and activity per
+ * window, what is waiting, and Up Next. All of it stands in for the
  * application tracker, which has no backend yet;
  * New Matches and the profile strength card read the live API instead and
  * live beside the components that fetch them.
@@ -22,15 +22,13 @@ export const RANGES: {
   label: string;
   /** What a delta is compared against; null where there is nothing before. */
   period: string | null;
-  /** The window in a sentence: "How far your applications got, this week." */
-  scope: string;
   /** Under each headline number where there is no delta to show. */
   note?: string;
 }[] = [
-  { key: "week", label: "This Week", period: "last week", scope: "this week" },
-  { key: "month", label: "30 Days", period: "prior 30 days", scope: "in the last 30 days" },
+  { key: "week", label: "This Week", period: "last week" },
+  { key: "month", label: "30 Days", period: "prior 30 days" },
   // A season has nothing before it to compare against, so no deltas.
-  { key: "season", label: "Season", period: null, scope: "this season", note: "Since Aug 4" },
+  { key: "season", label: "Season", period: null, note: "Since Aug 4" },
 ];
 
 export function parseRange(value: string | string[] | undefined): RangeKey {
@@ -68,32 +66,6 @@ export const STATS: Record<RangeKey, DashboardStat[]> = {
     { label: "Response Rate", value: 29, previous: null, suffix: "%" },
     { label: "Interviews", value: 5, previous: null },
     { label: "Offers", value: 1, previous: null },
-  ],
-};
-
-/* Pipeline --------------------------------------------------------------- */
-
-export type PipelineStage = { label: string; count: number };
-
-/** Applied, then each later step as a subset of the one before it. */
-export const PIPELINE: Record<RangeKey, PipelineStage[]> = {
-  week: [
-    { label: "Applied", count: 5 },
-    { label: "Heard Back", count: 2 },
-    { label: "Interviewing", count: 1 },
-    { label: "Offer", count: 0 },
-  ],
-  month: [
-    { label: "Applied", count: 18 },
-    { label: "Heard Back", count: 6 },
-    { label: "Interviewing", count: 3 },
-    { label: "Offer", count: 1 },
-  ],
-  season: [
-    { label: "Applied", count: 42 },
-    { label: "Heard Back", count: 12 },
-    { label: "Interviewing", count: 5 },
-    { label: "Offer", count: 1 },
   ],
 };
 

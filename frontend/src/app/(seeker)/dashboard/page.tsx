@@ -9,10 +9,9 @@ import { getCurrentAccount } from "@/lib/session";
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
 import { Activity } from "./activity";
-import { ACTIVITY, PIPELINE, RANGES, STATS, UP_NEXT, parseRange } from "./data";
+import { ACTIVITY, RANGES, STATS, UP_NEXT, parseRange } from "./data";
 import { NewMatches, NewMatchesSkeleton } from "./new-matches";
 import { NextUpHero } from "./next-up-hero";
-import { Pipeline } from "./pipeline";
 import { RangeSwitch } from "./range-switch";
 import { UpNext } from "./up-next";
 import { Waiting } from "./waiting";
@@ -36,14 +35,17 @@ export const metadata: Metadata = {
  *   Next Up         the one solid colour: a violet card with the single most
  *                   pressing commitment, where the eye lands first
  *   Activity, lists open sections under plain headings
- *   the pipeline    a grey band of small white cards with coloured
- *                   badges and a violet "Full Board" tile
  *
  * so the page reads as a layout rather than a grid of containers. Whitespace
- * separates the open sections; only the hero and the band are filled.
+ * separates the open sections; only the hero is filled.
  *
- * The range scopes the numbers, the activity and the pipeline; Next Up, Up
- * Next, New Matches and Waiting are about now.
+ * There is no pipeline section. A funnel of Applied, Heard Back,
+ * Interviewing and Offer counts sat between the lists and New Matches, and
+ * it restated the headline numbers at the top in a second shape; the board
+ * at /applications is where stages are worked.
+ *
+ * The range scopes the numbers and the activity; Next Up, Up Next, New
+ * Matches and Waiting are about now.
  *
  * Most of it is fixtures (./data.ts) until the application tracker has a
  * backend; New Matches is the live feed.
@@ -59,7 +61,7 @@ const STAT_ICONS = [BriefcaseIcon, MailIcon, CalendarIcon, AwardIcon];
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const range = parseRange((await searchParams).range);
-  const { period, scope, note } = RANGES.find((option) => option.key === range)!;
+  const { period, note } = RANGES.find((option) => option.key === range)!;
   const account = await getCurrentAccount();
   const firstName = account?.full_name.split(" ")[0];
   const [next, ...later] = UP_NEXT;
@@ -107,10 +109,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
         <Activity points={ACTIVITY[range].points} goal={ACTIVITY[range].goal} />
         <UpNext items={later} />
-      </div>
-
-      <div className="mt-12">
-        <Pipeline stages={PIPELINE[range]} scope={scope} />
       </div>
 
       <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">

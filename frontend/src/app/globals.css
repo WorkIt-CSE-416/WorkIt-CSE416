@@ -93,7 +93,7 @@
   /* Radii ---------------------------------------------------------------- */
   --radius-control: 0.5rem; /* 8px — inputs, buttons */
   --radius-card: 0.625rem; /* 10px — card */
-  --radius-shell: 1.25rem; /* 20px: the seeker shell's floating panels, the radius of the Dashboard's hero and pipeline band */
+  --radius-shell: 1.25rem; /* 20px: the seeker shell's floating panels, the radius of the Dashboard's hero */
 
   /* Elevation ------------------------------------------------------------
    * Matches the measured falloff: ~10px below the card, ~8px to the sides. */
@@ -314,9 +314,10 @@
    * 2.1:1, so nothing is ever printed on it. */
   --color-warning-fill: #f2a516;
   /* Amber deep enough to carry a white glyph: 3.19:1, over the 3:1 a glyph
-   * needs. A seeker's Interviewing stage wears it (badge, bar, funnel), so
-   * its icon is white like every other stage's rather than ink on the bright
-   * fill above, which read as the one stage drawn differently. */
+   * needs. A seeker's Interviewing stage wears it (its board column and Up
+   * Next discs), so its icon is white like every other stage's rather than
+   * ink on the bright fill above, which read as the one stage drawn
+   * differently. */
   --color-warning-strong: #d97706;
   --color-danger: #c02a3d; /* unmeasured: rejected, ended badly */
   --color-danger-tint: #fce9eb;
@@ -347,7 +348,7 @@
    * stage's own, and Good was Interviewing's amber.
    *
    * MAGENTA, at OKLCH hue 340, because it is the widest arc no role holds.
-   * Brand violet sits at 290, Heard back blue at 264, danger red at 20, the
+   * Brand violet sits at 290, the advanced blue at 264, danger red at 20, the
    * Interviewing ambers at 58 to 74 and Offer green at 160. Teal and cyan are
    * too close to the green (see --color-advanced), orange is squeezed between
    * the red and the amber, and the lime past the amber is olive by the time it
