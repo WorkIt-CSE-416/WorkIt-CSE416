@@ -239,8 +239,12 @@ export function JobPostingCard({
             <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 @md:grid-cols-3">
               {facts.map(([name, Icon, text]) =>
                 isNotListed(text) ? (
-                  <Fact key={name} Icon={Icon} className="italic">
-                    {FACT_NAME[name]} not listed
+                  <Fact key={name} Icon={Icon}>
+                    {/* pr-0.5 inside the clipping box: an italic's last
+                        letter leans past its own advance, and Fact's
+                        truncate clips at the box edge, which shaved the top
+                        off the "d" in "listed". */}
+                    <span className="pr-0.5 italic">{FACT_NAME[name]} not listed</span>
                   </Fact>
                 ) : (
                   <Fact key={name} Icon={Icon}>
