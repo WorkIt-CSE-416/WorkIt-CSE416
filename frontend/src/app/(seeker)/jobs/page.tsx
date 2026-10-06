@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 
 import { BookmarkIcon, EllipsisIcon } from "@/components/icons";
 import { JobPostingCard } from "@/components/job-posting-card";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { AskScoutButton } from "@/components/scout/scout-buttons";
+import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 
 import { JobFilters } from "./filters";
 import { formatExperienceLevel, formatPosted, formatWorkStyle } from "./format";
-import { CircleSlashIcon, SparkleIcon } from "./icons";
+import { CircleSlashIcon } from "./icons";
 import { getJobListings, type JobListing } from "./listings";
 
 export const metadata: Metadata = {
@@ -16,7 +17,8 @@ export const metadata: Metadata = {
 };
 
 /* Built without a mockup, from the layout described in ./data. The feed is
- * live (./listings); Save, Not Interested and Ask WorkIt are still inert. */
+ * live (./listings); Save and Not Interested are still
+ * inert; Ask Scout opens the Scout panel. */
 
 /**
  * One scraped role in the shared <JobPostingCard> shell, with the seeker-only
@@ -65,13 +67,7 @@ function ListingCard({ job }: { job: JobListing }) {
             <BookmarkIcon className="size-4" />
           </IconButton>
 
-          {/* Secondary, not primary: asking about a job is the step before
-              applying to it, and only one control on a card can be the one
-              being pointed at. */}
-          <Button variant="secondary" size="sm">
-            <SparkleIcon className="size-4" />
-            Ask WorkIt
-          </Button>
+          <AskScoutButton id={job.id} title={job.title} company={job.company} />
 
           <ButtonLink href={job.apply_url} target="_blank" rel="noopener noreferrer" size="sm">
             Apply Now

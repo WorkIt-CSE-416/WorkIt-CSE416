@@ -5,6 +5,8 @@ import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { BellIcon, GearIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { NavLink } from "@/components/nav-link";
+import { ScoutLauncher } from "@/components/scout/scout-buttons";
+import { ScoutPanel } from "@/components/scout/scout-panel";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
 
@@ -150,6 +152,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </ul>
 
           <div className="ml-auto flex items-center gap-5">
+            <ScoutLauncher />
+
             <IconButton label="Notifications">
               <BellIcon className="size-5" />
             </IconButton>
@@ -175,8 +179,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           span, for one) is placed against the viewport instead, escapes this
           div's overflow, and makes the document itself taller than h-svh —
           scrollable behind a modal, header and all. */}
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-        {children}
+      {/* A row, so Scout's panel docks beside the page instead of over it; the
+          page keeps its own scroll. min-w-0 lets the page shrink to make room. */}
+      <div className="flex min-h-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+          {children}
+        </div>
+        <ScoutPanel />
       </div>
     </div>
   );

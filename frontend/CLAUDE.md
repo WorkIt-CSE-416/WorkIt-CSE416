@@ -76,6 +76,9 @@ src/app/          App Router routes, layouts, pages
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
   (seeker)/       Job-seeker shell — top bar, and every screen behind it
+  api/scout/      The one route handler: forwards a Scout turn to the API with
+                  the session's token and pipes the NDJSON reply back. A route
+                  handler, not an action, because the reply streams
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -102,6 +105,11 @@ src/components/   Shared components
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
   account-menu.tsx  The avatar dropdown; each shell passes its own items
+  scout/          Scout, the job assistant. scout-store holds the one chat per
+                  tab (a module store, so no provider); scout-panel docks
+                  beside the page, never over it, and opens only on a click;
+                  stream.ts mirrors the API's NDJSON events. The brain is
+                  the repo's scout/ — read its CLAUDE.md first.
   ui/             Presentational primitives: badge, button, card, company-tile,
                   fact, filter-chip, icon-button, search-field, section-heading,
                   select-field, text-field, text-link

@@ -20,6 +20,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.53",
     "supabase>=2.31.0",
     "uvicorn[standard]>=0.53.0",
+    "workit-scout",
 ]
 
 [tool.uv]
@@ -34,6 +35,11 @@ python-preference = "only-managed"
 # project (Root Directory = backend). app/main.py is also on Vercel's
 # auto-detect list; this pins it so a new main.py elsewhere can't win.
 entrypoint = "app.main:app"
+
+[tool.uv.sources]
+# A copy, not editable: Python skips editable installs' .pth files when macOS
+# flags them hidden. ../scout/CLAUDE.md has the details.
+workit-scout = { path = "../scout" }
 
 [dependency-groups]
 dev = [

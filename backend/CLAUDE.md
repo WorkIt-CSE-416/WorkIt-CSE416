@@ -13,6 +13,11 @@ lockfile and tooling. Nothing above it is part of this build, and nothing in
 share no code. The scraper is no exception: `GET /jobs` reads
 `scraper/feed.json` as data and imports none of its code.
 
+**The one exception is `../scout/`**, Scout's brain, installed here as the
+`workit-scout` package. It is a library with no database or HTTP of its own;
+`routers/scout.py` hands it everything. Its settings, tests and rules live in
+`../scout/` — read its CLAUDE.md before touching Scout.
+
 **This folder owns the database.** Connection strings, schema and migrations
 all live on this side. The Next.js app holds no ORM and no credentials.
 
@@ -54,8 +59,9 @@ uv run alembic check                           fail if models lack a migration
 uv run pytest                                  run the tests in tests/
 ```
 
-Tests cover the resume parser (`test_resume_parser.py`) and DOCX text
-extraction (`test_resume_extraction.py`). `tests/fixtures/*.txt` are extracted text
+Tests cover the resume parser (`test_resume_parser.py`), DOCX text
+extraction (`test_resume_extraction.py`) and Scout's route (`test_scout.py`).
+`tests/fixtures/*.txt` are extracted text
 of real resumes, each in a layout that once broke parsing, cut to start at the
 first section header so no contact details are committed. The heuristics
 interact — a fix for one layout has broken another more than once — so when a
@@ -83,14 +89,17 @@ app/
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
-    jobs.py       GET /jobs — the scraper's feed.json, public, no DB
+    jobs.py       GET /jobs — the scraper's feed.json, public, no DB, no descriptions
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, delete; extracts
                   text from PDF/DOCX and parses it into structured JSON
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
+    scout.py      POST /scout/chat — one Scout turn, streamed as NDJSON
   services/       Logic with no HTTP or DB of its own. Never in models/,
                   whose __init__ imports every file as a model
     avatar.py     Validates and re-encodes an upload to a 512px WebP
+    job_feed.py   Reads and validates scraper/feed.json — GET /jobs and Scout
+    scout_facts.py  Resume and job records as Scout's facts; its privacy boundary
   utils/
     resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/
