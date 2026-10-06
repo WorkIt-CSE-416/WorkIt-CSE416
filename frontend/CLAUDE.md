@@ -320,8 +320,16 @@ Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
 `?app=` opens the same detail panel Applications does, with a way across.
 Without `?date=` it opens on the viewer's today, which the server cannot
 know, so the views render in the browser behind a placeholder
-(`calendar-view.tsx`, `useHydrated`). Month chips name the company, since the
-colour already says what kind of entry it is; Week and Agenda name both. A
+(`calendar-view.tsx`, `useHydrated`). Its layout follows a reference the team
+picked: the span's title at the top left with round grey arrows at the top
+right, small uppercase weekday names, each day a light grey rounded tile with
+gaps rather than a ruled grid, today's tile white and outlined in the brand,
+and the legend at the foot. Week days and Agenda entries are the same tiles,
+and Today is a grey pill just left of the arrows, in their fill, so the three
+read as one group.
+It sits open on the page, not in a card: the page panel is already white.
+Month chips name the company and carry no time, since the colour already says
+what kind of entry it is; Week and Agenda name both. A
 link into the Calendar from anywhere else goes through `DayLink` in
 `(seeker)/local-time.tsx`, which picks the viewer's local day the way
 `<When>` picks their words.

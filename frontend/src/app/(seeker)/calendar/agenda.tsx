@@ -17,8 +17,10 @@ export const AGENDA_DAYS = 14;
 /**
  * Two weeks as a list, a day at a time, skipping the days with nothing on
  * them: the time, the entry in its kind's colour and glyph (the same disc as
- * the Dashboard's Up Next), and whose it is. Up Next's View All opens here,
- * and so does a day's number or "+N more" on the Month.
+ * the Dashboard's Up Next), and whose it is. Each entry is a light grey
+ * rounded tile, the Month's day tiles, rather than a row in a bordered box.
+ * Up Next's View All opens here, and so does a day's number or "+N more" on
+ * the Month.
  */
 export function Agenda({
   anchor,
@@ -44,7 +46,7 @@ export function Agenda({
   }
 
   return (
-    <ol className="mt-4 flex flex-col gap-6">
+    <ol className="mt-3 flex flex-col gap-5">
       {days.map((day) => {
         const key = dayKey(day);
 
@@ -55,17 +57,17 @@ export function Agenda({
               {format(day, "EEEE, MMMM d")}
             </h3>
 
-            <ul className="border-border-subtle rounded-card bg-panel mt-2 overflow-hidden border">
+            <ul className="mt-2 flex flex-col gap-1.5">
               {(byDay.get(key) ?? []).map((event) => {
                 const look = lookOf(event.kind);
                 const { Icon } = look;
 
                 return (
-                  <li key={event.id} className="border-border-subtle border-b last:border-b-0">
+                  <li key={event.id}>
                     <Link
                       href={openHref(event.applicationId)}
                       scroll={false}
-                      className="hover:bg-hover focus-visible:ring-brand-ring flex items-center gap-3 px-3 py-2.5 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                      className="bg-app hover:bg-hover rounded-card focus-visible:ring-brand-ring flex items-center gap-3 px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
                     >
                       <span className="text-note text-ink-meta w-16 shrink-0">
                         {shortTime(event.at) ?? "All Day"}

@@ -15,7 +15,6 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
-import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 import { useHydrated } from "../local-time";
@@ -27,8 +26,13 @@ import { calendarHref, type CalendarView as View } from "./query";
 import { Week } from "./week";
 
 /**
- * The Calendar's moving parts: the arrows, Today, the span's title, the
- * legend, and the view itself.
+ * The calendar itself, laid out after the reference the KAN-152 design took
+ * from: the span's title at the top left ("October 2026"), and at the top
+ * right Today with the arrows beside it as two round grey buttons, so the
+ * three ways of moving through time sit together; the view under them, and
+ * the legend at the foot. Open on the page rather than boxed: the page panel
+ * is already white, and the day tiles carry the structure a card's edge
+ * would.
  *
  * ALL OF IT RENDERS IN THE BROWSER. Which day an entry falls on depends on
  * the viewer's zone, and a bare /calendar opens on the viewer's today, and
@@ -38,7 +42,8 @@ import { Week } from "./week";
  *
  * The arrows and Today are links on ?date=, like every choice on the page,
  * so the back button steps back through them. Month moves a month at a time,
- * Week a week, Agenda two weeks.
+ * Week a week, Agenda two weeks; Today drops ?date=, back to the viewer's
+ * own today in the view in force.
  */
 export function CalendarView({
   view,
@@ -56,7 +61,7 @@ export function CalendarView({
   if (!hydrated) {
     return (
       <div aria-hidden="true">
-        <div className="bg-well rounded-control mt-6 h-8 w-64 animate-pulse" />
+        <div className="bg-well rounded-control mt-6 h-8 w-48 animate-pulse" />
         <div className="bg-well rounded-card mt-4 h-[32rem] animate-pulse" />
       </div>
     );
@@ -65,8 +70,18 @@ export function CalendarView({
   return <Calendar view={view} date={date} events={events} />;
 }
 
-const NAV =
-  "border-border-subtle text-ink-meta hover:text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control flex size-8 items-center justify-center border focus-visible:ring-2 focus-visible:outline-none";
+/**
+ * The header's three controls, drawn alike so they read as one group: the
+ * bar's grey circles (../bar.ts) at 32px, the arrows round and Today a pill
+ * in the same fill. Today was a brand outline once, after the reference,
+ * where it stood alone; beside two grey buttons it read as a different kind
+ * of thing, and its violet made a step back to today look like the page's
+ * main action.
+ */
+const CONTROL =
+  "bg-app text-ink-meta hover:bg-selected hover:text-ink focus-visible:ring-brand-ring flex h-8 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none";
+const ARROW = cn(CONTROL, "w-8");
+const TODAY = cn(CONTROL, "text-label px-3.5 font-medium");
 
 /** "Oct 4 – 10, 2026", "Sep 27 – Oct 3, 2026", or with both years when the
  *  span crosses one. */
@@ -127,39 +142,27 @@ function Calendar({
 
   return (
     <>
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <div className="flex items-center gap-2">
+      <div className="mt-6 flex items-center justify-between gap-4">
+        <h2 className="text-title text-ink">{span.title}</h2>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link href={calendarHref({ view })} className={TODAY}>
+            Today
+          </Link>
           <Link
             href={calendarHref({ view, date: dayKey(span.prev) })}
             aria-label={`Previous ${span.unit}`}
-            className={NAV}
+            className={ARROW}
           >
             <ChevronLeft aria-hidden className="size-4" />
           </Link>
           <Link
             href={calendarHref({ view, date: dayKey(span.next) })}
             aria-label={`Next ${span.unit}`}
-            className={NAV}
+            className={ARROW}
           >
             <ChevronRight aria-hidden className="size-4" />
           </Link>
-          <Link
-            href={calendarHref({ view })}
-            className={buttonClasses({ variant: "secondary", size: "sm" })}
-          >
-            Today
-          </Link>
-          <h2 className="text-title text-ink ml-2">{span.title}</h2>
         </div>
-
-        <ul aria-label="Legend" className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {LEGEND_ORDER.map((kind) => (
-            <li key={kind} className="text-note text-ink-meta flex items-center gap-1.5">
-              <span aria-hidden="true" className={cn("size-2 rounded-full", lookOf(kind).fill)} />
-              {KIND_LABEL[kind]}
-            </li>
-          ))}
-        </ul>
       </div>
 
       {view === "month" && (
@@ -169,6 +172,15 @@ function Calendar({
       {view === "agenda" && (
         <Agenda anchor={anchor} today={today} byDay={byDay} openHref={openHref} />
       )}
+
+      <ul aria-label="Legend" className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1">
+        {LEGEND_ORDER.map((kind) => (
+          <li key={kind} className="text-note text-ink-meta flex items-center gap-1.5">
+            <span aria-hidden="true" className={cn("size-2 rounded-full", lookOf(kind).fill)} />
+            {KIND_LABEL[kind]}
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
