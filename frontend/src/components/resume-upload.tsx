@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 
 const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
-const MAX_SIZE = 5 * 1024 * 1024;
+const MAX_SIZE = 4 * 1024 * 1024;
 
 type ResumeUploadProps = {
   file: File | null;
@@ -37,7 +37,7 @@ export function ResumeUpload({ file, onFileChange, onRemove }: ResumeUploadProps
       return;
     }
     if (next.size > MAX_SIZE) {
-      setFileError("File must be under 5 MB.");
+      setFileError("File must be under 4 MB.");
       setTimeout(() => setFileError(null), 4000);
       return;
     }
@@ -66,7 +66,7 @@ export function ResumeUpload({ file, onFileChange, onRemove }: ResumeUploadProps
       >
         <UploadIcon className="text-ink-meta h-6 w-5" />
         <p className="text-note text-ink mt-2.5 font-medium">Drag and drop your resume here</p>
-        <p className="text-meta text-ink-meta mt-1.5">Supported formats: PDF, DOCX (Max 5MB)</p>
+        <p className="text-meta text-ink-meta mt-1.5">Supported formats: PDF, DOCX (Max 4MB)</p>
         <Button
           type="button"
           variant="outline"

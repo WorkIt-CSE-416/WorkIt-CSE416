@@ -28,7 +28,7 @@ it yet.
 | Rule | Value | Enforced by |
 | --- | --- | --- |
 | Formats | JPEG, PNG, WebP | Pillow decodes with only those plugins — from the bytes, never the client's content type |
-| Upload size | 5 MB | Router (`MAX_UPLOAD_BYTES`), after `read(limit + 1)` |
+| Upload size | 4 MB | Router (`MAX_UPLOAD_BYTES`), after `read(limit + 1)` |
 | Dimensions | ≤ 40 megapixels | Checked from the header before any pixels are decoded |
 
 Rejected on purpose: **HEIC** (Pillow can't decode it without a plugin, most
@@ -40,8 +40,9 @@ The pixel cap is the one that matters for safety. File size says nothing
 about decode cost: a 94 KB PNG can declare 10000×10000 and expand to 100 MB in
 memory. 40 MP covers every current phone camera.
 
-5 MB is generous for a photo, but it is what a phone produces, and the upload
-is transient — see below.
+4 MB covers what a phone produces, and the upload is transient — see below.
+It was 5 MB until the deploy (KAN-146): Vercel refuses request bodies over
+4.5 MB before Next runs, so the cap had to fit under that.
 
 ## What is stored
 
@@ -99,12 +100,13 @@ bypasses them, and nothing else should write to the bucket.
 
 ## The limit lives in three places
 
-The 5 MB figure must agree across:
+The 4 MB figure must agree across:
 
 1. `MAX_UPLOAD_BYTES` in `app/services/avatar.py` — the real guard.
 2. `MAX_AVATAR_BYTES` in `frontend/src/lib/avatar-rules.ts` — instant
    feedback in the browser.
-3. `serverActions.bodySizeLimit` in `frontend/next.config.ts` (`6mb`) — must
-   stay **above** the other two plus multipart overhead. If it drops below,
+3. `serverActions.bodySizeLimit` in `frontend/next.config.ts` (`4.5mb`) — must
+   stay **above** the other two plus multipart overhead, and at or below
+   Vercel's 4.5 MB request-body ceiling. If it drops below,
    Next rejects the request with a generic error before the server action
    runs, and the user never sees the API's message.

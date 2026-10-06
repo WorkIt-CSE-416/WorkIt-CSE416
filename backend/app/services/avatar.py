@@ -22,7 +22,7 @@ from PIL import Image, ImageOps
 # frontend/src/lib/avatar-rules.ts, and serverActions.bodySizeLimit in
 # frontend/next.config.ts, which has to stay above this plus multipart overhead
 # or Next rejects the request before it reaches here.
-MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 
 # Decoding cost is width x height, not file size — a small, highly compressed
 # PNG can declare 30000x30000 and expand to gigabytes. 40 MP covers every

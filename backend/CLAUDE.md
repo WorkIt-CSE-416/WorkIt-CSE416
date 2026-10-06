@@ -107,12 +107,16 @@ alembic/
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
 tests/            pytest; resume parser and DOCX extraction tests, and fixtures
+data/
+  feed.json       Committed snapshot of scraper/feed.json, served in production
+                  (SCRAPER_FEED). See Deployment
 alembic.ini       Alembic config. Deliberately holds no database URL
+vercel.json       Vercel function settings (maxDuration). See Deployment
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
   resume.md       Same, for resume storage and parsing
   avatar.md       Profile photo: formats, limits, storage, bucket setup
-pyproject.toml    Dependencies, and the pinned Python series
+pyproject.toml    Dependencies, the pinned Python series, and Vercel's entrypoint
 uv.lock           Exact resolved versions — committed
 ```
 
@@ -149,6 +153,41 @@ but nothing about migrations yet. Two gates are worth adding: `alembic heads`
 failing when it returns more than one, and `alembic check` failing on model
 drift. Both would have caught the 2026-09-21 breakage before it reached anyone
 else.
+
+## Deployment
+
+This folder deploys to **Vercel as its own project** (Root Directory
+`backend`), separate from the Next.js project, both from this repo. Merging
+to `main` deploys production; every PR gets a preview URL. Chosen in KAN-146
+over Render (free tier sleeps after 15 idle minutes and takes ~1 minute to
+wake — sign-in looked broken), Railway (no real free tier), Fly.io (no free
+tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
+
+- **Entrypoint** is `[tool.vercel] entrypoint` in `pyproject.toml`; the whole
+  app becomes one Vercel Function. Vercel installs from `uv.lock` itself.
+- **`vercel.json` sets `maxDuration: 300`**, the Hobby ceiling, so a streamed
+  Scout reply is not cut off mid-answer.
+- **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
+  `SUPABASE_SERVICE_KEY`, `SCRAPER_FEED=data/feed.json`, plus Scout's
+  `SCOUT_*` once KAN-138 lands. **Never `DIRECT_URL`:** migrations are run by
+  hand, locally (`alembic/CLAUDE.md`); the deployed API has no business
+  holding the migration connection.
+- **`data/feed.json` is a snapshot**, because `scraper/feed.json` is
+  gitignored and a deployment has no scraper run. `SCRAPER_FEED` points
+  `GET /jobs` at it; locally the default still reads `scraper/feed.json`.
+  Refresh it by running the scraper and copying its `feed.json` here, in the
+  same commit as any change to `schemas/jobs.py` — a stale snapshot that no
+  longer matches the schema makes `/jobs` 500. A scheduled refresh is still
+  open.
+- **Request bodies over 4.5 MB never arrive** — Vercel refuses them first.
+  That is why uploads are capped at 4 MB (`db/avatar.md`). Keep any new upload
+  under it.
+- **`NullPool` is what makes this safe** (see The database): every
+  invocation opens one connection through Supavisor's transaction pooler,
+  which does the pooling, so serverless scale-out cannot exhaust Postgres.
+- **Still unverified:** whether Vercel bundles `../scout` (KAN-138's path
+  dependency). uv installs it as a copy, so it should. Check on the first
+  Scout PR's preview, and move this project to Render if not.
 
 ## The database
 
