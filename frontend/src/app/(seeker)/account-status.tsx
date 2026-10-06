@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { signOut } from "@/app/actions";
+import { AccountMenu } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
 import { ArrowRightIcon, UserIcon } from "@/components/icons";
 import { getAvatar } from "@/lib/avatar-actions";
@@ -56,10 +58,10 @@ export async function SeekerStatusLine() {
  * Who is signed in: the photo (initials when there is none), then the full
  * name over the email, as the reference dashboard shows its account.
  *
- * A label, not a control. It used to open the account menu, whose only row
- * was Sign Out; that now lives in the panel's General group, so there is
- * nothing left for a menu to hold, and a block that looks clickable and does
- * nothing is worse than one that plainly isn't.
+ * The whole block opens the account menu (@/components/account-menu): the
+ * account header, then Sign Out. The panel's General group has Sign Out too,
+ * but the photo in the corner is where people look for it first, and a
+ * photo that does nothing when clicked reads as broken.
  *
  * The name and email show from lg, where the bar has room for them beside
  * the search field (the new-roles pill steps out until xl for the same
@@ -71,7 +73,9 @@ export async function SeekerStatusLine() {
  * layout sends anyone else to /login), so there is always someone to show.
  * The name comes from the API's profile row; if /auth/me cannot be reached,
  * the block falls back to what the session itself knows, a person glyph and
- * the email, rather than leaving the corner empty.
+ * the email, rather than leaving the corner empty. That fallback still
+ * opens the menu with Sign Out, since the session is real even when the API
+ * is not answering.
  */
 export async function SeekerAccount() {
   const account = await getCurrentAccount();
@@ -79,7 +83,7 @@ export async function SeekerAccount() {
   if (!account) {
     const user = await getSessionUser();
     return (
-      <div className="flex min-w-0 items-center gap-3">
+      <AccountMenu items={[]} onSignOut={signOut}>
         <span
           aria-hidden="true"
           className="bg-brand-tint text-brand flex size-10 shrink-0 items-center justify-center rounded-full"
@@ -90,19 +94,25 @@ export async function SeekerAccount() {
           <p className="text-label text-ink max-w-48 truncate font-semibold">Signed In</p>
           {user?.email && <p className="text-note text-ink-meta max-w-48 truncate">{user.email}</p>}
         </div>
-      </div>
+      </AccountMenu>
     );
   }
 
   const avatar = await getAvatar();
 
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <AccountMenu
+      name={account.full_name}
+      email={account.email}
+      src={avatar.url}
+      items={[]}
+      onSignOut={signOut}
+    >
       <Avatar name={account.full_name} src={avatar.url} className="text-label size-10" />
       <div className="sr-only min-w-0 lg:not-sr-only">
         <p className="text-label text-ink max-w-48 truncate font-semibold">{account.full_name}</p>
         <p className="text-note text-ink-meta max-w-48 truncate">{account.email}</p>
       </div>
-    </div>
+    </AccountMenu>
   );
 }
