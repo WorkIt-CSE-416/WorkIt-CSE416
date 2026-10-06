@@ -14,6 +14,7 @@ import { getSessionUser } from "@/lib/session";
 import { SeekerAccount, SeekerStatusLine } from "./account-status";
 import { BAR_CIRCLE } from "./bar";
 import { MobileSearch } from "./mobile-search";
+import { ProfileCacheProvider } from "./profile-cache";
 import { ProfileStrength } from "./profile-strength";
 import { QueryField } from "./search/query-field";
 import { SeekerSidebar } from "./seeker-sidebar";
@@ -188,7 +189,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           tabIndex={-1}
           className="bg-panel border-rail-border shadow-panel rounded-shell @container/main min-h-0 flex-1 overflow-y-auto overscroll-contain border focus:outline-none"
         >
-          {children}
+          {/* Outlives a single page so My Profile renders at once on a return
+              visit; see profile-cache.tsx for why it lives here. */}
+          <ProfileCacheProvider>{children}</ProfileCacheProvider>
         </SidebarInset>
       </div>
     </SidebarProvider>
