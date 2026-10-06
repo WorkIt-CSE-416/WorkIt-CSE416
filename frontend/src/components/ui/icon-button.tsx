@@ -32,8 +32,8 @@ const VARIANTS = {
     "text-ink-meta hover:text-ink focus-visible:ring-brand-ring relative inline-flex items-center justify-center rounded-xs after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2",
   /** Bordered — an icon action that has to hold its own beside a filled
    *  button, so it needs the same visual weight a button has. Size it at the
-   *  call site: the search detail pane's bookmark is deliberately narrower
-   *  than it is tall, to sit under the Apply button's height. */
+   *  call site: the feed card's Not Interested button is size-8, the `sm`
+   *  button height, to line up with the actions beside it. */
   outline:
     "border-border-subtle bg-panel text-ink-meta hover:bg-hover hover:text-ink focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
   /** Brand disc — an edit affordance overlapping the thing it edits. The border

@@ -65,7 +65,7 @@ export default function CompanyAuditLogsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 p-3">
           <SearchField
             id="audit-log-search"
-            label="Search logs"
+            label="Search Logs"
             name="q"
             placeholder="Search logs…"
             className="min-w-0 flex-1 sm:max-w-xs"

@@ -93,8 +93,8 @@ export function StatTile({
    *  against. */
   note?: string;
   /** Open on the page instead of in a card: the label sits on a hairline and
-   *  the direction is a small round marker beside it, the way the seeker
-   *  Dashboard's headline row reads. The company dashboard keeps the card. */
+   *  the direction is a small round marker beside it. Both Dashboards' headline
+   *  rows use it, so the card form below has no caller today. */
   plain?: boolean;
 }) {
   if (plain) {
@@ -157,7 +157,7 @@ export function StatTile({
       {/* The glyph is decoration, not information: the label beside it already
           says what the number is, so it is aria-hidden and the row is not a
           heading with an image in it. items-start keeps a two-line label
-          (Awaiting your review, at narrow widths) from dragging the glyph down
+          (Awaiting Your Review, at narrow widths) from dragging the glyph down
           with its second line. */}
       <div className="flex items-start justify-between gap-2">
         <p className="text-note text-ink-meta">{label}</p>
@@ -180,7 +180,7 @@ export function StatTile({
           <>
             {delta.value === 0 ? (
               <Badge variant="status" tone="inert">
-                No change
+                No Change
               </Badge>
             ) : (
               <Badge

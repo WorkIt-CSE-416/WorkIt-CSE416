@@ -114,7 +114,7 @@ export function SignupForm({ formId }: { formId: string }) {
           onValueChange={([next]) => {
             if (next) setCompanyPath(next as CompanyPath);
           }}
-          aria-label="Create or join a company"
+          aria-label="Create or Join a Company"
           /* One column below `sm`, like every paired row in the form below:
            * at phone width a half-width tile wrapped each label onto two
            * lines and pushed Join's Soon pill out past its edge. */
@@ -185,7 +185,7 @@ export function SignupForm({ formId }: { formId: string }) {
 
                 {/* The fields below are the same as an applicant's, but they
                     describe the company's owner — the person signing in. */}
-                <p className={cn(SECTION, "mt-2")}>Owner account</p>
+                <p className={cn(SECTION, "mt-2")}>Owner Account</p>
               </>
             )}
 
@@ -230,7 +230,7 @@ export function SignupForm({ formId }: { formId: string }) {
               type="email"
               /* On the company path this is the owner's own sign-in, which is
                * not necessarily the company's public contact address above. */
-              label={isCompany ? "Sign-in Email" : "Email Address"}
+              label={isCompany ? "Sign-In Email" : "Email Address"}
               icon={MailIcon}
               autoComplete="email"
               maxLength={100}

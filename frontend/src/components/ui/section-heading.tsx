@@ -9,9 +9,9 @@ import { cn } from "@/lib/cn";
  * section-title type style a convention held in memory rather than in one
  * place. It lives here now, so restyling section titles is one edit.
  *
- * `action` is the trailing control some sections carry — profile's "+ Add" and
- * "Edit". It is a slot rather than a prop pair because what goes there is a
- * <Button variant="ghost"> on one card and nothing on the next, and the row
+ * `action` is the trailing control some sections carry: profile's Add and
+ * Edit. It is a slot rather than a prop pair because what goes there is a
+ * <Button variant="section"> on one card and nothing on the next, and the row
  * only becomes a flex pair when something is actually in it. Baseline
  * alignment is what keeps the action's text sitting on the title's baseline
  * rather than centred against the taller box.

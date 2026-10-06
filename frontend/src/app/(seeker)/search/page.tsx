@@ -1,229 +1,198 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { CoinIcon, FilterIcon, PinIcon, SearchIcon } from "@/components/icons";
-import { SaveButton } from "@/components/save-button";
+import { SearchIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { CompanyTile } from "@/components/ui/company-tile";
+import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Fact } from "@/components/ui/fact";
-import { FilterChip } from "@/components/ui/filter-chip";
-import { IconButton } from "@/components/ui/icon-button";
-import { Points, Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
-import { matchColor } from "@/lib/match";
 
-import { MatchBadge } from "../applications/match-badge";
 import { SEEKER_GUTTER } from "../gutter";
-import { FILTERS, JOBS, type Job } from "./data";
-import { BoltIcon } from "./icons";
+import { JobFilters } from "../jobs/filters";
+import { ListingCard, ListingsError, ListingsSkeleton } from "../jobs/listing-card";
+import { getJobListings, type JobListing } from "../jobs/listings";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
   description: "Find your next role.",
 };
 
-/* KAN-43's search mockup, against the fixtures in ./data. The query is real:
- * the top bar's field (see the note in ../layout.tsx about why it lives there)
- * submits ?q, and this narrows the fixtures to it. Searching the live feed is
- * still to come, and the filters, the bookmarks and Apply Now stay inert on
- * purpose. */
+/**
+ * /search, where the top bar's field lands with the query as ?q. It reads the
+ * same live feed as /jobs (../jobs/listings), keeps the roles whose title or
+ * company name contains the query, ignoring case, and draws them with the
+ * feed's own card (../jobs/listing-card) under the feed's own filters, so a
+ * role looks and acts the same whichever way it was found.
+ *
+ * It replaced KAN-43's mockup: a results column and a detail pane over two
+ * fixtures. A scraped role has no description for a pane to show, and on a
+ * phone the pane was hidden, which left a result nothing could open. Apply
+ * Now on each card opens the employer's posting, as it does on /jobs.
+ *
+ * The heading and the filters paint at once; the count and the list stream in
+ * behind placeholders in their own shape. Both await one search, started
+ * here, so they cannot disagree and the API is asked once. Each boundary is
+ * keyed by the query, so a new search shows its placeholders straight away
+ * instead of holding the old results on screen until the new ones arrive.
+ *
+ * The filters are inert, as they are on /jobs; see ../jobs/filters.
+ */
 
-/** True when the query appears in the job's title or its company's name. */
-function matches(job: Job, needle: string) {
+type Search = Awaited<ReturnType<typeof getJobListings>>;
+
+/** True when the query appears in the role's title or its company's name. */
+function matches(job: JobListing, needle: string) {
   return job.title.toLowerCase().includes(needle) || job.company.toLowerCase().includes(needle);
 }
 
-function ResultCard({ job, selected }: { job: Job; selected: boolean }) {
-  const { Icon } = job;
+/** The live feed narrowed to the query. An error passes through untouched. */
+async function search(query: string): Promise<Search> {
+  const feed = await getJobListings();
+  if (feed.error != null) return feed;
+
+  const needle = query.toLowerCase();
+  return { jobs: feed.jobs.filter((job) => matches(job, needle)), error: null };
+}
+
+/** "12 Roles" beside the heading. Nothing when there is nothing to count:
+ *  the empty state under the filters says so in words. */
+async function ResultCount({ results }: { results: Promise<Search> }) {
+  const { jobs } = await results;
+  if (!jobs?.length) return null;
 
   return (
-    <Card
-      as="article"
-      padding="sm"
-      selected={selected}
-      aria-current={selected ? "true" : undefined}
-    >
-      {/* Save sits beside the title and company together, as on a /jobs
-          card, so its 32px never pushes a one-line title off its company. */}
-      <div className="flex items-start gap-3">
-        <CompanyTile Icon={Icon} size="md" tone={job.tone} />
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-1.5">
-            <h2 className="text-subtitle text-ink min-w-0 flex-1">{job.title}</h2>
-            {job.isNew && <Badge tone="positive">New</Badge>}
-          </div>
-          <p className="text-note text-ink-meta mt-0.5">{job.company}</p>
-        </div>
-
-        <SaveButton title={job.title} saved={job.saved} />
-      </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-1">
-        <Fact Icon={PinIcon}>{job.location}</Fact>
-        <Fact Icon={CoinIcon}>{job.salary}</Fact>
-      </div>
-
-      {/* The score in the same banded pill the applications board draws, so
-          a match reads the same colour on every screen. The spark takes the
-          band's colour too. */}
-      <div className="mt-2.5 flex items-center justify-between gap-3">
-        <p className="text-meta text-ink-meta">{job.posted}</p>
-        <div className="flex items-center gap-1">
-          <MatchBadge score={job.match} />
-          {job.hot && (
-            <span style={{ color: matchColor(job.match) }}>
-              <BoltIcon className="size-3" />
-            </span>
-          )}
-        </div>
-      </div>
-    </Card>
+    <Badge variant="tag" pill>
+      {jobs.length} {jobs.length === 1 ? "Role" : "Roles"}
+    </Badge>
   );
 }
 
-/** The dots between the employer, the location and the hiring status. */
-function Dot() {
-  return <span aria-hidden="true" className="bg-border-strong size-1 shrink-0 rounded-full" />;
+/** The count's place while the search runs: the badge's own box and type, with
+ *  the text hidden, so it is the size of a two-digit count. It sits in the
+ *  same fixed slot the count lands in, so swapping one for the other moves
+ *  nothing. */
+function ResultCountSkeleton() {
+  return (
+    <span
+      aria-hidden="true"
+      className="bg-muted text-note inline-flex animate-pulse rounded-full px-2 py-0.5 text-transparent"
+    >
+      00 Roles
+    </span>
+  );
+}
+
+/** The matching roles, or the state that stands in for them. */
+async function Results({ results, query }: { results: Promise<Search>; query: string }) {
+  const { jobs, error } = await results;
+
+  if (error != null) {
+    return <ListingsError error={error} retryHref={`/search?q=${encodeURIComponent(query)}`} />;
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <EmptyState
+        Icon={SearchIcon}
+        title={`No Roles Match “${query}”`}
+        className="mt-4"
+        action={
+          <ButtonLink href="/jobs" variant="secondary" size="sm">
+            Browse All Jobs
+          </ButtonLink>
+        }
+      >
+        Try a different title or company name, or browse every role in the feed.
+      </EmptyState>
+    );
+  }
+
+  return (
+    <>
+      {/* The level between the page's h1 and each card's h3, as on /jobs. */}
+      <h2 className="sr-only">Search Results</h2>
+      <ul className="mt-4 flex flex-col gap-3">
+        {jobs.map((job) => (
+          <li key={job.id}>
+            <ListingCard job={job} />
+          </li>
+        ))}
+      </ul>
+    </>
+  );
 }
 
 export default async function SearchPage({ searchParams }: PageProps<"/search">) {
   const { q } = await searchParams;
   const query = typeof q === "string" ? q.trim() : "";
-  const needle = query.toLowerCase();
-  const results = needle ? JOBS.filter((entry) => matches(entry, needle)) : JOBS;
-  const job: Job | undefined = results.find((entry) => entry.selected) ?? results[0];
+
+  /* The heading and subtitle every state shares, at /jobs's sizes. */
+  const subtitle = (
+    <p className="text-body text-ink-meta mt-1">
+      Roles from today&apos;s feed, matched by title or company.
+    </p>
+  );
+
+  /* Reached by submitting an empty field, or by the URL alone. No filters and
+     no count, since nothing has been searched for them to narrow or count. */
+  if (!query) {
+    return (
+      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+        <h1 className="text-heading text-ink">Search Jobs</h1>
+        {subtitle}
+
+        <EmptyState
+          Icon={SearchIcon}
+          title="Search for a Role"
+          className="mt-6"
+          action={
+            <ButtonLink href="/jobs" variant="secondary" size="sm">
+              Browse All Jobs
+            </ButtonLink>
+          }
+        >
+          Search by job title or company name, or browse every role in the feed.
+        </EmptyState>
+      </div>
+    );
+  }
+
+  const results = search(query);
 
   return (
-    /* Contained like every other seeker screen, not a full-bleed workspace.
-       The results pane used to start at x=0 under a bar whose logo starts at
-       the container's edge, so nothing on the page lined up with the bar
-       above it. Under 896px of page (the shell's @container/main, which an
-       open panel narrows) the detail pane steps out and the results take the
-       width: two fixed panes side by side were wider than a phone, so the
-       whole page scrolled sideways to reach the job. */
-    <div
-      className={cn(
-        "max-w-app mx-auto flex w-full flex-1 flex-col gap-6 py-6 @4xl/main:flex-row @4xl/main:items-start",
-        SEEKER_GUTTER,
-      )}
-    >
-      {/* With nothing to detail, the results column takes the whole width,
-          as the empty state on /jobs does. */}
-      <aside
-        aria-labelledby="results-heading"
-        className={cn("flex shrink-0 flex-col", job ? "@4xl/main:w-80" : "min-w-0 flex-1")}
-      >
-        {/* The page title, at every seeker screen's text-heading. The count
-            sits on the heading's first line however far a long query wraps. */}
-        <div className="flex items-baseline justify-between gap-3">
-          <h1 id="results-heading" className="text-heading text-ink min-w-0 break-words">
-            {query ? `Results for “${query}”` : "Search Jobs"}
-          </h1>
-          <Badge variant="tag" pill>
-            {results.length} {results.length === 1 ? "Job" : "Jobs"}
-          </Badge>
-        </div>
+    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      {/* The heading runs inline, so the count follows its last word however
+          far a long query wraps it. As the end of a flex row it was pushed to
+          the far edge whenever the heading wrapped, where it read as
+          belonging to nothing.
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {FILTERS.map((filter) => (
-            <FilterChip key={filter.label} label={filter.label} active={filter.active} />
-          ))}
-          <IconButton label="More filters" variant="outline" className="ml-auto size-6.5">
-            <FilterIcon className="size-3.5" />
-          </IconButton>
-        </div>
+          The count's slot is a fixed width (72px holds "999 Roles"), held
+          whether it shows the placeholder, a count or nothing at all, so a
+          long query wraps at the same word before and after the results land
+          and nothing below moves. It is centred on the heading's x-height
+          (align-middle, against the wrapper's own text-heading) rather than
+          sitting on the baseline, where the pill hung below the heading's
+          letters. The count is a live region, so a screen reader hears how
+          many roles a search found once they land. */}
+      <div className="text-heading break-words">
+        <h1 className="text-heading text-ink inline">Results for “{query}”</h1>
+        <span role="status" className="ml-3 inline-flex w-18 align-middle">
+          <Suspense key={query} fallback={<ResultCountSkeleton />}>
+            <ResultCount results={results} />
+          </Suspense>
+        </span>
+      </div>
+      {subtitle}
 
-        {job ? (
-          <ul className="mt-4 flex flex-col gap-2.5">
-            {results.map((entry) => (
-              <li key={entry.id}>
-                <ResultCard job={entry} selected={entry.id === job.id} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState
-            Icon={SearchIcon}
-            title={`No roles match “${query}”`}
-            className="mt-4"
-            action={
-              <ButtonLink href="/jobs" variant="secondary" size="sm">
-                Browse All Jobs
-              </ButtonLink>
-            }
-          >
-            Try a different title or company name.
-          </EmptyState>
-        )}
-      </aside>
+      {/* A container, so the facets switch on the row's own width, as on
+          /jobs. */}
+      <div className="@container mt-4 flex flex-wrap items-center gap-2">
+        <JobFilters />
+      </div>
 
-      {job && (
-        <section aria-label="Job details" className="hidden min-w-0 flex-1 @4xl/main:block">
-          {/* text-title, not text-display: at 28px the title outweighed the page
-              heading of every other screen, and in a pane beside the results it
-              wrapped long before the header ran out of room. */}
-          <Card as="header" padding="lg" elevated={false} className="flex items-center gap-4">
-            <CompanyTile Icon={job.Icon} size="lg" tone="outline" />
-
-            <div className="min-w-0 flex-1">
-              {/* The status rides with the title rather than at the end of the
-                  company line, where a wrap in the narrower pane left a dot
-                  dangling at the end of one line and the badge alone on the
-                  next. */}
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <h2 className="text-title text-ink">{job.title}</h2>
-                <Badge tone="positive">{job.detail.status}</Badge>
-              </div>
-
-              {/* The company in ink, as on every job card: there is no company
-                  page for it to link to yet. */}
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="text-label text-ink font-medium">{job.company}</span>
-                <Dot />
-                <span className="text-label text-ink-meta font-normal">{job.location}</span>
-              </div>
-            </div>
-
-            <SaveButton title={job.title} saved={job.saved} />
-
-            <Button className="shrink-0">Apply Now</Button>
-          </Card>
-
-          {/* Two across at every width: the pane is ~584px at most, and four
-              across left each value ~130px to wrap in. */}
-          <dl className="mt-4 grid grid-cols-2 gap-3">
-            {job.detail.stats.map(({ label, value, Icon }) => (
-              <div
-                key={label}
-                className="bg-well border-border-subtle rounded-control border px-3 py-3"
-              >
-                <dt className="text-caption text-ink-meta flex items-center gap-1.5 uppercase">
-                  <Icon className="size-3.5 shrink-0" />
-                  {label}
-                </dt>
-                <dd className="text-subtitle text-ink mt-1">{value}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <Section title="About the Role">
-            <p className="text-body text-ink-muted mt-3">{job.detail.about}</p>
-          </Section>
-
-          {/* `marker` draws the bullets. Without it the items were indented
-              with nothing in the indent, which read as a layout mistake. */}
-          <Section title="What You'll Do">
-            <Points items={job.detail.responsibilities} marker />
-          </Section>
-
-          <Section title="Qualifications">
-            <Points items={job.detail.qualifications} marker />
-          </Section>
-        </section>
-      )}
+      <Suspense key={query} fallback={<ListingsSkeleton />}>
+        <Results results={results} query={query} />
+      </Suspense>
     </div>
   );
 }

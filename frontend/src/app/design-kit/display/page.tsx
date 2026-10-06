@@ -6,6 +6,7 @@ import {
   CalendarIcon,
   GearIcon,
   PinIcon,
+  PlusIcon,
 } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,17 +31,17 @@ export default function DisplayPage() {
           cannot drift from what the app actually paints. Adding a status there
           makes it appear here with no edit. */}
       <Group
-        title="Status pills"
+        title="Status Pills"
         note="A tone names a state's kind, not one label each. Two states share a tone only when they are the same kind of thing."
       >
-        <Row name="Job posting statuses" role="app/company/jobs/data.ts — STATUS_TONE">
+        <Row name="Job Posting Statuses" role="app/company/jobs/data.ts, STATUS_TONE">
           {Object.entries(STATUS_TONE).map(([status, tone]) => (
             <Badge key={status} variant="status" tone={tone}>
               {status}
             </Badge>
           ))}
         </Row>
-        <Row name="Applicant stages" role="app/company/applicants/data.ts — STAGE_TONE">
+        <Row name="Applicant Stages" role="app/company/applicants/data.ts, STAGE_TONE">
           {Object.entries(STAGE_TONE).map(([stage, tone]) => (
             <Badge key={stage} variant="status" tone={tone}>
               {stage}
@@ -53,7 +54,7 @@ export default function DisplayPage() {
         </Row>
       </Group>
 
-      <Group title="Everything else">
+      <Group title="Everything Else">
         <Row name="<CompanyTile>" role="Logo stand-in, three sizes and four tones">
           <CompanyTile Icon={BriefcaseIcon} size="sm" />
           <CompanyTile Icon={BriefcaseIcon} size="md" tone="positive" />
@@ -83,7 +84,15 @@ export default function DisplayPage() {
         </Row>
         <Row name="<SectionHeading>" role="Card heading, with an optional action on its baseline">
           <div className="w-full max-w-sm">
-            <SectionHeading as="h3" action={<Button variant="ghost">+ Add</Button>}>
+            <SectionHeading
+              as="h3"
+              action={
+                <Button variant="section">
+                  <PlusIcon />
+                  Add
+                </Button>
+              }
+            >
               Work Experience
             </SectionHeading>
           </div>

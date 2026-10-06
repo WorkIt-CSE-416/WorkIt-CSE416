@@ -64,7 +64,7 @@ export function AccountTypeSwitcher({
         onValueChange={([next]) => {
           if (next) setType(next as AccountTypeValue);
         }}
-        aria-label="Account type"
+        aria-label="Account Type"
         /* 0.5, not 0: a 2px gap that matches the track's p-0.5. Spacing 0
          * switches on the vendored item's joined-segment rules, which square
          * the inner corners of the pressed fill and outrank a className

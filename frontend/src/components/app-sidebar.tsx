@@ -152,7 +152,7 @@ export function AppSidebar({
    *  things you visit to change how the app works rather than to work in it,
    *  like Settings. */
   footer?: SidebarNavItem[];
-  /** The name of the panel's <nav> landmark, e.g. "Company sections". */
+  /** The name of the panel's <nav> landmark, e.g. "Company Sections". */
   label: string;
   /** The shell's bar offset — see "WHY IT IS OFFSET" above. */
   className?: string;

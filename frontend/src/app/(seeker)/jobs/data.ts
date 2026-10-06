@@ -117,13 +117,13 @@ function daysAgo(days: number) {
  * (see `multiple` in ./filters). No pick is "any", which is why neither list
  * spells it out.
  */
-export const JOB_TYPE_OPTIONS = ["Full-time", "Part-time", "Contract"];
+export const JOB_TYPE_OPTIONS = ["Full-Time", "Part-Time", "Contract"];
 
-export const WORKPLACE_OPTIONS = ["On-site", "Hybrid", "Remote"];
+export const WORKPLACE_OPTIONS = ["On-Site", "Hybrid", "Remote"];
 
-export const EXPERIENCE_OPTIONS = ["Internship", "New grad", "Experienced"];
+export const EXPERIENCE_OPTIONS = ["Internship", "New Grad", "Experienced"];
 
-export const DATE_POSTED_OPTIONS = ["Past 24 hours", "Past week", "Past month"];
+export const DATE_POSTED_OPTIONS = ["Past 24 Hours", "Past Week", "Past Month"];
 
 export const LOCATION_OPTIONS = ["Remote (US)", "New York, NY", "Seattle, WA", "Austin, TX"];
 

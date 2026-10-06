@@ -19,7 +19,7 @@ export default function SeekerNotFound() {
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <EmptyState
         Icon={SearchIcon}
-        title="We couldn't find that page"
+        title="We Couldn't Find That Page"
         action={
           <ButtonLink href="/dashboard" variant="secondary" size="sm">
             <ArrowLeftIcon className="size-3.5" />

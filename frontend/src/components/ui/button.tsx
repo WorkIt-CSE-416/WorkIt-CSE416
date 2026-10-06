@@ -58,10 +58,10 @@ import { cn } from "@/lib/cn";
  *   outline        outline      brand outline
  *   ghost          quiet        brand text, no chrome
  *
- * `positive` and `inline` have no shadcn equivalent and are kept as WorkIt
- * roles. `destructive`, `link`, `xs` and the `icon-*` sizes are the reverse —
- * shadcn expects them, no mockup draws them, so they are marked UNMEASURED
- * below and are extrapolations rather than sampled values.
+ * `positive`, `section` and `inline` have no shadcn equivalent and are kept
+ * as WorkIt roles. `destructive`, `link`, `xs` and the `icon-*` sizes are the
+ * reverse: shadcn expects them, no mockup draws them, so they are marked
+ * UNMEASURED below and are extrapolations rather than sampled values.
  *
  * Base UI's ButtonPrimitive rather than a bare <button>: it is what shadcn's
  * components compose against, so `render={<Button />}` works, and it already
@@ -88,12 +88,20 @@ export const buttonVariants = cva(
          *  equivalent: its palette has no success role. */
         positive:
           "bg-positive text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
-        /** Text only — section actions in a card header, which carry no chrome.
+        /** Text only, in brand, no chrome: an inline action such as a form's
+         *  Add Question or a table's Clear Selection. A section heading's
+         *  action is `section` instead.
          *  shadcn calls this `ghost` and means a neutral glyph with a hover
          *  fill; WorkIt's is brand-coloured, which is the reading kept here
          *  because four call sites were drawn that way. */
         ghost:
           "text-brand hover:text-brand-hover focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2",
+        /** Muted text, darkening to ink on hover: an action at the top right of
+         *  an open section's heading (the profile's Add and Edit). It wears
+         *  ui/section-link.tsx's look, so a section's one control has the same
+         *  weight whether it acts here or goes somewhere. WorkIt-only. */
+        section:
+          "text-ink-muted hover:text-ink focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2",
         /** UNMEASURED: no mockup draws a destructive action. --destructive
          *  aliases --color-danger, the Rejected chip's red (see globals.css),
          *  so the app has one red. Shaped and ringed like the other fills. */
@@ -110,6 +118,9 @@ export const buttonVariants = cva(
          *  anything around it. */
         inline:
           "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
+        /** `inline` at SectionLink's 13px, with its 14px glyph. */
+        section:
+          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg]:size-3.5",
         /** UNMEASURED — extrapolated between `inline` and `sm`. */
         xs: "text-note gap-1 px-2 py-1",
         sm: "text-label gap-2 px-2.5 py-1.5",
@@ -144,6 +155,7 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
   positive: "sm",
   outline: "sm",
   ghost: "inline",
+  section: "section",
   link: "inline",
 };
 

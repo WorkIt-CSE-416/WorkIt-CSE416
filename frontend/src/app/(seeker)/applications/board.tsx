@@ -1,4 +1,4 @@
-import { CalendarIcon, EllipsisIcon } from "@/components/icons";
+import { EllipsisIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { STAGE_COLOR, STAGE_ICON } from "../stage-colors";
 import { COLUMNS, type Application } from "./data";
 import { MatchBadge } from "./match-badge";
+import { NextStep } from "./next-step";
 
 /**
  * The applications grouped into pipeline columns, in the shadcn kanban layout.
@@ -65,20 +66,9 @@ function ApplicationCard({ item }: { item: Application }) {
 
       {/* The one place an application's next commitment appears on the board —
           the design has no slot for it, and dropping it would lose the only
-          forward-looking thing a card says. An icon rather than a grey box:
-          the box was a third nested panel (column, card, box). The icon is
-          grey, not brand: the calendar is the Interviewing glyph and violet is
-          the Applied colour, so a coloured one put a second stage on every
-          card. The dark, medium-weight label is what marks it to act on. */}
-      {item.next && (
-        <div className="flex items-start gap-2">
-          <CalendarIcon className="text-ink-meta mt-0.5 size-3.5 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-note text-ink font-medium">{item.next.label}</p>
-            <p className="text-note text-ink-meta">{item.next.when}</p>
-          </div>
-        </div>
-      )}
+          forward-looking thing a card says. The grid and list draw the same
+          block (./next-step.tsx). */}
+      <NextStep next={item.next} />
 
       <div className="border-border-subtle flex items-center justify-between gap-2 border-t pt-2.5">
         <p className="text-note text-ink-meta min-w-0 truncate">{item.meta.text}</p>
@@ -119,7 +109,7 @@ export function ApplicationsBoard() {
        counts that used to sit in the footer did exactly that. */
     <div
       role="region"
-      aria-label="Applications board"
+      aria-label="Applications Board"
       tabIndex={0}
       className="focus-visible:ring-brand-ring rounded-card relative mt-4 overflow-x-auto focus-visible:ring-2 focus-visible:outline-none"
     >

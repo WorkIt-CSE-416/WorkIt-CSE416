@@ -37,7 +37,7 @@ export default function SeekerError({
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <EmptyState
         Icon={CloudOff}
-        title="Something went wrong"
+        title="Something Went Wrong"
         action={
           <Button variant="secondary" size="sm" onClick={() => retry()}>
             Try Again

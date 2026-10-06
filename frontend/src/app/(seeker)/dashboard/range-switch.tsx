@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 import { RANGES, type RangeKey } from "./data";
 
 /**
- * The window the Dashboard reports on: This week, 30 days, or the whole
+ * The window the Dashboard reports on: This Week, 30 Days, or the whole
  * recruiting season. Links on ?range= rather than client state, the way the
  * applications board's view switcher works, so a window is shareable, survives
  * a reload, and costs no JavaScript — the page re-renders on the server with
@@ -14,7 +14,7 @@ import { RANGES, type RangeKey } from "./data";
 export function RangeSwitch({ current }: { current: RangeKey }) {
   return (
     <nav
-      aria-label="Time range"
+      aria-label="Time Range"
       className="bg-well border-border-subtle rounded-control flex shrink-0 items-center gap-0.5 border p-0.5"
     >
       {RANGES.map(({ key, label }) => {

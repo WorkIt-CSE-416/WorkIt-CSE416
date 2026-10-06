@@ -17,7 +17,7 @@ export default function JobNotFound() {
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <EmptyState
         Icon={BriefcaseIcon}
-        title="This job isn't available"
+        title="This Job Isn't Available"
         action={
           <ButtonLink href="/jobs" variant="secondary" size="sm">
             <ArrowLeftIcon className="size-3.5" />

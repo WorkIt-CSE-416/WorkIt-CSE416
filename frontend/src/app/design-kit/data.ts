@@ -28,7 +28,7 @@ export const SECTIONS = {
   },
   shape: {
     slug: "shape",
-    title: "Shape and elevation",
+    title: "Shape and Elevation",
     note: "Two radii and two shadows. WorkIt's own; stock Tailwind's rounded-sm/md/lg keep their default values, which is what existing call sites were measured against.",
   },
   buttons: {
@@ -38,7 +38,7 @@ export const SECTIONS = {
   },
   forms: {
     slug: "forms",
-    title: "Form controls",
+    title: "Form Controls",
     note: "Every control that takes input, at the width it is used rather than full-bleed.",
   },
   display: {
@@ -94,7 +94,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-ink-muted", role: "Body copy, field labels" },
       { token: "--color-ink-meta", role: "Nav links, subtitles, dates, glyphs, placeholders" },
       { token: "--color-ink-subtle", role: "De-emphasised glyphs: stat tiles, a picker's chevron" },
-      { token: "--color-ink-faint", role: "A result card's timestamp" },
+      { token: "--color-ink-faint", role: "Separator dots, bullets, resting sort chevrons" },
     ],
   },
   {
@@ -126,6 +126,11 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-inert-tint", role: "Measured — a status that is over or not begun" },
       { token: "--color-warning", role: "UNMEASURED — halted, waiting on a decision" },
       { token: "--color-warning-tint", role: "UNMEASURED" },
+      {
+        token: "--color-warning-fill",
+        role: "Amber as a bar or dot, never text or a glyph's ground",
+      },
+      { token: "--color-warning-strong", role: "Interviewing's fill, white glyph at 3.19:1" },
       { token: "--color-danger", role: "UNMEASURED — ended badly" },
       { token: "--color-danger-tint", role: "UNMEASURED" },
       { token: "--color-advanced", role: "UNMEASURED — in flight, late (Interview)" },
@@ -144,6 +149,19 @@ export const COLOR_GROUPS: ColorGroup[] = [
     ],
   },
   {
+    title: "Match",
+    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc and dot on a job's match rail, and the bar on the company Dashboard's Recent Applicants. One magenta ramp, deeper for a better match, in a hue no stage, status or brand colour uses, so a score never reads as where an application stands. Strokes, dots and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
+    tokens: [
+      {
+        token: "--color-match-excellent",
+        role: "Excellent Match, the deepest step · 9.73:1 on white",
+      },
+      { token: "--color-match-strong", role: "Strong Match · 6.98:1 on white" },
+      { token: "--color-match-good", role: "Good Match · 4.95:1 on white" },
+      { token: "--color-match-weak", role: "Weak Match, the lightest step · 3.45:1 on white" },
+    ],
+  },
+  {
     title: "Borders",
     tokens: [
       { token: "--color-border", role: "Card outline" },
@@ -156,7 +174,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
     ],
   },
   {
-    title: "shadcn roles",
+    title: "shadcn Roles",
     note: "Aliases, not new colours. Every one points at a token above, which is why a stock shadcn component renders in WorkIt's palette with no editing. --destructive was the exception, shadcn's stock red, until it was pointed at --color-danger so a destructive action and a Rejected pill are one red. The chart ramp used to be a second exception and is now its own group above.",
     tokens: [
       { token: "--primary", role: "→ --color-brand" },
@@ -184,13 +202,13 @@ export const COLOR_GROUPS: ColorGroup[] = [
 export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-caption", cls: "text-caption", role: "Uppercase rule label — OR CONTINUE WITH" },
   { token: "--text-meta", cls: "text-meta", role: "Dates, file meta, helper copy" },
-  { token: "--text-note", cls: "text-note", role: "Employer, skill pills, section actions" },
+  { token: "--text-note", cls: "text-note", role: "Employer, skill pills" },
   { token: "--text-label", cls: "text-label", role: "Field labels, links, buttons" },
   { token: "--text-body", cls: "text-body", role: "Body copy, inputs" },
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },
   { token: "--text-title", cls: "text-title", role: "Card and column headings" },
   { token: "--text-heading", cls: "text-heading", role: "Page name — My Applications" },
-  { token: "--text-display", cls: "text-display", role: "Job title on the detail pane" },
+  { token: "--text-display", cls: "text-display", role: "Dashboard headline figures" },
 ];
 
 export const RADII: { token: string; cls: string; role: string }[] = [
@@ -208,7 +226,8 @@ export const BUTTON_VARIANTS = [
   { variant: "default", note: "Primary action" },
   { variant: "secondary", note: "Alternative beside a primary" },
   { variant: "outline", note: "Action inside a recessed area" },
-  { variant: "ghost", note: "Section action, no chrome" },
+  { variant: "ghost", note: "Brand text action, no chrome" },
+  { variant: "section", note: "Section action, muted, beside a heading" },
   { variant: "positive", note: "Accepting an offer — WorkIt-only" },
   { variant: "destructive", note: "UNMEASURED" },
   { variant: "link", note: "UNMEASURED" },

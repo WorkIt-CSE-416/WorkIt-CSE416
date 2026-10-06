@@ -30,17 +30,17 @@ type Pillar = {
 const pillars: Pillar[] = [
   {
     Icon: Search,
-    title: "Search by what the job asks for",
+    title: "Search by What the Job Asks For",
     body: "Filter on the skills, pay and location in the posting — not on its title.",
   },
   {
     Icon: SquareKanban,
-    title: "Every application on one board",
+    title: "Every Application on One Board",
     body: "Follow each role from applied through to offer without a spreadsheet.",
   },
   {
     Icon: Building2,
-    title: "Hiring? Sign in here too",
+    title: "Hiring? Sign In Here Too",
     body: "Company accounts sign in on this page and land in their applicant pipeline.",
   },
 ];
@@ -63,9 +63,19 @@ const pillars: Pillar[] = [
  * keeps its own border and shadow: it is the same card, moved, not a panel
  * welded to a wall.
  *
+ * THE PITCH IS CENTRED IN THE WINDOW, NOT IN THE PANEL. The violet fills the
+ * whole height of the page, but the copy sits in a sticky frame one window
+ * tall (`min-h-svh`) and is centred in that. Centred in the panel itself, it
+ * followed the page's height: choosing Company on /signup adds about 350px of
+ * fields, and the pitch slid 175px down with it. Now it holds still while the
+ * form beside it grows, shrinks or scrolls, and it sits at the same height on
+ * /login and /signup. Only the vertical padding is on the frame: the
+ * horizontal padding stays on the panel, because moving it inside would
+ * change the 5:7 arithmetic above.
+ *
  * No logo here. The card carries the lockup 40px to the right of this text,
  * and the artwork is dark ink drawn for a light ground — it would need a
- * reversed asset to sit on brand blue, and two logos on one screen is one too
+ * reversed asset to sit on brand violet, and two logos on one screen is one too
  * many.
  *
  * Its text is paragraphs, not headings. The copy is decorative, and as an h2
@@ -77,29 +87,31 @@ const pillars: Pillar[] = [
  */
 export function BrandPanel() {
   return (
-    <section className="bg-brand text-on-brand hidden flex-col justify-center gap-9 p-12 lg:flex lg:flex-[5]">
-      <div className="max-w-md">
-        <p className="text-display">Find the work. Track the search.</p>
-        {/* 80% white rather than a token: the ink scale is built for light
-         * grounds and has no role for secondary text on a brand fill. */}
-        <p className="text-body text-on-brand/80 mt-3">
-          One place for the people applying and the teams hiring.
-        </p>
-      </div>
+    <section className="bg-brand text-on-brand hidden px-12 lg:block lg:flex-[5]">
+      <div className="sticky top-0 flex min-h-svh flex-col justify-center gap-9 py-12">
+        <div className="max-w-md">
+          <p className="text-display">Find the Work. Track the Search.</p>
+          {/* 80% white rather than a token: the ink scale is built for light
+           * grounds and has no role for secondary text on a brand fill. */}
+          <p className="text-body text-on-brand/80 mt-3">
+            One place for the people applying and the teams hiring.
+          </p>
+        </div>
 
-      <ul className="flex max-w-md flex-col gap-6">
-        {pillars.map(({ Icon, title, body }) => (
-          <li key={title} className="flex gap-3.5">
-            <span className="bg-on-brand/15 rounded-control flex size-9 shrink-0 items-center justify-center">
-              <Icon className="size-4.5" />
-            </span>
-            <div>
-              <p className="text-subtitle">{title}</p>
-              <p className="text-body text-on-brand/80 mt-1">{body}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
+        <ul className="flex max-w-md flex-col gap-6">
+          {pillars.map(({ Icon, title, body }) => (
+            <li key={title} className="flex gap-3.5">
+              <span className="bg-on-brand/15 rounded-control flex size-9 shrink-0 items-center justify-center">
+                <Icon className="size-4.5" />
+              </span>
+              <div>
+                <p className="text-subtitle">{title}</p>
+                <p className="text-body text-on-brand/80 mt-1">{body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

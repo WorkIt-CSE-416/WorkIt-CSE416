@@ -35,8 +35,8 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
     <section aria-labelledby="up-next" className="@container/upnext">
       <SectionHeader
         id="up-next"
-        title="Up next"
-        link={{ href: "/applications", text: "View all", label: "View all applications" }}
+        title="Up Next"
+        link={{ href: "/applications", text: "View All", label: "View All Applications" }}
       />
 
       <ul className="mt-3 flex flex-col">

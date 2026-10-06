@@ -25,7 +25,7 @@ export default async function EditJobPage({ params }: PageProps<"/company/jobs/[
       <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
         <LoadError
           error={error}
-          title="This job isn't loading right now"
+          title="This Job Isn't Loading Right Now"
           subject="this job posting"
           retryHref={`/company/jobs/${encodeURIComponent(jobId)}/edit`}
         />

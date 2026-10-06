@@ -66,9 +66,9 @@ export function CloseJobDialog({
         {error && <p className="text-meta text-danger">{error}</p>}
 
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep it open</Button>} />
+          <DialogClose render={<Button variant="secondary">Keep It Open</Button>} />
           <Button variant="destructive" onClick={close} disabled={isClosing}>
-            Close job
+            Close Job
           </Button>
         </DialogFooter>
       </DialogContent>

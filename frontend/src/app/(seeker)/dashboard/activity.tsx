@@ -52,7 +52,7 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
         <Badge variant="tag" tone="brand" pill>
           <Send aria-hidden="true" className="mr-1.5 size-3.5" />
           <span>
-            <span className="font-semibold">{total}</span> sent
+            <span className="font-semibold">{total}</span> Sent
           </span>
         </Badge>
         {goal !== null && (
@@ -62,7 +62,7 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
               <span className="font-semibold">
                 {hit}/{points.length}
               </span>{" "}
-              weeks at goal
+              Weeks at Goal
             </span>
           </Badge>
         )}

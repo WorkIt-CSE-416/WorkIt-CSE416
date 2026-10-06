@@ -56,7 +56,7 @@ export default async function CompanyJobsPage() {
       {error ? (
         <LoadError
           error={error}
-          title="Job postings aren't loading right now"
+          title="Job Postings Aren't Loading Right Now"
           subject="your job postings"
           retryHref="/company/jobs"
         />

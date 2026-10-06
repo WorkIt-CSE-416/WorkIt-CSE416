@@ -13,10 +13,10 @@ import { cn } from "@/lib/cn";
  * thing keeping the two apart at a glance.
  *
  * `tone` is the colour, and it defaults from the variant — a status reads brand
- * and a tag reads neutral, which is what every pill on the board wants. The
- * search screen is the reason it can be overridden: its "New" and "Actively
- * Hiring" pills are green, and its result count is a neutral tag that has to be
- * fully rounded, so shape and colour stopped moving together.
+ * and a tag reads neutral, which is what every pill on the board wants. It can
+ * be overridden because shape and colour do not always move together: a stage
+ * badge takes its stage's tone, and the Dashboard's activity chips are tags
+ * tinted brand, positive or warning.
  */
 const VARIANTS = {
   /* py-px gave the chip a 17px box, which read as a label squeezed onto its
@@ -40,8 +40,8 @@ const VARIANTS = {
  * being in a screen and being in an interview cost a hiring team completely
  * different amounts of its week.
  *
- * `neutral` stays exactly as it was. It is the default for every `tag` — skill
- * pills, salary bands, the search screen's result count — and the mockups draw
+ * `neutral` stays exactly as it was. It is the default for every `tag` (skill
+ * pills, salary bands, the /search result count), and the mockups draw
  * all of those brand-tinted (blue in the mockups, violet since KAN-140).
  * `inert` is the grey that statuses wanted from it.
  *
@@ -87,7 +87,8 @@ export function Badge({
 }: {
   variant?: BadgeVariant;
   tone?: BadgeTone;
-  /** Force the rounded shape onto a `tag` — the search screen's result count. */
+  /** Force the rounded shape onto a `tag`: the /search result count, the
+   *  profile's resume count, the Dashboards' activity chips. */
   pill?: boolean;
   children: ReactNode;
 }) {

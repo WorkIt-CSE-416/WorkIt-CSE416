@@ -204,7 +204,7 @@
   --text-meta: 0.6875rem; /* 11px — dates, file meta, helper copy */
   --text-meta--line-height: 0.9375rem;
 
-  --text-note: 0.75rem; /* 12px — employer, skill pills, section actions */
+  --text-note: 0.75rem; /* 12px: employer, skill pills */
   --text-note--line-height: 1rem;
 
   --text-subtitle: 1rem; /* 16px — work-history job titles */
@@ -327,6 +327,43 @@
   --color-advanced: #2f5fd6;
   --color-advanced-tint: #e3ebff;
 
+  /* Match score ----------------------------------------------------------
+   * The four bands a match score is read in (@/lib/match): the ring on a
+   * board card's match badge, the arc and dot on a job's match rail, and the
+   * bar on the company Dashboard's Recent applicants.
+   * Their own hue, so a score never borrows a stage's meaning. The bands used
+   * to be --color-brand and three raw hexes: a 95% card read as an Applied
+   * one, a Strong match on an Offer card drew a second green beside the
+   * stage's own, and Good was Interviewing's amber.
+   *
+   * MAGENTA, at OKLCH hue 340, because it is the widest arc no role holds.
+   * Brand violet sits at 290, Heard back blue at 264, danger red at 20, the
+   * Interviewing ambers at 58 to 74 and Offer green at 160. Teal and cyan are
+   * too close to the green (see --color-advanced), orange is squeezed between
+   * the red and the amber, and the lime past the amber is olive by the time it
+   * is dark enough for 3:1. Magenta is 50 degrees from the violet and 40 from
+   * the red, and nothing else in the app wears it. It stays pink-purple, never
+   * red: every step's blue channel is at least 80% of its red, where
+   * --color-danger's is a third.
+   *
+   * One hue, light to deep, and a better match is deeper, so the bands read as
+   * one rising scale rather than four unrelated badges, and the arc's depth
+   * agrees with its length. The steps are about 0.08 apart in OKLCH lightness.
+   * Each is a stroke, a dot or a bar, never text (the tier words are
+   * ink-muted), so the floor is the 3:1 a graphic needs, measured on both
+   * grounds they are drawn on: white (a board card) and --color-well (the
+   * rail, and the Dashboard bar's track).
+   *
+   *                white   well
+   *   excellent    9.73    9.09
+   *   strong       6.98    6.52
+   *   good         4.95    4.62
+   *   weak         3.45    3.22 */
+  --color-match-excellent: #800b66;
+  --color-match-strong: #a01f81;
+  --color-match-good: #bd3a9b;
+  --color-match-weak: #d063b0;
+
   /* Board type -----------------------------------------------------------
    * A step above --text-title, which the board still uses for its column
    * headings — so the page name and the column names cannot be confused. */
@@ -351,11 +388,14 @@
    * screen, including the two whose mockups do not draw it.
    * ---------------------------------------------------------------------- */
 
-  /* One step lighter than --color-ink-meta, for a result card's timestamp —
-   * the only text in the app that sits below meta in the hierarchy. */
+  /* One step lighter than --color-ink-meta. It was a search result's
+   * timestamp; now it marks rather than writes: separator dots, list bullets,
+   * a resting sort chevron, a control's 3:1 edge. Too faint for words. */
   --color-ink-faint: #8893a4;
 
-  /* 28px — the job title on the detail pane, the largest type in the app. */
+  /* 28px, the largest type in the app: a Dashboard's headline figures (stat
+   * tiles, Waiting, Highlights, the status ring's total), the company
+   * profile's name and the auth pitch. */
   --text-display: 1.75rem;
   --text-display--line-height: 2rem;
   --text-display--font-weight: 700;

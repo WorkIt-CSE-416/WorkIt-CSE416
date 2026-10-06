@@ -12,7 +12,7 @@ import { formatDate } from "@/lib/format-date";
 export function ApplicantOverviewPanel({ posting }: { posting: JobPosting }) {
   return (
     <aside
-      aria-label="Applicant overview"
+      aria-label="Applicant Overview"
       className="bg-well border-border-subtle rounded-card flex shrink-0 flex-col gap-3 border p-4 @xl:w-52"
     >
       <h2 className="text-title text-ink">Applicants</h2>
@@ -28,7 +28,9 @@ export function ApplicantOverviewPanel({ posting }: { posting: JobPosting }) {
           <dd
             className={cn(
               "text-title tabular-nums",
-              (posting.unreviewedCount ?? 0) > 0 ? "text-ink" : "text-ink-faint",
+              /* Zero is quieter by weight, in ink-meta (5.22:1 on this well),
+                 not in ink-faint, whose 2.90:1 is too faint for a number. */
+              (posting.unreviewedCount ?? 0) > 0 ? "text-ink" : "text-ink-meta font-medium",
             )}
           >
             {posting.unreviewedCount ?? 0}

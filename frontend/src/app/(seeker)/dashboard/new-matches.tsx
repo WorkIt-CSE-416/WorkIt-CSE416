@@ -21,7 +21,7 @@ import { SectionHeader } from "./section-header";
  */
 /**
  * THE LIST SCROLLS INSIDE THE ROW rather than setting its height. Beside it,
- * Waiting to hear back is a fixed size, and the two should end on one line;
+ * Waiting to Hear Back is a fixed size, and the two should end on one line;
  * a list long enough to be useful would otherwise stretch the row and leave
  * Waiting floating above a gap. From @4xl/main the section is `h-0
  * min-h-full` — a grid item that contributes no height of its own and then
@@ -30,7 +30,7 @@ import { SectionHeader } from "./section-header";
  * match, so the list does not scroll at all: it shows the first five rows and
  * the page scrolls past them (the fifth drops its divider, which divide-y
  * still draws because hidden rows follow it). A box that scrolls inside a
- * scrolling page traps the swipe that reaches its end, and All jobs is one tap
+ * scrolling page traps the swipe that reaches its end, and All Jobs is one tap
  * away.
  *
  * Beside Waiting, a fade at the bottom says there is more without a "show
@@ -53,8 +53,8 @@ export async function NewMatches() {
     >
       <SectionHeader
         id="new-matches"
-        title="New matches"
-        link={{ href: "/jobs", text: "All jobs" }}
+        title="New Matches"
+        link={{ href: "/jobs", text: "All Jobs" }}
       />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 
@@ -68,7 +68,7 @@ export async function NewMatches() {
         <div className="relative mt-3 flex min-h-0 flex-1 flex-col">
           <ul
             tabIndex={0}
-            aria-label="Latest roles"
+            aria-label="Latest Roles"
             className="divide-border-subtle focus-visible:ring-brand-ring flex min-h-0 flex-1 flex-col divide-y rounded-xs focus-visible:ring-2 focus-visible:outline-none @4xl/main:overflow-y-auto @4xl/main:overscroll-contain @4xl/main:pr-2 @4xl/main:pb-6 @max-4xl/main:[&>li:nth-child(5)]:border-b-0 @max-4xl/main:[&>li:nth-child(n+6)]:hidden"
           >
             {latest.map((job) => (
@@ -110,7 +110,7 @@ export async function NewMatches() {
 }
 
 /**
- * What New matches shows while the feed loads: the same heading, link and
+ * What New Matches shows while the feed loads: the same heading, link and
  * subtitle, and the list's place held by pulsing rows in its own shape (a
  * logo square, a title line, a meta line). On a phone the box is h-88, the
  * height of the five rows the loaded list shows there once most titles run to
@@ -126,8 +126,8 @@ export function NewMatchesSkeleton() {
     >
       <SectionHeader
         id="new-matches"
-        title="New matches"
-        link={{ href: "/jobs", text: "All jobs" }}
+        title="New Matches"
+        link={{ href: "/jobs", text: "All Jobs" }}
       />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 

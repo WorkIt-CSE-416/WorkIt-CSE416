@@ -50,7 +50,7 @@ export function ViewSwitcher({ current }: { current: View }) {
               render={
                 <Link
                   href={viewHref(view)}
-                  aria-label={`${label} view`}
+                  aria-label={`${label} View`}
                   aria-current={isActive ? "true" : undefined}
                   className={cn(
                     "focus-visible:ring-brand-ring flex size-6.5 items-center justify-center rounded-[0.375rem] focus-visible:ring-2 focus-visible:outline-none",
@@ -63,7 +63,7 @@ export function ViewSwitcher({ current }: { current: View }) {
             >
               <Icon className="size-4" />
             </TooltipTrigger>
-            <TooltipContent>{label} view</TooltipContent>
+            <TooltipContent>{label} View</TooltipContent>
           </Tooltip>
         );
       })}

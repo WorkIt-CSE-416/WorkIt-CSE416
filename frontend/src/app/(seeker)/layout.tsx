@@ -5,13 +5,13 @@ import { Suspense } from "react";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 import { SidebarBrand } from "@/components/sidebar-brand";
-import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 import { SeekerAccount, SeekerStatusLine } from "./account-status";
 import { SEEKER_GUTTER } from "./gutter";
 import { MobileSearch } from "./mobile-search";
 import { ProfileStrength } from "./profile-strength";
+import { QueryField } from "./search/query-field";
 import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
@@ -35,11 +35,13 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * It sits in the shared bar rather than on that page because searching jobs
  * is global rather than something one screen owns. It is a GET form to
  * /search, so Enter lands the query there as ?q; next/form makes that a
- * client-side navigation. It grows into whatever the bar has spare and stops
- * at 320px, rather than taking a fixed width somebody has to recompute every
- * time the bar's contents change. Below md the bar has no room for it, so a
- * magnifier takes its place before the bell and opens the same field in a
- * sheet; see ./mobile-search.tsx.
+ * client-side navigation. On /search the field keeps showing that query
+ * (./search/query-field.tsx reads it, since a layout gets no searchParams).
+ * It grows into whatever the bar has spare and stops at 320px, rather than
+ * taking a fixed width somebody has to recompute every time the bar's
+ * contents change. Below md the bar has no room for it, so a magnifier takes
+ * its place before the bell and opens the same field in a sheet; see
+ * ./mobile-search.tsx.
  *
  * The bell steps out below sm: it has nothing behind it yet but an empty
  * state, and the avatar's menu is the one control in that cluster a phone
@@ -83,7 +85,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         href="#content"
         className="bg-panel rounded-control text-label text-ink shadow-panel focus-visible:ring-brand-ring sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus-visible:ring-2 focus-visible:outline-none"
       >
-        Skip to content
+        Skip to Content
       </a>
 
       {/* In flow, as a sibling of the scroller rather than a layer over it,
@@ -111,14 +113,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               role="search"
               className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
             >
-              <SearchField
-                id="job-search"
-                label="Search jobs"
-                name="q"
-                placeholder="Search jobs"
-                enterKeyHint="search"
-                className="w-full"
-              />
+              <QueryField id="job-search" />
             </Form>
 
             <div className="ml-auto flex items-center gap-4 sm:gap-5">

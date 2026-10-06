@@ -36,10 +36,10 @@ export function Waiting() {
     <section aria-labelledby="waiting" className="flex flex-col">
       <SectionHeader
         id="waiting"
-        title="Waiting to hear back"
+        title="Waiting to Hear Back"
         link={
           due > 0
-            ? { href: "/applications", text: "Follow up", label: "Follow up on applications" }
+            ? { href: "/applications", text: "Follow Up", label: "Follow Up on Applications" }
             : undefined
         }
       />

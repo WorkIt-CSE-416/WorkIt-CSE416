@@ -149,8 +149,8 @@ export function SignOutIcon({ className }: IconProps) {
 }
 
 /* Facts about a job, and the stages of a search ---------------------------
- * The job card on /jobs, the job page and the /search detail all describe a
- * job with these, so each fact keeps one glyph wherever it is printed:
+ * The listing card on /jobs and /search, the job page and the composer's
+ * preview all describe a job with these, so each fact keeps one glyph wherever it is printed:
  * location PinIcon, job type BriefcaseIcon, salary CoinIcon, work style
  * workStyleIcon(), level LevelIcon, years required (and the job page's start
  * date) CalendarIcon. */
@@ -195,13 +195,14 @@ export function HybridIcon({ className }: IconProps) {
   return <ArrowLeftRight aria-hidden className={className} />;
 }
 
-/* Both spellings occur: the feed and the composer print "On-site", while
- * job-detail/data.ts writes "Onsite". */
+/* Keyed by the label with its case and punctuation stripped, because several
+ * spellings occur: the feed prints "On-Site", job-detail/data.ts writes
+ * "Onsite", and the composer keeps labels of its own. A recased label still
+ * finds its glyph rather than silently falling back to the building. */
 const WORK_STYLE_ICON = {
-  "On-site": OnSiteIcon,
-  Onsite: OnSiteIcon,
-  Remote: RemoteIcon,
-  Hybrid: HybridIcon,
+  onsite: OnSiteIcon,
+  remote: RemoteIcon,
+  hybrid: HybridIcon,
 } as const;
 
 /**
@@ -211,7 +212,8 @@ const WORK_STYLE_ICON = {
  * icon component. An unknown or missing label falls back to the building.
  */
 export function workStyleIcon(workStyle: string | null) {
-  return WORK_STYLE_ICON[workStyle as keyof typeof WORK_STYLE_ICON] ?? OnSiteIcon;
+  const key = workStyle?.toLowerCase().replace(/[^a-z]/g, "");
+  return WORK_STYLE_ICON[key as keyof typeof WORK_STYLE_ICON] ?? OnSiteIcon;
 }
 
 export function CalendarIcon({ className }: IconProps) {

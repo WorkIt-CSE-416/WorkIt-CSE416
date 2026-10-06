@@ -41,7 +41,7 @@ export function NotificationsMenu({ children }: { children: ReactNode }) {
         }
       />
       <PopoverContent align="end" sideOffset={8} aria-label="Notifications" className="w-72 p-0">
-        <EmptyState Icon={BellIcon} title="You're all caught up" className="border-0">
+        <EmptyState Icon={BellIcon} title="You're All Caught Up" className="border-0">
           {children}
         </EmptyState>
       </PopoverContent>

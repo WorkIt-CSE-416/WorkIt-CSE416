@@ -4,15 +4,16 @@ import type { ReactNode } from "react";
 import { ArrowRightIcon } from "@/components/icons";
 
 /**
- * A section's one way onward: "View all →", short, muted, at the top right of
+ * A section's one way onward: "View All →", short, muted, at the top right of
  * the section's heading row. Pass it as <SectionHeading>'s `action`.
  *
  * The rule lived as inline classes in the seeker Dashboard's SectionHeader, so
  * the company Dashboard had nothing to reuse and drew its own as solid primary
- * buttons. These are the same classes, in one place both dashboards can reach.
+ * buttons. Both Dashboards now render this one link, the seeker's through
+ * SectionHeader.
  *
  * `label` is for a screen reader when the visible words lean on the heading
- * for context ("View all" of what).
+ * for context ("View All" of what).
  */
 export function SectionLink({
   href,

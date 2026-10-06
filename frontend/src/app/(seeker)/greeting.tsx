@@ -3,18 +3,18 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * "Good morning, Alex", by the seeker's own clock. The server runs in UTC and
+ * "Good Morning, Alex", by the seeker's own clock. The server runs in UTC and
  * would greet an evening in New York as the next morning, so it renders the
- * timeless "Welcome back, Alex" and the browser swaps in the time of day after
+ * timeless "Welcome Back, Alex" and the browser swaps in the time of day after
  * hydration — useSyncExternalStore's server snapshot is what keeps that from
  * being a hydration mismatch. See frontend/CLAUDE.md on timestamps.
  */
 const noSubscription = () => () => {};
 
 function partOfDay(hour: number) {
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return "Good Morning";
+  if (hour < 18) return "Good Afternoon";
+  return "Good Evening";
 }
 
 export function Greeting({
@@ -30,7 +30,7 @@ export function Greeting({
   const text = useSyncExternalStore(
     noSubscription,
     () => `${partOfDay(new Date().getHours())}, ${firstName}`,
-    () => `Welcome back, ${firstName}`,
+    () => `Welcome Back, ${firstName}`,
   );
 
   return <Tag className={className}>{text}</Tag>;

@@ -13,13 +13,15 @@ import {
 } from "@/components/shadcn/sheet";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { SearchField } from "@/components/ui/search-field";
+
+import { QueryField } from "./search/query-field";
 
 /**
  * Job search on a phone. Below md the bar is the toggle, the logo and the
  * account, with no room for the 320px field, so a magnifier stands in for it
  * before the bell and drops the same field down from the top in a sheet. The
- * form is the bar's own: a GET to /search with the query as ?q.
+ * form is the bar's own: a GET to /search with the query as ?q, and the field
+ * opens holding the current query on a results page, as the bar's does.
  *
  * A 32px circle with a 16px glyph and the bell's hover fill, so the two read
  * as one pair beside the avatar.
@@ -48,21 +50,14 @@ export function MobileSearch() {
         }
       />
       <SheetContent side="top" showCloseButton={false} className="flex-row items-center gap-2 p-4">
-        <SheetTitle className="sr-only">Search jobs</SheetTitle>
+        <SheetTitle className="sr-only">Search Jobs</SheetTitle>
         <Form
           action="/search"
           role="search"
           onSubmit={() => setOpen(false)}
           className="min-w-0 flex-1"
         >
-          <SearchField
-            id="job-search-mobile"
-            label="Search jobs"
-            name="q"
-            placeholder="Search jobs"
-            enterKeyHint="search"
-            autoFocus
-          />
+          <QueryField id="job-search-mobile" autoFocus />
         </Form>
         <SheetClose
           render={

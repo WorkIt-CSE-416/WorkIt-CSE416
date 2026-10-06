@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
   const { jobId } = await params;
   const posting = getJobPosting(jobId);
 
-  return { title: posting?.status === "Open" ? posting.title : "Job not found" };
+  return { title: posting?.status === "Open" ? posting.title : "Job Not Found" };
 }
 
 /**
@@ -76,7 +76,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             </Button>
           </>
         }
-        // No rail for a job nothing has scored: a 0% "Weak match" would read
+        // No rail for a job nothing has scored: a 0% "Weak Match" would read
         // as a verdict when there is no score at all.
         rail={
           posting.match != null ? (

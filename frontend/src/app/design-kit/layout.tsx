@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { KitNav } from "./nav";
 
 export const metadata: Metadata = {
-  title: { default: "Design kit", template: "%s · Design kit · WorkIt" },
+  title: { default: "Design Kit", template: "%s · Design Kit · WorkIt" },
   description: "Every token and component the app is built from.",
 };
 

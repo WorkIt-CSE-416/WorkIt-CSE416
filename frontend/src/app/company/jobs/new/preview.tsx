@@ -100,7 +100,7 @@ function formatSalary(draft: JobDraft) {
   const exampleMin = isHourly ? EXAMPLE.hourlyMin : EXAMPLE.salaryMin;
   const exampleMax = isHourly ? EXAMPLE.hourlyMax : EXAMPLE.salaryMax;
 
-  if (draft.salaryType === "Exact figure") {
+  if (draft.salaryType === "Exact Figure") {
     const amount = Number(draft.salary);
     if (!amount) return `${compact(exampleMin, draft.currency)}/${period}`;
     return `${compact(amount, draft.currency)}/${period}`;

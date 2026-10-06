@@ -12,7 +12,7 @@ import type { PipelineStage } from "./data";
  *
  * WHY A BAND AND NOT ANOTHER CARD. The page is open sections on white, one
  * violet hero, and this: a grey panel holding four small white cards, each
- * with a coloured badge that breaks its top edge, and a violet "Full board"
+ * with a coloured badge that breaks its top edge, and a violet "Full Board"
  * tile closing the row. The change of surface is what tells the eye "this is
  * a different kind of thing" without a heading having to.
  *
@@ -22,7 +22,7 @@ import type { PipelineStage } from "./data";
  * was lavender with a funnel in four shades of violet, which made the whole
  * section one purple and left the badges' colours meaning nothing below
  * them. The panel is neutral now so the stage colours carry it; only the Full
- * board tile keeps the brand, as the section's one action.
+ * Board tile keeps the brand, as the section's one action.
  *
  * The colours and icons are ../stage-colors.ts, the same maps the
  * Applications board, grid and list read, so a stage is one colour and one
@@ -63,7 +63,7 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 id="pipeline" className="text-title text-ink">
-            Your pipeline
+            Your Pipeline
           </h2>
           <p className="text-body text-ink-meta mt-1">How far your applications got, {scope}.</p>
         </div>
@@ -112,7 +112,7 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
           href="/applications"
           className="bg-brand text-on-brand hover:bg-brand-hover focus-visible:ring-brand-ring shadow-card col-span-2 flex items-center justify-between gap-3 rounded-2xl p-4 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none @3xl/main:col-span-1 @3xl/main:row-span-2 @3xl/main:flex-col @3xl/main:items-start"
         >
-          <span className="text-subtitle">Full board</span>
+          <span className="text-subtitle">Full Board</span>
           <span className="text-brand-ink flex size-9 items-center justify-center rounded-full bg-white">
             <ArrowRightIcon className="size-4" />
           </span>

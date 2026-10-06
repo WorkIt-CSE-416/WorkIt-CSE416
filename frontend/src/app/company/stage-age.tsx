@@ -5,11 +5,12 @@ import { STAGE_AGE, STAGE_PAINT } from "./data";
 /**
  * How long people are waiting, per stage.
  *
- * THE CHART FORM OF "NEEDS YOUR ATTENTION". That card names three specific
+ * THE CHART FORM OF "NEEDS YOUR ATTENTION". That list names the specific
  * things a recruiter can clear today; this says whether the delay is one bad
- * week or the shape of the process. Both are on the screen because a list of
- * three items cannot show that interviews take twice as long as screens, and a
- * chart of four medians cannot tell you whose feedback is missing.
+ * week or the shape of the process. Both are on the screen because a short
+ * list of named items cannot show that interviews take twice as long as
+ * screens, and a chart of four medians cannot tell you whose feedback is
+ * missing.
  *
  * TWO NUMBERS PER ROW, and the second one is the point. A median alone hides
  * the applicant who has been sitting in a screen for a fortnight; a maximum
@@ -24,8 +25,8 @@ import { STAGE_AGE, STAGE_PAINT } from "./data";
  * stage the second colour meant.
  *
  * COLOURED BY STAGE, matching the ring and the stacked bars, because these four
- * rows are the same four stages the stacked chart beside them colours — a
- * reader moving between the two cards should not have to relearn which row is
+ * rows are the same four stages the stacked bars in the band above colour, and
+ * a reader moving between the two should not have to relearn which row is
  * Interview. The bars carry no magnitude comparison that the colour could
  * duplicate, since every value is printed.
  */

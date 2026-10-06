@@ -8,7 +8,9 @@ import {
 } from "@/components/shadcn/table";
 import { Avatar } from "@/components/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
+import { matchColor } from "@/lib/match";
 
 import { STAGE_TONE, type Stage } from "./applicants/data";
 import { RECENT_APPLICANTS } from "./data";
@@ -29,9 +31,15 @@ import { RECENT_APPLICANTS } from "./data";
  * /company/applicants. This stays a server component and renders shadcn's
  * <Table> markup directly, which is the part it actually wanted.
  *
- * The last band on the page on purpose: it is the most tempting block and the
- * least actionable, and a dashboard that opens with a feed becomes a place you
- * scroll rather than a place you clear. See the note in ./page.tsx.
+ * The last section on the page on purpose: it is the most tempting block and
+ * the least actionable, and a dashboard that opens with a feed becomes a place
+ * you scroll rather than a place you clear. See the note in ./page.tsx.
+ *
+ * THE ONE WHITE CARD ON THE PAGE. Everything else on the Dashboard is open, the
+ * hero or the grey band; a table earns a surface because its rows and columns
+ * need an edge to line up against, and on a phone it scrolls sideways inside
+ * that edge rather than pushing the page wider. The heading and its View All
+ * link sit outside it, on the page, like every other section's.
  */
 
 /**
@@ -45,11 +53,13 @@ import { RECENT_APPLICANTS } from "./data";
  * role="progressbar" on a value nothing is progressing through — and forced a
  * client boundary on this table to do it.
  *
- * BRAND AT EVERY SCORE, on the precedent (seeker)/jobs/match-rail.tsx sets and
- * for the same two reasons: green would collide with the board, where green
- * means an offer and nothing else, and a red-to-green ramp would tell a
- * recruiter that a 77% applicant is a bad applicant when they are only a
- * lower-ranked one. Length carries the magnitude; the number carries the rest.
+ * THE MATCH RAMP, not the brand. The bar reads the same --color-match-* steps
+ * as the seeker's board ring and match rail (@/lib/match): one magenta hue,
+ * deeper for a better match, so a score never reads as the Screening stage's
+ * violet badge in the same row. A lower score is a lighter bar, not a red one,
+ * so a 77% applicant still does not read as a bad applicant, only a
+ * lower-ranked one. Even the lightest step is 3.22:1 on the bg-well track.
+ * Length carries the magnitude; the number carries the rest.
  *
  * The track stays, unlike the bars in ./stage-age.tsx — here there genuinely is
  * a limit, because a percentage is a ratio against one.
@@ -62,10 +72,13 @@ function MatchMeter({ score }: { score: number }) {
         aria-valuenow={score}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Match score"
+        aria-label="Match Score"
         className="bg-well hidden h-1.5 w-16 overflow-hidden rounded-full sm:block"
       >
-        <div className="bg-brand h-full rounded-full" style={{ width: `${score}%` }} />
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${score}%`, background: matchColor(score) }}
+        />
       </div>
 
       {/* tabular-nums here and not in a stat tile: this IS a column of
@@ -106,10 +119,10 @@ const TH = "px-4 text-note text-ink-meta font-medium";
 
 export function ApplicantsPreview() {
   return (
-    /* No frame of its own. It sits in a bordered Card already, and a second
-     * rounded border inside it drew a box in a box; the rules between rows
-     * are enough to read it as a table. */
-    <div className="mt-4">
+    /* One frame: the Card. The table inside it draws only the rules between
+     * rows, never a second rounded border, which once made a box in a box.
+     * overflow-hidden clips the header row's corners to the card's radius. */
+    <Card padding="none" className="mt-4 overflow-hidden">
       <Table className="min-w-[34rem]">
         {/* Heading style follows the full list at /company/applicants: 12px
             ink-meta, Stage second as it is there so a phone sees it without
@@ -166,6 +179,6 @@ export function ApplicantsPreview() {
           })}
         </TableBody>
       </Table>
-    </div>
+    </Card>
   );
 }

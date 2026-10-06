@@ -33,14 +33,15 @@ import {
 } from "./data";
 
 /**
- * The Jobs filter row, built on Base UI's `Select` (via `@/components/ui/select`)
- * instead of the inert chips `FilterChip`'s own doc comment said would get a
- * menu one day. A Select rather than a Combobox because there is no search
- * field: Base UI's Combobox handles arrow keys and Enter on its input, so
- * without one its list cannot be reached from the keyboard at all.
+ * The filter row on /jobs and on /search, built on Base UI's `Select` (via
+ * `@/components/ui/select`) instead of the inert chips `FilterChip`'s own doc
+ * comment said would get a menu one day; /search drew those chips until it
+ * moved onto the live feed. A Select rather than a Combobox because there is
+ * no search field: Base UI's Combobox handles arrow keys and Enter on its
+ * input, so without one its list cannot be reached from the keyboard at all.
  *
- * Stays inert against `RECOMMENDATIONS` on purpose — nothing here re-filters
- * the feed, matching every other control on this screen. What's real is the
+ * Stays inert on purpose: nothing here re-filters the listings on either
+ * page, matching every other control on their cards. What's real is the
  * UI: each facet is a button that opens a list of options. The button's own
  * label never changes (a facet's picks show up as checked items inside the
  * popup, not as chips on the trigger), and the trigger picks up a brand tint
@@ -107,7 +108,7 @@ function FacetPopup({ options, multiple }: { options: readonly string[]; multipl
  *  number of picks, and picking one leaves the popup open for the next.
  *
  *  `multiple={false}` is for nested thresholds (date posted, salary), where
- *  "past 24 hours" sits inside "past week" and ticking both says nothing. It
+ *  "Past 24 Hours" sits inside "Past Week" and ticking both says nothing. It
  *  takes one pick and closes on it. Picking the checked option again clears
  *  it: Base UI reports that press with the same value, and with no "Any"
  *  option there is otherwise no way back to no pick from the row. */
@@ -302,7 +303,7 @@ export function JobFilters() {
 
           <SheetFooter className="flex-row justify-between">
             <Button variant="secondary" size="sm" onClick={() => setFacets(EMPTY_FACETS)}>
-              Clear all
+              Clear All
             </Button>
             <SheetClose render={<Button size="sm">Done</Button>} />
           </SheetFooter>

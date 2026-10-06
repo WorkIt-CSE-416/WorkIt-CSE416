@@ -43,8 +43,8 @@ export async function SeekerStatusLine() {
         <span className="bg-brand relative size-2 rounded-full" />
       </span>
       <span>
-        <span className="font-bold">{count}</span> new {count === 1 ? "role" : "roles"} since
-        yesterday
+        <span className="font-bold">{count}</span> New {count === 1 ? "Role" : "Roles"} Since
+        Yesterday
       </span>
       <ArrowRightIcon className="size-3.5" />
     </Link>
