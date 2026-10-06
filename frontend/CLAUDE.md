@@ -444,7 +444,7 @@ dropzone + file preview — it knows nothing about upload logic or limits.
 `shownResume` in `page.tsx`. Work Experience's Edit opens
 `resume-edit-dialog.tsx` on that one section, so all roles are edited in one
 modal; each skill opens `entry-dialog.tsx`, which reuses the same field
-table. Every save PATCHes the whole `ParsedResume` back (`updateParsedResume`).
+table. Every save PUTs the whole `ParsedResume` back (`updateParsedResume`).
 Collapsed, Work Experience previews the first two roles with descriptions cut
 to two lines, and one chevron in its heading expands the whole section. The
 chevron appears only when the preview hides something; whether a description
@@ -459,6 +459,13 @@ editor saves onto whichever resume is shown, so from a star or delete click
 until the sections have moved to the next resume (`switching` and
 `profileLoading` in `page.tsx`), Edit, Add and the skill chips are disabled.
 An editor left open across a switch saved one resume's roles over another's.
+A switch the page did not start — a background refresh, after another tab
+changed the primary — can still land under an editor already open, so both
+sections are keyed by the shown resume's id: the switch remounts them, which
+closes that editor. If a switch's content fails to load, the sections are
+cleared rather than left on the outgoing resume, which after a delete no
+longer exists; with resumes still listed they say the content didn't load,
+not "Upload a resume".
 
 **My Profile is cached for the life of the seeker shell.**
 `(seeker)/profile-cache.tsx` keeps the page's last state (resumes, the shown

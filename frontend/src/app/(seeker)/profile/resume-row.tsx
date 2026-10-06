@@ -85,7 +85,7 @@ export function ResumeRow({
         ) : (
           <IconButton
             label={`Make ${name} your primary resume`}
-            tooltip="Make Primary"
+            tooltip="Make primary"
             className={cn(
               ROW_ACTION,
               "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",

@@ -51,16 +51,18 @@ export const EMPTY_RESUME: ParsedResume = {
 };
 
 const DATES: Field[] = [
-  { key: "start_date", label: "Start date", type: "date" },
-  { key: "end_date", label: "End date", type: "date" },
+  { key: "start_date", label: "Start Date", type: "date" },
+  { key: "end_date", label: "End Date", type: "date" },
 ];
 
-/** Shared with the profile's single-entry editor (entry-dialog.tsx). */
+/** Shared with the profile's single-entry editor (entry-dialog.tsx).
+ *  `noun` is Title Case, for headings and buttons ("+ Add Experience");
+ *  lowercase it inside a sentence-case label. */
 export const SECTIONS: { key: SectionKey; title: string; noun: string; fields: Field[] }[] = [
   {
     key: "experience",
     title: "Work Experience",
-    noun: "experience",
+    noun: "Experience",
     fields: [
       { key: "title", label: "Title", required: true },
       { key: "company_name", label: "Company", required: true },
@@ -72,11 +74,11 @@ export const SECTIONS: { key: SectionKey; title: string; noun: string; fields: F
   {
     key: "education",
     title: "Education",
-    noun: "education",
+    noun: "Education",
     fields: [
       { key: "institution", label: "Institution", required: true },
       { key: "degree", label: "Degree" },
-      { key: "field_of_study", label: "Field of study" },
+      { key: "field_of_study", label: "Field of Study" },
       { key: "gpa", label: "GPA", type: "number" },
       ...DATES,
       { key: "description", label: "Description", type: "textarea" },
@@ -85,7 +87,7 @@ export const SECTIONS: { key: SectionKey; title: string; noun: string; fields: F
   {
     key: "projects",
     title: "Projects",
-    noun: "project",
+    noun: "Project",
     fields: [
       { key: "project_name", label: "Name", required: true },
       { key: "url", label: "URL" },
@@ -96,7 +98,7 @@ export const SECTIONS: { key: SectionKey; title: string; noun: string; fields: F
   {
     key: "skills",
     title: "Skills",
-    noun: "skill",
+    noun: "Skill",
     fields: [
       { key: "skill_name", label: "Skill", required: true },
       { key: "category", label: "Category" },
@@ -105,7 +107,7 @@ export const SECTIONS: { key: SectionKey; title: string; noun: string; fields: F
   {
     key: "certifications",
     title: "Certifications",
-    noun: "certification",
+    noun: "Certification",
     fields: [
       { key: "cert_name", label: "Certification", required: true },
       { key: "issuer", label: "Issuer" },
@@ -218,7 +220,7 @@ export function ResumeEditDialog({
               >
                 <ChevronDownIcon className="size-4 -rotate-90" />
               </IconButton>
-              <DialogTitle className="text-title text-ink flex-1">{title}</DialogTitle>
+              <DialogTitle className="text-title text-ink flex-1 font-bold">{title}</DialogTitle>
               <Button type="submit" disabled={saving}>
                 {saving ? "Saving…" : saveLabel}
               </Button>
@@ -227,7 +229,7 @@ export function ResumeEditDialog({
               {description}
             </DialogDescription>
             {error && (
-              <p role="alert" className="text-meta px-5 pt-3 text-red-600">
+              <p role="alert" className="text-meta text-danger px-5 pt-3">
                 {error}
               </p>
             )}
@@ -270,7 +272,7 @@ export function ResumeEditDialog({
                             {/* With no section headings to go by, long entries are
                               numbered instead: "Experience 1", "Experience 2". */}
                             {!headed && (
-                              <h3 className="text-title text-ink capitalize sm:col-span-2">
+                              <h3 className="text-title text-ink sm:col-span-2">
                                 {noun} {i + 1}
                               </h3>
                             )}
@@ -290,7 +292,7 @@ export function ResumeEditDialog({
                             ))}
                           </div>
                           <IconButton
-                            label={`Remove ${noun} ${i + 1}`}
+                            label={`Remove ${noun.toLowerCase()} ${i + 1}`}
                             onClick={() =>
                               update(
                                 key,

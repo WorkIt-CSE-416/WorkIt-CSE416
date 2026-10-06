@@ -353,7 +353,7 @@ async def get_resume(
     return {"id": str(resume.id), "parsed_json": resume.parsed_json}
 
 
-@router.patch("/applicants/{applicant_id}/resumes/{resume_id}")
+@router.put("/applicants/{applicant_id}/resumes/{resume_id}")
 async def update_resume(
     applicant_id: uuid.UUID,
     resume_id: uuid.UUID,

@@ -233,12 +233,17 @@ export default function ProfilePage() {
       const { parsed, error } = await getParsedResume(resume.id);
       if (error) {
         setLoadFailed(true);
+        // A failed switch must not leave the outgoing resume on screen, still
+        // editable: after a delete, that is the resume that no longer exists.
+        // A failed refresh of the same resume keeps what is shown.
+        if (resume.id !== latest.current.shownId) setProfile(null);
         return;
       }
       // A resume that failed to parse can still be filled in by hand.
       setProfile({ id: resume.id, parsed: parsed ?? EMPTY_RESUME });
     } catch {
       setLoadFailed(true);
+      if (resume && resume.id !== latest.current.shownId) setProfile(null);
     } finally {
       setProfileLoading(false);
     }
@@ -556,14 +561,14 @@ export default function ProfilePage() {
           )}
           {pending && (
             <ResumeEditDialog
-              title="Review your resume"
+              title="Review Your Resume"
               description={
                 pending.parsed
                   ? `Check what we read from ${pending.file.name} and fix anything we got wrong before saving.`
                   : `We couldn't read any sections from ${pending.file.name}. Add them below, or save it as is.`
               }
               parsed={pending.parsed}
-              saveLabel="Save resume"
+              saveLabel="Save Resume"
               onSave={handleReviewSave}
               onCancel={() => setPending(null)}
             />
@@ -641,18 +646,29 @@ export default function ProfilePage() {
 
       {/* Settings comes last in the DOM, so a phone reaches it after Resume,
           Experience and Skills. Both tracks have a zero minimum, so a long
-          line truncates instead of widening its column past the screen. */}
+          line truncates instead of widening its column past the screen.
+
+          Both sections are keyed by the shown resume: a switch the page did
+          not start (a background refresh, after another tab changed the
+          primary) remounts them, which closes an editor still open on the
+          outgoing resume rather than letting it save onto the incoming one.
+          With no content and resumes on the list, the content failed to
+          load, so the sections say so instead of "Upload a resume". */}
       <div className="mt-10 grid grid-cols-1 items-start gap-10 @3xl/main:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <ExperienceSection
+          key={profile?.id}
           parsed={profile?.parsed ?? null}
           loading={profileLoading || switching > 0}
+          failed={listFailed || resumeList.length > 0}
           onChange={handleSectionChange}
         />
 
         <div className="flex flex-col gap-10">
           <SkillsSection
+            key={profile?.id}
             parsed={profile?.parsed ?? null}
             loading={profileLoading || switching > 0}
+            failed={listFailed || resumeList.length > 0}
             onChange={handleSectionChange}
           />
 

@@ -80,7 +80,7 @@ export function EntryDialog({ section, entry, onSave, onDelete, onCancel }: Entr
             ))}
           </div>
 
-          {error && <p className="text-meta text-red-600">{error}</p>}
+          {error && <p className="text-meta text-danger">{error}</p>}
 
           <DialogFooter className="sm:justify-between">
             {onDelete ? (

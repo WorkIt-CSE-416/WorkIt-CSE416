@@ -29,15 +29,24 @@ type SectionProps = {
    *  opened on the outgoing resume would save onto the incoming one, and an
    *  empty section means "not yet" rather than "none". */
   loading?: boolean;
+  /** With no content to show: it failed to load, rather than there being
+   *  none, so the section says so instead of "Upload a resume". */
+  failed?: boolean;
   onChange: (section: SectionKey, entries: object[]) => Promise<string | null>;
 };
 
 type Role = ParsedResume["experience"][number];
 
-function emptyNote(parsed: ParsedResume | null, loading: boolean | undefined, what: string) {
+function emptyNote(
+  parsed: ParsedResume | null,
+  loading: boolean | undefined,
+  failed: boolean | undefined,
+  what: string,
+) {
   let note = "Upload a resume to fill this in.";
   if (loading) note = "Loading…";
   else if (parsed) note = `No ${what} yet.`;
+  else if (failed) note = "This didn't load. Refresh the page to try again.";
   return <p className="text-body text-ink-meta mt-4">{note}</p>;
 }
 
@@ -109,7 +118,7 @@ function RoleItem({ role, expanded }: { role: Role; expanded: boolean }) {
  * on resize. A ResizeObserver reports once as soon as it starts observing,
  * which takes the first measurement.
  */
-export function ExperienceSection({ parsed, loading, onChange }: SectionProps) {
+export function ExperienceSection({ parsed, loading, failed, onChange }: SectionProps) {
   const roles = parsed?.experience ?? [];
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -172,7 +181,7 @@ export function ExperienceSection({ parsed, loading, onChange }: SectionProps) {
       {/* One rail for the whole list, drawn by the <ol> from under the first
           dot (top-3) so no stub shows above it. */}
       {roles.length === 0 ? (
-        emptyNote(parsed, loading, "work experience")
+        emptyNote(parsed, loading, failed, "work experience")
       ) : (
         <ol
           ref={listRef}
@@ -187,7 +196,7 @@ export function ExperienceSection({ parsed, loading, onChange }: SectionProps) {
 
       {editing && parsed && (
         <ResumeEditDialog
-          title="Edit work experience"
+          title="Edit Work Experience"
           description="Add, change or remove experience, then save."
           sections={["experience"]}
           parsed={parsed}
@@ -203,7 +212,7 @@ export function ExperienceSection({ parsed, loading, onChange }: SectionProps) {
   );
 }
 
-export function SkillsSection({ parsed, loading, onChange }: SectionProps) {
+export function SkillsSection({ parsed, loading, failed, onChange }: SectionProps) {
   const skills = parsed?.skills ?? [];
   // Which skill is open: its index, "new" while adding, or null.
   const [editing, setEditing] = useState<number | "new" | null>(null);
@@ -235,7 +244,7 @@ export function SkillsSection({ parsed, loading, onChange }: SectionProps) {
       {/* The design kit's skill pill: a fact about the seeker, so a tag, not
           a status. Each one is a button that opens its editor. */}
       {skills.length === 0 ? (
-        emptyNote(parsed, loading, "skills")
+        emptyNote(parsed, loading, failed, "skills")
       ) : (
         <ul className="mt-4 flex flex-wrap gap-1.5">
           {skills.map((skill, i) => (

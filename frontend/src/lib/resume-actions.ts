@@ -111,7 +111,7 @@ export async function updateParsedResume(
     const { id, token } = await getApplicantSession();
     const res = await apiFetch(
       resumePath(id, resumeId),
-      { method: "PATCH", body: JSON.stringify(parsed) },
+      { method: "PUT", body: JSON.stringify(parsed) },
       token,
     );
     if (!res.ok) return { error: await extractErrorMessage(res) };
