@@ -36,6 +36,13 @@ FastAPI side yet: the browser never talks to `:8000` directly. The browser
 holds Supabase's `sb-*` session cookies on the Next origin; Next reads the
 access token out of the session and forwards it as `Authorization: Bearer`.
 
+**Where it runs:** the ports above are local dev. Deployed, each box is its
+own Vercel project from this repo — the Next app as a normal Next deployment,
+the FastAPI app as a single Vercel Function — and Next's `API_URL` names the
+API project's URL instead of `:8000`. Supabase is the same hosted project in
+both. Still no CORS: the hop is still server to server. Details in the root
+`CLAUDE.md`'s Deployment section.
+
 ## Backend (`backend/`)
 
 FastAPI · SQLAlchemy 2.0 (async) · Alembic · Postgres via `asyncpg`. Routes
