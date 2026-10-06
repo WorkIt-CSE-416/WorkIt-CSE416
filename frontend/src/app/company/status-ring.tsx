@@ -42,7 +42,7 @@ import { STAGE_REACH, STAGE_PAINT, STAGE_TOTALS } from "./data";
  *     of is printed rather than inferred.
  *   - The legend carries a count AND a percentage per stage, so no value is
  *     hover-only. That is what the palette's contrast WARN in globals.css
- *     obligates: --color-chart-3 and --chart-5 sit under 3:1 on a white card,
+ *     obligates: --color-chart-3 and --chart-5 sit under 3:1 on white and on the band,
  *     and relief means visible labels, not a tooltip.
  *   - Wedges are separated by a 2px gap in the surface colour, so two adjacent
  *     fills read as two shapes rather than one with a colour change in it.
@@ -79,11 +79,19 @@ const conversions = STAGE_REACH.slice(1).map(({ name, count }) => ({
 
 export function StatusRing() {
   return (
-    /* h-full and a column, so the card's stretched height is this component's
-     * to spend: the footnote takes mt-auto and settles on the card's bottom
-     * edge instead of leaving a gap under itself. */
-    <div className="flex h-full flex-col">
-      {/* THE CENTRE IS HTML OVER THE CHART, NOT AN SVG <Label>.
+    /* h-full and a column, so the band's stretched height is this component's
+     * to spend: the footnote takes mt-auto and settles on the band's bottom
+     * edge, level with the last role bar beside it.
+     *
+     * RING AND LEGEND SIDE BY SIDE once the column is 384px wide (@sm/ring),
+     * stacked below that. Stacked at every width, the half of the band this
+     * sits in ran to 440px tall, and the five role bars beside it spread 49px
+     * apart to fill it; side by side it is the height of the ring. Keyed to
+     * this column rather than the page, since the column is what decides
+     * whether the two fit. */
+    <div className="@container/ring flex h-full flex-col">
+      <div className="mb-4 flex flex-col gap-3 @sm/ring:flex-row @sm/ring:items-center @sm/ring:gap-6">
+        {/* THE CENTRE IS HTML OVER THE CHART, NOT AN SVG <Label>.
           recharts 3 does not render a <Label> passed as a child of <Pie> — it
           emits no node at all, which is a silent failure rather than a broken
           one. Overlaying it is the better answer regardless: the figure gets
@@ -93,81 +101,93 @@ export function StatusRing() {
 
           pointer-events-none so the overlay cannot swallow the hover the
           wedges underneath it need. */}
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <p className="text-display text-ink">{total.toLocaleString()}</p>
-          <p className="text-meta text-ink-meta">applications</p>
-        </div>
+        <div className="relative @sm/ring:w-44 @sm/ring:shrink-0">
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <p className="text-display text-ink">{total.toLocaleString()}</p>
+            <p className="text-meta text-ink-meta">applications</p>
+          </div>
 
-        {/* mx-auto and a fixed height rather than an aspect ratio: this card is
-            the narrow half of its band, and an aspect-video ring would grow and
-            shrink with the column while the legend under it stayed put. */}
-        <ChartContainer config={config} className="mx-auto aspect-auto h-44 w-full">
-          <PieChart>
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent className="bg-panel border-border-subtle" hideLabel />}
-            />
+          {/* mx-auto and a fixed height rather than an aspect ratio: an
+            aspect-video ring would grow and shrink with the column while the
+            legend beside or under it stayed put. */}
+          {/* No accessibilityLayer, and no tab stop on the wedges: recharts'
+            keyboard layer made the svg and its pie layer unnamed tab stops
+            with no visible focus, and every value is already text in the
+            legend beside it. As in (seeker)/dashboard/activity.tsx. */}
+          <ChartContainer config={config} className="mx-auto aspect-auto h-44 w-full">
+            <PieChart accessibilityLayer={false}>
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent className="bg-panel border-border-subtle" hideLabel />
+                }
+              />
 
-            <Pie
-              data={STAGE_TOTALS}
-              dataKey="count"
-              nameKey="stage"
-              /* A ring and not a full pie. The hole is what makes room for the
+              <Pie
+                rootTabIndex={-1}
+                data={STAGE_TOTALS}
+                dataKey="count"
+                nameKey="stage"
+                /* A ring and not a full pie. The hole is what makes room for the
                total, and it also drops the wedge tips — the part of a pie that
                is hardest to compare and carries the least area. */
-              innerRadius={52}
-              outerRadius={78}
-              /* The 2px surface gap the marks spec asks for, spent as an angular
-               gap plus a stroke in the card's own colour so the separation
-               holds at the inner edge as well as the outer. */
-              paddingAngle={2}
-              stroke="var(--color-panel)"
-              strokeWidth={2}
-              /* Twelve o'clock, clockwise, so the wedges run in funnel order from
+                innerRadius={52}
+                outerRadius={78}
+                /* The 2px surface gap the marks spec asks for, spent as an angular
+               gap plus a stroke in the band's own grey (--color-app, what the
+               ring sits on) so the separation holds at the inner edge as well
+               as the outer. A white stroke would draw a white outline on the
+               grey instead of a gap. */
+                paddingAngle={2}
+                stroke="var(--color-app)"
+                strokeWidth={2}
+                /* Twelve o'clock, clockwise, so the wedges run in funnel order from
                the top the way a reader scans them. Recharts starts at three
                o'clock and runs anticlockwise by default. */
-              startAngle={90}
-              endAngle={-270}
-              /* Same reasoning as ./trend.tsx: recharts reveals a pie by
-               animating its radius from zero, which leaves an empty card until
-               the animation runs and an empty card in any headless capture. */
-              isAnimationActive={false}
-            >
-              {STAGE_TOTALS.map(({ stage }) => (
-                <Cell key={stage} fill={STAGE_PAINT[stage].color} />
-              ))}
-            </Pie>
-          </PieChart>
-        </ChartContainer>
-      </div>
+                startAngle={90}
+                endAngle={-270}
+                /* Same reasoning as ./trend.tsx: recharts reveals a pie by
+               animating its radius from zero, which leaves an empty band until
+               the animation runs and an empty band in any headless capture. */
+                isAnimationActive={false}
+              >
+                {STAGE_TOTALS.map(({ stage }) => (
+                  <Cell key={stage} fill={STAGE_PAINT[stage].color} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+        </div>
 
-      {/* The legend is the chart's labels, not a key to it: every wedge's count
+        {/* The legend is the chart's labels, not a key to it: every wedge's count
           and share are here, in wedge order, so the ring needs no interaction
-          to be read. */}
-      <ul className="mt-3 mb-3 flex flex-col">
-        {STAGE_TOTALS.map(({ stage, count }) => (
-          <li
-            key={stage}
-            className="border-border-subtle flex items-center gap-2 border-b py-1.5 last:border-b-0"
-          >
-            <span
-              aria-hidden="true"
-              className={cn("size-2.5 shrink-0 rounded-[3px]", STAGE_PAINT[stage].fill)}
-            />
-            <span className="text-note text-ink-muted flex-1 truncate">{stage}</span>
-            <span className="text-note text-ink shrink-0 tabular-nums">{count}</span>
-            <span className="text-meta text-ink-faint w-9 shrink-0 text-right tabular-nums">
-              {Math.round((count / total) * 100)}%
-            </span>
-          </li>
-        ))}
-      </ul>
+          to be read. Capped at 18rem beside the ring, so a full-width band
+          (the page stacks it under 960px) does not push each count a
+          paragraph away from its stage. */}
+        <ul className="flex flex-col @sm/ring:max-w-72 @sm/ring:min-w-0 @sm/ring:flex-1">
+          {STAGE_TOTALS.map(({ stage, count }) => (
+            <li
+              key={stage}
+              className="border-border flex items-center gap-2 border-b py-1.5 last:border-b-0"
+            >
+              <span
+                aria-hidden="true"
+                className={cn("size-2.5 shrink-0 rounded-[3px]", STAGE_PAINT[stage].fill)}
+              />
+              <span className="text-note text-ink-muted flex-1 truncate">{stage}</span>
+              <span className="text-note text-ink shrink-0 tabular-nums">{count}</span>
+              <span className="text-meta text-ink-meta w-9 shrink-0 text-right tabular-nums">
+                {Math.round((count / total) * 100)}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {/* What the funnel was for. Three phrases rather than a second chart —
           these are conversions against a cohort, a different question from the
           shares above, and putting them in the ring would conflate the two. */}
-      <p className="text-meta text-ink-meta border-border-subtle mt-auto border-t pt-3">
+      <p className="text-meta text-ink-meta border-border mt-auto border-t pt-3">
         Of everyone who applied,{" "}
         {conversions.map(({ name, share }, i) => (
           <span key={name}>

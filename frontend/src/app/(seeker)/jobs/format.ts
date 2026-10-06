@@ -10,20 +10,20 @@ import type { ExperienceLevel, JobType, Recommendation, WorkStyle } from "./data
  */
 
 const JOB_TYPE_LABEL: Record<JobType, string> = {
-  full_time: "Full-time",
-  part_time: "Part-time",
+  full_time: "Full-Time",
+  part_time: "Part-Time",
   contract: "Contract",
 };
 
 const WORK_STYLE_LABEL: Record<WorkStyle, string> = {
   remote: "Remote",
   hybrid: "Hybrid",
-  onsite: "On-site",
+  onsite: "On-Site",
 };
 
 const EXPERIENCE_LABEL: Record<ExperienceLevel, string> = {
   internship: "Internship",
-  new_grad: "New grad",
+  new_grad: "New Grad",
   experienced: "Experienced",
 };
 

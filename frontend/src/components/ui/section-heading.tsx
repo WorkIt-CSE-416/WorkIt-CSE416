@@ -9,12 +9,15 @@ import { cn } from "@/lib/cn";
  * section-title type style a convention held in memory rather than in one
  * place. It lives here now, so restyling section titles is one edit.
  *
- * `action` is the trailing control some sections carry — profile's "+ Add" and
- * "Edit". It is a slot rather than a prop pair because what goes there is a
- * <Button variant="ghost"> on one card and nothing on the next, and the row
+ * `action` is the trailing control some sections carry: profile's Add and
+ * Edit. It is a slot rather than a prop pair because what goes there is a
+ * <Button variant="section"> on one card and nothing on the next, and the row
  * only becomes a flex pair when something is actually in it. Baseline
  * alignment is what keeps the action's text sitting on the title's baseline
  * rather than centred against the taller box.
+ *
+ * `text-balance` evens out a title that wraps, so a long one on a phone does
+ * not leave its last word alone on a line.
  *
  * Headings that carry more than one trailing element — the board's column
  * header, with a count and a menu — build their own row. Bending this to fit
@@ -37,7 +40,7 @@ export function SectionHeading({
   children,
 }: SectionHeadingProps) {
   const heading = (
-    <Tag id={id} className={cn("text-title text-ink", className)}>
+    <Tag id={id} className={cn("text-title text-ink text-balance", className)}>
       {children}
     </Tag>
   );

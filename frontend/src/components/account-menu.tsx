@@ -1,10 +1,12 @@
 "use client";
 
+import { LogIn } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Avatar } from "@/components/avatar";
-import { SignOutIcon } from "@/components/icons";
+import { cn } from "@/lib/cn";
+import { SignOutIcon, UserIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,26 +17,26 @@ import {
 
 /**
  * The account cluster's menu — everything that is about you rather than about
- * the work.
+ * the work. Both bars use it. The company bar's trigger is the bare 32px
+ * avatar; the seeker bar passes its own (the 40px photo with the name and
+ * email beside it) as `children`, so the block people already click on is
+ * the one that opens it (see (seeker)/account-status.tsx).
  *
- * Settings used to be a bare gear beside the bell. It moved in here, which is
- * the trade this component exists to make: a slot of top-bar width for a click
- * of depth. That is the right trade for settings, because it is not a place you
- * go while working — you go there to change something and come back — and an
- * avatar is where people already look for it.
+ * Settings used to be a bare gear beside the bell, then a row in here: the
+ * trade this component exists to make, a slot of top-bar width for a click
+ * of depth. Both shells have since moved it to the foot of their panel, where
+ * a dashboard keeps the controls for how the app works, so neither passes it.
  *
- * Profile made the same move and came back out to the nav bar, which is the
+ * Profile made the same move and came back out to the nav, which is the
  * useful half of the story: the trade turns on how often you return to a
  * screen, not on whether it is "about you". A seeker reopens their profile
  * throughout a hunt; nobody reopens settings. Same menu, same reasoning,
  * opposite answer.
  *
- * `items` is a prop rather than a constant because the two shells point the
- * same two rows at different routes: /profile for a seeker, /company/profile
- * for a company. Each shell's layout owns its list, so the routes a shell can
- * reach are declared in that shell and nowhere else. Nothing else about the
- * menu differs, which is why this is parametrised where the bar around it is
- * duplicated — see the note in src/app/company/layout.tsx.
+ * `items` is a prop rather than a constant so each shell's layout owns its
+ * rows, and the routes a shell can reach are declared in that shell and
+ * nowhere else. Neither shell passes any today, which leaves the header and
+ * Sign Out.
  *
  * A client component: a menu needs open state, focus management and a portal.
  * It is a leaf, so the bar around it still renders on the server.
@@ -45,6 +47,13 @@ import {
  * component's props — React throws rather than rendering. An element is data by
  * the time it is handed over, so it makes the trip. Sizing it at the call site
  * is the cost, which is why the shells pass `className="size-4"` themselves.
+ *
+ * The menu opens on who you are: the photo, the name and the email, since
+ * below xl the bar shows the photo alone and nothing else on a phone says
+ * which account is signed in. A plain block rather than DropdownMenuLabel,
+ * which Base UI only allows inside a Group. The header needs a `name`; Sign
+ * Out needs only `onSignOut`, so a seeker whose /auth/me failed can still get
+ * out. Without `onSignOut` the one row is Sign In instead.
  *
  * The dropdown itself is stock shadcn from @/components/shadcn — unedited, so
  * `shadcn add` can regenerate it. It looks like WorkIt because globals.css maps
@@ -59,35 +68,94 @@ export type AccountMenuItem = {
 };
 
 type AccountMenuProps = {
-  name: string;
+  /** The account's full name. Omit when nobody is signed in (or the API is
+   *  down), and the trigger shows a person glyph rather than a made-up name. */
+  name?: string;
+  /** The sign-in email, printed under the name in the menu's header. */
+  email?: string;
+  /** The profile photo's signed URL; initials when absent. */
+  src?: string | null;
   items: readonly AccountMenuItem[];
   /**
    * A Server Action, passed down from the shell's layout — see
-   * src/app/actions.ts. Optional so a shell with no sign-out wired up yet
-   * (the company side, still under construction) renders the same menu
-   * minus this row rather than needing its own variant.
+   * src/app/actions.ts. Pass it whenever someone is signed in, even if the
+   * API could not name them; without it the menu offers Sign In instead.
    */
   onSignOut?: () => void | Promise<void>;
+  /** The trigger's accessible name when there is no `name` to build it from.
+   *  Pass the words the trigger shows ("Signed In, account menu") so a voice
+   *  user can say what they see (WCAG 2.5.3); defaults to "Your Account". */
+  label?: string;
+  /** What the trigger shows, in place of the default 32px avatar. Inline
+   *  elements only: the trigger is a <button>, which may not hold a div or a
+   *  p. */
+  children?: ReactNode;
 };
 
-export function AccountMenu({ name, items, onSignOut }: AccountMenuProps) {
+export function AccountMenu({
+  name,
+  email,
+  src,
+  items,
+  onSignOut,
+  label = "Your Account",
+  children,
+}: AccountMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label="Your account"
+        /* Starts with the visible name, so a voice user who says it reaches
+         * the button (WCAG 2.5.3). */
+        aria-label={name ? `${name}, account menu` : label}
         /* cursor-pointer is not redundant: Tailwind v4's preflight sets
          * `cursor: default` on buttons, so a <button> trigger shows an arrow
          * where the <Link> this replaced showed a hand. */
-        className="focus-visible:ring-brand-ring cursor-pointer rounded-full focus-visible:ring-2 focus-visible:outline-none"
+        /* A passed-in trigger (the seeker's photo, name and email) is a
+         * wide block that opens a menu, so from lg, where the name and email
+         * show, it fills as a pill on hover to read as a control rather than
+         * a label. Below lg it is the photo alone, like the company bar's
+         * avatar. */
+        className={cn(
+          "focus-visible:ring-brand-ring flex cursor-pointer items-center rounded-full focus-visible:ring-2 focus-visible:outline-none",
+          children &&
+            "lg:hover:bg-hover min-w-0 gap-3 text-left transition-colors lg:py-1 lg:pr-4 lg:pl-1",
+        )}
       >
-        <Avatar name={name} className="text-note size-8" />
+        {children ??
+          (name ? (
+            <Avatar name={name} src={src} className="text-note size-8" />
+          ) : (
+            <span className="bg-brand-tint text-brand flex size-8 items-center justify-center rounded-full">
+              <UserIcon className="size-4" />
+            </span>
+          ))}
       </DropdownMenuTrigger>
 
       {/* align="end" because the trigger is the last thing in the bar: a menu
           anchored to its start would hang off the right edge. The width
           override replaces the stock w-(--anchor-width), which would otherwise
-          size the menu to the 28px avatar and leave min-w-32 to rescue it. */}
-      <DropdownMenuContent align="end" sideOffset={8} className="w-44">
+          size the menu to the 32px avatar and leave min-w-32 to rescue it;
+          224px fits a name and an email beside the header's photo. */}
+      <DropdownMenuContent align="end" sideOffset={8} className="w-56">
+        {/* Who you are, unless the trigger already says so. A passed-in
+            trigger (the seeker's) prints the name and email beside the photo
+            from lg, so repeating them atop the menu there is noise; below lg
+            it is the photo alone, and the header is the one place on a phone
+            that names the account. The company bar's bare avatar always
+            needs it. */}
+        {name && (
+          <div className={cn(children && "lg:hidden")}>
+            <div className="flex items-center gap-2.5 px-2 py-1.5">
+              <Avatar name={name} src={src} className="text-note size-8" />
+              <div className="min-w-0">
+                <p className="text-label text-ink truncate">{name}</p>
+                {email && <p className="text-note text-ink-meta truncate">{email}</p>}
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+          </div>
+        )}
+
         {items.map(({ href, label, icon }) => (
           <DropdownMenuItem key={href} render={<Link href={href} />}>
             <span className="text-ink-meta flex shrink-0">{icon}</span>
@@ -95,9 +163,11 @@ export function AccountMenu({ name, items, onSignOut }: AccountMenuProps) {
           </DropdownMenuItem>
         ))}
 
-        {onSignOut && (
+        {/* A rule between the rows and Sign Out, so the one row that ends
+            the session stands apart from the ones that go somewhere. */}
+        {onSignOut ? (
           <>
-            <DropdownMenuSeparator />
+            {items.length > 0 && <DropdownMenuSeparator />}
             <DropdownMenuItem
               onClick={() => {
                 void onSignOut();
@@ -106,7 +176,17 @@ export function AccountMenu({ name, items, onSignOut }: AccountMenuProps) {
               <span className="text-ink-meta flex shrink-0">
                 <SignOutIcon className="size-4" />
               </span>
-              Sign out
+              Sign Out
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            {items.length > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuItem render={<Link href="/login" />}>
+              <span className="text-ink-meta flex shrink-0">
+                <LogIn aria-hidden className="size-4" />
+              </span>
+              Sign In
             </DropdownMenuItem>
           </>
         )}

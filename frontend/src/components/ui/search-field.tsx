@@ -7,11 +7,23 @@ import { cn } from "@/lib/cn";
  * The compact search input that lives in the app top bar.
  *
  * Separate from <TextField> rather than a flag on it: this one carries no
- * visible label and is always a search input. It shares the 40px line height
- * a form field uses — it was 33px while the bar was 48px tall, and grew with
- * the bar rather than floating in the middle of it. `label` is still required and rendered for screen
- * readers — a placeholder is not an accessible name, and it disappears the
- * moment anyone types.
+ * visible label and is always a search input. `label` is still required and
+ * rendered for screen readers: a placeholder is not an accessible name, and
+ * it disappears the moment anyone types.
+ *
+ * A FILLED PILL, NOT AN OUTLINED BOX. It is a wide rounded-full field filled
+ * a neutral light grey (--color-app) with no border, the way the reference
+ * dashboard draws its search, and the same fill as the bar's round bell (see
+ * (seeker)/bar.ts), so the bar's controls read as one family of soft shapes.
+ * A grey 3:1 outline here made the bar look assembled from stock form parts,
+ * and a lavender fill tinted the bar for no reason. The field is still
+ * unmistakable: the magnifier, the placeholder and the fill say what it is,
+ * and focus draws the app's solid violet ring around the pill.
+ *
+ * 40px tall, the bell's and the account photo's height, so the bar's
+ * controls share one height. Type is 16px below `sm` so iOS Safari does not
+ * zoom the page on focus, at a 20px line so the pill stays 40px; the
+ * placeholder is --color-ink-meta, 5.13:1 on the fill.
  *
  * type="search" is deliberate. It gives the field a clear button and the
  * Escape-to-clear behaviour people expect, which matters more here than the
@@ -29,11 +41,11 @@ export function SearchField({ id, label, className, ...input }: SearchFieldProps
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
-      <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
+      <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2" />
       <input
         id={id}
         type="search"
-        className="border-border-subtle bg-panel rounded-control text-body text-ink placeholder:text-ink-meta focus-visible:border-brand focus-visible:ring-brand-ring h-10 w-full border py-0 pr-3 pl-10 focus-visible:ring-[3px] focus-visible:outline-none"
+        className="bg-app text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full pr-4 pl-10 text-base/5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
         {...input}
       />
     </div>

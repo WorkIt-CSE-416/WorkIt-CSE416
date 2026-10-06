@@ -23,7 +23,7 @@ export function KitNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Design kit sections" className="md:w-44 md:shrink-0">
+    <nav aria-label="Design Kit Sections" className="md:w-44 md:shrink-0">
       <ul className="flex flex-row flex-wrap gap-1 md:sticky md:top-10 md:flex-col md:flex-nowrap">
         <li>
           <KitLink href="/design-kit" active={pathname === "/design-kit"}>

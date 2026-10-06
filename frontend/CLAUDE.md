@@ -75,7 +75,14 @@ src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
-  (seeker)/       Job-seeker shell — top bar, and every screen behind it
+  (seeker)/       Job-seeker shell, three white rounded panels (the section
+                  panel, the top bar, the page) floating on --color-frame,
+                  and every screen behind it.
+                  /dashboard is the seeker's home: sign-in lands there.
+                  /search narrows the live /jobs feed to roles whose title
+                  or company contains ?q, and draws them with
+                  jobs/listing-card.tsx, the feed's own card, skeleton and
+                  error state, so a role looks the same on both pages
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -91,20 +98,40 @@ src/app/          App Router routes, layouts, pages
                   each page heading cannot disagree.
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
-  logo.tsx        The WorkIt logo — picks lockup or icon per size
-  icons.tsx       Glyphs used by more than one route
+  logo.tsx        The WorkIt logo: <Logo> picks a lockup or half per size,
+                  <LogoLockup> is the seeker shell's mark-plus-word pair
+  icons.tsx       Glyphs used by more than one route, as thin wrappers over
+                  Lucide at its default stroke (the brand marks stay drawn).
+                  Every per-route icons.tsx is the same kind of wrapper;
+                  draw no new glyph by hand
+  hero-arcs.tsx   The corner arcs on both Dashboards' violet hero
   avatar.tsx      Profile photo when given `src`, initials otherwise
   company-logo.tsx  A company's job-board logo via next/image, falling back
                   to <Avatar> initials. Its hosts are allow-listed in
                   next.config.ts and must match scraper/workit_scraper/logos.py —
                   an unlisted host throws and fails the whole page.
-  nav-link.tsx    Top-bar tab that underlines itself on its own route
+  app-sidebar.tsx The left panel both shells use: shadcn's Sidebar with
+                  WorkIt's row spacing and current-item marking. Each shell
+                  passes its own groups and its bar's height as the offset
+  sidebar-brand.tsx  The bar's corner cell: the panel toggle and the logo, as
+                  wide as the panel below it. Shared by both shells
+  notifications-menu.tsx  The bar's bell, a popover holding an empty state.
+                  Shared by both shells
+  save-button.tsx The one Save control on every job surface
+  nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
-  account-menu.tsx  The avatar dropdown; each shell passes its own items
+  account-menu.tsx  Both bars' account dropdown: a name and email header,
+                  the shell's rows, then Sign Out (Sign In without
+                  onSignOut). The seeker bar passes its photo-name-email
+                  block as the trigger, Settings and Help as its rows, and
+                  shows the header only below lg, where that block is the
+                  photo alone
   ui/             Presentational primitives: badge, button, card, company-tile,
-                  fact, filter-chip, icon-button, search-field, section-heading,
-                  select-field, text-field, text-link
+                  empty-state, fact, filter-chip (only the design kit shows
+                  it today), icon-button, search-field, section,
+                  section-heading, section-link, select-field, text-field,
+                  text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
@@ -131,7 +158,13 @@ src/lib/          Framework-free helpers
                   extractErrorMessage, and auth types. Server-only.
   supabase/server.ts  Per-request Supabase client — auth only, never data
 public/           Static assets served from /
-  workit-logo.png Full lockup, 1256x448 — auth card and app top bar
+  workit-logo.png Full lockup, 1256x448, violet — the auth card
+  workit-logo-ink.png  The same lockup in --color-ink, for the company top bar
+  workit-icon-ink.png  The ink mark alone, the lockup cut at x=481
+  workit-wordmark-ink.png  The ink "WorkIt" alone, cropped to its letters.
+                  The two make <LogoLockup> in logo.tsx, the seeker shell's
+                  logo, which sets the word at ~55% of the mark's height
+                  (the drawn lockup has it at 40%, which read as too small)
   workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
@@ -160,9 +193,87 @@ cannot both define `/profile`, and both audiences need one — hence the prefix 
 the company side rather than a second invisible group. It also means the auth
 guard is one path check covering routes nobody has written yet.
 
-The two top bars are separate files on purpose. Their shared parts are already
-shared components; what is left is a tab list and one button. Lift a `<TopBar>`
-out only if they are still near-identical once both sides are real screens.
+The two shells are separate layouts on purpose, and they no longer look
+alike. The seeker shell floats: the section panel runs the full height with
+the logo in its header, beside a top bar and the page, each a white
+`rounded-shell` panel on the lavender `--color-frame`, 12px apart and 12px
+from the window. The company shell is still docked: a full-width bar with the
+lavender corner cell (`components/sidebar-brand.tsx`, company only now) over
+a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="floating"` or
+the default `docked`. Their other shared parts (the bell, the account menu,
+the search field) are in `src/components`, and what is left is each bar's
+search target and copy. Each bar's search is a GET `next/form`
+to its own results page: `/search` for a seeker, `/company/applicants` for a
+company. The seeker field is `(seeker)/search/query-field.tsx`, a client
+component that shows `?q` while on /search and empties elsewhere, because a
+layout never receives searchParams. Lift a `<TopBar>` out only if they are
+still near-identical once both sides are real screens.
+
+Seeker pages break on the width they actually get, not the window's: the shell
+makes its page panel `@container/main`, because an open panel takes 280px
+with its insets. A
+layout that splits into columns uses `@3xl/main:` and friends, and a card that
+rearranges itself (the job card) is its own `@container`. Pages render a
+`<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
+
+The seeker bar shows the signed-in account's real photo, with the full name
+and email beside it from lg, at 40px like the bar's grey-filled round
+bell and search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
+`lib/session.ts`, cached per render. The whole block is the trigger of
+`components/account-menu.tsx`, passed in as its `children`, and opens
+Settings, Help and Sign Out (with the account header only below lg, where the
+block shows just the photo). From xl the
+bar adds a pill for roles posted in the last 24 hours when there are any
+(`(seeker)/status.ts`).
+The greeting is the Dashboard's heading, and the resume nudge is the profile
+strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
+counts only steps the API can see. Only messages backed by real data belong in
+the bar — deadlines go first once the tracker has a backend, and not before.
+The seeker panel holds only the search (Dashboard, Jobs, Applications, My
+Profile), with no caption over it. Settings, Help and Sign Out, once its General
+group, live in the bar's account menu and nowhere else. The
+seeker layout redirects to /login when `getSessionUser()` finds no session,
+so the shell never draws a signed-out state and the bar's account block is
+always filled (from the session's email if /auth/me is down). The company panel keeps
+Settings alone in its footer, and its account menu holds only the account
+header and Sign Out. The company bar's Sign Out
+is real, but its name is still hard-coded in `company/layout.tsx`.
+
+`components/stat-tile.tsx` is shared by both dashboards, and both use its
+`plain` variant; its card form has no caller today. The seeker Dashboard gives
+each kind of content its own surface instead of a white card each: the numbers
+open under the greeting, one violet Next Up hero (the only solid colour), open
+sections for Activity and the lists. There is no pipeline section: its
+funnel only restated the headline numbers. Fixtures are in
+`(seeker)/dashboard/data.ts` until the tracker is real. Its range is
+`?range=`, links rather than client state.
+
+The company Dashboard and the seeker Profile follow the same surfaces. On
+/company: open KPI tiles beside one violet Most Urgent hero, open sections for
+the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
+with no cards inside it, and one white card, the Recent Applicants table. On
+/profile: an open identity band, Resume as the only card, and open sections
+for Work Experience, Skills and Application Settings. Both heroes draw
+`components/hero-arcs.tsx`. An open section's one way onward sits at the top
+right of its heading: `ui/section-link.tsx` for a link, `<Button
+variant="section">` for an action. Keep it that way: a page of identical boxes
+has no first place to look. Each page's docblock says what goes where.
+
+Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
+the Dashboard's Up Next and the Applications board, grid and list alike; on the board
+the stage tints the column panel, never the cards inside it. The three views
+also say the same thing about an application: each shows its next step
+through `(seeker)/applications/next-step.tsx` ("Nothing scheduled" when
+there is none). There is no progress bar; it only restated the stage.
+
+A match score has its own colour and never borrows a stage's. The four
+`--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a
+better match, read only through `matchColor()` in `lib/match.ts`: the board's
+match badge, the job page's match rail and the company Dashboard's match bar.
+They paint strokes, dots and bars, never text; the tier words stay ink-muted.
+Stages and statuses own violet, blue, amber, green, grey and red, so a new
+score display takes `matchColor()` and a new stage display takes its stage
+map, never the other's.
 
 Name a variant for the role it plays, never for how it looks: `primary`,
 `positive`, `quiet` — not `blue`, `green`, `plain`. Roles survive a palette
@@ -213,8 +324,17 @@ When the backend lands, that is the seam it plugs into — unless a client
 component imports that `data.ts`. The server-only API helpers cannot go there
 without breaking the build, so the fetch gets its own sibling marked
 `import "server-only"`. The Jobs feed is the first case: `(seeker)/jobs/listings.ts`
-fetches `GET /jobs`, and its `data.ts` still holds the fixtures `filters.tsx`
-(client) and the `/jobs/[jobId]` detail view use. A live fetch in a page calls
+fetches `GET /jobs` for /jobs, /search and the Dashboard's New Matches, and
+its `data.ts` still holds the fixtures `filters.tsx` (client) and the
+`/jobs/[jobId]` detail view use. A live role cannot open at `/jobs/[jobId]`
+yet: its id is the employer's apply URL and the detail view reads fixtures
+only, so its card's Apply Now goes to the employer's posting instead.
+A live card still has the full shape of a fixture card: every `job_postings`
+fact the scraper cannot give (job type, salary, years) is passed as
+`NOT_LISTED` from `components/job-posting-card.tsx` and drawn as its icon with
+"Salary not listed" in italic, and the match rail is its placeholder
+(`score={null}`: an empty ring and "Score Coming Soon") until matching
+exists. Null still means a fact the posting has none of, and is left out. A live fetch in a page calls
 `await connection()` so `next build` does not prerender it with no API running.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
@@ -237,10 +357,13 @@ side:
 - `login/actions.ts` calls `supabase.auth.signInWithPassword()`, then
   `GET /auth/me` with the new access token to learn the account type and
   onboarding state, and redirects off that: an applicant to
-  `/onboarding/applicant` until onboarded and `/jobs` after, a company
+  `/onboarding/applicant` until onboarded and `/dashboard` after, a company
   account always to `/company`. **Skipped for now (KAN-141):** the applicant
   onboarding check is commented out in both `login/actions.ts` and
-  `signup/actions.ts`, and every applicant goes straight to `/profile`. The
+  `signup/actions.ts`. A new applicant (signup, or a first Google/LinkedIn
+  sign-in through `/signup/choose-account-type`) goes straight to `/profile`
+  in onboarding's place; a returning one (login, or a returning OAuth sign-in
+  in `auth/callback/route.ts`) lands on `/dashboard`, the seeker's home. The
   API still reports `onboarding_completed` and the onboarding screen still
   works by URL; uncomment those blocks to turn it back on. Companies skip the onboarding check because
   nothing sets their `onboarding_completed_at` yet, so it would send every
@@ -250,8 +373,9 @@ side:
 - `signup/actions.ts` calls `POST /auth/signup` — **not**
   `supabase.auth.signUp()`, which can only write `user_metadata`, a field the
   user can edit, so it cannot be trusted with the account type — and then
-  signs in. The Company tab asks Create Company or Join a Company first
-  (`signup/signup-form.tsx`). Create Company sends the owner's fields plus a
+  signs in. The Company tab opens on Create Company; Join a Company is shown
+  disabled with a Soon badge until it has a form (`signup/signup-form.tsx`).
+  Create Company sends the owner's fields plus a
   nested `company` object (name, websiteUrl, contactEmail, contactPhone,
   sizeRange — a `company_size_range` value from `backend/app/models/dto.py`),
   sent only when `accountType` is `company`. The API creates the company and
@@ -268,7 +392,8 @@ side:
   providers (`google`, `linkedin_oidc` — backend/CLAUDE.md's Auth section has
   the dashboard setup). `src/lib/oauth-actions.ts`'s `signInWithOAuth` server
   action, bound to each provider, backs the Google/LinkedIn buttons on both
-  `/login` and `/signup`; it calls Supabase's own `signInWithOAuth()` with
+  `/login` and `/signup` (one shared row, `components/auth-alternatives.tsx`,
+  so the two cards cannot drift apart); it calls Supabase's own `signInWithOAuth()` with
   `skipBrowserRedirect: true` and redirects to the URL it returns, since a
   Server Action can't navigate the browser itself. The provider sends the
   browser back to `src/app/auth/callback/route.ts`, which exchanges the code
@@ -324,9 +449,9 @@ opens a file picker restricted to JPEG/PNG/WebP; the file is checked against
 `avatar-rules.ts`, previewed immediately, and sent through `uploadAvatar`,
 rolling back on failure. The API re-encodes it to a 512px WebP and returns a
 signed URL valid for an hour — so it is fetched per page load, never stored.
-`backend/db/avatar.md` owns the formats, limits and why. The top-bar avatar
-in `account-menu.tsx` still shows initials; wiring it means fetching the URL
-in the shell layout.
+`backend/db/avatar.md` owns the formats, limits and why. The seeker bar
+fetches it per render (`(seeker)/account-status.tsx`); the company bar still
+shows initials.
 
 **The upload limit is in three places that must agree:** the API's
 `MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES` here, and `serverActions.bodySizeLimit`
@@ -358,6 +483,19 @@ right for date-only strings.
 `frontend/tsconfig.json`. It does not reach outside this folder.
 
 ## Conventions
+
+**Copy is Title Case, with named exceptions.** Title Case for page titles;
+section, card and dialog headings; empty-state titles; buttons and links that
+act as actions; menu items; tabs and segments; filter and field labels and
+their options; column headers; badges, pills and stage names; and an
+accessible name with no visible text (a landmark, a group, a hidden field
+label). Sentence case only for helper text, descriptions and subtitles,
+tooltips (so an icon button's label, which is its tooltip, too),
+placeholders, empty-state body copy, error and validation messages, and a
+measured value or annotation outside a badge ("Over 7 days", "vs last week").
+Fixture data (job titles, companies, people) stays as written. A label that
+doubles as a value, like the composer's "Full-Time", moves together with
+every comparison against it, never on its own.
 
 Prettier owns formatting for code. It runs from this folder, so it never sees
 the repo root's `CLAUDE.md` or `README.md`; `.prettierignore` here excludes

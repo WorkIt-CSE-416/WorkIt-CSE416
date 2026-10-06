@@ -8,10 +8,10 @@ import { cn } from "@/lib/cn";
  * `id` is required because the label is wired to it — without one the label
  * would not be clickable and the field would be unnamed to assistive tech.
  *
- * `labelAction` fills the right side of the label row (the login form puts
- * "Forgot password?" there). When it is present the row becomes a baseline-
- * aligned pair, which is what keeps the link's text sitting on the same line as
- * the label rather than on the taller of the two boxes.
+ * `labelAction` fills the right side of the label row (signup puts "Optional"
+ * there). When it is present the row becomes a baseline-aligned pair, which is
+ * what keeps that text sitting on the same line as the label rather than on the
+ * taller of the two boxes.
  */
 
 /**
@@ -25,11 +25,21 @@ import { cn } from "@/lib/cn";
  * sites compose them. Padding is deliberately left out; a single-line input
  * pads differently from a textarea, and an input with a leading glyph pads
  * differently again.
+ *
+ * White, with a --color-border-control outline (3:1 or better on white and on
+ * the login card), because a grey field on a grey card was outlined by a
+ * 1.12:1 hairline alone. Placeholders are --color-ink-meta, the same grey the
+ * top bar's SearchField and an empty SelectField print. Type is 16px below
+ * `sm` so iOS Safari does not zoom the page on focus; the line height stays
+ * 20px, so the box is the same height at every width. `aria-invalid` turns the
+ * outline red, and `disabled` fades it to half, the way the Select trigger and
+ * Button fade themselves.
  */
 export const FIELD_CONTROL =
-  "w-full rounded-control border-border-subtle bg-surface text-body text-ink border " +
-  "placeholder:text-ink-subtle focus-visible:border-brand focus-visible:ring-[3px] " +
-  "focus-visible:ring-brand-ring focus-visible:outline-none";
+  "w-full rounded-control border-border-control bg-panel text-base/5 sm:text-body text-ink border " +
+  "placeholder:text-ink-meta focus-visible:border-brand focus-visible:ring-[3px] " +
+  "focus-visible:ring-brand-ring focus-visible:outline-none aria-invalid:border-danger " +
+  "disabled:cursor-not-allowed disabled:opacity-50";
 
 /** The type style of a field's label. */
 export const FIELD_LABEL = "text-label text-ink-muted";
@@ -87,12 +97,16 @@ export function TextField({
 
       <div className="relative">
         {Icon && (
-          <Icon className="text-ink-subtle pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2" />
+          <Icon className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2" />
         )}
         <input
           id={id}
           required={required}
-          className={cn(FIELD_CONTROL, "py-2 pr-3.5", Icon ? INPUT_WITH_ICON : INPUT_WITHOUT_ICON)}
+          className={cn(
+            FIELD_CONTROL,
+            "py-2.5 pr-3.5",
+            Icon ? INPUT_WITH_ICON : INPUT_WITHOUT_ICON,
+          )}
           {...input}
         />
       </div>

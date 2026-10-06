@@ -14,6 +14,15 @@
  * "derived" — the static screen shows no hover, active, or focus state and no
  * dark theme, so those are extrapolated from the brand hue. Replace them as
  * soon as real designs exist.
+ *
+ * THE BRAND IS VIOLET, NOT THE MOCKUP'S BLUE (KAN-140). The mockups sampled
+ * #005cff; the team moved the app to purple, which also sets it apart from
+ * the blue nearly every job board wears. The tokens keep their role names, so
+ * every brand fill, link, badge and focus ring followed without a component
+ * edit — the hexes below are the change, and the notes that quote a measured
+ * blue are history from the mockups rather than the current value. "Light
+ * purple" lives in the surfaces (tints, the rail); the action colour itself
+ * has to stay deep enough to carry a white label at AA.
  * ------------------------------------------------------------------------- */
 
 @theme static {
@@ -27,8 +36,9 @@
    * `ghostwhite`: red and green at 248 with blue at 255, and the page at
    * #f7f9fc. Seven points on one channel is invisible in a swatch and reads
    * as a cool cast once it is a whole field or a whole page, which is what it
-   * became: --color-surface is the fill of every text input, select and
-   * secondary button, not just the login card.
+   * became: --color-surface was the fill of every text input and select (they
+   * are white now, so a field does not vanish into the login card) and is
+   * still the fill of every secondary button.
    *
    * The blue channel is dropped and the red/green kept, so the card sits at
    * the lightness it was measured at. The page moves further, down to the
@@ -40,19 +50,25 @@
 
   /* Borders ------------------------------------------------------------- */
   --color-border: #e3e9f0; /* card outline */
-  --color-border-subtle: #e8ebf5; /* inputs, secondary buttons, rules */
+  --color-border-subtle: #e8ebf5; /* secondary buttons, rules */
+  --color-border-control: #8a8f9a; /* input outline: 3.05:1 on surface, 3.24:1 on panel (WCAG 1.4.11) */
 
   /* Ink ----------------------------------------------------------------- */
   --color-ink: #121a28; /* headings, secondary-button labels */
   --color-ink-muted: #3b3e46; /* body copy, field labels, divider label */
-  --color-ink-subtle: #94969d; /* placeholders, input icons */
+  --color-ink-subtle: #94969d; /* de-emphasised glyphs; placeholders are ink-meta */
 
   /* Brand --------------------------------------------------------------- */
-  --color-brand: #005cff; /* primary fill and links */
+  --color-brand: #6d3fd8; /* primary fill and links — white on it is 6.26:1 */
   --color-on-brand: #ffffff; /* label sitting on a brand fill */
-  --color-brand-hover: #004fdb; /* derived: brand at 43% lightness */
-  --color-brand-active: #0042b8; /* derived: brand at 36% lightness */
-  --color-brand-ring: rgb(0 92 255 / 0.35); /* derived: focus ring */
+  --color-brand-hover: #5b30c0; /* derived: one step deeper */
+  --color-brand-active: #4c27a3; /* derived: two steps deeper */
+  /* Focus ring: the brand itself, the same solid ring the sidebar rows draw.
+   * Measured 6.26:1 on white, 5.75:1 on --color-app and 5.80:1 on the rail,
+   * over the 3:1 WCAG 1.4.11 asks of a focus indicator. The 35% violet it
+   * replaced blended to 1.75:1 on white. A ring around a brand fill sits off
+   * it with ring-offset-2, so it reads as focus rather than a bigger button. */
+  --color-brand-ring: var(--color-brand);
 
   /* Type ----------------------------------------------------------------
    * Four sizes carry the whole login screen. Weights and tracking are baked
@@ -77,13 +93,14 @@
   /* Radii ---------------------------------------------------------------- */
   --radius-control: 0.5rem; /* 8px — inputs, buttons */
   --radius-card: 0.625rem; /* 10px — card */
+  --radius-shell: 1.25rem; /* 20px: the seeker shell's floating panels, the radius of the Dashboard's hero */
 
   /* Elevation ------------------------------------------------------------
    * Matches the measured falloff: ~10px below the card, ~8px to the sides. */
   --shadow-card: 0 1px 2px rgb(18 26 40 / 0.04), 0 8px 20px rgb(18 26 40 / 0.06);
 
   /* Layout --------------------------------------------------------------- */
-  --container-auth: 22.5rem; /* 360px — auth card, 320px content + 20px pad */
+  --container-auth: 22.5rem; /* 360px: the auth card, 310px of content inside p-6 and a 1px border */
 
   /* -------------------------------------------------------------------------
    * App shell — added for the KAN-43 profile mockup
@@ -145,27 +162,48 @@
   --color-hover: #f0f0f0; /* row or control under the pointer */
   --color-selected: #e8e8e8; /* the current nav item, the chosen option */
 
-  /* Brand as *text*, for the label on a --color-selected fill.
+  /* Brand as *text*, for the label on a selected fill.
    *
-   * It is a separate role from --color-brand because --color-brand cannot do
-   * this job: #005cff on #e8e8e8 measures 4.31:1, short of the 4.5:1 AA needs
-   * for a 14px label, and darkening it to #004fdb clears it at 5.46:1. The hex
-   * is the same one --color-brand-hover happens to hold today; the roles are
-   * unrelated and either is free to move without the other.
+   * It is a separate role from --color-brand because the blue this palette
+   * started with could not do this job: #005cff on #e8e8e8 measured 4.31:1,
+   * short of the 4.5:1 AA needs for a 14px label. The violet clears every
+   * fill it sits on — 7.99:1 on white, 6.80:1 on --color-brand-tint, 6.39:1
+   * on --color-rail-selected — so the role is kept for the day the brand
+   * lightens again. The hex is the same one --color-brand-hover holds today;
+   * the roles are unrelated and either is free to move without the other.
    *
-   * NOTE FOR WHOEVER OWNS THE PALETTE: --color-brand on --color-brand-tint —
-   * every `brand` badge, the avatar, the company tile — measures 4.43:1 and has
-   * the same problem. It predates this token and is left alone rather than
-   * quietly restyled across four components, but it is the same fix. */
-  --color-brand-ink: #004fdb;
+   * --color-brand on --color-brand-tint — every `brand` badge, the avatar, the
+   * company tile — measured 4.43:1 in blue, the shortfall an earlier note
+   * here flagged. In violet it is 5.33:1, so that one is closed. */
+  --color-brand-ink: #5b30c0;
 
   /* App ink -------------------------------------------------------------- */
   --color-ink-meta: #596980; /* nav links, subtitles, dates, icon glyphs */
 
   /* App brand ------------------------------------------------------------ */
-  --color-brand-tint: #e3ebff; /* skill pills, badges, avatars, company tiles —
+  --color-brand-tint: #efeaff; /* skill pills, badges, avatars, company tiles —
                                 * brand marks only. Interaction states used to
                                 * live here too; see --color-hover above. */
+
+  /* The rail — the sidebar and the top bar's corner cell above it, painted
+   * one light lavender so the two read as one frame around the white page.
+   * Kept off the content itself: a tinted page behind tinted cards would
+   * leave nothing white for the work to sit on. Hover and selected are
+   * lavender too, where the shell's neutral --color-hover/--color-selected
+   * would read as grey smudges on a coloured panel. */
+  --color-rail: #f7f5ff;
+  --color-rail-hover: #efeaff;
+  --color-rail-selected: #e9e2ff;
+  --color-rail-border: #e6e0f8;
+
+  /* The ground under the seeker shell's floating panels. The panel, the top
+   * bar and the page each sit on it as a white rounded panel, so the brand's
+   * lavender moved from the panel's fill to the frame around all three: a
+   * step deeper than --color-rail, enough for a white panel's edge to read
+   * against it with the rail border and --shadow-panel, and still a tint
+   * rather than a colour. The company shell is still docked and does not
+   * use it. */
+  --color-frame: #f1eef9;
 
   /* App borders ---------------------------------------------------------- */
   --color-border-strong: #dee5ee; /* dashed dropzone, spent timeline dot */
@@ -176,7 +214,7 @@
   --text-meta: 0.6875rem; /* 11px — dates, file meta, helper copy */
   --text-meta--line-height: 0.9375rem;
 
-  --text-note: 0.75rem; /* 12px — employer, skill pills, section actions */
+  --text-note: 0.75rem; /* 12px: employer, skill pills */
   --text-note--line-height: 1rem;
 
   --text-subtitle: 1rem; /* 16px — work-history job titles */
@@ -214,12 +252,14 @@
   /* Status ---------------------------------------------------------------
    * A card's top edge carries its column: pale until it has been acted on,
    * brand once it is in flight, positive once there is an offer. */
-  --color-brand-pale: #d2dffa; /* accent on a saved, not-yet-applied card */
+  --color-brand-pale: #ddd2ff; /* accent on a saved, not-yet-applied card */
   --color-positive: #17b076; /* offer accent and its one green button */
   --color-positive-tint: #e3f7f0; /* the offer card's company tile */
   --color-positive-hover: #139564; /* derived: positive at 33% lightness */
   --color-positive-active: #107a52; /* derived: positive at 27% lightness */
-  --color-positive-ring: rgb(23 176 118 / 0.35); /* derived: focus ring */
+  /* Focus ring for a positive fill: 5.35:1 on white. The 35% green it replaced
+   * was 1.43:1, and no alpha of --color-positive reaches 3:1 (0.7 is 2.05:1). */
+  --color-positive-ring: var(--color-positive-ink);
 
   /* Positive as *text*, for a label on a --color-positive-tint fill.
    *
@@ -259,9 +299,26 @@
    * does on its own tint, which is a deliberate break: that pairing is only
    * about 2.5:1 and these are more legible rather than matched to a
    * shortcoming. Replace all of it when a designer draws the set. */
-  --color-inert-tint: #e1e6ea; /* measured: the board's "Applied" chip */
-  --color-warning: #a06800; /* unmeasured: paused, needs a decision */
+  /* Lightened from the board's measured #e1e6ea, where --color-ink-meta was
+   * 4.45:1, short of the 4.5:1 an 11px pill needs. On this it is 4.70:1, in
+   * line with the other tones' 4.7-5.3. */
+  --color-inert-tint: #e8ecef;
+  /* Unmeasured: paused, needs a decision. Only ever text (a pill, the
+   * Interviewing stage on its tint, a deadline). Measured: 5.26:1 on
+   * --color-warning-tint, 5.93:1 on white; the #a06800 before it was 4.17:1. */
+  --color-warning: #8a5a00;
   --color-warning-tint: #fdf0d9;
+  /* Amber as a FILL — bars and dots, never text. --color-warning is dark
+   * enough to read as text, which makes a bar of it read as brown; a bar
+   * needs the amber people recognise as "caution". White text on this is
+   * 2.1:1, so nothing is ever printed on it. */
+  --color-warning-fill: #f2a516;
+  /* Amber deep enough to carry a white glyph: 3.19:1, over the 3:1 a glyph
+   * needs. A seeker's Interviewing stage wears it (its board column and Up
+   * Next discs), so its icon is white like every other stage's rather than
+   * ink on the bright fill above, which read as the one stage drawn
+   * differently. */
+  --color-warning-strong: #d97706;
   --color-danger: #c02a3d; /* unmeasured: rejected, ended badly */
   --color-danger-tint: #fce9eb;
 
@@ -272,13 +329,51 @@
    * gap is what a reader should see before reading a word, so the two stop
    * sharing --color-brand.
    *
-   * Purple because it is the only hue left with room. Blue is taken by brand,
-   * green by positive, amber by warning, red by danger; teal and cyan sit too
-   * close to the green and the blue to survive being 11px tall. The tint runs
-   * warmer than --color-brand-tint — more red, less blue — so the two pale
-   * fills separate even before the label colour does. */
-  --color-advanced: #7b2fbe;
-  --color-advanced-tint: #f2e6fb;
+   * Blue, since the brand moved to violet: it was purple while the brand was
+   * blue, as the only hue left with room, and the two swapped places. Green
+   * is positive, amber warning, red danger; teal and cyan sit too close to
+   * the green to survive being 11px tall. The tint is the old brand tint,
+   * cooler than --color-brand-tint, so the two pale fills separate even
+   * before the label colour does. #2f5fd6 is 5.63:1 on white. */
+  --color-advanced: #2f5fd6;
+  --color-advanced-tint: #e3ebff;
+
+  /* Match score ----------------------------------------------------------
+   * The four bands a match score is read in (@/lib/match): the ring on a
+   * board card's match badge, the arc and dot on a job's match rail, and the
+   * bar on the company Dashboard's Recent applicants.
+   * Their own hue, so a score never borrows a stage's meaning. The bands used
+   * to be --color-brand and three raw hexes: a 95% card read as an Applied
+   * one, a Strong match on an Offer card drew a second green beside the
+   * stage's own, and Good was Interviewing's amber.
+   *
+   * MAGENTA, at OKLCH hue 340, because it is the widest arc no role holds.
+   * Brand violet sits at 290, the advanced blue at 264, danger red at 20, the
+   * Interviewing ambers at 58 to 74 and Offer green at 160. Teal and cyan are
+   * too close to the green (see --color-advanced), orange is squeezed between
+   * the red and the amber, and the lime past the amber is olive by the time it
+   * is dark enough for 3:1. Magenta is 50 degrees from the violet and 40 from
+   * the red, and nothing else in the app wears it. It stays pink-purple, never
+   * red: every step's blue channel is at least 80% of its red, where
+   * --color-danger's is a third.
+   *
+   * One hue, light to deep, and a better match is deeper, so the bands read as
+   * one rising scale rather than four unrelated badges, and the arc's depth
+   * agrees with its length. The steps are about 0.08 apart in OKLCH lightness.
+   * Each is a stroke, a dot or a bar, never text (the tier words are
+   * ink-muted), so the floor is the 3:1 a graphic needs, measured on both
+   * grounds they are drawn on: white (a board card) and --color-well (the
+   * rail, and the Dashboard bar's track).
+   *
+   *                white   well
+   *   excellent    9.73    9.09
+   *   strong       6.98    6.52
+   *   good         4.95    4.62
+   *   weak         3.45    3.22 */
+  --color-match-excellent: #800b66;
+  --color-match-strong: #a01f81;
+  --color-match-good: #bd3a9b;
+  --color-match-weak: #d063b0;
 
   /* Board type -----------------------------------------------------------
    * A step above --text-title, which the board still uses for its column
@@ -304,15 +399,32 @@
    * screen, including the two whose mockups do not draw it.
    * ---------------------------------------------------------------------- */
 
-  /* One step lighter than --color-ink-meta, for a result card's timestamp —
-   * the only text in the app that sits below meta in the hierarchy. */
+  /* One step lighter than --color-ink-meta. It was a search result's
+   * timestamp; now it marks rather than writes: separator dots, list bullets,
+   * a resting sort chevron, a control's 3:1 edge. Too faint for words. */
   --color-ink-faint: #8893a4;
 
-  /* 28px — the job title on the detail pane, the largest type in the app. */
+  /* 28px, the largest type in the app: a Dashboard's headline figures (stat
+   * tiles, Waiting, Highlights, the status ring's total), the company
+   * profile's name and the auth pitch. */
   --text-display: 1.75rem;
   --text-display--line-height: 2rem;
   --text-display--font-weight: 700;
   --text-display--letter-spacing: -0.02em;
+
+  /* The seeker bar's status dot: a ring that swells and fades three times as
+   * the page loads, then rests. Three, not infinite: a dot that never stops
+   * moving is the one thing on screen the eye cannot leave alone, and the
+   * news it marks is not that urgent. Used only under motion-safe:. */
+  --animate-status-ping: status-ping 1.2s cubic-bezier(0, 0, 0.2, 1) 3;
+
+  @keyframes status-ping {
+    75%,
+    100% {
+      transform: scale(2.4);
+      opacity: 0;
+    }
+  }
 }
 
 /* The mockup defines a light theme only. No dark palette is declared here on
@@ -345,6 +457,12 @@ body {
  * axis it would take the trackpad's swipe-to-go-back with it. */
 body:has([data-shell]) {
   background: var(--color-panel);
+}
+
+/* The seeker shell floats its panels on --color-frame, so a bounce there
+ * should open more frame, not a white strip. */
+body:has([data-shell="seeker"]) {
+  background: var(--color-frame);
 }
 
 /* -----------------------------------------------------------------------------
@@ -443,15 +561,19 @@ body:has([data-shell]) {
 
   /* Lines and focus */
   --border: var(--color-border);
-  --input: var(--color-border-subtle); /* matches ui/text-field.tsx */
+  /* shadcn's own inputs and checkboxes. WorkIt's fields (ui/text-field.tsx)
+   * draw --color-border-control instead. */
+  --input: var(--color-border-subtle);
   --ring: var(--color-brand);
 
   --radius: var(--radius-card); /* 10px, same value shadcn defaults to */
 
-  /* OPEN — WorkIt has no red. The mockups never draw a destructive action, so
-   * this is shadcn's stock red rather than a sampled one. Replace when a
-   * delete/withdraw flow gets designed. */
-  --destructive: oklch(0.577 0.245 27.325);
+  /* WorkIt's one red, the Rejected chip's. This was shadcn's stock oklch red
+   * while the palette had none, which left two reds side by side once
+   * --color-danger arrived: audit Failed, the row menu's Close and the close
+   * dialog in one, every danger pill in the other. Still unmeasured, since no
+   * mockup draws a destructive action; it moves with --color-danger. */
+  --destructive: var(--color-danger);
 
   /* Chart palette — the status tones, in a fixed order.
    *
@@ -506,20 +628,20 @@ body:has([data-shell]) {
    * would compete with the four that carry meaning.
    *
    * --color-ink-subtle rather than a new token: it is already the app's grey
-   * for a mark that is present but not the subject (placeholders, input
-   * glyphs), and inventing a solid `inert` nobody designed to sit beside
-   * --color-inert-tint would put an unmeasured colour on the dashboard. */
+   * for a mark that is present but not the subject (a stat tile's glyph, a
+   * picker's chevron), and inventing a solid `inert` nobody designed to sit
+   * beside --color-inert-tint would put an unmeasured colour on the dashboard. */
   --chart-5: var(--color-ink-subtle);
 
   /* No sidebar exists yet — the shell is a top bar. These are mapped anyway so
    * that if a shadcn Sidebar is ever added it inherits the palette. */
-  --sidebar: var(--color-panel);
+  --sidebar: var(--color-rail);
   --sidebar-foreground: var(--color-ink);
   --sidebar-primary: var(--color-brand);
   --sidebar-primary-foreground: var(--color-on-brand);
-  --sidebar-accent: var(--color-hover);
+  --sidebar-accent: var(--color-rail-hover);
   --sidebar-accent-foreground: var(--color-ink);
-  --sidebar-border: var(--color-border-subtle);
+  --sidebar-border: var(--color-rail-border);
   --sidebar-ring: var(--color-brand);
 }
 

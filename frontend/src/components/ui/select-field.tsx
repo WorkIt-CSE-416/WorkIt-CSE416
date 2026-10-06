@@ -36,6 +36,11 @@ type SelectFieldProps = {
   /** Visual only, same as <LocationField>'s — the trigger is a button, not a
    *  native <select>, so there is no `required` attribute to lean on. */
   required?: boolean;
+  /** Marks the trigger aria-invalid, which FIELD_CONTROL draws red, the way a
+   *  <TextField> takes `aria-invalid` directly. */
+  invalid?: boolean;
+  /** The id of the message that explains the field, usually its error. */
+  describedBy?: string;
   className?: string;
 };
 
@@ -67,6 +72,8 @@ export function SelectField({
   hideLabel = false,
   name,
   required,
+  invalid,
+  describedBy,
   className,
 }: SelectFieldProps) {
   const items = options.map((option) =>
@@ -98,17 +105,34 @@ export function SelectField({
             well as by property, so a plain utility and a data-variant one are
             different groups and both survive. The variant then wins on
             specificity — `.h-8[data-size="default"]` outranks `.h-auto` — and
-            the picker renders 32px tall next to a 38px input. Repeating the
+            the picker renders 32px tall next to a 42px input. Repeating the
             override under the same variant is what puts the two in one group
             so cn() can drop the loser. This is the failure cn() cannot close
             on its own, described in lib/cn.ts and in CLAUDE.md.
 
             The paddings are separate groups from anything the trigger sets,
-            so those are simply added. */}
+            so those are simply added. data-placeholder:text-ink-meta names the
+            empty state's grey outright, the one FIELD_CONTROL gives an input's
+            placeholder, rather than leaning on shadcn's muted-foreground.
+
+            The last line takes off the stock trigger's invalid halo (a 3px
+            destructive ring under `aria-invalid:ring-3`), so an invalid picker
+            is outlined red and nothing else, like an invalid <TextField>
+            beside it. A bare `aria-invalid:ring-0` would also kill the focus
+            ring, since the aria variant sorts after focus-visible; the
+            compound focus-visible:aria-invalid pair sorts after both and puts
+            back the same brand ring a focused <TextField> draws. */}
         <SelectTrigger
           id={id}
           aria-labelledby={`${id}-label`}
-          className={cn(FIELD_CONTROL, "h-auto data-[size=default]:h-auto", "py-2 pr-3 pl-3.5")}
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
+          className={cn(
+            FIELD_CONTROL,
+            "h-auto data-[size=default]:h-auto",
+            "data-placeholder:text-ink-meta py-2.5 pr-3 pl-3.5",
+            "focus-visible:aria-invalid:ring-brand-ring aria-invalid:ring-0 focus-visible:aria-invalid:ring-[3px]",
+          )}
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>

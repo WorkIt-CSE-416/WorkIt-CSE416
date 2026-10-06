@@ -1,6 +1,5 @@
 "use client";
 
-import { MailIcon } from "@/components/icons";
 import { SelectField } from "@/components/ui/select-field";
 import { TextField } from "@/components/ui/text-field";
 
@@ -8,16 +7,18 @@ import { TextField } from "@/components/ui/text-field";
 // — the API parses them straight into that enum, so a change there is a
 // change here. Labels are the only part this file owns.
 export const COMPANY_SIZES = [
-  { value: "1_50", label: "1–50 employees" },
-  { value: "51_200", label: "51–200 employees" },
-  { value: "201_500", label: "201–500 employees" },
-  { value: "501_1000", label: "501–1,000 employees" },
-  { value: "1001_5000", label: "1,001–5,000 employees" },
-  { value: "5001_10000", label: "5,001–10,000 employees" },
-  { value: "10000_", label: "10,000+ employees" },
+  { value: "1_50", label: "1–50 Employees" },
+  { value: "51_200", label: "51–200 Employees" },
+  { value: "201_500", label: "201–500 Employees" },
+  { value: "501_1000", label: "501–1,000 Employees" },
+  { value: "1001_5000", label: "1,001–5,000 Employees" },
+  { value: "5001_10000", label: "5,001–10,000 Employees" },
+  { value: "10000_", label: "10,000+ Employees" },
 ] as const;
 
-const OPTIONAL = <span className="text-meta text-ink-faint">Optional</span>;
+// ink-meta, not ink-faint: "Optional" is text people read before deciding
+// whether to fill a field in, and ink-faint is under AA on the card.
+const OPTIONAL = <span className="text-meta text-ink-meta">Optional</span>;
 
 /** Caption over the group — same type treatment as "Or continue with". */
 export const COMPANY_FIELDS_SECTION = "text-caption text-ink-muted uppercase";
@@ -49,6 +50,8 @@ export function CompanyFields({
   onCompanySizeChange: (next: string) => void;
   sizeAttempted: boolean;
 }) {
+  const sizeInvalid = sizeAttempted && !companySize;
+
   return (
     <>
       <p className={COMPANY_FIELDS_SECTION}>Company</p>
@@ -75,9 +78,15 @@ export function CompanyFields({
             value={companySize}
             onValueChange={onCompanySizeChange}
             required
+            invalid={sizeInvalid}
+            describedBy={sizeInvalid ? "company-size-error" : undefined}
           />
-          {sizeAttempted && !companySize && (
-            <p className="text-meta text-danger">Select your company&apos;s size.</p>
+          {/* Tied to the picker and announced, so a screen reader hears why
+              the form did not submit. */}
+          {sizeInvalid && (
+            <p id="company-size-error" role="alert" className="text-meta text-danger">
+              Select your company&apos;s size.
+            </p>
           )}
         </div>
       </div>
@@ -104,7 +113,6 @@ export function CompanyFields({
           name="contactEmail"
           type="email"
           label="Contact Email"
-          icon={MailIcon}
           required
           maxLength={100}
           defaultValue={defaults.contactEmail}

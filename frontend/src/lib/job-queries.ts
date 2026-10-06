@@ -51,7 +51,9 @@ export type CompanyJobSummary = Pick<
   | "updated_at"
 >;
 
-const SIGNED_OUT = "You're signed out. Sign in again to continue.";
+/** Exported so a page can tell this error apart and offer Sign In Again
+ *  rather than a retry that would fail the same way. */
+export const SIGNED_OUT = "You're signed out. Sign in again to continue.";
 const UNREACHABLE = "Could not reach the server. Is the backend running?";
 
 /** The API's largest page; a shorter page is the last one. */

@@ -1,183 +1,210 @@
+import { cookies } from "next/headers";
+import Form from "next/form";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
+import { Suspense } from "react";
 
-import { signOut } from "@/app/actions";
-import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
-import { BellIcon, GearIcon } from "@/components/icons";
-import { Logo } from "@/components/logo";
-import { NavLink } from "@/components/nav-link";
-import { IconButton } from "@/components/ui/icon-button";
-import { SearchField } from "@/components/ui/search-field";
+import { LogoLockup } from "@/components/logo";
+import { NotificationsMenu } from "@/components/notifications-menu";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { getSessionUser } from "@/lib/session";
 
-/**
- * Chrome shared by every signed-in seeker screen.
- *
- * The company shell has its own bar at src/app/company/layout.tsx. The two are
- * deliberately separate files rather than one bar taking props — the note there
- * explains why, and is the place to revisit if they stop drifting apart.
- *
- * The bar is a full-bleed band with contained content: <header> paints the
- * surface and the rule edge to edge, and the <nav> inside it takes the same
- * container every page takes — max-w-app, centred, px-12 — so the wordmark and
- * the account cluster land on the same two vertical edges as the cards below
- * them, at every viewport width.
- *
- * It was padded asymmetrically before this — 48px left, 16px right — copied
- * from what the mockup measures. A mockup is one width, though, and those are
- * viewport-anchored gutters against a centred container: the left edges agreed
- * at exactly 1024px and drifted apart by half the overflow past it, and the
- * right edges never agreed at all. The mockup's ~17px right gap is read as an
- * artefact of its single width rather than an intent.
- *
- * /search is the screen this does not align to. It is a full-bleed two-pane
- * workspace rather than a centred container, so its results pane starts at
- * x=0 and no single bar can align to both it and the cards on the other three
- * screens. The container is the majority case, so the bar follows it; if the
- * two-pane layout is meant to be the rule rather than the exception, this is
- * the line to revisit.
- *
- * The mockup leaves the left of the bar empty, with the first nav link starting
- * 128px in. That slot holds the icon rather than the full lockup: at 32px tall
- * the mark is only ~34px wide, which is the point — the search field sits right
- * beside it, and the lockup at 2.8:1 would crowd both. The mockup's 128px no
- * longer maps onto one thing, since the field now intervenes: above md the
- * first nav link lands well past that mark, and below md, where the field is
- * hidden, well short of it (48 + 34 + 20 = ~102px).
- *
- * The search field comes from the search mockup, the only one that draws it.
- * It sits in the shared bar rather than on that page because that is where the
- * mockup puts it, and because searching jobs is global rather than something
- * one screen owns — but it does mean profile and applications now carry a
- * field their own mockups do not. Hidden below md, where the bar has no room.
- *
- * It grows into whatever the bar has spare and stops at 320px, rather than
- * taking a fixed width. Its width was hard-coded at 236px, and that is the kind
- * of number somebody has to recompute by hand every time the bar's contents
- * change — which is exactly what dropping the Search tab would have required.
- * The cap is what keeps it from crowding the nav once it has room.
- */
+import { SeekerAccount, SeekerStatusLine } from "./account-status";
+import { BAR_CIRCLE } from "./bar";
+import { MobileSearch } from "./mobile-search";
+import { ProfileStrength } from "./profile-strength";
+import { QueryField } from "./search/query-field";
+import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
- * Search is the one thing that used to sit here and does not: /search is where
- * the bar's own field would land a query, and a tab beside that field would be
- * a second, contradictory way to reach it. The route still exists and still
- * renders; it has no tab.
+ * Chrome shared by every signed-in seeker screen: three white rounded panels
+ * floating on a lavender ground (--color-frame). The section panel runs the
+ * full height on the left; beside it, the top bar, and under the bar the page
+ * itself. It replaced a docked layout (a full-width bar ruled off from a
+ * full-bleed panel and a white page) after the user pointed at a dashboard
+ * built this way: separate rounded panels read as calmer and more finished
+ * than one box cut into regions by hairlines.
  *
- * My Profile is a tab rather than a row in the account menu. It briefly was one
- * — the reasoning is still in @/components/account-menu — and the trade did not
- * hold: a profile is not somewhere you visit once and leave, it is somewhere a
- * job seeker goes back to all through a hunt, and a click of depth is the wrong
- * price for that. "My" is what separates it from an employer's profile, which
- * the company shell also has to name.
+ * THE INSET IS 12px EVERYWHERE: around the window's edge, between the panel
+ * and the bar, and between the bar and the page. The panel pads itself 12px
+ * (FLOATING in @/components/app-sidebar), which is why --sidebar-width and
+ * --sidebar-width-icon are set here 24px wider than shadcn's own: the panel
+ * keeps its 256px open and a 72px collapsed rail, and the in-flow gap shadcn
+ * keeps beside it stays the panel's exact width in both states. The column
+ * beside it pads itself the same 12px on every side but the left, where the
+ * panel's own padding already is. Below md the panel is a sheet, so the
+ * column takes the left edge too, and the inset tightens to 8px on a phone,
+ * where 12px would be 24px of a 375px screen.
+ *
+ * The panel's open or collapsed state survives a reload: shadcn writes it to
+ * the sidebar_state cookie on every toggle, and this layout reads it back as
+ * the provider's defaultOpen, so the page does not open expanded and jump
+ * when the user collapses it again.
+ *
+ * THE BAR holds the toggle, the job search and, on the right, the account:
+ * the new-roles status when there is news (from xl), the bell, and the photo
+ * with the full name and email beside it from lg. That last opens the
+ * account menu: Settings, Help and Sign Out, which live there and nowhere
+ * else.
+ *
+ * SIGNED OUT, NOTHING HERE RENDERS: the layout sends the visitor to /login
+ * before drawing anything, because every screen behind it is someone's own
+ * search. So the bar always has an account to show and the panel always
+ * offers Sign Out. The proxy only refreshes sessions (see src/proxy.ts); the
+ * API checks every token itself, so this is the shell's rule, not security. The logo moved into the panel's header, which
+ * now owns the top-left corner; below md, where the panel is a sheet, the bar
+ * shows it again beside the toggle. The search is a light grey pill and the
+ * bell and the phone's search magnifier are 40px circles in the same grey
+ * (./bar.ts), none of them outlined, all the photo's height, so the bar
+ * reads as one family of soft shapes. The toggle is a bare glyph that takes
+ * the same fill on hover.
+ *
+ * The search field sits in the shared bar rather than on a page because
+ * searching jobs is global. It is a GET form to /search, so Enter lands the
+ * query there as ?q; next/form makes that a client-side navigation. On
+ * /search the field keeps showing that query (./search/query-field.tsx reads
+ * it, since a layout gets no searchParams). It grows into whatever the bar
+ * has spare and stops at 320px. Below md a magnifier takes its place and
+ * opens the same field in a sheet; see ./mobile-search.tsx. The bell steps
+ * out below sm, where the bar has room for the toggle, the logo, the
+ * magnifier and the photo and little else.
+ *
+ * THE PAGE PANEL is the one scrolling element, so the bar and the section
+ * panel stay put and a scrollbar runs only beside the page. It is
+ * @container/main, because the page's room depends on the panel as well as
+ * the window, and seeker pages break on that width. SidebarInset renders the
+ * <main>, so pages render a <div>; it is the skip link's target.
  */
-const NAV_ITEMS = [
-  { href: "/jobs", label: "Jobs" },
-  { href: "/applications", label: "Applications" },
-  { href: "/profile", label: "My Profile" },
-];
 
-/* One row, now that My Profile is a tab again and Sign out is its own slot
- * below a separator (AccountMenu's onSignOut) rather than a row here. A menu
- * holding a single item is worth a second look — the alternative is the bare
- * gear this replaced, back beside the bell — but it is the right shape to
- * leave in place while the account rows are still arriving: billing and
- * notification preferences have nowhere else to go yet.
- *
- * /settings is not built yet. It is a link that 404s rather than a control
- * that does nothing, which is the more honest placeholder and the one that
- * stops needing a note the day the route lands. */
-const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
-  { href: "/settings", label: "Settings", icon: <GearIcon className="size-4" /> },
-];
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Request time, not build time. The sign-in check below needs the Supabase
+  // keys, and `next build` prerenders any page that has not yet asked for a
+  // request: CI has no keys, so /applications failed its build with "must
+  // both be set" the moment the check came first. connection() marks the
+  // whole shell per-request before anything reads the session, the same rule
+  // as a live fetch in a page (frontend/CLAUDE.md).
+  await connection();
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+  // Every seeker screen is for a signed-in seeker, so the shell never draws
+  // a signed-out state: no account, no shell. Verified claims rather than
+  // /auth/me, so the check never waits on the API.
+  if (!(await getSessionUser())) redirect("/login");
+
+  const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false";
+
   return (
-    <div
-      /* bg-background, which is white — the same page the company shell
-         paints. It was bg-app, a grey; see the note on --background in
-         globals.css. */
-      className="bg-background flex h-svh flex-col"
+    /* h-svh makes this row the window, so the only thing left to scroll is
+       the page panel: a min-height would hand the scroll back to the
+       document, and the bar and the panel would scroll away with it. */
+    <SidebarProvider
+      defaultOpen={defaultOpen}
+      className="bg-frame h-svh"
       /* Read by the canvas rule in globals.css, which paints the overscroll
-         strip white to match — the company shell sets the same attribute. */
+         strip the frame's lavender to match. */
       data-shell="seeker"
-      /* The bar's height, in one place, the way the company shell keeps its
-         own. Nothing below reserves it any more — the bar is back in flow, so
-         it takes its own room — but it stays a token because it is one number
-         two shells and a fixed panel all measure against.
-
-         h-svh rather than min-h-full is what moves the scrollbar under the bar:
-         a min-height leaves the document scrolling, and a document scrollbar
-         runs the full window height, past the bar it has nothing to do with. An
-         exact viewport height makes this column the window, so the only thing
-         left to scroll is the region below the bar. */
-      style={{ "--seeker-bar": "4rem" } as React.CSSProperties}
+      style={
+        {
+          "--sidebar-width": "17.5rem",
+          "--sidebar-width-icon": "6rem",
+        } as React.CSSProperties
+      }
     >
-      {/* BACK IN FLOW, which it was long ago for the wrong reason and is again
-          for the right one. In flow it used to scroll away with the document,
-          so it was pulled out to `fixed` — the note that stood here weighed
-          fixed against sticky on how each behaves during a rubber-band
-          overscroll.
+      {/* The first stop on every page, shown only once focused, so a keyboard
+          user can step past the panel and the bar to the page itself. The
+          padding is focus: too, because sr-only zeroes it and the focus:
+          variant is what comes after it in the stylesheet. */}
+      <a
+        href="#content"
+        className="bg-panel rounded-control text-label text-ink shadow-panel focus-visible:ring-brand-ring sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus-visible:ring-2 focus-visible:outline-none"
+      >
+        Skip to Content
+      </a>
 
-          None of that applies once the document is not what scrolls. The bar is
-          a sibling of the scroller now, not a layer over it, so nothing can
-          slide it and nothing bounces underneath it. shrink-0 so a tall page
-          cannot squeeze it. */}
-      <header className="bg-panel border-border relative z-20 h-(--seeker-bar) shrink-0 border-b">
-        <nav
-          aria-label="Main"
-          className="max-w-app mx-auto flex h-full w-full items-center gap-5 px-12"
-        >
+      <SeekerSidebar
+        card={
+          <Suspense fallback={null}>
+            <ProfileStrength />
+          </Suspense>
+        }
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3 md:pl-0">
+        <header className="bg-panel border-rail-border shadow-panel rounded-shell flex h-16 shrink-0 items-center gap-3 border px-3 sm:gap-4 sm:px-4">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full [&_svg]:size-4" />
+              }
+            />
+            <TooltipContent>Toggle sidebar</TooltipContent>
+          </Tooltip>
+
+          {/* The panel's header carries the logo from md; below that the
+              panel is a sheet and the bar is the only place left for it. */}
           <Link
-            href="/"
-            className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+            href="/dashboard"
+            className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none md:hidden"
           >
-            <Logo size="bar" priority />
+            <LogoLockup priority />
           </Link>
 
-          <SearchField
-            id="job-search"
-            label="Search jobs"
-            name="q"
-            placeholder="Job title, keywords, or company"
+          <Form
+            action="/search"
+            role="search"
             className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
-          />
+          >
+            <QueryField id="job-search" />
+          </Form>
 
-          <ul className="flex items-center gap-5">
-            {NAV_ITEMS.map((item) => (
-              <li key={item.href}>
-                <NavLink href={item.href}>{item.label}</NavLink>
-              </li>
-            ))}
-          </ul>
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            {/* Streamed: each waits on the API, and nothing else in the bar
+                or the page should wait with it. The account's fallback holds
+                the photo's 40px and, from lg, the name and email's two
+                lines, so the bar doesn't shift when they land. */}
+            <Suspense fallback={null}>
+              <SeekerStatusLine />
+            </Suspense>
 
-          <div className="ml-auto flex items-center gap-5">
-            <IconButton label="Notifications">
-              <BellIcon className="size-5" />
-            </IconButton>
+            <MobileSearch />
 
-            <AccountMenu name="Alex Chen" items={ACCOUNT_ITEMS} onSignOut={signOut} />
+            <NotificationsMenu className={BAR_CIRCLE}>
+              New matches and replies from employers will show up here.
+            </NotificationsMenu>
+
+            <Suspense fallback={<AccountSkeleton />}>
+              <SeekerAccount />
+            </Suspense>
           </div>
-        </nav>
-      </header>
+        </header>
 
-      {/* The one scrolling element in the shell. min-h-0 because a flex item
-          will not shrink below its content by default, which would push the
-          column past h-svh and hand the scroll back to the document.
-
-          overscroll-contain for the same reason from the other direction: a
-          trackpad fling that outruns the list's own travel would otherwise
-          chain onto the document once this div hits its scroll limit, and
-          since the document is the whole h-svh column, that drags the header
-          along with it — a second, page-level scrollbar stacked on this
-          one's. Containing it stops the chain right at this div's edge.
-
-          relative so this div clips everything inside it. An absolutely
-          positioned descendant with no positioned ancestor (every sr-only
-          span, for one) is placed against the viewport instead, escapes this
-          div's overflow, and makes the document itself taller than h-svh —
-          scrollable behind a modal, header and all. */}
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-        {children}
+        {/* min-h-0 because a flex item will not shrink below its content by
+            default, which would push the column past h-svh and hand the
+            scroll back to the document. overscroll-contain so a fling that
+            outruns the page does not chain onto the document. */}
+        <SidebarInset
+          id="content"
+          tabIndex={-1}
+          className="bg-panel border-rail-border shadow-panel rounded-shell @container/main min-h-0 flex-1 overflow-y-auto overscroll-contain border focus:outline-none"
+        >
+          {children}
+        </SidebarInset>
       </div>
+    </SidebarProvider>
+  );
+}
+
+/** The account's shape while /auth/me is in flight: the photo's circle and,
+ *  from lg, two bars where the name and email will be. */
+function AccountSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex items-center gap-3">
+      <span className="bg-hover size-10 rounded-full" />
+      <span className="hidden flex-col gap-1.5 lg:flex">
+        <span className="bg-hover h-3 w-28 rounded-full" />
+        <span className="bg-hover h-2.5 w-36 rounded-full" />
+      </span>
     </div>
   );
 }

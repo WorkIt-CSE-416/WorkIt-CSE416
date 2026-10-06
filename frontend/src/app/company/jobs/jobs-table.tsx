@@ -13,7 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/cn";
 import { changeJobStatus } from "@/lib/job-actions";
 
 import {
@@ -21,8 +23,6 @@ import {
   FEATURES,
   RowLink,
   formatDate,
-  SelectAllHeader,
-  SelectRowCell,
   SortHeader,
   TableToolbar,
   type FilterSpec,
@@ -37,16 +37,16 @@ import { STATUS_TONE, STATUSES, type Posting } from "./data";
  * a new array identity on each render rebuilds every model that depends on
  * it. The rows arrive as a prop from the server page, which keeps the same
  * array for the life of the render, so they need no memo either.
+ *
+ * NO SELECTION COLUMN. Nothing acts on a set of postings yet, so a checkbox
+ * per row only promised a bulk action that did not exist and cost the column
+ * on a table that already scrolls on a phone. Put SelectAllHeader and
+ * SelectRowCell back from ../table when a bulk Pause or Close lands, with
+ * that action beside the toolbar's "N selected".
  */
 const helper = createColumnHelper<typeof FEATURES, Posting>();
 
 const columns = helper.columns([
-  helper.display({
-    id: "select",
-    header: ({ table }) => <SelectAllHeader table={table} />,
-    cell: ({ row }) => <SelectRowCell row={row} label={row.original.role} />,
-  }),
-
   helper.accessor("role", {
     header: ({ column }) => <SortHeader column={column}>Role</SortHeader>,
     sortFn: "alphanumeric",
@@ -117,7 +117,17 @@ const columns = helper.columns([
       const count = getValue();
 
       return (
-        <span className={`tabular-nums ${count > 0 ? "text-ink" : "text-ink-faint"}`}>{count}</span>
+        <span
+          className={cn(
+            "tabular-nums",
+            /* A zero is quieter by weight, in ink-meta (5.59:1 on white),
+               never in a grey too faint to read: ink-faint is 3.11:1, under
+               the 4.5:1 text needs, and this is a number people scan for. */
+            count > 0 ? "text-ink font-semibold" : "text-ink-meta",
+          )}
+        >
+          {count}
+        </span>
       );
     },
   }),
@@ -151,8 +161,15 @@ const columns = helper.columns([
  * Edit alone. Pause and Resume act at once, since Resume undoes Pause; only
  * Close asks first.
  *
- * relative z-10 lifts the trigger above <RowLink>'s row-wide overlay, the same
- * way the checkbox is lifted, or opening the menu would open the job.
+ * relative z-10 lifts the trigger above <RowLink>'s row-wide overlay, or
+ * opening the menu would open the job.
+ *
+ * A failed Pause or Resume says so in two words, with the API's message in a
+ * tooltip: the column is sized to its content (`w-px`), so a sentence here
+ * wrapped one word per line and stretched the row. The alert still reads the
+ * whole message out, through the sr-only part, and the two words take focus
+ * (ringed like the ⋯ trigger), so the tooltip opens from the keyboard as well
+ * as on hover.
  */
 function RowActions({ posting }: { posting: Posting }) {
   const [isClosing, setIsClosing] = useState(false);
@@ -174,9 +191,20 @@ function RowActions({ posting }: { posting: Posting }) {
   return (
     <>
       {error && (
-        <span role="alert" className="text-meta text-danger mr-2">
-          {error}
-        </span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                role="alert"
+                tabIndex={0}
+                className="text-meta text-danger focus-visible:ring-brand-ring relative z-10 mr-2 rounded-xs whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none"
+              />
+            }
+          >
+            Couldn&apos;t update<span className="sr-only">: {error}</span>
+          </TooltipTrigger>
+          <TooltipContent>{error}</TooltipContent>
+        </Tooltip>
       )}
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -203,7 +231,7 @@ function RowActions({ posting }: { posting: Posting }) {
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={() => setIsClosing(true)}>
-                Close job
+                Close Job
               </DropdownMenuItem>
             </>
           )}
@@ -263,6 +291,7 @@ export function JobsTable({ postings, empty }: { postings: Posting[]; empty: str
         table={table}
         searchColumnId="role"
         searchPlaceholder="Search roles"
+        searchLabel="Search Roles"
         filters={FILTERS}
       />
       <DataTable table={table} empty={empty} />

@@ -25,7 +25,7 @@ export function NavLink({ href, children }: { href: string; children: React.Reac
     <Link
       href={href}
       aria-current={isActive ? "page" : undefined}
-      className={`text-body focus-visible:ring-brand-ring border-b-2 pb-px font-medium focus-visible:rounded-xs focus-visible:ring-2 focus-visible:outline-none ${
+      className={`text-body focus-visible:ring-brand-ring border-b-2 pb-px font-medium whitespace-nowrap focus-visible:rounded-xs focus-visible:ring-2 focus-visible:outline-none ${
         isActive ? "text-brand border-brand" : "text-ink-meta hover:text-ink border-transparent"
       }`}
     >

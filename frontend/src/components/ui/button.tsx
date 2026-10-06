@@ -15,6 +15,16 @@ import { cn } from "@/lib/cn";
  * value below reproduces a class string that was previously inline, so adopting
  * this component is not meant to move any pixels.
  *
+ * ONE DELIBERATE 2PX: the filled variants (`default`, `positive`,
+ * `destructive`) carry a transparent border. Without it they were 2px shorter
+ * than the bordered ones on the same padding, so Apply Now sat at 30px beside
+ * a 32px Save. Every variant at a size is now the same box: sm 32px, default
+ * 36px, lg 42px.
+ *
+ * Every focus ring is solid (see --color-brand-ring in globals.css), and the
+ * filled variants hold theirs 2px off the fill with ring-offset-2: a solid ring
+ * touching a fill of its own colour reads as a bigger button, not as focus.
+ *
  * `font-medium` sits in the base because every button in both mockups resolves
  * to weight 500 — either from --text-label/--text-note's baked-in weight or from
  * an explicit font-medium. Gap lives in the sizes, not the base, so that the
@@ -48,10 +58,10 @@ import { cn } from "@/lib/cn";
  *   outline        outline      brand outline
  *   ghost          quiet        brand text, no chrome
  *
- * `positive` and `inline` have no shadcn equivalent and are kept as WorkIt
- * roles. `destructive`, `link`, `xs` and the `icon-*` sizes are the reverse —
- * shadcn expects them, no mockup draws them, so they are marked UNMEASURED
- * below and are extrapolations rather than sampled values.
+ * `positive`, `section` and `inline` have no shadcn equivalent and are kept
+ * as WorkIt roles. `destructive`, `link`, `xs` and the `icon-*` sizes are the
+ * reverse: shadcn expects them, no mockup draws them, so they are marked
+ * UNMEASURED below and are extrapolations rather than sampled values.
  *
  * Base UI's ButtonPrimitive rather than a bare <button>: it is what shadcn's
  * components compose against, so `render={<Button />}` works, and it already
@@ -66,7 +76,7 @@ export const buttonVariants = cva(
       variant: {
         /** Brand fill — the primary action on a screen. */
         default:
-          "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control focus-visible:ring-[3px]",
+          "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
         /** Bordered neutral — alternatives sitting beside a primary action. */
         secondary:
           "border-border-subtle bg-surface text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
@@ -77,26 +87,40 @@ export const buttonVariants = cva(
          *  and the only place a control is not brand-coloured. No shadcn
          *  equivalent: its palette has no success role. */
         positive:
-          "bg-positive text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control focus-visible:ring-[3px]",
-        /** Text only — section actions in a card header, which carry no chrome.
+          "bg-positive text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+        /** Text only, in brand, no chrome: an inline action such as a form's
+         *  Add Question or a table's Clear Selection. A section heading's
+         *  action is `section` instead.
          *  shadcn calls this `ghost` and means a neutral glyph with a hover
          *  fill; WorkIt's is brand-coloured, which is the reading kept here
          *  because four call sites were drawn that way. */
         ghost:
           "text-brand hover:text-brand-hover focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2",
-        /** UNMEASURED — no mockup draws a destructive action, and --destructive
-         *  is still shadcn's stock red (see globals.css). Shaped like the other
-         *  fills so it is at least consistent when a delete flow lands. */
+        /** Muted text, darkening to ink on hover: an action at the top right of
+         *  an open section's heading (the profile's Add and Edit). It wears
+         *  ui/section-link.tsx's look, so a section's one control has the same
+         *  weight whether it acts here or goes somewhere. WorkIt-only. */
+        section:
+          "text-ink-muted hover:text-ink focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2",
+        /** UNMEASURED: no mockup draws a destructive action. --destructive
+         *  aliases --color-danger, the Rejected chip's red (see globals.css),
+         *  so the app has one red. Shaped and ringed like the other fills. */
         destructive:
-          "bg-destructive text-on-brand hover:bg-destructive/90 focus-visible:ring-destructive/35 rounded-control focus-visible:ring-[3px]",
+          "bg-destructive text-on-brand hover:bg-destructive/90 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
         /** UNMEASURED — provided because shadcn components ask for it. For a
          *  link inside running text prefer <TextLink>, which inherits the
          *  sentence's type size instead of setting its own. */
         link: "text-brand hover:text-brand-hover rounded-xs underline-offset-4 hover:underline focus-visible:ring-brand-ring focus-visible:ring-2",
       },
       size: {
-        /** Padding-free. WorkIt-only: shadcn has no size without a box. */
-        inline: "text-note gap-1",
+        /** Padding-free. WorkIt-only: shadcn has no size without a box. The
+         *  ::after widens the hit area past the 16px text without moving
+         *  anything around it. */
+        inline:
+          "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
+        /** `inline` at SectionLink's 13px, with its 14px glyph. */
+        section:
+          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg]:size-3.5",
         /** UNMEASURED — extrapolated between `inline` and `sm`. */
         xs: "text-note gap-1 px-2 py-1",
         sm: "text-label gap-2 px-2.5 py-1.5",
@@ -131,6 +155,7 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
   positive: "sm",
   outline: "sm",
   ghost: "inline",
+  section: "section",
   link: "inline",
 };
 

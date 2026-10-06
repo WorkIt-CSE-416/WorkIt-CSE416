@@ -20,10 +20,21 @@ export const metadata: Metadata = {
  * both are applicants and only one of them is a list of applications. If the
  * two ever need telling apart in a sentence, name the axis rather than
  * reintroducing a second noun for the same person.
+ *
+ * ?q= is where the company bar's search lands. It is read here, the way
+ * /search reads its own, and handed to the table as its starting name filter,
+ * so the first render is already filtered. The key is the query because the
+ * table reads its starting state once: a second search from the bar re-renders
+ * this same page, and without a new key the table would keep the old filter.
  */
-export default function CompanyApplicantsPage() {
+export default async function CompanyApplicantsPage({
+  searchParams,
+}: PageProps<"/company/applicants">) {
+  const { q } = await searchParams;
+  const query = typeof q === "string" ? q.trim() : "";
+
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
       <header className="mb-5">
         <h1 className="text-heading text-ink">Applicants</h1>
         <p className="text-body text-ink-meta mt-1">
@@ -31,7 +42,7 @@ export default function CompanyApplicantsPage() {
         </p>
       </header>
 
-      <ApplicantsTable />
+      <ApplicantsTable key={query} query={query} />
     </div>
   );
 }

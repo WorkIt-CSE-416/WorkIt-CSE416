@@ -48,7 +48,7 @@ const twMerge = extendTailwindMerge({
           ],
         },
       ],
-      rounded: [{ rounded: ["control", "card"] }],
+      rounded: [{ rounded: ["control", "card", "shell"] }],
       shadow: [{ shadow: ["card", "panel"] }],
       "max-w": [{ "max-w": ["auth", "app"] }],
     },
