@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
-from app.deps import get_current_account
+from app.deps import assert_applicant_owns, get_current_account
 from app.models.profiles import Applicant_Profile
-from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.schemas.auth import AuthenticatedAccount
 from app.schemas.avatar import AvatarResponse
 from app.services.avatar import (
     MAX_UPLOAD_BYTES,
@@ -29,12 +29,6 @@ BUCKET = "Avatar"
 # Matches the Supabase access token's lifetime, so a page that is still
 # signed in never shows a broken image because its URL ran out first.
 SIGNED_URL_TTL_SECONDS = 60 * 60
-
-
-def _assert_can_edit(account: AuthenticatedAccount, applicant_id: uuid.UUID) -> None:
-    """Only the applicant changes their own photo."""
-    if account.account_type != AccountType.APPLICANT or account.id != applicant_id:
-        raise HTTPException(403, "Forbidden")
 
 
 async def _signed_url(path: str) -> str | None:
@@ -100,7 +94,7 @@ async def upload_avatar(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ) -> AvatarResponse:
-    _assert_can_edit(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
 
     if file.size is not None and file.size > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Image must be under 5 MB")
@@ -156,7 +150,7 @@ async def delete_avatar(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ) -> AvatarResponse:
-    _assert_can_edit(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
 
     profile = await _load_profile(session, applicant_id, lock=True)
     old_path = profile.avatar_path

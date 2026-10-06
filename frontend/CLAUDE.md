@@ -152,6 +152,9 @@ src/lib/          Framework-free helpers
                   content, make one primary, and a signed file link. Used
                   by both onboarding and profile.
   avatar-actions.ts  Server actions for the profile photo: get/upload/remove
+  profile-actions.ts Server actions for the applicant's identity fields:
+                  getProfile (GET) and updateProfile (PATCH). Used by the
+                  seeker profile page and cached alongside resumes and avatar
   job-actions.ts  Server actions for the company's jobs: saveJob (create, or
                   update with the updated_at it was loaded with, so a save over
                   someone else's is a 409) and changeJobStatus (pause, resume,
@@ -503,7 +506,8 @@ not "Upload a resume".
 
 **My Profile is cached for the life of the seeker shell.**
 `(seeker)/profile-cache.tsx` keeps the page's last state (resumes, the shown
-resume's content, the photo URL) in a provider in `(seeker)/layout.tsx`. A
+resume's content, the photo URL, the applicant profile fields) in a provider
+in `(seeker)/layout.tsx`. A
 return visit renders it at once and refetches in the background. Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
 preview is on screen (that URL is revoked once the upload ends), and not

@@ -146,6 +146,13 @@ async def get_verified_identity(
     return VerifiedIdentity(id=account_id, email=email, account_type=account_type, full_name=full_name)
 
 
+def assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUID) -> None:
+    """Shared ownership guard: the caller must be an applicant whose id matches
+    the path. Used by resumes, avatars and profile endpoints."""
+    if account.account_type != AccountType.APPLICANT or account.id != applicant_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
+
+
 def _not_a_company_member() -> HTTPException:
     return HTTPException(status.HTTP_403_FORBIDDEN, "Only active company members can do this.")
 
