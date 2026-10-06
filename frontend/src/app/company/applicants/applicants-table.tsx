@@ -34,7 +34,7 @@ const columns = helper.columns([
     filterFn: "includesString",
     cell: ({ row }) => (
       <div className="flex max-w-[18rem] min-w-0 items-center gap-2.5">
-        <Avatar name={row.original.name} className="size-7 shrink-0 text-[0.625rem]" />
+        <Avatar name={row.original.name} className="text-meta size-7 shrink-0" />
         <div className="min-w-0">
           <RowLink href={`/company/applicants/${row.original.id}`} className="text-label">
             {row.original.name}

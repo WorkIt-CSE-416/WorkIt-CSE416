@@ -157,7 +157,7 @@ export default function CompanyHomePage() {
              which the ring lays its legend beside itself. Split any earlier
              and the ring stacks over its legend in half a band, which
              stretches both halves and spreads the role bars apart. */}
-        <section aria-labelledby="pipeline" className="bg-app mt-12 rounded-[1.25rem] p-5 sm:p-6">
+        <section aria-labelledby="pipeline" className="bg-app rounded-shell mt-12 p-5 sm:p-6">
           <SectionHeading
             id="pipeline"
             action={

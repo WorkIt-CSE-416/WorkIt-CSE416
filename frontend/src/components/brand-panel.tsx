@@ -83,7 +83,7 @@ const pillars: Pillar[] = [
  * heading started in the pitch instead of at "Welcome Back".
  *
  * Promoted from login/brand-panel.tsx the day signup became a second
- * consumer — same reasoning as this file's siblings (nav-link, account-menu).
+ * consumer — same reasoning as its sibling account-menu.tsx.
  */
 export function BrandPanel() {
   return (

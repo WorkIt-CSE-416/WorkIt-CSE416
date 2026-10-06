@@ -162,7 +162,11 @@ export function RangePicker() {
             endMonth={toDate(SERIES_END)}
             disabled={{ before: toDate(SERIES_START), after: toDate(SERIES_END) }}
             numberOfMonths={1}
-            className="p-3"
+            /* The weekday row is stock shadcn's 12.8px (text-[0.8rem]), the
+               one size in the picker that is not on WorkIt's scale. Its
+               react-day-picker class, rdp-weekday, is stable, so the root
+               reaches it as --text-note rather than forking calendar.tsx. */
+            className="[&_.rdp-weekday]:text-note p-3"
             components={{
               DayButton: (dayProps) => <CalendarDayButton {...dayProps} className="text-ink" />,
             }}

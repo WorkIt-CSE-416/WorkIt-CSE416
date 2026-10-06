@@ -24,7 +24,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
  * attribute, because the switcher is rendered above the form rather than in it.
  *
  * Promoted from login/account-type.tsx the day signup became a second
- * consumer — same reasoning as this file's siblings (nav-link, account-menu).
+ * consumer — same reasoning as its sibling account-menu.tsx.
  */
 const TYPES = [
   { value: "applicant", label: "Applicant" },

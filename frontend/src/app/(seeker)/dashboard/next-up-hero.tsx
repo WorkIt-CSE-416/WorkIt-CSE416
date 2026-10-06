@@ -29,7 +29,7 @@ export function NextUpHero({ item }: { item: UpNextItem | undefined }) {
   return (
     <section
       aria-labelledby="next-up"
-      className="from-brand to-brand-active text-on-brand shadow-card relative flex min-h-52 flex-col overflow-hidden rounded-[1.25rem] bg-linear-to-br p-6"
+      className="from-brand to-brand-active text-on-brand shadow-card rounded-shell relative flex min-h-52 flex-col overflow-hidden bg-linear-to-br p-6"
     >
       <HeroArcs />
 

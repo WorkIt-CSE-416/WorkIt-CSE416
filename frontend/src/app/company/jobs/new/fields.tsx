@@ -373,6 +373,8 @@ export function DateField({ id, label, value, onValueChange, placeholder }: Date
                and, without this, still clickable. A closing date earlier
                than today is never valid. */
             disabled={{ before: today }}
+            /* The weekday row onto --text-note, as on ../../range-picker.tsx. */
+            className="[&_.rdp-weekday]:text-note"
             onSelect={(date) => {
               onValueChange(date ? formatCloseDateValue(date) : "");
               setOpen(false);

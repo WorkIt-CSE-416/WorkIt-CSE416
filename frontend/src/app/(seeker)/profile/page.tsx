@@ -625,7 +625,7 @@ export default function ProfilePage() {
         <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Delete This Resume?</DialogTitle>
+              <DialogTitle className="text-subtitle font-semibold">Delete This Resume?</DialogTitle>
               <DialogDescription>
                 <span className="text-ink font-medium wrap-anywhere">
                   {deleteTarget?.original_filename ?? "This resume"}

@@ -96,7 +96,11 @@ src/app/          App Router routes, layouts, pages
   design-kit/     Every token and component, one route per section, resolved
                   from the live stylesheet — outside both shells on purpose.
                   Section titles and notes live in its data.ts so the nav and
-                  each page heading cannot disagree.
+                  each page heading cannot disagree. A new token or shared
+                  component gets its row there in the same change. Shell
+                  holds the bars' logo, bell and account menu; the left
+                  panel and the auth forms are not shown, since they need a
+                  shell's provider or a server action
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
   logo.tsx        The WorkIt logo: <Logo> picks a lockup or half per size,
@@ -119,7 +123,6 @@ src/components/   Shared components
   notifications-menu.tsx  The bar's bell, a popover holding an empty state.
                   Shared by both shells
   save-button.tsx The one Save control on every job surface
-  nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
   account-menu.tsx  Both bars' account dropdown: a name and email header,
@@ -178,7 +181,8 @@ components.json   shadcn config — see docs/shadcn.md before changing its alias
 Anything shared by more than one route lives in `src/components`; anything used
 by exactly one route stays beside it (`company/placeholder.tsx`, the per-route
 `icons.tsx` files). Promote on the second consumer, not in anticipation of one —
-the app shell's avatar, nav link and account menu moved to `src/components` the
+the app shell's avatar and account menu (and a top-bar nav link, deleted once
+both shells moved to a left panel) went to `src/components` the
 day the company shell became that second consumer.
 Styling for a control belongs in its component, not inline at the call site —
 `src/components/ui/button.tsx` is the only place button classes are written, and
@@ -289,6 +293,18 @@ have not built — dialogs, selects, popovers — and is regenerated in place, s
 hand edits there are a fork. shadcn's colour roles are aliased onto WorkIt's
 tokens at the bottom of `globals.css`, which is why a generated component needs
 no restyling — fix the mapping there rather than the component.
+
+Its stock text sizes are bound the same way: `text-xs` is `--text-note` and
+`text-sm` is `--text-body`, so a menu row or a select option is body type by
+construction and moves when the scale does. WorkIt's own code still writes the
+token names, never `text-sm`. Where a vendored piece draws something the scale
+has no token for, the call site sets the token, since the file is not ours to
+edit: a `DialogTitle` or `SheetTitle` takes `text-subtitle font-semibold`
+(stock is 16px medium, a pairing nothing else uses), and a `Calendar` takes
+`[&_.rdp-weekday]:text-note` for its 12.8px weekday row. `text-base` stays
+unbound on purpose: it is the 16px that keeps iOS from zooming into the text
+and search fields below sm. `/design-kit/type` shows what each stock size
+resolves to.
 
 The two company list screens share `app/company/table.tsx` — a TanStack Table
 shell over shadcn's `Table`, with sorting, filtering and row selection. **It is
