@@ -58,8 +58,9 @@ src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
-  (seeker)/       Job-seeker shell — a left panel plus a top bar, the same
-                  dashboard layout as company/, and every screen behind it.
+  (seeker)/       Job-seeker shell, three white rounded panels (the section
+                  panel, the top bar, the page) floating on --color-frame,
+                  and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
@@ -165,10 +166,16 @@ cannot both define `/profile`, and both audiences need one — hence the prefix 
 the company side rather than a second invisible group. It also means the auth
 guard is one path check covering routes nobody has written yet.
 
-The two shells are separate layouts on purpose. Their shared parts are shared
-components (the panel is `app-sidebar.tsx`; the corner cell, the bell, the
-account menu and the search field are in `src/components`), and what is left
-is each bar's search target and copy. Each bar's search is a GET `next/form`
+The two shells are separate layouts on purpose, and they no longer look
+alike. The seeker shell floats: the section panel runs the full height with
+the logo in its header, beside a top bar and the page, each a white
+`rounded-shell` panel on the lavender `--color-frame`, 12px apart and 12px
+from the window. The company shell is still docked: a full-width bar with the
+lavender corner cell (`components/sidebar-brand.tsx`, company only now) over
+a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="floating"` or
+the default `docked`. Their other shared parts (the bell, the account menu,
+the search field) are in `src/components`, and what is left is each bar's
+search target and copy. Each bar's search is a GET `next/form`
 to its own results page: `/search` for a seeker, `/company/applicants` for a
 company. The seeker field is `(seeker)/search/query-field.tsx`, a client
 component that shows `?q` while on /search and empties elsewhere, because a
@@ -176,20 +183,26 @@ layout never receives searchParams. Lift a `<TopBar>` out only if they are
 still near-identical once both sides are real screens.
 
 Seeker pages break on the width they actually get, not the window's: the shell
-makes its scroller `@container/main`, because an open panel takes 256px. A
+makes its page panel `@container/main`, because an open panel takes 280px
+with its insets. A
 layout that splits into columns uses `@3xl/main:` and friends, and a card that
 rearranges itself (the job card) is its own `@container`. Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
-The seeker bar shows the signed-in account's real name and photo
+The seeker bar shows the signed-in account's real photo, with the full name
+and email beside it from xl, at 40px like the bar's white round bell and
+search controls (`(seeker)/bar.ts`)
 (`getCurrentAccount()` in `lib/session.ts`, cached per render), and a pill
 for roles posted in the last 24 hours when there are any (`(seeker)/status.ts`).
 The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-In both shells Settings lives in the panel's footer, not the account menu,
-which holds only the account header and Sign Out. The company bar's Sign Out
+The seeker panel groups its rows under two captions: Menu (Dashboard, Jobs,
+Applications, My Profile) and General (Settings, Help, Sign Out). Sign Out is
+a button row as well as the account menu's one item. The company panel keeps
+Settings alone in its footer, and its account menu holds only the account
+header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.
 
 `components/stat-tile.tsx` is shared by both dashboards, and both use its

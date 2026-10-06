@@ -122,26 +122,65 @@ const CURRENT_ITEM =
   "hover:bg-rail-selected hover:text-brand-ink " +
   "active:bg-rail-selected active:text-brand-ink";
 
-export type SidebarNavItem = {
-  href: string;
+type NavRowBase = {
   label: string;
   /** A Lucide icon — see "THE ICONS ARE LUCIDE'S" above. */
   Icon: ComponentType<{ className?: string }>;
-  /** Lit on this exact path only. Without it an item owns its whole subtree,
-   *  so /company/jobs/new still lights Job Postings; a shell's root item
-   *  (/company) needs it, or it would be lit on every screen. */
-  exact?: boolean;
 };
 
+/** A row is a link to a section, or an action that is not a place, like
+ *  Sign Out: a button drawn as the same row, never lit as current. */
+export type SidebarNavItem = NavRowBase &
+  (
+    | {
+        href: string;
+        /** Lit on this exact path only. Without it an item owns its whole
+         *  subtree, so /company/jobs/new still lights Job Postings; a shell's
+         *  root item (/company) needs it, or it would be lit on every
+         *  screen. */
+        exact?: boolean;
+      }
+    | { action: () => void | Promise<void> }
+  );
+
 /** `label` is the small heading over the group; leave it out when the panel
- *  has one group and the rows speak for themselves, as the seeker's does. */
+ *  has one group and the rows speak for themselves. */
 export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
+
+/**
+ * FLOATING is the seeker shell's panel: a white rounded panel inset 12px on
+ * the --color-frame ground, beside a top bar and a page drawn the same way,
+ * after the floating-panel dashboards the user pointed at. It runs the full
+ * height, so it carries the logo in its own header rather than leaving it to
+ * the bar, and its group headings are small uppercase captions ("Menu",
+ * "General"), the way those dashboards label a panel's sections.
+ *
+ * It is shadcn's default `sidebar` variant restyled, not its own `floating`
+ * one. shadcn's floating variant pads the panel 8px and sizes the collapsed
+ * rail and the in-flow gap beside it with two separate calc()s that both
+ * assume that 8px, so a 12px inset would leave the gap 8px short of the
+ * collapsed panel. The default variant sizes both from --sidebar-width and
+ * --sidebar-width-icon alone, so the shell widens those by the inset (see
+ * its layout.tsx) and the padding is just padding.
+ *
+ * DOCKED is the company shell's: the full-bleed lavender panel under a
+ * full-width bar, offset by the bar's height. See "WHY IT IS OFFSET".
+ */
+const FLOATING =
+  "p-3 group-data-[side=left]:border-r-0 " +
+  "[&>[data-slot=sidebar-inner]]:rounded-shell [&>[data-slot=sidebar-inner]]:border-rail-border " +
+  "[&>[data-slot=sidebar-inner]]:bg-panel [&>[data-slot=sidebar-inner]]:shadow-panel " +
+  "[&>[data-slot=sidebar-inner]]:overflow-hidden [&>[data-slot=sidebar-inner]]:border";
+
+const GROUP_CAPTION = "text-caption text-ink-meta font-semibold uppercase";
 
 export function AppSidebar({
   groups,
   footer,
   footerCard,
   label,
+  variant = "docked",
+  home,
   className,
 }: {
   groups: SidebarNavGroup[];
@@ -154,54 +193,130 @@ export function AppSidebar({
   footer?: SidebarNavItem[];
   /** The name of the panel's <nav> landmark, e.g. "Company Sections". */
   label: string;
-  /** The shell's bar offset — see "WHY IT IS OFFSET" above. */
+  /** See FLOATING above. */
+  variant?: "docked" | "floating";
+  /** Where the floating panel's logo goes home to. */
+  home?: string;
+  /** The docked shell's bar offset; see "WHY IT IS OFFSET" above. */
   className?: string;
 }) {
   const pathname = usePathname();
   const { isMobile } = useSidebar();
+  const floating = variant === "floating";
 
   return (
-    <Sidebar collapsible="icon" className={cn("border-rail-border h-auto", className)}>
-      {isMobile && (
-        <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
-          <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
-          <Logo size="bar" />
-        </SidebarHeader>
-      )}
-
-      <nav aria-label={label} className="flex min-h-0 flex-1 flex-col">
-        <SidebarContent className="pt-2">
-          {groups.map((group, i) => (
-            <SidebarGroup key={group.label ?? i}>
-              {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
-              <SidebarMenu className={MENU}>
-                {group.items.map((item) => (
-                  <NavRow key={item.href} item={item} pathname={pathname} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroup>
-          ))}
-        </SidebarContent>
-
-        {(footerCard || (footer && footer.length > 0)) && (
-          <SidebarFooter className="gap-3 pb-3">
-            {footerCard}
-            <SidebarMenu className={MENU}>
-              {footer?.map((item) => (
-                <NavRow key={item.href} item={item} pathname={pathname} />
-              ))}
-            </SidebarMenu>
-          </SidebarFooter>
+    <Sidebar
+      collapsible="icon"
+      className={cn(floating ? FLOATING : "border-rail-border h-auto", className)}
+    >
+      {/* The sheet keeps shadcn's lavender, so on a phone the floating panel
+          paints its own white to match the panels it opens over. */}
+      <div className={cn("flex size-full min-h-0 flex-col", floating && "bg-panel")}>
+        {isMobile && (
+          <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
+            <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
+            <Logo size="bar" />
+          </SidebarHeader>
         )}
-      </nav>
+
+        {floating && !isMobile && home && <PanelBrand href={home} />}
+
+        <nav aria-label={label} className="flex min-h-0 flex-1 flex-col">
+          <SidebarContent className={floating ? "gap-1 pt-1" : "pt-2"}>
+            {groups.map((group, i) => (
+              <SidebarGroup key={group.label ?? i}>
+                {group.label && (
+                  <SidebarGroupLabel className={cn(floating && GROUP_CAPTION)}>
+                    {group.label}
+                  </SidebarGroupLabel>
+                )}
+                <SidebarMenu className={MENU}>
+                  {group.items.map((item) => (
+                    <NavRow key={item.label} item={item} pathname={pathname} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            ))}
+          </SidebarContent>
+
+          {(footerCard || (footer && footer.length > 0)) && (
+            <SidebarFooter className="gap-3 pb-3">
+              {footerCard}
+              {footer && footer.length > 0 && (
+                <SidebarMenu className={MENU}>
+                  {footer.map((item) => (
+                    <NavRow key={item.label} item={item} pathname={pathname} />
+                  ))}
+                </SidebarMenu>
+              )}
+            </SidebarFooter>
+          )}
+        </nav>
+      </div>
     </Sidebar>
   );
 }
 
+/**
+ * The floating panel's logo: the lockup as its two halves (see `mark` in
+ * @/components/logo). The mark never moves: its ink is centred on x=24, the
+ * line every rail icon is centred on whether the panel is open (8px group
+ * inset, 8px row padding, a 16px glyph) or collapsed to the 48px rail. Only
+ * the wordmark changes, fading on the panel's own 200ms while the narrowing
+ * panel clips it, so collapsing never swaps one image for another mid-way.
+ * The link stays live on the rail, where the mark alone still goes home.
+ *
+ * 64px tall, the top bar's height, so the panel's header and the bar beside
+ * it share one top line and one bottom line.
+ */
+function PanelBrand({ href }: { href: string }) {
+  const { state } = useSidebar();
+
+  return (
+    <SidebarHeader className="h-16 shrink-0 flex-row items-center p-0 pl-1">
+      <Link
+        href={href}
+        className="focus-visible:ring-brand-ring flex shrink-0 items-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <Logo size="mark" priority className="h-9" />
+        <Logo
+          size="wordmark"
+          decorative
+          priority
+          className={cn(
+            "h-9 transition-opacity duration-200 ease-linear",
+            state === "collapsed" && "opacity-0",
+          )}
+        />
+      </Link>
+    </SidebarHeader>
+  );
+}
+
 function NavRow({ item, pathname }: { item: SidebarNavItem; pathname: string }) {
-  const { href, label, Icon, exact } = item;
-  const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  const { label, Icon } = item;
   const { setOpenMobile } = useSidebar();
+
+  if ("action" in item) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          tooltip={label}
+          onClick={() => {
+            setOpenMobile(false);
+            void item.action();
+          }}
+          className={cn(MENU_BUTTON, "cursor-pointer")}
+        >
+          <Icon className="size-4" />
+          <span>{label}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  const { href, exact } = item;
+  const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <SidebarMenuItem>

@@ -24,7 +24,8 @@ import { countNewRoles } from "./status";
  * than a label. See ./status.ts for why it is the only message left here.
  *
  * From lg only. Below that the bar's width goes to the search field, and the
- * status is a convenience rather than the only route to anything.
+ * status is a convenience rather than the only route to anything. 40px tall,
+ * the height of the bar's round controls and the avatar beside it.
  */
 export async function SeekerStatusLine() {
   const account = await getCurrentAccount();
@@ -36,7 +37,7 @@ export async function SeekerStatusLine() {
   return (
     <Link
       href="/jobs"
-      className="text-note focus-visible:ring-brand-ring bg-brand-tint text-brand-ink hover:bg-brand-pale hidden h-8 shrink-0 items-center gap-2 rounded-full px-3 font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none lg:inline-flex"
+      className="text-note focus-visible:ring-brand-ring bg-brand-tint text-brand-ink hover:bg-brand-pale hidden h-10 shrink-0 items-center gap-2 rounded-full px-4 font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none lg:inline-flex"
     >
       <span aria-hidden="true" className="relative flex size-2">
         <span className="bg-brand motion-safe:animate-status-ping absolute inset-0 rounded-full" />

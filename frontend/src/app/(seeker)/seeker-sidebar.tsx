@@ -1,34 +1,39 @@
 "use client";
 
-import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
-import type { ReactNode } from "react";
-
 import {
   BriefcaseBusiness,
+  CircleHelp,
   CircleUserRound,
   LayoutDashboard,
+  LogOut,
   Settings,
   SquareKanban,
 } from "lucide-react";
+import type { ReactNode } from "react";
+
+import { signOut } from "@/app/actions";
+import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
 
 /**
- * The seeker shell's left panel: the sections a job seeker moves between all
- * through a hunt, Dashboard first as the home, which used to be tabs in the
- * top bar. The bar
- * keeps what is global to every screen — the logo, job search,
- * notifications and the account menu — the same split the company shell
- * makes. The panel itself is @/components/app-sidebar, shared with that
- * shell, so it collapses to an icon rail on desktop and opens as a sheet on a
- * phone the same way.
+ * The seeker shell's left panel, floating (see FLOATING in
+ * @/components/app-sidebar), in two captioned groups:
+ *
+ * MENU is the hunt itself, the sections a job seeker moves between all
+ * through a search, Dashboard first as the home. These used to be tabs in
+ * the top bar.
+ *
+ * GENERAL is everything about the app rather than the work: Settings, Help
+ * and Sign Out. Settings sat alone at the panel's foot; Help and Sign Out
+ * joined it when the shell took the floating layout, which groups them
+ * under one caption straight after the sections. Sign Out is a row as well
+ * as the account menu's one item, because the panel is where the reference
+ * layout keeps it and the avatar menu is where people already reach for it.
+ * It is a button, not a link: it is an action, and it is never lit as the
+ * current page.
  *
  * There is no Search row. /search is where the bar's own field lands a query
  * (and, on a phone, the bar's magnifier), and a row beside that field would
  * be a second, contradictory way to reach it.
- *
- * Settings is pinned to the panel's foot rather than living in the account
- * menu: it is where you change how the app works, not part of the hunt, and
- * a dashboard keeps that at the bottom of its panel. /settings has nothing
- * to change yet, and says so inside the shell.
  *
  * My Profile is a row rather than an item in the account menu: a profile is
  * somewhere a job seeker goes back to all through a hunt, not somewhere they
@@ -38,7 +43,7 @@ import {
  */
 const GROUPS: SidebarNavGroup[] = [
   {
-    // No group heading: one group of four rows needs no title over it.
+    label: "Menu",
     items: [
       { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
@@ -46,9 +51,15 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/profile", label: "My Profile", Icon: CircleUserRound },
     ],
   },
+  {
+    label: "General",
+    items: [
+      { href: "/settings", label: "Settings", Icon: Settings },
+      { href: "/help", label: "Help", Icon: CircleHelp },
+      { action: signOut, label: "Sign Out", Icon: LogOut },
+    ],
+  },
 ];
-
-const FOOTER = [{ href: "/settings", label: "Settings", Icon: Settings }];
 
 /** `card` is the profile strength card, rendered on the server by the layout
  *  (it reads the API) and passed through, since this panel is a client
@@ -57,10 +68,10 @@ export function SeekerSidebar({ card }: { card?: ReactNode }) {
   return (
     <AppSidebar
       groups={GROUPS}
-      footer={FOOTER}
       footerCard={card}
       label="Job Search Sections"
-      className="top-(--seeker-bar)!"
+      variant="floating"
+      home="/dashboard"
     />
   );
 }

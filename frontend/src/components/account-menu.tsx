@@ -70,10 +70,11 @@ type AccountMenuProps = {
   email?: string;
   /** The profile photo's signed URL; initials when absent. */
   src?: string | null;
-  /** Print the name beside the photo from xl up. Below that the bar's width
-   *  goes to the search field, so the name waiting on the API cannot squeeze
-   *  it when it lands. The seeker bar does; the company bar keeps the bare
-   *  avatar. */
+  /** Print the name with the email under it beside a 40px photo, from xl up.
+   *  Below that the bar's width goes to the search field, so the name waiting
+   *  on the API cannot squeeze it when it lands. The seeker bar does, and its
+   *  photo is 40px at every width to match the bar's round controls; the
+   *  company bar keeps the bare 32px avatar. */
   showName?: boolean;
   items: readonly AccountMenuItem[];
   /**
@@ -92,6 +93,8 @@ export function AccountMenu({
   items,
   onSignOut,
 }: AccountMenuProps) {
+  const avatarSize = showName ? "size-10" : "size-8";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -103,18 +106,30 @@ export function AccountMenu({
          * where the <Link> this replaced showed a hand. */
         className={cn(
           "focus-visible:ring-brand-ring flex cursor-pointer items-center gap-2.5 rounded-full focus-visible:ring-2 focus-visible:outline-none",
-          showName && name && "xl:hover:bg-hover xl:-my-1 xl:py-1 xl:pr-3 xl:pl-1",
+          showName && name && "xl:hover:bg-hover xl:-my-1 xl:py-1 xl:pr-4 xl:pl-1",
         )}
       >
         {name ? (
-          <Avatar name={name} src={src} className="text-note size-8" />
+          <Avatar name={name} src={src} className={cn("text-note", avatarSize)} />
         ) : (
-          <span className="bg-brand-tint text-brand flex size-8 items-center justify-center rounded-full">
+          <span
+            className={cn(
+              "bg-brand-tint text-brand flex items-center justify-center rounded-full",
+              avatarSize,
+            )}
+          >
             <UserIcon className="size-4" />
           </span>
         )}
         {showName && name && (
-          <span className="text-label text-ink hidden max-w-40 truncate xl:block">{name}</span>
+          <span className="hidden min-w-0 text-left xl:block">
+            <span className="text-label text-ink block max-w-44 truncate font-semibold">
+              {name}
+            </span>
+            {email && (
+              <span className="text-note text-ink-meta block max-w-44 truncate">{email}</span>
+            )}
+          </span>
         )}
       </DropdownMenuTrigger>
 

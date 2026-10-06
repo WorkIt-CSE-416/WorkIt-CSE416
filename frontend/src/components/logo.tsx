@@ -3,7 +3,8 @@ import Image from "next/image";
 import { cn } from "@/lib/cn";
 
 /**
- * The WorkIt logo — the full lockup, at the two heights the app uses.
+ * The WorkIt logo: the full lockup at the two heights the app uses, and the
+ * same lockup in two halves for the seeker panel's header.
  *
  * The asset is complete artwork — the wordmark is drawn into the lockup, not
  * rendered as HTML beside it — so nothing here draws text. It carries 16px of
@@ -17,7 +18,8 @@ import { cn } from "@/lib/cn";
  * wordmark to its right, leaving the mark's height alone (the 2.5px lift below
  * came later, and applies to both halves). That crop still ships as
  * public/workit-icon.png because
- * scripts/make-favicon.mjs builds the favicon from it, but no size renders it.
+ * scripts/make-favicon.mjs builds the favicon from it; the `mark` size renders
+ * the same crop of the ink lockup instead, so it matches the bar's ink.
  *
  * The bar size is lifted 2.5px because the artwork is bottom-heavy and a box
  * centred by its edges puts the ink low. Alpha-weighted centroids of the sheet,
@@ -52,6 +54,24 @@ const SIZES = {
     classes: "h-10 w-auto -translate-y-[2.5px]",
     rendered: "112px",
   },
+  /** The lockup in two halves, for the seeker panel's header: the ink lockup
+   *  cut at x=481, the edge of the violet icon's own crop. Set side by side at
+   *  the same 40px they are the `bar` lockup pixel for pixel, so the panel
+   *  can keep the mark still on the rail icons' line and fade only the
+   *  wordmark as it collapses, rather than swapping one image for another
+   *  mid-animation. Both carry the bar's 2.5px lift. */
+  mark: {
+    src: "/workit-icon-ink.png",
+    intrinsic: { width: 481, height: 448 },
+    classes: "h-10 w-auto -translate-y-[2.5px]",
+    rendered: "43px",
+  },
+  wordmark: {
+    src: "/workit-wordmark-ink.png",
+    intrinsic: { width: 775, height: 448 },
+    classes: "h-10 w-auto -translate-y-[2.5px]",
+    rendered: "70px",
+  },
   /** Auth card — the full lockup. 48px tall renders ~135px wide. */
   card: {
     src: "/workit-logo.png",
@@ -65,16 +85,19 @@ type LogoProps = {
   size?: keyof typeof SIZES;
   /** Set on the topmost logo of a route; it is the first brand element painted. */
   priority?: boolean;
+  /** Empty alt text, for the wordmark half beside a mark that already says
+   *  "WorkIt", so the name is not read twice. */
+  decorative?: boolean;
   className?: string;
 };
 
-export function Logo({ size = "bar", priority = false, className }: LogoProps) {
+export function Logo({ size = "bar", priority = false, decorative = false, className }: LogoProps) {
   const { src, intrinsic, classes, rendered } = SIZES[size];
 
   return (
     <Image
       src={src}
-      alt="WorkIt"
+      alt={decorative ? "" : "WorkIt"}
       width={intrinsic.width}
       height={intrinsic.height}
       sizes={rendered}
