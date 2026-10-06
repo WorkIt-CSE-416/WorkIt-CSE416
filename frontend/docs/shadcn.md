@@ -219,10 +219,11 @@ names. Rather than edit every component we pull in, the bottom of
 | `--secondary`          | `--color-surface`       |
 | `--muted`              | `--color-well`          |
 | `--muted-foreground`   | `--color-ink-meta`      |
-| `--accent`             | `--color-brand-tint`    |
+| `--accent`             | `--color-hover`         |
 | `--border`             | `--color-border`        |
 | `--input`              | `--color-border-subtle` |
 | `--ring`               | `--color-brand`         |
+| `--destructive`        | `--color-danger`        |
 
 Values are deliberately not listed here — they go stale the first time anyone
 edits `globals.css`. Run the app and open **`/design-kit/colour`**, which reads
@@ -244,11 +245,7 @@ Three lines `init` generated were removed, each for a reason recorded in
   pill (6px → 8px) and `ui/text-link.tsx`'s focus ring (4px → 6px). Stock
   Tailwind radii are what existing call sites were measured against.
 
-Still undesigned, holding shadcn's stock value: `--destructive` (WorkIt has no
-red — no mockup draws a destructive action). It is marked `OPEN` in
-`globals.css`.
-
-`--chart-1…5` used to be `OPEN` too. They are now the badge tones in a fixed
+`--chart-1…5` used to be `OPEN`. They are now the badge tones in a fixed
 order — brand, advanced, positive, danger, then a de-emphasis grey — so a stage
 is one colour whether it is drawn as a pill or as a bar. The reasoning, the
 validator results, and why there is no fifth hue are recorded above the block in

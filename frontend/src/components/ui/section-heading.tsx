@@ -16,6 +16,9 @@ import { cn } from "@/lib/cn";
  * alignment is what keeps the action's text sitting on the title's baseline
  * rather than centred against the taller box.
  *
+ * `text-balance` evens out a title that wraps, so a long one on a phone does
+ * not leave its last word alone on a line.
+ *
  * Headings that carry more than one trailing element — the board's column
  * header, with a count and a menu — build their own row. Bending this to fit
  * them would cost more than the duplication saves.
@@ -37,7 +40,7 @@ export function SectionHeading({
   children,
 }: SectionHeadingProps) {
   const heading = (
-    <Tag id={id} className={cn("text-title text-ink", className)}>
+    <Tag id={id} className={cn("text-title text-ink text-balance", className)}>
       {children}
     </Tag>
   );

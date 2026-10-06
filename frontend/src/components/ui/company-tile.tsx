@@ -18,9 +18,12 @@ import { cn } from "@/lib/cn";
  * its own so two rows are told apart at a glance. `outline` is the exception —
  * the detail pane draws its tile as an empty bordered square rather than a
  * tinted one, because at 64px a flat tint would outweigh the title beside it.
+ * The Applications board, grid and list use it too, at sm: there a tinted tile
+ * read as a stage colour (violet is Applied, green is Offer), so their tiles
+ * stay neutral and the column or badge carries the stage.
  */
 const SIZES = {
-  sm: { box: "size-8 rounded", icon: "size-4" }, // applications board
+  sm: { box: "size-8 rounded", icon: "size-4" }, // applications board, grid and list
   md: { box: "size-10 rounded-control", icon: "size-5" }, // search result
   lg: { box: "size-16 rounded-control", icon: "size-7" }, // search detail
   xl: { box: "size-24 rounded-card", icon: "size-10" }, // company profile hero

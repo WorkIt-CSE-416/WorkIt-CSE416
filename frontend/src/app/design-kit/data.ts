@@ -92,8 +92,8 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--color-ink", role: "Headings" },
       { token: "--color-ink-muted", role: "Body copy, field labels" },
-      { token: "--color-ink-meta", role: "Nav links, subtitles, dates, glyphs" },
-      { token: "--color-ink-subtle", role: "Placeholders, input icons" },
+      { token: "--color-ink-meta", role: "Nav links, subtitles, dates, glyphs, placeholders" },
+      { token: "--color-ink-subtle", role: "De-emphasised glyphs: stat tiles, a picker's chevron" },
       { token: "--color-ink-faint", role: "A result card's timestamp" },
     ],
   },
@@ -107,7 +107,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-brand-tint", role: "Skill pills, badges, avatars, tiles" },
       { token: "--color-brand-ink", role: "Brand as text on a grey fill — AA safe" },
       { token: "--color-brand-pale", role: "Accent on a saved card" },
-      { token: "--color-brand-ring", role: "Derived — focus ring" },
+      { token: "--color-brand-ring", role: "Focus ring: the brand itself, 6.26:1 on white" },
     ],
   },
   {
@@ -118,7 +118,10 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-positive-tint", role: "The offer card's company tile" },
       { token: "--color-positive-hover", role: "Derived — 33% lightness" },
       { token: "--color-positive-active", role: "Derived — 27% lightness" },
-      { token: "--color-positive-ring", role: "Derived — focus ring" },
+      {
+        token: "--color-positive-ring",
+        role: "Focus ring on a positive fill: positive-ink, 5.35:1",
+      },
       { token: "--color-positive-ink", role: "Positive as text on its tint — AA safe" },
       { token: "--color-inert-tint", role: "Measured — a status that is over or not begun" },
       { token: "--color-warning", role: "UNMEASURED — halted, waiting on a decision" },
@@ -144,13 +147,17 @@ export const COLOR_GROUPS: ColorGroup[] = [
     title: "Borders",
     tokens: [
       { token: "--color-border", role: "Card outline" },
-      { token: "--color-border-subtle", role: "Inputs, secondary buttons, rules" },
+      { token: "--color-border-subtle", role: "Secondary buttons, rules" },
+      {
+        token: "--color-border-control",
+        role: "Input outline: 3.05:1 on surface, 3.24:1 on panel",
+      },
       { token: "--color-border-strong", role: "Dashed dropzone, spent timeline dot" },
     ],
   },
   {
     title: "shadcn roles",
-    note: "Aliases, not new colours. Every one points at a token above, which is why a stock shadcn component renders in WorkIt's palette with no editing. --destructive is the one exception: nothing has designed a red action yet. The chart ramp used to be a second exception and is now its own group above.",
+    note: "Aliases, not new colours. Every one points at a token above, which is why a stock shadcn component renders in WorkIt's palette with no editing. --destructive was the exception, shadcn's stock red, until it was pointed at --color-danger so a destructive action and a Rejected pill are one red. The chart ramp used to be a second exception and is now its own group above.",
     tokens: [
       { token: "--primary", role: "→ --color-brand" },
       { token: "--secondary", role: "→ --color-surface" },
@@ -164,7 +171,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--border", role: "→ --color-border" },
       { token: "--input", role: "→ --color-border-subtle" },
       { token: "--ring", role: "→ --color-brand" },
-      { token: "--destructive", role: "UNDESIGNED — shadcn's stock red" },
+      { token: "--destructive", role: "→ --color-danger · unmeasured" },
     ],
   },
 ];

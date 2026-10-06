@@ -10,7 +10,7 @@
  * are a placeholder: whoever owns the matching model sets the real ones, and
  * the labels are the only place the screen states them.
  *
- * Four bands, blue through red, rather than one flat colour at every score.
+ * Four bands, violet through red, rather than one flat colour at every score.
  * Top band reuses `--color-brand` — the score that earns the app's own
  * primary colour is the one worth calling out — and the three below it step
  * through green, yellow and red so the bands read as a falling scale rather
@@ -41,7 +41,8 @@ export function matchTier(score: number) {
   return tierFor(score).label;
 }
 
-/** The colour a match's ring and tier label draw in — see the note on `TIERS`. */
+/** The colour a match's ring, the dot before its tier label and the match
+ *  badge draw in. See the note on `TIERS`. */
 export function matchColor(score: number) {
   return tierFor(score).color;
 }

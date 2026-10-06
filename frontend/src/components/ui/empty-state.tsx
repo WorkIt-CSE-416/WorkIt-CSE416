@@ -16,6 +16,10 @@ import { cn } from "@/lib/cn";
  * role="status" rather than "alert": by the time this renders the page has
  * finished loading, and nothing here is urgent enough to interrupt a screen
  * reader mid-sentence.
+ *
+ * The title may break mid-word, because a caller can echo user input in it
+ * (/search puts the query there): an unbroken one, a pasted URL say, would
+ * otherwise widen the card past a phone's screen and scroll the page sideways.
  */
 export function EmptyState({
   Icon,
@@ -42,7 +46,7 @@ export function EmptyState({
       <span className="bg-brand-tint text-brand rounded-control flex size-10 items-center justify-center">
         <Icon className="size-5" />
       </span>
-      <h2 className="text-subtitle text-ink mt-3">{title}</h2>
+      <h2 className="text-subtitle text-ink mt-3 max-w-full break-words">{title}</h2>
       {children && <p className="text-body text-ink-meta mt-1 max-w-md">{children}</p>}
       {action && <div className="mt-4">{action}</div>}
       {detail && <p className="text-note text-ink-meta mt-3 max-w-md">{detail}</p>}
