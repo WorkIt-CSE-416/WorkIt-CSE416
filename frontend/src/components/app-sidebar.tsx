@@ -152,8 +152,8 @@ export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
  * the --color-frame ground, beside a top bar and a page drawn the same way,
  * after the floating-panel dashboards the user pointed at. It runs the full
  * height, so it carries the logo in its own header rather than leaving it to
- * the bar, and its group headings are small uppercase captions ("Menu",
- * "General"), the way those dashboards label a panel's sections.
+ * the bar, and its group headings are small uppercase captions ("Menu"),
+ * the way those dashboards label a panel's sections.
  *
  * It is shadcn's default `sidebar` variant restyled, not its own `floating`
  * one. shadcn's floating variant pads the panel 8px and sizes the collapsed
@@ -174,7 +174,7 @@ const FLOATING =
 
 /**
  * THE FLOATING PANEL'S SPACING is set on one vertical line, 28px in from the
- * panel's edge: the logo's mark, the "Menu" and "General" captions and every
+ * panel's edge: the logo's mark, the group captions and every
  * row's icon start on it, as the reference dashboard lines up its logo,
  * section labels and icons. The docked panel's 16px put everything close
  * enough to the edge to read as crammed against it, and its logo 5px in.

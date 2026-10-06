@@ -1,7 +1,8 @@
+import { CircleHelp, Settings } from "lucide-react";
 import Link from "next/link";
 
 import { signOut } from "@/app/actions";
-import { AccountMenu } from "@/components/account-menu";
+import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
 import { ArrowRightIcon, UserIcon } from "@/components/icons";
 import { getAvatar } from "@/lib/avatar-actions";
@@ -58,10 +59,12 @@ export async function SeekerStatusLine() {
  * Who is signed in: the photo (initials when there is none), then the full
  * name over the email, as the reference dashboard shows its account.
  *
- * The whole block opens the account menu (@/components/account-menu): the
- * account header, then Sign Out. The panel's General group has Sign Out too,
- * but the photo in the corner is where people look for it first, and a
- * photo that does nothing when clicked reads as broken.
+ * The whole block opens the account menu (@/components/account-menu):
+ * Settings, Help and Sign Out, everything about the app rather than the
+ * work. They were the panel's General group; the photo in the corner is
+ * where people look for them, so they live here alone and the panel keeps
+ * only the sections of the search. The menu skips the account header where
+ * this block already shows the name and email, so it does not repeat it.
  *
  * The name and email show from lg, where the bar has room for them beside
  * the search field (the new-roles pill steps out until xl for the same
@@ -81,13 +84,21 @@ export async function SeekerStatusLine() {
  * Spans, not a div and paragraphs: the whole block sits inside the menu's
  * <button>, which may only hold inline content.
  */
+/** The menu's rows, above Sign Out: what used to be the panel's General
+ *  group. Elements, not components, since they cross into the client menu
+ *  (see `icon` in @/components/account-menu). */
+const MENU_ITEMS: AccountMenuItem[] = [
+  { href: "/settings", label: "Settings", icon: <Settings aria-hidden className="size-4" /> },
+  { href: "/help", label: "Help", icon: <CircleHelp aria-hidden className="size-4" /> },
+];
+
 export async function SeekerAccount() {
   const account = await getCurrentAccount();
 
   if (!account) {
     const user = await getSessionUser();
     return (
-      <AccountMenu items={[]} onSignOut={signOut} label="Signed In, account menu">
+      <AccountMenu items={MENU_ITEMS} onSignOut={signOut} label="Signed In, account menu">
         <span
           aria-hidden="true"
           className="bg-brand-tint text-brand flex size-10 shrink-0 items-center justify-center rounded-full"
@@ -113,7 +124,7 @@ export async function SeekerAccount() {
       name={account.full_name}
       email={account.email}
       src={avatar.url}
-      items={[]}
+      items={MENU_ITEMS}
       onSignOut={signOut}
     >
       <Avatar name={account.full_name} src={avatar.url} className="text-label size-10" />

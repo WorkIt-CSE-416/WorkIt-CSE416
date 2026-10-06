@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * /settings, the panel's footer row. Nothing can be changed here yet, so it
+ * /settings, a row in the account menu the bar's photo opens. Nothing can be changed here yet, so it
  * says so inside the shell, under the same heading block as every other
  * seeker screen, rather than leaving a permanent row that opens Next's stock
  * 404. A <div>, since SidebarInset is already the <main>.

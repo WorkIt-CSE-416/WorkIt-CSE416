@@ -137,8 +137,14 @@ export function AccountMenu({
           size the menu to the 32px avatar and leave min-w-32 to rescue it;
           224px fits a name and an email beside the header's photo. */}
       <DropdownMenuContent align="end" sideOffset={8} className="w-56">
+        {/* Who you are, unless the trigger already says so. A passed-in
+            trigger (the seeker's) prints the name and email beside the photo
+            from lg, so repeating them atop the menu there is noise; below lg
+            it is the photo alone, and the header is the one place on a phone
+            that names the account. The company bar's bare avatar always
+            needs it. */}
         {name && (
-          <>
+          <div className={cn(children && "lg:hidden")}>
             <div className="flex items-center gap-2.5 px-2 py-1.5">
               <Avatar name={name} src={src} className="text-note size-8" />
               <div className="min-w-0">
@@ -147,7 +153,7 @@ export function AccountMenu({
               </div>
             </div>
             <DropdownMenuSeparator />
-          </>
+          </div>
         )}
 
         {items.map(({ href, label, icon }) => (
@@ -157,9 +163,8 @@ export function AccountMenu({
           </DropdownMenuItem>
         ))}
 
-        {/* The rule only between rows: with Settings in both panels' footers,
-            Sign Out is usually the one row under the header, which already
-            has its own. */}
+        {/* A rule between the rows and Sign Out, so the one row that ends
+            the session stands apart from the ones that go somewhere. */}
         {onSignOut ? (
           <>
             {items.length > 0 && <DropdownMenuSeparator />}

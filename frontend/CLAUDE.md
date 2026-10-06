@@ -104,9 +104,12 @@ src/components/   Shared components
   nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
-  account-menu.tsx  Both bars' account dropdown: name and email header, then
-                  Sign Out (Sign In without onSignOut). The seeker bar passes
-                  its photo-name-email block as the trigger
+  account-menu.tsx  Both bars' account dropdown: a name and email header,
+                  the shell's rows, then Sign Out (Sign In without
+                  onSignOut). The seeker bar passes its photo-name-email
+                  block as the trigger, Settings and Help as its rows, and
+                  shows the header only below lg, where that block is the
+                  photo alone
   ui/             Presentational primitives: badge, button, card, company-tile,
                   empty-state, fact, filter-chip (only the design kit shows
                   it today), icon-button, search-field, section,
@@ -200,17 +203,18 @@ The seeker bar shows the signed-in account's real photo, with the full name
 and email beside it from lg, at 40px like the bar's grey-filled round
 bell and search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
 `lib/session.ts`, cached per render. The whole block is the trigger of
-`components/account-menu.tsx`, passed in as its `children`, and opens the
-account header and Sign Out. From xl the
+`components/account-menu.tsx`, passed in as its `children`, and opens
+Settings, Help and Sign Out (with the account header only below lg, where the
+block shows just the photo). From xl the
 bar adds a pill for roles posted in the last 24 hours when there are any
 (`(seeker)/status.ts`).
 The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-The seeker panel groups its rows under two captions: Menu (Dashboard, Jobs,
-Applications, My Profile) and General (Settings, Help, Sign Out), so a seeker
-has two ways out: that row and the bar's account menu. The
+The seeker panel holds only the search, under one caption: Menu (Dashboard,
+Jobs, Applications, My Profile). Settings, Help and Sign Out, once its General
+group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
 always filled (from the session's email if /auth/me is down). The company panel keeps

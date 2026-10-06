@@ -1,36 +1,23 @@
 "use client";
 
-import {
-  BriefcaseBusiness,
-  CircleHelp,
-  CircleUserRound,
-  LayoutDashboard,
-  LogOut,
-  Settings,
-  SquareKanban,
-} from "lucide-react";
+import { BriefcaseBusiness, CircleUserRound, LayoutDashboard, SquareKanban } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { signOut } from "@/app/actions";
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
 
 /**
  * The seeker shell's left panel, floating (see FLOATING in
- * @/components/app-sidebar), in two captioned groups:
+ * @/components/app-sidebar): MENU, the hunt itself, the sections a job
+ * seeker moves between all through a search, Dashboard first as the home.
+ * These used to be tabs in the top bar.
  *
- * MENU is the hunt itself, the sections a job seeker moves between all
- * through a search, Dashboard first as the home. These used to be tabs in
- * the top bar.
- *
- * GENERAL is everything about the app rather than the work: Settings, Help
- * and Sign Out. Settings sat alone at the panel's foot; Help and Sign Out
- * joined it when the shell took the floating layout, which groups them under
- * one caption straight after the sections. The bar's photo opens a menu
- * with Sign Out as well (SeekerAccount in ./account-status.tsx); this row
- * stays for anyone who looks in the panel first. There is no Sign
- * In row because the shell only renders for someone signed in; the layout
- * sends anyone else to /login. Sign Out is a button, not a link: it is an
- * action, and it is never lit as the current page.
+ * Nothing about the app rather than the work lives here. Settings, Help and
+ * Sign Out were a second group, General, under this one; they moved to the
+ * menu the bar's photo opens (SeekerAccount in ./account-status.tsx), where
+ * people look for them, so the panel holds only the search and each of
+ * those has one home. There is no Sign In anywhere in the shell: it only
+ * renders for someone signed in, and the layout sends anyone else to
+ * /login.
  *
  * There is no Search row. /search is where the bar's own field lands a query
  * (and, on a phone, the bar's magnifier), and a row beside that field would
@@ -50,14 +37,6 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
       { href: "/applications", label: "Applications", Icon: SquareKanban },
       { href: "/profile", label: "My Profile", Icon: CircleUserRound },
-    ],
-  },
-  {
-    label: "General",
-    items: [
-      { href: "/settings", label: "Settings", Icon: Settings },
-      { href: "/help", label: "Help", Icon: CircleHelp },
-      { action: signOut, label: "Sign Out", Icon: LogOut },
     ],
   },
 ];
