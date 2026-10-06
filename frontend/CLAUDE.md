@@ -58,8 +58,9 @@ src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
-  (seeker)/       Job-seeker shell — a left panel plus a top bar, the same
-                  dashboard layout as company/, and every screen behind it.
+  (seeker)/       Job-seeker shell, three white rounded panels (the section
+                  panel, the top bar, the page) floating on --color-frame,
+                  and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
@@ -80,7 +81,8 @@ src/app/          App Router routes, layouts, pages
                   each page heading cannot disagree.
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
-  logo.tsx        The WorkIt logo — picks lockup or icon per size
+  logo.tsx        The WorkIt logo: <Logo> picks a lockup or half per size,
+                  <LogoLockup> is the seeker shell's mark-plus-word pair
   icons.tsx       Glyphs used by more than one route, as thin wrappers over
                   Lucide at its default stroke (the brand marks stay drawn).
                   Every per-route icons.tsx is the same kind of wrapper;
@@ -102,8 +104,8 @@ src/components/   Shared components
   nav-link.tsx    A link that underlines itself on its own route (design kit)
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
-  account-menu.tsx  The avatar dropdown: name and email header, then Sign Out
-                  (Sign In when signed out)
+  account-menu.tsx  The company bar's avatar dropdown: name and email header,
+                  then Sign Out (Sign In when signed out)
   ui/             Presentational primitives: badge, button, card, company-tile,
                   empty-state, fact, filter-chip (only the design kit shows
                   it today), icon-button, search-field, section,
@@ -136,7 +138,12 @@ src/lib/          Framework-free helpers
   supabase/server.ts  Per-request Supabase client — auth only, never data
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448, violet — the auth card
-  workit-logo-ink.png  The same lockup in --color-ink — the app top bar
+  workit-logo-ink.png  The same lockup in --color-ink, for the company top bar
+  workit-icon-ink.png  The ink mark alone, the lockup cut at x=481
+  workit-wordmark-ink.png  The ink "WorkIt" alone, cropped to its letters.
+                  The two make <LogoLockup> in logo.tsx, the seeker shell's
+                  logo, which sets the word at ~55% of the mark's height
+                  (the drawn lockup has it at 40%, which read as too small)
   workit-icon.png Mark only, 481x448 — favicon source only
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
@@ -165,10 +172,16 @@ cannot both define `/profile`, and both audiences need one — hence the prefix 
 the company side rather than a second invisible group. It also means the auth
 guard is one path check covering routes nobody has written yet.
 
-The two shells are separate layouts on purpose. Their shared parts are shared
-components (the panel is `app-sidebar.tsx`; the corner cell, the bell, the
-account menu and the search field are in `src/components`), and what is left
-is each bar's search target and copy. Each bar's search is a GET `next/form`
+The two shells are separate layouts on purpose, and they no longer look
+alike. The seeker shell floats: the section panel runs the full height with
+the logo in its header, beside a top bar and the page, each a white
+`rounded-shell` panel on the lavender `--color-frame`, 12px apart and 12px
+from the window. The company shell is still docked: a full-width bar with the
+lavender corner cell (`components/sidebar-brand.tsx`, company only now) over
+a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="floating"` or
+the default `docked`. Their other shared parts (the bell, the account menu,
+the search field) are in `src/components`, and what is left is each bar's
+search target and copy. Each bar's search is a GET `next/form`
 to its own results page: `/search` for a seeker, `/company/applicants` for a
 company. The seeker field is `(seeker)/search/query-field.tsx`, a client
 component that shows `?q` while on /search and empties elsewhere, because a
@@ -176,20 +189,30 @@ layout never receives searchParams. Lift a `<TopBar>` out only if they are
 still near-identical once both sides are real screens.
 
 Seeker pages break on the width they actually get, not the window's: the shell
-makes its scroller `@container/main`, because an open panel takes 256px. A
+makes its page panel `@container/main`, because an open panel takes 280px
+with its insets. A
 layout that splits into columns uses `@3xl/main:` and friends, and a card that
 rearranges itself (the job card) is its own `@container`. Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
-The seeker bar shows the signed-in account's real name and photo
-(`getCurrentAccount()` in `lib/session.ts`, cached per render), and a pill
-for roles posted in the last 24 hours when there are any (`(seeker)/status.ts`).
+The seeker bar shows the signed-in account's real photo, with the full name
+and email beside it from lg, at 40px like the bar's grey-filled round
+bell and search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
+`lib/session.ts`, cached per render, and is a label, not a menu. From xl the
+bar adds a pill for roles posted in the last 24 hours when there are any
+(`(seeker)/status.ts`).
 The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-In both shells Settings lives in the panel's footer, not the account menu,
-which holds only the account header and Sign Out. The company bar's Sign Out
+The seeker panel groups its rows under two captions: Menu (Dashboard, Jobs,
+Applications, My Profile) and General (Settings, Help, Sign Out). Sign Out is
+the seeker's only way out; `account-menu.tsx` is the company bar's alone. The
+seeker layout redirects to /login when `getSessionUser()` finds no session,
+so the shell never draws a signed-out state and the bar's account block is
+always filled (from the session's email if /auth/me is down). The company panel keeps
+Settings alone in its footer, and its account menu holds only the account
+header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.
 
 `components/stat-tile.tsx` is shared by both dashboards, and both use its

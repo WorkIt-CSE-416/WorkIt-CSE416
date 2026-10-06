@@ -13,7 +13,9 @@ import {
 } from "@/components/shadcn/sheet";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { cn } from "@/lib/cn";
 
+import { BAR_CIRCLE } from "./bar";
 import { QueryField } from "./search/query-field";
 
 /**
@@ -23,8 +25,8 @@ import { QueryField } from "./search/query-field";
  * form is the bar's own: a GET to /search with the query as ?q, and the field
  * opens holding the current query on a results page, as the bar's does.
  *
- * A 32px circle with a 16px glyph and the bell's hover fill, so the two read
- * as one pair beside the avatar.
+ * The bell's grey 40px circle (./bar.ts), so the two read as one pair beside
+ * the avatar.
  *
  * The sheet is controlled so a search closes it. next/form navigates on the
  * client and this shell stays mounted across the move, so an uncontrolled
@@ -44,7 +46,7 @@ export function MobileSearch() {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={
-          <IconButton label="Search jobs" className="hover:bg-hover size-8 rounded-full md:hidden">
+          <IconButton label="Search jobs" className={cn(BAR_CIRCLE, "md:hidden")}>
             <SearchIcon className="size-4" />
           </IconButton>
         }

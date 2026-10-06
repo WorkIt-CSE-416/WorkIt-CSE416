@@ -17,6 +17,10 @@ import { getCurrentAccount } from "@/lib/session";
  * Add a step here when its data is live. The resume leads: nothing can be
  * matched without one.
  *
+ * Lavender (--color-rail) on the white panel, the one tinted block in it,
+ * so it reads as a card set apart from the rows above without the weight of
+ * a solid fill.
+ *
  * Gone once complete — a full bar is a card with nothing to say — and when
  * signed out or the loads fail, since a failure is not the same as a missing
  * resume. Hidden on the collapsed rail, which has no room for it.
@@ -37,7 +41,7 @@ export async function ProfileStrength() {
   if (!next) return null;
 
   return (
-    <div className="border-rail-border bg-panel rounded-card border p-3 group-data-[collapsible=icon]:hidden">
+    <div className="border-rail-border bg-rail rounded-card border p-3 group-data-[collapsible=icon]:hidden">
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-label text-ink">Profile Strength</p>
         <p className="text-note text-ink-meta tabular-nums">

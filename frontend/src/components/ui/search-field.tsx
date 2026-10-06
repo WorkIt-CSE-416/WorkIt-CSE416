@@ -1,7 +1,6 @@
 import type { ComponentProps } from "react";
 
 import { SearchIcon } from "@/components/icons";
-import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 /**
@@ -12,12 +11,19 @@ import { cn } from "@/lib/cn";
  * rendered for screen readers: a placeholder is not an accessible name, and
  * it disappears the moment anyone types.
  *
- * THE SAME BOX AS EVERY OTHER FIELD. It is drawn from TextField's
- * FIELD_CONTROL and padded as a TextField with a leading icon is, so it is
- * 42px tall, outlined in --color-border-control (3:1 or better) and puts its
- * glyph where a form field puts one. It used to be a 40px box sized to the
- * top bar, outlined in --color-border-subtle at 1.19:1, which made the one
- * field on every screen the faintest and the only one drawn differently.
+ * A FILLED PILL, NOT AN OUTLINED BOX. It is a wide rounded-full field filled
+ * a neutral light grey (--color-app) with no border, the way the reference
+ * dashboard draws its search, and the same fill as the bar's round bell (see
+ * (seeker)/bar.ts), so the bar's controls read as one family of soft shapes.
+ * A grey 3:1 outline here made the bar look assembled from stock form parts,
+ * and a lavender fill tinted the bar for no reason. The field is still
+ * unmistakable: the magnifier, the placeholder and the fill say what it is,
+ * and focus draws the app's solid violet ring around the pill.
+ *
+ * 40px tall, the bell's and the account photo's height, so the bar's
+ * controls share one height. Type is 16px below `sm` so iOS Safari does not
+ * zoom the page on focus, at a 20px line so the pill stays 40px; the
+ * placeholder is --color-ink-meta, 5.13:1 on the fill.
  *
  * type="search" is deliberate. It gives the field a clear button and the
  * Escape-to-clear behaviour people expect, which matters more here than the
@@ -35,11 +41,11 @@ export function SearchField({ id, label, className, ...input }: SearchFieldProps
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
-      <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2" />
+      <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2" />
       <input
         id={id}
         type="search"
-        className={cn(FIELD_CONTROL, "py-2.5 pr-3.5 pl-11")}
+        className="bg-app text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full pr-4 pl-10 text-base/5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
         {...input}
       />
     </div>

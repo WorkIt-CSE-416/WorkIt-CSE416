@@ -37,8 +37,9 @@ import { CompanySidebar } from "./company-sidebar";
  * see app/company/jobs/page.tsx. A bar-level button would also claim to be
  * available everywhere while meaning nothing on Applicants or the profile.
  *
- * The seeker shell took the same layout, and the two bars are now built the
- * same way: <SidebarBrand> as the lavender corner cell the panel's width,
+ * The seeker shell took the same layout and has since moved to floating
+ * rounded panels (see (seeker)/layout.tsx); this bar is still built as both
+ * once were: <SidebarBrand> as the lavender corner cell the panel's width,
  * then the page's own container beside it (max-w-app, on the 16, 32 and
  * 48px gutter the pages use), so the search starts on the page heading's
  * left edge and the avatar ends on the content's right edge. Settings sits
@@ -122,8 +123,8 @@ export default async function CompanyLayout({ children }: { children: React.Reac
           what bounces. shrink-0 so a tall page cannot squeeze it, and z-20 to
           stay over the fixed panel's z-10.
 
-          Two cells, ruled where the panel's edge is, exactly as the seeker
-          bar: the corner the panel's width, then the page's container. */}
+          Two cells, ruled where the panel's edge is: the corner the panel's
+          width, then the page's container. */}
       <header className="bg-panel border-border relative z-20 flex h-(--company-bar) shrink-0 border-b">
         <SidebarBrand href="/company" />
 

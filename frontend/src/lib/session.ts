@@ -28,6 +28,22 @@ export async function getAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
+/** Who the session says is signed in, from verified token claims, or null
+ *  when nobody is. getClaims() rather than getSession(), because a shell
+ *  decides whether to render on it (see "The token travels server-side" in
+ *  frontend/CLAUDE.md). It carries the email but not the name, which only
+ *  the API's profile row holds, so it is also the bar's fallback when
+ *  /auth/me cannot be reached. cache() so a shell asks once per render. */
+export const getSessionUser = cache(
+  async (): Promise<{ id: string; email: string | null } | null> => {
+    const supabase = await createSupabaseServerClient();
+    const { data } = await supabase.auth.getClaims();
+    const claims = data?.claims;
+    if (!claims?.sub) return null;
+    return { id: claims.sub, email: typeof claims.email === "string" ? claims.email : null };
+  },
+);
+
 /** The signed-in account as the API knows it (GET /auth/me): the real name
  *  the shell shows, rather than a fixture. Null when signed out or when the
  *  API can't be reached, so a caller renders a neutral bar instead of

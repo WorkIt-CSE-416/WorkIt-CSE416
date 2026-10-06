@@ -13,11 +13,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { cn } from "@/lib/cn";
 
 /**
  * The account cluster's menu — everything that is about you rather than about
- * the work.
+ * the work. The company bar's, today. The seeker bar shows its account as a
+ * plain label instead and keeps Sign In and Sign Out in its panel, since the
+ * menu had nothing else left to hold (see (seeker)/account-status.tsx).
  *
  * Settings used to be a bare gear beside the bell, then a row in here: the
  * trade this component exists to make, a slot of top-bar width for a click
@@ -32,7 +33,8 @@ import { cn } from "@/lib/cn";
  *
  * `items` is a prop rather than a constant so each shell's layout owns its
  * rows, and the routes a shell can reach are declared in that shell and
- * nowhere else. Both pass none today, which leaves the header and Sign Out.
+ * nowhere else. The company shell passes none, which leaves the header and
+ * Sign Out.
  *
  * A client component: a menu needs open state, focus management and a portal.
  * It is a leaf, so the bar around it still renders on the server.
@@ -70,11 +72,6 @@ type AccountMenuProps = {
   email?: string;
   /** The profile photo's signed URL; initials when absent. */
   src?: string | null;
-  /** Print the name beside the photo from xl up. Below that the bar's width
-   *  goes to the search field, so the name waiting on the API cannot squeeze
-   *  it when it lands. The seeker bar does; the company bar keeps the bare
-   *  avatar. */
-  showName?: boolean;
   items: readonly AccountMenuItem[];
   /**
    * A Server Action, passed down from the shell's layout — see
@@ -84,14 +81,7 @@ type AccountMenuProps = {
   onSignOut?: () => void | Promise<void>;
 };
 
-export function AccountMenu({
-  name,
-  email,
-  src,
-  showName = false,
-  items,
-  onSignOut,
-}: AccountMenuProps) {
+export function AccountMenu({ name, email, src, items, onSignOut }: AccountMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -101,10 +91,7 @@ export function AccountMenu({
         /* cursor-pointer is not redundant: Tailwind v4's preflight sets
          * `cursor: default` on buttons, so a <button> trigger shows an arrow
          * where the <Link> this replaced showed a hand. */
-        className={cn(
-          "focus-visible:ring-brand-ring flex cursor-pointer items-center gap-2.5 rounded-full focus-visible:ring-2 focus-visible:outline-none",
-          showName && name && "xl:hover:bg-hover xl:-my-1 xl:py-1 xl:pr-3 xl:pl-1",
-        )}
+        className="focus-visible:ring-brand-ring flex cursor-pointer items-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
       >
         {name ? (
           <Avatar name={name} src={src} className="text-note size-8" />
@@ -112,9 +99,6 @@ export function AccountMenu({
           <span className="bg-brand-tint text-brand flex size-8 items-center justify-center rounded-full">
             <UserIcon className="size-4" />
           </span>
-        )}
-        {showName && name && (
-          <span className="text-label text-ink hidden max-w-40 truncate xl:block">{name}</span>
         )}
       </DropdownMenuTrigger>
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 
-import { Logo } from "@/components/logo";
+import { Logo, LogoLockup } from "@/components/logo";
 import {
   Sidebar,
   SidebarContent,
@@ -122,26 +122,88 @@ const CURRENT_ITEM =
   "hover:bg-rail-selected hover:text-brand-ink " +
   "active:bg-rail-selected active:text-brand-ink";
 
-export type SidebarNavItem = {
-  href: string;
+type NavRowBase = {
   label: string;
   /** A Lucide icon — see "THE ICONS ARE LUCIDE'S" above. */
   Icon: ComponentType<{ className?: string }>;
-  /** Lit on this exact path only. Without it an item owns its whole subtree,
-   *  so /company/jobs/new still lights Job Postings; a shell's root item
-   *  (/company) needs it, or it would be lit on every screen. */
-  exact?: boolean;
 };
 
+/** A row is a link to a section, or an action that is not a place, like
+ *  Sign Out: a button drawn as the same row, never lit as current. */
+export type SidebarNavItem = NavRowBase &
+  (
+    | {
+        href: string;
+        /** Lit on this exact path only. Without it an item owns its whole
+         *  subtree, so /company/jobs/new still lights Job Postings; a shell's
+         *  root item (/company) needs it, or it would be lit on every
+         *  screen. */
+        exact?: boolean;
+      }
+    | { action: () => void | Promise<void> }
+  );
+
 /** `label` is the small heading over the group; leave it out when the panel
- *  has one group and the rows speak for themselves, as the seeker's does. */
+ *  has one group and the rows speak for themselves. */
 export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
+
+/**
+ * FLOATING is the seeker shell's panel: a white rounded panel inset 12px on
+ * the --color-frame ground, beside a top bar and a page drawn the same way,
+ * after the floating-panel dashboards the user pointed at. It runs the full
+ * height, so it carries the logo in its own header rather than leaving it to
+ * the bar, and its group headings are small uppercase captions ("Menu",
+ * "General"), the way those dashboards label a panel's sections.
+ *
+ * It is shadcn's default `sidebar` variant restyled, not its own `floating`
+ * one. shadcn's floating variant pads the panel 8px and sizes the collapsed
+ * rail and the in-flow gap beside it with two separate calc()s that both
+ * assume that 8px, so a 12px inset would leave the gap 8px short of the
+ * collapsed panel. The default variant sizes both from --sidebar-width and
+ * --sidebar-width-icon alone, so the shell widens those by the inset (see
+ * its layout.tsx) and the padding is just padding.
+ *
+ * DOCKED is the company shell's: the full-bleed lavender panel under a
+ * full-width bar, offset by the bar's height. See "WHY IT IS OFFSET".
+ */
+const FLOATING =
+  "p-3 group-data-[side=left]:border-r-0 " +
+  "[&>[data-slot=sidebar-inner]]:rounded-shell [&>[data-slot=sidebar-inner]]:border-rail-border " +
+  "[&>[data-slot=sidebar-inner]]:bg-panel [&>[data-slot=sidebar-inner]]:shadow-panel " +
+  "[&>[data-slot=sidebar-inner]]:overflow-hidden [&>[data-slot=sidebar-inner]]:border";
+
+/**
+ * THE FLOATING PANEL'S SPACING is set on one vertical line, 28px in from the
+ * panel's edge: the logo's mark, the "Menu" and "General" captions and every
+ * row's icon start on it, as the reference dashboard lines up its logo,
+ * section labels and icons. The docked panel's 16px put everything close
+ * enough to the edge to read as crammed against it, and its logo 5px in.
+ *
+ * 28 is a 16px group inset plus 12px of row padding, and the numbers are
+ * chosen so the icons do not move when the panel collapses. A row is 40px
+ * tall, and on the rail it becomes a 40px square with the same 12px padding,
+ * centred in a 72px rail by the same 16px inset: its icon's centre is 36px in
+ * whether the panel is open (16 + 12 + 8) or collapsed (72 / 2). The rail was
+ * 48px with 32px squares, which left 8px either side and felt pinched; 72
+ * gives each icon 28px of air on both sides. The shell sets the matching
+ * --sidebar-width-icon (72px plus the panel's 12px inset each side).
+ *
+ * The captions carry the same 12px inside the group as the rows, so their
+ * text starts where the icons do, and each group gets 8px above and below so
+ * the two read as separate sections rather than one list.
+ */
+const FLOATING_GROUP = "px-4 py-2";
+const FLOATING_CAPTION = "text-caption text-ink-meta px-3 font-semibold uppercase";
+const FLOATING_BUTTON =
+  "h-10 px-3 group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-3!";
 
 export function AppSidebar({
   groups,
   footer,
   footerCard,
   label,
+  variant = "docked",
+  home,
   className,
 }: {
   groups: SidebarNavGroup[];
@@ -154,54 +216,142 @@ export function AppSidebar({
   footer?: SidebarNavItem[];
   /** The name of the panel's <nav> landmark, e.g. "Company Sections". */
   label: string;
-  /** The shell's bar offset — see "WHY IT IS OFFSET" above. */
+  /** See FLOATING above. */
+  variant?: "docked" | "floating";
+  /** Where the floating panel's logo goes home to. */
+  home?: string;
+  /** The docked shell's bar offset; see "WHY IT IS OFFSET" above. */
   className?: string;
 }) {
   const pathname = usePathname();
   const { isMobile } = useSidebar();
+  const floating = variant === "floating";
 
   return (
-    <Sidebar collapsible="icon" className={cn("border-rail-border h-auto", className)}>
-      {isMobile && (
-        <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
-          <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
-          <Logo size="bar" />
-        </SidebarHeader>
-      )}
-
-      <nav aria-label={label} className="flex min-h-0 flex-1 flex-col">
-        <SidebarContent className="pt-2">
-          {groups.map((group, i) => (
-            <SidebarGroup key={group.label ?? i}>
-              {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
-              <SidebarMenu className={MENU}>
-                {group.items.map((item) => (
-                  <NavRow key={item.href} item={item} pathname={pathname} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroup>
-          ))}
-        </SidebarContent>
-
-        {(footerCard || (footer && footer.length > 0)) && (
-          <SidebarFooter className="gap-3 pb-3">
-            {footerCard}
-            <SidebarMenu className={MENU}>
-              {footer?.map((item) => (
-                <NavRow key={item.href} item={item} pathname={pathname} />
-              ))}
-            </SidebarMenu>
-          </SidebarFooter>
+    <Sidebar
+      collapsible="icon"
+      className={cn(floating ? FLOATING : "border-rail-border h-auto", className)}
+    >
+      {/* The sheet keeps shadcn's lavender, so on a phone the floating panel
+          paints its own white to match the panels it opens over. */}
+      <div className={cn("flex size-full min-h-0 flex-col", floating && "bg-panel")}>
+        {isMobile && (
+          <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
+            <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
+            {floating ? <LogoLockup /> : <Logo size="bar" />}
+          </SidebarHeader>
         )}
-      </nav>
+
+        {floating && !isMobile && home && <PanelBrand href={home} />}
+
+        <nav aria-label={label} className="flex min-h-0 flex-1 flex-col">
+          <SidebarContent className={floating ? "gap-2 pt-3" : "pt-2"}>
+            {groups.map((group, i) => (
+              <SidebarGroup key={group.label ?? i} className={cn(floating && FLOATING_GROUP)}>
+                {group.label && (
+                  <SidebarGroupLabel className={cn(floating && FLOATING_CAPTION)}>
+                    {group.label}
+                  </SidebarGroupLabel>
+                )}
+                <SidebarMenu className={MENU}>
+                  {group.items.map((item) => (
+                    <NavRow key={item.label} item={item} pathname={pathname} floating={floating} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            ))}
+          </SidebarContent>
+
+          {(footerCard || (footer && footer.length > 0)) && (
+            <SidebarFooter className={cn("gap-3 pb-3", floating && "px-4 pb-4")}>
+              {footerCard}
+              {footer && footer.length > 0 && (
+                <SidebarMenu className={MENU}>
+                  {footer.map((item) => (
+                    <NavRow key={item.label} item={item} pathname={pathname} />
+                  ))}
+                </SidebarMenu>
+              )}
+            </SidebarFooter>
+          )}
+        </nav>
+      </div>
     </Sidebar>
   );
 }
 
-function NavRow({ item, pathname }: { item: SidebarNavItem; pathname: string }) {
-  const { href, label, Icon, exact } = item;
-  const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+/**
+ * The floating panel's logo: <LogoLockup> from @/components/logo, the mark
+ * 40px tall (its ink about 37px square) beside the wordmark sized to about
+ * 55% of it.
+ *
+ * Open, the mark's ink starts on the panel's 28px line with the captions and
+ * the row icons (the image carries 1.4px of transparent padding, so the box
+ * sits at 27px). Collapsed, it is centred in the 72px rail instead, its 43px
+ * box at 14px: a mark wider than two icons cannot share both their left edge and
+ * their centre. So the inset slides between the two on the panel's own 200ms
+ * linear, the same time the width takes, while the wordmark fades and the
+ * narrowing panel clips it. Nothing swaps mid-way and nothing jumps. The link
+ * stays live on the rail, where the mark alone still goes home.
+ *
+ * 64px tall, the top bar's height, so the panel's header and the bar beside
+ * it share one top line and one bottom line, and the logo sits on the bar's
+ * centre line as the reference's does.
+ */
+function PanelBrand({ href }: { href: string }) {
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  return (
+    <SidebarHeader
+      className={cn(
+        "h-16 shrink-0 flex-row items-center p-0 pl-[27px] transition-[padding] duration-200 ease-linear",
+        collapsed && "pl-3.5",
+      )}
+    >
+      <Link
+        href={href}
+        className="focus-visible:ring-brand-ring flex shrink-0 items-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <LogoLockup priority wordmarkHidden={collapsed} />
+      </Link>
+    </SidebarHeader>
+  );
+}
+
+function NavRow({
+  item,
+  pathname,
+  floating = false,
+}: {
+  item: SidebarNavItem;
+  pathname: string;
+  floating?: boolean;
+}) {
+  const { label, Icon } = item;
   const { setOpenMobile } = useSidebar();
+  const size = floating ? FLOATING_BUTTON : MENU_BUTTON;
+
+  if ("action" in item) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          tooltip={label}
+          onClick={() => {
+            setOpenMobile(false);
+            void item.action();
+          }}
+          className={cn(size, "cursor-pointer")}
+        >
+          <Icon className="size-4" />
+          <span>{label}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  const { href, exact } = item;
+  const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <SidebarMenuItem>
@@ -211,7 +361,7 @@ function NavRow({ item, pathname }: { item: SidebarNavItem; pathname: string }) 
         render={<Link href={href} aria-current={active ? "page" : undefined} />}
         // Closes the phone sheet on the way out; a no-op on the desktop panel.
         onClick={() => setOpenMobile(false)}
-        className={cn(MENU_BUTTON, active && CURRENT_ITEM)}
+        className={cn(size, active && CURRENT_ITEM)}
       >
         <Icon className="size-4" />
         <span>{label}</span>

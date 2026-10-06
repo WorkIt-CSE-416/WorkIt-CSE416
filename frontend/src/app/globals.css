@@ -93,6 +93,7 @@
   /* Radii ---------------------------------------------------------------- */
   --radius-control: 0.5rem; /* 8px — inputs, buttons */
   --radius-card: 0.625rem; /* 10px — card */
+  --radius-shell: 1.25rem; /* 20px: the seeker shell's floating panels, the radius of the Dashboard's hero and pipeline band */
 
   /* Elevation ------------------------------------------------------------
    * Matches the measured falloff: ~10px below the card, ~8px to the sides. */
@@ -194,6 +195,15 @@
   --color-rail-hover: #efeaff;
   --color-rail-selected: #e9e2ff;
   --color-rail-border: #e6e0f8;
+
+  /* The ground under the seeker shell's floating panels. The panel, the top
+   * bar and the page each sit on it as a white rounded panel, so the brand's
+   * lavender moved from the panel's fill to the frame around all three: a
+   * step deeper than --color-rail, enough for a white panel's edge to read
+   * against it with the rail border and --shadow-panel, and still a tint
+   * rather than a colour. The company shell is still docked and does not
+   * use it. */
+  --color-frame: #f1eef9;
 
   /* App borders ---------------------------------------------------------- */
   --color-border-strong: #dee5ee; /* dashed dropzone, spent timeline dot */
@@ -446,6 +456,12 @@ body {
  * axis it would take the trackpad's swipe-to-go-back with it. */
 body:has([data-shell]) {
   background: var(--color-panel);
+}
+
+/* The seeker shell floats its panels on --color-frame, so a bounce there
+ * should open more frame, not a white strip. */
+body:has([data-shell="seeker"]) {
+  background: var(--color-frame);
 }
 
 /* -----------------------------------------------------------------------------
