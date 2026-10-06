@@ -110,7 +110,7 @@ export function Pipeline({ stages, scope }: { stages: PipelineStage[]; scope: st
 
         <Link
           href="/applications"
-          className="bg-brand text-on-brand hover:bg-brand-hover focus-visible:ring-brand-ring shadow-card col-span-2 flex items-center justify-between gap-3 rounded-2xl p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none @3xl/main:col-span-1 @3xl/main:row-span-2 @3xl/main:flex-col @3xl/main:items-start"
+          className="bg-brand text-on-brand hover:bg-brand-hover focus-visible:ring-brand-ring shadow-card col-span-2 flex items-center justify-between gap-3 rounded-2xl p-4 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none @3xl/main:col-span-1 @3xl/main:row-span-2 @3xl/main:flex-col @3xl/main:items-start"
         >
           <span className="text-subtitle">Full board</span>
           <span className="text-brand-ink flex size-9 items-center justify-center rounded-full bg-white">

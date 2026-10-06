@@ -1,18 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Badge } from "@/components/ui/badge";
+import { formatPosted } from "@/app/(seeker)/jobs/format";
 import { Card } from "@/components/ui/card";
-import { formatRelativeTime } from "@/lib/format-date";
 
+import { ClosesOn } from "./closes-on";
 import type { JobPosting } from "./data";
 import { JobFacts } from "./job-facts";
-
-/** The dot between the employer and how long ago it was posted —
- *  lifted from the search detail pane, which drew this first. */
-function Dot() {
-  return <span aria-hidden="true" className="bg-border-strong size-1 shrink-0 rounded-full" />;
-}
 
 type JobDetailHeaderProps = {
   posting: JobPosting;
@@ -24,12 +18,20 @@ type JobDetailHeaderProps = {
   /** Omit to render the company name as plain text — a company has nothing
    *  to link to on its own posting. */
   companyHref?: string;
-  /** Apply Now + Save on the seeker side, Edit on the company side. */
+  /** Print when the posting closes, rather than when it went up, whenever it
+   *  has a closing date. The seeker page's: a deadline is what a seeker acts
+   *  on. The company rail already prints its own dates, so the company page
+   *  leaves this off and keeps "Posted …". The day is the viewer's own, set
+   *  in the browser by `ClosesOn`, since `closesAt` is a full timestamp. */
+  showDeadline?: boolean;
+  /** Save, Report, Share and Apply Now on the seeker side; the status badge
+   *  and Edit on the company side. */
   actions: ReactNode;
   /** The right rail this job's audience gets: `MatchRail` (`standalone`) for
    *  a seeker, `ApplicantOverviewPanel` for the company managing the
-   *  posting — each its own rounded card, sitting beside the facts. */
-  rail: ReactNode;
+   *  posting, each its own rounded card, sitting beside the facts. Omit it
+   *  (a job nothing has scored) and the facts take the full width. */
+  rail?: ReactNode;
 };
 
 /**
@@ -41,16 +43,25 @@ type JobDetailHeaderProps = {
  * The employer line sits small and above the title, the way a job board's
  * card names the company before it names the role — a little mark and a
  * name, not the full-size tile the rest of the app uses to anchor a company.
- * The badge beside it is how long ago the posting went up, the same fact a
- * feed card leads with. Location isn't repeated up here either: `JobFacts`
- * already carries it below, and the point of a small header is not filling
- * it with what the facts row says again.
+ * After it, as quiet text and not a pill, comes when the posting went up (or
+ * when it closes, with `showDeadline`): the same line, classes and wording
+ * as the feed card's `<JobPostingCard>`, since age is a fact about the
+ * posting, not a state to flag. Location isn't repeated up here either:
+ * `JobFacts` already carries it below, and the point of a small header is
+ * not filling it with what the facts row says again.
  *
  * The rule below the title runs the card's full width, and the facts and the
  * rail sit together underneath it — the rail is the facts' neighbour, not the
  * title's, so it starts level with them rather than reaching up beside the
  * company tile. `rail` renders as its own rounded card rather than a rail
  * flush against this one's edge, so the two do not read as one ruled grid.
+ *
+ * The card is its own `@container` and breaks at `@xl` (576px of card), not
+ * at a window breakpoint: the seeker shell's panel takes 256px of the window
+ * and the company shell has no `@container/main` to measure. Narrower than
+ * that, the actions drop to a full-width row of their own under the title,
+ * and the rail stacks under the facts, so neither squeezes the title or the
+ * facts into a sliver beside it.
  *
  * `actions` and `rail` are the only things that differ between the company
  * and seeker pages that render this; everything else is shared.
@@ -59,47 +70,65 @@ export function JobDetailHeader({
   posting,
   tile,
   companyHref,
+  showDeadline = false,
   actions,
   rail,
 }: JobDetailHeaderProps) {
+  const timing =
+    showDeadline && posting.closesAt ? (
+      <ClosesOn iso={posting.closesAt} />
+    ) : (
+      formatPosted(posting.postedAt)
+    );
+
   return (
-    <Card as="header" padding="lg" elevated={false} className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
+    <Card as="header" padding="lg" elevated={false} className="@container flex flex-col gap-4">
+      <div className="flex flex-col gap-3 @xl:flex-row @xl:items-start @xl:justify-between @xl:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {tile}
 
-            {companyHref ? (
-              // Ink, not brand — a name that turns brand on hover/focus
-              // rather than sitting blue at rest, the same call the feed
-              // card's own company name makes.
-              <Link
-                href={companyHref}
-                className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs font-semibold focus-visible:ring-2 focus-visible:outline-none"
-              >
-                {posting.companyName}
-              </Link>
-            ) : (
-              <span className="text-label text-ink font-semibold">{posting.companyName}</span>
-            )}
-            <Dot />
-            <Badge variant="tag">Posted {formatRelativeTime(posting.postedAt)}</Badge>
+            {/* Under 448px of card the timing takes its own line with no dot,
+                as on the feed card, rather than wrapping "ago" alone. */}
+            <p className="text-label text-ink-meta min-w-0 font-normal">
+              {companyHref ? (
+                // Ink, not brand: a name that turns brand on hover/focus
+                // rather than sitting violet at rest, the same call the feed
+                // card's own company name makes.
+                <Link
+                  href={companyHref}
+                  className="text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  {posting.companyName}
+                </Link>
+              ) : (
+                <span className="text-ink font-medium">{posting.companyName}</span>
+              )}
+              <span aria-hidden="true" className="text-ink-faint mx-1.5 @max-md:hidden">
+                ·
+              </span>
+              <span className="whitespace-nowrap @max-md:block">{timing}</span>
+            </p>
           </div>
 
           <h1 className="text-display text-ink mt-2">{posting.title}</h1>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        <div className="flex w-full items-center gap-2 @xl:w-auto @xl:shrink-0">{actions}</div>
       </div>
 
-      <div className="border-border-subtle flex flex-col gap-4 border-t pt-4 md:flex-row md:items-start">
+      <div className="border-border-subtle flex flex-col gap-4 border-t pt-4 @xl:flex-row @xl:items-start">
         <div className="min-w-0 flex-1">
           <JobFacts posting={posting} />
 
           {/* Fills the space the facts leave under themselves when the rail
               beside them is taller — a line about who is hiring, not what
-              the role does (that's "About the Role", further down). */}
-          <p className="text-note text-ink-meta mt-4 leading-5">{posting.companyAbout}</p>
+              the role does (that's "About the Role", further down). Capped
+              at the same 68ch measure as About the Role, since with no rail
+              (an unscored job) it would otherwise run the card's width. */}
+          <p className="text-note text-ink-meta mt-4 max-w-[68ch] leading-5">
+            {posting.companyAbout}
+          </p>
         </div>
 
         {rail}

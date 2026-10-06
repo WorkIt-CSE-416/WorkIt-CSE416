@@ -9,8 +9,8 @@ import { matchColor, matchTier } from "@/lib/match";
  * every card in a column; the grid and list still draw that progress as a bar.
  *
  * A ring rather than a bar because a card in a column has no width to spare,
- * and the design puts it inline with the company, where a bar would have to
- * compete for the same row. The arc starts at twelve o'clock, which is what the
+ * and it shares the card's ruled footer with the meta text, where a bar would
+ * have to compete for the same row. The arc starts at twelve o'clock, which is what the
  * rotation is for: SVG circles begin at three.
  *
  * The ring is decorative. The band its colour stands for is spelled out for a

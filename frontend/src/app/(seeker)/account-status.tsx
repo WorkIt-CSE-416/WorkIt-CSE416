@@ -52,7 +52,8 @@ export async function SeekerStatusLine() {
 }
 
 /** The photo and full name, which open the account menu. Settings moved to
- *  the panel's footer, so Sign out is the menu's one item. */
+ *  the panel's footer, so under the name and email Sign Out is the menu's
+ *  one item; signed out, it is Sign In. */
 export async function SeekerAccount() {
   const account = await getCurrentAccount();
   const avatar = account ? await getAvatar() : null;
@@ -60,6 +61,7 @@ export async function SeekerAccount() {
   return (
     <AccountMenu
       name={account?.full_name}
+      email={account?.email}
       src={avatar?.url}
       showName
       items={[]}

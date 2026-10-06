@@ -25,9 +25,9 @@ import { MatchBadge } from "./match-badge";
  * Adapted rather than copied, for the same reason as the grid: the source is
  * monochrome with a black primary button and red/amber/blue priority dots, and
  * WorkIt has a palette of its own. Structure is what carries over — a panelled
- * column, a card of company + title + match, a description, and a ruled
- * footer of small facts. The design's footer counts (attachments, comments) were
- * dropped as noise the card did not need.
+ * column, a card of company + title, a description, and a ruled footer of
+ * small facts, which is where the match sits. The design's footer counts
+ * (attachments, comments) were dropped as noise the card did not need.
  *
  * Its "priority" pill has no equivalent here, and inventing one would have meant
  * inventing both the field and two palette colours. The slot held a stage pill
@@ -47,18 +47,17 @@ function ApplicationCard({ item }: { item: Application }) {
   return (
     <Card as="li" padding="sm" selected={item.active} className="flex flex-col gap-2.5">
       {/* Who and what together: the company tile leads the title, the way a
-          job card does, and the match sits at the end of the company line.
-          They used to sit in a row of their own below the summary. The match
-          stays off the title's line so a two-word role isn't squeezed into
-          wrapping in a 288px column. */}
+          job card does. The tile is the neutral outline: a tinted one used
+          the Applied violet (or the Offer green) and so carried a stage of
+          its own, which the column heading already names. The match lives in
+          the footer, so the role and company get the card's whole width. The
+          title clamps at two lines and the block holds two lines' height, so
+          every card's summary starts at the same depth. */}
       <div className="flex items-start gap-2.5">
-        <CompanyTile Icon={Icon} size="sm" tone={item.tone ?? "brand"} />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-subtitle text-ink leading-5">{item.role}</h3>
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <p className="text-note text-ink-meta truncate">{item.company}</p>
-            <MatchBadge score={item.match} />
-          </div>
+        <CompanyTile Icon={Icon} size="sm" tone="outline" />
+        <div className="min-h-15 min-w-0 flex-1">
+          <h3 className="text-subtitle text-ink line-clamp-2 leading-5">{item.role}</h3>
+          <p className="text-note text-ink-meta mt-1 truncate">{item.company}</p>
         </div>
       </div>
 
@@ -66,12 +65,14 @@ function ApplicationCard({ item }: { item: Application }) {
 
       {/* The one place an application's next commitment appears on the board —
           the design has no slot for it, and dropping it would lose the only
-          forward-looking thing a card says. A brand icon rather than a grey
-          box: the box was a third nested panel (column, card, box), and the
-          colour alone is enough to mark it as the thing to act on. */}
+          forward-looking thing a card says. An icon rather than a grey box:
+          the box was a third nested panel (column, card, box). The icon is
+          grey, not brand: the calendar is the Interviewing glyph and violet is
+          the Applied colour, so a coloured one put a second stage on every
+          card. The dark, medium-weight label is what marks it to act on. */}
       {item.next && (
         <div className="flex items-start gap-2">
-          <CalendarIcon className="text-brand mt-0.5 size-3.5 shrink-0" />
+          <CalendarIcon className="text-ink-meta mt-0.5 size-3.5 shrink-0" />
           <div className="min-w-0">
             <p className="text-note text-ink font-medium">{item.next.label}</p>
             <p className="text-note text-ink-meta">{item.next.when}</p>
@@ -79,9 +80,10 @@ function ApplicationCard({ item }: { item: Application }) {
         </div>
       )}
 
-      <p className="border-border-subtle text-note text-ink-meta truncate border-t pt-2.5">
-        {item.meta.text}
-      </p>
+      <div className="border-border-subtle flex items-center justify-between gap-2 border-t pt-2.5">
+        <p className="text-note text-ink-meta min-w-0 truncate">{item.meta.text}</p>
+        <MatchBadge score={item.match} />
+      </div>
 
       {/* Also not in the design. An offer has a date it expires on, so the one
           card carrying a deadline keeps its action; the saved cards' "Apply"
@@ -98,12 +100,15 @@ function ApplicationCard({ item }: { item: Application }) {
 
 export function ApplicationsBoard() {
   return (
-    /* The strip scrolls sideways: four panelled columns are wider than the
-       928px content column at any comfortable width. The scrollport is exactly
-       that column, so the board is cut off at the same right edge as the
-       buttons above it rather than running on into the page margin. It used to
-       bleed to the window edge on a calc(50% - 50vw) negative margin; the
-       margin is part of the layout, so the board stops at it now.
+    /* The four columns share the content column as equal grid tracks, so
+       every stage, Offer included, is on screen at a desktop width. They used
+       to be fixed 288px columns in a 1200px strip, which left Offer a 16px
+       sliver at the right edge of the 928px column. Each track keeps a 216px
+       floor: below about 900px of page the strip scrolls sideways instead of
+       squeezing a card past legibility, and the scrollport is still exactly
+       the content column, cut off at the same right edge as the buttons
+       above. It is a named region with a tab stop so a keyboard can scroll
+       it too.
 
        `relative` is what keeps the scrolling here and off the page. The match
        badges carry sr-only labels, which are absolutely positioned, and an
@@ -112,8 +117,13 @@ export function ApplicationsBoard() {
        scroller, so the labels on the off-screen columns escape this div and
        make the whole page scroll sideways — by about 100px, when the card
        counts that used to sit in the footer did exactly that. */
-    <div className="relative mt-4 overflow-x-auto">
-      <div className="flex w-max items-start gap-4">
+    <div
+      role="region"
+      aria-label="Applications board"
+      tabIndex={0}
+      className="focus-visible:ring-brand-ring rounded-card relative mt-4 overflow-x-auto focus-visible:ring-2 focus-visible:outline-none"
+    >
+      <div className="grid grid-cols-[repeat(4,minmax(13.5rem,1fr))] items-start gap-3">
         {COLUMNS.map((column) => {
           const StageIcon = STAGE_ICON[column.stage];
 
@@ -121,10 +131,7 @@ export function ApplicationsBoard() {
             <section
               key={column.title}
               aria-labelledby={`col-${column.title}`}
-              className={cn(
-                "rounded-card w-72 shrink-0 border p-2",
-                STAGE_COLOR[column.stage].panel,
-              )}
+              className={cn("rounded-card border p-2", STAGE_COLOR[column.stage].panel)}
             >
               <header className="flex items-center gap-2 px-1 pb-2">
                 {/* The stage's glyph in its solid colour, as the Dashboard's

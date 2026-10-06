@@ -107,20 +107,23 @@ function daysAgo(days: number) {
  * level, and how fresh the posting is — plus the three that are common
  * enough to want but not frequent enough to earn permanent row space, kept
  * behind All Filters instead.
+ *
+ * Job type and experience offer exactly the schema's enums, in the words
+ * ./format prints on the cards, so a filter never names a value no card can
+ * carry. "Internship" is a level, not a job type, and "Contract to hire" has
+ * no column at all (see the note at the top of this file).
+ *
+ * Date posted and salary are nested thresholds, so those facets take one pick
+ * (see `multiple` in ./filters). No pick is "any", which is why neither list
+ * spells it out.
  */
-export const JOB_TYPE_OPTIONS = [
-  "Full-time",
-  "Part-time",
-  "Contract",
-  "Contract to hire",
-  "Internship",
-];
+export const JOB_TYPE_OPTIONS = ["Full-time", "Part-time", "Contract"];
 
 export const WORKPLACE_OPTIONS = ["On-site", "Hybrid", "Remote"];
 
-export const EXPERIENCE_OPTIONS = ["Entry", "Mid", "Senior", "Staff", "Lead"];
+export const EXPERIENCE_OPTIONS = ["Internship", "New grad", "Experienced"];
 
-export const DATE_POSTED_OPTIONS = ["Past 24 hours", "Past week", "Past month", "Any time"];
+export const DATE_POSTED_OPTIONS = ["Past 24 hours", "Past week", "Past month"];
 
 export const LOCATION_OPTIONS = ["Remote (US)", "New York, NY", "Seattle, WA", "Austin, TX"];
 

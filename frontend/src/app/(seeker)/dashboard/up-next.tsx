@@ -1,8 +1,6 @@
-import type { ComponentType } from "react";
-
-import { AwardIcon, CalendarIcon, MailIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
+import { STAGE_COLOR, STAGE_ICON, type StageKey } from "../stage-colors";
 import type { UpNextItem, UpNextKind } from "./data";
 import { SectionHeader } from "./section-header";
 
@@ -14,21 +12,27 @@ import { SectionHeader } from "./section-header";
  *
  * Open on the page, not in a card: a short list of rows with round glyphs
  * reads as a list without a box around it, and the page has the hero and the
- * pipeline band to carry its colour. Each kind wears its own tone so the list
- * sorts itself at a glance: an interview or an offer is someone waiting on
- * you (brand, positive), a closing application is a clock (warning), a
- * follow-up is a nudge (quiet).
+ * pipeline band to carry its colour.
+ *
+ * EACH ROW WEARS ITS STAGE, from ../stage-colors.ts: the same fill and the
+ * same white glyph as that stage's pipeline badge below and its board column.
+ * A kind is the board column its card sits in (data.ts, KIND_BY_COLUMN), so
+ * an interview is Interviewing's amber calendar, an offer is Offer's green
+ * award, a closing application is a saved job (grey bookmark) and a follow-up
+ * is Applied's violet briefcase. Its own tones here once painted an interview
+ * violet and a deadline in Interviewing's amber, contradicting the legend a
+ * screen below. Not danger red for a deadline: red means rejected.
  */
-const KIND: Record<UpNextKind, { Icon: ComponentType<{ className?: string }>; tone: string }> = {
-  interview: { Icon: CalendarIcon, tone: "bg-brand-tint text-brand" },
-  offer: { Icon: AwardIcon, tone: "bg-positive-tint text-positive-ink" },
-  deadline: { Icon: CalendarIcon, tone: "bg-warning-tint text-warning" },
-  "follow-up": { Icon: MailIcon, tone: "bg-hover text-ink-meta" },
+const STAGE_BY_KIND: Record<UpNextKind, StageKey> = {
+  interview: "interviewing",
+  offer: "offer",
+  deadline: "saved",
+  "follow-up": "applied",
 };
 
 export function UpNext({ items }: { items: UpNextItem[] }) {
   return (
-    <section aria-labelledby="up-next">
+    <section aria-labelledby="up-next" className="@container/upnext">
       <SectionHeader
         id="up-next"
         title="Up next"
@@ -37,7 +41,8 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
 
       <ul className="mt-3 flex flex-col">
         {items.map((item) => {
-          const { Icon, tone } = KIND[item.kind];
+          const key = STAGE_BY_KIND[item.kind];
+          const Icon = STAGE_ICON[key];
 
           return (
             <li
@@ -46,24 +51,25 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
             >
               <span
                 className={cn(
-                  "flex size-10 shrink-0 items-center justify-center rounded-full",
-                  tone,
+                  "flex size-10 shrink-0 items-center justify-center rounded-full text-white",
+                  STAGE_COLOR[key].fill,
                 )}
               >
                 <Icon className="size-4" />
               </span>
-              {/* The date sits at the row's end once the page is wide enough
-                  (@xl/main, 576px of page) and drops under the role below
-                  that, where sharing a line squeezed the title to three
-                  letters and an ellipsis. */}
-              <div className="min-w-0 flex-1 @xl/main:flex @xl/main:items-center @xl/main:gap-3">
-                <div className="min-w-0 @xl/main:flex-1">
+              {/* The date sits at the row's end once the list itself is wide
+                  enough (@md/upnext, 448px of list) and drops under the role
+                  below that. Keyed to the list, not the page: in the 2fr
+                  column a page-wide breakpoint put the date beside a role and
+                  company cut to "TechNova I…". */}
+              <div className="min-w-0 flex-1 @md/upnext:flex @md/upnext:items-center @md/upnext:gap-3">
+                <div className="min-w-0 @md/upnext:flex-1">
                   <p className="text-label text-ink truncate font-semibold">{item.title}</p>
                   <p className="text-note text-ink-meta truncate">
                     {item.role} · {item.company}
                   </p>
                 </div>
-                <p className="text-note text-ink-muted mt-0.5 @xl/main:mt-0 @xl/main:shrink-0 @xl/main:text-right">
+                <p className="text-note text-ink-muted mt-0.5 @md/upnext:mt-0 @md/upnext:shrink-0 @md/upnext:text-right">
                   {item.when}
                 </p>
               </div>

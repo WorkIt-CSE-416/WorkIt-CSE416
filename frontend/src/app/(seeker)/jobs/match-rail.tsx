@@ -1,8 +1,8 @@
+import { CheckIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { matchColor, matchTier } from "@/lib/match";
 
 import type { Highlight } from "./data";
-import { CheckIcon } from "./icons";
 
 /**
  * The scored rail down the right of a recommendation.
@@ -15,16 +15,29 @@ import { CheckIcon } from "./icons";
  * recessed surface the profile dropzone already established, and earns its
  * prominence from the ring instead.
  *
- * The arc and the tier label now colour by band — green through red, from
- * `matchColor` in @/lib/match — rather than a single brand blue at every score.
- * See the note on `TIERS` there for why that reverses this file's own earlier
- * reasoning, and why it's a safe reversal even so. Length still carries the
- * magnitude and the label still carries the band; colour is a third, faster
+ * The arc and the dot before the tier label colour by band, violet through
+ * red, from `matchColor` in @/lib/match, rather than one brand colour at every
+ * score. See the note on `TIERS` there for why that reverses this file's own
+ * earlier reasoning, and why it's a safe reversal even so. Length still carries
+ * the magnitude and the label still carries the band; colour is a third, faster
  * read of the same two facts, not a replacement for either.
+ *
+ * The label's words are ink-muted, not the band colour. Painted in it, three
+ * of the four bands measured 1.79 to 3.51:1 on the well (yellow worst), so the
+ * one-word verdict a seeker reads before applying was the hardest thing on the
+ * rail to read. The dot keeps the colour; the words keep the contrast.
+ *
+ * Caveats sit in ink-meta, a step quieter than the wins in ink-muted but still
+ * clear of AA: the tick and the dot already tell the two kinds apart, so fading
+ * the reasons to hesitate further would only say they do not matter.
  *
  * `standalone` only changes the shape — a card with its own rounded corners
  * and border, rather than a rail flush against a bigger card's edge — not the
  * fill.
+ *
+ * Its width and edge switch at `@xl`, so it needs an `@container` ancestor:
+ * `JobDetailHeader`'s card is one, and stacks the rail under the facts below
+ * 576px of card, not at a window breakpoint that cannot see the shell's panel.
  */
 
 /* 64px box, 5px stroke, so the arc's centreline sits 2.5px inside the edge. */
@@ -94,12 +107,17 @@ export function MatchRail({
     <aside
       aria-label="Why this matches"
       className={cn(
-        "bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 p-4 md:w-52",
-        standalone ? "rounded-card border" : "border-t md:border-t-0 md:border-l",
+        "bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 p-4 @xl:w-52",
+        standalone ? "rounded-card border" : "border-t @xl:border-t-0 @xl:border-l",
       )}
     >
       <MatchRing score={score} />
-      <p className="text-caption font-semibold uppercase" style={{ color: matchColor(score) }}>
+      <p className="text-caption text-ink-muted flex items-center gap-1.5 font-semibold uppercase">
+        <span
+          aria-hidden="true"
+          className="size-2 rounded-full"
+          style={{ background: matchColor(score) }}
+        />
         {matchTier(score)}
       </p>
 
@@ -114,7 +132,7 @@ export function MatchRail({
             ) : (
               <Dot />
             )}
-            <span className={cn("text-meta", highlight.met ? "text-ink-muted" : "text-ink-faint")}>
+            <span className={cn("text-meta", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
               {highlight.text}
             </span>
           </li>

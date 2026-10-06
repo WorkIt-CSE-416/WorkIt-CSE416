@@ -20,17 +20,6 @@ export function BoltIcon({ className }: IconProps) {
   );
 }
 
-/* Detail pane ------------------------------------------------------------- */
-
-export function ExternalLinkIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" {...strokeProps} className={className}>
-      <path d="M9.5 2.5H13.5V6.5M13.5 2.5 8 8" />
-      <path d="M12.4 9.8v3a1.2 1.2 0 0 1-1.2 1.2H3.4a1.2 1.2 0 0 1-1.2-1.2V5a1.2 1.2 0 0 1 1.2-1.2h3" />
-    </svg>
-  );
-}
-
 /* Company marks -----------------------------------------------------------
  * Stand-ins for employer logos — see the note on JOBS in ./data. The stat-tile
  * glyphs that used to sit here moved to @/components/icons when the

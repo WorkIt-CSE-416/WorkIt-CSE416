@@ -2,7 +2,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 
-import { Avatar } from "@/components/avatar";
 import { STAGE_COLOR } from "../stage-colors";
 import { APPLICATIONS, type StagedApplication } from "./data";
 import { ProgressBar } from "./progress-bar";
@@ -16,7 +15,13 @@ import { ProgressBar } from "./progress-bar";
  * leave WorkIt with two visual systems on one route. What carries over is its
  * structure, which is the part actually being proposed: a tinted header block
  * naming the thing, then a body holding a date, a labelled progress row, a bar,
- * and a footer pairing a face with a status pill.
+ * and a footer with a status pill. The mockup's footer also pairs a face with
+ * the pill; that is left off, since in the seeker's own tracker the only face
+ * to show is someone else's, unexplained on one card in twelve.
+ *
+ * The header clamps the role at two lines and always holds two lines' height,
+ * so every header band in a row is the same depth and the date, bar and pill
+ * below line up across the row.
  *
  * Two substitutions it does not make. Its cards show no logo; this one keeps the
  * company tile, because the tile is how an employer is identified on every other
@@ -31,10 +36,10 @@ function GridCard({ item }: { item: StagedApplication }) {
   return (
     <Card as="li" padding="none" className="flex flex-col overflow-hidden">
       <div className="bg-well border-border-subtle flex items-start gap-2 border-b p-3">
-        <CompanyTile Icon={Icon} size="sm" tone={item.tone ?? "brand"} />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-subtitle text-ink leading-5">{item.role}</h3>
-          <p className="text-note text-ink-meta mt-0.5">{item.company}</p>
+        <CompanyTile Icon={Icon} size="sm" tone="outline" />
+        <div className="min-h-15 min-w-0 flex-1">
+          <h2 className="text-subtitle text-ink line-clamp-2 leading-5">{item.role}</h2>
+          <p className="text-note text-ink-meta mt-1 truncate">{item.company}</p>
         </div>
       </div>
 
@@ -47,14 +52,9 @@ function GridCard({ item }: { item: StagedApplication }) {
         </div>
         <ProgressBar value={stage.progress} stage={stage.stage} className="mt-1.5" />
 
-        {/* mt-auto rather than a fixed margin: some titles wrap to two lines and
-            some do not, and this keeps every footer in a row on one line. */}
-        <div className="mt-auto flex items-center justify-between gap-2 pt-3">
-          {item.owner ? (
-            <Avatar name={item.owner} className="size-6 text-[0.625rem]" />
-          ) : (
-            <span aria-hidden="true" />
-          )}
+        {/* mt-auto rather than a fixed margin, so every footer in a row sits on
+            one line even if the body above it ever differs in height. */}
+        <div className="mt-auto flex items-center justify-end pt-3">
           <Badge tone={STAGE_COLOR[stage.stage].tone}>{stage.title}</Badge>
         </div>
       </div>
@@ -64,7 +64,7 @@ function GridCard({ item }: { item: StagedApplication }) {
 
 export function ApplicationsGrid() {
   return (
-    <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <ul className="mt-4 grid gap-4 @xl/main:grid-cols-2 @3xl/main:grid-cols-3 @5xl/main:grid-cols-4">
       {APPLICATIONS.map((item) => (
         <GridCard key={`${item.company}-${item.role}`} item={item} />
       ))}

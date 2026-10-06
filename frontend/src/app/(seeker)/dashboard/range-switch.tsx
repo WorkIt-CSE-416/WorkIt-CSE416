@@ -26,9 +26,9 @@ export function RangeSwitch({ current }: { current: RangeKey }) {
             href={key === "week" ? "/dashboard" : `/dashboard?range=${key}`}
             aria-current={isActive ? "true" : undefined}
             className={cn(
-              "text-note focus-visible:ring-brand-ring flex h-7 items-center rounded-[0.375rem] px-2.5 font-medium focus-visible:ring-2 focus-visible:outline-none",
+              "text-note focus-visible:ring-brand-ring flex h-6.5 items-center rounded-[0.375rem] px-2.5 font-medium focus-visible:ring-2 focus-visible:outline-none",
               isActive
-                ? "bg-panel text-ink shadow-panel"
+                ? "bg-panel text-ink ring-border shadow-panel ring-1"
                 : "text-ink-meta hover:text-ink hover:bg-panel/60",
             )}
           >

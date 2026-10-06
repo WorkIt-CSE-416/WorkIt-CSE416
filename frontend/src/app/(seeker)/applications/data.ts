@@ -13,15 +13,11 @@ import { BuildingIcon, ClockIcon, CloudIcon, CubeIcon, NodesIcon, StorefrontIcon
 
 import type { StageKey } from "../stage-colors";
 
-export type Tone = "brand" | "positive";
-
 export type Application = {
   role: string;
   company: string;
   /** Stand-in for the company logo — see the note in icons.tsx. */
   Icon: ComponentType<{ className?: string }>;
-  /** Tints the company tile. Only an offer leaves brand. */
-  tone?: Tone;
   /** Where the application stands, shown as a chip beside the role. */
   status?: string;
   saved?: boolean;
@@ -29,13 +25,14 @@ export type Application = {
   tags?: string[];
   /** The scheduled thing this card is waiting on. */
   next?: { label: string; when: string };
+  /** A few words of when: on the board it shares the footer with the match,
+   *  so "14 days in" rather than "Interviewing for 14 days", which the column
+   *  heading already says and which truncated there. */
   meta: { text: string; Icon?: ComponentType<{ className?: string }> };
   /** A link in the footer — the one action a saved row offers. */
   action?: { label: string; href: string };
   /** A filled button, for the one card whose action cannot wait. */
   cta?: string;
-  /** Whose interview it is; the mockup shows a face here. */
-  owner?: string;
   /**
    * Exists because the shadcn kanban design has a slot for it and WorkIt had no
    * field to fill it: a card there carries a two-line description. An invented
@@ -78,8 +75,9 @@ export type Column = {
  * two clamped lines, a next step, a match score, and no `cta` — so every card
  * on the board draws at the height of the mockup's Interviewing card. Cards of
  * mixed heights made it hard to judge how the board scrolls, which is what the
- * extra cards are for. Keep new cards to the same shape: a role or a next-step
- * label long enough to wrap, or a `cta`, makes that one card taller.
+ * extra cards are for. Keep new cards to the same shape: a next-step label long
+ * enough to wrap, or a `cta`, makes that one card taller. (A role cannot: the
+ * board clamps it at two lines and always holds two lines' height.)
  *
  * The mockup draws the first two cards in Saved and Applied and the first in
  * Interviewing and Offer. The rest are invented, and so is every `next` except
@@ -192,8 +190,7 @@ export const COLUMNS: Column[] = [
         Icon: CloudIcon,
         status: "Round 2",
         next: { label: "Next: Technical Interview", when: "Tomorrow, 2:00 PM EST" },
-        meta: { text: "Interviewing for 14 days", Icon: ClockIcon },
-        owner: "Alex Chen",
+        meta: { text: "14 days in", Icon: ClockIcon },
       },
       {
         role: "Design Systems Lead",
@@ -204,7 +201,7 @@ export const COLUMNS: Column[] = [
         Icon: PinIcon,
         status: "Round 1",
         next: { label: "Next: Hiring Manager Call", when: "Oct 16, 3:30 PM EST" },
-        meta: { text: "Interviewing for 6 days", Icon: ClockIcon },
+        meta: { text: "6 days in", Icon: ClockIcon },
       },
       {
         role: "Product Designer II",
@@ -215,7 +212,7 @@ export const COLUMNS: Column[] = [
         Icon: BuildingIcon,
         status: "Final Round",
         next: { label: "Next: Onsite Interview", when: "Oct 19, 9:00 AM EST" },
-        meta: { text: "Interviewing for 21 days", Icon: ClockIcon },
+        meta: { text: "21 days in", Icon: ClockIcon },
       },
     ],
   },
@@ -230,7 +227,6 @@ export const COLUMNS: Column[] = [
         match: 90,
         summary: "Offer in hand for their payments dashboard team. Needs an answer by the 20th.",
         Icon: CoinIcon,
-        tone: "positive",
         next: { label: "Next: Negotiation Call", when: "Oct 17, 4:00 PM EST" },
         meta: { text: "Respond by Oct 20" },
       },
@@ -241,7 +237,6 @@ export const COLUMNS: Column[] = [
         summary:
           "Offer from the booking experience team, with a signing bonus. Waiting on the benefits details.",
         Icon: BriefcaseIcon,
-        tone: "positive",
         next: { label: "Next: Benefits Review", when: "Oct 18, 11:00 AM EST" },
         meta: { text: "Respond by Oct 27" },
       },
@@ -252,7 +247,6 @@ export const COLUMNS: Column[] = [
         summary:
           "Verbal offer for the customer portal redesign. The written offer follows their reference checks.",
         Icon: AwardIcon,
-        tone: "positive",
         next: { label: "Next: Reference Check", when: "Oct 18, 2:00 PM EST" },
         meta: { text: "Respond by Nov 3" },
       },

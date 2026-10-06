@@ -80,19 +80,19 @@ export const PIPELINE: Record<RangeKey, PipelineStage[]> = {
   week: [
     { label: "Applied", count: 5 },
     { label: "Heard back", count: 2 },
-    { label: "Interviewed", count: 1 },
+    { label: "Interviewing", count: 1 },
     { label: "Offer", count: 0 },
   ],
   month: [
     { label: "Applied", count: 18 },
     { label: "Heard back", count: 6 },
-    { label: "Interviewed", count: 3 },
+    { label: "Interviewing", count: 3 },
     { label: "Offer", count: 1 },
   ],
   season: [
     { label: "Applied", count: 42 },
     { label: "Heard back", count: 12 },
-    { label: "Interviewed", count: 5 },
+    { label: "Interviewing", count: 5 },
     { label: "Offer", count: 1 },
   ],
 };
@@ -196,7 +196,10 @@ const ALL_NEXT: UpNextItem[] = COLUMNS.flatMap((column) =>
  *  time in KIND_ORDER — one of each, then a second of each — so a week full
  *  of interviews can't push a closing deadline off the list. Sorting by kind
  *  alone did exactly that: three interviews and two offers filled all five.
- *  Within a kind they keep the board's own order. */
+ *  Within a kind they keep the board's own order. The chosen five are then
+ *  shown in KIND_ORDER, not in the order they were picked: the interleave put
+ *  the second interview last, under a nudge. With this fixture that also reads
+ *  soonest first; sort by real timestamps once the tracker supplies them. */
 const SHOWN = 5;
 const byKind = KIND_ORDER.map((kind) => ALL_NEXT.filter((item) => item.kind === kind));
 export const UP_NEXT: UpNextItem[] = Array.from(
@@ -204,4 +207,5 @@ export const UP_NEXT: UpNextItem[] = Array.from(
   (_, round) => byKind.flatMap((items) => (items[round] ? [items[round]] : [])),
 )
   .flat()
-  .slice(0, SHOWN);
+  .slice(0, SHOWN)
+  .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
