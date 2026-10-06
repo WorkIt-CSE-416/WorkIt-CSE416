@@ -172,7 +172,30 @@ const FLOATING =
   "[&>[data-slot=sidebar-inner]]:bg-panel [&>[data-slot=sidebar-inner]]:shadow-panel " +
   "[&>[data-slot=sidebar-inner]]:overflow-hidden [&>[data-slot=sidebar-inner]]:border";
 
-const GROUP_CAPTION = "text-caption text-ink-meta font-semibold uppercase";
+/**
+ * THE FLOATING PANEL'S SPACING is set on one vertical line, 28px in from the
+ * panel's edge: the logo's mark, the "Menu" and "General" captions and every
+ * row's icon start on it, as the reference dashboard lines up its logo,
+ * section labels and icons. The docked panel's 16px put everything close
+ * enough to the edge to read as crammed against it, and its logo 5px in.
+ *
+ * 28 is a 16px group inset plus 12px of row padding, and the numbers are
+ * chosen so the icons do not move when the panel collapses. A row is 40px
+ * tall, and on the rail it becomes a 40px square with the same 12px padding,
+ * centred in a 72px rail by the same 16px inset: its icon's centre is 36px in
+ * whether the panel is open (16 + 12 + 8) or collapsed (72 / 2). The rail was
+ * 48px with 32px squares, which left 8px either side and felt pinched; 72
+ * gives each icon 28px of air on both sides. The shell sets the matching
+ * --sidebar-width-icon (72px plus the panel's 12px inset each side).
+ *
+ * The captions carry the same 12px inside the group as the rows, so their
+ * text starts where the icons do, and each group gets 8px above and below so
+ * the two read as separate sections rather than one list.
+ */
+const FLOATING_GROUP = "px-4 py-2";
+const FLOATING_CAPTION = "text-caption text-ink-meta px-3 font-semibold uppercase";
+const FLOATING_BUTTON =
+  "h-10 px-3 group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-3!";
 
 export function AppSidebar({
   groups,
@@ -222,17 +245,17 @@ export function AppSidebar({
         {floating && !isMobile && home && <PanelBrand href={home} />}
 
         <nav aria-label={label} className="flex min-h-0 flex-1 flex-col">
-          <SidebarContent className={floating ? "gap-1 pt-1" : "pt-2"}>
+          <SidebarContent className={floating ? "gap-2 pt-3" : "pt-2"}>
             {groups.map((group, i) => (
-              <SidebarGroup key={group.label ?? i}>
+              <SidebarGroup key={group.label ?? i} className={cn(floating && FLOATING_GROUP)}>
                 {group.label && (
-                  <SidebarGroupLabel className={cn(floating && GROUP_CAPTION)}>
+                  <SidebarGroupLabel className={cn(floating && FLOATING_CAPTION)}>
                     {group.label}
                   </SidebarGroupLabel>
                 )}
                 <SidebarMenu className={MENU}>
                   {group.items.map((item) => (
-                    <NavRow key={item.label} item={item} pathname={pathname} />
+                    <NavRow key={item.label} item={item} pathname={pathname} floating={floating} />
                   ))}
                 </SidebarMenu>
               </SidebarGroup>
@@ -240,7 +263,7 @@ export function AppSidebar({
           </SidebarContent>
 
           {(footerCard || (footer && footer.length > 0)) && (
-            <SidebarFooter className="gap-3 pb-3">
+            <SidebarFooter className={cn("gap-3 pb-3", floating && "px-4 pb-4")}>
               {footerCard}
               {footer && footer.length > 0 && (
                 <SidebarMenu className={MENU}>
@@ -259,33 +282,44 @@ export function AppSidebar({
 
 /**
  * The floating panel's logo: the lockup as its two halves (see `mark` in
- * @/components/logo). The mark never moves: its ink is centred on x=24, the
- * line every rail icon is centred on whether the panel is open (8px group
- * inset, 8px row padding, a 16px glyph) or collapsed to the 48px rail. Only
- * the wordmark changes, fading on the panel's own 200ms while the narrowing
- * panel clips it, so collapsing never swaps one image for another mid-way.
- * The link stays live on the rail, where the mark alone still goes home.
+ * @/components/logo), 32px tall, so the mark's ink is about 30px square.
+ *
+ * Open, the mark's ink starts on the panel's 28px line with the captions and
+ * the row icons (the image carries 1px of transparent padding, so the box
+ * sits at 27px). Collapsed, it is centred in the 72px rail instead, its box
+ * at 19px: a mark as wide as two icons cannot share both their left edge and
+ * their centre. So the inset slides between the two on the panel's own 200ms
+ * linear, the same time the width takes, while the wordmark fades and the
+ * narrowing panel clips it. Nothing swaps mid-way and nothing jumps. The link
+ * stays live on the rail, where the mark alone still goes home.
  *
  * 64px tall, the top bar's height, so the panel's header and the bar beside
- * it share one top line and one bottom line.
+ * it share one top line and one bottom line, and the logo sits on the bar's
+ * centre line as the reference's does.
  */
 function PanelBrand({ href }: { href: string }) {
   const { state } = useSidebar();
+  const collapsed = state === "collapsed";
 
   return (
-    <SidebarHeader className="h-16 shrink-0 flex-row items-center p-0 pl-1">
+    <SidebarHeader
+      className={cn(
+        "h-16 shrink-0 flex-row items-center p-0 pl-[27px] transition-[padding] duration-200 ease-linear",
+        collapsed && "pl-[19px]",
+      )}
+    >
       <Link
         href={href}
         className="focus-visible:ring-brand-ring flex shrink-0 items-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
       >
-        <Logo size="mark" priority className="h-9" />
+        <Logo size="mark" priority className="h-8" />
         <Logo
           size="wordmark"
           decorative
           priority
           className={cn(
-            "h-9 transition-opacity duration-200 ease-linear",
-            state === "collapsed" && "opacity-0",
+            "h-8 transition-opacity duration-200 ease-linear",
+            collapsed && "opacity-0",
           )}
         />
       </Link>
@@ -293,9 +327,18 @@ function PanelBrand({ href }: { href: string }) {
   );
 }
 
-function NavRow({ item, pathname }: { item: SidebarNavItem; pathname: string }) {
+function NavRow({
+  item,
+  pathname,
+  floating = false,
+}: {
+  item: SidebarNavItem;
+  pathname: string;
+  floating?: boolean;
+}) {
   const { label, Icon } = item;
   const { setOpenMobile } = useSidebar();
+  const size = floating ? FLOATING_BUTTON : MENU_BUTTON;
 
   if ("action" in item) {
     return (
@@ -306,7 +349,7 @@ function NavRow({ item, pathname }: { item: SidebarNavItem; pathname: string }) 
             setOpenMobile(false);
             void item.action();
           }}
-          className={cn(MENU_BUTTON, "cursor-pointer")}
+          className={cn(size, "cursor-pointer")}
         >
           <Icon className="size-4" />
           <span>{label}</span>
@@ -326,7 +369,7 @@ function NavRow({ item, pathname }: { item: SidebarNavItem; pathname: string }) 
         render={<Link href={href} aria-current={active ? "page" : undefined} />}
         // Closes the phone sheet on the way out; a no-op on the desktop panel.
         onClick={() => setOpenMobile(false)}
-        className={cn(MENU_BUTTON, active && CURRENT_ITEM)}
+        className={cn(size, active && CURRENT_ITEM)}
       >
         <Icon className="size-4" />
         <span>{label}</span>

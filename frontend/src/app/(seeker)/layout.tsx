@@ -30,7 +30,7 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * and the bar, and between the bar and the page. The panel pads itself 12px
  * (FLOATING in @/components/app-sidebar), which is why --sidebar-width and
  * --sidebar-width-icon are set here 24px wider than shadcn's own: the panel
- * keeps its 256px open and a 48px collapsed rail, and the in-flow gap shadcn
+ * keeps its 256px open and a 72px collapsed rail, and the in-flow gap shadcn
  * keeps beside it stays the panel's exact width in both states. The column
  * beside it pads itself the same 12px on every side but the left, where the
  * panel's own padding already is. Below md the panel is a sheet, so the
@@ -95,7 +95,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       style={
         {
           "--sidebar-width": "17.5rem",
-          "--sidebar-width-icon": "4.5rem",
+          "--sidebar-width-icon": "6rem",
         } as React.CSSProperties
       }
     >
