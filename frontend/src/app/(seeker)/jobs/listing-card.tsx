@@ -61,8 +61,8 @@ export function ListingCard({ job }: { job: JobListing }) {
       rail={<MatchRail score={null} highlights={[]} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
-         too many. Quick, quiet verdicts on the left, the two steps toward
-         applying on the right. */
+         too many. All four sit at the row's right end, as on the mock cards:
+         the quick verdicts first, then the two steps toward applying. */
       actions={
         <>
           <IconButton
@@ -79,7 +79,7 @@ export function ListingCard({ job }: { job: JobListing }) {
           {/* Secondary, not primary: asking about a job is the step before
               applying to it, and only one control on a card can be the one
               being pointed at. */}
-          <Button variant="secondary" size="sm" className="ml-auto">
+          <Button variant="secondary" size="sm">
             <Sparkles className="size-4" />
             Ask WorkIt
           </Button>
@@ -101,14 +101,12 @@ export function ListingCard({ job }: { job: JobListing }) {
 
 /**
  * A list's place while the feed loads: four cards in the listing card's own
- * shape (logo, title, company, facts, and the match rail), so the page does
- * not jump when the real ones land. It is nested as the card is (a card
- * container, a row that puts the rail beside the body from 576px of card, and
- * a body container), so it breaks at the same widths measured the same way:
- * under 672px of body the actions drop to a ruled row of their own, and under
- * 448px the timing takes a line of its own. Without that row every phone card
- * nearly doubled in height as the feed streamed in. Stated once for a screen
- * reader; the shapes themselves are hidden.
+ * shape (the tall logo tile; badge, title and company; the ruled fact grid;
+ * the ruled action row; and the match rail), so the page does not jump when
+ * the real ones land. It is nested as the card is (a card container, a row
+ * that puts the rail beside the body from 576px of card, and a body
+ * container), so the tile, the grid and the rail break at the same widths.
+ * Stated once for a screen reader; the shapes themselves are hidden.
  */
 export function ListingsSkeleton() {
   return (
@@ -119,23 +117,25 @@ export function ListingsSkeleton() {
           <li key={index}>
             <Card padding="none" className="@container overflow-hidden">
               <div className="flex flex-col @xl:flex-row">
-                <div className="@container min-w-0 flex-1">
-                  <div className="p-4 sm:p-5">
-                    <div className="flex gap-3 sm:gap-4">
-                      <Skeleton className="rounded-control size-11 shrink-0 sm:size-12" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-5 w-2/3" />
-                        <Skeleton className="h-4 w-1/3" />
-                        <Skeleton className="hidden h-4 w-1/4 @max-md:block" />
-                        <Skeleton className="h-4 w-1/2" />
-                      </div>
+                <div className="@container min-w-0 flex-1 p-4">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="rounded-card w-14 shrink-0 self-stretch @md:w-20" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-6 w-32 rounded-full" />
+                      <Skeleton className="h-6 w-2/3" />
+                      <Skeleton className="h-4 w-1/3" />
                     </div>
-                    <div className="border-border-subtle mt-4 flex gap-2 border-t pt-3 @2xl:hidden">
-                      <Skeleton className="size-8" />
-                      <Skeleton className="size-8" />
-                      <Skeleton className="ml-auto h-8 w-28" />
-                      <Skeleton className="h-8 w-24" />
-                    </div>
+                  </div>
+                  <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 border-t pt-3 @md:grid-cols-3">
+                    {Array.from({ length: 6 }, (_, fact) => (
+                      <Skeleton key={fact} className="h-3.5 w-4/5" />
+                    ))}
+                  </div>
+                  <div className="border-border-subtle mt-3 flex justify-end gap-2 border-t pt-3">
+                    <Skeleton className="size-8" />
+                    <Skeleton className="size-8" />
+                    <Skeleton className="h-8 w-28" />
+                    <Skeleton className="h-8 w-24" />
                   </div>
                 </div>
                 {/* The match rail's box: the ring, the tier line, three rows. */}
