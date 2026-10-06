@@ -8,6 +8,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/shadcn/chart";
+import { useIsMobile } from "@/components/shadcn/hooks/use-mobile";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { SectionHeading } from "@/components/ui/section-heading";
 
@@ -78,8 +79,11 @@ function toWeeks(daily: DayCount[]): DayCount[] {
 const WEEKLY_ABOVE = 30;
 
 /** Roughly how many x-axis labels fit across this card before they touch.
- *  Measured against the widest tick the formatter produces ("Aug 27"). */
+ *  Measured against the widest tick the formatter produces ("Aug 27"). A
+ *  phone's plot is about 245px, which holds four of those with clear gaps;
+ *  seven ran them together into "Aug 6Aug 10Aug 14". */
 const TICK_TARGET = 7;
+const TICK_TARGET_MOBILE = 4;
 
 /**
  * Axis ticks, formatted for the window rather than for the data.
@@ -131,6 +135,7 @@ export function Trend() {
    * fact — so both now write the same state and the toggle is a shortcut
    * rather than a rival. See the note in ./range.tsx. */
   const { range, days: daily, setRange } = useRange();
+  const tickTarget = useIsMobile() ? TICK_TARGET_MOBILE : TICK_TARGET;
 
   const active = matchPreset(range, TOGGLE_PRESETS);
   const span = rangeLength(range);
@@ -182,7 +187,12 @@ export function Trend() {
             if (preset) setRange(preset.range);
           }}
           aria-label="Time range"
-          spacing={0}
+          /* 0.5, not 0: spacing={0} switches on the vendored group's
+             joined-segment rules, which square off the pressed chip's inner
+             corners. 0.5 is a 2px gap, the same as the track's padding, and
+             each chip's 5px radius is the track's 8px less its 1px border and
+             that padding, so the corners nest. */
+          spacing={0.5}
           className="border-border-subtle bg-well rounded-control shrink-0 border p-0.5"
         >
           {TOGGLE_PRESETS.map((preset) => (
@@ -192,7 +202,7 @@ export function Trend() {
               size="sm"
               /* The chip is abbreviated; the accessible name is not. */
               aria-label={preset.label}
-              className="text-note text-ink-meta hover:text-ink aria-pressed:bg-panel aria-pressed:text-ink rounded-[6px] px-2.5 aria-pressed:shadow-sm"
+              className="text-note text-ink-meta hover:text-ink aria-pressed:bg-panel aria-pressed:text-ink rounded-[5px] px-2.5 aria-pressed:shadow-sm"
             >
               {preset.short}
             </ToggleGroupItem>
@@ -234,11 +244,11 @@ export function Trend() {
                one day to thirteen weeks, and a rule written per preset went
                wrong the moment 30 days and 90 days both landed on "every
                other" (fifteen daily ticks, which collide, and seven weekly
-               ones, which do not). Aiming at TICK_TARGET labels holds for any
-               length. Recharts does drop overlapping ticks itself, but only
+               ones, which do not). Aiming at a target count of labels holds
+               for any length. Recharts does drop overlapping ticks itself, but only
                after laying them out, which leaves an uneven gap — asking for
                fewer up front is steadier. */
-            interval={Math.max(0, Math.ceil(visible.length / TICK_TARGET) - 1)}
+            interval={Math.max(0, Math.ceil(visible.length / tickTarget) - 1)}
             tickFormatter={(iso: string) => tick(iso, span)}
           />
 

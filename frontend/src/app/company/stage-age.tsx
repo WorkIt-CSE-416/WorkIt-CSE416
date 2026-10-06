@@ -45,7 +45,7 @@ export function StageAge() {
             <span className="text-ink">{stage}</span>
             <span className="text-ink-meta tabular-nums">
               {medianDays}d median
-              <span className="text-ink-faint"> · {oldestDays}d oldest</span>
+              <span className="text-ink"> · {oldestDays}d oldest</span>
             </span>
           </div>
 

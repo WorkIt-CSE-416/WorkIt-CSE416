@@ -41,6 +41,10 @@ import { STATUS_LABEL, STATUS_TONE } from "../data";
 /** STEPS for a job that is already live: nothing is left to publish. */
 const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
 
+/** Every footer button: full width in the phone's stacked column, its own
+ *  width once the row fits beside it. */
+const FOOTER_BUTTON = "w-full sm:w-auto";
+
 /**
  * /company/jobs/new — the screen behind the top bar's "Post a Job".
  *
@@ -89,7 +93,14 @@ const LIVE_STEPS = ["Basic Details", "Screening", "Review"] as const;
  * act at once through their own route and never save form edits along with
  * them, so they live beside the status badge rather than among the save
  * buttons, and unsaved edits survive a pause. A closed job is final: the form
- * still opens so it can be read, but nothing saves.
+ * still opens so it can be read, but nothing saves. Its fields sit in a
+ * disabled <fieldset>, so nothing can be typed that would then be thrown
+ * away, while Back and Continue in the footer still page through the steps.
+ *
+ * NOTHING IS GREYED OUT FOR BEING INCOMPLETE. Continue and the save buttons
+ * stay enabled, and pressing one on an unfinished form is what lists the
+ * missing fields and outlines them red (see `attempted`). A disabled button
+ * never says why, and an empty form shouldn't open on an error.
  */
 export function Composer({ job }: { job?: CompanyJob }) {
   const [editing, setEditing] = useState(
@@ -134,6 +145,9 @@ export function Composer({ job }: { job?: CompanyJob }) {
   }
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
+  /** Set by the first Continue or save the form refuses. Until then an
+   *  empty required field is unfinished, not wrong. */
+  const [attempted, setAttempted] = useState(false);
   const router = useRouter();
 
   /** Questions count too, though they aren't saved yet: losing them to a
@@ -202,17 +216,27 @@ export function Composer({ job }: { job?: CompanyJob }) {
    *  only say "Input should be less than or equal to 50", and the preview
    *  would otherwise show "$150k – $100k" before that. Title's 200 is held by
    *  the input's maxLength. */
-  const invalidFields: string[] = [];
-  if (
+  const salaryInverted =
     draft.salaryType === "Range" &&
     !isBlankNumber(draft.salaryMin) &&
     !isBlankNumber(draft.salaryMax) &&
-    Number(draft.salaryMin) > Number(draft.salaryMax)
-  )
-    invalidFields.push("Salary Min can't be more than Salary Max");
-  if (draft.experienceLevel === "Experienced" && Number(draft.minYearsExperience) > 50)
-    invalidFields.push("Min Years Experience can be at most 50");
+    Number(draft.salaryMin) > Number(draft.salaryMax);
+  const tooManyYears =
+    draft.experienceLevel === "Experienced" && Number(draft.minYearsExperience) > 50;
+  const invalidFields: string[] = [];
+  if (salaryInverted) invalidFields.push("Salary Min can't be more than Salary Max");
+  if (tooManyYears) invalidFields.push("Min Years Experience can be at most 50");
   const canLeaveBasicDetails = missingFields.length === 0 && invalidFields.length === 0;
+
+  /** A field the summary names, outlined red once the summary is showing. */
+  const isMissing = (field: string) => attempted && missingFields.includes(field);
+
+  /** Runs `action` when Basic Details is complete, and otherwise shows what
+   *  is missing. Continue and every save go through this. */
+  function whenComplete(action: () => void) {
+    if (canLeaveBasicDetails) action();
+    else setAttempted(true);
+  }
 
   /** Every required field lives on Basic Details, so a draft that can leave
    *  it is one the API will accept. Pending blocks a second click from
@@ -233,14 +257,18 @@ export function Composer({ job }: { job?: CompanyJob }) {
   }
 
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
       <div className="min-w-0">
         <header>
-          <h1 className="text-heading text-ink">{editing ? "Edit Job" : "Post a New Job"}</h1>
+          <h1 className="text-heading text-ink">
+            {isClosed ? "View Job" : editing ? "Edit Job" : "Post a New Job"}
+          </h1>
           <p className="text-body text-ink-meta mt-1">
-            {editing
-              ? "Change the details below, then save."
-              : "Fill out the details below to create a new job posting."}
+            {isClosed
+              ? "This job is closed. Its details are shown read-only."
+              : editing
+                ? "Change the details below, then save."
+                : "Fill out the details below to create a new job posting."}
           </p>
 
           {editing && isLive && (
@@ -248,11 +276,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
               <Badge variant="status" tone={STATUS_TONE[STATUS_LABEL[editing.status]]}>
                 {STATUS_LABEL[editing.status]}
               </Badge>
-              {isClosed ? (
-                <p className="text-meta text-ink-meta">
-                  This job is closed, so it can no longer be edited.
-                </p>
-              ) : (
+              {!isClosed && (
                 <>
                   <Button
                     variant="secondary"
@@ -268,7 +292,15 @@ export function Composer({ job }: { job?: CompanyJob }) {
                   >
                     {editing.status === "paused" ? "Resume" : "Pause"}
                   </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setIsClosing(true)}>
+                  {/* Red text on the neutral button: the row menu's Close is
+                      red too, and this one is just as final, but a red fill
+                      would shout beside Pause. */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="text-danger hover:bg-danger-tint"
+                    onClick={() => setIsClosing(true)}
+                  >
                     Close job
                   </Button>
                   <CloseJobDialog
@@ -307,231 +339,289 @@ export function Composer({ job }: { job?: CompanyJob }) {
         {/* padding="none" because the card's own rules have to sit inside the
               padding, not run edge to edge — so each block pads itself. */}
         <Card padding="none" className="mt-5">
-          {step === 0 && (
-            <section className="p-4.5">
-              <SectionHeading as="h2" className="border-border-subtle border-b pb-3">
-                Basic Information
-              </SectionHeading>
+          {/* `contents`, so the fieldset adds no box of its own: it is here
+              only to disable every control on a closed job at once. The
+              footer sits outside it, so Back and Continue still work. The
+              fields, Select triggers and buttons fade themselves when
+              disabled; the selectors are a backstop for any control inside
+              that does not, so nothing on a closed job looks live. Base UI's
+              Checkbox is a <span> a fieldset can't reach, so
+              <ScreeningQuestions> takes `disabled` itself. */}
+          <fieldset
+            disabled={isClosed}
+            className="contents [&_:disabled]:cursor-not-allowed [&_:disabled]:opacity-50"
+          >
+            {step === 0 && (
+              <section className="p-4.5">
+                <SectionHeading as="h2" className="border-border-subtle border-b pb-3">
+                  Basic Information
+                </SectionHeading>
 
-              <div className="mt-4 flex flex-col gap-4">
-                <TextField
-                  id="job-title"
-                  label="Job Title"
-                  placeholder="e.g. Senior Frontend Engineer"
-                  required
-                  maxLength={200}
-                  value={draft.title}
-                  onChange={(event) => set("title", event.target.value)}
-                />
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {/* No column holds department or city yet, so both are
-                      labelled rather than silently dropped on save. */}
-                  <SelectField
-                    id="department"
-                    label="Department (not saved yet)"
-                    value={draft.department}
-                    onValueChange={(department) => set("department", department)}
-                    options={DEPARTMENTS}
-                  />
-
-                  <SelectField
-                    id="work-style"
-                    label="Work Style"
-                    placeholder="Choose Work Style"
+                {/* The rows break on the room beside the panel (the shell's
+                    @container/main), not on the window: at 900px with the
+                    panel open, viewport columns left each picker too narrow
+                    for its own placeholder. */}
+                <div className="mt-4 flex flex-col gap-4">
+                  <TextField
+                    id="job-title"
+                    label="Job Title"
+                    placeholder="e.g. Senior Frontend Engineer"
                     required
-                    value={draft.workStyle}
-                    onValueChange={(workStyle) => set("workStyle", workStyle)}
-                    options={WORK_STYLES}
-                  />
-                </div>
-
-                {/* Required for Remote too: "remote" usually means "remote,
-                    but based in the United States", and the table stores a
-                    country for every posting. On a Remote posting the preview
-                    shows just the country (see ./preview.tsx's
-                    `locationLabel`), since a remote hire isn't tied to the
-                    city a saved location happens to carry. */}
-                <LocationField
-                  id="location"
-                  label="Location"
-                  placeholder={isRemote ? "Where hires must be based" : "Select a location"}
-                  required
-                  value={draft.locationId}
-                  onValueChange={(locationId) => set("locationId", locationId)}
-                  options={locations}
-                  onAddLocation={addLocation}
-                />
-                <p className="text-meta text-ink-faint -mt-3">
-                  Only the country is saved for now. The city isn&apos;t stored yet.
-                </p>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <SelectField
-                    id="job-type"
-                    label="Job Type"
-                    placeholder="Choose Job Type"
-                    required
-                    value={draft.jobType}
-                    onValueChange={(jobType) => set("jobType", jobType)}
-                    options={JOB_TYPES}
+                    maxLength={200}
+                    aria-invalid={isMissing("Job Title") || undefined}
+                    value={draft.title}
+                    onChange={(event) => set("title", event.target.value)}
                   />
 
-                  <SelectField
-                    id="experience-level"
-                    label="Experience Level"
-                    placeholder="Choose Experience Level"
-                    required
-                    value={draft.experienceLevel}
-                    onValueChange={(experienceLevel) => set("experienceLevel", experienceLevel)}
-                    options={EXPERIENCE_LEVELS}
-                  />
+                  <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
+                    {/* No column holds department or city yet, so both say
+                        so under the field rather than being silently
+                        dropped on save. */}
+                    <div className="flex flex-col gap-1">
+                      <SelectField
+                        id="department"
+                        label="Department"
+                        describedBy="department-hint"
+                        value={draft.department}
+                        onValueChange={(department) => set("department", department)}
+                        options={DEPARTMENTS}
+                      />
+                      <p id="department-hint" className="text-meta text-ink-meta">
+                        Not saved with the job yet.
+                      </p>
+                    </div>
 
-                  {draft.experienceLevel === "Experienced" && (
-                    <NumberField
-                      id="min-years-experience"
-                      label="Min Years Experience"
-                      placeholder="5"
-                      value={draft.minYearsExperience}
-                      onValueChange={(value) => set("minYearsExperience", value)}
-                    />
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <SelectField
-                    id="salary-type"
-                    label="Salary"
-                    value={draft.salaryType}
-                    onValueChange={(salaryType) => set("salaryType", salaryType)}
-                    options={SALARY_TYPES}
-                  />
-
-                  <SelectField
-                    id="currency"
-                    label="Currency"
-                    value={draft.currency}
-                    onValueChange={(currency) => set("currency", currency)}
-                    options={CURRENCIES}
-                  />
-
-                  <SelectField
-                    id="salary-period"
-                    label="Pay Period"
-                    value={draft.salaryPeriod}
-                    onValueChange={(salaryPeriod) => set("salaryPeriod", salaryPeriod)}
-                    options={SALARY_PERIODS}
-                  />
-                </div>
-
-                {draft.salaryType === "Exact figure" ? (
-                  <NumberField
-                    id="salary"
-                    label="Amount"
-                    placeholder={isHourly ? "20" : "100,000"}
-                    allowDecimal={isHourly}
-                    required
-                    value={draft.salary}
-                    onValueChange={(value) => set("salary", value)}
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <NumberField
-                      id="salary-min"
-                      label="Salary Min"
-                      placeholder={isHourly ? "20" : "100,000"}
-                      allowDecimal={isHourly}
+                    <SelectField
+                      id="work-style"
+                      label="Work Style"
+                      placeholder="Choose Work Style"
                       required
-                      value={draft.salaryMin}
-                      onValueChange={(value) => set("salaryMin", value)}
-                    />
-
-                    <NumberField
-                      id="salary-max"
-                      label="Salary Max"
-                      placeholder={isHourly ? "20" : "100,000"}
-                      allowDecimal={isHourly}
-                      required
-                      value={draft.salaryMax}
-                      onValueChange={(value) => set("salaryMax", value)}
+                      invalid={isMissing("Work Style")}
+                      value={draft.workStyle}
+                      onValueChange={(workStyle) => set("workStyle", workStyle)}
+                      options={WORK_STYLES}
                     />
                   </div>
-                )}
 
-                <TextAreaField
-                  id="job-description"
-                  label="Job Description"
-                  placeholder="Describe the role, responsibilities, and requirements…"
-                  hint="Use Markdown for formatting."
-                  required
-                  value={draft.description}
-                  onChange={(event) => set("description", event.target.value)}
+                  {/* Required for Remote too: "remote" usually means "remote,
+                      but based in the United States", and the table stores a
+                      country for every posting. On a Remote posting the preview
+                      shows just the country (see ./preview.tsx's
+                      `locationLabel`), since a remote hire isn't tied to the
+                      city a saved location happens to carry. */}
+                  <LocationField
+                    id="location"
+                    label="Location"
+                    placeholder={isRemote ? "Where hires must be based" : "Select a location"}
+                    hint="Only the country is saved for now. The city isn't stored yet."
+                    required
+                    invalid={isMissing("Location")}
+                    value={draft.locationId}
+                    onValueChange={(locationId) => set("locationId", locationId)}
+                    options={locations}
+                    onAddLocation={addLocation}
+                  />
+
+                  {/* Two columns, not three: Min Years Experience wraps under
+                      Job Type when it appears, rather than a third column
+                      standing empty until then. */}
+                  <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
+                    <SelectField
+                      id="job-type"
+                      label="Job Type"
+                      placeholder="Choose Job Type"
+                      required
+                      invalid={isMissing("Job Type")}
+                      value={draft.jobType}
+                      onValueChange={(jobType) => set("jobType", jobType)}
+                      options={JOB_TYPES}
+                    />
+
+                    <SelectField
+                      id="experience-level"
+                      label="Experience Level"
+                      placeholder="Choose Experience Level"
+                      required
+                      invalid={isMissing("Experience Level")}
+                      value={draft.experienceLevel}
+                      onValueChange={(experienceLevel) => set("experienceLevel", experienceLevel)}
+                      options={EXPERIENCE_LEVELS}
+                    />
+
+                    {draft.experienceLevel === "Experienced" && (
+                      <NumberField
+                        id="min-years-experience"
+                        label="Min Years Experience"
+                        placeholder="5"
+                        invalid={tooManyYears}
+                        value={draft.minYearsExperience}
+                        onValueChange={(value) => set("minYearsExperience", value)}
+                      />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 @3xl/main:grid-cols-3">
+                    <SelectField
+                      id="salary-type"
+                      label="Salary"
+                      value={draft.salaryType}
+                      onValueChange={(salaryType) => set("salaryType", salaryType)}
+                      options={SALARY_TYPES}
+                    />
+
+                    <SelectField
+                      id="currency"
+                      label="Currency"
+                      value={draft.currency}
+                      onValueChange={(currency) => set("currency", currency)}
+                      options={CURRENCIES}
+                    />
+
+                    <SelectField
+                      id="salary-period"
+                      label="Pay Period"
+                      value={draft.salaryPeriod}
+                      onValueChange={(salaryPeriod) => set("salaryPeriod", salaryPeriod)}
+                      options={SALARY_PERIODS}
+                    />
+                  </div>
+
+                  {draft.salaryType === "Exact figure" ? (
+                    <NumberField
+                      id="salary"
+                      label="Amount"
+                      placeholder={isHourly ? "20" : "100,000"}
+                      allowDecimal={isHourly}
+                      required
+                      invalid={isMissing("Salary Amount")}
+                      value={draft.salary}
+                      onValueChange={(value) => set("salary", value)}
+                    />
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
+                      <NumberField
+                        id="salary-min"
+                        label="Salary Min"
+                        placeholder={isHourly ? "20" : "100,000"}
+                        allowDecimal={isHourly}
+                        required
+                        invalid={isMissing("Salary Min") || salaryInverted}
+                        value={draft.salaryMin}
+                        onValueChange={(value) => set("salaryMin", value)}
+                      />
+
+                      <NumberField
+                        id="salary-max"
+                        label="Salary Max"
+                        placeholder={isHourly ? "20" : "100,000"}
+                        allowDecimal={isHourly}
+                        required
+                        invalid={isMissing("Salary Max") || salaryInverted}
+                        value={draft.salaryMax}
+                        onValueChange={(value) => set("salaryMax", value)}
+                      />
+                    </div>
+                  )}
+
+                  <TextAreaField
+                    id="job-description"
+                    label="Job Description"
+                    placeholder="Describe the role, responsibilities, and requirements…"
+                    hint="Use Markdown for formatting."
+                    required
+                    aria-invalid={isMissing("Job Description") || undefined}
+                    value={draft.description}
+                    onChange={(event) => set("description", event.target.value)}
+                  />
+                </div>
+              </section>
+            )}
+
+            {step === 1 && (
+              <div className="p-4.5">
+                <ScreeningQuestions
+                  questions={questions}
+                  onChange={setQuestions}
+                  disabled={isClosed}
                 />
               </div>
-            </section>
-          )}
+            )}
 
-          {step === 1 && (
-            <div className="p-4.5">
-              <p className="text-meta text-ink-meta mb-4">
-                Screening questions aren&apos;t saved yet. You can draft them here, but they
-                won&apos;t be kept with the job.
-              </p>
-              <ScreeningQuestions questions={questions} onChange={setQuestions} />
-            </div>
-          )}
+            {isPublishStep && (
+              <section className="p-4.5">
+                <SectionHeading as="h2" className="border-border-subtle border-b pb-3">
+                  {isLive ? "Review Changes" : "Ready to Publish"}
+                </SectionHeading>
 
-          {isPublishStep && (
-            <section className="p-4.5">
-              <SectionHeading as="h2" className="border-border-subtle border-b pb-3">
-                {isLive ? "Review Changes" : "Ready to Publish"}
-              </SectionHeading>
+                <div className="mt-4 flex flex-col gap-4">
+                  <p className="text-body text-ink-meta">
+                    {isLive
+                      ? "Check the live preview above, then update the job. Applicants see the changes right away."
+                      : "Check the live preview above against what you entered, then publish the role or save it as a draft to come back to."}
+                  </p>
 
-              <div className="mt-4 flex flex-col gap-4">
-                <p className="text-body text-ink-meta">
-                  {isLive
-                    ? "Check the live preview above, then update the job. Applicants see the changes right away."
-                    : "Check the live preview above against what you entered, then publish the role or save it as a draft to come back to."}
-                </p>
-
-                <DateField
-                  id="closes-at"
-                  label="Applications Close (optional)"
-                  value={draft.closesAt}
-                  onValueChange={(value) => set("closesAt", value)}
-                />
-              </div>
-            </section>
-          )}
+                  <DateField
+                    id="closes-at"
+                    label="Applications Close (optional)"
+                    value={draft.closesAt}
+                    onValueChange={(value) => set("closesAt", value)}
+                  />
+                </div>
+              </section>
+            )}
+          </fieldset>
 
           {/* Only on step 0: Screening and Publish have nothing this form
               considers required (see the note by `missingFields`), so there
-              is never anything to report on the steps that show this. */}
-          {step === 0 && missingFields.length > 0 && (
-            <p className="text-meta text-danger px-4.5 pt-3">
-              Complete the required fields to continue: {missingFields.join(", ")}.
-            </p>
-          )}
-          {step === 0 &&
-            invalidFields.map((problem) => (
-              <p key={problem} className="text-meta text-danger px-4.5 pt-3">
-                {problem}.
-              </p>
-            ))}
+              is never anything to report on the steps that show this.
 
-          {saveError && <p className="text-meta text-danger px-4.5 pt-3">{saveError}</p>}
+              Until the first refused Continue or save, a plain note says what
+              the asterisks mean, so an empty form doesn't open on a red list.
+              The alert region is always mounted (and hidden while empty)
+              because a screen reader announces what is added to a live region
+              it already knows about, not one that arrives with its text. Both
+              pad only below: the step's section already pads 18px above, so
+              each line sits 18px clear of the form and of the rule. */}
+          {step === 0 && !attempted && !isClosed && (
+            <p className="text-meta text-ink-meta px-4.5 pb-4.5">Fields marked * are required.</p>
+          )}
+          <div role="alert" className="flex flex-col gap-1 px-4.5 pb-4.5 empty:hidden">
+            {step === 0 && attempted && missingFields.length > 0 && (
+              <p className="text-meta text-danger">
+                Complete the required fields to continue: {missingFields.join(", ")}.
+              </p>
+            )}
+            {step === 0 &&
+              invalidFields.map((problem) => (
+                <p key={problem} className="text-meta text-danger">
+                  {problem}.
+                </p>
+              ))}
+            {saveError && <p className="text-meta text-danger">{saveError}</p>}
+          </div>
 
           <hr className="border-border-subtle mx-4.5" />
 
-          <div className="flex flex-wrap items-center justify-end gap-3 p-4.5">
+          {/* One height for every button in the row. On a phone they stack
+              full width, reversed so the primary action is on top. */}
+          <div className="flex flex-col-reverse gap-3 p-4.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             {step > 0 && (
-              <Button variant="secondary" onClick={() => setStep(step - 1)}>
+              <Button
+                variant="secondary"
+                className={FOOTER_BUTTON}
+                onClick={() => setStep(step - 1)}
+              >
                 Back
               </Button>
             )}
 
             {/* Every mode gets a way out, a new job and a draft included. */}
-            <ButtonLink href="/company/jobs" variant="ghost" onClick={confirmLeave}>
+            <ButtonLink
+              href="/company/jobs"
+              variant="secondary"
+              className={FOOTER_BUTTON}
+              onClick={confirmLeave}
+            >
               Cancel
             </ButtonLink>
 
@@ -540,16 +630,17 @@ export function Composer({ job }: { job?: CompanyJob }) {
                 {!isPublishStep && (
                   <Button
                     variant="secondary"
-                    onClick={() => setStep(step + 1)}
-                    disabled={step === 0 && !canLeaveBasicDetails}
+                    className={FOOTER_BUTTON}
+                    onClick={() => whenComplete(() => setStep(step + 1))}
                   >
                     Continue to {steps[step + 1]}
                   </Button>
                 )}
                 {!isClosed && (
                   <Button
-                    onClick={() => save("published")}
-                    disabled={!canLeaveBasicDetails || isSaving}
+                    className={FOOTER_BUTTON}
+                    onClick={() => whenComplete(() => save("published"))}
+                    disabled={isSaving}
                   >
                     Update Job
                   </Button>
@@ -559,23 +650,28 @@ export function Composer({ job }: { job?: CompanyJob }) {
               <>
                 <Button
                   variant="secondary"
-                  onClick={() => save("draft")}
-                  disabled={!canLeaveBasicDetails || isSaving}
+                  className={FOOTER_BUTTON}
+                  onClick={() => whenComplete(() => save("draft"))}
+                  disabled={isSaving}
                 >
                   Save Draft
                 </Button>
 
                 {step === 0 && (
-                  <Button onClick={() => setStep(1)} disabled={!canLeaveBasicDetails}>
+                  <Button className={FOOTER_BUTTON} onClick={() => whenComplete(() => setStep(1))}>
                     Continue to Screening
                   </Button>
                 )}
-                {step === 1 && <Button onClick={() => setStep(2)}>Continue to Publish</Button>}
+                {step === 1 && (
+                  <Button className={FOOTER_BUTTON} onClick={() => setStep(2)}>
+                    Continue to Publish
+                  </Button>
+                )}
                 {isPublishStep && (
                   <Button
-                    variant="positive"
-                    onClick={() => save("published")}
-                    disabled={!canLeaveBasicDetails || isSaving}
+                    className={FOOTER_BUTTON}
+                    onClick={() => whenComplete(() => save("published"))}
+                    disabled={isSaving}
                   >
                     Publish
                   </Button>
@@ -613,6 +709,7 @@ function NumberField({
   onValueChange,
   allowDecimal = false,
   required,
+  invalid,
 }: {
   id: string;
   label: string;
@@ -621,6 +718,8 @@ function NumberField({
   onValueChange: (value: string) => void;
   allowDecimal?: boolean;
   required?: boolean;
+  /** Outlines the box red, the way <SelectField>'s `invalid` does. */
+  invalid?: boolean;
 }) {
   return (
     <TextField
@@ -628,6 +727,7 @@ function NumberField({
       label={label}
       placeholder={placeholder}
       required={required}
+      aria-invalid={invalid || undefined}
       /* inputMode over type="number": a number input brings spinners, accepts
          "1e5", and refuses the thousands separators shown below. This wants a
          numeric keypad on a phone and nothing else. `decimal` swaps in the

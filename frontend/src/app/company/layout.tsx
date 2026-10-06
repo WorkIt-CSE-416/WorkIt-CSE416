@@ -1,11 +1,11 @@
-import Link from "next/link";
+import Form from "next/form";
+import { cookies } from "next/headers";
 
-import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
-import { BellIcon, GearIcon } from "@/components/icons";
-import { Logo } from "@/components/logo";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { IconButton } from "@/components/ui/icon-button";
+import { signOut } from "@/app/actions";
+import { AccountMenu } from "@/components/account-menu";
+import { NotificationsMenu } from "@/components/notifications-menu";
+import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
+import { SidebarBrand } from "@/components/sidebar-brand";
 import { SearchField } from "@/components/ui/search-field";
 
 import { CompanySidebar } from "./company-sidebar";
@@ -37,13 +37,23 @@ import { CompanySidebar } from "./company-sidebar";
  * see app/company/jobs/page.tsx. A bar-level button would also claim to be
  * available everywhere while meaning nothing on Applicants or the profile.
  *
- * That is where the two shells stop resembling each other. The seeker bar is
- * still tabs-in-the-bar, because a seeker moves between four peer screens and a
- * panel would spend a fifth of the width on a list of four things. A company
- * accumulates roles and stages, which is what a panel is for. The earlier note
- * here proposed lifting a shared <TopBar items action> once both sides were
- * real; that is now the wrong move, and what is genuinely shared — the logo,
- * the account menu, the field — is already shared as components.
+ * The seeker shell took the same layout, and the two bars are now built the
+ * same way: <SidebarBrand> as the lavender corner cell the panel's width,
+ * then the page's own container beside it (max-w-app, on the 16, 32 and
+ * 48px gutter the pages use), so the search starts on the page heading's
+ * left edge and the avatar ends on the content's right edge. Settings sits
+ * at the foot of the panel in both, so the account menu is your name and
+ * Sign Out. What is shared is shared as components (the corner, the panel,
+ * the bell, the account menu, the field); each layout keeps only its own
+ * search target and copy, which is why there is still no <TopBar>.
+ *
+ * The bar's search is a GET form to /company/applicants, so Enter lands the
+ * query there as ?q. The applicants table filters on name alone, and the
+ * placeholder says so.
+ *
+ * The panel's open or collapsed state survives a reload: shadcn writes the
+ * sidebar_state cookie on every toggle, and this layout reads it back as the
+ * provider's defaultOpen.
  *
  * The panel is a client component (it reads the pathname for its active state)
  * and so is its provider. Children still render on the server: a client
@@ -51,22 +61,9 @@ import { CompanySidebar } from "./company-sidebar";
  * collapsed tooltips need used to wrap this shell too; it is in the root layout
  * now, since the seeker shell's icon buttons need one as well.
  */
-/* One row, now that Company Profile is a panel item. That is the same move the
- * seeker shell made with My Profile, and it lands the same way: the menu is
- * for what you change and leave, the nav is for what you come back to.
- *
- * A menu holding a single item is worth a second look — the alternative is a
- * bare gear beside the bell — but it is the right shape to leave in place while
- * the account rows are still arriving: sign out has nowhere else to go, and
- * neither will billing or notification preferences.
- *
- * /company/settings is not built. A link that 404s rather than a control that
- * does nothing, which is the placeholder both shells already use. */
-const ACCOUNT_ITEMS: readonly AccountMenuItem[] = [
-  { href: "/company/settings", label: "Settings", icon: <GearIcon className="size-4" /> },
-];
+export default async function CompanyLayout({ children }: { children: React.ReactNode }) {
+  const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false";
 
-export default function CompanyLayout({ children }: { children: React.ReactNode }) {
   return (
     /* flex-col, because SidebarProvider lays its children out in a row by
      * default — it assumes the panel owns the left edge and any header sits
@@ -81,6 +78,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
      * thing that can scroll is the region below the bar, and its scrollbar
      * starts where it does. */
     <SidebarProvider
+      defaultOpen={defaultOpen}
       className="bg-background h-svh flex-col"
       /* Read by the canvas rule in globals.css. <body> paints the strip an
          overscroll exposes and sits above this shell, so it cannot inherit
@@ -99,6 +97,17 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
        * with the --sidebar-width it already sets. */
       style={{ "--company-bar": "4rem" } as React.CSSProperties}
     >
+      {/* The first stop on every page, shown only once focused, so a keyboard
+          user can step past the bar and the panel to the page itself. The
+          padding is focus: too, because sr-only zeroes it and the focus:
+          variant is what comes after it in the stylesheet. */}
+      <a
+        href="#content"
+        className="bg-panel rounded-control text-label text-ink shadow-panel focus-visible:ring-brand-ring sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus-visible:ring-2 focus-visible:outline-none"
+      >
+        Skip to content
+      </a>
+
       {/* IN FLOW, AND IT NO LONGER NEEDS TO BE ANYTHING ELSE.
           This was `fixed`, over a long note about fixed versus sticky: the
           document scrolled, so the bar had to be pulled out of the flow to
@@ -111,43 +120,39 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
           element to move it. That also settles the overscroll case the old
           note was worried about, since the bar and the panel are both outside
           what bounces. shrink-0 so a tall page cannot squeeze it, and z-20 to
-          stay over the fixed panel's z-10. */}
-      <header className="bg-panel border-border relative z-20 h-(--company-bar) shrink-0 border-b">
-        <div className="mx-auto flex h-full w-full items-center gap-5 px-6">
-          {/* An icon-only button that is not an IconButton — it is shadcn's,
-              and owns the toggle — so it takes its tooltip here. The
-              trigger renders as SidebarTrigger itself rather than wrapping
-              it, which keeps the bar's flex row one element shorter. */}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-transparent" />
-              }
-            />
-            <TooltipContent>Toggle sidebar</TooltipContent>
-          </Tooltip>
+          stay over the fixed panel's z-10.
 
-          <Link
-            href="/company"
-            className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
-          >
-            <Logo size="bar" priority />
-          </Link>
+          Two cells, ruled where the panel's edge is, exactly as the seeker
+          bar: the corner the panel's width, then the page's container. */}
+      <header className="bg-panel border-border relative z-20 flex h-(--company-bar) shrink-0 border-b">
+        <SidebarBrand href="/company" />
 
-          <SearchField
-            id="applicant-search"
-            label="Search applicants"
-            name="q"
-            placeholder="Name, skill, or role applied to"
-            className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
-          />
+        <div className="flex h-full min-w-0 flex-1">
+          <div className="max-w-app mx-auto flex h-full w-full items-center gap-4 px-4 sm:gap-5 sm:px-8 lg:px-12">
+            <Form
+              action="/company/applicants"
+              role="search"
+              className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
+            >
+              <SearchField
+                id="applicant-search"
+                label="Search applicants"
+                name="q"
+                placeholder="Search applicants by name"
+                enterKeyHint="search"
+                className="w-full"
+              />
+            </Form>
 
-          <div className="ml-auto flex items-center gap-5">
-            <IconButton label="Notifications">
-              <BellIcon className="size-5" />
-            </IconButton>
+            <div className="ml-auto flex items-center gap-4 sm:gap-5">
+              <NotificationsMenu>
+                New applicants and team activity will show up here.
+              </NotificationsMenu>
 
-            <AccountMenu name="Jordan Reyes" items={ACCOUNT_ITEMS} />
+              {/* Settings is the panel's footer row, so Sign Out is the menu's
+                  one item under the name. */}
+              <AccountMenu name="Jordan Reyes" items={[]} onSignOut={signOut} />
+            </div>
           </div>
         </div>
       </header>
@@ -162,10 +167,21 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
           the token stays: it is positioned by the viewport, so it has to be
           told where the bar ends. It is not clipped by anything here — a
           fixed element's containing block is the viewport unless an ancestor
-          carries a transform, and none does. */}
+          carries a transform, and none does.
+
+          @container/main, overscroll-contain and the skip link's target, as
+          in the seeker shell: pages break on the width beside the panel, a
+          fling cannot chain onto the document, and tabIndex -1 lets the
+          <main> take focus without adding a tab stop. */}
       <div className="flex min-h-0 w-full flex-1">
         <CompanySidebar />
-        <SidebarInset className="flex-1 overflow-y-auto">{children}</SidebarInset>
+        <SidebarInset
+          id="content"
+          tabIndex={-1}
+          className="@container/main flex-1 overflow-y-auto overscroll-contain focus:outline-none"
+        >
+          {children}
+        </SidebarInset>
       </div>
     </SidebarProvider>
   );

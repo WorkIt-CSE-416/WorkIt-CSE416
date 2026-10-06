@@ -157,7 +157,7 @@ export function StatusRing() {
             />
             <span className="text-note text-ink-muted flex-1 truncate">{stage}</span>
             <span className="text-note text-ink shrink-0 tabular-nums">{count}</span>
-            <span className="text-meta text-ink-faint w-9 shrink-0 text-right tabular-nums">
+            <span className="text-meta text-ink-meta w-9 shrink-0 text-right tabular-nums">
               {Math.round((count / total) * 100)}%
             </span>
           </li>

@@ -2,20 +2,18 @@
 
 import type { ComponentType } from "react";
 
-import { BriefcaseIcon, CalendarIcon, UserIcon } from "@/components/icons";
+import { BriefcaseIcon, CalendarIcon, ClockIcon, UserIcon } from "@/components/icons";
 import { StatTile } from "@/components/stat-tile";
 
 import { STATS, type Stat } from "./data";
-import { ClockIcon } from "./icons";
 import { rangeLength, useRange } from "./range";
 
 /**
  * The glyph each stat wears, resolved from the key its fixture carries.
  *
- * Three of the four come from src/components/icons.tsx, which is where a glyph
+ * All four come from src/components/icons.tsx, which is where a glyph
  * lives once more than one route wants it — a briefcase is also the company
- * nav's Job Postings and a calendar is also an applicant's date. ClockIcon is
- * the company shell's own, and moves over the day a second route needs it.
+ * nav's Job Postings and a calendar is also an applicant's date.
  * The map lives with the row rather than in the tile, which is shared with
  * the seeker Dashboard and takes the glyph itself.
  *

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCompanyJob } from "@/lib/job-queries";
 
+import { LoadError } from "../../load-error";
 import { Composer } from "../../new/composer";
 
 export const metadata: Metadata = {
@@ -21,8 +22,13 @@ export default async function EditJobPage({ params }: PageProps<"/company/jobs/[
 
   if (error) {
     return (
-      <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
-        <p className="text-meta text-danger">{error}</p>
+      <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
+        <LoadError
+          error={error}
+          title="This job isn't loading right now"
+          subject="this job posting"
+          retryHref={`/company/jobs/${encodeURIComponent(jobId)}/edit`}
+        />
       </div>
     );
   }

@@ -72,12 +72,13 @@ export function TextAreaField({
         id={id}
         rows={rows}
         required={required}
+        aria-describedby={hint ? `${id}-hint` : undefined}
         className={cn(FIELD_CONTROL, "resize-y px-3.5 py-2")}
         {...textarea}
       />
 
       {hint && (
-        <p id={`${id}-hint`} className="text-meta text-ink-faint">
+        <p id={`${id}-hint`} className="text-meta text-ink-meta">
           {hint}
         </p>
       )}
@@ -89,7 +90,7 @@ export function TextAreaField({
  *  other fields' boxes, opening on click rather than a native <select>. */
 const PICKER_TRIGGER = cn(
   FIELD_CONTROL,
-  "flex items-center justify-between gap-2 px-3.5 py-2 text-left",
+  "flex items-center justify-between gap-2 px-3.5 py-2.5 text-left",
 );
 
 type LocationFieldProps = {
@@ -103,10 +104,17 @@ type LocationFieldProps = {
    *  location"; the composer overrides it for Remote, where nothing picked
    *  means open to anywhere rather than an unanswered required field. */
   placeholder?: string;
+  /** Helper copy under the box, drawn and wired like <TextAreaField>'s. */
+  hint?: string;
   /** Visual only — this is a button, not an <input>, so there is no native
    *  `required` attribute to lean on. The composer's own validation is what
    *  actually blocks Continue; see its `missingFields`. */
   required?: boolean;
+  /** Outlines the trigger red, the way FIELD_CONTROL draws an aria-invalid
+   *  field and <SelectField>'s `invalid` does. Set as a class, because ARIA
+   *  does not support aria-invalid on a plain button; the composer's alert
+   *  is what names the field aloud. */
+  invalid?: boolean;
 };
 
 /**
@@ -126,7 +134,9 @@ export function LocationField({
   options,
   onAddLocation,
   placeholder = "Select a location",
+  hint,
   required,
+  invalid,
 }: LocationFieldProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -166,12 +176,13 @@ export function LocationField({
               type="button"
               id={id}
               aria-labelledby={`${id}-label`}
-              className={PICKER_TRIGGER}
+              aria-describedby={hint ? `${id}-hint` : undefined}
+              className={cn(PICKER_TRIGGER, invalid && "border-danger")}
             >
-              <span className={cn("truncate", !selected && "text-ink-faint")}>
+              <span className={cn("truncate", !selected && "text-ink-meta")}>
                 {selected ? formatLocation(selected.city, selected.country) : placeholder}
               </span>
-              <ChevronDownIcon className="text-ink-faint size-4 shrink-0" />
+              <ChevronDownIcon className="text-ink-meta size-4 shrink-0" />
             </button>
           }
         />
@@ -183,6 +194,7 @@ export function LocationField({
 
               <input
                 autoFocus
+                aria-label="City"
                 placeholder="City"
                 value={newCity}
                 onChange={(event) => setNewCity(event.target.value)}
@@ -190,6 +202,7 @@ export function LocationField({
               />
 
               <select
+                aria-label="Country"
                 value={newCountry}
                 onChange={(event) => setNewCountry(event.target.value)}
                 className={cn(FIELD_CONTROL, "px-3 py-1.5")}
@@ -226,6 +239,7 @@ export function LocationField({
             <>
               <input
                 autoFocus
+                aria-label="Search locations"
                 placeholder="Search locations…"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -250,9 +264,7 @@ export function LocationField({
                 ))}
 
                 {filtered.length === 0 && (
-                  <li className="text-meta text-ink-faint px-2 py-1.5">
-                    No saved locations match.
-                  </li>
+                  <li className="text-meta text-ink-meta px-2 py-1.5">No saved locations match.</li>
                 )}
               </ul>
 
@@ -271,6 +283,12 @@ export function LocationField({
           )}
         </PopoverContent>
       </Popover>
+
+      {hint && (
+        <p id={`${id}-hint`} className="text-meta text-ink-meta">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -331,13 +349,13 @@ export function DateField({ id, label, value, onValueChange, placeholder }: Date
               <span
                 className={cn(
                   "flex min-w-0 items-center gap-2 truncate",
-                  !selected && "text-ink-faint",
+                  !selected && "text-ink-meta",
                 )}
               >
-                <CalendarIcon className="text-ink-faint size-4 shrink-0" />
+                <CalendarIcon className="text-ink-meta size-4 shrink-0" />
                 {selected ? format(selected, "MMM d, yyyy") : (placeholder ?? "Select a date")}
               </span>
-              <ChevronDownIcon className="text-ink-faint size-4 shrink-0" />
+              <ChevronDownIcon className="text-ink-meta size-4 shrink-0" />
             </button>
           }
         />
