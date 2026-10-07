@@ -195,7 +195,7 @@ edit. That window has closed — `dee263a84adb` created all nine types on
 domain does not grow with the product. For anything that will, a lookup table
 costs a join and saves the coordination.
 
-## Locations — countries, states, and the resolver not yet written
+## Locations — countries, states, and the resolver
 
 ### The tables
 
@@ -323,108 +323,93 @@ Rules the seeds follow, which a new one must follow too:
   Ireland's is four historic provinces and Singapore's five districts; both are
   better left country-only.
 
-### The resolver — design settled, code not in this branch
+### The resolver — `app/services/location_resolver.py`
 
-Scraped postings give free text ("New York, NY"). Something must turn that into
-`job_locations` rows of `(country, state)` before insert. The design below was
-prototyped on 2026-09-22 against a larger seed; the cases below are
-restated for the US-only seed that shipped, then left for a
-separate branch. A draft may still be reachable in commit `554e279`.
+Turns a scraped posting's free text into `job_locations` rows:
+`"San Francisco, CA • New York, NY"` → `Place("US", "US-CA")`,
+`Place("US", "US-NY")`. Built 2026-10-07; the module docstring walks through
+the five steps, and `tests/test_location_resolver.py` pins about 80 real and
+made-up strings to their answers. **Add a failing string there before changing
+a rule**: the rules interact, and fixes broke other shapes more than once
+while it was written.
 
-**Where.** `app/services/location_resolver.py`. **Never in this folder**:
-`__init__.py` imports every file here as a model at startup.
+**Where.** `app/services/`, never this folder (`__init__.py` imports every
+file here as a model). Pure: no database, no network.
 
-**Built from the tables, not from pycountry.** Load `countries` and `states`
-once per process (two small queries) into in-memory dicts. Every code it
-returns is then one the FKs accept. Lookups are dict hits; speed is a non-issue
-next to fetching the posting over HTTP.
+**Codes come from the database, names from data.** The import builds
+`LocationResolver(countries, states)` from the `countries`/`states` tables, so
+every code it returns passes the FKs, and seeding a country later needs no
+code change (a test proves it with `GB-ENG`). A place in an unseeded country
+becomes `ZZ`. Names come from `data/places.tsv` (below) plus the seeded
+states' names and codes. The only hand-written lists are vocabulary: filler
+words ("remote", "hq", "office"), a dozen country nicknames GeoNames spells
+differently ("uk", "czech republic", "turkiye"), areas wholly outside the US
+("europe", "apac"), and two metro names ("bay area", "silicon valley").
 
-**Interface, both directions:**
+**How it reads a string**, in short:
 
-```
-country_code("U.S.A.")            -> "US"     country_name("US")    -> "United States"
-state_code("new york")            -> "US-NY"  state_name("US-NY")   -> "New York"
-resolve("Austin, Texas, USA")     -> ("US", "US-TX")
-resolve("San Francisco")          -> None
-```
+1. Split on separators that only mean "another place": `•` `;` `|` `/`, and
+   a *lowercase* ` or ` / ` and ` between names. `Portland, OR` is Oregon;
+   `Newfoundland and Labrador` is one name.
+2. Split on commas, brackets and a spaced dash into pieces; drop filler.
+3. Read each piece as every city, region and country it can be. A run of
+   names without commas (`US-WA-Bellevue`, `Long Beach CA`) is broken into
+   the longest known names, narrowest first. An unknown piece of 5+ letters
+   is checked for a misspelt region or country (`Pennslyvania`).
+4. Group pieces into places: a name, then broader qualifiers. A piece that
+   can't qualify the one before (`Austin, New York`) starts a new place, so
+   `Cambridge, MA, Arlington, VA` is two places and `Boston, MA, USA` one.
+5. Decide each place. A city must fit its qualifiers; one alone takes the
+   most populous match, or a US match at least half that size. A name alone
+   prefers a US state, then a country, then a region abroad (unless it is
+   also a US city of 250k+), then a city.
 
-**Normalize every key and every input the same way:** casefold, strip accents
-(NFKD, drop combining marks), drop periods, map `’` to `'`, collapse whitespace.
-Then "U.S." = "us", "Türkiye" = "turkiye", and "Québec" = "quebec".
+The numbers that tune it are constants at the top of the module, each with
+the case that set it: `_US_PREFERENCE` (Cambridge, MA over England),
+`_MAJOR_CITY` (`Perth, WA` is Australia, `Springfield, VT` stays Vermont),
+`_BIG_US_CITY` (`San Jose` is California, `Ontario` the province),
+`_TYPO_CUTOFF`.
 
-**State keys are stored per country**, because abbreviations repeat once more
-countries are seeded ("WA" is Washington and Western Australia). Each state is
-keyed by its name, its full code (`us-ny`) and its suffix (`ny`). Skip
-numeric suffixes if a future seed has them (`JP-13` is Tokyo, and a bare "13"
-means nothing). Looked up without a country, a key that matches several states
-returns the US one if there is one, otherwise nothing.
+**Two-letter pieces** are a state or country code before they are a city
+(Wa is a city in Ghana). Between a US state and a country, the city decides:
+`Indianapolis, IN` is Indiana, `Berlin, DE` Germany, `Amsterdam, NL` the
+Netherlands.
 
-**Aliases the tables cannot produce**, kept as two dicts in the resolver:
+**Coverage on the 1,069-job feed (2026-10-07):** 1,046 resolve to at least one
+place; 20 name none ("Remote", "Any Location"); 3 miss (`Any SpaceX Site`,
+`RWC HQ`). `Resolution.unresolved` lists the pieces of a miss and stays empty
+for strings that name no place, so the import can log only real misses.
 
-- Countries: nicknames (`usa`, `uk`, `uae`, `russia`, `turkey`, `czech
-  republic`, `holland`, `korea`…) and local-language names (`deutschland`,
-  `espana`, `italia`, `schweiz`, `suisse`, `nederland`, `brasil`, `osterreich`).
-  Many of these point at countries the trimmed seed dropped; when the resolver
-  loads, discard any alias whose target is not in `countries`, or it returns
-  a code the FK rejects.
-- States: only `washington dc` → US-DC today. A future seed whose English
-  names override ISO's adds the local names here (`bayern` → DE-BY); derive
-  them by comparing pycountry's names with `states.name`, not by hand, and add
-  them in the same PR as the seed.
-- Alias England, Scotland, Wales and Northern Ireland to `GB` as countries
-  while GB has no states, or "Edinburgh, Scotland" resolves to nothing. If GB
-  states are ever seeded, drop these aliases: the nations become states
-  (`GB-ENG`…), and resolving them as states still yields GB.
+**Known misses, accepted:**
 
-**`resolve(text)`.** Split on commas, drop empty parts, read from the right. Try
-the last part, in order:
+- A lone name that's a region abroad and a US city under 250k goes abroad:
+  `Santa Cruz` is Bolivia's province, not Santa Cruz, CA.
+- Lone `LA` is Louisiana, not Los Angeles; lone `Washington` is the state.
+- A lone city with a much bigger foreign namesake goes abroad:
+  `Birmingham` is England.
+- Abbreviations GeoNames lacks (`RWC` for Redwood City) resolve to nothing.
+- Non-US regions never become state codes unless that country's states are
+  seeded under GeoNames' admin1 code (true for `GB-ENG`, not for most).
 
-1. a **US state** → that state, country US
-2. a **country** → that country; then try the part before it as a state
-   *within that country*
-3. **any other country's state** → that state and its country
-4. otherwise → `None`
+**Unresolved postings are stored anyway** with no `job_locations` rows;
+`location_raw` (`b40588efa7b7`) keeps the text, so they can be resolved again
+when the resolver improves.
 
-The order wins the collisions that matter on a US job board. Short codes
-collide constantly:
+### data/places.tsv — the gazetteer
 
-| Input | Result | Instead of |
-| --- | --- | --- |
-| `Indianapolis, IN` | US-IN | India |
-| `Atlanta, Georgia` | US-GA | the country Georgia |
-| `Amsterdam, NL` | NL | Newfoundland |
+Built by `scripts/build_geonames.py` from GeoNames' `cities15000` (≈34k
+cities of 15,000+ people, with population, country, state and alternate
+names), `countryInfo` and `admin1CodesASCII` (first-level regions
+worldwide). About 3.2 MB, committed, so a build is reproducible and the import
+never downloads anything. Re-run the script to refresh it.
 
-Known misses, accepted: "Berlin, DE" → Delaware, "Regina, SK" → Slovakia,
-"Perth, WA" → Washington. Spelled-out names resolve correctly. Step 3 only
-matters once a second country has states; with the US alone, a bare "ON" or
-"Bavaria" resolves to nothing. With the 15-country seed, India, Georgia, the
-Netherlands and Slovakia are not seeded either, so the collisions above cannot
-happen yet — keep the order anyway, since they return with those countries.
-
-Cases checked against the seeds, as a starting test set:
-
-```
-New York, NY                          US, US-NY
-Seattle, WA, United States            US, US-WA
-Washington, D.C.                      US, US-DC
-London, England, United Kingdom       GB, —
-London, UK                            GB, —
-Edinburgh, Scotland                   GB, —       (via the scotland alias)
-Paris, Île-de-France, France          FR, —       (no FR states seeded)
-München, Bayern, Deutschland          DE, —       (via the deutschland alias)
-Bengaluru, Karnataka, India           IN, —
-Toronto, ON, Canada                   CA, —
-Remote, US                            US, —
-Dublin, Ireland                       IE, —
-San Francisco / Remote / ""           None
-```
-
-**What it cannot do.** A city alone ("San Francisco") has no ISO entry; that
-needs city data such as GeoNames `cities15000.txt` (city → country + admin1),
-picking the most populous match for a repeated name. Until then, do not guess
-on a miss: log it, since misses show which aliases to add. Store the posting
-anyway with no `job_locations` rows: `location_raw` (`b40588efa7b7`) keeps the
-text, so it can be resolved again once the resolver learns more.
+- **CC BY 4.0:** the attribution line at the top of the file must stay.
+- Alternate names are kept only in plain Latin letters; other scripts would
+  triple the file and match nothing an English job board writes.
+- Towns under 15,000 are absent, which is fine when a state follows
+  (`Montpelier, VT`) and a miss when one stands alone. `cities5000` is the
+  next size up if that starts to matter.
+- It ships with the Vercel deploy although only the import reads it.
 
 ## job_postings holds company-posted and scraped jobs
 

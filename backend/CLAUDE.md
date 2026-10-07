@@ -55,8 +55,9 @@ uv run alembic check                           fail if models lack a migration
 uv run pytest                                  run the tests in tests/
 ```
 
-Tests cover the resume parser (`test_resume_parser.py`) and DOCX text
-extraction (`test_resume_extraction.py`). A test that calls the resume routes
+Tests cover the resume parser (`test_resume_parser.py`), DOCX text
+extraction (`test_resume_extraction.py`) and the location resolver
+(`test_location_resolver.py`, which reads the real `data/places.tsv`). A test that calls the resume routes
 must monkeypatch `resumes.get_supabase`: the router calls it directly rather
 than through `Depends`, so a dependency override misses it and the test
 uploads to the real bucket. `tests/fixtures/*.txt` are extracted text
@@ -96,6 +97,8 @@ app/
   services/       Logic with no HTTP or DB of its own. Never in models/,
                   whose __init__ imports every file as a model
     avatar.py     Validates and re-encodes an upload to a 512px WebP
+    location_resolver.py  Free-text job location → ISO places, from
+                  data/places.tsv (app/models/CLAUDE.md)
   utils/
     resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/
@@ -112,10 +115,15 @@ alembic/
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
-tests/            pytest; resume parser and DOCX extraction tests, and fixtures
+tests/            pytest; resume parser, DOCX extraction and location
+                  resolver tests, and fixtures
 data/
   feed.json       Committed snapshot of scraper/feed.json — what GET /jobs
                   serves in production. See Deployment
+  places.tsv      GeoNames-derived gazetteer the location resolver reads.
+                  CC BY 4.0; generated, never edited by hand
+scripts/
+  build_geonames.py  Rebuilds data/places.tsv from GeoNames. Stdlib only
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
