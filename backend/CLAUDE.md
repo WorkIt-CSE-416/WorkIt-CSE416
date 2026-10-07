@@ -53,11 +53,23 @@ uv run alembic check                           fail if models lack a migration
 
 ```
 uv run pytest                                  run the tests in tests/
+uv run python -m app.scripts.import_jobs       load a scraper feed.json into
+                                               job_postings/job_locations
+                                               (--dry-run rolls back)
 ```
 
+**The import writes to the shared database, so Claude never runs it against
+one** — same rule as `alembic upgrade`. Run it yourself, `--dry-run` first.
+It upserts on `apply_url`, so re-running is safe, and it refuses (exit 2,
+nothing written) to close more than half the published scraped jobs at once
+unless given `--allow-mass-close`. The module docstring has the steps.
+
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
-extraction (`test_resume_extraction.py`) and the location resolver
-(`test_location_resolver.py`, which reads the real `data/places.tsv`). A test that calls the resume routes
+extraction (`test_resume_extraction.py`), the location resolver
+(`test_location_resolver.py`, which reads the real `data/places.tsv`) and
+the database-free half of the feed import (`test_import_jobs.py`). The
+import's database half needs Postgres, which CI doesn't have: test it on a
+throwaway local Postgres 15+ (`job_locations` uses `NULLS NOT DISTINCT`). A test that calls the resume routes
 must monkeypatch `resumes.get_supabase`: the router calls it directly rather
 than through `Depends`, so a dependency override misses it and the test
 uploads to the real bucket. `tests/fixtures/*.txt` are extracted text
@@ -99,6 +111,8 @@ app/
     avatar.py     Validates and re-encodes an upload to a 512px WebP
     location_resolver.py  Free-text job location → ISO places, from
                   data/places.tsv (app/models/CLAUDE.md)
+  scripts/        Commands run by hand, `uv run python -m app.scripts.<name>`
+    import_jobs.py  feed.json → job_postings + job_locations, in one transaction
   utils/
     resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/
@@ -115,8 +129,8 @@ alembic/
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
-tests/            pytest; resume parser, DOCX extraction and location
-                  resolver tests, and fixtures
+tests/            pytest; resume parser, DOCX extraction, location resolver
+                  and feed-import tests, and fixtures
 data/
   feed.json       Committed snapshot of scraper/feed.json — what GET /jobs
                   serves in production. See Deployment
@@ -191,9 +205,10 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   running the scraper and copying its `feed.json` here, **in the same commit
   as any change to `schemas/jobs.py`** — a snapshot that no longer validates
   turns the 503 into a 500. `job_postings` can hold these rows since
-  `b40588efa7b7` (NULL `company_id`, `app/models/CLAUDE.md`). Still open:
-  an import that upserts the feed into it on `apply_url`, a scheduled run of
-  scraper + import, and pointing `/jobs` at the table.
+  `b40588efa7b7` (NULL `company_id`, `app/models/CLAUDE.md`), and
+  `app/scripts/import_jobs.py` loads a feed into it. Still open: a scheduled
+  run of scraper + import, and pointing `/jobs` at the table — after which
+  this snapshot is no longer needed.
 - **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
   them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
   4.5–5 MB upload fails on the deployment with a bare 413.
