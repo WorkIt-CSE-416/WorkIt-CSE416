@@ -15,16 +15,26 @@ simply has nothing open right now, and must never be confused with a typo.
 
 from __future__ import annotations
 
+import html
 import json
+import re
 import time
 import urllib.error
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from datetime import UTC, datetime
+from html.parser import HTMLParser
 
 from workit_scraper import web
 
 TIMEOUT_S = 25
+
+#: Longest description kept, about 2,000 tokens. Measured on the 2026-10-05
+#: feed: at 3,000 a fifth of roles lost their requirements behind a long company
+#: intro, which is the part Scout reads for. Past this is benefits and
+#: boilerplate. Changing it does not re-cut stored Greenhouse descriptions --
+#: see scraper/CLAUDE.md.
+DESCRIPTION_CHARS = 8000
 
 
 class BoardNotFound(Exception):
@@ -42,6 +52,17 @@ LISTING_URL = {
 
 def listing_url(ats: str, token: str) -> str:
     return LISTING_URL[ats].format(token=token)
+
+
+# Greenhouse's list leaves descriptions out unless asked with `content=true`, which
+# sends every posting's full HTML -- hundreds of megabytes across all boards to
+# describe the ~1% we keep. So a kept Greenhouse posting is fetched on its own,
+# once: the store carries its description forward after that.
+GREENHOUSE_JOB_URL = "https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}"
+
+
+def greenhouse_job_url(token: str, job_id: str) -> str:
+    return GREENHOUSE_JOB_URL.format(token=token, job_id=job_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +97,9 @@ class Job:
     department: str | None = None
     work_style: str | None = None
     posted_at: str | None = None
+    #: Plain text, at most DESCRIPTION_CHARS. None when the provider had none, or
+    #: for a Greenhouse posting not described yet (see `describe_greenhouse`).
+    description: str | None = None
     # None until `store.update` stamps them; every job read back from jobs.json has both.
     first_seen_at: str | None = None
     last_seen_at: str | None = None
@@ -138,6 +162,46 @@ def _iso(value: object) -> str | None:
         return datetime.fromisoformat(value).astimezone(UTC).isoformat()
     except ValueError:
         return None
+
+
+class _TextOnly(HTMLParser):
+    """An HTML fragment's text, with a line break wherever a block ended."""
+
+    BLOCKS = {"p", "div", "li", "br", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "tr"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: object) -> None:
+        self.handle_endtag(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self.BLOCKS:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+
+def text(markup: str | None) -> str | None:
+    """Plain text from a description that may be HTML, capped at DESCRIPTION_CHARS.
+
+    Unescaped once before parsing because Greenhouse entity-escapes its HTML
+    ("&lt;p&gt;"), which the parser would otherwise keep as literal text.
+    """
+    if not markup:
+        return None
+    parser = _TextOnly()
+    parser.feed(html.unescape(markup))
+    parser.close()
+    lines = (
+        re.sub(r"[ \t\xa0]+", " ", line).strip() for line in "".join(parser.parts).splitlines()
+    )
+    plain = "\n".join(line for line in lines if line)
+    if len(plain) <= DESCRIPTION_CHARS:
+        return plain or None
+    return plain[:DESCRIPTION_CHARS].rsplit(maxsplit=1)[0] + " …"
 
 
 def _work_style(value: object, location: str | None) -> str | None:
@@ -203,6 +267,7 @@ def ashby(token: str, company: str) -> list[Job]:
                 row.get("location"),
             ),
             posted_at=_iso(row.get("publishedAt")),
+            description=text(row.get("descriptionPlain") or row.get("descriptionHtml")),
         )
         for row in payload.get("jobs") or []
         # Ashby is the only one that tells us a posting is unlisted. Believe it.
@@ -230,9 +295,28 @@ def lever(token: str, company: str) -> list[Job]:
                 department=categories.get("team"),
                 work_style=_work_style(row.get("workplaceType"), categories.get("location")),
                 posted_at=_iso(row.get("createdAt")),
+                description=_lever_description(row),
             )
         )
     return jobs
+
+
+def _lever_description(row: dict) -> str | None:
+    """Lever splits a posting in three: an intro (`descriptionPlain`), titled lists
+    that usually hold the requirements (`lists`, HTML items), and a closing
+    (`additionalPlain`). The intro alone is often just a company blurb."""
+    sections = [row.get("descriptionPlain") or ""]
+    for block in row.get("lists") or []:
+        sections.append(f"<p>{block.get('text') or ''}</p><ul>{block.get('content') or ''}</ul>")
+    sections.append(row.get("additionalPlain") or "")
+    return text("<br>".join(section for section in sections if section))
+
+
+def describe_greenhouse(job: Job) -> Job:
+    """The same Greenhouse posting with its description, from its own page."""
+    payload = _get_json(greenhouse_job_url(job.token, job.external_id))
+    assert isinstance(payload, dict)
+    return replace(job, description=text(payload.get("content")))
 
 
 FETCHERS: dict[str, Callable[[str, str], list[Job]]] = {

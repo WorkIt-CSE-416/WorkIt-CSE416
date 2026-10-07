@@ -36,6 +36,26 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 
 All three providers return a whole board in one request, so there is no pagination.
 
+## Descriptions are read once, and only for kept postings
+
+Scout (KAN-138) reads a posting's description to answer "is this role a fit?",
+so `Job.description` holds it as plain text capped at `DESCRIPTION_CHARS`
+(`providers.text` strips HTML, including Greenhouse's entity-escaped kind).
+Lever and Ashby send it with the board's list. Greenhouse does not: its
+`content=true` would send every posting's full HTML, hundreds of megabytes a
+run to describe the ~1% we keep. So `__main__.describe` fetches each *kept*
+Greenhouse posting's own page once, through the same robots and pacing, and
+`store.update` carries the description forward so later runs skip it. A posting
+whose page fails or is disallowed simply has no description.
+
+That carrying forward means **changing `DESCRIPTION_CHARS` does not re-cut
+Greenhouse descriptions already stored.** After changing it, clear them so the
+next run fetches them again:
+
+```sh
+python3 -c "import json; p='jobs.json'; d=json.load(open(p)); [j.__setitem__('description', None) for j in d['jobs'] if j['ats'] == 'greenhouse']; json.dump(d, open(p, 'w'), indent=1, sort_keys=True)"
+```
+
 ## This package imports only the standard library
 
 `dependencies = []` in `pyproject.toml` is load-bearing, not an accident.

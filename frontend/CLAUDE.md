@@ -84,6 +84,9 @@ src/app/          App Router routes, layouts, pages
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
                   error state, so a role looks the same on both pages
+  api/scout/      The one route handler: forwards a Scout turn to the API with
+                  the session's token and pipes the NDJSON reply back. A route
+                  handler, not an action, because the reply streams
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -131,6 +134,14 @@ src/components/   Shared components
                   block as the trigger, Settings and Help as its rows, and
                   shows the header only below lg, where that block is the
                   photo alone
+  scout/          Scout, the job assistant. scout-store holds the one chat per
+                  tab (a module store, so no provider); scout-panel docks
+                  beside the page, never over it, and opens only on a click;
+                  stream.ts mirrors the API's NDJSON events; reply-text
+                  renders a reply's **bold** and "- " bullets, the prompt's
+                  whole formatting vocabulary, with no markdown library (a
+                  reply stays escaped text otherwise). The brain is the
+                  repo's scout/ — read its CLAUDE.md first.
   ui/             Presentational primitives: badge, button, card, company-tile,
                   empty-state, fact, filter-chip (only the design kit shows
                   it today), icon-button, search-field, section,
@@ -152,6 +163,9 @@ src/lib/          Framework-free helpers
                   content, make one primary, and a signed file link. Used
                   by both onboarding and profile.
   avatar-actions.ts  Server actions for the profile photo: get/upload/remove
+  profile-actions.ts Server actions for the applicant's identity fields:
+                  getProfile (GET) and updateProfile (PATCH). Used by the
+                  seeker profile page and cached alongside resumes and avatar
   job-actions.ts  Server actions for the company's jobs: saveJob (create, or
                   update with the updated_at it was loaded with, so a save over
                   someone else's is a 409) and changeJobStatus (pause, resume,
@@ -503,7 +517,8 @@ not "Upload a resume".
 
 **My Profile is cached for the life of the seeker shell.**
 `(seeker)/profile-cache.tsx` keeps the page's last state (resumes, the shown
-resume's content, the photo URL) in a provider in `(seeker)/layout.tsx`. A
+resume's content, the photo URL, the applicant profile fields) in a provider
+in `(seeker)/layout.tsx`. A
 return visit renders it at once and refetches in the background. Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
 preview is on screen (that URL is revoked once the upload ends), and not

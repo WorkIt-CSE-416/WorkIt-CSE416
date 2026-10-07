@@ -108,6 +108,7 @@ class Role:
     department: str | None
     work_style: str | None
     locations: tuple[str, ...]
+    description: str | None
 
     @property
     def location_label(self) -> str:
@@ -167,6 +168,7 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 # another); the first stated answer is as good as any.
                 work_style=next((job.work_style for job in postings if job.work_style), None),
                 locations=locations,
+                description=next((job.description for job in postings if job.description), None),
             )
         )
     # None sorts last: a posting with no date is not a brand new one.

@@ -36,6 +36,7 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "location": role.location_label or None,
         "posted_at": role.posted_at,
         "logo_url": logos.get(role.board_key),
+        "description": role.description,
     }
 
 
