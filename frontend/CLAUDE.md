@@ -250,8 +250,11 @@ own 200ms linear, so the page holds its width through the animation; keep
 the two durations equal. A layout that splits into columns uses
 `@3xl/main:` and friends, a card that rearranges itself (the job card) is
 its own `@container`, and both see the same width whether the panel is open
-or not. A page's segmented control sits at the top right of its header
-wherever it fits beside the title, the title wrapping first. Pages render a
+or not. On Applications and the Calendar the segmented control sits at the
+top right of the header wherever it fits beside the title, the title
+wrapping first; the Dashboard's range switch sits at the top right of its
+first column and wraps under the greeting where that column is narrow.
+Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
 The seeker bar shows the signed-in account's real photo, with the full name
