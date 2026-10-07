@@ -1,6 +1,7 @@
 "use client";
 
 import { FileText, Phone } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 import { MailIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
@@ -95,6 +96,7 @@ function shownResume(resumes: ResumeItem[]) {
 export default function ProfilePage() {
   // The last visit's data, if any, read once. A return visit renders it at
   // once, and the effects below refetch in the background.
+  const router = useRouter();
   const cache = useProfileCache();
   const [cached] = useState(cache.read);
 
@@ -210,6 +212,7 @@ export default function ProfilePage() {
         return;
       }
       setAvatarUrl(url ?? previous);
+      router.refresh();
     } finally {
       URL.revokeObjectURL(preview);
       setAvatarBusy(false);
@@ -227,6 +230,7 @@ export default function ProfilePage() {
       return;
     }
     setAvatarUrl(null);
+    router.refresh();
   }
 
   async function loadProfile(resume: ResumeItem | undefined) {
@@ -494,12 +498,6 @@ export default function ProfilePage() {
             <SectionHeading id="identity">
               {applicantProfile?.full_name ?? "\u00A0"}
             </SectionHeading>
-            {applicantProfile && (
-              <SectionAction onClick={() => setEditOpen(true)}>
-                <PencilIcon />
-                Edit
-              </SectionAction>
-            )}
             {avatarUrl && !avatarBusy && (
               <SectionAction onClick={handleAvatarRemove}>
                 <TrashIcon />
@@ -542,6 +540,15 @@ export default function ProfilePage() {
             </p>
           )}
         </div>
+
+        {applicantProfile && (
+          <div className="ml-auto shrink-0 self-start">
+            <SectionAction onClick={() => setEditOpen(true)}>
+              <PencilIcon />
+              Edit
+            </SectionAction>
+          </div>
+        )}
       </section>
 
       {/* From @4xl the card splits the way the page below it does: the list
