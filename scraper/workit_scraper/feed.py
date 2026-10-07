@@ -37,6 +37,27 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "posted_at": role.posted_at,
         "logo_url": logos.get(role.board_key),
         "description": role.description,
+        "job_type": role.facts.job_type,
+        **salary(role),
+        "min_years_experience": role.facts.min_years,
+        "start_term": role.facts.start_term,
+    }
+
+
+def salary(role: Role) -> dict[str, object]:
+    """`job_postings`' salary columns: one amount, or a range when the two differ."""
+    pay = role.facts.pay
+    if pay is None:
+        return dict.fromkeys(
+            ("salary", "salary_min", "salary_max", "salary_currency", "salary_period")
+        )
+    one = pay.low == pay.high
+    return {
+        "salary": pay.low if one else None,
+        "salary_min": None if one else pay.low,
+        "salary_max": None if one else pay.high,
+        "salary_currency": pay.currency,
+        "salary_period": pay.period,
     }
 
 
