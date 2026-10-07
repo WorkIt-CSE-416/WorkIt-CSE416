@@ -33,3 +33,9 @@ The full chain for alembic upgrade head
 
 ## Schema Updates 
 - Can update schema directly in SQLAlchemy models, and create migration scripts for Alembic to execute
+
+
+## Import scraped jobs into supabase 
+```bash
+uv run python -m app.scripts.import_jobs 
+```

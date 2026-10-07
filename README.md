@@ -31,8 +31,12 @@ Databases:
  cd backend/ 
  uv run alembic upgrade head 
 ```
+## Deployment 
+```bash 
+https://workit-web-gamma.vercel.app/jobs
+```
 
-## Getting started
+## Local Development 
 ```bash
 cd frontend
 npm install

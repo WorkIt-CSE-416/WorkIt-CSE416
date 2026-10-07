@@ -64,8 +64,9 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_key: str | None = None
 
-    # The scraper's output, served by GET /jobs. Data, read at request time —
-    # nothing from scraper/ is imported, so it stays out of this build.
+    # The scraper's output, which app/scripts/import_jobs.py loads into the
+    # database by default. Data — nothing from scraper/ is imported, so it
+    # stays out of this build.
     scraper_feed: Path = Field(default_factory=default_scraper_feed)
 
     @property

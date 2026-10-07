@@ -35,7 +35,7 @@ from app.db import get_session
 from app.deps import get_current_account
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
-from app.routers.jobs import read_feed
+from app.routers.jobs import fetch_listing
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter(prefix="/scout", tags=["scout"])
@@ -75,14 +75,10 @@ async def get_resume_facts(
     return resume_facts(parsed) if parsed else None
 
 
-async def find_job(job_id: str) -> JobFacts | None:
-    """The feed's role with this id (its apply URL), or None — including when
-    there is no feed yet, since "that job is gone" is the honest answer either way."""
-    try:
-        jobs = await read_feed()
-    except FileNotFoundError:
-        return None
-    job = next((job for job in jobs if job.id == job_id), None)
+async def find_job(db: AsyncSession, job_id: str) -> JobFacts | None:
+    """The listed job with this id (the one GET /jobs sent), or None — including
+    when it has closed since, since "that job is gone" is the honest answer."""
+    job = await fetch_listing(db, job_id)
     return job_facts(job.model_dump()) if job else None
 
 
@@ -97,6 +93,7 @@ async def chat(
     account: AuthenticatedAccount = Depends(get_current_account),
     resume: ResumeFacts | None = Depends(get_resume_facts),
     llm: LLM = Depends(get_llm),
+    db: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     if account.account_type is not AccountType.APPLICANT:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Scout is for job seekers.")
@@ -106,6 +103,6 @@ async def chat(
             "You've used all of today's Scout messages. They reset at midnight UTC.",
         )
 
-    job = await find_job(body.job_id) if body.job_id else None
+    job = await find_job(db, body.job_id) if body.job_id else None
     events = run(body.messages, llm, resume=resume, job=job)
     return StreamingResponse(_ndjson(events), media_type="application/x-ndjson")

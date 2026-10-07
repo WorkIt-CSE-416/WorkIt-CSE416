@@ -128,6 +128,13 @@ Check first whether the extensions are already enabled: Supabase's dashboard
 installs them into an `extensions` schema, so a project where someone clicked
 them on behaves differently from a clean one.
 
+**`pg_trgm` is installed by `55f3c813be50`, into `extensions`** — Supabase's
+Security Advisor flags an extension in `public`. That migration runs `CREATE
+SCHEMA IF NOT EXISTS extensions` first so it also applies to a plain Postgres,
+and writes the operator class qualified (`extensions.gin_trgm_ops`) because
+only Supabase puts `extensions` on the search path. Follow both when
+installing `ltree`.
+
 ## Every new table enables RLS
 
 `ce5b2e3f9b78` enabled row-level security on every `public` table that

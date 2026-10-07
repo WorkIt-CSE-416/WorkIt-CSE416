@@ -1,10 +1,9 @@
 """
-The API's side of Scout: the route, what it hands Scout, and the job feed it
-reads. Scout's own behaviour — fallback, reply cap, prompt, the privacy
+The API's side of Scout: the route and what it hands Scout. GET /jobs, whose
+ids Scout is handed back, is tested in test_jobs.py. Scout's own behaviour — fallback, reply cap, prompt, the privacy
 mapping — is tested in ../scout/tests. No database, network or model: ScriptedLLM stands in.
 """
 
-import asyncio
 import json
 import uuid
 
@@ -13,10 +12,9 @@ from fastapi.testclient import TestClient
 from workit_scout.quota import DailyQuota
 from workit_scout.testing import ScriptedLLM
 
-from app.config import get_settings
+from app.db import get_session
 from app.deps import get_current_account
 from app.main import app
-from app.routers.jobs import read_feed
 from app.routers.scout import get_llm, get_resume_facts, get_scout_settings
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.jobs import JobListing
@@ -54,9 +52,10 @@ def _listing(**changes) -> JobListing:
 def model():
     fake = ScriptedLLM(["Hello", "!"])
     app.dependency_overrides[get_llm] = lambda: fake
-    # No database here: the resume loader is the only route dependency that
-    # would open one.
+    # No database here: the resume loader and the job lookup are what would
+    # use one, and both are stood in for.
     app.dependency_overrides[get_resume_facts] = lambda: None
+    app.dependency_overrides[get_session] = lambda: None
     app.dependency_overrides[get_current_account] = lambda: _account(
         AccountType.APPLICANT
     )
@@ -103,30 +102,20 @@ def test_route_enforces_the_daily_cap(model, monkeypatch):
 def test_route_hands_the_asked_job_to_scout(model, monkeypatch):
     listing = _listing()
 
-    async def feed():
-        return [listing]
+    async def lookup(db, job_id):
+        return listing if job_id == listing.id else None
 
-    monkeypatch.setattr("app.routers.scout.read_feed", feed)
+    monkeypatch.setattr("app.routers.scout.fetch_listing", lookup)
     body = {**CHAT, "job_id": listing.id}
     assert TestClient(app).post("/scout/chat", json=body).status_code == 200
     assert "Rhoda AI" in model.system_prompt and "ROS nodes." in model.system_prompt
 
 
-# --- the job feed ----------------------------------------------------------
+def test_route_answers_about_a_job_that_is_gone(model, monkeypatch):
+    async def lookup(db, job_id):
+        return None
 
-FEED_ROW = _listing(description=None).model_dump(exclude={"description"})
-
-
-def test_jobs_route_leaves_descriptions_out(tmp_path, monkeypatch):
-    feed = tmp_path / "feed.json"
-    feed.write_text(json.dumps([{**FEED_ROW, "description": "long text"}]))
-    monkeypatch.setattr(get_settings(), "scraper_feed", feed)
-    rows = TestClient(app).get("/jobs").json()
-    assert rows[0]["title"] == "Robot Software Intern" and "description" not in rows[0]
-
-
-def test_a_feed_written_before_descriptions_still_parses(tmp_path, monkeypatch):
-    feed = tmp_path / "feed.json"
-    feed.write_text(json.dumps([FEED_ROW]))
-    monkeypatch.setattr(get_settings(), "scraper_feed", feed)
-    assert asyncio.run(read_feed())[0].description is None
+    monkeypatch.setattr("app.routers.scout.fetch_listing", lookup)
+    body = {**CHAT, "job_id": str(uuid.uuid4())}
+    assert TestClient(app).post("/scout/chat", json=body).status_code == 200
+    assert "Rhoda AI" not in model.system_prompt
