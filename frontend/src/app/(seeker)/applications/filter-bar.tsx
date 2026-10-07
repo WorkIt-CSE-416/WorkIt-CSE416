@@ -1,3 +1,5 @@
+"use client";
+
 import Form from "next/form";
 import Link from "next/link";
 
@@ -6,7 +8,8 @@ import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
-import { applicationsHref, DEFAULT_SORT, DEFAULT_VIEW, type ApplicationsQuery } from "./query";
+import { applicationsHref, DEFAULT_SORT, DEFAULT_VIEW } from "./query";
+import { useApplicationsQuery } from "./view-switcher";
 
 /**
  * The Applications filters: a search over role and company, then one chip
@@ -27,14 +30,15 @@ import { applicationsHref, DEFAULT_SORT, DEFAULT_VIEW, type ApplicationsQuery } 
  * applications the search leaves in that stage, so a chip says what turning
  * it on will show. The chip is its own small link rather than
  * ui/filter-chip.tsx, whose chevron promises a menu.
+ *
+ * A CLIENT COMPONENT, reading the URL itself (useApplicationsQuery), because
+ * the layout switch moves the URL in place and never asks the server to draw
+ * this bar again: drawn there, its chips and its search would carry the old
+ * layout and send the page back to it. The counts still come from the
+ * server, which does the filtering.
  */
-export function FilterBar({
-  query,
-  counts,
-}: {
-  query: ApplicationsQuery;
-  counts: Record<StageKey, number>;
-}) {
+export function FilterBar({ counts }: { counts: Record<StageKey, number> }) {
+  const query = useApplicationsQuery();
   const filtered = query.stages.length > 0 || query.q !== "";
 
   return (
@@ -101,14 +105,24 @@ export function FilterBar({
       </div>
 
       {filtered && (
-        <Link
-          href={applicationsHref(query, { stages: [], q: "", app: null })}
-          scroll={false}
-          className="text-label text-brand hover:text-brand-hover focus-visible:ring-brand-ring animate-fade rounded-xs font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-        >
-          Clear Filters
-        </Link>
+        <ClearFiltersLink className="text-label text-brand hover:text-brand-hover focus-visible:ring-brand-ring animate-fade rounded-xs font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none" />
       )}
     </div>
+  );
+}
+
+/** Drops the stages and the search, keeping the layout the URL names now:
+ *  the bar's own link, and the empty state's button. */
+export function ClearFiltersLink({ className }: { className: string }) {
+  const query = useApplicationsQuery();
+
+  return (
+    <Link
+      href={applicationsHref(query, { stages: [], q: "", app: null })}
+      scroll={false}
+      className={className}
+    >
+      Clear Filters
+    </Link>
   );
 }

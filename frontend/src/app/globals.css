@@ -558,13 +558,15 @@
 }
 
 /* The same place with new content: a view switched, a filter changed. The
- * same handoff, shorter and smaller, since nothing went anywhere. */
+ * same handoff, shorter and smaller, since nothing went anywhere, and the new
+ * content starts on the first frame rather than waiting out the old: a
+ * switch the user just made should answer at once. */
 ::view-transition-old(.swap-exit) {
-  animation: 100ms var(--ease-exit) both vt-fade-out;
+  animation: 90ms var(--ease-exit) both vt-fade-out;
 }
 
 ::view-transition-new(.swap-enter) {
-  animation: 240ms var(--ease-glide) 40ms both vt-rise-in-small;
+  animation: 220ms var(--ease-glide) both vt-rise-in-small;
 }
 
 /* The Calendar stepping through time: the old span leaves the way it was

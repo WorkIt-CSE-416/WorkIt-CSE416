@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { AwardIcon, BriefcaseIcon, CalendarIcon, MailIcon } from "@/components/icons";
-import { StatTile } from "@/components/stat-tile";
 import { cn } from "@/lib/cn";
 import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
 import { Activity } from "./activity";
-import { ACTIVITY, RANGES, STATS, getUpNext, parseRange } from "./data";
+import { ACTIVITY, STATS, getUpNext } from "./data";
+import { Headline } from "./headline";
 import { NewMatches, NewMatchesSkeleton } from "./new-matches";
 import { NextUpHero } from "./next-up-hero";
 import { RangeSwitch } from "./range-switch";
@@ -45,7 +44,10 @@ export const metadata: Metadata = {
  * at /applications is where stages are worked.
  *
  * The range scopes the numbers and the activity; Next Up, Up Next, New
- * Matches and Waiting are about now.
+ * Matches and Waiting are about now. The range is read in the browser
+ * (./range-switch.tsx): this page hands the headline and the chart every
+ * range's figures, and a switch redraws them in place without asking the
+ * server for the page again.
  *
  * Most of it is fixtures (./data.ts) until the application tracker has a
  * backend; New Matches is the live feed.
@@ -57,11 +59,7 @@ export const metadata: Metadata = {
  * numbers went four across in a 3fr column too narrow for them, and "Response
  * Rate" wrapped and dropped its value below the other three.
  */
-const STAT_ICONS = [BriefcaseIcon, MailIcon, CalendarIcon, AwardIcon];
-
-export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
-  const range = parseRange((await searchParams).range);
-  const { period, note } = RANGES.find((option) => option.key === range)!;
+export default async function DashboardPage() {
   const account = await getCurrentAccount();
   const firstName = account?.full_name.split(" ")[0];
   const [next, ...later] = getUpNext();
@@ -80,34 +78,17 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <p className="text-body text-ink-meta mt-1">Here&apos;s where your search stands.</p>
             </div>
 
-            <RangeSwitch current={range} />
+            <RangeSwitch />
           </header>
 
-          <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-6 pt-8 @lg/kpis:grid-cols-4">
-            {STATS[range].map((stat, i) => (
-              <StatTile
-                key={stat.label}
-                plain
-                label={stat.label}
-                Icon={STAT_ICONS[i]}
-                value={stat.value}
-                suffix={stat.suffix}
-                note={note}
-                delta={
-                  stat.previous !== null && period
-                    ? { value: stat.value - stat.previous, period, upIsGood: true }
-                    : undefined
-                }
-              />
-            ))}
-          </div>
+          <Headline stats={STATS} />
         </div>
 
         <NextUpHero item={next} />
       </div>
 
       <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
-        <Activity points={ACTIVITY[range].points} goal={ACTIVITY[range].goal} />
+        <Activity byRange={ACTIVITY} />
         <UpNext items={later} />
       </div>
 

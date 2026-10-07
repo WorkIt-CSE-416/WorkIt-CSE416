@@ -10,7 +10,8 @@ import { nextEvent, sortKey, type Application } from "../tracker";
  * survives a reload, the back button undoes it, and it can be linked to: the
  * Dashboard's Waiting opens `/applications?view=list&stage=applied`, and Next
  * Up opens one application's panel. It also leaves every view a server
- * component; the switcher, the stage chips and the sort headings are links.
+ * component; the stage chips and the sort headings are links, and the
+ * layout switcher moves ?view= in place (./view-switcher.tsx).
  * The cost is that reading searchParams renders the route per request, which
  * the seeker shell already does.
  */

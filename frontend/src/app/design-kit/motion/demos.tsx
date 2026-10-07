@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { addTransitionType, startTransition, useState, ViewTransition } from "react";
 
 import { BellIcon, CloseIcon } from "@/components/icons";
+import { ShallowLink, useShallowParams } from "@/components/shallow-routing";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -206,6 +207,31 @@ export function ReflowDemo() {
       >
         Rotate
       </Button>
+    </>
+  );
+}
+
+/** Two links that move `?pick=` in place: the readout crossfades the moment
+ *  one is clicked, and the address bar follows a frame later. The page
+ *  wraps this in <ShallowRouting>, as the seeker layout wraps its pages. */
+export function ShallowDemo() {
+  const pick = useShallowParams().get("pick") ?? "one";
+
+  return (
+    <>
+      {["one", "two"].map((option) => (
+        <ShallowLink
+          key={option}
+          href={option === "one" ? "/design-kit/motion" : `/design-kit/motion?pick=${option}`}
+          scroll={false}
+          className="text-label text-brand hover:text-brand-hover rounded-xs font-medium capitalize transition-colors duration-150"
+        >
+          {option}
+        </ShallowLink>
+      ))}
+      <ViewTransition key={pick} enter="swap-enter" exit="swap-exit" default="none">
+        <code className="text-note text-ink font-mono">?pick={pick}</code>
+      </ViewTransition>
     </>
   );
 }

@@ -1,7 +1,11 @@
+import { Suspense } from "react";
+
+import { ShallowRouting } from "@/components/shallow-routing";
+
 import { ANIMATIONS, EASINGS, SECTIONS, VIEW_TRANSITIONS } from "../data";
 import { TokenValue } from "../palette";
 import { Group, KitPage, Row } from "../specimen";
-import { AnimationDemo, CountDemo, EasingDemo, ReflowDemo, StepDemo } from "./demos";
+import { AnimationDemo, CountDemo, EasingDemo, ReflowDemo, ShallowDemo, StepDemo } from "./demos";
 
 export const metadata = { title: SECTIONS.motion.title };
 
@@ -58,6 +62,16 @@ export default function MotionPage() {
           role="A figure counting to its new value: both Dashboards' headline numbers, Activity's total"
         >
           <CountDemo />
+        </Row>
+        <Row
+          name="<ShallowRouting> · <ShallowLink>"
+          role="A query changed in place, in a transition, for content the page already holds: the Dashboard's range, the Applications layout, the Calendar's view and span"
+        >
+          <Suspense>
+            <ShallowRouting>
+              <ShallowDemo />
+            </ShallowRouting>
+          </Suspense>
         </Row>
       </Group>
     </KitPage>

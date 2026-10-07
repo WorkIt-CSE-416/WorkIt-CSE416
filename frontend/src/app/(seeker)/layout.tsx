@@ -8,6 +8,7 @@ import { Suspense } from "react";
 import { LogoLockup } from "@/components/logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
+import { ShallowRouting } from "@/components/shallow-routing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { getSessionUser } from "@/lib/session";
 
@@ -190,8 +191,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           className="bg-panel border-rail-border shadow-panel rounded-shell @container/main min-h-0 flex-1 overflow-y-auto overscroll-contain border focus:outline-none"
         >
           {/* Outlives a single page so My Profile renders at once on a return
-              visit; see profile-cache.tsx for why it lives here. */}
-          <ProfileCacheProvider>{children}</ProfileCacheProvider>
+              visit; see profile-cache.tsx for why it lives here. The query
+              the pages show, moved in place by their segmented controls and
+              the Calendar's arrows, is held by ShallowRouting. */}
+          <ProfileCacheProvider>
+            <ShallowRouting>{children}</ShallowRouting>
+          </ProfileCacheProvider>
         </SidebarInset>
       </div>
     </SidebarProvider>

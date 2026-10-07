@@ -13,6 +13,8 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Badge } from "@/components/ui/badge";
 
 import type { ActivityPoint } from "./data";
+import type { RangeKey } from "./range";
+import { useRange } from "./range-switch";
 
 /**
  * Applications sent over the window: days this week, weeks over a month or
@@ -30,12 +32,20 @@ import type { ActivityPoint } from "./data";
  *
  * Brand for the series: --chart-1 is the one slot that clears 3:1 against
  * white on its own, which a 2px line needs.
+ *
+ * It is handed every range and draws the one in the URL, like the headline
+ * numbers (./headline.tsx), so the line moves with the range switch.
  */
 const config = {
   count: { label: "Applications", color: "var(--color-chart-1)" },
 } satisfies ChartConfig;
 
-export function Activity({ points, goal }: { points: ActivityPoint[]; goal: number | null }) {
+export function Activity({
+  byRange,
+}: {
+  byRange: Record<RangeKey, { points: ActivityPoint[]; goal: number | null }>;
+}) {
+  const { points, goal } = byRange[useRange()];
   const total = points.reduce((sum, point) => sum + point.count, 0);
   const hit = goal === null ? 0 : points.filter((point) => point.count >= goal).length;
 

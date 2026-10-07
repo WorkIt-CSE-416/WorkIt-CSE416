@@ -136,6 +136,11 @@ src/components/   Shared components
   notifications-menu.tsx  The bar's bell, a popover holding an empty state.
                   Shared by both shells
   save-button.tsx The one Save control on every job surface
+  shallow-routing.tsx  Changes a page's query in place: <ShallowRouting>
+                  (wrapping the seeker pages in (seeker)/layout.tsx) holds
+                  the query the page shows, useShallowParams reads it, and
+                  <ShallowLink> and SegmentedLinks' `shallow` move it. See
+                  Motion, below
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
   account-menu.tsx  Both bars' account dropdown: a name and email header,
@@ -274,8 +279,11 @@ the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
 All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. The stat tiles do not link: their figures are a separate fixture
 from the tracker's twelve applications, so a tile would open a list that
-disagrees with its number. Its range is `?range=`, links rather than
-client state.
+disagrees with its number. Its range is `?range=`, moved in place: the
+headline (`dashboard/headline.tsx`) and the chart are handed every range's
+figures and read `?range=` themselves (`useRange` in `range-switch.tsx`), so
+a new range counts its numbers with the switch's thumb instead of after the
+server draws the page again.
 
 The company Dashboard and the seeker Profile follow the same surfaces. On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
@@ -314,8 +322,14 @@ viewer's own "Tomorrow, 2:00 PM" after hydration.
 `?view=`, `?stage=` (a comma list), `?q=`, the list's `?sort=` and `?app=`,
 the application open in the detail panel. Links and a GET form, not client
 state, so every view stays a server component and the Dashboard can link to a
-filtered list or one application. A card or row is one link: its role,
-stretched over it. Its next step is a second, `relative` link to that week on
+filtered list or one application. The layout is the exception in how it
+moves, not in where it lives: the page renders all three layouts, each
+building its links for itself, `applications/view-panes.tsx` shows the one
+the URL names, and the switcher moves `?view=` in place. Anything else that
+builds a link from the layout (the filter bar, Clear Filters) reads it in the
+browser through `useApplicationsQuery`, since a layout switch never asks the
+server to draw them again. A card or row is one link: its role, stretched
+over it. Its next step is a second, `relative` link to that week on
 the Calendar, which paints over the stretched one.
 
 **Every choice of one among a few is `ui/segmented-control.tsx`**: the
@@ -325,9 +339,12 @@ range. A pill-shaped track (a 5% ink wash, so it reads on the white page and
 the off-white auth card alike, and no outline) with a white thumb that slides
 to the chosen option on the 300ms glide (Motion, below), and jumps under
 reduced motion. The options are equal width, so the thumb is placed with CSS
-alone and the server renders it in place. `SegmentedLinks` is for a choice kept in the URL: the
-thumb moves on the click, before the new page arrives, so the motion never
-waits on the network. `SegmentedToggle` is for component state, on Base UI's
+alone and the server renders it in place. `SegmentedLinks` is for a choice
+kept in the URL: the thumb moves on the click, before anything else answers.
+Every caller today passes `shallow`, which moves the query in place
+(`components/shallow-routing.tsx`) for content the page already holds, so
+the content redraws with the thumb; without it, the page goes back to the
+server and the content follows a round trip later. `SegmentedToggle` is for component state, on Base UI's
 ToggleGroup for its arrow keys and single tab stop; a null value hides the
 thumb. An icon option is a rendered element, not a component, since a server
 page passes the options. Build a new segmented choice from it rather than
@@ -340,7 +357,10 @@ Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
 `?app=` opens the same detail panel Applications does, with a way across.
 Without `?date=` it opens on the viewer's today, which the server cannot
 know, so the views render in the browser behind a placeholder
-(`calendar-view.tsx`, `useHydrated`). Its layout follows a reference the team
+(`calendar-view.tsx`, `useHydrated`). They read the view and the day from
+the page's query themselves (`useCalendarQuery` in `view-switch.tsx`), and
+the view switch, the arrows, Today and a day's number move it in place; an
+entry is a real link, since its panel is drawn on the server. Its layout follows a reference the team
 picked: the span's title at the top left with round grey arrows at the top
 right, small uppercase weekday names, each day a light grey rounded tile with
 gaps rather than a ruled grid, today's tile white and outlined in the brand,
@@ -671,10 +691,24 @@ moving at `/design-kit/motion`. The rules:
   (`swap-enter`, `swap-exit`); within one shape each card or row is keyed by
   its application (`applications/reflow.tsx`) and glides to its new place
   when the list is sorted or filtered (`reflow`). The Calendar keys its
-  title and view on the span, and its arrows and Today tag their links with
-  `transitionTypes` (`nav-back`, `nav-forward`), so the span slides the way
-  time went (`step-back`, `step-forward`). Every `<ViewTransition>` here sets
+  title and view on the span, and its arrows and Today tag their moves
+  `nav-back` or `nav-forward` (`<ShallowLink transitionType>`, which does what
+  `<Link transitionTypes>` does for a real navigation), so the span slides
+  the way time went (`step-back`, `step-forward`). Every `<ViewTransition>` here sets
   `default="none"`, so it animates only for the change it names.
+- **A choice the page can already draw never waits on the server.** The
+  Dashboard's range, the Applications layout and the Calendar's view and
+  span move the query in place (`components/shallow-routing.tsx`): the
+  content holds every option and reads the query itself, so it redraws in
+  the next frame, where a link to the server made it trail the segmented
+  control's thumb by a round trip. The shown query is held in
+  `<ShallowRouting>`'s state and set inside a transition, and the address
+  bar follows once that has drawn. It cannot be read straight from
+  `useSearchParams` after a bare `history.pushState`: Next applies that URL
+  in a microtask after the caller's transition has ended (its router
+  reducer is async), so the redraw is an ordinary update and no
+  `<ViewTransition>` runs. Anything that depends on the server (a filter,
+  the list's sort, `?app=`) stays a real link.
 - **The root's own crossfade is off** (`::view-transition-old(root)` is
   hidden). Everything outside a `<ViewTransition>` then updates live, which
   is what lets the sidebar's fill glide beside a changing page instead of

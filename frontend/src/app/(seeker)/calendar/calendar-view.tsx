@@ -13,9 +13,9 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
 import { ViewTransition, type ReactNode } from "react";
 
+import { ShallowLink } from "@/components/shallow-routing";
 import { cn } from "@/lib/cn";
 
 import { useHydrated } from "../local-time";
@@ -24,6 +24,7 @@ import { Agenda, AGENDA_DAYS } from "./agenda";
 import { dayKey, groupByDay, KIND_LABEL, LEGEND_ORDER, lookOf } from "./entries";
 import { Month } from "./month";
 import { calendarHref, type CalendarView as View } from "./query";
+import { useCalendarQuery } from "./view-switch";
 import { Week } from "./week";
 
 /**
@@ -46,9 +47,16 @@ import { Week } from "./week";
  * Week a week, Agenda two weeks; Today drops ?date=, back to the viewer's
  * own today in the view in force.
  *
+ * THE VIEW AND THE DAY ARE READ FROM THE URL HERE (./view-switch.tsx), not
+ * handed down by the page, and every link that only changes them moves the
+ * URL in place (ShallowLink). The views are drawn from entries the browser
+ * already holds, so a step or a new view redraws at once; through the
+ * server, it waited on a round trip after the click. An entry still
+ * navigates for real: its detail panel is drawn on the server.
+ *
  * THE SPAN SLIDES THE WAY TIME WENT. The title and the view are each keyed
  * by the span on screen (`Step`), so moving to another span is an exit and an
- * enter rather than an update in place. The arrows tag their navigation
+ * enter rather than an update in place. The arrows tag their move
  * nav-back or nav-forward, and Today whichever way today is, so the old span
  * leaves to one side and the new one arrives from the other (step-back and
  * step-forward in globals.css). A change with no direction, a new view or
@@ -56,17 +64,13 @@ import { Week } from "./week";
  * outside the keys, so they hold still while the span moves under them.
  */
 export function CalendarView({
-  view,
-  date,
   events,
 }: {
-  view: View;
-  /** The day in the URL, or null for the viewer's today. */
-  date: string | null;
   /** Every dated entry, oldest first; the views group them by local day. */
   events: TrackerEvent[];
 }) {
   const hydrated = useHydrated();
+  const { view, date } = useCalendarQuery();
 
   if (!hydrated) {
     return (
@@ -180,7 +184,7 @@ function Calendar({
   // Which span this is, for Step's key, and which way Today goes from it.
   const first = dayKey(span.start);
   const home = dayKey(spanOf(view, parseISO(today)).start);
-  const towardToday = home < first ? ["nav-back"] : home > first ? ["nav-forward"] : undefined;
+  const towardToday = home < first ? "nav-back" : home > first ? "nav-forward" : undefined;
 
   // An entry opens its application's panel over the view it was clicked in.
   const openHref = (applicationId: string) => calendarHref({ view, date, app: applicationId });
@@ -193,25 +197,25 @@ function Calendar({
           <h2 className="text-title text-ink">{span.title}</h2>
         </Step>
         <div className="flex shrink-0 items-center gap-2">
-          <Link href={calendarHref({ view })} transitionTypes={towardToday} className={TODAY}>
+          <ShallowLink href={calendarHref({ view })} transitionType={towardToday} className={TODAY}>
             Today
-          </Link>
-          <Link
+          </ShallowLink>
+          <ShallowLink
             href={calendarHref({ view, date: dayKey(span.prev) })}
-            transitionTypes={["nav-back"]}
+            transitionType="nav-back"
             aria-label={`Previous ${span.unit}`}
             className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
           >
             <ChevronLeft aria-hidden className="size-4" />
-          </Link>
-          <Link
+          </ShallowLink>
+          <ShallowLink
             href={calendarHref({ view, date: dayKey(span.next) })}
-            transitionTypes={["nav-forward"]}
+            transitionType="nav-forward"
             aria-label={`Next ${span.unit}`}
             className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
           >
             <ChevronRight aria-hidden className="size-4" />
-          </Link>
+          </ShallowLink>
         </div>
       </div>
 

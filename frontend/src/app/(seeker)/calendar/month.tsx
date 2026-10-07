@@ -11,6 +11,7 @@ import {
 } from "date-fns";
 import Link from "next/link";
 
+import { ShallowLink } from "@/components/shallow-routing";
 import { cn } from "@/lib/cn";
 
 import type { TrackerEvent } from "../tracker";
@@ -34,7 +35,9 @@ import { dayKey, longDay, lookOf, shortTime } from "./entries";
  *
  * A day shows two chips and "+N more", which opens that day in the Agenda; a
  * busy day must not stretch its whole week. Its number opens the day in the
- * Agenda too. A chip opens its application's detail panel.
+ * Agenda too, both in place (ShallowLink), since the Agenda is drawn here
+ * from the same entries. A chip opens its application's detail panel, which
+ * the server draws, so it is a real link.
  *
  * Below @3xl/main a 7-column grid has about 45px a day, too little for any
  * words, so each day shows its entries as dots instead (aria-hidden: the
@@ -89,7 +92,7 @@ export function Month({
                     : "bg-app/50",
               )}
             >
-              <Link
+              <ShallowLink
                 href={dayHref(key)}
                 aria-label={`${format(day, "EEEE, MMMM d")}, ${count === 0 ? "nothing scheduled" : count === 1 ? "1 entry" : `${count} entries`}`}
                 aria-current={isToday ? "date" : undefined}
@@ -103,7 +106,7 @@ export function Month({
                 )}
               >
                 {format(day, "d")}
-              </Link>
+              </ShallowLink>
 
               {/* Narrow: a dot per entry, four at most. */}
               {count > 0 && (
@@ -147,12 +150,12 @@ export function Month({
                   })}
                   {count > 2 && (
                     <li>
-                      <Link
+                      <ShallowLink
                         href={dayHref(key)}
                         className="text-meta text-ink-meta hover:text-ink focus-visible:ring-brand-ring rounded-xs px-1.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                       >
                         +{count - 2} more
-                      </Link>
+                      </ShallowLink>
                     </li>
                   )}
                 </ul>

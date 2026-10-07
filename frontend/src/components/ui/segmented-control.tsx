@@ -3,8 +3,9 @@
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup } from "@base-ui/react/toggle-group";
 import Link from "next/link";
-import { useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
+import { isPlainClick, useShallowPush } from "@/components/shallow-routing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/cn";
 
@@ -33,10 +34,13 @@ import { cn } from "@/lib/cn";
  * Two forms, for the two ways a choice is kept:
  *
  *   SegmentedLinks   each option is a URL (?view=, ?range=), so the choice is
- *                    shareable and the page re-renders on the server. The
- *                    thumb moves on the click, before the new page arrives,
- *                    so the motion never waits on the network; the page's
- *                    answer then confirms it.
+ *                    shareable and survives a reload. The thumb moves on the
+ *                    click, before anything else answers. With `shallow`
+ *                    the query moves in place (components/shallow-routing.tsx)
+ *                    and the content, which reads it through
+ *                    useShallowParams, redraws with the thumb; without it the
+ *                    page re-renders on the server and its answer confirms
+ *                    the thumb.
  *   SegmentedToggle  the choice is component state (Applicant or Company, a
  *                    chart's range). Built on Base UI's ToggleGroup, which
  *                    gives it one tab stop and arrow keys. `value` may be
@@ -117,15 +121,11 @@ export type SegmentedLinkOption = {
   icon?: ReactNode;
 };
 
-/** A plain left click; a modified one opens a tab and leaves this page. */
-function isPlainClick(event: MouseEvent) {
-  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
-}
-
 export function SegmentedLinks({
   label,
   options,
   value,
+  shallow = false,
   size = "sm",
   className,
 }: {
@@ -133,11 +133,16 @@ export function SegmentedLinks({
   label: string;
   options: SegmentedLinkOption[];
   value: string;
+  /** Move the URL in place rather than navigating: for content the browser
+   *  already holds, which then reads the choice from the URL itself. Every
+   *  current caller sets it. */
+  shallow?: boolean;
   size?: Size;
   className?: string;
 }) {
   // The option clicked, ahead of the URL catching up. Dropped as soon as the
   // page's own `value` changes, which is the navigation confirming it.
+  const push = useShallowPush();
   const [pending, setPending] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(value);
   if (confirmed !== value) {
@@ -160,8 +165,14 @@ export function SegmentedLinks({
             href={href}
             aria-current={optionValue === value ? "true" : undefined}
             aria-label={icon ? optionLabel : undefined}
+            prefetch={shallow ? false : undefined}
             onClick={(event) => {
-              if (isPlainClick(event)) setPending(optionValue);
+              if (!isPlainClick(event)) return;
+              setPending(optionValue);
+              if (shallow) {
+                event.preventDefault();
+                push(href);
+              }
             }}
             className={itemClass(size, optionValue === shown, Boolean(icon))}
           >
