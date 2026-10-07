@@ -103,6 +103,9 @@ class work_style(enum.StrEnum):
 class salary_period(enum.StrEnum):
     year= "year"
     hour= "hour"
+    # scraped internships often state these; never set on a company's job
+    week= "week"
+    month= "month"
 
 class job_post_status(enum.StrEnum):
     '''

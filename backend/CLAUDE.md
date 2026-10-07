@@ -225,6 +225,10 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   overrides), so it must still validate against `schemas/jobs.py`: refresh it
   in the same commit as any change there. **Still open: a scheduled run of
   scraper + import**; until one exists, someone runs the import by hand.
+  Order matters when the feed gains a column: apply its migration first
+  (`7c2e9a41d5b3` added `start_term` and the week/month pay periods), then
+  import. An import against the older schema fails on the unknown column and,
+  being one transaction, writes nothing.
 - **`/jobs` opens a connection per request** (`NullPool`, below), which costs
   about half a second against Supabase where the file read cost
   milliseconds: measured 2026-10-07, ~0.8 s for the first request and ~0.5 s

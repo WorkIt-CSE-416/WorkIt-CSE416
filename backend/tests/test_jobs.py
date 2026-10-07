@@ -27,6 +27,14 @@ ROW = SimpleNamespace(
     location_raw="Mountain View, CA",
     posted_at=datetime.datetime(2026, 10, 6, 2, 42, 6, tzinfo=datetime.UTC),
     company_logo_url=None,
+    job_type=None,
+    min_years_experience=None,
+    start_term="Summer 2027",
+    salary=None,
+    salary_min=40.0,
+    salary_max=46.0,
+    salary_currency="USD",
+    salary_period=dto.salary_period.hour,
 )
 
 
@@ -51,7 +59,24 @@ def test_row_becomes_the_feed_shape():
         "posted_at": "2026-10-06T02:42:06+00:00",
         "logo_url": None,
         "description": "ROS nodes.",
+        "job_type": None,
+        "salary": None,
+        "salary_min": 40.0,
+        "salary_max": 46.0,
+        "salary_currency": "USD",
+        "salary_period": dto.salary_period.hour,
+        "min_years_experience": None,
+        "start_term": "Summer 2027",
     }
+
+
+def test_column_defaults_are_not_pay():
+    # salary_currency and salary_period are NOT NULL with defaults (USD, year): a
+    # job stating no pay must not read as "USD per year".
+    unpaid = SimpleNamespace(**{**vars(ROW), "salary_min": None, "salary_max": None,
+                                "salary_period": dto.salary_period.year})
+    listing = to_listing(unpaid)
+    assert (listing.salary_currency, listing.salary_period) == (None, None)
 
 
 def test_row_without_a_date():
