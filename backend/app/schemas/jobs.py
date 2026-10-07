@@ -16,6 +16,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.models import dto
 from app.models.dto import work_style
 
 
@@ -29,7 +30,9 @@ class JobListing(BaseModel):
     # Narrower than the shared `experience_level` enum on purpose: the scraper
     # keeps intern and new-grad roles only, and the type says so.
     experience_level: Literal["internship", "new_grad"]
-    # None rather than a guess: most Greenhouse boards never say.
+    # Stated by the posting, else inferred by the scraper from the company's other
+    # postings or, for a posting that names a place and no alternative, On site
+    # (scraper/CLAUDE.md). None when neither applies.
     work_style: work_style | None
     # One place, or "N locations" for a role posted to several offices.
     location: str | None
@@ -40,3 +43,19 @@ class JobListing(BaseModel):
     # (the cards never show it). Defaulted so a feed.json written before the
     # scraper captured descriptions still parses.
     description: str | None = None
+    # The rest of the card, named after job_postings' columns. Each is None when
+    # the posting never states it: the scraper reads the job board's own fields
+    # first, then the whole description, and guesses nothing. Defaulted so an
+    # older feed.json still parses.
+    job_type: dto.job_type | None = None
+    # One amount, or a min and max when the posting gives a range.
+    salary: float | None = None
+    salary_min: float | None = None
+    salary_max: float | None = None
+    salary_currency: str | None = None
+    # week and month too: many internships pay that way, and a 12-week stipend
+    # turned into a yearly figure would overstate it.
+    salary_period: dto.salary_period | None = None
+    min_years_experience: int | None = None
+    # When an internship starts, as the posting names it: "Summer 2027", "2027".
+    start_term: str | None = None

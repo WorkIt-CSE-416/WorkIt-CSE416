@@ -44,6 +44,14 @@ _COLUMNS = (
     Job_Post.location_raw,
     Job_Post.posted_at,
     Job_Post.company_logo_url,
+    Job_Post.job_type,
+    Job_Post.min_years_experience,
+    Job_Post.start_term,
+    Job_Post.salary,
+    Job_Post.salary_min,
+    Job_Post.salary_max,
+    Job_Post.salary_currency,
+    Job_Post.salary_period,
 )
 
 _LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
@@ -54,6 +62,7 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
     a job_postings row in the shape the feed has always had, so the frontend
     and Scout read it unchanged
     '''
+    paid = row.salary is not None or row.salary_min is not None
     return JobListing(
         id=str(row.id),
         title=row.title,
@@ -65,6 +74,15 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
         posted_at=row.posted_at.isoformat() if row.posted_at else None,
         logo_url=row.company_logo_url,
         description=description,
+        job_type=row.job_type,
+        min_years_experience=row.min_years_experience,
+        start_term=row.start_term,
+        salary=row.salary,
+        salary_min=row.salary_min,
+        salary_max=row.salary_max,
+        # NOT NULL with defaults, so they mean something only beside an amount.
+        salary_currency=row.salary_currency if paid else None,
+        salary_period=row.salary_period if paid else None,
     )
 
 
