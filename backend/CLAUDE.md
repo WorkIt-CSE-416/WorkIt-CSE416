@@ -82,6 +82,7 @@ app/
                   get_company_member on top of it for company-scoped routes
   schemas/        Pydantic request/response shapes, separate from models/
     auth.py       Signup body, /auth/me response
+    profile.py    ApplicantProfileResponse and ApplicantProfileUpdate
     jobs.py       JobListing — also the parser for scraper/feed.json
     company_jobs.py  JobPostingCreate and JobPosting, for /company/jobs
   routers/
@@ -93,6 +94,7 @@ app/
                   delete, set default, signed file link; extracts text from
                   PDF/DOCX and parses it into structured JSON
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
+    profiles.py   GET/PATCH /applicants/{id}/profile — identity fields
   services/       Logic with no HTTP or DB of its own. Never in models/,
                   whose __init__ imports every file as a model
     avatar.py     Validates and re-encodes an upload to a 512px WebP
