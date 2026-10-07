@@ -17,9 +17,10 @@ Tables:
   exactly one role, stored on the row itself (`role_id`), so no separate join
   table is needed.
 
-Location is **not** its own table: a posting stores `location_city` and
-`location_country` (ISO 3166-1 alpha-2) directly on `job_postings`, and both
-are NULL when the job is fully remote.
+Superseded: location **is** its own table now, `job_locations`, one row of ISO
+codes per place a job is offered (`4138dcee44b1`; `app/models/CLAUDE.md` has
+why). The original plan below stored `location_city` and `location_country`
+directly on `job_postings`.
 
 ## Enumerated types
 ```sql

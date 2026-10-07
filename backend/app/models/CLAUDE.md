@@ -205,28 +205,46 @@ surrogate ids:
 - `countries.code` — ISO 3166-1 alpha-2 (`US`, `GB`).
 - `states.code` — ISO 3166-2 (`US-CA`), with `country_code` → `countries`.
 
-**The code is the key.** A job posting stores `US-CA` itself, so filtering
-"jobs in California" is `WHERE location_state = 'US-CA'` with no join. The join
-to `states` is only for the display name.
+**The code is the key.** A job location stores `US-CA` itself, so filtering
+"jobs in California" is `job_locations.state = 'US-CA'` with no join to
+`states`. That join is only for the display name.
 
 **The foreign keys are for integrity, not speed.** They make Postgres reject
 `'NY'`, `'New York'` or `'US-XX'`, so every row spells a place one way. The
-speed comes from `job_postings_loc_idx` on `(location_country, location_state)`;
-Postgres does not index a foreign key column by itself.
+speed comes from `job_locations_place_idx` on `(country, state)`; Postgres
+does not index a foreign key column by itself. Filter with the country as
+well as the state (`country = 'US' AND state = 'US-CA'`), which a state code
+always implies, so that index's leading column is used.
 
-### How job_postings references them
+### job_locations — where a job is offered
 
-- `location_country` — nullable since `e6230622efb3`, with its **own** FK to
-  `countries`. Postgres skips a composite FK when any of its columns is NULL
-  (`MATCH SIMPLE`), so without this a country-only row would go unchecked.
-  NULL means the posting names no location; `ZZ` means it names one the seed
-  does not cover. The `state_requires_country` CHECK still forbids a state
-  without a country.
-- `location_state` — nullable. "United States" or a country with no seeded
+`job_postings` holds no location codes since `4138dcee44b1`. Each place a job
+is offered is one `job_locations` row (`Job_Location` in `jobs.py`): a job in
+San Francisco and New York has two, a job naming no place has none. One
+column pair on the job could not hold both, so a New York filter would miss
+every job whose first-listed office was elsewhere — 78 of the 1,069 scraped
+jobs list several. "Jobs in California" is an `EXISTS` on this table.
+
+- `country` — NOT NULL, with its **own** FK to `countries`. Postgres skips a
+  composite FK when any of its columns is NULL (`MATCH SIMPLE`), so without
+  it a country-only row would go unchecked. `ZZ` means a place the seed does
+  not cover.
+- `state` — nullable. "United States" or a country with no seeded
   subdivisions has no state.
-- The composite FK `(location_state, location_country)` → `states(code,
-  country_code)` rejects a state from the wrong country: `('US-NY', 'CA')`
-  fails.
+- The composite FK `(state, country)` → `states(code, country_code)` rejects a
+  state from the wrong country: `('US-NY', 'CA')` fails.
+- `UNIQUE NULLS NOT DISTINCT (job_id, country, state)` stops the same place
+  twice. `NULLS NOT DISTINCT` matters: plain `UNIQUE` treats two
+  `(job, US, NULL)` rows as different. It needs Postgres 15+, so test locally
+  on 15 or later. That constraint's index also serves lookups by `job_id`,
+  which is why the column has no index of its own.
+- `ON DELETE CASCADE` from the job: deleting a job deletes its places.
+- **Display uses `job_postings.location_raw`**, never these rows. The codes are
+  for filtering and lose the city.
+- **The company API keeps one place per job.** Its body and response still
+  carry `locationCountry`/`locationState`; `routers/company_jobs.py` writes
+  them as the job's single row and reads them back the same way, so the
+  composer did not change. Several places are for scraped jobs.
 - **Remote is `work_style`, not a location.** A remote posting may still name
   a country ("Remote, US"). Never add a sentinel "REMOTE" code; it duplicates
   `work_style` and cannot say "remote, US only".
@@ -266,7 +284,7 @@ real postings need it. `frontend/src/app/company/jobs/new/data.ts`'s
 Consequences, until someone adds them back:
 
 - A posting in an unseeded country cannot be stored with that country — its
-  `location_country` fails the FK. The resolver must return nothing for it
+  `job_locations.country` fails the FK. The resolver must return nothing for it
   rather than guess a neighbour.
 - Puerto Rico, Guam and the other US outlying areas exist only as US states
   (`US-PR`), not as countries (`PR`).
@@ -280,7 +298,7 @@ anywhere, add countries in a **new** seed migration instead — Alembic never
 re-runs an applied revision, so an edit would reach fresh databases only.
 
 **Only the US has states.** A posting anywhere else stores its country with
-`location_state` NULL. That scope was chosen on purpose: earlier drafts seeded
+`state` NULL. That scope was chosen on purpose: earlier drafts seeded
 15 countries' subdivisions (310 rows), then the UK's four nations alone, and
 both were cut as more than the product needs for now. Adding a country later is
 a new seed migration, not an edit to one already applied, and follows the
@@ -308,7 +326,7 @@ Rules the seeds follow, which a new one must follow too:
 ### The resolver — design settled, code not in this branch
 
 Scraped postings give free text ("New York, NY"). Something must turn that into
-`(location_country, location_state)` before insert. The design below was
+`job_locations` rows of `(country, state)` before insert. The design below was
 prototyped on 2026-09-22 against a larger seed; the cases below are
 restated for the US-only seed that shipped, then left for a
 separate branch. A draft may still be reachable in commit `554e279`.
@@ -405,8 +423,8 @@ San Francisco / Remote / ""           None
 needs city data such as GeoNames `cities15000.txt` (city → country + admin1),
 picking the most populous match for a repeated name. Until then, do not guess
 on a miss: log it, since misses show which aliases to add. Store the posting
-anyway with both codes NULL: `location_raw` (`b40588efa7b7`) keeps the text, so
-it can be resolved again once the resolver learns more.
+anyway with no `job_locations` rows: `location_raw` (`b40588efa7b7`) keeps the
+text, so it can be resolved again once the resolver learns more.
 
 ## job_postings holds company-posted and scraped jobs
 
@@ -449,12 +467,12 @@ Anything that lists jobs *across* companies must decide whether it wants
 `posted_at` is when the job board says the job went up; `created_at` is when
 the row was stored. Nothing sets `posted_at` for a company's job yet.
 
-**Search uses trigram GIN indexes** on `title` and `company_name`
-(`55f3c813be50`), so `ILIKE '%term%'` and `similarity()` look matches up
-instead of scanning. Measured on 2026-10-06: about 180 KB and 140 KB for the
-1,069-job feed, and about 7.6 MB and 3.1 MB at 100k rows, where a search took
-4 ms against 46 ms without the index. A search under 3 characters produces no
-trigram and scans anyway. `company_name` is only filled for scraped jobs, so
+**Company search uses a trigram GIN index** on `company_name`
+(`55f3c813be50`), so `ILIKE '%term%'` and the fuzzy `<%` operator look
+matches up instead of scanning. Measured on 2026-10-06: about 140 KB for the
+1,069-job feed and about 3.1 MB at 100k rows. A search under 3 characters
+produces no trigram and scans anyway. `title` had one too, dropped in
+`4cfa4c1836cd`; title search has no index now. `company_name` is only filled for scraped jobs, so
 searching company-posted jobs by employer needs a join or a copied name.
 
 ## Identity lives in auth.users

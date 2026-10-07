@@ -102,7 +102,8 @@ app/
     CLAUDE.md     Model invariants — read before adding or editing a model
     profiles.py   Account and company tables
     auth_users.py Stub of Supabase's auth.users, for foreign keys only
-    jobs.py       Job postings, company-posted and scraped (NULL `company_id`)
+    jobs.py       Job postings, company-posted and scraped (NULL `company_id`),
+                  and job_locations: one row per place a job is offered
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
     dto.py        Enums and Pydantic schemas (ParsedResume, Education, etc.)

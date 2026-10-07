@@ -113,8 +113,9 @@ class JobPostingSummary(BaseModel):
     title: str
     status: dto.job_post_status
     work_style: dto.work_style
-    location_country: str | None
-    location_state: str | None
+    # not columns of the job: the router fills them from its job_locations row
+    location_country: str | None = None
+    location_state: str | None = None
     closes_at: datetime.datetime | None
     created_at: datetime.datetime
     updated_at: datetime.datetime
@@ -135,8 +136,9 @@ class JobPosting(BaseModel):
     experience_level: dto.experience_level
     min_years_experience: int | None
     work_style: dto.work_style
-    location_country: str | None
-    location_state: str | None
+    # not columns of the job: the router fills them from its job_locations row
+    location_country: str | None = None
+    location_state: str | None = None
     salary: float | None
     salary_min: float | None
     salary_max: float | None

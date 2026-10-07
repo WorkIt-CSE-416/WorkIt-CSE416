@@ -12,12 +12,15 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     SmallInteger,
+    String,
     Text,
+    UniqueConstraint,
     desc,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.db import Base
 from app.models import dto
 from app.models.profiles import BaseModel
 
@@ -53,9 +56,8 @@ class Job_Post(BaseModel):
     min_years_experience: Mapped[int | None] = mapped_column(SmallInteger)
 
     work_style: Mapped[dto.work_style | None]
+    # the location text as given, for display. Filtering uses job_locations
     location_raw: Mapped[str | None] = mapped_column(Text)
-    location_state: Mapped[str | None]
-    location_country: Mapped[str | None] = mapped_column(ForeignKey("countries.code"))
 
     salary: Mapped[float | None]
     salary_min: Mapped[float | None]
@@ -93,26 +95,11 @@ class Job_Post(BaseModel):
             name="scraped_job_completed"
         ),
 
-        ForeignKeyConstraint(
-            ["location_state", "location_country"],
-            ["states.code", "states.country_code"],
-            name="country_state_reference_exist"
-        ),
-        CheckConstraint(
-            "location_state IS NULL OR location_country IS NOT NULL",
-            name="state_requires_country",
-        ),
-
         Index(  # index by job status ranked from earliest posted to latest 
             "job_postings_status_idx",
             "status", 
             desc("created_at")
         ), 
-        Index (
-            "job_postings_loc_idx",
-            "location_country",
-            "location_state"
-        ),
         
         # trigram GIN indexes 
         # for each company name is uploaded, split name into 3 char buckets and store the job
@@ -122,5 +109,49 @@ class Job_Post(BaseModel):
             "company_name",
             postgresql_using="gin",
             postgresql_ops={"company_name": "gin_trgm_ops"}
+        )
+    )
+
+
+class Job_Location(Base):
+    '''
+    one place a job is offered, as ISO codes. A job in San Francisco and New
+    York has two rows; a job naming no place has none
+    '''
+    __tablename__ = "job_locations"
+    id: Mapped[uuid.UUID] = mapped_column(
+                        primary_key=True,
+                        default=uuid.uuid4,
+                        server_default=text("gen_random_uuid()"))
+    # no index of its own: job_locations_job_place_key leads with job_id
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("job_postings.id", ondelete="CASCADE")
+    )
+    # ZZ for a place outside the seeded countries (models/CLAUDE.md)
+    country: Mapped[str] = mapped_column(
+        CHAR(2),
+        ForeignKey("countries.code", name="job_locations_country_fkey")
+    )
+    # nullable: "United States", or a country with no seeded states
+    state: Mapped[str | None] = mapped_column(String(6))
+
+    __table_args__ = (
+        # Postgres skips a composite FK when state is NULL, which is what the
+        # country FK above is for
+        ForeignKeyConstraint(
+            ["state", "country"],
+            ["states.code", "states.country_code"],
+            name="job_locations_state_country_fkey"
+        ),
+        # NULLS NOT DISTINCT: otherwise two (job, US, NULL) rows don't collide
+        UniqueConstraint(
+            "job_id", "country", "state",
+            name="job_locations_job_place_key",
+            postgresql_nulls_not_distinct=True
+        ),
+        Index(
+            "job_locations_place_idx",
+            "country",
+            "state"
         )
     )

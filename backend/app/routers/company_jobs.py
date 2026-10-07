@@ -9,14 +9,14 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.deps import get_company_member
 from app.models.dto import job_post_status
-from app.models.jobs import Job_Post
+from app.models.jobs import Job_Location, Job_Post
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.company_jobs import (
     JobPosting,
@@ -32,7 +32,11 @@ router = APIRouter(prefix="/company/jobs", tags=["company jobs"])
 
 # The foreign keys a job's location is checked against. Anything else that
 # fails on commit is a bug of ours, not an unsupported location.
-_LOCATION_CONSTRAINTS = {"job_postings_location_country_fkey", "country_state_reference_exist"}
+_LOCATION_CONSTRAINTS = {"job_locations_country_fkey", "job_locations_state_country_fkey"}
+
+# In the form's body but not columns of the job: they become its one
+# job_locations row. A company job has one place; several are for scraped jobs.
+_LOCATION_FIELDS = {"location_country", "location_state"}
 
 
 # Where a job may go from each status through the status route. Draft to
@@ -89,6 +93,39 @@ async def _own_job(
     return job
 
 
+async def _set_location(
+    db: AsyncSession, job_id: uuid.UUID, country: str | None, state: str | None
+) -> None:
+    '''
+    replace the job's place with the form's. Run after the job is flushed:
+    with no relationship() on the models, the unit of work won't insert the
+    job before a row pointing at it (models/CLAUDE.md)
+    '''
+    await db.execute(delete(Job_Location).where(Job_Location.job_id == job_id))
+    if country is not None:
+        db.add(Job_Location(job_id=job_id, country=country, state=state))
+
+
+async def _locations(db: AsyncSession, job_ids: list[uuid.UUID]) -> dict[uuid.UUID, Job_Location]:
+    '''
+    each job's place, for the responses. One per company job, as
+    _set_location writes it
+    '''
+    rows = await db.execute(select(Job_Location).where(Job_Location.job_id.in_(job_ids)))
+    return {loc.job_id: loc for loc in rows.scalars()}
+
+
+async def _posting(db: AsyncSession, job: Job_Post) -> JobPosting:
+    '''
+    the job as the API returns it, with its place filled in
+    '''
+    loc = (await _locations(db, [job.id])).get(job.id)
+    posting = JobPosting.model_validate(job)
+    if loc is None:
+        return posting
+    return posting.model_copy(update={"location_country": loc.country, "location_state": loc.state})
+
+
 def _reject_past_close(closes_at: datetime.datetime | None) -> None:
     '''
     the date picker blocks past days, but a direct call or a form left open
@@ -107,20 +144,22 @@ async def create_job(
     body: JobPostingCreate,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
-) -> Job_Post:
+) -> JobPosting:
     '''
     save a new job, as a draft or published, under the caller's company
     '''
     if body.status == job_post_status.published:
         _reject_past_close(body.closes_at)
     job = Job_Post(
-        **body.model_dump(),
+        **body.model_dump(exclude=_LOCATION_FIELDS),
         company_id=account.company_id,
         posted_by_recruiter_id=account.id,
     )
     db.add(job)
+    await db.flush()
+    await _set_location(db, job.id, body.location_country, body.location_state)
     await _commit(db, job)
-    return job
+    return await _posting(db, job)
 
 
 @router.get("", response_model=list[JobPostingSummary])
@@ -129,7 +168,7 @@ async def list_jobs(
     offset: int = Query(0, ge=0),
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
-) -> list[Job_Post]:
+) -> list[JobPostingSummary]:
     '''
     a page of the caller's company's jobs, newest first. Summaries only: the
     table never shows a description, so it isn't sent. A page shorter than
@@ -144,7 +183,15 @@ async def list_jobs(
         .limit(limit)
         .offset(offset)
     )
-    return list(rows.scalars())
+    jobs = list(rows.scalars())
+    locs = await _locations(db, [job.id for job in jobs])
+    summaries = []
+    for job in jobs:
+        summary = JobPostingSummary.model_validate(job)
+        if (loc := locs.get(job.id)) is not None:
+            summary = summary.model_copy(update={"location_country": loc.country, "location_state": loc.state})
+        summaries.append(summary)
+    return summaries
 
 
 @router.get("/{job_id}", response_model=JobPosting)
@@ -152,11 +199,11 @@ async def get_job(
     job_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
-) -> Job_Post:
+) -> JobPosting:
     '''
     one of the caller's company's jobs
     '''
-    return await _own_job(db, job_id, account)
+    return await _posting(db, await _own_job(db, job_id, account))
 
 
 @router.put("/{job_id}", response_model=JobPosting)
@@ -165,7 +212,7 @@ async def update_job(
     body: JobPostingUpdate,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
-) -> Job_Post:
+) -> JobPosting:
     '''
     replace a job's details with the composer's full form. PUT, not PATCH: the
     form always sends every field, and the salary rules need all of them at
@@ -200,10 +247,11 @@ async def update_job(
         _reject_past_close(body.closes_at)
 
     keep = {"updated_at"} if job.status == job_post_status.draft else {"updated_at", "status"}
-    for field, value in body.model_dump(exclude=keep).items():
+    for field, value in body.model_dump(exclude=keep | _LOCATION_FIELDS).items():
         setattr(job, field, value)
+    await _set_location(db, job.id, body.location_country, body.location_state)
     await _commit(db, job)
-    return job
+    return await _posting(db, job)
 
 
 @router.post("/{job_id}/status", response_model=JobPosting)
@@ -212,7 +260,7 @@ async def change_job_status(
     body: JobStatusChange,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
-) -> Job_Post:
+) -> JobPosting:
     '''
     pause, resume or close a job. Only the moves in _NEXT_STATUSES are
     allowed; anything else is a 409. A caller holding the form sends the
@@ -242,4 +290,4 @@ async def change_job_status(
             job.closes_at = now
 
     await _commit(db, job)
-    return job
+    return await _posting(db, job)
