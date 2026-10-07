@@ -14,7 +14,8 @@ holds unique. One run, in one transaction:
 1. validates every row against schemas/jobs.py (the feed's contract);
 2. resolves each distinct location string (services/location_resolver.py)
    against the countries and states in the database;
-3. inserts new jobs and updates changed ones, ON CONFLICT (apply_url). A row
+3. inserts new jobs and updates changed ones, description included,
+   ON CONFLICT (apply_url). A row
    whose fields all match is left alone, so updated_at means something and a
    second run on the same feed changes nothing;
 4. brings each job's job_locations rows in line with what the resolver says;
@@ -68,10 +69,10 @@ _locations = Job_Location.__table__
 
 # The columns the feed owns, compared to decide whether a known job changed.
 _FEED_COLUMNS = (
-    "title", "company_name", "company_logo_url", "experience_level",
-    "work_style", "location_raw", "posted_at",
+    "title", "company_name", "company_logo_url", "description",
+    "experience_level", "work_style", "location_raw", "posted_at",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 8.
+# asyncpg allows 32,767 parameters a statement; a row here binds 10.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
@@ -155,6 +156,9 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
             "title": listing.title,
             "company_name": listing.company,
             "company_logo_url": listing.logo_url,
+            # Scout reads it; the job cards don't. Absent from feeds written
+            # before the scraper captured descriptions.
+            "description": listing.description,
             "experience_level": dto.experience_level(listing.experience_level),
             "work_style": listing.work_style,
             "location_raw": listing.location,

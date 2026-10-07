@@ -419,7 +419,10 @@ One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
 - **NULL** — scraped, imported from the scraper's `feed.json`. The employer is
   `company_name`/`company_logo_url`, and `apply_url` is where the seeker
   applies. `apply_url` is unique because the scraper dedupes on it, which
-  makes it the key an import upserts on.
+  makes it the key an import upserts on. `description` is the scraper's
+  plain-text copy, which Scout reads; it is most of the table's size (first
+  import, 2026-10-07: 4.9 MB of text stored as 3.2 MB compressed, in TOAST,
+  for 1,069 jobs).
 
 Chosen over a separate scraped-jobs table so a seeker feed, search and
 location filter are one query over one table, and saves/applications can

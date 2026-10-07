@@ -34,6 +34,7 @@ def test_row_shape(resolver):
         "title": "SWE Intern",
         "company_name": "Acme",
         "company_logo_url": None,
+        "description": None,
         "experience_level": dto.experience_level.internship,
         "work_style": dto.work_style.onsite,
         "location_raw": "Austin, TX",
@@ -41,6 +42,11 @@ def test_row_shape(resolver):
         "status": dto.job_post_status.published,
     }]
     assert prepared.places == {"https://x/1": (Place("US", "US-TX"),)}
+
+
+def test_description_is_kept(resolver):
+    prepared = prepare([listing("https://x/1", description="Build things.")], resolver)
+    assert prepared.rows[0]["description"] == "Build things."
 
 
 def test_first_of_a_duplicate_url_wins(resolver):

@@ -10,9 +10,9 @@ Python API.
 `backend/` is the whole Python project: its own `pyproject.toml`, `.venv`,
 lockfile and tooling. Nothing above it is part of this build, and nothing in
 `frontend/` is importable from here. The two halves communicate over HTTP and
-share no code. The scraper is no exception: `GET /jobs` reads
-`scraper/feed.json` (or the committed `data/feed.json` snapshot) as data and
-imports none of its code.
+share no code. The scraper is no exception: `app/scripts/import_jobs.py`
+reads `scraper/feed.json` (or the committed `data/feed.json` snapshot) as data
+and imports none of its code.
 
 **The one exception is `../scout/`**, Scout's brain, installed here as the
 `workit-scout` package. It is a library with no database or HTTP of its own;
@@ -67,7 +67,11 @@ uv run python -m app.scripts.import_jobs       load a scraper feed.json into
 one** — same rule as `alembic upgrade`. Run it yourself, `--dry-run` first.
 It upserts on `apply_url`, so re-running is safe, and it refuses (exit 2,
 nothing written) to close more than half the published scraped jobs at once
-unless given `--allow-mass-close`. The module docstring has the steps.
+unless given `--allow-mass-close`. The module docstring has the steps. First
+run against Supabase (2026-10-07): 1,069 jobs in 3.6 s; a re-run with no
+changes, 2.9 s. A `--dry-run` writes and rolls back, which leaves dead rows
+until autovacuum clears them, so table sizes read straight after one are
+inflated.
 
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
 extraction (`test_resume_extraction.py`), the location resolver
@@ -108,8 +112,8 @@ app/
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
-    jobs.py       GET /jobs — the scraper's feed.json, public, no DB, no descriptions;
-                  `read_feed` is shared with scout.py
+    jobs.py       GET /jobs — published scraped jobs from job_postings, public,
+                  no descriptions; `fetch_listing` is shared with scout.py
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, get, replace,
                   delete, set default, signed file link; extracts text from
@@ -143,8 +147,8 @@ alembic/
 tests/            pytest; resume parser, DOCX extraction, location resolver
                   and feed-import tests, and fixtures
 data/
-  feed.json       Committed snapshot of scraper/feed.json — what GET /jobs
-                  serves in production. See Deployment
+  feed.json       Committed snapshot of scraper/feed.json — the import's input
+                  when no local scraper run has written one. See Deployment
   places.tsv      GeoNames-derived gazetteer the location resolver reads.
                   CC BY 4.0; generated, never edited by hand
 scripts/
@@ -210,19 +214,22 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   Scout reply is "offline". **Never `DIRECT_URL`:** migrations are run by
   hand, locally (`alembic/CLAUDE.md`); the deployed API has no business
   holding the migration connection.
-- **`GET /jobs` serves `data/feed.json` in production.** A deploy ships only
-  `backend/`, and `scraper/feed.json` is gitignored besides, so without the
-  snapshot `/jobs` answered 503 and the seeker Jobs page showed nothing.
-  `config.default_scraper_feed()` prefers `scraper/feed.json` when a local
-  scraper run has written one and falls back to the snapshot otherwise; no
-  env var is needed (`SCRAPER_FEED` still overrides both). Refresh it by
-  running the scraper and copying its `feed.json` here, **in the same commit
-  as any change to `schemas/jobs.py`** — a snapshot that no longer validates
-  turns the 503 into a 500. `job_postings` can hold these rows since
-  `b40588efa7b7` (NULL `company_id`, `app/models/CLAUDE.md`), and
-  `app/scripts/import_jobs.py` loads a feed into it. Still open: a scheduled
-  run of scraper + import, and pointing `/jobs` at the table — after which
-  this snapshot is no longer needed.
+- **`GET /jobs` reads `job_postings`, not a file** (since 2026-10-07). The
+  deployed jobs are whatever the last `app.scripts.import_jobs` run left
+  there; a deploy changes nothing about them, and an empty table is an empty
+  feed, not an error. Before this, `/jobs` served the committed
+  `data/feed.json`, because a deploy ships only `backend/` and
+  `scraper/feed.json` is gitignored — without the snapshot it answered 503.
+  The snapshot stays as the import's default input when no local scraper run
+  has written one (`config.default_scraper_feed()`; `SCRAPER_FEED`
+  overrides), so it must still validate against `schemas/jobs.py`: refresh it
+  in the same commit as any change there. **Still open: a scheduled run of
+  scraper + import**; until one exists, someone runs the import by hand.
+- **`/jobs` opens a connection per request** (`NullPool`, below), which costs
+  about half a second against Supabase where the file read cost
+  milliseconds: measured 2026-10-07, ~0.8 s for the first request and ~0.5 s
+  for 500 rows. The pooler absorbs it under load; cache the response if the
+  feed ever needs to be faster.
 - **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
   them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
   4.5–5 MB upload fails on the deployment with a bare 413.
@@ -323,7 +330,9 @@ whose data has gone live renders a clear error instead of its fixture — never
 the fixture in its place, which would pass made-up rows off as real. The Jobs
 feed is the first (`frontend/src/app/(seeker)/jobs/listings.ts`). On this
 side, `/health` and every fixture route work without the root `.env`; only
-`/health/db` needs it. Keep both true — it is what lets someone work on one
+`/health/db` and the routes that read real data need it — `/jobs` among them
+since it moved to the database, so with no `.env` the Jobs page shows its
+error, never fixtures. Keep both true — it is what lets someone work on one
 half without the other, and it makes a failure point at one side or the other
 instead of being ambiguous.
 
