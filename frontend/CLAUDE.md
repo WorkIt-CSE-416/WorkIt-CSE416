@@ -363,9 +363,12 @@ its `data.ts` still holds the fixtures `filters.tsx` (client) and the
 yet: its id is the employer's apply URL and the detail view reads fixtures
 only, so its card's Apply Now goes to the employer's posting instead.
 A live card still has the full shape of a fixture card: every `job_postings`
-fact the scraper cannot give (job type, salary, years) is passed as
-`NOT_LISTED` from `components/job-posting-card.tsx` and drawn as its icon with
-"Salary not listed" in italic, and the match rail is its placeholder
+fact the posting does not state (the scraper fills job type, salary and
+years when it does) is passed as `NOT_LISTED` from
+`components/job-posting-card.tsx` and drawn as its icon with "Salary not
+listed" in italic. An internship shows when it starts in place of years (the card's
+`startTerm` fact: "Start in Summer 2027", or "Start date not listed"), and
+its job type always reads "Internship", as Jobright shows it, and the match rail is its placeholder
 (`score={null}`: an empty ring and "Score Coming Soon") until matching
 exists. Null still means a fact the posting has none of, and is left out. A live fetch in a page calls
 `await connection()` so `next build` does not prerender it with no API running.

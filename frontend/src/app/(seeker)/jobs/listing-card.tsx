@@ -10,7 +10,14 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 
-import { formatExperienceLevel, formatPosted, formatWorkStyle } from "./format";
+import {
+  formatExperienceLevel,
+  formatJobType,
+  formatMinYears,
+  formatPosted,
+  formatSalary,
+  formatWorkStyle,
+} from "./format";
 import type { JobListing } from "./listings";
 import { MatchRail } from "./match-rail";
 
@@ -32,12 +39,17 @@ import { MatchRail } from "./match-rail";
  *   location_city/country  `location`, one string from the board; a remote
  *                          role with none has nothing to list, so it is left
  *                          out (Work Style says Remote), as on a fixture
- *   job_type               not listed: boards rarely state it
- *   salary_*               not listed
+ *   job_type               "Internship" on every internship, as Jobright
+ *                          shows it; otherwise `job_type`, when the posting
+ *                          states it
+ *   salary_*               `salary_*`, when the posting states pay
  *   work_style             `work_style`, when the board states it
  *   experience_level       `experience_level`, always: the scraper keeps
  *                          internship and new-grad roles only
- *   min_years_experience   not listed
+ *   min_years_experience   `min_years_experience`, when the posting asks
+ *                          for some; an internship shows `start_term` as
+ *                          its own fact instead, since nobody asks an
+ *                          intern for years
  *   uploaded_at            `posted_at`, when the board dated it
  *
  * The match rail is its placeholder (score null): nothing scores a role yet.
@@ -53,11 +65,11 @@ export function ListingCard({ job }: { job: JobListing }) {
         title: job.title,
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
         location: job.location ?? (job.work_style === "remote" ? null : NOT_LISTED),
-        jobType: NOT_LISTED,
-        salary: NOT_LISTED,
+        jobType: jobType(job),
+        salary: salary(job) ?? NOT_LISTED,
         workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
         experienceLevel: formatExperienceLevel(job.experience_level),
-        minYearsExperience: NOT_LISTED,
+        ...yearsOrStart(job),
       }}
       rail={<MatchRail score={null} highlights={[]} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
@@ -92,6 +104,38 @@ export function ListingCard({ job }: { job: JobListing }) {
       }
     />
   );
+}
+
+function jobType(job: JobListing) {
+  // Jobright's rule: an internship's job type is "Internship", whatever hours
+  // it states. "Full-Time" beside "Internship" read as a contradiction.
+  if (job.experience_level === "internship") return "Internship";
+  return job.job_type ? formatJobType(job.job_type) : NOT_LISTED;
+}
+
+/** An internship shows when it starts; any other role its minimum years. */
+function yearsOrStart(job: JobListing) {
+  if (job.experience_level === "internship") {
+    return {
+      minYearsExperience: null,
+      startTerm: job.start_term ? `Start in ${job.start_term}` : NOT_LISTED,
+    };
+  }
+  return {
+    minYearsExperience:
+      job.min_years_experience != null ? formatMinYears(job.min_years_experience) : NOT_LISTED,
+  };
+}
+
+function salary(job: JobListing) {
+  if (!job.salary_currency || !job.salary_period) return null;
+  return formatSalary({
+    salary: job.salary ?? undefined,
+    salaryMin: job.salary_min ?? undefined,
+    salaryMax: job.salary_max ?? undefined,
+    salaryCurrency: job.salary_currency,
+    salaryPeriod: job.salary_period,
+  });
 }
 
 /**
