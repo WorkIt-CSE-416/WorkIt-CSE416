@@ -52,12 +52,22 @@ export const metadata: Metadata = {
  * Most of it is fixtures (./data.ts) until the application tracker has a
  * backend; New Matches is the live feed.
  *
- * Columns break on @container/main, the page's own width, since the panel
- * takes 256px of the window when open. What lives inside one of those columns
- * breaks on the column instead: the headline numbers go four across at
- * @lg/kpis and Up Next moves its dates at @md/upnext. Keyed to the page, the
- * numbers went four across in a 3fr column too narrow for them, and "Response
- * Rate" wrapped and dropped its value below the other three.
+ * Columns break on @container/main, the page's own width (which the shell
+ * keeps at its open-panel width, so collapsing the panel never splits or
+ * joins them). The page splits into its two columns at @5xl/main, where it
+ * has its full 928px: the 3fr column is then 537px, wide enough for the
+ * greeting and the range switch on one line and the four numbers across.
+ * It split at @4xl once, and from 896 to 1023px the column was 460 to 535px:
+ * the range switch wrapped under the greeting and the numbers went two by
+ * two. What lives inside one of those columns breaks on the column instead:
+ * the headline numbers go four across at @lg/kpis and Up Next moves its
+ * dates at @md/upnext. Keyed to the page, the numbers went four across in a
+ * 3fr column too narrow for them, and "Response Rate" wrapped and dropped
+ * its value below the other three.
+ *
+ * The header keeps the range switch at its top right wherever the two fit
+ * side by side (@[36rem]/main, 512px of content or more), the greeting
+ * wrapping before the switch does; narrower, the switch sits under it.
  */
 export default async function DashboardPage() {
   const account = await getCurrentAccount();
@@ -66,10 +76,10 @@ export default async function DashboardPage() {
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <div className="grid grid-cols-1 items-stretch gap-8 @4xl/main:grid-cols-[3fr_2fr]">
+      <div className="grid grid-cols-1 items-stretch gap-8 @5xl/main:grid-cols-[3fr_2fr]">
         <div className="@container/kpis flex flex-col">
-          <header className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+          <header className="flex flex-col items-start gap-3 @[36rem]/main:flex-row @[36rem]/main:justify-between">
+            <div className="min-w-0">
               {firstName ? (
                 <Greeting as="h1" firstName={firstName} className="text-heading text-ink" />
               ) : (
@@ -87,12 +97,12 @@ export default async function DashboardPage() {
         <NextUpHero item={next} />
       </div>
 
-      <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
+      <div className="mt-12 grid grid-cols-1 gap-10 @5xl/main:grid-cols-[3fr_2fr]">
         <Activity byRange={ACTIVITY} />
         <UpNext items={later} />
       </div>
 
-      <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
+      <div className="mt-12 grid grid-cols-1 gap-10 @5xl/main:grid-cols-[3fr_2fr]">
         <Suspense fallback={<NewMatchesSkeleton />}>
           <NewMatches />
         </Suspense>

@@ -23,7 +23,7 @@ import { SectionHeader } from "./section-header";
  * THE LIST SCROLLS INSIDE THE ROW rather than setting its height. Beside it,
  * Waiting to Hear Back is a fixed size, and the two should end on one line;
  * a list long enough to be useful would otherwise stretch the row and leave
- * Waiting floating above a gap. From @4xl/main the section is `h-0
+ * Waiting floating above a gap. From @5xl/main the section is `h-0
  * min-h-full` — a grid item that contributes no height of its own and then
  * fills whatever the row's other cell made it — and the list takes the rest
  * of that with overflow-y-auto. Stacked on a phone, there is no neighbour to
@@ -49,7 +49,7 @@ export async function NewMatches() {
   return (
     <section
       aria-labelledby="new-matches"
-      className="flex flex-col @4xl/main:h-0 @4xl/main:min-h-full"
+      className="flex flex-col @5xl/main:h-0 @5xl/main:min-h-full"
     >
       <SectionHeader
         id="new-matches"
@@ -69,7 +69,7 @@ export async function NewMatches() {
           <ul
             tabIndex={0}
             aria-label="Latest Roles"
-            className="divide-border-subtle focus-visible:ring-brand-ring flex min-h-0 flex-1 flex-col divide-y rounded-xs focus-visible:ring-2 focus-visible:outline-none @4xl/main:overflow-y-auto @4xl/main:overscroll-contain @4xl/main:pr-2 @4xl/main:pb-6 @max-4xl/main:[&>li:nth-child(5)]:border-b-0 @max-4xl/main:[&>li:nth-child(n+6)]:hidden"
+            className="divide-border-subtle focus-visible:ring-brand-ring flex min-h-0 flex-1 flex-col divide-y rounded-xs focus-visible:ring-2 focus-visible:outline-none @5xl/main:overflow-y-auto @5xl/main:overscroll-contain @5xl/main:pr-2 @5xl/main:pb-6 @max-5xl/main:[&>li:nth-child(5)]:border-b-0 @max-5xl/main:[&>li:nth-child(n+6)]:hidden"
           >
             {latest.map((job, i) => (
               // The roles rise in as the feed arrives, 30ms apart and capped
@@ -85,7 +85,7 @@ export async function NewMatches() {
                   className="text-note rounded-control size-9 shrink-0"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-label text-ink @max-4xl/main:line-clamp-2 @4xl/main:truncate">
+                  <p className="text-label text-ink @max-5xl/main:line-clamp-2 @5xl/main:truncate">
                     {job.title}
                   </p>
                   <p className="text-note text-ink-meta truncate">
@@ -107,7 +107,7 @@ export async function NewMatches() {
           </ul>
           <span
             aria-hidden="true"
-            className="from-background pointer-events-none absolute inset-x-0 bottom-0 hidden h-8 bg-linear-to-t to-transparent @4xl/main:block"
+            className="from-background pointer-events-none absolute inset-x-0 bottom-0 hidden h-8 bg-linear-to-t to-transparent @5xl/main:block"
           />
         </div>
       )}
@@ -128,7 +128,7 @@ export function NewMatchesSkeleton() {
     <section
       aria-labelledby="new-matches"
       aria-busy="true"
-      className="flex flex-col @4xl/main:h-0 @4xl/main:min-h-full"
+      className="flex flex-col @5xl/main:h-0 @5xl/main:min-h-full"
     >
       <SectionHeader
         id="new-matches"
@@ -139,7 +139,7 @@ export function NewMatchesSkeleton() {
 
       <ul
         aria-hidden="true"
-        className="divide-border-subtle mt-3 flex h-88 flex-col divide-y overflow-hidden @4xl/main:h-auto @4xl/main:flex-1"
+        className="divide-border-subtle mt-3 flex h-88 flex-col divide-y overflow-hidden @5xl/main:h-auto @5xl/main:flex-1"
       >
         {Array.from({ length: 6 }, (_, i) => (
           <li key={i} className="flex items-center gap-3 py-2.5">

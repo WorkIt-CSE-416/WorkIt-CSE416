@@ -64,11 +64,12 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* Wraps below sm, where the title and the switcher don't share a
-          line. items-start, as on the Dashboard, so the switcher sits level
+      {/* The switcher is three glyphs, so it fits beside the title at every
+          width: the subtitle wraps rather than pushing it onto a line of its
+          own. items-start, as on the Dashboard, so the switcher sits level
           with the title rather than the subtitle. */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-heading text-ink">My Applications</h1>
           <p className="text-body text-ink-meta mt-1">Track and manage your career progress.</p>
         </div>

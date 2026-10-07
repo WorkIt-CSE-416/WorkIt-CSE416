@@ -236,11 +236,22 @@ component that shows `?q` while on /search and empties elsewhere, because a
 layout never receives searchParams. Lift a `<TopBar>` out only if they are
 still near-identical once both sides are real screens.
 
-Seeker pages break on the width they actually get, not the window's: the shell
-makes its page panel `@container/main`, because an open panel takes 280px
-with its insets. A
-layout that splits into columns uses `@3xl/main:` and friends, and a card that
-rearranges itself (the job card) is its own `@container`. Pages render a
+Seeker pages break on the width they actually get, not the window's: the
+shell renders them inside `@container/main`, because an open panel takes
+280px with its insets. **That width is the one they have with the panel
+open, in both states**: collapsing the panel re-centres the page in the room
+it frees and never rearranges it (`(seeker)/layout.tsx`, "A PAGE KEEPS THE
+WIDTH"). Keyed to the `<main>` itself, collapsing between about 800 and
+1300px moved the Dashboard from one column to two and its range switch from
+the page's right edge to its middle, wrapped the Calendar's view switch, and
+turned the Week into seven columns. The container is `--panel-gain`
+narrower than the `<main>`, a registered length that eases over the panel's
+own 200ms linear, so the page holds its width through the animation; keep
+the two durations equal. A layout that splits into columns uses
+`@3xl/main:` and friends, a card that rearranges itself (the job card) is
+its own `@container`, and both see the same width whether the panel is open
+or not. A page's segmented control sits at the top right of its header
+wherever it fits beside the title, the title wrapping first. Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
 The seeker bar shows the signed-in account's real photo, with the full name

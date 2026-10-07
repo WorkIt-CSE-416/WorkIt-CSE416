@@ -524,6 +524,16 @@
   }
 }
 
+/* What collapsing the seeker panel frees, eased over the panel's own 200ms
+ * linear (see (seeker)/layout.tsx, "A PAGE KEEPS THE WIDTH"). Registered as a
+ * <length> so it can transition at all: an unregistered custom property
+ * swaps at once, and the page would narrow for the length of the collapse. */
+@property --panel-gain {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 /* View transitions -----------------------------------------------------
  * Pages and views change through React's <ViewTransition>, which Next 16
  * runs on every navigation (frontend/CLAUDE.md, "Motion"). Each one names a

@@ -74,10 +74,28 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * magnifier and the photo and little else.
  *
  * THE PAGE PANEL is the one scrolling element, so the bar and the section
- * panel stay put and a scrollbar runs only beside the page. It is
- * @container/main, because the page's room depends on the panel as well as
- * the window, and seeker pages break on that width. SidebarInset renders the
- * <main>, so pages render a <div>; it is the skip link's target.
+ * panel stay put and a scrollbar runs only beside the page. SidebarInset
+ * renders the <main>, so pages render a <div>; it is the skip link's target.
+ *
+ * A PAGE KEEPS THE WIDTH IT HAS WITH THE PANEL OPEN, so collapsing the panel
+ * never rearranges it: the page re-centres in the room the collapse frees,
+ * as it always has on a window wide enough to cap it at max-w-app, and
+ * nothing on it moves relative to anything else. Inside the <main> sits
+ * @container/main, kept --panel-gain narrower than the <main> (the 184px a
+ * collapse frees, 0 while open and below md, where the panel is a sheet),
+ * and pages render inside it. So every @…/main query, every component's own
+ * container and every wrapping row sees the same width in both states.
+ * Keyed to the <main> itself, collapsing between about 800 and 1300px
+ * moved the Dashboard from one column to two and its range switch from the
+ * page's right edge to its middle, wrapped the Calendar's view switch onto
+ * a new line, and turned the Week from a list into seven columns. Letting
+ * the page widen into the room while keying only the page's own queries to
+ * the open width was tried and left everything that measures itself (the
+ * headline numbers, Up Next, a job card's rail and facts, the stage chips)
+ * still reflowing. --panel-gain is a registered <length> (globals.css) that
+ * eases over the same 200ms linear as the panel's own width, so the page
+ * holds its width through the whole animation and only glides to its new
+ * centre; change one duration and change the other.
  */
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -132,7 +150,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }
       />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3 md:pl-0">
+      {/* --panel-gain: what a collapse frees, eased in step with the panel's
+          own 200ms linear width (see "A PAGE KEEPS THE WIDTH" above). */}
+      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 transition-[--panel-gain] duration-200 ease-linear sm:gap-3 sm:p-3 md:pl-0 md:peer-data-[state=collapsed]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]">
         <header className="bg-panel border-rail-border shadow-panel rounded-shell flex h-16 shrink-0 items-center gap-3 border px-3 sm:gap-4 sm:px-4">
           <Tooltip>
             <TooltipTrigger
@@ -188,15 +208,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <SidebarInset
           id="content"
           tabIndex={-1}
-          className="bg-panel border-rail-border shadow-panel rounded-shell @container/main min-h-0 flex-1 overflow-y-auto overscroll-contain border focus:outline-none"
+          className="bg-panel border-rail-border shadow-panel rounded-shell min-h-0 flex-1 overflow-y-auto overscroll-contain border focus:outline-none"
         >
-          {/* Outlives a single page so My Profile renders at once on a return
-              visit; see profile-cache.tsx for why it lives here. The query
-              the pages show, moved in place by their segmented controls and
-              the Calendar's arrows, is held by ShallowRouting. */}
-          <ProfileCacheProvider>
-            <ShallowRouting>{children}</ShallowRouting>
-          </ProfileCacheProvider>
+          {/* The page, as wide as the <main> is with the panel open (see "A
+              PAGE KEEPS THE WIDTH" above), and the container it breaks on. */}
+          <div className="@container/main mx-auto flex w-[calc(100%_-_var(--panel-gain))] flex-1 flex-col">
+            {/* Outlives a single page so My Profile renders at once on a
+                return visit; see profile-cache.tsx for why it lives here.
+                The query the pages show, moved in place by their segmented
+                controls and the Calendar's arrows, is held by
+                ShallowRouting. */}
+            <ProfileCacheProvider>
+              <ShallowRouting>{children}</ShallowRouting>
+            </ProfileCacheProvider>
+          </div>
         </SidebarInset>
       </div>
     </SidebarProvider>

@@ -41,8 +41,11 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      {/* The view switch stays top right wherever the title can keep 300px
+          beside it (512px of content), the subtitle wrapping before the
+          switch moves; narrower, it sits under the title. */}
+      <div className="flex flex-col items-start gap-4 @[36rem]/main:flex-row @[36rem]/main:justify-between">
+        <div className="min-w-0">
           <h1 className="text-heading text-ink">Calendar</h1>
           <p className="text-body text-ink-meta mt-1">
             Every date in your search, from the day you applied to the offer deadline.
