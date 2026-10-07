@@ -97,7 +97,7 @@ export function JobDetailHeader({
                 // card's own company name makes.
                 <Link
                   href={companyHref}
-                  className="text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+                  className="text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                 >
                   {posting.companyName}
                 </Link>

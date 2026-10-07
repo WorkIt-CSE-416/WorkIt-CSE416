@@ -72,6 +72,9 @@ key never goes here.
 ```
 src/proxy.ts      Refreshes the Supabase session on every request (Next 16's
                   renamed middleware). Not a security boundary.
+src/react-canary.d.ts  Loads React's canary types (<ViewTransition>,
+                  addTransitionType): the App Router runs React canary, and
+                  @types/react's stable entry does not declare them
 src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
@@ -91,7 +94,9 @@ src/app/          App Router routes, layouts, pages
                   date logic; local-time.tsx prints its dates in the
                   viewer's own zone and links them to the Calendar.
                   /calendar puts the same entries on a Month, Week or
-                  Agenda (calendar/), rendered in the browser
+                  Agenda (calendar/), rendered in the browser.
+                  template.tsx wraps each section's page in the page
+                  transition (Motion, below); company/ has its own
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -139,16 +144,18 @@ src/components/   Shared components
                   block as the trigger, Settings and Help as its rows, and
                   shows the header only below lg, where that block is the
                   photo alone
-  ui/             Presentational primitives: badge, button, card, company-tile,
-                  empty-state, fact, filter-chip (only the design kit shows
-                  it today), icon-button, search-field, section,
-                  section-heading, section-link, segmented-control,
+  ui/             Presentational primitives: animated-number, badge, button,
+                  card, company-tile, empty-state, fact, filter-chip (only
+                  the design kit shows it today), icon-button, search-field,
+                  section, section-heading, section-link, segmented-control,
                   select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
+  format-count.ts formatCount() for a headline figure ("1,234", "12.3K"),
+                  in en-US so the server and the browser print the same
   api.ts          Server-only apiUpload (multipart, POST or PUT), apiGet,
                   apiDelete. Guarded with `import "server-only"`. Uses
                   API_URL (not NEXT_PUBLIC_*).
@@ -316,9 +323,9 @@ Calendar's Month, Week and Agenda, the Dashboard's range, the Applications
 layouts, the sign-in card's Applicant or Company, and the company chart's
 range. A pill-shaped track (a 5% ink wash, so it reads on the white page and
 the off-white auth card alike, and no outline) with a white thumb that slides
-to the chosen option on a 300ms ease-out, and jumps under reduced motion. The
-options are equal width, so the thumb is placed with CSS alone and the server
-renders it in place. `SegmentedLinks` is for a choice kept in the URL: the
+to the chosen option on the 300ms glide (Motion, below), and jumps under
+reduced motion. The options are equal width, so the thumb is placed with CSS
+alone and the server renders it in place. `SegmentedLinks` is for a choice kept in the URL: the
 thumb moves on the click, before the new page arrives, so the motion never
 waits on the network. `SegmentedToggle` is for component state, on Base UI's
 ToggleGroup for its arrow keys and single tab stop; a null value hides the
@@ -619,6 +626,80 @@ right for date-only strings.
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.
+
+## Motion
+
+Everything that moves speaks one language, defined in `globals.css` (the
+Motion block in `@theme`, and the view-transition rules after it) and shown
+moving at `/design-kit/motion`. The rules:
+
+- **Three curves, picked by role.** `--ease-glide` for what travels and
+  settles (a thumb, a highlight, a card lifting, a page arriving),
+  `--ease-spring` for what pops into place (a chip's cross, a badge, never
+  anything that travels far), `--ease-exit` for what leaves. Durations go by
+  role too: 150ms for a press or a colour, 200ms for a hover fill or a nudge,
+  about 250ms for content arriving, 300 to 320ms for a glide. An exit is
+  always shorter than the entrance after it, so the old thing is gone before
+  the new one asks to be looked at.
+- **Every control answers the pointer.** A button presses to 98%, an icon
+  button or a calendar arrow to 90%, a segment to 96%, and a card that is one
+  whole target lifts 2px onto `--shadow-lift` and settles on the press. The
+  presses live in `ui/button.tsx`, `ui/icon-button.tsx` and
+  `ui/segmented-control.tsx`, so a new control gets one by using them. A
+  colour change eases rather than snaps, an underline fades in
+  (`decoration-transparent` to `decoration-current`) rather than appearing,
+  and an arrow leans 2px the way its link goes while the link is hovered.
+- **Content arrives, staggered and capped.** A list rises in
+  (`animate-rise`; a table row takes `animate-fade`, since browsers do not
+  reliably paint a row's transform) with an `animation-delay` per item,
+  capped at the sixth to tenth item so a long list never keeps anyone
+  waiting. Only arrival animates. A figure that changes in place counts to
+  its new value (`ui/animated-number.tsx`, which never counts up on load),
+  and a line of words fades in again, keyed on what it says.
+- **The left panel's highlights glide.** Each menu in
+  `components/app-sidebar.tsx` draws one hover fill and one current fill
+  behind its rows and moves them by row index, with nothing measured, so
+  pointing down the panel slides one fill instead of blinking a fill per row.
+  GlideMenu there has the details.
+- **Pages and views change through React's `<ViewTransition>`**, which Next
+  16 runs on every navigation with no config. `(seeker)/template.tsx` and
+  `company/template.tsx` wrap each section's page. A template remounts when
+  the section changes but not when only the query does, so moving between
+  sections is an exit and an enter (`page-exit`, `page-enter`) while a filter
+  or `?app=` is not. Inside a page, the Applications results are keyed on
+  their shape (the view, the board's columns, or nothing matching) and swap
+  (`swap-enter`, `swap-exit`); within one shape each card or row is keyed by
+  its application (`applications/reflow.tsx`) and glides to its new place
+  when the list is sorted or filtered (`reflow`). The Calendar keys its
+  title and view on the span, and its arrows and Today tag their links with
+  `transitionTypes` (`nav-back`, `nav-forward`), so the span slides the way
+  time went (`step-back`, `step-forward`). Every `<ViewTransition>` here sets
+  `default="none"`, so it animates only for the change it names.
+- **The root's own crossfade is off** (`::view-transition-old(root)` is
+  hidden). Everything outside a `<ViewTransition>` then updates live, which
+  is what lets the sidebar's fill glide beside a changing page instead of
+  ghosting at both rows. The overlay lets clicks through.
+- **The detail panel slides out before it navigates.** Closing shuts the
+  sheet locally and drops `?app=` in `onOpenChangeComplete`, since the
+  navigation unmounts it; `applications/detail-panel.tsx` says why it
+  remembers the object it closed on rather than the id.
+- **Reduced motion is one rule**, at the foot of the motion CSS: every
+  animation, transition and view transition completes at once (1ms, not 0,
+  so Base UI's dialogs still hear an animation end). Do not add
+  `motion-reduce:` per component; the rule already covers it.
+- **Chrome skips a view transition in a hidden tab**, and the browser pane
+  times one out while the pane is not on screen ("Transition was aborted
+  because of timeout in DOM update"). Neither is a bug. Check one in a
+  visible window, or watch the `view-transition-class` React sets.
+- **Clickable means the hand.** Tailwind v4 dropped the pointer from
+  buttons, so `globals.css` restores it in one place: buttons,
+  `role="button"`, tabs, switches, checkboxes, selects and the native parts
+  of a field (a search field's clear cross, a date field's picker, a file
+  input's button) in the base layer, and menu, select and combobox rows in
+  the utilities layer, where it outranks the vendored `cursor-default`. A
+  new clickable element gets the hand from that rule or by being a link;
+  write `cursor-pointer` only on something that is neither, like a `<label>`
+  that toggles a switch.
 
 ## Conventions
 

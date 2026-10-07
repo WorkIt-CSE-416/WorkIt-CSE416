@@ -70,8 +70,10 @@ const SIZES: Record<
 
 const TRACK = "bg-ink/5 relative isolate grid w-fit auto-cols-fr grid-flow-col rounded-full";
 
+// An option presses in a little on mouse-down, as every button does, while
+// its label's colour follows the thumb across.
 const ITEM =
-  "focus-visible:ring-brand-ring relative z-10 flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-colors duration-200 select-none focus-visible:ring-2 focus-visible:outline-none";
+  "focus-visible:ring-brand-ring relative z-10 flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[color,transform] duration-200 ease-glide select-none focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]";
 
 function itemClass(size: Size, active: boolean, iconOnly = false) {
   return cn(
@@ -96,7 +98,7 @@ function Thumb({ index, count, size }: { index: number; count: number; size: Siz
       style={style}
       className={cn(
         "bg-panel pointer-events-none absolute rounded-full shadow-[0_1px_2px_rgb(18_26_40/0.08),0_2px_8px_rgb(18_26_40/0.08)]",
-        "transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        "ease-glide transition-[transform,opacity] duration-300",
         SIZES[size].thumb,
       )}
     />

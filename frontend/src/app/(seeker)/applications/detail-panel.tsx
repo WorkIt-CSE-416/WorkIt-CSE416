@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { CheckIcon } from "@/components/icons";
 import {
@@ -27,8 +27,17 @@ import { MatchBadge } from "./match-badge";
  * IT IS A URL, ?app=<id>, not component state. The page renders it when the
  * parameter names an application, so a panel can be linked to, reloads open,
  * and the back button closes it. Closing navigates to the same page without
- * the parameter. The trade is that the sheet's exit animation is cut short by
- * the navigation, which unmounts it.
+ * the parameter, but only once the sheet has slid out: the navigation
+ * unmounts it, which used to cut its exit short. So a close shuts it here
+ * first and navigates when Base UI says the exit is done
+ * (onOpenChangeComplete). It remembers which `application` object it was
+ * closed on, not which id, because every render of the page brings a fresh
+ * one: reopening the same application before the navigation lands opens it
+ * again rather than finding it shut.
+ *
+ * It arrives in order: the sheet slides in, then the timeline's rail draws
+ * down as its steps rise in one after another, and the step it is waiting on
+ * pulses three times with its Next badge popping in, so the eye lands there.
  *
  * Everything it shows arrives worked out: the steps and which one is next are
  * computed on the server (`timelineOf` in ../tracker.ts) against the request's
@@ -63,11 +72,15 @@ export function DetailPanel({
 }) {
   const router = useRouter();
   const { stage } = application;
+  const [closedOn, setClosedOn] = useState<PanelApplication | null>(null);
 
   return (
     <Sheet
-      open
+      open={closedOn !== application}
       onOpenChange={(open) => {
+        if (!open) setClosedOn(application);
+      }}
+      onOpenChangeComplete={(open) => {
         if (!open) router.push(closeHref, { scroll: false });
       }}
     >
@@ -101,10 +114,13 @@ export function DetailPanel({
 
           <h3 className="text-subtitle text-ink mt-6">Timeline</h3>
           {/* One rail for the whole list, drawn by the <ol> through the
-              centre of the 16px dots, as Work Experience draws its own. */}
-          <ol className="before:bg-border relative mt-4 flex flex-col gap-5 before:absolute before:top-2 before:bottom-2 before:left-[7px] before:w-0.5 before:content-['']">
-            {steps.map((step) => (
-              <Step key={step.id} step={step} />
+              centre of the 16px dots, as Work Experience draws its own. It
+              draws itself down while the steps arrive. */}
+          <ol className="before:bg-border before:animate-draw-y relative mt-4 flex flex-col gap-5 before:absolute before:top-2 before:bottom-2 before:left-[7px] before:w-0.5 before:origin-top before:content-[''] before:[animation-delay:120ms]">
+            {steps.map((step, i) => (
+              // After the sheet is mostly in, 40ms apart, capped so a long
+              // timeline never keeps its last steps waiting.
+              <Step key={step.id} step={step} delay={120 + Math.min(i, 8) * 40} />
             ))}
           </ol>
         </div>
@@ -115,29 +131,47 @@ export function DetailPanel({
   );
 }
 
-function Step({ step }: { step: TimelineStep }) {
+function Step({ step, delay }: { step: TimelineStep; delay: number }) {
   const stage: StageKey = step.kind === "saved" ? "saved" : KIND_STAGE[step.kind];
   const filled = step.state !== "later";
+  const next = step.state === "next";
 
   return (
-    <li className="relative flex items-start gap-3">
+    <li
+      className="animate-rise relative flex items-start gap-3"
+      style={{ animationDelay: `${delay}ms` }}
+    >
       <span
         aria-hidden="true"
         className={cn(
-          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full",
+          "relative mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full",
           filled
             ? cn(STAGE_COLOR[stage].fill, "text-white")
             : "bg-panel border-border-strong border-2",
         )}
       >
+        {/* The step it is waiting on rings out from its dot, once the step
+            has risen in, the way the bar's status dot does. */}
+        {next && (
+          <span
+            className={cn(
+              "animate-status-ping absolute inset-0 rounded-full",
+              STAGE_COLOR[stage].fill,
+            )}
+            style={{ animationDelay: `${delay + 260}ms` }}
+          />
+        )}
         {step.state === "done" && <CheckIcon className="size-2.5" />}
       </span>
 
       <div className="min-w-0 flex-1">
         <p className={cn("text-label", step.state === "done" ? "text-ink-muted" : "text-ink")}>
           {step.title}
-          {step.state === "next" && (
-            <span className="ml-2 inline-flex align-middle">
+          {next && (
+            <span
+              className="animate-pop ml-2 inline-flex align-middle"
+              style={{ animationDelay: `${delay + 160}ms` }}
+            >
               <Badge tone={STAGE_COLOR[stage].tone}>Next</Badge>
             </span>
           )}

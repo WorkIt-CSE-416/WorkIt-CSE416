@@ -63,7 +63,17 @@ const PREVIEW_ROLES = 2;
 /** One role on the rail. Its meta line wraps between its parts, and a part
  *  too long for the column (parsed text can be) truncates rather than
  *  widening the page. */
-function RoleItem({ role, expanded }: { role: Role; expanded: boolean }) {
+function RoleItem({
+  role,
+  expanded,
+  delay,
+}: {
+  role: Role;
+  expanded: boolean;
+  /** Set on a role the chevron just revealed: it rises in this many ms
+   *  after the expand, after the ones above it. */
+  delay?: number;
+}) {
   const meta = [
     role.company_name && <span className="text-ink-muted font-medium">{role.company_name}</span>,
     period(role.start_date, role.end_date),
@@ -71,7 +81,10 @@ function RoleItem({ role, expanded }: { role: Role; expanded: boolean }) {
   ].filter(Boolean);
 
   return (
-    <li className="relative pl-5">
+    <li
+      className={cn("relative pl-5", delay !== undefined && "animate-rise")}
+      style={delay !== undefined ? { animationDelay: `${delay}ms` } : undefined}
+    >
       <span
         aria-hidden="true"
         className={cn(
@@ -168,7 +181,10 @@ export function ExperienceSection({ parsed, loading, failed, onChange }: Section
                 onClick={() => setExpanded((open) => !open)}
               >
                 <ChevronDownIcon
-                  className={cn("size-4 transition-transform", expanded && "rotate-180")}
+                  className={cn(
+                    "ease-glide size-4 transition-transform duration-200",
+                    expanded && "rotate-180",
+                  )}
                 />
               </IconButton>
             )}
@@ -189,7 +205,13 @@ export function ExperienceSection({ parsed, loading, failed, onChange }: Section
           className="before:bg-border relative mt-4 flex flex-col gap-5 before:absolute before:top-3 before:bottom-1 before:left-0 before:w-0.5 before:content-['']"
         >
           {(expanded ? roles : roles.slice(0, PREVIEW_ROLES)).map((role, i) => (
-            <RoleItem key={i} role={role} expanded={expanded} />
+            <RoleItem
+              key={i}
+              role={role}
+              expanded={expanded}
+              // The roles the preview held back rise in under it, 40ms apart.
+              delay={i >= PREVIEW_ROLES ? Math.min(i - PREVIEW_ROLES, 6) * 40 : undefined}
+            />
           ))}
         </ol>
       )}
@@ -255,7 +277,7 @@ export function SkillsSection({ parsed, loading, failed, onChange }: SectionProp
                 aria-label={`Edit skill ${skill.skill_name}`}
                 title={skill.category ?? undefined}
                 onClick={() => setEditing(i)}
-                className="focus-visible:ring-brand-ring hover:*:bg-brand/15 max-w-full rounded-md focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                className="focus-visible:ring-brand-ring hover:*:bg-brand/15 max-w-full rounded-md transition-transform duration-150 ease-out *:transition-colors *:duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-95 disabled:opacity-50"
               >
                 <Badge variant="tag">{skill.skill_name}</Badge>
               </button>

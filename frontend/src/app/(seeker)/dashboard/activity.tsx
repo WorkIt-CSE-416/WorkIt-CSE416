@@ -9,6 +9,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/shadcn/chart";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Badge } from "@/components/ui/badge";
 
 import type { ActivityPoint } from "./data";
@@ -52,7 +53,10 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
         <Badge variant="tag" tone="brand" pill>
           <Send aria-hidden="true" className="mr-1.5 size-3.5" />
           <span>
-            <span className="font-semibold">{total}</span> Sent
+            <span className="font-semibold">
+              <AnimatedNumber value={total} />
+            </span>{" "}
+            Sent
           </span>
         </Badge>
         {goal !== null && (
@@ -112,6 +116,11 @@ export function Activity({ points, goal }: { points: ActivityPoint[]; goal: numb
             fill="url(#activity-fill)"
             dot={{ r: 3, fill: "var(--color-panel)", strokeWidth: 2 }}
             activeDot={{ r: 5 }}
+            // Recharts draws the line in over 1.5s by default, which is
+            // slower than anything else on the page; this is the app's
+            // glide (frontend/CLAUDE.md, "Motion").
+            animationDuration={600}
+            animationEasing="ease-out"
           />
         </AreaChart>
       </ChartContainer>

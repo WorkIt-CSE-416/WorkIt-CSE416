@@ -25,6 +25,10 @@ import { cn } from "@/lib/cn";
  * zoom the page on focus, at a 20px line so the pill stays 40px; the
  * placeholder is --color-ink-meta, 5.13:1 on the fill.
  *
+ * It answers the pointer too: the fill steps a shade deeper on hover, and the
+ * magnifier darkens while the field has focus, so the field looks awake
+ * while it is being typed in.
+ *
  * type="search" is deliberate. It gives the field a clear button and the
  * Escape-to-clear behaviour people expect, which matters more here than the
  * small cross-browser difference in how that button is drawn.
@@ -37,15 +41,15 @@ type SearchFieldProps = {
 
 export function SearchField({ id, label, className, ...input }: SearchFieldProps) {
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("group/search relative", className)}>
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
-      <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2" />
+      <SearchIcon className="text-ink-meta group-focus-within/search:text-ink pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 transition-colors duration-150" />
       <input
         id={id}
         type="search"
-        className="bg-app text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full pr-4 pl-10 text-base/5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        className="bg-app hover:bg-hover text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
         {...input}
       />
     </div>

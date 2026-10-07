@@ -1,9 +1,11 @@
 import type { ComponentType } from "react";
 
 import { TrendIcon } from "@/components/icons";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
+import { formatCount } from "@/lib/format-count";
 
 export type StatDelta = {
   value: number;
@@ -33,6 +35,12 @@ export type StatDelta = {
  * tabular-nums gives every digit the width of a zero, which is what keeps a
  * column of numbers aligned in a table — at 28px in a tile it just makes a
  * number like 214 look gappy. Tabular figures are for columns; this is not one.
+ *
+ * WHEN THE RANGE MOVES, THE FIGURE COUNTS to its new value
+ * (ui/animated-number.tsx) rather than snapping, and the line under it fades
+ * in again, keyed on what it says, so the new comparison arrives with the
+ * new number rather than being swapped in under it. The plain variant's
+ * direction marker pops in the same way when it appears or turns over.
  *
  * ---------------------------------------------------------------------------
  * THE DELTA IS A PILL, AND THE PILL IS <Badge>, not a shape rebuilt here.
@@ -109,9 +117,10 @@ export function StatTile({
               colour, and the line below says the size of the change. */}
           {moved && (
             <span
+              key={good ? "good" : "bad"}
               aria-hidden="true"
               className={cn(
-                "flex size-4 shrink-0 items-center justify-center rounded-full text-white",
+                "animate-pop flex size-4 shrink-0 items-center justify-center rounded-full text-white",
                 // positive-ink, not positive: white on #17b076 is 2.80:1, and
                 // the delta text under it is already this green (5.35:1).
                 good ? "bg-positive-ink" : "bg-danger",
@@ -123,16 +132,23 @@ export function StatTile({
         </div>
 
         <p className="text-display text-ink mt-2">
-          {format(value)}
+          <AnimatedNumber value={value} />
           {suffix}
         </p>
 
         {/* Always present, with a non-breaking space at worst: the Season
             window has no delta, and dropping the line shortened the whole
             row, so everything under it jumped when the range changed. */}
-        {!delta && <p className="text-note text-ink-meta mt-0.5">{note ?? "\u00a0"}</p>}
+        {!delta && (
+          <p key={note} className="text-note text-ink-meta animate-fade mt-0.5">
+            {note ?? "\u00a0"}
+          </p>
+        )}
         {delta && (
-          <p className="text-note text-ink-meta mt-0.5">
+          <p
+            key={`${delta.value} ${delta.period}`}
+            className="text-note text-ink-meta animate-fade mt-0.5"
+          >
             {/* "Same as" rather than "No change vs": a narrow column wrapped
                 the longer phrase onto a second line, the one tile in the row
                 that did. */}
@@ -141,7 +157,7 @@ export function StatTile({
             ) : (
               <span className={cn("font-semibold", good ? "text-positive-ink" : "text-danger")}>
                 {delta.value > 0 ? "+" : "−"}
-                {format(Math.abs(delta.value))}
+                {formatCount(Math.abs(delta.value))}
                 {suffix}
               </span>
             )}
@@ -165,7 +181,7 @@ export function StatTile({
       </div>
 
       <p className="text-display text-ink mt-1.5">
-        {format(value)}
+        <AnimatedNumber value={value} />
         {suffix}
       </p>
 
@@ -189,7 +205,7 @@ export function StatTile({
               >
                 <TrendIcon className="mr-1 size-3 shrink-0" down={delta.value < 0} />
                 {delta.value > 0 ? "+" : ""}
-                {format(delta.value)}
+                {formatCount(delta.value)}
                 {suffix}
               </Badge>
             )}
@@ -203,11 +219,4 @@ export function StatTile({
 
 function isGood(value: number, upIsGood: boolean) {
   return value > 0 === upIsGood;
-}
-
-function format(value: number) {
-  const abs = Math.abs(value);
-  if (abs < 10_000) return value.toLocaleString();
-
-  return `${(value / 1000).toFixed(abs < 100_000 ? 1 : 0)}K`;
 }

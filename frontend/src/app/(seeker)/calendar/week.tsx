@@ -84,7 +84,7 @@ export function Week({
                           href={openHref(event.applicationId)}
                           scroll={false}
                           className={cn(
-                            "rounded-control focus-visible:ring-brand-ring block px-2 py-1.5 hover:brightness-[0.97] focus-visible:ring-2 focus-visible:outline-none",
+                            "rounded-control focus-visible:ring-brand-ring ease-glide block px-2 py-1.5 transition-[filter,transform] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.98]",
                             look.tint,
                           )}
                         >

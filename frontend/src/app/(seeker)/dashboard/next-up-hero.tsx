@@ -65,7 +65,9 @@ export function NextUpHero({ item }: { item: UpNextItem | undefined }) {
             <DayLink
               at={item.at}
               view="week"
-              className="text-label flex items-center gap-1.5 rounded-xs font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+              // Its underline fades in under the pointer rather than
+              // snapping on.
+              className="text-label flex items-center gap-1.5 rounded-xs font-semibold underline decoration-transparent underline-offset-4 transition-[text-decoration-color] duration-150 hover:decoration-current focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
             >
               <CalendarIcon className="size-4 shrink-0" />
               <When at={item.at} />
@@ -75,9 +77,11 @@ export function NextUpHero({ item }: { item: UpNextItem | undefined }) {
           <Link
             href={item ? `/applications?app=${item.applicationId}` : "/jobs"}
             aria-label={item ? `Open ${item.role} at ${item.company}` : "Browse Jobs"}
-            className="text-brand-ink ml-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_20px_rgb(18_26_40/0.25)] transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent focus-visible:outline-none"
+            // Swells a little under the pointer, its arrow leaning on, and
+            // presses in on the click, all on the glide.
+            className="group/next text-brand-ink ease-glide ml-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_20px_rgb(18_26_40/0.25)] transition-transform duration-200 hover:scale-105 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent focus-visible:outline-none active:scale-95"
           >
-            <ArrowRightIcon className="size-5" />
+            <ArrowRightIcon className="ease-glide size-5 transition-transform duration-200 group-hover/next:translate-x-0.5" />
           </Link>
         </div>
       </div>

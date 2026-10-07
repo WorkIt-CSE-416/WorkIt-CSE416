@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ComponentType, ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
 
 import { Logo, LogoLockup } from "@/components/logo";
 import {
@@ -117,10 +117,80 @@ const MENU_BUTTON = "h-9";
  * --color-brand-ink rather than --color-brand: the plain brand reads 4.31:1 on
  * this fill, under what AA asks of a 14px label. See the token in globals.css.
  */
-const CURRENT_ITEM =
-  "data-active:bg-rail-selected data-active:text-brand-ink " +
-  "hover:bg-rail-selected hover:text-brand-ink " +
-  "active:bg-rail-selected active:text-brand-ink";
+const CURRENT_ITEM = "data-active:text-brand-ink hover:text-brand-ink active:text-brand-ink";
+
+/**
+ * THE FILLS GLIDE. A row no longer paints its own hover or current fill;
+ * each menu draws one hover highlight and one current highlight behind its
+ * rows (GlideMenu below), and moves them. Pointing down the panel, the hover
+ * fill travels from row to row instead of blinking off one and onto the
+ * next; following a link, the current fill travels to the new section while
+ * the page changes beside it. Both ride --ease-glide, 320ms.
+ *
+ * So every row clears the fills shadcn's button paints itself
+ * (hover:, active: and data-active: bg-sidebar-accent), each restated with
+ * the same modifier so tailwind-merge drops the original, as CURRENT_ITEM
+ * explains. The icon still answers the pointer on its own: a 2px nudge
+ * toward the label on hover, and a squeeze on press.
+ */
+const ROW =
+  "transition-colors duration-150 hover:bg-transparent active:bg-transparent data-active:bg-transparent " +
+  "[&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide " +
+  "hover:[&>svg]:translate-x-0.5 active:[&>svg]:scale-90";
+
+/**
+ * Which row of a menu is the current section, or -1. `exact` rows match
+ * only their own path (the company Dashboard, whose path prefixes every
+ * other); the rest also own the pages below them.
+ */
+function currentIndex(items: SidebarNavItem[], pathname: string) {
+  return items.findIndex((item) => {
+    if ("action" in item) return false;
+    const { href, exact } = item;
+    return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  });
+}
+
+/**
+ * One fill behind a menu's rows, placed by row index rather than measured:
+ * every row in a menu is the same height (--row, set by GlideMenu for each
+ * panel and for the collapsed rail) with MENU's 4px between, so row i starts
+ * at i * (row + 4px). Nothing is measured, so the server draws the current
+ * fill in place and nothing jumps when the page hydrates.
+ *
+ * `glide` false moves it without a transition, for the hover fill's first
+ * appearance: arriving from outside the menu, it should appear under the
+ * pointer, not slide in from wherever it last faded out. Width and height
+ * follow the panel's own 200ms linear when it collapses to the rail.
+ */
+function Highlight({
+  index,
+  visible,
+  glide,
+  className,
+}: {
+  index: number;
+  visible: boolean;
+  glide: boolean;
+  className: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "pointer-events-none absolute top-0 left-0 h-(--row) w-full rounded-md group-data-[collapsible=icon]:w-(--row)",
+        className,
+      )}
+      style={{
+        transform: `translateY(calc(${Math.max(index, 0)} * (var(--row) + 0.25rem)))`,
+        opacity: visible ? 1 : 0,
+        transition: glide
+          ? "transform 320ms var(--ease-glide), opacity 150ms ease-out, width 200ms linear, height 200ms linear"
+          : "opacity 150ms ease-out, width 200ms linear, height 200ms linear",
+      }}
+    />
+  );
+}
 
 type NavRowBase = {
   label: string;
@@ -253,11 +323,7 @@ export function AppSidebar({
                     {group.label}
                   </SidebarGroupLabel>
                 )}
-                <SidebarMenu className={MENU}>
-                  {group.items.map((item) => (
-                    <NavRow key={item.label} item={item} pathname={pathname} floating={floating} />
-                  ))}
-                </SidebarMenu>
+                <GlideMenu items={group.items} pathname={pathname} floating={floating} />
               </SidebarGroup>
             ))}
           </SidebarContent>
@@ -265,13 +331,7 @@ export function AppSidebar({
           {(footerCard || (footer && footer.length > 0)) && (
             <SidebarFooter className={cn("gap-3 pb-3", floating && "px-4 pb-4")}>
               {footerCard}
-              {footer && footer.length > 0 && (
-                <SidebarMenu className={MENU}>
-                  {footer.map((item) => (
-                    <NavRow key={item.label} item={item} pathname={pathname} />
-                  ))}
-                </SidebarMenu>
-              )}
+              {footer && footer.length > 0 && <GlideMenu items={footer} pathname={pathname} />}
             </SidebarFooter>
           )}
         </nav>
@@ -309,9 +369,11 @@ function PanelBrand({ href }: { href: string }) {
         collapsed && "pl-3.5",
       )}
     >
+      {/* Presses in on the click like every control, and only that: a logo
+          that moves under the pointer reads as a gimmick. */}
       <Link
         href={href}
-        className="focus-visible:ring-brand-ring flex shrink-0 items-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+        className="focus-visible:ring-brand-ring flex shrink-0 items-center rounded-xs transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
       >
         <LogoLockup priority wordmarkHidden={collapsed} />
       </Link>
@@ -319,29 +381,100 @@ function PanelBrand({ href }: { href: string }) {
   );
 }
 
-function NavRow({
-  item,
+/**
+ * A menu with its two gliding fills: hover under the current, so pointing
+ * at the current row leaves its stronger fill in charge. The hover fill
+ * follows the pointer and keyboard focus (focus-visible only, so a click does
+ * not leave it behind), and fades where it is when the pointer leaves.
+ */
+function GlideMenu({
+  items,
   pathname,
   floating = false,
 }: {
-  item: SidebarNavItem;
+  items: SidebarNavItem[];
   pathname: string;
   floating?: boolean;
+}) {
+  const [hover, setHover] = useState<{ index: number; glide: boolean } | null>(null);
+  const [lastHover, setLastHover] = useState(0);
+  const current = currentIndex(items, pathname);
+
+  function highlight(index: number) {
+    // Glide only from another row; from nothing, appear in place.
+    setHover((previous) => ({ index, glide: previous !== null }));
+    setLastHover(index);
+  }
+
+  return (
+    <div
+      className={cn(
+        "relative",
+        // A row's height, open and on the rail: FLOATING_BUTTON's 40px both
+        // ways, MENU_BUTTON's 36px open and shadcn's 32px square collapsed.
+        floating ? "[--row:2.5rem]" : "[--row:2.25rem] group-data-[collapsible=icon]:[--row:2rem]",
+      )}
+      onPointerLeave={() => setHover(null)}
+    >
+      <Highlight
+        index={hover?.index ?? lastHover}
+        visible={hover !== null}
+        glide={hover?.glide ?? false}
+        className="bg-rail-hover"
+      />
+      <Highlight index={current} visible={current >= 0} glide className="bg-rail-selected" />
+      <SidebarMenu className={cn(MENU, "relative")}>
+        {items.map((item, i) => (
+          <NavRow
+            key={item.label}
+            item={item}
+            current={i === current}
+            floating={floating}
+            onHighlight={() => highlight(i)}
+            onUnhighlight={() => setHover(null)}
+          />
+        ))}
+      </SidebarMenu>
+    </div>
+  );
+}
+
+function NavRow({
+  item,
+  current,
+  floating = false,
+  onHighlight,
+  onUnhighlight,
+}: {
+  item: SidebarNavItem;
+  current: boolean;
+  floating?: boolean;
+  onHighlight: () => void;
+  onUnhighlight: () => void;
 }) {
   const { label, Icon } = item;
   const { setOpenMobile } = useSidebar();
   const size = floating ? FLOATING_BUTTON : MENU_BUTTON;
 
+  // Keyboard focus moves the hover fill too; a mouse click's focus does not.
+  const focusProps = {
+    onFocus: (event: { currentTarget: Element }) => {
+      if (event.currentTarget.matches(":focus-visible")) onHighlight();
+    },
+    onBlur: onUnhighlight,
+  };
+
   if ("action" in item) {
     return (
-      <SidebarMenuItem>
+      <SidebarMenuItem onPointerEnter={onHighlight}>
         <SidebarMenuButton
           tooltip={label}
           onClick={() => {
             setOpenMobile(false);
             void item.action();
           }}
-          className={cn(size, "cursor-pointer")}
+          {...focusProps}
+          className={cn(size, ROW, "cursor-pointer")}
         >
           <Icon className="size-4" />
           <span>{label}</span>
@@ -350,18 +483,16 @@ function NavRow({
     );
   }
 
-  const { href, exact } = item;
-  const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
-
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem onPointerEnter={onHighlight}>
       <SidebarMenuButton
-        isActive={active}
+        isActive={current}
         tooltip={label}
-        render={<Link href={href} aria-current={active ? "page" : undefined} />}
+        render={<Link href={item.href} aria-current={current ? "page" : undefined} />}
         // Closes the phone sheet on the way out; a no-op on the desktop panel.
         onClick={() => setOpenMobile(false)}
-        className={cn(size, active && CURRENT_ITEM)}
+        {...focusProps}
+        className={cn(size, ROW, current && CURRENT_ITEM)}
       >
         <Icon className="size-4" />
         <span>{label}</span>

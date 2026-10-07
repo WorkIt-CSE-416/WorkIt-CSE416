@@ -94,9 +94,9 @@ export function Month({
                 aria-label={`${format(day, "EEEE, MMMM d")}, ${count === 0 ? "nothing scheduled" : count === 1 ? "1 entry" : `${count} entries`}`}
                 aria-current={isToday ? "date" : undefined}
                 className={cn(
-                  "text-note focus-visible:ring-brand-ring inline-flex size-6 items-center justify-center rounded-full font-semibold focus-visible:ring-2 focus-visible:outline-none",
+                  "text-note focus-visible:ring-brand-ring inline-flex size-6 items-center justify-center rounded-full font-semibold transition-[background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-90",
                   isToday
-                    ? "bg-brand text-on-brand"
+                    ? "bg-brand text-on-brand hover:bg-brand-hover"
                     : inMonth
                       ? "text-ink hover:bg-selected"
                       : "text-ink-faint hover:bg-selected",
@@ -131,7 +131,7 @@ export function Month({
                           scroll={false}
                           title={`${event.title} · ${event.company}${time ? ` · ${time}` : ""}`}
                           className={cn(
-                            "text-meta focus-visible:ring-brand-ring block truncate rounded-md px-1.5 py-0.5 font-medium hover:brightness-[0.97] focus-visible:ring-2 focus-visible:outline-none",
+                            "text-meta focus-visible:ring-brand-ring ease-glide block truncate rounded-md px-1.5 py-0.5 font-medium transition-[filter,transform] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]",
                             look.tint,
                             look.onTint,
                           )}
@@ -149,7 +149,7 @@ export function Month({
                     <li>
                       <Link
                         href={dayHref(key)}
-                        className="text-meta text-ink-meta hover:text-ink focus-visible:ring-brand-ring rounded-xs px-1.5 focus-visible:ring-2 focus-visible:outline-none"
+                        className="text-meta text-ink-meta hover:text-ink focus-visible:ring-brand-ring rounded-xs px-1.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                       >
                         +{count - 2} more
                       </Link>

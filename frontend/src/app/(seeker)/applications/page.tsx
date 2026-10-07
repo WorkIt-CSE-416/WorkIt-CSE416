@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ViewTransition } from "react";
 
 import { CalendarIcon, SearchIcon } from "@/components/icons";
 import { buttonClasses } from "@/components/ui/button";
@@ -68,40 +69,57 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
 
       <FilterBar query={query} counts={counts} />
 
-      {shown.length === 0 ? (
-        <EmptyState
-          Icon={SearchIcon}
-          title="No Matching Applications"
-          className="mt-4"
-          action={
-            <Link
-              href={applicationsHref(query, { stages: [], q: "", app: null })}
-              className={buttonClasses({ variant: "secondary", size: "sm" })}
-            >
-              Clear Filters
-            </Link>
-          }
-        >
-          Nothing you&apos;re tracking matches these filters.
-        </EmptyState>
-      ) : (
-        <>
-          {query.view === "board" && (
-            <ApplicationsBoard
-              applications={shown}
-              stages={query.stages.length > 0 ? query.stages : STAGE_ORDER}
-              query={query}
-              now={now}
-            />
-          )}
-          {query.view === "grid" && (
-            <ApplicationsGrid applications={shown} query={query} now={now} />
-          )}
-          {query.view === "list" && (
-            <ApplicationsList applications={shown} query={query} now={now} />
-          )}
-        </>
-      )}
+      {/* Keyed on what shape the results take: the view, the board's
+          columns, or nothing matching. A change of shape swaps the whole
+          thing, the old one fading as the new one rises in; within one
+          shape the items glide to their new places instead (./reflow.tsx). */}
+      <ViewTransition
+        key={
+          shown.length === 0
+            ? "empty"
+            : query.view === "board"
+              ? `board:${query.stages.join(",")}`
+              : query.view
+        }
+        enter="swap-enter"
+        exit="swap-exit"
+        default="none"
+      >
+        {shown.length === 0 ? (
+          <EmptyState
+            Icon={SearchIcon}
+            title="No Matching Applications"
+            className="mt-4"
+            action={
+              <Link
+                href={applicationsHref(query, { stages: [], q: "", app: null })}
+                className={buttonClasses({ variant: "secondary", size: "sm" })}
+              >
+                Clear Filters
+              </Link>
+            }
+          >
+            Nothing you&apos;re tracking matches these filters.
+          </EmptyState>
+        ) : (
+          <>
+            {query.view === "board" && (
+              <ApplicationsBoard
+                applications={shown}
+                stages={query.stages.length > 0 ? query.stages : STAGE_ORDER}
+                query={query}
+                now={now}
+              />
+            )}
+            {query.view === "grid" && (
+              <ApplicationsGrid applications={shown} query={query} now={now} />
+            )}
+            {query.view === "list" && (
+              <ApplicationsList applications={shown} query={query} now={now} />
+            )}
+          </>
+        )}
+      </ViewTransition>
 
       {open && (
         <DetailPanel

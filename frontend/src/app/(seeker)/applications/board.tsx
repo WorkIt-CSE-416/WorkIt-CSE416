@@ -12,6 +12,7 @@ import { nextEvent, sinceLabel, type Application } from "../tracker";
 import { MatchBadge } from "./match-badge";
 import { NextStep } from "./next-step";
 import { applicationsHref, type ApplicationsQuery } from "./query";
+import { Reflow } from "./reflow";
 
 /**
  * The applications grouped into pipeline columns, in the shadcn kanban layout.
@@ -51,14 +52,29 @@ import { applicationsHref, type ApplicationsQuery } from "./query";
  * cards inside them; a column the search empties says so rather than
  * collapsing, so the board keeps its shape.
  */
-function ApplicationCard({ item, href, now }: { item: Application; href: string; now: Date }) {
+function ApplicationCard({
+  item,
+  href,
+  now,
+  delay,
+}: {
+  item: Application;
+  href: string;
+  now: Date;
+  /** Its place in the entrance cascade, in ms. */
+  delay: number;
+}) {
   const { Icon } = item;
 
   return (
     <Card
       as="li"
       padding="sm"
-      className="hover:border-brand/40 relative flex flex-col gap-2.5 transition-colors"
+      // Rises in on arrival, after the cards before it, and lifts 2px under
+      // the pointer, since the whole card is one target; it settles back
+      // down on press. See "Motion" in frontend/CLAUDE.md.
+      className="hover:border-brand/40 hover:shadow-lift ease-glide animate-rise relative flex flex-col gap-2.5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+      style={{ animationDelay: `${delay}ms` }}
     >
       {/* Who and what together: the company tile leads the title, the way a
           job card does. The tile is the neutral outline: a tinted one used
@@ -152,7 +168,7 @@ export function ApplicationsBoard({
         className="grid items-start gap-3"
         style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(13.5rem, 1fr))` }}
       >
-        {stages.map((stage) => {
+        {stages.map((stage, column) => {
           const StageIcon = STAGE_ICON[stage];
           const title = STAGE_LABEL[stage];
           const items = applications.filter((item) => item.stage === stage);
@@ -200,13 +216,17 @@ export function ApplicationsBoard({
 
               {items.length > 0 ? (
                 <ul className="flex flex-col gap-2">
-                  {items.map((item) => (
-                    <ApplicationCard
-                      key={item.id}
-                      item={item}
-                      href={applicationsHref(query, { app: item.id })}
-                      now={now}
-                    />
+                  {items.map((item, row) => (
+                    <Reflow key={item.id}>
+                      <ApplicationCard
+                        item={item}
+                        href={applicationsHref(query, { app: item.id })}
+                        now={now}
+                        // Left to right, then down: 30ms a column, 40ms a row,
+                        // so the board fills in like a sweep, not all at once.
+                        delay={column * 30 + Math.min(row, 5) * 40}
+                      />
+                    </Reflow>
                   ))}
                 </ul>
               ) : (

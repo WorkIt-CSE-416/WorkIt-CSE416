@@ -65,13 +65,21 @@ export function Waiting() {
       )}
 
       <ul className="mt-4 flex flex-col gap-3.5">
-        {WAITING.map((bucket) => (
+        {WAITING.map((bucket, i) => (
           <li key={bucket.label} className="grid grid-cols-[5.5rem_1fr_2rem] items-center gap-3">
             <span className="text-note text-ink-meta">{bucket.label}</span>
             <span className="bg-well h-2.5 overflow-hidden rounded-full">
+              {/* Each bar draws out from the left as the page arrives, 60ms
+                  after the one above, so the lengths read as a sequence. */}
               <span
-                className={cn("block h-full rounded-full", TONE[bucket.tone])}
-                style={{ width: `${(bucket.count / max) * 100}%` }}
+                className={cn(
+                  "animate-draw-x block h-full origin-left rounded-full",
+                  TONE[bucket.tone],
+                )}
+                style={{
+                  width: `${(bucket.count / max) * 100}%`,
+                  animationDelay: `${100 + i * 60}ms`,
+                }}
               />
             </span>
             <span className="text-label text-ink text-right tabular-nums">{bucket.count}</span>

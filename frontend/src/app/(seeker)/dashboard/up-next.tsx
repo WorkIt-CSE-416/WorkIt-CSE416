@@ -37,18 +37,22 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
       />
 
       <ul className="mt-3 flex flex-col">
-        {items.map((item) => {
+        {items.map((item, i) => {
           const key = KIND_STAGE[item.kind];
           const Icon = STAGE_ICON[key];
 
           return (
             <li
               key={item.id}
-              className="border-border-subtle relative flex items-center gap-3 border-b py-3 last:border-b-0"
+              // The rows rise in one after another as the page arrives.
+              style={{ animationDelay: `${i * 40}ms` }}
+              className="group/up-next border-border-subtle animate-rise relative flex items-center gap-3 border-b py-3 last:border-b-0"
             >
               <span
                 className={cn(
-                  "flex size-10 shrink-0 items-center justify-center rounded-full text-white",
+                  // The disc swells a touch when its row is pointed at, and
+                  // presses in with it.
+                  "ease-glide flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-transform duration-200 group-hover/up-next:scale-105 group-active/up-next:scale-95",
                   STAGE_COLOR[key].fill,
                 )}
               >
@@ -66,7 +70,7 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
                   <DayLink
                     at={item.at}
                     view="agenda"
-                    className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+                    className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
                   >
                     {item.title}
                   </DayLink>

@@ -69,7 +69,9 @@ export function FilterBar({
               href={applicationsHref(query, { stages, app: null })}
               scroll={false}
               className={cn(
-                "text-note focus-visible:ring-brand-ring inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                // Its tint fades in or out as it is turned on or off, and it
+                // presses in on the click like every button.
+                "text-note focus-visible:ring-brand-ring ease-glide inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-medium transition-[color,background-color,border-color,transform] duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-95",
                 active
                   ? cn("border-transparent", STAGE_COLOR[stage].tint, STAGE_COLOR[stage].onTint)
                   : "border-border-subtle bg-panel text-ink-meta hover:border-border hover:text-ink",
@@ -85,7 +87,11 @@ export function FilterBar({
               </span>
               {active && (
                 <>
-                  <CloseIcon className="size-3" />
+                  {/* Pops in when the chip turns on: the one thing that
+                      appears, so it is the one thing that springs. */}
+                  <span className="animate-pop flex">
+                    <CloseIcon className="size-3" />
+                  </span>
                   <span className="sr-only">, filter on</span>
                 </>
               )}
@@ -98,7 +104,7 @@ export function FilterBar({
         <Link
           href={applicationsHref(query, { stages: [], q: "", app: null })}
           scroll={false}
-          className="text-label text-brand hover:text-brand-hover focus-visible:ring-brand-ring rounded-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+          className="text-label text-brand hover:text-brand-hover focus-visible:ring-brand-ring animate-fade rounded-xs font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
         >
           Clear Filters
         </Link>

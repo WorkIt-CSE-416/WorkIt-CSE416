@@ -14,6 +14,7 @@ import {
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { ViewTransition, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -44,6 +45,15 @@ import { Week } from "./week";
  * so the back button steps back through them. Month moves a month at a time,
  * Week a week, Agenda two weeks; Today drops ?date=, back to the viewer's
  * own today in the view in force.
+ *
+ * THE SPAN SLIDES THE WAY TIME WENT. The title and the view are each keyed
+ * by the span on screen (`Step`), so moving to another span is an exit and an
+ * enter rather than an update in place. The arrows tag their navigation
+ * nav-back or nav-forward, and Today whichever way today is, so the old span
+ * leaves to one side and the new one arrives from the other (step-back and
+ * step-forward in globals.css). A change with no direction, a new view or
+ * the browser's own back button, crossfades instead. The controls are
+ * outside the keys, so they hold still while the span moves under them.
  */
 export function CalendarView({
   view,
@@ -67,7 +77,13 @@ export function CalendarView({
     );
   }
 
-  return <Calendar view={view} date={date} events={events} />;
+  // The real thing fades in over the placeholder's spot rather than cutting
+  // to it.
+  return (
+    <div className="animate-fade">
+      <Calendar view={view} date={date} events={events} />
+    </div>
+  );
 }
 
 /**
@@ -77,11 +93,33 @@ export function CalendarView({
  * where it stood alone; beside two grey buttons it read as a different kind
  * of thing, and its violet made a step back to today look like the page's
  * main action.
+ *
+ * Each presses in on the click, and an arrow's chevron leans the way it
+ * goes while hovered, so the arrow says where it will take you before it
+ * does.
  */
 const CONTROL =
-  "bg-app text-ink-meta hover:bg-selected hover:text-ink focus-visible:ring-brand-ring flex h-8 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none";
-const ARROW = cn(CONTROL, "w-8");
-const TODAY = cn(CONTROL, "text-label px-3.5 font-medium");
+  "bg-app text-ink-meta hover:bg-selected hover:text-ink focus-visible:ring-brand-ring flex h-8 items-center justify-center rounded-full transition-[color,background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none";
+const ARROW = cn(
+  CONTROL,
+  "w-8 active:scale-90 [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide",
+);
+const TODAY = cn(CONTROL, "text-label px-3.5 font-medium active:scale-95");
+
+/** The span on screen, keyed by its caller on the view and the span's first
+ *  day: a new key exits the old span and enters the new one, sliding when
+ *  the navigation says which way and crossfading when it does not. */
+function Step({ children }: { children: ReactNode }) {
+  return (
+    <ViewTransition
+      enter={{ "nav-forward": "step-forward", "nav-back": "step-back", default: "swap-enter" }}
+      exit={{ "nav-forward": "step-forward", "nav-back": "step-back", default: "swap-exit" }}
+      default="none"
+    >
+      {children}
+    </ViewTransition>
+  );
+}
 
 /** "Oct 4 – 10, 2026", "Sep 27 – Oct 3, 2026", or with both years when the
  *  span crosses one. */
@@ -93,12 +131,13 @@ function spanTitle(start: Date, end: Date) {
   return `${format(start, "MMM d")} – ${format(end, "d, yyyy")}`;
 }
 
-/** What each view spans from its anchor: its title, and where the arrows
- *  go. Named for the arrows' accessible names. */
+/** What each view spans from its anchor: its first day, its title, and
+ *  where the arrows go. `unit` names the arrows for a screen reader. */
 function spanOf(view: View, anchor: Date) {
   if (view === "month") {
     const start = startOfMonth(anchor);
     return {
+      start,
       unit: "Month",
       title: format(start, "MMMM yyyy"),
       prev: addMonths(start, -1),
@@ -108,6 +147,7 @@ function spanOf(view: View, anchor: Date) {
   if (view === "week") {
     const start = startOfWeek(anchor);
     return {
+      start,
       unit: "Week",
       title: spanTitle(start, endOfWeek(anchor)),
       prev: addWeeks(start, -1),
@@ -115,6 +155,7 @@ function spanOf(view: View, anchor: Date) {
     };
   }
   return {
+    start: anchor,
     unit: "Two Weeks",
     title: spanTitle(anchor, addDays(anchor, AGENDA_DAYS - 1)),
     prev: addDays(anchor, -AGENDA_DAYS),
@@ -136,6 +177,11 @@ function Calendar({
   const span = spanOf(view, anchor);
   const byDay = groupByDay(events);
 
+  // Which span this is, for Step's key, and which way Today goes from it.
+  const first = dayKey(span.start);
+  const home = dayKey(spanOf(view, parseISO(today)).start);
+  const towardToday = home < first ? ["nav-back"] : home > first ? ["nav-forward"] : undefined;
+
   // An entry opens its application's panel over the view it was clicked in.
   const openHref = (applicationId: string) => calendarHref({ view, date, app: applicationId });
   const dayHref = (day: string) => calendarHref({ view: "agenda", date: day });
@@ -143,35 +189,49 @@ function Calendar({
   return (
     <>
       <div className="mt-6 flex items-center justify-between gap-4">
-        <h2 className="text-title text-ink">{span.title}</h2>
+        <Step key={`${view}:${first}`}>
+          <h2 className="text-title text-ink">{span.title}</h2>
+        </Step>
         <div className="flex shrink-0 items-center gap-2">
-          <Link href={calendarHref({ view })} className={TODAY}>
+          <Link href={calendarHref({ view })} transitionTypes={towardToday} className={TODAY}>
             Today
           </Link>
           <Link
             href={calendarHref({ view, date: dayKey(span.prev) })}
+            transitionTypes={["nav-back"]}
             aria-label={`Previous ${span.unit}`}
-            className={ARROW}
+            className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
           >
             <ChevronLeft aria-hidden className="size-4" />
           </Link>
           <Link
             href={calendarHref({ view, date: dayKey(span.next) })}
+            transitionTypes={["nav-forward"]}
             aria-label={`Next ${span.unit}`}
-            className={ARROW}
+            className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
           >
             <ChevronRight aria-hidden className="size-4" />
           </Link>
         </div>
       </div>
 
-      {view === "month" && (
-        <Month anchor={anchor} today={today} byDay={byDay} openHref={openHref} dayHref={dayHref} />
-      )}
-      {view === "week" && <Week anchor={anchor} today={today} byDay={byDay} openHref={openHref} />}
-      {view === "agenda" && (
-        <Agenda anchor={anchor} today={today} byDay={byDay} openHref={openHref} />
-      )}
+      <Step key={`${view}:${first}`}>
+        {view === "month" && (
+          <Month
+            anchor={anchor}
+            today={today}
+            byDay={byDay}
+            openHref={openHref}
+            dayHref={dayHref}
+          />
+        )}
+        {view === "week" && (
+          <Week anchor={anchor} today={today} byDay={byDay} openHref={openHref} />
+        )}
+        {view === "agenda" && (
+          <Agenda anchor={anchor} today={today} byDay={byDay} openHref={openHref} />
+        )}
+      </Step>
 
       <ul aria-label="Legend" className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1">
         {LEGEND_ORDER.map((kind) => (
