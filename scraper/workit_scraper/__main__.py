@@ -77,13 +77,8 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
     return Outcome.OK, jobs
 
 
-def scrape(boards: list[Board]) -> tuple[list[Job], RunStats, list[str]]:
+def scrape(boards: list[Board], robots: Robots) -> tuple[list[Job], RunStats, list[str]]:
     """Every posting scanned, what happened, and the keys of the boards read in full."""
-    robots = Robots(
-        providers.listing_url(board.ats, board.token)
-        for board in boards
-        if board.ats in providers.FETCHERS
-    )
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         results = list(pool.map(lambda board: _scrape_one(board, robots), boards))
     scanned = [job for _, jobs in results for job in jobs]
@@ -101,6 +96,33 @@ def scrape(boards: list[Board]) -> tuple[list[Job], RunStats, list[str]]:
         if outcome is Outcome.OK
     ]
     return scanned, stats, read
+
+
+def _describe_one(job: Job, robots: Robots) -> Job:
+    url = providers.greenhouse_job_url(job.token, job.external_id)
+    if not robots.allows(url):
+        return job
+    robots.pace(url)
+    try:
+        return providers.describe_greenhouse(job)
+    except Exception as error:  # noqa: BLE001 - a missing description is not a failed run
+        print(f"  !  {job.key}: no description: {type(error).__name__}: {error}", file=sys.stderr)
+        return job
+
+
+def describe(jobs: list[Job], robots: Robots) -> list[Job]:
+    """Fill in the description of every Greenhouse posting that lacks one.
+
+    Only Greenhouse needs this -- Lever and Ashby send descriptions with the list --
+    and only once per posting, since the store carries a description forward.
+    """
+    todo = [job for job in jobs if job.ats == "greenhouse" and job.description is None]
+    if not todo:
+        return jobs
+    print(f"\ndescribing {len(todo)} Greenhouse postings")
+    with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
+        described = {job.key: job for job in pool.map(lambda job: _describe_one(job, robots), todo)}
+    return [described.get(job.key, job) for job in jobs]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -122,7 +144,14 @@ def main(argv: list[str] | None = None) -> int:
     else:
         boards = load_boards(args.boards)
         print(f"scraping {len(boards)} boards\n")
-        scanned, stats, read = scrape(boards)
+        # Every origin a run touches, so robots.txt is read once, up front. Greenhouse
+        # postings' own pages share their board list's origin.
+        robots = Robots(
+            providers.listing_url(board.ats, board.token)
+            for board in boards
+            if board.ats in providers.FETCHERS
+        )
+        scanned, stats, read = scrape(boards, robots)
         # Store only what the page is about. Keeping all ~91,000 postings -- the sales,
         # marketing and senior roles included -- would make jobs.json tens of megabytes
         # and tell us nothing we display. `stats.postings` still counts everything
@@ -130,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         fresh = [job for job in scanned if classify(job.title)]
         stats = replace(stats, kept=len(fresh))
         run = store.update(previous, fresh, read, stats, datetime.now(UTC).isoformat())
+        run = replace(run, jobs=describe(run.jobs, robots))
         # Only boards with a job on the page need a logo, and each is read once.
         unread = sorted(
             {

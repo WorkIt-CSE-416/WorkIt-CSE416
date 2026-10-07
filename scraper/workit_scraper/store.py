@@ -96,18 +96,23 @@ def update(
     """Fold one scrape into the store.
 
     Stamps last_seen_at and carries first_seen_at forward, so first_seen_at is
-    written once and never moves. `read` is the keys of the boards this run read
+    written once and never moves. A description is carried forward too when this
+    read had none: Greenhouse's list never includes one, and each posting's own
+    page is read only once (see `__main__.describe`). `read` is the keys of the boards this run read
     completely; only those advance their `last_read_at`.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
-    merged = [
-        replace(
-            job,
-            first_seen_at=(old.first_seen_at if (old := before.get(job.key)) else None) or now,
-            last_seen_at=now,
+    merged = []
+    for job in fresh:
+        old = before.get(job.key)
+        merged.append(
+            replace(
+                job,
+                first_seen_at=(old.first_seen_at if old else None) or now,
+                last_seen_at=now,
+                description=job.description or (old.description if old else None),
+            )
         )
-        for job in fresh
-    ]
     seen = {job.key for job in fresh}
     merged += [job for key, job in before.items() if key not in seen]
 

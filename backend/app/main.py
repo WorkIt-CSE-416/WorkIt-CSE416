@@ -18,6 +18,7 @@ from app.routers.company_jobs import router as company_jobs_router
 from app.routers.jobs import router as jobs_router
 from app.routers.profiles import router as profile_router
 from app.routers.resumes import router as resume_router
+from app.routers.scout import router as scout_router
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ app.include_router(jobs_router)
 app.include_router(resume_router)
 app.include_router(avatar_router)
 app.include_router(company_jobs_router)
+app.include_router(scout_router)
 app.include_router(profile_router)
 
 
