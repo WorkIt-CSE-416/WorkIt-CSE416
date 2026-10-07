@@ -71,8 +71,8 @@ the KAN-138 plan; the rules that follow from it are these:
 | Where | Model | Settings |
 | --- | --- | --- |
 | Laptops (default) | Qwen 3.5 4B on Ollama, $0, nothing leaves the machine | none — the defaults point at `http://localhost:11434/v1` |
-| Production | Gemini Flash-Lite on its free API tier | `SCOUT_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `SCOUT_MODEL`, `SCOUT_API_KEY`, `SCOUT_REASONING_EFFORT=minimal` |
-| Production fallback | GPT-5 nano, about $7 a month per 1,000 active users | the same four as `SCOUT_FALLBACK_*` |
+| Production | `gemini-3.5-flash-lite` on Gemini's free API tier (about 500–1,500 requests a day per project; AI Studio shows the live quota) | `SCOUT_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `SCOUT_MODEL`, `SCOUT_API_KEY`, `SCOUT_REASONING_EFFORT=minimal`, `SCOUT_DAILY_TURNS=20`, set on the `workit-api` Vercel project |
+| Production fallback | none, on purpose: Scout stays $0. When Gemini's daily quota runs out, users see the out-of-quota message until it resets. Groq's free tier (`https://api.groq.com/openai/v1`, `openai/gpt-oss-20b`, effort `low`) is the free option if one is ever needed | `SCOUT_FALLBACK_*` |
 
 Set up a laptop with `ollama pull qwen3.5:4b` (about 3.5 GB; use
 `qwen3.5:9b` on 16 GB+ machines, which is noticeably better at tool calls).
