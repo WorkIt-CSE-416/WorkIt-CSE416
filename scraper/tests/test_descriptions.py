@@ -11,8 +11,13 @@ from types import SimpleNamespace
 
 from workit_scraper import __main__ as run
 from workit_scraper import providers, store
-from workit_scraper.providers import DESCRIPTION_CHARS, Job, text
+from workit_scraper.details import Facts
+from workit_scraper.providers import DESCRIPTION_CHARS, Job, Page, cap, plain_text
 from workit_scraper.store import RunStats
+
+
+def page(description: str | None, version: int = providers.PAGE_VERSION) -> Page:
+    return Page(version=version, description=description, facts=Facts())
 
 
 def job(ats: str = "greenhouse", eid: str = "1", description: str | None = None) -> Job:
@@ -23,8 +28,12 @@ def job(ats: str = "greenhouse", eid: str = "1", description: str | None = None)
         external_id=eid,
         title="Software Engineer, Intern",
         apply_url=f"https://example.test/{ats}/{eid}",
-        description=description,
+        page=page(description) if description else None,
     )
+
+
+def text(markup: str | None) -> str | None:
+    return cap(plain_text(markup))
 
 
 class TestText:
@@ -65,15 +74,15 @@ class TestLever:
 
 
 class TestStore:
-    def test_description_is_carried_forward_when_a_read_lacks_one(self) -> None:
-        # Greenhouse's list never has descriptions; the one fetched once must stick.
+    def test_a_page_is_carried_forward_when_a_read_lacks_one(self) -> None:
+        # Greenhouse's list never has a page; the one read once must stick.
         monday = store.update(
             None, [job(description="Build robots.")], [], RunStats(), "2026-09-28T09:00:00+00:00"
         )
         tuesday = store.update(monday, [job()], [], RunStats(), "2026-09-29T09:00:00+00:00")
         assert tuesday.jobs[0].description == "Build robots."
 
-    def test_a_fresh_description_wins(self) -> None:
+    def test_a_fresh_page_wins(self) -> None:
         monday = store.update(
             None, [job(description="Old.")], [], RunStats(), "2026-09-28T09:00:00+00:00"
         )
@@ -82,21 +91,38 @@ class TestStore:
         )
         assert tuesday.jobs[0].description == "New."
 
+    def test_a_page_survives_jobs_json(self, tmp_path) -> None:
+        run_ = store.update(
+            None, [job(description="Build robots.")], [], RunStats(), "2026-09-28T09:00:00+00:00"
+        )
+        store.save(run_, tmp_path / "jobs.json")
+        assert store.load(tmp_path / "jobs.json").jobs == run_.jobs
+
 
 class TestDescribe:
-    def test_only_undescribed_greenhouse_postings_are_fetched(self, monkeypatch) -> None:
+    def test_only_unread_greenhouse_postings_are_fetched(self, monkeypatch) -> None:
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
         jobs = [job("greenhouse", "1"), job("greenhouse", "2", "Known."), job("lever", "3")]
         fetched: list[str] = []
 
         def describe_greenhouse(j: Job) -> Job:
             fetched.append(j.external_id)
-            return replace(j, description="Fetched.")
+            return replace(j, page=page("Fetched."))
 
         monkeypatch.setattr(providers, "describe_greenhouse", describe_greenhouse)
         described = run.describe(jobs, robots)
         assert fetched == ["1"]
         assert [j.description for j in described] == ["Fetched.", "Known.", None]
+
+    def test_a_page_read_under_an_older_version_is_read_again(self, monkeypatch) -> None:
+        robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
+        fetched: list[str] = []
+        monkeypatch.setattr(
+            providers, "describe_greenhouse", lambda j: fetched.append(j.external_id) or j
+        )
+        stale = replace(job("greenhouse", "1"), page=page("Known.", providers.PAGE_VERSION - 1))
+        run.describe([stale], robots)
+        assert fetched == ["1"]
 
     def test_robots_disallow_leaves_it_undescribed(self, monkeypatch) -> None:
         robots = SimpleNamespace(allows=lambda url: False)
