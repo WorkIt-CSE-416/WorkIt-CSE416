@@ -54,7 +54,7 @@ def upgrade() -> None:
         " AND experience_level IS NOT NULL AND work_style IS NOT NULL)",
     )
     op.create_check_constraint(
-        'external_job_complete', 'job_postings',
+        'scraped_job_completed', 'job_postings',
         "company_id IS NOT NULL OR (company_name IS NOT NULL AND apply_url IS NOT NULL)",
     )
 
@@ -65,7 +65,7 @@ def downgrade() -> None:
     # import recreates them.
     op.execute("DELETE FROM job_postings WHERE company_id IS NULL")
 
-    op.drop_constraint('external_job_complete', 'job_postings', type_='check')
+    op.drop_constraint('scraped_job_completed', 'job_postings', type_='check')
     op.drop_constraint('company_job_complete', 'job_postings', type_='check')
     # Fails if a company's job has been saved without a salary by then; the
     # company form requires one, so only a change to that would allow it.

@@ -428,7 +428,7 @@ is what makes it theirs.
 **The nullable columns are nullable for scraped rows only.** `company_id`,
 `description`, `job_type`, `experience_level` and `work_style` were
 `NOT NULL`; the `company_job_complete` CHECK still requires the last four when
-`company_id` is set, and `external_job_complete` requires `company_name` and
+`company_id` is set, and `scraped_job_completed` requires `company_name` and
 `apply_url` when it is not. Add a column one kind needs to the matching CHECK,
 not a bare `NOT NULL`.
 
@@ -448,6 +448,14 @@ Anything that lists jobs *across* companies must decide whether it wants
 
 `posted_at` is when the job board says the job went up; `created_at` is when
 the row was stored. Nothing sets `posted_at` for a company's job yet.
+
+**Search uses trigram GIN indexes** on `title` and `company_name`
+(`55f3c813be50`), so `ILIKE '%term%'` and `similarity()` look matches up
+instead of scanning. Measured on 2026-10-06: about 180 KB and 140 KB for the
+1,069-job feed, and about 7.6 MB and 3.1 MB at 100k rows, where a search took
+4 ms against 46 ms without the index. A search under 3 characters produces no
+trigram and scans anyway. `company_name` is only filled for scraped jobs, so
+searching company-posted jobs by employer needs a join or a copied name.
 
 ## Identity lives in auth.users
 

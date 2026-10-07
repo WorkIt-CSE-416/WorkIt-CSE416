@@ -112,5 +112,15 @@ class Job_Post(BaseModel):
             "job_postings_loc_idx",
             "location_country",
             "location_state"
+        ),
+        
+        # trigram GIN indexes 
+        # for each company name is uploaded, split name into 3 char buckets and store the job
+        # when a search title comes in, split into 3, it looks for jobs that are in all buckets
+        Index(
+            "job_postings_company_name_trgm_idx",
+            "company_name",
+            postgresql_using="gin",
+            postgresql_ops={"company_name": "gin_trgm_ops"}
         )
     )
