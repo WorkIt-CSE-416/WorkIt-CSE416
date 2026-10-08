@@ -240,9 +240,9 @@ them on its own. Two things cut it; neither touches `Robots.pace`.
   than it did. The Greenhouse lane reads its new postings' own pages as soon as its
   boards are done, while Lever is still going.
 - **Quiet boards rest** (`Store.to_read`). A board read before that has never had a
-  posting we keep -- most of `boards.csv`: 282 of 333 on Lever -- is read on one run in
-  `QUIET_EVERY`, staggered by its key so each run takes its own share, and always once
-  that many days have passed. The cost is accepted: a first posting on a quiet board can
+  posting we keep -- most of `boards.csv`: 282 of 333 on Lever -- is read on one *day* in
+  `QUIET_EVERY` (on every run that day), staggered by its key so each day takes its own
+  share, and always once that many days have passed. The cost is accepted: a first posting on a quiet board can
   appear two days late. `--full` reads every board. A board with any kept posting, ever,
   is read every run; nothing closes, so it never turns quiet again.
 
@@ -362,6 +362,7 @@ review.
 `jobs.json` is the store, the `first_seen_at` history, the per-board read ledger and the
 offline fallback in one file -- and it is gitignored, at a reviewer's request: it is
 megabytes per run, and few people on the team run the scraper. So each machine keeps
-its own history. A fresh clone has none: its first live run counts nothing as new
+its own history -- and the scheduled run (`.github/workflows/scrape.yml`) keeps its own
+in the Actions cache, saved after each finished scrape. A fresh clone has none: its first live run counts nothing as new
 (see "New today" above), and `--offline` refuses to run until a live run has written
 the file. `internships.html` and `feed.json` are gitignored output of either command.

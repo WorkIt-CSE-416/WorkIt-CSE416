@@ -65,7 +65,7 @@ export default function JobsPage() {
       <div>
         <h1 className="text-heading text-ink">Recommended for You</h1>
         <p className="text-body text-ink-meta mt-1">
-          Roles matched to your profile, refreshed every morning.
+          Roles matched to your profile, refreshed every few hours.
         </p>
       </div>
 
