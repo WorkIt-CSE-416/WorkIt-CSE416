@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Suspense, startTransition, use, useOptimistic, useState } from "react";
+import { Suspense, startTransition, use, useOptimistic, useState, type ReactNode } from "react";
 
-import { FilterIcon } from "@/components/icons";
+import { CheckIcon, ChevronDownIcon, FilterIcon } from "@/components/icons";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
   Sheet,
   SheetClose,
@@ -41,9 +42,10 @@ import type { JobLocationOption } from "./listings";
  * no search field: Base UI's Combobox handles arrow keys and Enter on its
  * input, so without one its list cannot be reached from the keyboard at all.
  *
- * Location is the one facet that filters. Its options are the places that
- * have jobs (`GET /jobs/locations`, with names, never ISO codes), and its
- * picks are the page's `?location=` codes, so the server fetches the feed
+ * Location is the one facet that filters, and the one that is a Popover
+ * (LocationFacet says why). Its options are the places that have jobs
+ * (`GET /jobs/locations`, with names, never ISO codes), and its picks are
+ * the page's `?location=` codes, so the server fetches the feed
  * narrowed to them and a reload or a shared link keeps them. A pick replaces
  * the URL rather than pushing it, so ticking five places is not five steps of
  * Back. The rest stay inert on purpose, matching every other control on the
@@ -57,14 +59,25 @@ import type { JobLocationOption } from "./listings";
  * The inert facets' state lives here: nothing outside this file reads it.
  */
 
+/** The look every facet's button shares, Select or Popover: a small
+ *  secondary button that picks up a brand tint once the facet has a pick and
+ *  its popup is closed, the one visible signal that it is in use. */
+function facetTriggerClasses(count: number, open: boolean, className?: string) {
+  return cn(
+    buttonClasses({ variant: "secondary", size: "sm" }),
+    "h-auto justify-between",
+    count > 0 && !open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
+    className,
+  );
+}
+
 /** The button every facet opens from. Its label is static (a facet's picks
- *  never rewrite it), so the only thing that changes is the tint once the
- *  facet has a pick and its popup is closed. The tint is colour alone, so the
- *  pick count rides after the label for a screen reader.
+ *  never rewrite it), so the only thing that changes is the tint. The tint is
+ *  colour alone, so the pick count rides after the label for a screen reader.
  *
  *  The vendored SelectTrigger is a form field, so the button's look is laid
- *  over it: `h-auto` undoes its fixed height, and `data-placeholder:text-ink`
- *  its grey label while nothing is picked. */
+ *  over it: `data-[size=default]:h-auto` undoes its fixed height, and
+ *  `data-placeholder:text-ink` its grey label while nothing is picked. */
 function FacetTrigger({
   label,
   count,
@@ -79,11 +92,10 @@ function FacetTrigger({
 }) {
   return (
     <SelectTrigger
-      className={cn(
-        buttonClasses({ variant: "secondary", size: "sm" }),
-        "data-placeholder:text-ink h-auto justify-between data-[size=default]:h-auto",
-        count > 0 && !open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
-        className,
+      className={facetTriggerClasses(
+        count,
+        open,
+        cn("data-placeholder:text-ink data-[size=default]:h-auto", className),
       )}
     >
       {label}
@@ -92,46 +104,18 @@ function FacetTrigger({
   );
 }
 
-/** An option whose value is what it says, or a value with its own label
- *  (a location's code, "US-CA", shown as "California"), its row's own
- *  classes (a state's indent under its country), and whether it is folded
- *  away for now (a state under an unticked country). */
-type FacetOption = string | { value: string; label: string; className?: string; folded?: boolean };
-
 /** The list shared by every facet's popup: checkbox rows where a facet takes
  *  several picks, the vendored check-mark rows where it takes one. */
-function FacetPopup({
-  options,
-  multiple,
-  className,
-}: {
-  options: readonly FacetOption[];
-  multiple: boolean;
-  className?: string;
-}) {
+function FacetPopup({ options, multiple }: { options: readonly string[]; multiple: boolean }) {
   const Item = multiple ? SelectCheckboxItem : SelectItem;
 
   return (
-    <SelectContent className={className}>
-      {options.map((option) => {
-        const { value, label, className, folded } =
-          typeof option === "string" ? { value: option, label: option } : option;
-        // A folded row stays mounted, hidden and disabled (so arrow keys and
-        // typeahead skip it), never removed: Base UI 1.7 prunes the selection
-        // when the item list shrinks, against the value from before the press,
-        // so unticking a country put it straight back
-        // (select/positioner/SelectPositioner.js, onMapChange).
-        return (
-          <Item
-            key={value}
-            value={value}
-            disabled={folded}
-            className={cn(className, folded && "hidden")}
-          >
-            {label}
-          </Item>
-        );
-      })}
+    <SelectContent>
+      {options.map((option) => (
+        <Item key={option} value={option}>
+          {option}
+        </Item>
+      ))}
     </SelectContent>
   );
 }
@@ -150,18 +134,14 @@ function Facet({
   values,
   onChange,
   multiple = true,
-  disabled = false,
   className,
-  popupClassName,
 }: {
   label: string;
-  options: readonly FacetOption[];
+  options: readonly string[];
   values: string[];
   onChange: (values: string[]) => void;
   multiple?: boolean;
-  disabled?: boolean;
   className?: string;
-  popupClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = (
@@ -176,24 +156,17 @@ function Facet({
           onChange(value == null || value === values[0] ? [] : [value as string])
         }
         onOpenChange={setOpen}
-        disabled={disabled}
       >
         {trigger}
-        <FacetPopup options={options} multiple={false} className={popupClassName} />
+        <FacetPopup options={options} multiple={false} />
       </Select>
     );
   }
 
   return (
-    <Select
-      value={values}
-      onValueChange={onChange}
-      onOpenChange={setOpen}
-      disabled={disabled}
-      multiple
-    >
+    <Select value={values} onValueChange={onChange} onOpenChange={setOpen} multiple>
       {trigger}
-      <FacetPopup options={options} multiple className={popupClassName} />
+      <FacetPopup options={options} multiple />
     </Select>
   );
 }
@@ -220,15 +193,13 @@ const EMPTY_FACETS: FacetState = {
 const countryOf = (code: string) => code.split("-")[0];
 const isState = (code: string) => code.includes("-");
 
-/** The URL's places as the popup's ticks: a state ticks its country too, since
- *  a country's states only show while it is ticked. */
+/** The URL's places as the popup's ticks: a state ticks its country too. */
 function ticksFrom(places: readonly string[]): string[] {
   return [...new Set(places.flatMap((code) => (isState(code) ? [countryOf(code), code] : [code])))];
 }
 
 /** The popup's ticks as the URL's places. A country alone means all of it; a
- *  country with states ticked means just those states. A state whose country
- *  was just unticked goes with it. */
+ *  country with states ticked means just those states. */
 function placesFrom(ticks: readonly string[]): string[] {
   return ticks
     .filter((code) => !isState(code))
@@ -238,11 +209,59 @@ function placesFrom(ticks: readonly string[]): string[] {
     });
 }
 
-/** Location's facet once its options have arrived. Lists the countries
- *  ("United States", "Other"); ticking one opens its states beneath it,
- *  indented, to narrow it further. `values` and `onChange` speak the URL's
- *  places, never the ticks. Wider than its trigger, so "District of Columbia"
- *  keeps to one line. */
+/** One row of the Location popup: a label and a box, the same look as the
+ *  Select facets' SelectCheckboxItem, as a real checkbox button. `current`
+ *  marks the country whose states the other panel lists. */
+function CheckRow({
+  label,
+  checked,
+  current = false,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  current?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onToggle}
+      className={cn(
+        "hover:bg-accent focus-visible:bg-accent text-body flex w-full items-center justify-between gap-3 rounded-md py-1 pr-1.5 pl-2 text-left outline-hidden",
+        current && "bg-accent",
+      )}
+    >
+      {label}
+      <span
+        aria-hidden
+        className={cn(
+          "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+          checked && "border-primary bg-primary",
+        )}
+      >
+        <CheckIcon className={cn("size-3.5", !checked && "opacity-0")} />
+      </span>
+    </button>
+  );
+}
+
+/** A panel's small heading. */
+function PanelHeading({ children }: { children: ReactNode }) {
+  return <p className="text-note text-ink-meta px-2 pt-1 pb-1.5">{children}</p>;
+}
+
+/** Location once its options have arrived: a popover of two panels,
+ *  countries on the left ("United States", "Other") and the states of the
+ *  ticked country on the right. Ticking a country means all of it and opens
+ *  its states beside it; ticking states narrows it to those. Unticking the
+ *  country drops its states with it.
+ *
+ *  A Popover, not a Select like the other facets: a Select draws one list,
+ *  and states nested in it read as one long dropdown. `values` and
+ *  `onChange` speak the URL's places, never the ticks. */
 function LocationFacet({
   locations,
   values,
@@ -255,23 +274,96 @@ function LocationFacet({
   className?: string;
 }) {
   const options = use(locations);
+  const [open, setOpen] = useState(false);
+  // The country whose states the right panel lists: the last one ticked
+  // that has states, else the first ticked one that does.
+  const [picked, setPicked] = useState<string | null>(null);
+
   const ticks = ticksFrom(values);
+  const countries = options.filter(({ code }) => !isState(code));
+  const statesOf = (country: string) =>
+    options.filter(({ code }) => isState(code) && countryOf(code) === country);
+  const hasStates = (country: string) => statesOf(country).length > 0;
+  const shown =
+    (picked != null && ticks.includes(picked) ? picked : null) ??
+    countries.find(({ code }) => ticks.includes(code) && hasStates(code))?.code ??
+    null;
+
+  function toggleCountry(country: string) {
+    if (ticks.includes(country)) {
+      onChange(placesFrom(ticks.filter((code) => countryOf(code) !== country)));
+    } else {
+      if (hasStates(country)) setPicked(country);
+      onChange(placesFrom([...ticks, country]));
+    }
+  }
+
+  function toggleState(state: string) {
+    onChange(
+      placesFrom(
+        ticks.includes(state) ? ticks.filter((code) => code !== state) : [...ticks, state],
+      ),
+    );
+  }
 
   return (
-    <Facet
-      label="Location"
-      options={options.map(({ code, label }) => ({
-        value: code,
-        label,
-        className: isState(code) ? "pl-6" : undefined,
-        folded: isState(code) && !ticks.includes(countryOf(code)),
-      }))}
-      values={ticks}
-      onChange={(next) => onChange(placesFrom(next))}
-      disabled={options.length === 0}
-      className={className}
-      popupClassName="w-auto max-w-80 min-w-(--anchor-width)"
-    />
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        disabled={options.length === 0}
+        className={facetTriggerClasses(ticks.length, open, className)}
+      >
+        Location
+        {ticks.length > 0 && <span className="sr-only">, {ticks.length} selected</span>}
+        <ChevronDownIcon className="text-muted-foreground size-4" />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        aria-label="Location"
+        className="w-auto max-w-[calc(100vw-2rem)] flex-col gap-0 p-1 sm:flex-row"
+      >
+        <div role="group" aria-label="Countries" className="flex min-w-40 flex-col">
+          <PanelHeading>Country</PanelHeading>
+          {countries.map(({ code, label }) => (
+            <CheckRow
+              key={code}
+              label={label}
+              checked={ticks.includes(code)}
+              current={code === shown}
+              onToggle={() => toggleCountry(code)}
+            />
+          ))}
+        </div>
+
+        <div className="bg-border my-1 h-px sm:mx-1 sm:my-0 sm:h-auto sm:w-px" />
+
+        {/* Fixed width, so the popup keeps its size as countries are ticked
+            and the states come and go. overscroll-contain: a fling past the
+            end of the states stops here instead of scrolling the page. */}
+        <div className="flex w-full flex-col sm:w-56">
+          <PanelHeading>State</PanelHeading>
+          {shown == null ? (
+            <p className="text-body text-ink-meta px-2 pb-2">
+              Tick a country to narrow it by state.
+            </p>
+          ) : (
+            <div
+              role="group"
+              aria-label={`States in ${countries.find(({ code }) => code === shown)?.label}`}
+              className="flex max-h-72 flex-col overflow-y-auto overscroll-contain"
+            >
+              {statesOf(shown).map(({ code, label }) => (
+                <CheckRow
+                  key={code}
+                  label={label}
+                  checked={ticks.includes(code)}
+                  onToggle={() => toggleState(code)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -281,14 +373,14 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
   return (
     <Suspense
       fallback={
-        <Facet
-          label="Location"
-          options={[]}
-          values={ticksFrom(props.values)}
-          onChange={props.onChange}
+        <button
+          type="button"
           disabled
-          className={props.className}
-        />
+          className={facetTriggerClasses(ticksFrom(props.values).length, false, props.className)}
+        >
+          Location
+          <ChevronDownIcon className="text-muted-foreground size-4" />
+        </button>
       }
     >
       <LocationFacet {...props} />

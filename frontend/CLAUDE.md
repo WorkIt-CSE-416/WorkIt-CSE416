@@ -86,12 +86,13 @@ src/app/          App Router routes, layouts, pages
                   /jobs and /search take ?location= (repeated ISO codes,
                   US or US-CA): the Location facet in jobs/filters.tsx,
                   fed by GET /jobs/locations, the one facet that filters.
-                  It lists countries; ticking one opens its states under
-                  it. A country alone is all of it, with states ticked just
-                  those (ticksFrom/placesFrom there). Folded states stay
-                  mounted, hidden and disabled: a multiple Select whose
-                  item list shrinks (Base UI 1.7) re-applies the value from
-                  before the press, so removing rows undid the untick
+                  A Popover of two panels, not a Select: countries left,
+                  the ticked country's states right. A country alone is
+                  all of it, with states ticked just those
+                  (ticksFrom/placesFrom there). Don't move it back into a
+                  Select with rows that come and go: a multiple Select
+                  whose item list shrinks (Base UI 1.7) re-applies the
+                  value from before the press, which undid the untick
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
