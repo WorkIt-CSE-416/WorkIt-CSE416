@@ -1,0 +1,24 @@
+[project]
+name = "workit-scout"
+version = "0.1.0"
+description = "Scout, WorkIt's job-search assistant: prompt, model seam and agent loop."
+# Same bound as backend/pyproject.toml, which installs this package: the two
+# must resolve onto one interpreter.
+requires-python = ">=3.12,<3.13"
+# No database or web framework, on purpose: the API owns those and hands Scout
+# what it needs. See CLAUDE.md.
+dependencies = [
+    "openai>=3.24.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+# The API installs this as a copy, not an editable link (backend/pyproject.toml
+# says why). These keys make `uv run` / `uv sync` there rebuild the copy
+# whenever a source file changes, so edits here still show up at once.
+cache-keys = [{ file = "pyproject.toml" }, { file = "workit_scout/**/*.py" }]

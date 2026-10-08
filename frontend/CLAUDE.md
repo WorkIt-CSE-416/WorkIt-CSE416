@@ -97,6 +97,9 @@ src/app/          App Router routes, layouts, pages
                   Agenda (calendar/), rendered in the browser.
                   template.tsx wraps each section's page in the page
                   transition (Motion, below); company/ has its own
+  api/scout/      The one route handler: forwards a Scout turn to the API with
+                  the session's token and pipes the NDJSON reply back. A route
+                  handler, not an action, because the reply streams
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -149,6 +152,14 @@ src/components/   Shared components
                   block as the trigger, Settings and Help as its rows, and
                   shows the header only below lg, where that block is the
                   photo alone
+  scout/          Scout, the job assistant. scout-store holds the one chat per
+                  tab (a module store, so no provider); scout-panel docks
+                  beside the page, never over it, and opens only on a click;
+                  stream.ts mirrors the API's NDJSON events; reply-text
+                  renders a reply's **bold** and "- " bullets, the prompt's
+                  whole formatting vocabulary, with no markdown library (a
+                  reply stays escaped text otherwise). The brain is the
+                  repo's scout/ — read its CLAUDE.md first.
   ui/             Presentational primitives: animated-number, badge, button,
                   card, company-tile, empty-state, fact, filter-chip (only
                   the design kit shows it today), icon-button, search-field,
@@ -172,6 +183,9 @@ src/lib/          Framework-free helpers
                   content, make one primary, and a signed file link. Used
                   by both onboarding and profile.
   avatar-actions.ts  Server actions for the profile photo: get/upload/remove
+  profile-actions.ts Server actions for the applicant's identity fields:
+                  getProfile (GET) and updateProfile (PATCH). Used by the
+                  seeker profile page and cached alongside resumes and avatar
   job-actions.ts  Server actions for the company's jobs: saveJob (create, or
                   update with the updated_at it was loaded with, so a save over
                   someone else's is a 409) and changeJobStatus (pause, resume,
@@ -464,9 +478,14 @@ its `data.ts` still holds the fixtures `filters.tsx` (client) and the
 yet: its id is the employer's apply URL and the detail view reads fixtures
 only, so its card's Apply Now goes to the employer's posting instead.
 A live card still has the full shape of a fixture card: every `job_postings`
-fact the scraper cannot give (job type, salary, years) is passed as
-`NOT_LISTED` from `components/job-posting-card.tsx` and drawn as its icon with
-"Salary not listed" in italic, and the match rail is its placeholder
+fact the posting does not state (the scraper fills job type, salary and
+years when it does) is passed as `NOT_LISTED` from
+`components/job-posting-card.tsx` and drawn as its icon with "Salary not
+listed" in italic. An internship shows when it starts in place of years (the card's
+`startTerm` fact: "Start in Summer 2027", or "Start date not listed"), and
+its job type always reads "Internship", as Jobright shows it. Scraped pay
+always arrives as a min/max range, and `formatSalary` prints one whose ends
+meet as a single amount. The match rail is its placeholder
 (`score={null}`: an empty ring and "Score Coming Soon") until matching
 exists. Null still means a fact the posting has none of, and is left out. A live fetch in a page calls
 `await connection()` so `next build` does not prerender it with no API running.
@@ -618,7 +637,8 @@ not "Upload a resume".
 
 **My Profile is cached for the life of the seeker shell.**
 `(seeker)/profile-cache.tsx` keeps the page's last state (resumes, the shown
-resume's content, the photo URL) in a provider in `(seeker)/layout.tsx`. A
+resume's content, the photo URL, the applicant profile fields) in a provider
+in `(seeker)/layout.tsx`. A
 return visit renders it at once and refetches in the background. Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
 preview is on screen (that URL is revoked once the upload ends), and not

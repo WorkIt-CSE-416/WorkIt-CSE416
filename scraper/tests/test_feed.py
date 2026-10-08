@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from workit_scraper import feed
+from workit_scraper.details import Facts
 from workit_scraper.shortlist import Role, Tag
 
 
@@ -26,10 +27,12 @@ def role(**changes: object) -> Role:
         "posted_at": "2026-09-26T02:53:16.063000+00:00",
         "new": False,
         "department": None,
-        "work_style": "On site",
         "locations": ("Berkeley",),
+        "description": None,
     }
-    return Role(**{**base, **changes})
+    # The card's work style lives in the role's facts.
+    style = changes.pop("work_style", "On site")
+    return Role(**{**base, **changes}, facts=Facts(work_style=style))
 
 
 LOGO = "https://app.ashbyhq.com/api/images/org-theme-logo/f789d90e/terranova.png"
@@ -54,6 +57,11 @@ class TestRow:
         # Quora: "Software Engineer New Grad, Machine Learning Platform" -- two topics.
         tags = (Tag.NEW_GRAD, Tag.AI_ML, Tag.SWE)
         assert feed_row(role(tags=tags))["experience_level"] == "new_grad"
+
+    def test_description_is_passed_through(self) -> None:
+        # Scout reads it; the backend's JobListing carries the same field.
+        assert feed_row(role(description="Build robots."))["description"] == "Build robots."
+        assert feed_row(role())["description"] is None
 
     def test_unstated_facts_are_null_not_guessed(self) -> None:
         # A Greenhouse board states no work model, and a role can lack a date.

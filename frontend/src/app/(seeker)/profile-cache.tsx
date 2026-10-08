@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
 
+import type { ApplicantProfile } from "@/lib/profile-actions";
 import type { ParsedResume, ResumeItem } from "@/lib/resume-actions";
 
 /**
@@ -22,6 +23,7 @@ export type ProfileSnapshot = {
   resumes: ResumeItem[];
   shown: { id: string; parsed: ParsedResume } | null;
   avatarUrl: string | null;
+  applicantProfile: ApplicantProfile | null;
 };
 
 type ProfileCache = {
