@@ -36,7 +36,17 @@ const twMerge = extendTailwindMerge({
     // later wins, likewise two animations.
     theme: {
       ease: ["glide", "spring", "exit"],
-      animate: ["rise", "pop", "fade", "draw-y", "draw-x", "ring-fill", "swing", "status-ping"],
+      animate: [
+        "rise",
+        "pop",
+        "fade",
+        "draw-y",
+        "draw-x",
+        "ring-fill",
+        "swing",
+        "typing",
+        "status-ping",
+      ],
     },
     classGroups: {
       "font-size": [

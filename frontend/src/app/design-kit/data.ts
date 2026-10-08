@@ -339,7 +339,7 @@ export const EASINGS: { token: string; cls: string; role: string }[] = [
 export const ANIMATIONS: {
   token: string;
   cls: string;
-  demo: "card" | "cross" | "row" | "rail" | "bar" | "ring" | "bell";
+  demo: "card" | "cross" | "row" | "rail" | "bar" | "ring" | "bell" | "dots" | "ping";
   role: string;
 }[] = [
   {
@@ -383,6 +383,18 @@ export const ANIMATIONS: {
     cls: "animate-swing",
     demo: "bell",
     role: "The bar's bell, once, as the pointer reaches it",
+  },
+  {
+    token: "--animate-status-ping",
+    cls: "animate-status-ping",
+    demo: "ping",
+    role: "A dot calling for a look, three pings then rest: the detail panel's Next step",
+  },
+  {
+    token: "--animate-typing",
+    cls: "animate-typing",
+    demo: "dots",
+    role: "Scout's three thinking dots, staggered 150ms; the one animation that loops",
   },
 ];
 

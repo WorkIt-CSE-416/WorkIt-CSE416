@@ -66,6 +66,17 @@ export function setScoutOpen(open: boolean) {
   update({ open });
 }
 
+/** The bar's launcher, where focus goes back to when the panel closes. */
+export const SCOUT_LAUNCHER_ID = "scout-launcher";
+
+/** Closes the panel from inside it (its close button, Escape). Focus goes
+ *  back to the launcher, since the panel turns inert as it closes and focus
+ *  left inside it would fall to the page's top. */
+export function closeScout() {
+  update({ open: false });
+  document.getElementById(SCOUT_LAUNCHER_ID)?.focus();
+}
+
 export async function sendToScout(text: string) {
   const content = text.trim();
   if (!content || state.reply !== null) return;

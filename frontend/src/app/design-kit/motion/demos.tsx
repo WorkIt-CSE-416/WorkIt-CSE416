@@ -103,6 +103,26 @@ function Specimen({ cls, demo }: { cls: string; demo: Demo }) {
           />
         </svg>
       );
+    case "ping":
+      return (
+        <span aria-hidden="true" className="relative flex size-2.5">
+          <span className={cn("bg-brand absolute inset-0 rounded-full", cls)} />
+          <span className="bg-brand relative size-2.5 rounded-full" />
+        </span>
+      );
+    case "dots":
+      // Looping, so it needs no Replay; staggered as Scout's are.
+      return (
+        <span className="bg-surface flex h-10 items-center gap-1 rounded-2xl rounded-bl-md px-4">
+          {[0, 1, 2].map((dot) => (
+            <span
+              key={dot}
+              className={cn("bg-ink-subtle size-1.5 rounded-full", cls)}
+              style={{ animationDelay: `${dot * 150}ms` }}
+            />
+          ))}
+        </span>
+      );
     case "bell":
       // Hover-driven like the bar's, so it needs no Replay.
       return (
@@ -125,6 +145,8 @@ export function AnimationDemo({ cls, demo }: { cls: string; demo: Demo }) {
       <Specimen key={run} cls={cls} demo={demo} />
       {demo === "bell" ? (
         <span className="text-note text-ink-meta">Point at it</span>
+      ) : demo === "dots" ? (
+        <span className="text-note text-ink-meta">Loops while Scout thinks</span>
       ) : (
         <Button variant="secondary" size="sm" onClick={() => setRun((n) => n + 1)}>
           Replay

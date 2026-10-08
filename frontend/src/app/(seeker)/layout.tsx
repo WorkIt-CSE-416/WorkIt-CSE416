@@ -14,7 +14,7 @@ import { ShallowRouting } from "@/components/shallow-routing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { getSessionUser } from "@/lib/session";
 
-import { SeekerAccount, SeekerStatusLine } from "./account-status";
+import { SeekerAccount } from "./account-status";
 import { BAR_CIRCLE } from "./bar";
 import { MobileSearch } from "./mobile-search";
 import { ProfileCacheProvider } from "./profile-cache";
@@ -47,9 +47,10 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * the provider's defaultOpen, so the page does not open expanded and jump
  * when the user collapses it again.
  *
- * THE BAR holds the toggle, the job search and, on the right, the account:
- * the new-roles status when there is news (from xl), the bell, and the photo
- * with the full name and email beside it from lg. That last opens the
+ * THE BAR holds the toggle, the job search and, on the right, Scout, the
+ * bell, and the photo with the full name and email beside it from lg. It
+ * had a "N New Roles Since Yesterday" pill from xl too; it was taken out as
+ * a distraction, and a bar message comes back only when it is worth one. That last opens the
  * account menu: Settings, Help and Sign Out, which live there and nowhere
  * else.
  *
@@ -185,14 +186,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Form>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            {/* Streamed: each waits on the API, and nothing else in the bar
-                or the page should wait with it. The account's fallback holds
-                the photo's 40px and, from lg, the name and email's two
-                lines, so the bar doesn't shift when they land. */}
-            <Suspense fallback={null}>
-              <SeekerStatusLine />
-            </Suspense>
-
             <MobileSearch />
 
             <ScoutLauncher className={BAR_CIRCLE} />
@@ -201,6 +194,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               New matches and replies from employers will show up here.
             </NotificationsMenu>
 
+            {/* Streamed: it waits on the API, and nothing else in the bar or
+                the page should wait with it. The fallback holds the photo's
+                40px and, from lg, the name and email's two lines, so the bar
+                doesn't shift when they land. */}
             <Suspense fallback={<AccountSkeleton />}>
               <SeekerAccount />
             </Suspense>
@@ -212,16 +209,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             scroll back to the document. overscroll-contain so a fling that
             outruns the page does not chain onto the document. */}
         {/* A row, so Scout's panel docks beside the page as one more floating
-            panel instead of covering it; min-w-0 lets the page shrink for it. */}
-        <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
+            panel instead of covering it; min-w-0 lets the page shrink for it.
+            No gap: the panel stays mounted to glide open and closed, and
+            brings its own 12px with it, so a closed one adds nothing.
+            data-scout-row lets the page settle as the panel opens and closes
+            (scout-page-in and -out in globals.css), and the row clips the
+            panel where it slides in and out past the window's edge. */}
+        <div data-scout-row className="flex min-h-0 flex-1 overflow-x-clip">
           <SidebarInset
             id="content"
             tabIndex={-1}
-            className="bg-panel border-rail-border shadow-panel rounded-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain border focus:outline-none"
+            className="bg-panel border-rail-border shadow-panel rounded-shell min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain border focus:outline-none"
           >
             {/* The page, as wide as the <main> is with the panel open (see "A
                 PAGE KEEPS THE WIDTH" above), and the container it breaks on. */}
-            <div className="@container/main mx-auto flex w-[calc(100%_-_var(--panel-gain))] flex-1 flex-col">
+            <div
+              data-scout-page
+              className="@container/main mx-auto flex w-[calc(100%_-_var(--panel-gain))] flex-1 flex-col"
+            >
               {/* Outlives a single page so My Profile renders at once on a
                   return visit; see profile-cache.tsx for why it lives here.
                   The query the pages show, moved in place by their segmented

@@ -154,7 +154,13 @@ src/components/   Shared components
                   photo alone
   scout/          Scout, the job assistant. scout-store holds the one chat per
                   tab (a module store, so no provider); scout-panel docks
-                  beside the page, never over it, and opens only on a click;
+                  beside the page, never over it, and opens only on a click.
+                  It stays mounted and opens in two moves: its room appears
+                  at once and the page settles into its new width, while the
+                  panel slides in from the window's edge; Escape or its X
+                  closes it and hands
+                  focus back to the bar's launcher, which shows pressed while
+                  the panel is open;
                   stream.ts mirrors the API's NDJSON events; reply-text
                   renders a reply's **bold** and "- " bullets, the prompt's
                   whole formatting vocabulary, with no markdown library (a
@@ -277,9 +283,9 @@ bell and search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
 `lib/session.ts`, cached per render. The whole block is the trigger of
 `components/account-menu.tsx`, passed in as its `children`, and opens
 Settings, Help and Sign Out (with the account header only below lg, where the
-block shows just the photo). From xl the
-bar adds a pill for roles posted in the last 24 hours when there are any
-(`(seeker)/status.ts`).
+block shows just the photo). A "N New Roles Since Yesterday" pill used to sit
+beside it from xl; it was removed as a distraction, along with the
+`/jobs?limit=500` fetch it made on every page.
 The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
@@ -759,6 +765,18 @@ moving at `/design-kit/motion`. The rules:
   times one out while the pane is not on screen ("Transition was aborted
   because of timeout in DOM update"). Neither is a bug. Check one in a
   visible window, or watch the `view-transition-class` React sets.
+- **Scout's panel slides in; the page does not get squeezed.** It stays
+  mounted, inert while closed. Opening makes its 396px of room in one step, so
+  the page lays itself out once and then settles into place (a 32px glide and
+  fade, `scout-page-in` in `globals.css`), while the panel slides in from the
+  window's edge on transform alone (360ms). Closing gives the room back at
+  once, and the panel slides out over the page's edge (200ms) as the page
+  settles wider; holding the room until it had gone read as lag. Animating the panel's width instead made
+  the page re-lay itself out every frame, rewrapping text and dropping a
+  column partway through. Below md it rises over the window instead. Its
+  messages rise in, its thinking is three looping dots (`--animate-typing`),
+  and its Send stays hoverable (aria-disabled) so its tooltip can say why it
+  won't send. `components/scout/scout-panel.tsx` has the details.
 - **Clickable means the hand.** Tailwind v4 dropped the pointer from
   buttons, so `globals.css` restores it in one place: buttons,
   `role="button"`, tabs, switches, checkboxes, selects and the native parts
