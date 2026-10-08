@@ -133,6 +133,31 @@ GitHub Actions runs on every PR to `main`. The workflow lives at
 PRs show a green check or red X based on the result. Do not merge with failing
 checks.
 
+### Scheduled scrape and import (KAN-160)
+
+`.github/workflows/scrape.yml` runs the scraper and then
+`app.scripts.import_jobs` into Supabase **every six hours at :17 UTC** (off the
+hour: GitHub delays, and under load drops, runs scheduled on it). Daily is what
+the big internship lists do and hourly the most any aggregator does; every few
+hours gets a new posting onto the site the same day for a ~3 minute run that
+only writes the rows that changed.
+
+- **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
+  repo's Actions secrets. Without it the run fails at the import step and says so.
+- **The scraper's memory** (`scraper/jobs.json`) lives in the Actions cache,
+  restored from the newest entry and saved only after a scrape that finished. A
+  missed cache is safe, just slow: that run re-reads every Greenhouse page and
+  counts nothing as new.
+- **Manual run:** Actions → Scrape jobs → Run workflow, or
+  `gh workflow run scrape.yml` (inputs `full` and `dry_run`). A PR that touches the
+  scraper, the import or this workflow runs it too, with the import always
+  `--dry-run`.
+- **It stops silently after 60 days without a commit** to `main` (GitHub pauses
+  idle schedules). Re-enable with `gh workflow enable scrape.yml`.
+- **When it fails, GitHub emails whoever last edited the cron line.** The import
+  refuses to close more than half the jobs at once, so a broken scrape fails the
+  run instead of emptying the site; nothing is written either way.
+
 ## Deployment
 
 Both halves deploy to **Vercel, as two projects from this one repo**: Root

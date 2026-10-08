@@ -224,8 +224,10 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   The snapshot stays as the import's default input when no local scraper run
   has written one (`config.default_scraper_feed()`; `SCRAPER_FEED`
   overrides), so it must still validate against `schemas/jobs.py`: refresh it
-  in the same commit as any change there. **Still open: a scheduled run of
-  scraper + import**; until one exists, someone runs the import by hand.
+  in the same commit as any change there. Scraper + import run on a schedule
+  (`.github/workflows/scrape.yml`, root `CLAUDE.md`'s CI section), importing
+  the run's own `scraper/feed.json`, not this snapshot; a hand run is the same
+  command.
   Order matters when the feed gains a column: apply its migration first
   (`7c2e9a41d5b3` added `start_term` and the week/month pay periods), then
   import. An import against the older schema fails on the unknown column and,
