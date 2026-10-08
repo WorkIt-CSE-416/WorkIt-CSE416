@@ -8,11 +8,11 @@ import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
-import { Activity } from "./activity";
-import { ACTIVITY, RANGES, STATS, UP_NEXT, parseRange } from "./data";
+import { RANGES, STATS, UP_NEXT, appliedDays, parseRange } from "./data";
 import { NewMatches, NewMatchesSkeleton } from "./new-matches";
 import { NextUpHero } from "./next-up-hero";
 import { RangeSwitch } from "./range-switch";
+import { Streak } from "./streak";
 import { UpNext } from "./up-next";
 import { Waiting } from "./waiting";
 
@@ -44,8 +44,10 @@ export const metadata: Metadata = {
  * it restated the headline numbers at the top in a second shape; the board
  * at /applications is where stages are worked.
  *
- * The range scopes the numbers and the activity; Next Up, Up Next, New
- * Matches and Waiting are about now.
+ * The range scopes the numbers only. Activity is a daily streak over the past
+ * year, since a streak is about every day rather than a window of them; it
+ * used to be a weekly pace chart, which said less about the habit than a
+ * year of days does. Next Up, Up Next, New Matches and Waiting are about now.
  *
  * Most of it is fixtures (./data.ts) until the application tracker has a
  * backend; New Matches is the live feed.
@@ -107,7 +109,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       </div>
 
       <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
-        <Activity points={ACTIVITY[range].points} goal={ACTIVITY[range].goal} />
+        <Streak days={appliedDays()} />
         <UpNext items={later} />
       </div>
 

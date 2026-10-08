@@ -5,7 +5,7 @@ import { SectionHeader } from "./section-header";
 
 /**
  * Applications with no reply yet, by how long they have waited — the seeker's
- * "Time in stage". Open on the page beside Activity, like it. Bars rather than a ring: the buckets are ordered, and the
+ * "Time in stage". Open on the page, like the Dashboard's other sections. Bars rather than a ring: the buckets are ordered, and the
  * question is how much of the pile is old, which a row of lengths answers in
  * one look.
  *

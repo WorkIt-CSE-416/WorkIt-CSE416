@@ -375,6 +375,34 @@
   --color-match-good: #bd3a9b;
   --color-match-weak: #d063b0;
 
+  /* Activity streak ------------------------------------------------------
+   * The four levels of the Dashboard's Activity streak, applications sent in
+   * a day from light to heavy, which (seeker)/dashboard/streak-canvas.ts
+   * paints. A day with none is --color-border-subtle, the recessive grey of a
+   * chart's rules.
+   *
+   * VIOLET, the brand's own hue, because the streak is the seeker's habit
+   * rather than a stage or a score, which own every other hue in the app. The
+   * heavy end is the brand and its active step; the two light steps were
+   * stepped down from them in OKLCH at the same hue, so a brand retone moves
+   * 3 and 4 and leaves 1 and 2 to be re-stepped by hand.
+   *
+   * One hue, light to deep, measured as an ordinal ramp with the dataviz
+   * validator: lightness falls 0.77, 0.65, 0.51, 0.40, every gap over 0.06,
+   * and the hue spreads 4 degrees. These are fills, never text, and even the
+   * lightest clears the 2:1 a ramp's light end needs on white, so a
+   * one-application day never fades into an empty one.
+   *
+   *              white
+   *   1          2.13
+   *   2          3.50
+   *   3          6.26
+   *   4          9.88 */
+  --color-streak-1: #b6a8f1;
+  --color-streak-2: #9077e9;
+  --color-streak-3: var(--color-brand);
+  --color-streak-4: var(--color-brand-active);
+
   /* Board type -----------------------------------------------------------
    * A step above --text-title, which the board still uses for its column
    * headings — so the page name and the column names cannot be confused. */

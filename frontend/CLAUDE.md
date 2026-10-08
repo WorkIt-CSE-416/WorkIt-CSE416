@@ -269,6 +269,24 @@ funnel only restated the headline numbers. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real. Its range is
 `?range=`, links rather than client state.
 
+**Activity is a daily streak** (`(seeker)/dashboard/streak.tsx`), no longer
+a weekly pace chart: the past year of applications per day as a heat map that
+folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
+heading is Activity; its files and tokens say streak. `streak-model.ts`
+is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
+canvas engine (no React: the section mounts it once and it re-reads a ref
+every frame), `streak.tsx` the section. It stays beside the Dashboard rather
+than in `components/ui` until a second route wants it. The canvas reads its
+colours off the section at mount: `--color-streak-1..4`, a violet ramp
+validated as ordinal in `globals.css`, and `--color-border-subtle` for an
+empty day, so a token edit restyles it. The current streak runs to the
+viewer's today (yesterday while today is open), so `today` comes from
+`useSyncExternalStore`: UTC on the server, the browser's own after hydration.
+It ignores `?range=`, since a streak is every day. Its fixture is
+`appliedDays()` in `data.ts`, seeded and walked from a fixed epoch so a date
+keeps its count; the tracker swaps in one `{ date: appliedOn, count: 1 }` per
+sent application.
+
 The company Dashboard and the seeker Profile follow the same surfaces. On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
 the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
