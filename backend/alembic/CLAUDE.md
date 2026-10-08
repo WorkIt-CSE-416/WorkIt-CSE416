@@ -196,6 +196,25 @@ Two habits follow:
 - Prefer applying to your own database first. A free Supabase project or local
   Postgres costs nothing and keeps DDL experiments off the shared one.
 
+**A throwaway local Postgres runs the whole chain** (done for `7c2e9a41d5b3`):
+
+```sh
+docker run -d --name workit-local-db -e POSTGRES_PASSWORD=local -p 54329:5432 postgres:15
+docker exec workit-local-db psql -U postgres -c \
+  "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY);"
+export DATABASE_URL=postgresql://postgres:local@localhost:54329/postgres
+export DIRECT_URL=$DATABASE_URL
+uv run python -c "from app.config import get_settings as s; print(s().migration_url)"
+uv run alembic upgrade head
+```
+
+Supabase owns `auth.users`; `197cfcdecdb8` points a foreign key at it, so the
+stub has to exist first. Exported variables beat the root `.env`
+(pydantic-settings), which is what keeps every command here off the shared
+database — **print the URL before any command that writes, and stop if it is not
+localhost.** Supabase Auth still works against it: tokens are verified with
+Supabase's public keys, not the database.
+
 `alembic stamp <rev> --purge` is the escape hatch if this happens again:
 `--purge` erases the version table without first resolving the value in it,
 which is the lookup that fails. It rewrites only that bookkeeping table and
