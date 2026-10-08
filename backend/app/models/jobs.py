@@ -54,6 +54,8 @@ class Job_Post(BaseModel):
     job_type: Mapped[dto.job_type | None]
     experience_level: Mapped[dto.experience_level | None]
     min_years_experience: Mapped[int | None] = mapped_column(SmallInteger)
+    # when an internship starts, as the posting names it: "Summer 2027", "2027"
+    start_term: Mapped[str | None] = mapped_column(Text)
 
     work_style: Mapped[dto.work_style | None]
     # the location text as given, for display. Filtering uses job_locations

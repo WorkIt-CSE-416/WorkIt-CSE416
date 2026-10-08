@@ -3,6 +3,11 @@
 Tables:
 - `job_postings`: one row per job, holding the posting's own information —
   title, description, type/experience/work style, salary, status and dates.
+  A scraped row (company_id NULL) fills the same fact columns when the posting
+  states them -- job_type, salary*, min_years_experience -- plus `start_term`
+  ("Summer 2027"), an internship's start. With no pay stated, salary_currency
+  and salary_period keep their defaults beside empty amounts, and GET /jobs
+  reports neither (routers/jobs.py `to_listing`).
   A posting can carry any number of role tags (see `job_role_tags`).
 - `job_roles`: the canonical job titles used as tags — "Software Engineer",
   "Mechanical Engineer", etc.
@@ -27,7 +32,10 @@ directly on `job_postings`.
 CREATE TYPE job_type         AS ENUM ('full_time', 'part_time', 'contract');
 CREATE TYPE experience_level AS ENUM ('internship', 'new_grad', 'experienced');
 CREATE TYPE work_style       AS ENUM ('remote', 'hybrid', 'onsite');
-CREATE TYPE salary_period    AS ENUM ('year', 'hour');
+CREATE TYPE salary_period    AS ENUM ('year', 'hour', 'week', 'month');
+-- week and month (7c2e9a41d5b3): scraped internships often pay that way, and the
+-- scraper keeps the stated period rather than annualising a 12-week stipend.
+-- A company's own job still offers only year and hour in the composer.
 CREATE TYPE job_post_status       AS ENUM ('draft', 'published', 'closed');
 ```
 

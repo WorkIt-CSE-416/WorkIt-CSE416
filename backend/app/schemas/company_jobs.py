@@ -51,7 +51,11 @@ class JobPostingCreate(BaseModel):
     salary_min: Money | None = Field(None, alias="salaryMin")
     salary_max: Money | None = Field(None, alias="salaryMax")
     salary_currency: str = Field("USD", alias="currency", pattern=r"^[A-Z]{3}$")
-    salary_period: dto.salary_period = Field(dto.salary_period.year, alias="salaryPeriod")
+    # Year or hour only: week and month exist for scraped internships' stipends
+    # (migration 7c2e9a41d5b3), and the composer offers neither.
+    salary_period: Literal[dto.salary_period.year, dto.salary_period.hour] = Field(
+        dto.salary_period.year, alias="salaryPeriod"
+    )
 
     # Timezone required: a bare "2026-10-10" would be stored as UTC midnight
     # and show as the day before for anyone west of UTC.

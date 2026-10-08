@@ -77,10 +77,38 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
     return Outcome.OK, jobs
 
 
-def scrape(boards: list[Board], robots: Robots) -> tuple[list[Job], RunStats, list[str]]:
-    """Every posting scanned, what happened, and the keys of the boards read in full."""
+def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
+    """One provider's boards, then the own pages of their postings that need one
+    (`with_page`) -- so Greenhouse's page reads start when its boards are done,
+    not after Lever's. Order is kept, so each board gets its own jobs back."""
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         results = list(pool.map(lambda board: _scrape_one(board, robots), boards))
+        listed = [store.carry(job, before) for _, jobs in results for job in jobs]
+        paged = iter(pool.map(lambda job: with_page(job, robots), listed))
+    return [(outcome, [next(paged) for _ in jobs]) for outcome, jobs in results]
+
+
+def scrape(
+    boards: list[Board], robots: Robots, before: dict[str, Job]
+) -> tuple[list[Job], RunStats, list[str]]:
+    """Every posting scanned, what happened, and the keys of the boards read in full.
+
+    Each provider is its own lane with its own workers. They used to share one pool,
+    and a worker waiting out Lever's one-second Crawl-delay was a worker not
+    reading Greenhouse: the lanes cut a run from 9.5 minutes to Lever's own pace.
+    Each provider's origin is still paced exactly as before (`Robots.pace`).
+    """
+    lanes: dict[str, list[Board]] = {}
+    for board in boards:
+        lanes.setdefault(board.ats, []).append(board)
+    with ThreadPoolExecutor(max(len(lanes), 1)) as pool:
+        by_lane = list(pool.map(lambda lane: _lane(lane, robots, before), lanes.values()))
+    outcome_of = {
+        board.key: result
+        for lane, results in zip(lanes.values(), by_lane, strict=True)
+        for board, result in zip(lane, results, strict=True)
+    }
+    results = [outcome_of[board.key] for board in boards]
     scanned = [job for _, jobs in results for job in jobs]
     outcomes = Counter(outcome for outcome, _ in results)
     stats = RunStats(
@@ -98,7 +126,18 @@ def scrape(boards: list[Board], robots: Robots) -> tuple[list[Job], RunStats, li
     return scanned, stats, read
 
 
-def _describe_one(job: Job, robots: Robots) -> Job:
+def with_page(job: Job, robots: Robots) -> Job:
+    """The posting with its own page read, if it is a kept Greenhouse posting with
+    no `Page` under the current PAGE_VERSION; otherwise exactly as it was.
+
+    Only Greenhouse needs this -- Lever and Ashby send it all with the list -- and
+    only once per posting, since the store carries the page forward. Called on
+    postings a board just listed, so one that has left its board is never asked
+    for. A page that fails or is disallowed leaves the posting without one.
+    """
+    current = job.page is not None and job.page.version == providers.PAGE_VERSION
+    if job.ats != "greenhouse" or current or not classify(job.title):
+        return job
     url = providers.greenhouse_job_url(job.token, job.external_id)
     if not robots.allows(url):
         return job
@@ -110,27 +149,13 @@ def _describe_one(job: Job, robots: Robots) -> Job:
         return job
 
 
-def describe(jobs: list[Job], robots: Robots) -> list[Job]:
-    """Fill in the description of every Greenhouse posting that lacks one.
-
-    Only Greenhouse needs this -- Lever and Ashby send descriptions with the list --
-    and only once per posting, since the store carries a description forward.
-    """
-    todo = [job for job in jobs if job.ats == "greenhouse" and job.description is None]
-    if not todo:
-        return jobs
-    print(f"\ndescribing {len(todo)} Greenhouse postings")
-    with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
-        described = {job.key: job for job in pool.map(lambda job: _describe_one(job, robots), todo)}
-    return [described.get(job.key, job) for job in jobs]
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="workit_scraper", description=__doc__)
     parser.add_argument(
         "--offline", action="store_true", help="skip the network; render from jobs.json"
     )
     parser.add_argument("--boards", type=Path, default=BOARDS_CSV)
+    parser.add_argument("--full", action="store_true", help="read every board, quiet ones included")
     args = parser.parse_args(argv)
 
     previous = store.load(JOBS_JSON)
@@ -142,8 +167,16 @@ def main(argv: list[str] | None = None) -> int:
         run = previous
         print(f"offline: {len(run.jobs)} postings from {JOBS_JSON.name}")
     else:
+        now = datetime.now(UTC).isoformat()
         boards = load_boards(args.boards)
-        print(f"scraping {len(boards)} boards\n")
+        if previous and not args.full:
+            due = previous.to_read(boards, now)
+            print(
+                f"scraping {len(due)} of {len(boards)} boards (quiet ones rest; --full reads all)\n"
+            )
+            boards = due
+        else:
+            print(f"scraping {len(boards)} boards\n")
         # Every origin a run touches, so robots.txt is read once, up front. Greenhouse
         # postings' own pages share their board list's origin.
         robots = Robots(
@@ -151,15 +184,15 @@ def main(argv: list[str] | None = None) -> int:
             for board in boards
             if board.ats in providers.FETCHERS
         )
-        scanned, stats, read = scrape(boards, robots)
+        before = {job.key: job for job in previous.jobs} if previous else {}
+        scanned, stats, read = scrape(boards, robots, before)
         # Store only what the page is about. Keeping all ~91,000 postings -- the sales,
         # marketing and senior roles included -- would make jobs.json tens of megabytes
         # and tell us nothing we display. `stats.postings` still counts everything
         # scanned, so the funnel on the page stays honest about how wide the net was.
         fresh = [job for job in scanned if classify(job.title)]
         stats = replace(stats, kept=len(fresh))
-        run = store.update(previous, fresh, read, stats, datetime.now(UTC).isoformat())
-        run = replace(run, jobs=describe(run.jobs, robots))
+        run = store.update(previous, fresh, read, stats, now)
         # Only boards with a job on the page need a logo, and each is read once.
         unread = sorted(
             {

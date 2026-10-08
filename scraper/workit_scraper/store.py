@@ -12,13 +12,17 @@ the store is what holds the timestamps.
 from __future__ import annotations
 
 import json
+import zlib
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from workit_scraper.providers import Job
+from workit_scraper.providers import Board, Job
 
 NEW_WINDOW = timedelta(hours=24)
+#: A quiet board -- read before, never a kept posting -- is read on one run in this
+#: many, and always once this many days have passed since its last read.
+QUIET_EVERY = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +81,33 @@ class Store:
         seen = _at(job.first_seen_at)
         return seen > _at(board.first_read_at) and seen >= _at(self.scraped_at) - NEW_WINDOW
 
+    def to_read(self, boards: list[Board], now: str) -> list[Board]:
+        """The boards this run reads: every one, except quiet boards not due today.
+
+        Most boards in boards.csv have never had a posting we keep -- 282 of 333 on
+        Lever, whose one-second Crawl-delay made it most of a run. A quiet board is
+        read on a third of runs, staggered by its key so each run takes its own
+        third, and whenever QUIET_EVERY days have passed, so a missed day of runs
+        does not leave one unread. A new posting on one can arrive two days late;
+        `--full` reads everything.
+
+        Skipping is safe for the rest of the store: a quiet board has nothing
+        listed, and its `last_read_at` simply does not move.
+        """
+        at = _at(now)
+        hot = {job.board_key for job in self.jobs}
+        due = []
+        for board in boards:
+            reads = self.boards.get(board.key)
+            if (
+                reads is None
+                or board.key in hot
+                or at - _at(reads.last_read_at) >= timedelta(days=QUIET_EVERY)
+                or zlib.crc32(board.key.encode()) % QUIET_EVERY == at.toordinal() % QUIET_EVERY
+            ):
+                due.append(board)
+        return due
+
     @property
     def counts_new(self) -> bool:
         """False until some board has a read older than this one to compare against."""
@@ -96,10 +127,10 @@ def update(
     """Fold one scrape into the store.
 
     Stamps last_seen_at and carries first_seen_at forward, so first_seen_at is
-    written once and never moves. A description is carried forward too when this
-    read had none: Greenhouse's list never includes one, and each posting's own
-    page is read only once (see `__main__.describe`). `read` is the keys of the boards this run read
-    completely; only those advance their `last_read_at`.
+    written once and never moves. A posting's `Page` is carried forward too when
+    this read had none: Greenhouse's list never includes one, and each posting's
+    own page is read only once (see `__main__.with_page`). `read` is the keys of the
+    boards this run read completely; only those advance their `last_read_at`.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
     merged = []
@@ -107,10 +138,9 @@ def update(
         old = before.get(job.key)
         merged.append(
             replace(
-                job,
+                carry(job, before),
                 first_seen_at=(old.first_seen_at if old else None) or now,
                 last_seen_at=now,
-                description=job.description or (old.description if old else None),
             )
         )
     seen = {job.key for job in fresh}
@@ -122,6 +152,17 @@ def update(
         boards[key] = BoardReads(first_read_at=first, last_read_at=now)
     logos = dict(previous.logos) if previous else {}
     return Store(scraped_at=now, stats=stats, jobs=merged, boards=boards, logos=logos)
+
+
+def carry(job: Job, before: dict[str, Job]) -> Job:
+    """A freshly listed posting with the page its stored self already had.
+
+    A Greenhouse listing has no page; the one read before stands until a newer
+    PAGE_VERSION reads it again. Ashby and Lever bring a fresh page every read,
+    which always wins -- facts an employer changed must not linger.
+    """
+    old = before.get(job.key)
+    return replace(job, page=job.page or old.page) if old else job
 
 
 def load(path: Path) -> Store | None:

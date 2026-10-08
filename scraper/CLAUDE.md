@@ -6,6 +6,7 @@ scraper's design and the rules for changing it; `README.md` is only how to run i
 ```sh
 cd scraper
 python3 -m workit_scraper                          # scrape, then write the page and feed.json
+python3 -m workit_scraper --full                   # the same, quiet boards included
 python3 -m workit_scraper --offline                # no network; rewrite both from jobs.json
 python3 build_boards.py                            # regenerate boards.csv
 uvx pytest                                         # the tests
@@ -17,7 +18,7 @@ uvx pytest                                         # the tests
 boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶ store.update ─▶ jobs.json
                                                                                    │
                            report.write_html ◀─ shortlist.pick ◀─ Store.is_listed ◀┘
-                           feed.write ◀────────────┘  (feed.json ─▶ backend GET /jobs)
+                           feed.write ◀────────────┘  (feed.json ─▶ backend import ─▶ Supabase)
 ```
 
 | file | owns |
@@ -27,6 +28,7 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 | `web.py` | the one HTTP GET: our User-Agent, no cross-origin redirects |
 | `polite.py` | robots.txt and per-origin pacing |
 | `providers.py` | `Board`, `Job`, and one function per ATS mapping its JSON onto `Job` |
+| `details.py` | pay, job type and years of experience read out of a description |
 | `store.py` | `jobs.json`, `first_seen_at`, and what "listed" and "new today" mean |
 | `shortlist.py` | which postings belong on the page, and collapsing duplicates |
 | `report.py` | rendering the page |
@@ -36,17 +38,29 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 
 All three providers return a whole board in one request, so there is no pagination.
 
-## Descriptions are read once, and only for kept postings
+## A Greenhouse posting's own page is read once, and only for kept postings
 
-Scout (KAN-138) reads a posting's description to answer "is this role a fit?",
-so `Job.description` holds it as plain text capped at `DESCRIPTION_CHARS`
-(`providers.text` strips HTML, including Greenhouse's entity-escaped kind).
-Lever and Ashby send it with the board's list. Greenhouse does not: its
-`content=true` would send every posting's full HTML, hundreds of megabytes a
-run to describe the ~1% we keep. So `__main__.describe` fetches each *kept*
-Greenhouse posting's own page once, through the same robots and pacing, and
-`store.update` carries the description forward so later runs skip it. A posting
-whose page fails or is disallowed simply has no description.
+What a posting's own text says is one value, `providers.Page`: the description
+(plain text, cut to `DESCRIPTION_CHARS` for Scout), the card's `details.Facts`,
+and on Greenhouse the posting's offices. Lever and Ashby send it with the board's
+list, so their `Job.page` is rebuilt on every read. Greenhouse does not: its
+`content=true` would send every posting's full HTML, hundreds of megabytes a run
+to describe the ~1% we keep. So a Greenhouse listing has `page=None`, and
+`__main__.with_page` reads each *kept* posting's own page once (with
+`pay_transparency=true`), through the same robots and pacing. A posting whose page
+fails or is disallowed simply has none.
+
+**The store carries a `Page` forward whole: `job.page or old.page`.** That one rule is
+the point of the model. It used to be nine flat fields carried one by one, and two
+bugs came of it: a Greenhouse listing's title-only "2027" overwrote the page's
+"Summer 2027", and Strada's internship stayed "full-time" after Ashby changed it.
+Ashby and Lever always bring a fresh page, so theirs always wins.
+
+`Page.version` is the `providers.PAGE_VERSION` it was read under, and `with_page`
+reads again any whose version is older. **Bump `PAGE_VERSION` whenever a `Page`
+starts holding something new**, or postings already stored never get it; the bump
+costs one read per kept Greenhouse posting, once. `with_page` only ever sees postings
+a board just listed, so one that has left its board is never asked for.
 
 That carrying forward means **changing `DESCRIPTION_CHARS` does not re-cut
 Greenhouse descriptions already stored.** After changing it, clear them so the
@@ -93,10 +107,70 @@ the first live run. `_iso()` takes `object` and narrows on purpose — normalise
 it rather than reading a provider field directly.
 
 **They also disagree about what they publish at all.** Ashby and Lever state a work
-model; Greenhouse never does, so on a Greenhouse board `Job.work_style` is None unless
-the location itself says remote, and the table's cell renders empty. Leave it empty.
-Defaulting a missing field to its most common value puts a fact on the page that no
-employer stated, and a reader cannot tell the two apart.
+model; Greenhouse has no field for one, so a Greenhouse posting states one only when
+its location *is* a work model -- Cloudflare names every location "In-Office" -- or a
+sentence says so. What the card shows when nothing states it is decided in
+`shortlist`; see the card's facts below.
+
+A location that is only a work model is not a place. Cloudflare's Lisbon and London
+internships both read "Software Engineer Intern (2027) · In-Office" until `Job.places`
+took the city from the posting page's `offices`. Two cards that look identical are
+usually this, not a dedupe bug -- `pick` keys on the apply URL on purpose (below).
+
+## The card's facts: the provider's field, then the description, never a default
+
+The app's card shows six facts: location, job type, salary, work style, level and
+years of experience -- or, on an internship, when it starts ("Start in Summer 2027"),
+since nobody asks an intern for years. Each is filled from the provider's own field
+where it has one (Ashby `employmentType` and `compensation`, Lever `commitment` and
+`salaryRange`, Greenhouse `pay_input_ranges` and board metadata), and otherwise from
+the description by `details.py`. What neither states stays null, and the card says
+"not listed" -- except work style, below.
+
+**Facts are read from the whole description, when it is fetched** (`details.read`, from
+`providers._page`),
+and only then is it cut to `DESCRIPTION_CHARS` for storage. Pay is often the last thing
+a posting says, under a long benefits section: reading the stored, cut copy missed it
+on a sixteenth of the feed. So `--offline` re-renders the facts a fetch found but finds
+no new ones; changing a pattern in `details.py` takes a live run (and, for Greenhouse,
+a `PAGE_VERSION` bump) to reach stored postings.
+
+`details.py` is regex over prose, so it is fussy in the same way `shortlist.py` is, and
+every case in `tests/test_details.py` was seen in a real posting:
+
+- **Statements about this role only.** "Not considering remote or part-time",
+  "full-time or part-time internship", "post-internship opportunities (full-time)" and
+  "employees (including part-time)" are all in live descriptions. A posting offering
+  both types has none.
+- **A ceiling is not a minimum.** Lyft and DoorDash interns need "less than 2 years".
+  Of several minimums ("5+ years, or 3+ with a Master's") the lowest is the bar.
+- **Pay keeps its period.** Many internships pay by the month or week, and $8,000 a
+  month for twelve weeks is not $96,000 a year, so the feed carries `week` and `month`
+  as well as `job_postings`' `hour` and `year`. An amount its label contradicts loses
+  the label (Samsara's "Annual Base Salary: $38—$58"); `$120M` raised is not pay.
+  `feed.salary` always writes a range (`salary_min`/`salary_max`, equal for one
+  amount); the card prints an equal range once.
+- **"Intern" is not a job type.** Ashby and Lever say Intern where they could say
+  Full-time; it says nothing about hours, so the description decides.
+- **A role's facts come whole from one posting**, its first copy with a page --
+  never field by field across copies of one URL, which would pair one copy's pay
+  with another's job type. `Role.facts.work_style` is the card's answer.
+- **Work style is the one fact the card infers** (`shortlist._work_style`), in this
+  order: what the posting states (its board's field, or a sentence like Sigma's "an
+  in-office work environment"); then what the company's other postings state, most
+  often; then "On site" for a posting that names a place and nowhere mentions remote,
+  hybrid or working from home. Most postings that say nothing (Figure: "San Jose, CA",
+  no more) work on site, and a filled card was judged worth the misses. Measured on
+  250 postings whose board states a style but whose text does not: the order above is
+  right 87% of the time, "On site" alone 70% -- the misses are hybrid jobs. Only
+  specific hybrid wording counts as stated ("3 days a week in the office", "hybrid
+  schedule"): a bare "hybrid" was wrong 38 times in 89 ("hybrid cloud").
+- **A start term comes from the title first.** "Software Engineer Intern (2027)" is the
+  employer's label for its cohort. The description can name the season ("our Summer
+  2027 program") or a start month, but only of the title's year; a year alone in a
+  description is as likely a founding date. Years are any 20xx judged against
+  today (`details._near`: last year to three ahead), so no pattern needs editing
+  as the calendar moves.
 
 **The company name comes from `boards.csv`, not the provider.** Greenhouse's
 `company_name` carries internal labels ("LinkedIn Job Wrapping", "DRW - University
@@ -154,6 +228,26 @@ Every request goes through `web.get` and, before it, `polite.Robots` — includi
   otherwise run at roughly 60 requests a second. Keep it in the path of every fetch.
 - `web.get` refuses a redirect to another origin, since robots.txt was checked for
   the one we asked for.
+
+## Speed comes from lanes and quiet boards, never from less pacing
+
+A run took 9.5 minutes, and Lever's one-second Crawl-delay over 333 boards is 5.5 of
+them on its own. Two things cut it; neither touches `Robots.pace`.
+
+- **One lane per provider** (`__main__.scrape`). All boards used to share eight
+  workers, and a worker waiting out Lever's delay was a worker not reading Greenhouse.
+  Each lane has its own workers and the same per-origin pacing, so no server sees more
+  than it did. The Greenhouse lane reads its new postings' own pages as soon as its
+  boards are done, while Lever is still going.
+- **Quiet boards rest** (`Store.to_read`). A board read before that has never had a
+  posting we keep -- most of `boards.csv`: 282 of 333 on Lever -- is read on one run in
+  `QUIET_EVERY`, staggered by its key so each run takes its own share, and always once
+  that many days have passed. The cost is accepted: a first posting on a quiet board can
+  appear two days late. `--full` reads every board. A board with any kept posting, ever,
+  is read every run; nothing closes, so it never turns quiet again.
+
+The page's "postings scanned" counts what this run read, so it is lower on a run that
+rested quiet boards.
 
 ## `boards.csv` is a seed, not a conclusion
 
@@ -215,11 +309,15 @@ Marked in the code with `ponytail:` comments where they apply.
 
 ## `feed.json` is the backend's only view of us
 
-The backend serves the seeker Jobs feed (`GET /jobs`) from `feed.json`, which every
-run — `--offline` included — writes from the same roles as the page. It reads the file
-and imports none of this package: `backend/CLAUDE.md` keeps anything outside
-`backend/` out of its build. So `feed.row()` is the whole contract, and its fields
-must match `backend/app/schemas/jobs.py` — add a field in both or neither.
+Every run — `--offline` included — writes `feed.json` from the same roles as the page.
+The backend's `app/scripts/import_jobs.py` loads it into Supabase's `job_postings`, and
+`GET /jobs` and Scout read the database, never the file. The backend imports none of
+this package: `backend/CLAUDE.md` keeps anything outside `backend/` out of its build.
+So `feed.row()` is the whole contract, and its fields must match
+`backend/app/schemas/jobs.py` — add a field in both or neither, and a new column needs
+its migration. Card facts land in `job_postings`' own columns (`job_type`, `salary*`,
+`min_years_experience`, `start_term`); descriptions ride along in the rows, and the
+list query simply never selects them.
 
 Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's labels
 ("On site"). `feed.WORK_STYLE` is indexed, not `.get`: a new label from

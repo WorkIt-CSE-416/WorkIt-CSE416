@@ -71,6 +71,8 @@ _locations = Job_Location.__table__
 _FEED_COLUMNS = (
     "title", "company_name", "company_logo_url", "description",
     "experience_level", "work_style", "location_raw", "posted_at",
+    "job_type", "min_years_experience", "start_term",
+    "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
 # asyncpg allows 32,767 parameters a statement; a row here binds 10.
 _CHUNK = 1000
@@ -164,8 +166,27 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
             "location_raw": listing.location,
             "posted_at": parse_posted_at(listing.posted_at),
             "status": dto.job_post_status.published,
+            "job_type": listing.job_type,
+            "min_years_experience": listing.min_years_experience,
+            "start_term": listing.start_term,
+            **_pay(listing),
         })
     return Prepared(rows, places, unresolved, no_place, duplicates)
+
+
+def _pay(listing: JobListing) -> dict:
+    '''
+    the salary columns. currency and period are NOT NULL with defaults (USD,
+    year), so a job stating no pay stores those with no amount; to_listing in
+    routers/jobs.py reads them only beside an amount
+    '''
+    return {
+        "salary": listing.salary,
+        "salary_min": listing.salary_min,
+        "salary_max": listing.salary_max,
+        "salary_currency": listing.salary_currency or "USD",
+        "salary_period": listing.salary_period or dto.salary_period.year,
+    }
 
 
 def _text_array(values: list[str]):

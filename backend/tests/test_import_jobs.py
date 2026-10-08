@@ -40,8 +40,30 @@ def test_row_shape(resolver):
         "location_raw": "Austin, TX",
         "posted_at": datetime.datetime(2026, 10, 6, 2, 42, 6, tzinfo=datetime.UTC),
         "status": dto.job_post_status.published,
+        "job_type": None,
+        "min_years_experience": None,
+        "start_term": None,
+        # No pay stated: the NOT NULL columns keep their defaults, amounts empty.
+        "salary": None,
+        "salary_min": None,
+        "salary_max": None,
+        "salary_currency": "USD",
+        "salary_period": dto.salary_period.year,
     }]
     assert prepared.places == {"https://x/1": (Place("US", "US-TX"),)}
+
+
+def test_card_facts_are_kept(resolver):
+    # Strada's internship: "$7.5K per month".
+    prepared = prepare([listing(
+        "https://x/1", job_type="full_time", start_term="Summer 2027", min_years_experience=1,
+        salary=7500, salary_currency="USD", salary_period="month",
+    )], resolver)
+    row = prepared.rows[0]
+    assert (row["job_type"], row["start_term"], row["min_years_experience"]) == (
+        dto.job_type.full_time, "Summer 2027", 1)
+    assert (row["salary"], row["salary_currency"], row["salary_period"]) == (
+        7500, "USD", dto.salary_period.month)
 
 
 def test_description_is_kept(resolver):

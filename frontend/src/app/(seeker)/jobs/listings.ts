@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 
-import type { ExperienceLevel, WorkStyle } from "./data";
+import type { ExperienceLevel, JobType, WorkStyle } from "./data";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which serves the
@@ -20,8 +20,9 @@ import type { ExperienceLevel, WorkStyle } from "./data";
  * expanded view at /jobs/[jobId] and the filter options.
  *
  * Its own type, not an optional-everything `Recommendation`: a scraped role has
- * no salary, description, job type or match score, and making those optional
- * on the fixture type would push null checks into every screen that reads it.
+ * no description or match score, and states its salary, job type and years
+ * only sometimes — making those optional on the fixture type would push null
+ * checks into every screen that reads it.
  */
 export type JobListing = {
   id: string;
@@ -35,7 +36,25 @@ export type JobListing = {
   location: string | null;
   posted_at: string | null;
   logo_url: string | null;
+  /** The rest of the card, named after `job_postings`' columns. Null when the
+   *  posting never states it — the scraper reads the board's own fields, then
+   *  the description, and guesses nothing. */
+  job_type: JobType | null;
+  /** One amount, or `salary_min`/`salary_max` for a range; all null when the
+   *  posting states no pay. */
+  salary: number | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  /** Wider than `SalaryPeriod`: internships often pay by the month or week. */
+  salary_period: ListingSalaryPeriod | null;
+  min_years_experience: number | null;
+  /** When an internship starts, as the posting names it: "Summer 2027",
+   *  "January 2027", "2027". */
+  start_term: string | null;
 };
+
+export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";
 
 /** Public, so no token. An error is a message to print, never fixture jobs in
  *  its place — made-up postings shown silently would read as real ones. */
