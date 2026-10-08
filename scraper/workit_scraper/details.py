@@ -13,11 +13,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 
-#: The periods a card can print. A month or a week is how many internships pay,
-#: so neither is converted to a year: $8,000 a month for twelve weeks is not
-#: $96,000 a year.
-PERIODS = ("hour", "week", "month", "year")
+# A month or a week is how many internships pay, so neither is converted to a
+# year: $8,000 a month for twelve weeks is not $96,000 a year.
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,7 +325,6 @@ def min_years(text: str | None) -> int | None:
     return min(found, default=None)
 
 
-_SEASONS = ("Winter", "Spring", "Summer", "Fall")
 _MONTHS = (
     "January",
     "February",
@@ -341,33 +339,42 @@ _MONTHS = (
     "November",
     "December",
 )
-_YEAR = r"(?:20)?(2[5-9])\b"  # 2025-2029, or '27
+# Any 20xx (or '27); `_near` keeps only years a cohort could plausibly start in,
+# so the patterns never need editing as the calendar moves.
+_YEAR = r"(?:20)?(\d\d)\b"
 _SEASON = r"(winter|spring|summer|fall|autumn)"
 _MONTH = rf"({'|'.join(m[:3] for m in _MONTHS)})[a-z]*\.?"
 _TERM = (
     # "Summer 2027", "Fall '26", "Summer/Fall 2027" (the first named)
     re.compile(rf"\b{_SEASON}(?:\s*(?:/|or|and|&|,)\s*{_SEASON})?\s*'?\s*{_YEAR}", re.I),
     # Waymo's "2027 Summer Intern"
-    re.compile(rf"\b20(2[5-9])\s+{_SEASON}\b", re.I),
+    re.compile(rf"\b20(\d\d)\s+{_SEASON}\b", re.I),
 )
 _START_MONTH = re.compile(
-    rf"\b(?:start(?:ing|s)?(?:\s+date)?|begin(?:ning|s)?)\b[^.\n]{{0,30}}?\b{_MONTH}\s+(?:\d{{1,2}}(?:st|nd|rd|th)?,?\s+)?20(2[5-9])\b",
+    rf"\b(?:start(?:ing|s)?(?:\s+date)?|begin(?:ning|s)?)\b[^.\n]{{0,30}}?\b{_MONTH}\s+(?:\d{{1,2}}(?:st|nd|rd|th)?,?\s+)?20(\d\d)\b",
     re.I,
 )
-_TITLE_YEAR = re.compile(r"\b20(2[5-9])\b")
+_TITLE_YEAR = re.compile(r"\b20(\d\d)\b")
 _TITLE_SEASON = re.compile(rf"\b{_SEASON}\b", re.I)
 # A work period: "January 2027 to June 2027", "Jan 2027 - August 2027",
 # "May 24 - Aug 20, 2027", "JUNE – AUGUST 2026". The first month is the start.
 _DAY = r"(?:\s+\d{1,2}(?:st|nd|rd|th)?)?"
 _PERIOD_RANGE = re.compile(
-    rf"\b{_MONTH}{_DAY},?\s*(?:20(2[5-9]))?\s*(?:-|–|—|to|through|until)\s*"
-    rf"(?:{'|'.join(m[:3] for m in _MONTHS)})[a-z]*\.?{_DAY},?\s+20(2[5-9])\b",
+    rf"\b{_MONTH}{_DAY},?\s*(?:20(\d\d))?\s*(?:-|–|—|to|through|until)\s*"
+    rf"(?:{'|'.join(m[:3] for m in _MONTHS)})[a-z]*\.?{_DAY},?\s+20(\d\d)\b",
     re.I,
 )
 # Dates that are not the internship's: when to graduate, when to apply by.
 _NOT_THE_TERM = re.compile(
     r"graduat|deadline|clos(?:e|ing)|apply|applications?|expected|earned|degree", re.I
 )
+
+
+def _near(two_digits: str) -> bool:
+    """A start year a posting today could mean: last year through three ahead.
+    "Founded in 2015" and "graduating 2031" are not this cohort."""
+    this_year = date.today().year
+    return this_year - 1 <= 2000 + int(two_digits) <= this_year + 3
 
 
 def start_term(title: str, text: str | None) -> str | None:
@@ -381,8 +388,8 @@ def start_term(title: str, text: str | None) -> str | None:
     """
     if term := _season_term(title):
         return term
-    year = _TITLE_YEAR.search(title)
-    title_year = f"20{year[1]}" if year else None
+    year = next((m[1] for m in _TITLE_YEAR.finditer(title) if _near(m[1])), None)
+    title_year = f"20{year}" if year else None
     # The description may name the season, but not a different cohort's.
     for term in (
         _season_term(text or "", guarded=True),
@@ -404,13 +411,15 @@ def _work_period(text: str) -> str | None:
     for match in _PERIOD_RANGE.finditer(text):
         if _NOT_THE_TERM.search(text[max(0, match.start() - 50) : match.start()]):
             continue
+        if not _near(match[2] or match[3]):
+            continue
         month = next(m for m in _MONTHS if m.lower().startswith(match[1].lower()))
         return f"{month} 20{match[2] or match[3]}"
     return None
 
 
 def _start_month(text: str) -> str | None:
-    match = _START_MONTH.search(text)
+    match = next((m for m in _START_MONTH.finditer(text) if _near(m[2])), None)
     if not match:
         return None
     month = next(m for m in _MONTHS if m.lower().startswith(match[1].lower()))
@@ -427,6 +436,8 @@ def _season_term(source: str, *, guarded: bool = False) -> str | None:
         if guarded and _NOT_THE_TERM.search(source[max(0, start - 50) : start]):
             continue
         season, year = (match[1], match[3]) if kind == 0 else (match[2], match[1])
+        if not _near(year):
+            continue
         season = "Fall" if season.lower() == "autumn" else season.title()
         return f"{season} 20{year}"
     return None

@@ -66,7 +66,7 @@ export function ListingCard({ job }: { job: JobListing }) {
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
         location: job.location ?? (job.work_style === "remote" ? null : NOT_LISTED),
         jobType: jobType(job),
-        salary: salary(job) ?? NOT_LISTED,
+        salary: salary(job),
         workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
         experienceLevel: formatExperienceLevel(job.experience_level),
         ...yearsOrStart(job),
@@ -128,7 +128,7 @@ function yearsOrStart(job: JobListing) {
 }
 
 function salary(job: JobListing) {
-  if (!job.salary_currency || !job.salary_period) return null;
+  if (!job.salary_currency || !job.salary_period) return NOT_LISTED;
   return formatSalary({
     salary: job.salary ?? undefined,
     salaryMin: job.salary_min ?? undefined,

@@ -72,7 +72,7 @@ class TestLanes:
     def test_results_come_back_in_boards_csv_order(self, monkeypatch) -> None:
         boards = [board("lever", "a"), board("ashby", "b"), board("lever", "c")]
         monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b)]))
-        scanned, stats, read = run.scrape(boards, SimpleNamespace())
+        scanned, stats, read = run.scrape(boards, SimpleNamespace(), {})
         assert [j.token for j in scanned] == ["a", "b", "c"]
         assert read == [b.key for b in boards]
         assert stats.boards_ok == 3
@@ -105,7 +105,7 @@ class TestLanes:
         )
         fetched: list[Job] = []
         monkeypatch.setattr(providers, "describe_greenhouse", fetched.append)
-        run.scrape([gh], SimpleNamespace(allows=lambda url: True, pace=lambda url: None))
+        run.scrape([gh], SimpleNamespace(allows=lambda url: True, pace=lambda url: None), {})
         assert fetched == []
 
 

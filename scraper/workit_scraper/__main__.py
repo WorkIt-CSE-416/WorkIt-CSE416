@@ -78,18 +78,18 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
 
 
 def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
-    """One provider's boards, then the own pages of their kept postings that need
-    one -- so Greenhouse's page reads start when its boards are done, not after
-    Lever's. On Ashby and Lever there are none to read."""
+    """One provider's boards, then the own pages of their postings that need one
+    (`with_page`) -- so Greenhouse's page reads start when its boards are done,
+    not after Lever's. Order is kept, so each board gets its own jobs back."""
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         results = list(pool.map(lambda board: _scrape_one(board, robots), boards))
-    kept = [store.carry(j, before) for _, jobs in results for j in jobs if classify(j.title)]
-    described = {job.key: job for job in describe(kept, robots)}
-    return [(outcome, [described.get(job.key, job) for job in jobs]) for outcome, jobs in results]
+        listed = [store.carry(job, before) for _, jobs in results for job in jobs]
+        paged = iter(pool.map(lambda job: with_page(job, robots), listed))
+    return [(outcome, [next(paged) for _ in jobs]) for outcome, jobs in results]
 
 
 def scrape(
-    boards: list[Board], robots: Robots, before: dict[str, Job] | None = None
+    boards: list[Board], robots: Robots, before: dict[str, Job]
 ) -> tuple[list[Job], RunStats, list[str]]:
     """Every posting scanned, what happened, and the keys of the boards read in full.
 
@@ -102,7 +102,7 @@ def scrape(
     for board in boards:
         lanes.setdefault(board.ats, []).append(board)
     with ThreadPoolExecutor(max(len(lanes), 1)) as pool:
-        by_lane = list(pool.map(lambda lane: _lane(lane, robots, before or {}), lanes.values()))
+        by_lane = list(pool.map(lambda lane: _lane(lane, robots, before), lanes.values()))
     outcome_of = {
         board.key: result
         for lane, results in zip(lanes.values(), by_lane, strict=True)
@@ -126,7 +126,18 @@ def scrape(
     return scanned, stats, read
 
 
-def _describe_one(job: Job, robots: Robots) -> Job:
+def with_page(job: Job, robots: Robots) -> Job:
+    """The posting with its own page read, if it is a kept Greenhouse posting with
+    no `Page` under the current PAGE_VERSION; otherwise exactly as it was.
+
+    Only Greenhouse needs this -- Lever and Ashby send it all with the list -- and
+    only once per posting, since the store carries the page forward. Called on
+    postings a board just listed, so one that has left its board is never asked
+    for. A page that fails or is disallowed leaves the posting without one.
+    """
+    current = job.page is not None and job.page.version == providers.PAGE_VERSION
+    if job.ats != "greenhouse" or current or not classify(job.title):
+        return job
     url = providers.greenhouse_job_url(job.token, job.external_id)
     if not robots.allows(url):
         return job
@@ -136,28 +147,6 @@ def _describe_one(job: Job, robots: Robots) -> Job:
     except Exception as error:  # noqa: BLE001 - a missing description is not a failed run
         print(f"  !  {job.key}: no description: {type(error).__name__}: {error}", file=sys.stderr)
         return job
-
-
-def describe(jobs: list[Job], robots: Robots) -> list[Job]:
-    """Read the own page of every kept Greenhouse posting with no current `Page`.
-
-    Only Greenhouse needs this -- Lever and Ashby send it all with the list -- and
-    only once per posting, since the store carries the page forward. One read
-    under an older `PAGE_VERSION` is read once more. Called on the postings a
-    board just listed, so a posting that has left its board is never asked for.
-    """
-    todo = [
-        job
-        for job in jobs
-        if job.ats == "greenhouse"
-        and (job.page is None or job.page.version != providers.PAGE_VERSION)
-        and classify(job.title)
-    ]
-    if not todo:
-        return jobs
-    with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
-        described = {job.key: job for job in pool.map(lambda job: _describe_one(job, robots), todo)}
-    return [described.get(job.key, job) for job in jobs]
 
 
 def main(argv: list[str] | None = None) -> int:

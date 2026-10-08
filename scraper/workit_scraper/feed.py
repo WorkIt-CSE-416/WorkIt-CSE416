@@ -32,7 +32,7 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "company": role.company,
         "apply_url": role.apply_url,
         "experience_level": "internship" if Tag.INTERN in role.tags else "new_grad",
-        "work_style": WORK_STYLE[role.work_style] if role.work_style else None,
+        "work_style": WORK_STYLE[role.facts.work_style] if role.facts.work_style else None,
         "location": role.location_label or None,
         "posted_at": role.posted_at,
         "logo_url": logos.get(role.board_key),
@@ -45,19 +45,16 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
 
 
 def salary(role: Role) -> dict[str, object]:
-    """`job_postings`' salary columns: one amount, or a range when the two differ."""
+    """`job_postings`' salary columns, always as a range: a single amount is a
+    range whose ends meet, and the card prints it once (format.ts formatSalary).
+    `salary` is the company composer's single-amount column; we never fill it."""
     pay = role.facts.pay
-    if pay is None:
-        return dict.fromkeys(
-            ("salary", "salary_min", "salary_max", "salary_currency", "salary_period")
-        )
-    one = pay.low == pay.high
     return {
-        "salary": pay.low if one else None,
-        "salary_min": None if one else pay.low,
-        "salary_max": None if one else pay.high,
-        "salary_currency": pay.currency,
-        "salary_period": pay.period,
+        "salary": None,
+        "salary_min": pay.low if pay else None,
+        "salary_max": pay.high if pay else None,
+        "salary_currency": pay.currency if pay else None,
+        "salary_period": pay.period if pay else None,
     }
 
 

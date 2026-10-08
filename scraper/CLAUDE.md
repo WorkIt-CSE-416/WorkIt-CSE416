@@ -46,7 +46,7 @@ and on Greenhouse the posting's offices. Lever and Ashby send it with the board'
 list, so their `Job.page` is rebuilt on every read. Greenhouse does not: its
 `content=true` would send every posting's full HTML, hundreds of megabytes a run
 to describe the ~1% we keep. So a Greenhouse listing has `page=None`, and
-`__main__.describe` reads each *kept* posting's own page once (with
+`__main__.with_page` reads each *kept* posting's own page once (with
 `pay_transparency=true`), through the same robots and pacing. A posting whose page
 fails or is disallowed simply has none.
 
@@ -56,10 +56,10 @@ bugs came of it: a Greenhouse listing's title-only "2027" overwrote the page's
 "Summer 2027", and Strada's internship stayed "full-time" after Ashby changed it.
 Ashby and Lever always bring a fresh page, so theirs always wins.
 
-`Page.version` is the `providers.PAGE_VERSION` it was read under, and `describe`
+`Page.version` is the `providers.PAGE_VERSION` it was read under, and `with_page`
 reads again any whose version is older. **Bump `PAGE_VERSION` whenever a `Page`
 starts holding something new**, or postings already stored never get it; the bump
-costs one read per kept Greenhouse posting, once. `describe` only ever sees postings
+costs one read per kept Greenhouse posting, once. `with_page` only ever sees postings
 a board just listed, so one that has left its board is never asked for.
 
 That carrying forward means **changing `DESCRIPTION_CHARS` does not re-cut
@@ -148,8 +148,13 @@ every case in `tests/test_details.py` was seen in a real posting:
   month for twelve weeks is not $96,000 a year, so the feed carries `week` and `month`
   as well as `job_postings`' `hour` and `year`. An amount its label contradicts loses
   the label (Samsara's "Annual Base Salary: $38—$58"); `$120M` raised is not pay.
+  `feed.salary` always writes a range (`salary_min`/`salary_max`, equal for one
+  amount); the card prints an equal range once.
 - **"Intern" is not a job type.** Ashby and Lever say Intern where they could say
   Full-time; it says nothing about hours, so the description decides.
+- **A role's facts come whole from one posting**, its first copy with a page --
+  never field by field across copies of one URL, which would pair one copy's pay
+  with another's job type. `Role.facts.work_style` is the card's answer.
 - **Work style is the one fact the card infers** (`shortlist._work_style`), in this
   order: what the posting states (its board's field, or a sentence like Sigma's "an
   in-office work environment"); then what the company's other postings state, most
@@ -163,7 +168,9 @@ every case in `tests/test_details.py` was seen in a real posting:
 - **A start term comes from the title first.** "Software Engineer Intern (2027)" is the
   employer's label for its cohort. The description can name the season ("our Summer
   2027 program") or a start month, but only of the title's year; a year alone in a
-  description is as likely a founding date.
+  description is as likely a founding date. Years are any 20xx judged against
+  today (`details._near`: last year to three ahead), so no pattern needs editing
+  as the calendar moves.
 
 **The company name comes from `boards.csv`, not the provider.** Greenhouse's
 `company_name` carries internal labels ("LinkedIn Job Wrapping", "DRW - University

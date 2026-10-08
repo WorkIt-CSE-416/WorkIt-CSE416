@@ -129,7 +129,7 @@ def update(
     Stamps last_seen_at and carries first_seen_at forward, so first_seen_at is
     written once and never moves. A posting's `Page` is carried forward too when
     this read had none: Greenhouse's list never includes one, and each posting's
-    own page is read only once (see `__main__.describe`). `read` is the keys of the
+    own page is read only once (see `__main__.with_page`). `read` is the keys of the
     boards this run read completely; only those advance their `last_read_at`.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
@@ -138,10 +138,9 @@ def update(
         old = before.get(job.key)
         merged.append(
             replace(
-                job,
+                carry(job, before),
                 first_seen_at=(old.first_seen_at if old else None) or now,
                 last_seen_at=now,
-                **(_carried(job, old) if old else {}),
             )
         )
     seen = {job.key for job in fresh}
@@ -156,16 +155,14 @@ def update(
 
 
 def carry(job: Job, before: dict[str, Job]) -> Job:
-    """A freshly listed posting with what its stored self already knew."""
+    """A freshly listed posting with the page its stored self already had.
+
+    A Greenhouse listing has no page; the one read before stands until a newer
+    PAGE_VERSION reads it again. Ashby and Lever bring a fresh page every read,
+    which always wins -- facts an employer changed must not linger.
+    """
     old = before.get(job.key)
-    return replace(job, **_carried(job, old)) if old else job
-
-
-def _carried(job: Job, old: Job) -> dict[str, object]:
-    # A Greenhouse listing has no page; the one read before stands until a newer
-    # PAGE_VERSION reads it again. Ashby and Lever bring a fresh page every read,
-    # which always wins -- facts an employer changed must not linger.
-    return {"page": job.page or old.page}
+    return replace(job, page=job.page or old.page) if old else job
 
 
 def load(path: Path) -> Store | None:

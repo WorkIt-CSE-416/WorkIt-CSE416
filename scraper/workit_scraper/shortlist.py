@@ -24,7 +24,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 from workit_scraper.details import Facts
@@ -108,10 +108,10 @@ class Role:
     #: No posting behind this role was known to us before today. See `Store.is_new`.
     new: bool
     department: str | None
-    #: Stated, or inferred for the card: see `_work_style`.
-    work_style: str | None
     locations: tuple[str, ...]
     description: str | None
+    #: The first copy's facts, whole, with `work_style` as the card shows it:
+    #: stated, or inferred (see `_work_style`).
     facts: Facts = field(default_factory=Facts)
 
     @property
@@ -162,6 +162,9 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
         # saw *any* of its copies, so it is new only if that copy is. Unstamped sort last.
         oldest = min(postings, key=lambda job: (job.first_seen_at is None, job.first_seen_at))
         locations = tuple(dict.fromkeys(place for job in postings for place in job.places))
+        # Facts come whole from one copy, never field by field across copies:
+        # pay from one and job type from another would describe no posting.
+        facts = next((job.facts for job in postings if job.page), Facts())
         roles.append(
             Role(
                 title=postings[0].title,
@@ -173,27 +176,16 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 posted_at=min((job.posted_at for job in postings if job.posted_at), default=None),
                 new=is_new(oldest),
                 department=next((job.department for job in postings if job.department), None),
-                work_style=_work_style(postings, styles.get(postings[0].company)),
                 locations=locations,
                 description=next((job.description for job in postings if job.description), None),
-                facts=_merged([job.facts for job in postings]),
+                facts=replace(
+                    facts, work_style=_work_style(postings, styles.get(postings[0].company))
+                ),
             )
         )
     # None sorts last: a posting with no date is not a brand new one.
     return sorted(
         roles, key=lambda role: (role.posted_at is not None, role.posted_at or ""), reverse=True
-    )
-
-
-def _merged(facts: list[Facts]) -> Facts:
-    """Copies of one role at one URL: the first stated value of each fact."""
-    return Facts(
-        **{
-            f.name: next(
-                (getattr(x, f.name) for x in facts if getattr(x, f.name) is not None), None
-            )
-            for f in fields(Facts)
-        }
     )
 
 
