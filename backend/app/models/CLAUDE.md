@@ -333,6 +333,17 @@ made-up strings to their answers. **Add a failing string there before changing
 a rule**: the rules interact, and fixes broke other shapes more than once
 while it was written.
 
+**Every scraped job goes through it on the way in.** Insert or update scraped
+postings (`company_id` NULL) only through `app/scripts/import_jobs.py`, which
+resolves each listing's location and writes its `job_locations` rows in the
+same transaction. Never write scraped rows to `job_postings` any other way: no
+hand-written INSERT, no seed script, no new endpoint. A job that skips the
+resolver has no `job_locations` rows, so the location filter on the job board
+never shows it, and nothing reports that it's missing. A new path for scraped
+jobs either calls `import_jobs`' `prepare()` and its location sync or builds
+`LocationResolver` the same way and writes the rows itself. Company-posted jobs
+don't use the resolver: their form already gives a country and state.
+
 **Where.** `app/services/`, never this folder (`__init__.py` imports every
 file here as a model). Pure: no database, no network.
 

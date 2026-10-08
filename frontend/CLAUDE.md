@@ -203,6 +203,8 @@ src/lib/          Framework-free helpers
   auth.ts         apiFetch() to the Python API (with optional Bearer token),
                   extractErrorMessage, and auth types. Server-only.
   supabase/server.ts  Per-request Supabase client — auth only, never data
+  supabase/cookies.ts  sessionCookieOptions(): httpOnly, 7-day sb-* cookies.
+                  Both cookie writers (server.ts, src/proxy.ts) go through it
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448, violet — the auth card
   workit-logo-ink.png  The same lockup in --color-ink, for the company top bar
@@ -577,8 +579,16 @@ side:
   LinkedIn's OIDC prompt support isn't the same, so this stays Google-only.
 
 **The token travels server-side.** The browser holds only Supabase's
-`sb-*` cookies, on this origin. Server code reads the access token from the
-session and passes it to `apiFetch()` as a Bearer header — the API never sees
+`sb-*` cookies, on this origin. They are **httpOnly and live 7 days**
+(`lib/supabase/cookies.ts`, since 2026-10-08; the @supabase/ssr default is
+readable by page scripts and 400 days). The 7 days count from the last
+token refresh, so they are an idle limit, not a cap on how long a session
+lasts; a hard cap is Supabase's session time-box (dashboard → Authentication
+→ Sessions). Set `maxAge` in that helper's `setAll` path, never through
+`createServerClient`'s `cookieOptions`: @supabase/ssr 0.12 overwrites that
+maxAge with its own default. httpOnly holds only while no
+`createBrowserClient()` exists; adding one means turning it off.
+Server code reads the access token from the session and passes it to `apiFetch()` as a Bearer header — the API never sees
 the cookies and needs no CORS. Use `getClaims()`, not `getSession()`, for any
 decision made here; `getSession()` is fine for fetching a token to forward,
 because the API verifies it anyway.

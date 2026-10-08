@@ -73,6 +73,11 @@ changes, 2.9 s. A `--dry-run` writes and rolls back, which leaves dead rows
 until autovacuum clears them, so table sizes read straight after one are
 inflated.
 
+**It is the only way scraped jobs enter the database**, because it is the
+step that runs the location resolver and writes `job_locations`. A scraped
+row written any other way never shows up in the location filter.
+`app/models/CLAUDE.md` (the resolver section) has the rule.
+
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
 extraction (`test_resume_extraction.py`), the location resolver
 (`test_location_resolver.py`, which reads the real `data/places.tsv`) and
@@ -181,7 +186,8 @@ incident and the rule that prevents it; read it before your first migration.
 Location reference data (`countries`, `states`) is seeded by migrations, and
 `job_postings` references it by ISO code. `app/models/CLAUDE.md` owns the
 details: what is seeded and why, how the location columns and FKs are shaped,
-and the settled design for the location resolver, which is not written yet.
+and the location resolver, which every scraped job must pass through on its
+way into `job_postings`.
 
 Credentials live in Supabase's `auth.users`, not in these tables; the account
 tables' `id` references it. See Auth below.
