@@ -156,9 +156,10 @@ export type JobPostingCardData = {
   startTerm?: string | null | NotListed;
 };
 
-/** Ink at rest, brand on hover — see the note on the title and company name. */
+/** Ink at rest, brand on hover, eased rather than snapped. See the note on
+ *  the title and company name. */
 const INK_LINK =
-  "text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none";
+  "text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
 
 export function JobPostingCard({
   job,

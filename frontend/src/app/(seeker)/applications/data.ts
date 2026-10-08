@@ -1,7 +1,8 @@
-import type { ComponentType } from "react";
+import { cache } from "react";
 
-import { CalendarIcon, ClockIcon, CoinIcon, MonitorIcon, PinIcon } from "@/components/icons";
+import { CoinIcon, MonitorIcon, PinIcon } from "@/components/icons";
 
+import type { Application } from "../tracker";
 import {
   BuildingIcon,
   CloudIcon,
@@ -14,252 +15,256 @@ import {
   StorefrontIcon,
 } from "./icons";
 
-import type { StageKey } from "../stage-colors";
-
-export type Application = {
-  role: string;
-  company: string;
-  /** Stand-in for the company logo — see the note in icons.tsx. */
-  Icon: ComponentType<{ className?: string }>;
-  /** Where the application stands, shown as a chip beside the role. */
-  status?: string;
-  saved?: boolean;
-  /** Facts about the job rather than the application. */
-  tags?: string[];
-  /** The scheduled thing this card is waiting on. */
-  next?: { label: string; when: string };
-  /** A few words of when. On the board it shares the footer with the match,
-   *  and in the grid and list it sits beside the stage pill, so it never names
-   *  the stage itself: "14 days in", "Sent Sep 28", not "Interviewing for 14
-   *  days" or "Applied Sep 28". */
-  meta: { text: string; Icon?: ComponentType<{ className?: string }> };
-  /** A link in the footer — the one action a saved row offers. */
-  action?: { label: string; href: string };
-  /** A filled button, for the one card whose action cannot wait. */
-  cta?: string;
-  /**
-   * Exists because the shadcn kanban design has a slot for it and WorkIt had no
-   * field to fill it: a card there carries a two-line description. An invented
-   * fixture value, not measured from any mockup — what you would write to
-   * remind yourself what the role is. Replace it the moment real data exists; a
-   * card renders fine without it.
-   */
-  summary?: string;
-  /**
-   * 0-100. How well the job fits the seeker — the same score the Jobs screen
-   * shows, read in the bands in @/lib/match. Per application rather than per
-   * stage, so two cards in one column can disagree. Invented here.
-   */
-  match: number;
-  /** Draws the card selected. The mockup draws the Lead Designer card this way,
-   *  but the fixture leaves every card unset so the board shows cards at rest. */
-  active?: boolean;
-};
-
-export type Column = {
-  title: string;
-  /** Which stage the column is: its panel's tint, the icon and count in its
-   *  header, and the grid and list's badges. One map for every screen:
-   *  ../stage-colors.ts. */
-  stage: StageKey;
-  items: Application[];
-};
-
 /**
- * The fixture the KAN-43 mockup shows, filled out to three cards a column.
+ * The application tracker's fixture: twelve applications, three to a stage,
+ * read by the Applications board, grid and list and by the Dashboard's Next
+ * Up and Up Next. When the tracker has a backend this file becomes the fetch,
+ * and ../tracker.ts is the shape it returns.
  *
- * Every card carries the same set of fields — a summary long enough to fill its
- * two clamped lines, a next step, a match score, and no `cta` — so every card
- * on the board draws at the height of the mockup's Interviewing card. Cards of
- * mixed heights made it hard to judge how the board scrolls, which is what the
- * extra cards are for. Keep new cards to the same shape: a next-step label long
- * enough to wrap, or a `cta`, makes that one card taller. (A role cannot: the
- * board clamps it at two lines and always holds two lines' height.)
+ * THE DATES ARE RELATIVE TO TODAY, built per request by `getApplications`, so
+ * the sample search is always mid-flight: an interview tomorrow, an offer to
+ * answer next week. Fixed dates went stale within a fortnight, and a fixture
+ * whose every deadline has passed shows an empty Up Next.
  *
- * The mockup draws the first two cards in Saved and Applied and the first in
- * Interviewing and Offer. The rest are invented, and so is every `next` except
- * the Lead Designer card's, and every `match`.
+ * They are written on a New York clock, where the team is: `at(now, 1,
+ * "14:00")` is 2 PM in New York tomorrow, which a browser elsewhere shows in
+ * its own time. Bare dates (`day(now, 5)`) are due on a day and read the same
+ * everywhere.
  *
- * Two places where the mockup could not simply be copied:
- *
- * Its "Applied" column is headed 3 but draws two cards. The count on screen is
- * `items.length`, so it cannot disagree with what is drawn. The third card here
- * is invented, so the column now reads 3 like the mockup.
- *
- * The Offer column is clipped by the right edge of the export, so only "UI
- * Dev…", "FinTech C…" and "Deadline to accep…" are legible. The full strings
- * below are inferred. The mockup's green button is left off that card to keep
- * its height matched; the board still draws a `cta` for any card that has one.
+ * KAN-43's mockup drew the first two cards in Saved and Applied and the first
+ * in Interviewing and Offer; the rest, every event and every match are
+ * invented. Every card carries a summary long enough to fill its two clamped
+ * lines, so the board's cards stand at one height; keep new ones to that
+ * shape.
  */
-export const COLUMNS: Column[] = [
-  {
-    title: "Saved",
-    stage: "saved",
-    items: [
-      {
-        role: "Product Designer",
-        company: "TechNova Inc.",
-        match: 92,
-        summary:
-          "End-to-end product design for their B2B analytics suite, working alongside two PMs.",
-        Icon: BuildingIcon,
-        saved: true,
-        tags: ["Remote", "$120k - $150k"],
-        next: { label: "Next: Application Closes", when: "Oct 20, 11:59 PM EST" },
-        meta: { text: "Added 2 days ago" },
-        action: { label: "Apply", href: "/apply" },
-      },
-      {
-        role: "Frontend Engineer",
-        company: "Quantum Solutions",
-        match: 84,
-        summary:
-          "React and TypeScript on the design-systems team rebuilding their component library.",
-        Icon: CubeIcon,
-        saved: true,
-        next: { label: "Next: Coffee Chat", when: "Thursday, 10:00 AM EST" },
-        meta: { text: "Added 1 week ago" },
-      },
-      {
-        role: "Interaction Designer",
-        company: "Brightline Labs",
-        match: 61,
-        summary:
-          "Interaction design for a clinical scheduling tool used across three hospital networks.",
-        Icon: MonitorIcon,
-        saved: true,
-        next: { label: "Next: Virtual Info Session", when: "Oct 18, 1:00 PM EST" },
-        meta: { text: "Added 3 days ago" },
-      },
-    ],
-  },
-  {
-    title: "Applied",
-    stage: "applied",
-    items: [
-      {
-        role: "UX Researcher",
-        company: "Nexus Dynamics",
-        match: 78,
-        summary:
-          "Mixed-methods research on a fintech onboarding flow. Applied through their careers page.",
-        Icon: NodesIcon,
-        status: "Applied",
-        next: { label: "Next: Hear Back By", when: "Oct 26, per the recruiter" },
-        meta: { text: "Sent Sep 28", Icon: CalendarIcon },
-      },
-      {
-        role: "Senior UI Designer",
-        company: "RetailHub",
-        match: 88,
-        summary: "Design-system and UI work across the storefront and the merchant dashboard.",
-        Icon: StorefrontIcon,
-        status: "Applied",
-        next: { label: "Next: Recruiter Screen", when: "Oct 17, 11:30 AM EST" },
-        meta: { text: "Sent Sep 25", Icon: CalendarIcon },
-      },
-      {
-        role: "Product Engineer",
-        company: "Orbit Analytics",
-        match: 70,
-        summary:
-          "Full-stack work on self-serve dashboards. Referred by a former teammate on the data team.",
-        Icon: OrbitIcon,
-        status: "Applied",
-        next: { label: "Next: Follow Up", when: "Oct 15, if no reply" },
-        meta: { text: "Sent Sep 22", Icon: CalendarIcon },
-      },
-    ],
-  },
-  {
-    title: "Interviewing",
-    stage: "interviewing",
-    items: [
-      {
-        role: "Lead Designer",
-        company: "CloudSync",
-        match: 95,
-        summary:
-          "Leading design for the platform team. The technical interview is the third of four rounds.",
-        Icon: CloudIcon,
-        status: "Round 2",
-        next: { label: "Next: Technical Interview", when: "Tomorrow, 2:00 PM EST" },
-        meta: { text: "14 days in", Icon: ClockIcon },
-      },
-      {
-        role: "Design Systems Lead",
-        company: "Vertex Mobility",
-        match: 86,
-        summary:
-          "Owning the component library across the rider and driver apps. Round one was a portfolio review.",
-        Icon: PinIcon,
-        status: "Round 1",
-        next: { label: "Next: Hiring Manager Call", when: "Oct 16, 3:30 PM EST" },
-        meta: { text: "6 days in", Icon: ClockIcon },
-      },
-      {
-        role: "Product Designer II",
-        company: "Harbor Bank",
-        match: 58,
-        summary:
-          "Onboarding and account flows for their consumer app. The last step is an onsite with the team.",
-        Icon: LandmarkIcon,
-        status: "Final Round",
-        next: { label: "Next: Onsite Interview", when: "Oct 19, 9:00 AM EST" },
-        meta: { text: "21 days in", Icon: ClockIcon },
-      },
-    ],
-  },
-  {
-    title: "Offer",
-    stage: "offer",
-    items: [
-      {
-        role: "UI Developer",
-        company: "FinTech Corp",
-        match: 90,
-        summary: "Offer in hand for their payments dashboard team. Needs an answer by the 20th.",
-        Icon: CoinIcon,
-        next: { label: "Next: Negotiation Call", when: "Oct 17, 4:00 PM EST" },
-        meta: { text: "Respond by Oct 20" },
-      },
-      {
-        role: "Frontend Developer",
-        company: "Atlas Travel",
-        match: 81,
-        summary:
-          "Offer from the booking experience team, with a signing bonus. Waiting on the benefits details.",
-        Icon: PlaneIcon,
-        next: { label: "Next: Benefits Review", when: "Oct 18, 11:00 AM EST" },
-        meta: { text: "Respond by Oct 27" },
-      },
-      {
-        role: "UI/UX Designer",
-        company: "Greenleaf Energy",
-        match: 67,
-        summary:
-          "Verbal offer for the customer portal redesign. The written offer follows their reference checks.",
-        Icon: LeafIcon,
-        next: { label: "Next: Reference Check", when: "Oct 18, 2:00 PM EST" },
-        meta: { text: "Respond by Nov 3" },
-      },
-    ],
-  },
-];
 
-/** A stage with its contents removed — what an ungrouped view needs to label a card. */
-export type Stage = Omit<Column, "items">;
+const ZONE = "America/New_York";
+const YMD = new Intl.DateTimeFormat("en-CA", {
+  timeZone: ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const OFFSET = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, timeZoneName: "longOffset" });
 
-export type StagedApplication = Application & { stage: Stage };
+/** The New York date `days` from today, as "YYYY-MM-DD". */
+function day(now: Date, days: number) {
+  const [year, month, date] = YMD.format(now).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, date + days)).toISOString().slice(0, 10);
+}
 
-/**
- * Every application in one flat list, each carrying the stage it sits in.
- *
- * The board is grouped by stage and the grid and list are not, so the three
- * views cannot read the same shape. This is derived from COLUMNS rather than
- * written out again: a card added to the board turns up in all three views, and
- * the stage a card claims stays the column it is actually in.
- */
-export const APPLICATIONS: StagedApplication[] = COLUMNS.flatMap(({ items, ...stage }) =>
-  items.map((item) => ({ ...item, stage })),
-);
+/** The instant `days` from today at `time` ("14:00") on a New York clock,
+ *  moved to the Monday after when it lands on a weekend: nobody books an
+ *  interview for a Saturday. The offset is read at noon that day, so it
+ *  follows daylight saving. */
+function at(now: Date, days: number, time: string) {
+  const weekday = new Date(`${day(now, days)}T12:00:00Z`).getUTCDay();
+  const date = day(now, days + (weekday === 6 ? 2 : weekday === 0 ? 1 : 0));
+  const zone =
+    OFFSET.formatToParts(new Date(`${date}T12:00:00Z`)).find((part) => part.type === "timeZoneName")
+      ?.value ?? "GMT";
+  const offset = zone === "GMT" ? "Z" : zone.slice(3); // "GMT-04:00" -> "-04:00"
+  return new Date(`${date}T${time}:00${offset}`).toISOString();
+}
+
+function build(now: Date): Application[] {
+  const d = (days: number) => day(now, days);
+  const t = (days: number, time: string) => at(now, days, time);
+
+  return [
+    {
+      id: "technova-product-designer",
+      role: "Product Designer",
+      company: "TechNova Inc.",
+      Icon: BuildingIcon,
+      stage: "saved",
+      summary:
+        "End-to-end product design for their B2B analytics suite, working alongside two PMs.",
+      match: 92,
+      savedOn: d(-2),
+      appliedOn: null,
+      events: [{ kind: "deadline", title: "Application Closes", at: t(8, "23:59") }],
+    },
+    {
+      id: "quantum-frontend-engineer",
+      role: "Frontend Engineer",
+      company: "Quantum Solutions",
+      Icon: CubeIcon,
+      stage: "saved",
+      summary:
+        "React and TypeScript on the design-systems team rebuilding their component library.",
+      match: 84,
+      savedOn: d(-7),
+      appliedOn: null,
+      events: [{ kind: "deadline", title: "Application Closes", at: d(12) }],
+    },
+    {
+      // No closing date posted, so it is the one card with nothing scheduled.
+      id: "brightline-interaction-designer",
+      role: "Interaction Designer",
+      company: "Brightline Labs",
+      Icon: MonitorIcon,
+      stage: "saved",
+      summary:
+        "Interaction design for a clinical scheduling tool used across three hospital networks.",
+      match: 61,
+      savedOn: d(-3),
+      appliedOn: null,
+      events: [],
+    },
+    {
+      id: "nexus-ux-researcher",
+      role: "UX Researcher",
+      company: "Nexus Dynamics",
+      Icon: NodesIcon,
+      stage: "applied",
+      summary:
+        "Mixed-methods research on a fintech onboarding flow. Applied through their careers page.",
+      match: 78,
+      savedOn: d(-12),
+      appliedOn: d(-8),
+      events: [{ kind: "follow-up", title: "Hear Back By", at: d(10) }],
+    },
+    {
+      id: "retailhub-senior-ui-designer",
+      role: "Senior UI Designer",
+      company: "RetailHub",
+      Icon: StorefrontIcon,
+      stage: "applied",
+      summary: "Design-system and UI work across the storefront and the merchant dashboard.",
+      match: 88,
+      savedOn: d(-14),
+      appliedOn: d(-11),
+      events: [{ kind: "interview", title: "Recruiter Screen", at: t(4, "11:30") }],
+    },
+    {
+      id: "orbit-product-engineer",
+      role: "Product Engineer",
+      company: "Orbit Analytics",
+      Icon: OrbitIcon,
+      stage: "applied",
+      summary:
+        "Full-stack work on self-serve dashboards. Referred by a former teammate on the data team.",
+      match: 70,
+      savedOn: d(-18),
+      appliedOn: d(-14),
+      events: [{ kind: "follow-up", title: "Follow Up", at: d(2) }],
+    },
+    {
+      id: "cloudsync-lead-designer",
+      role: "Lead Designer",
+      company: "CloudSync",
+      Icon: CloudIcon,
+      stage: "interviewing",
+      status: "Round 3",
+      summary:
+        "Leading design for the platform team. The technical interview is the third of four rounds.",
+      match: 95,
+      savedOn: d(-30),
+      appliedOn: d(-21),
+      events: [
+        { kind: "interview", title: "Recruiter Screen", at: t(-14, "10:00") },
+        { kind: "interview", title: "Portfolio Review", at: t(-6, "15:00") },
+        { kind: "interview", title: "Technical Interview", at: t(1, "14:00") },
+      ],
+    },
+    {
+      id: "vertex-design-systems-lead",
+      role: "Design Systems Lead",
+      company: "Vertex Mobility",
+      Icon: PinIcon,
+      stage: "interviewing",
+      status: "Round 2",
+      summary:
+        "Owning the component library across the rider and driver apps. Round one was a portfolio review.",
+      match: 86,
+      savedOn: d(-16),
+      appliedOn: d(-12),
+      events: [
+        { kind: "interview", title: "Portfolio Review", at: t(-5, "13:00") },
+        { kind: "interview", title: "Hiring Manager Call", at: t(3, "15:30") },
+      ],
+    },
+    {
+      id: "harbor-product-designer-ii",
+      role: "Product Designer II",
+      company: "Harbor Bank",
+      Icon: LandmarkIcon,
+      stage: "interviewing",
+      status: "Final Round",
+      summary:
+        "Onboarding and account flows for their consumer app. The last step is an onsite with the team.",
+      match: 58,
+      savedOn: d(-35),
+      appliedOn: d(-28),
+      events: [
+        { kind: "interview", title: "Phone Screen", at: t(-20, "11:00") },
+        { kind: "interview", title: "Design Exercise Review", at: t(-9, "14:00") },
+        { kind: "interview", title: "Onsite Interview", at: t(6, "09:00") },
+      ],
+    },
+    {
+      id: "fintech-ui-developer",
+      role: "UI Developer",
+      company: "FinTech Corp",
+      Icon: CoinIcon,
+      stage: "offer",
+      summary: "Offer in hand for their payments dashboard team. Needs an answer within the week.",
+      match: 90,
+      savedOn: d(-40),
+      appliedOn: d(-33),
+      events: [
+        { kind: "interview", title: "Recruiter Screen", at: t(-26, "10:30") },
+        { kind: "interview", title: "Final Round", at: t(-12, "13:00") },
+        { kind: "offer", title: "Offer Received", at: d(-3) },
+        { kind: "offer", title: "Negotiation Call", at: t(2, "16:00") },
+        { kind: "offer", title: "Respond By", at: d(7) },
+      ],
+    },
+    {
+      id: "atlas-frontend-developer",
+      role: "Frontend Developer",
+      company: "Atlas Travel",
+      Icon: PlaneIcon,
+      stage: "offer",
+      summary:
+        "Offer from the booking experience team, with a signing bonus. Waiting on the benefits details.",
+      match: 81,
+      savedOn: d(-38),
+      appliedOn: d(-30),
+      events: [
+        { kind: "interview", title: "Technical Interview", at: t(-18, "14:00") },
+        { kind: "interview", title: "Final Round", at: t(-10, "11:00") },
+        { kind: "offer", title: "Offer Received", at: d(-2) },
+        { kind: "offer", title: "Benefits Review", at: t(5, "11:00") },
+        { kind: "offer", title: "Respond By", at: d(14) },
+      ],
+    },
+    {
+      id: "greenleaf-ui-ux-designer",
+      role: "UI/UX Designer",
+      company: "Greenleaf Energy",
+      Icon: LeafIcon,
+      stage: "offer",
+      summary:
+        "Verbal offer for the customer portal redesign. The written offer follows their reference checks.",
+      match: 67,
+      savedOn: d(-45),
+      appliedOn: d(-37),
+      events: [
+        { kind: "interview", title: "Hiring Manager Call", at: t(-22, "15:00") },
+        { kind: "offer", title: "Verbal Offer", at: d(-1) },
+        { kind: "offer", title: "Reference Check", at: t(5, "14:00") },
+        { kind: "offer", title: "Written Offer Due", at: d(9) },
+      ],
+    },
+  ];
+}
+
+/** The time of the request, read once. cache() so every component in one
+ *  render agrees on it: the fixture is dated against it, and the pages ask
+ *  what is still upcoming against the same instant. */
+export const getNow = cache(() => new Date());
+
+/** Every application, dated against the time of the request. */
+export const getApplications = cache(() => build(getNow()));

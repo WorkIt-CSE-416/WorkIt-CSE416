@@ -3,6 +3,7 @@ import Link from "next/link";
 import { HeroArcs } from "@/components/hero-arcs";
 import { ArrowRightIcon, CalendarIcon } from "@/components/icons";
 
+import { DayLink, When } from "../local-time";
 import type { UpNextItem } from "./data";
 
 /**
@@ -21,6 +22,11 @@ import type { UpNextItem } from "./data";
  * White on the gradient is 6.26:1 at the light end (#6d3fd8) and higher as it
  * deepens; the secondary lines use white at 85%, which stays above 4.5:1 on
  * the lightest stop.
+ *
+ * The arrow opens this application's detail panel on /applications, so the
+ * one thing that most needs the seeker is one click from its whole timeline.
+ * The date is the viewer's own clock (<When>), "Tomorrow, 2:00 PM", and a link
+ * to that week on the Calendar.
  *
  * With nothing coming up it says so and points at the feed, rather than
  * disappearing and leaving a hole beside the numbers.
@@ -56,18 +62,26 @@ export function NextUpHero({ item }: { item: UpNextItem | undefined }) {
 
         <div className="mt-auto flex items-end justify-between gap-4 pt-6">
           {item && (
-            <p className="text-label flex items-center gap-1.5 font-semibold">
+            <DayLink
+              at={item.at}
+              view="week"
+              // Its underline fades in under the pointer rather than
+              // snapping on.
+              className="text-label flex items-center gap-1.5 rounded-xs font-semibold underline decoration-transparent underline-offset-4 transition-[text-decoration-color] duration-150 hover:decoration-current focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+            >
               <CalendarIcon className="size-4 shrink-0" />
-              {item.when}
-            </p>
+              <When at={item.at} />
+            </DayLink>
           )}
 
           <Link
-            href={item ? "/applications" : "/jobs"}
-            aria-label={item ? "Open in Applications" : "Browse Jobs"}
-            className="text-brand-ink ml-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_20px_rgb(18_26_40/0.25)] transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent focus-visible:outline-none"
+            href={item ? `/applications?app=${item.applicationId}` : "/jobs"}
+            aria-label={item ? `Open ${item.role} at ${item.company}` : "Browse Jobs"}
+            // Swells a little under the pointer, its arrow leaning on, and
+            // presses in on the click, all on the glide.
+            className="group/next text-brand-ink ease-glide ml-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_20px_rgb(18_26_40/0.25)] transition-transform duration-200 hover:scale-105 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent focus-visible:outline-none active:scale-95"
           >
-            <ArrowRightIcon className="size-5" />
+            <ArrowRightIcon className="ease-glide size-5 transition-transform duration-200 group-hover/next:translate-x-0.5" />
           </Link>
         </div>
       </div>

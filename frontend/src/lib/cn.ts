@@ -32,6 +32,22 @@ import { extendTailwindMerge } from "tailwind-merge";
  */
 const twMerge = extendTailwindMerge({
   extend: {
+    // The motion tokens, so `ease-out` and `ease-glide` are one group and the
+    // later wins, likewise two animations.
+    theme: {
+      ease: ["glide", "spring", "exit"],
+      animate: [
+        "rise",
+        "pop",
+        "fade",
+        "draw-y",
+        "draw-x",
+        "ring-fill",
+        "swing",
+        "typing",
+        "status-ping",
+      ],
+    },
     classGroups: {
       "font-size": [
         {
@@ -49,7 +65,7 @@ const twMerge = extendTailwindMerge({
         },
       ],
       rounded: [{ rounded: ["control", "card", "shell"] }],
-      shadow: [{ shadow: ["card", "panel"] }],
+      shadow: [{ shadow: ["card", "panel", "lift"] }],
       "max-w": [{ "max-w": ["auth", "app"] }],
     },
   },

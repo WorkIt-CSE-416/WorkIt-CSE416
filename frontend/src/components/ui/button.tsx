@@ -69,8 +69,14 @@ import { cn } from "@/lib/cn";
  * the enclosing form.
  * ------------------------------------------------------------------------- */
 
+/**
+ * Every button presses in: 98% on mouse-down, back on release, 150ms either
+ * way, with its colours fading on the same clock rather than snapping. The
+ * press is what makes a click feel received before anything it starts has
+ * happened; see "Motion" in frontend/CLAUDE.md.
+ */
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center font-medium focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {

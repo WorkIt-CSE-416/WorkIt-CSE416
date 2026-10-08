@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { AwardIcon, BriefcaseIcon, CalendarIcon, MailIcon } from "@/components/icons";
-import { StatTile } from "@/components/stat-tile";
 import { cn } from "@/lib/cn";
 import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
-import { RANGES, STATS, UP_NEXT, appliedDays, parseRange } from "./data";
+import { STATS, getUpNext, appliedDays } from "./data";
+import { Headline } from "./headline";
 import { NewMatches, NewMatchesSkeleton } from "./new-matches";
 import { NextUpHero } from "./next-up-hero";
 import { RangeSwitch } from "./range-switch";
@@ -47,7 +46,10 @@ export const metadata: Metadata = {
  * The range scopes the numbers only. Activity is a daily streak over the past
  * year, since a streak is about every day rather than a window of them; it
  * used to be a weekly pace chart, which said less about the habit than a
- * year of days does. Next Up, Up Next, New Matches and Waiting are about now.
+ * year of days does. The range is read in the browser (./range-switch.tsx):
+ * this page hands the headline every range's figures, and a switch redraws
+ * them in place without asking the server for the page again. Next Up, Up
+ * Next, New Matches and Waiting are about now.
  *
  * Most of it is fixtures (./data.ts) until the application tracker has a
  * backend; New Matches is the live feed.
@@ -59,14 +61,10 @@ export const metadata: Metadata = {
  * numbers went four across in a 3fr column too narrow for them, and "Response
  * Rate" wrapped and dropped its value below the other three.
  */
-const STAT_ICONS = [BriefcaseIcon, MailIcon, CalendarIcon, AwardIcon];
-
-export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
-  const range = parseRange((await searchParams).range);
-  const { period, note } = RANGES.find((option) => option.key === range)!;
+export default async function DashboardPage() {
   const account = await getCurrentAccount();
   const firstName = account?.full_name.split(" ")[0];
-  const [next, ...later] = UP_NEXT;
+  const [next, ...later] = getUpNext();
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -82,27 +80,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <p className="text-body text-ink-meta mt-1">Here&apos;s where your search stands.</p>
             </div>
 
-            <RangeSwitch current={range} />
+            <RangeSwitch />
           </header>
 
-          <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-6 pt-8 @lg/kpis:grid-cols-4">
-            {STATS[range].map((stat, i) => (
-              <StatTile
-                key={stat.label}
-                plain
-                label={stat.label}
-                Icon={STAT_ICONS[i]}
-                value={stat.value}
-                suffix={stat.suffix}
-                note={note}
-                delta={
-                  stat.previous !== null && period
-                    ? { value: stat.value - stat.previous, period, upIsGood: true }
-                    : undefined
-                }
-              />
-            ))}
-          </div>
+          <Headline stats={STATS} />
         </div>
 
         <NextUpHero item={next} />

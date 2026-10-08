@@ -28,10 +28,12 @@ export function SectionLink({
     <Link
       href={href}
       aria-label={label}
-      className="text-label text-ink-muted hover:text-ink focus-visible:ring-brand-ring inline-flex shrink-0 items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+      // The arrow leans the way the link goes when the pointer is on it: a
+      // 2px nudge on the glide, back on leaving.
+      className="group/section-link text-label text-ink-muted hover:text-ink focus-visible:ring-brand-ring inline-flex shrink-0 items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
     >
       {children}
-      <ArrowRightIcon className="size-3.5" />
+      <ArrowRightIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/section-link:translate-x-0.5" />
     </Link>
   );
 }

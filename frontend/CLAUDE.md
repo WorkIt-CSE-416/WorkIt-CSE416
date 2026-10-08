@@ -72,6 +72,9 @@ key never goes here.
 ```
 src/proxy.ts      Refreshes the Supabase session on every request (Next 16's
                   renamed middleware). Not a security boundary.
+src/react-canary.d.ts  Loads React's canary types (<ViewTransition>,
+                  addTransitionType): the App Router runs React canary, and
+                  @types/react's stable entry does not declare them
 src/app/          App Router routes, layouts, pages
   layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
   page.tsx        Route "/"
@@ -83,7 +86,17 @@ src/app/          App Router routes, layouts, pages
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
-                  error state, so a role looks the same on both pages
+                  error state, so a role looks the same on both pages.
+                  /applications is the tracker: a board, grid and list over
+                  the fixture in applications/data.ts, every choice in the
+                  URL (applications/query.ts), ?app= opening one application
+                  in the detail panel. tracker.ts is the tracker's shape and
+                  date logic; local-time.tsx prints its dates in the
+                  viewer's own zone and links them to the Calendar.
+                  /calendar puts the same entries on a Month, Week or
+                  Agenda (calendar/), rendered in the browser.
+                  template.tsx wraps each section's page in the page
+                  transition (Motion, below); company/ has its own
   api/scout/      The one route handler: forwards a Scout turn to the API with
                   the session's token and pipes the NDJSON reply back. A route
                   handler, not an action, because the reply streams
@@ -126,6 +139,11 @@ src/components/   Shared components
   notifications-menu.tsx  The bar's bell, a popover holding an empty state.
                   Shared by both shells
   save-button.tsx The one Save control on every job surface
+  shallow-routing.tsx  Changes a page's query in place: <ShallowRouting>
+                  (wrapping the seeker pages in (seeker)/layout.tsx) holds
+                  the query the page shows, useShallowParams reads it, and
+                  <ShallowLink> and SegmentedLinks' `shallow` move it. See
+                  Motion, below
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
   account-menu.tsx  Both bars' account dropdown: a name and email header,
@@ -136,22 +154,30 @@ src/components/   Shared components
                   photo alone
   scout/          Scout, the job assistant. scout-store holds the one chat per
                   tab (a module store, so no provider); scout-panel docks
-                  beside the page, never over it, and opens only on a click;
+                  beside the page, never over it, and opens only on a click.
+                  It stays mounted and opens in two moves: its room appears
+                  at once and the page settles into its new width, while the
+                  panel slides in from the window's edge; Escape or its X
+                  closes it and hands
+                  focus back to the bar's launcher, which shows pressed while
+                  the panel is open;
                   stream.ts mirrors the API's NDJSON events; reply-text
                   renders a reply's **bold** and "- " bullets, the prompt's
                   whole formatting vocabulary, with no markdown library (a
                   reply stays escaped text otherwise). The brain is the
                   repo's scout/ — read its CLAUDE.md first.
-  ui/             Presentational primitives: badge, button, card, company-tile,
-                  empty-state, fact, filter-chip (only the design kit shows
-                  it today), icon-button, search-field, section,
-                  section-heading, section-link, select-field, text-field,
-                  text-link
+  ui/             Presentational primitives: animated-number, badge, button,
+                  card, company-tile, empty-state, fact, filter-chip (only
+                  the design kit shows it today), icon-button, search-field,
+                  section, section-heading, section-link, segmented-control,
+                  select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
 src/lib/          Framework-free helpers
   cn.ts           Class-name joiner — clsx + tailwind-merge
+  format-count.ts formatCount() for a headline figure ("1,234", "12.3K"),
+                  in en-US so the server and the browser print the same
   api.ts          Server-only apiUpload (multipart, POST or PUT), apiGet,
                   apiDelete. Guarded with `import "server-only"`. Uses
                   API_URL (not NEXT_PUBLIC_*).
@@ -230,11 +256,25 @@ component that shows `?q` while on /search and empties elsewhere, because a
 layout never receives searchParams. Lift a `<TopBar>` out only if they are
 still near-identical once both sides are real screens.
 
-Seeker pages break on the width they actually get, not the window's: the shell
-makes its page panel `@container/main`, because an open panel takes 280px
-with its insets. A
-layout that splits into columns uses `@3xl/main:` and friends, and a card that
-rearranges itself (the job card) is its own `@container`. Pages render a
+Seeker pages break on the width they actually get, not the window's: the
+shell renders them inside `@container/main`, because an open panel takes
+280px with its insets. **That width is the one they have with the panel
+open, in both states**: collapsing the panel re-centres the page in the room
+it frees and never rearranges it (`(seeker)/layout.tsx`, "A PAGE KEEPS THE
+WIDTH"). Keyed to the `<main>` itself, collapsing between about 800 and
+1300px moved the Dashboard from one column to two and its range switch from
+the page's right edge to its middle, wrapped the Calendar's view switch, and
+turned the Week into seven columns. The container is `--panel-gain`
+narrower than the `<main>`, a registered length that eases over the panel's
+own 200ms linear, so the page holds its width through the animation; keep
+the two durations equal. A layout that splits into columns uses
+`@3xl/main:` and friends, a card that rearranges itself (the job card) is
+its own `@container`, and both see the same width whether the panel is open
+or not. On Applications and the Calendar the segmented control sits at the
+top right of the header wherever it fits beside the title, the title
+wrapping first; the Dashboard's range switch sits at the top right of its
+first column and wraps under the greeting where that column is narrow.
+Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
 The seeker bar shows the signed-in account's real photo, with the full name
@@ -243,15 +283,15 @@ bell and search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
 `lib/session.ts`, cached per render. The whole block is the trigger of
 `components/account-menu.tsx`, passed in as its `children`, and opens
 Settings, Help and Sign Out (with the account header only below lg, where the
-block shows just the photo). From xl the
-bar adds a pill for roles posted in the last 24 hours when there are any
-(`(seeker)/status.ts`).
+block shows just the photo). A "N New Roles Since Yesterday" pill used to sit
+beside it from xl; it was removed as a distraction, along with the
+`/jobs?limit=500` fetch it made on every page.
 The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-The seeker panel holds only the search (Dashboard, Jobs, Applications, My
-Profile), with no caption over it. Settings, Help and Sign Out, once its General
+The seeker panel holds only the search (Dashboard, Jobs, Applications,
+Calendar, My Profile), with no caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
@@ -266,8 +306,18 @@ each kind of content its own surface instead of a white card each: the numbers
 open under the greeting, one violet Next Up hero (the only solid colour), open
 sections for Activity and the lists. There is no pipeline section: its
 funnel only restated the headline numbers. Fixtures are in
-`(seeker)/dashboard/data.ts` until the tracker is real. Its range is
-`?range=`, links rather than client state.
+`(seeker)/dashboard/data.ts` until the tracker is real, except Next Up and Up
+Next, which take the tracker fixture's upcoming events (`getUpNext`). Next
+Up's arrow opens that application's detail panel and its date that week on
+the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
+All the Agenda; Waiting's Follow Up opens the Applications list filtered to
+Applied. The stat tiles do not link: their figures are a separate fixture
+from the tracker's twelve applications, so a tile would open a list that
+disagrees with its number. Its range is `?range=`, moved in place: the
+headline (`dashboard/headline.tsx`) is handed every range's figures and reads
+`?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
+its numbers with the switch's thumb instead of after the server draws the
+page again. The streak always shows the full year regardless of range.
 
 **Activity is a daily streak** (`(seeker)/dashboard/streak.tsx`), no longer
 a weekly pace chart: the past year of applications per day as a heat map that
@@ -299,11 +349,82 @@ variant="section">` for an action. Keep it that way: a page of identical boxes
 has no first place to look. Each page's docblock says what goes where.
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the Dashboard's Up Next and the Applications board, grid and list alike; on the board
-the stage tints the column panel, never the cards inside it. The three views
-also say the same thing about an application: each shows its next step
-through `(seeker)/applications/next-step.tsx` ("Nothing scheduled" when
-there is none). There is no progress bar; it only restated the stage.
+the Dashboard's Up Next, the Applications board, grid, list and detail panel,
+and the Calendar alike; on the board the stage tints the column panel, never the cards
+inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
+interview is Interviewing's amber, an offer Offer's green, a deadline Saved's
+grey, the applied date and a follow-up Applied's violet. The three views also
+say the same thing about an application: each shows its next step through
+`(seeker)/applications/next-step.tsx` ("Nothing scheduled" when there is
+none). There is no progress bar; it only restated the stage.
+
+**Application dates are real dates.** The tracker fixture
+(`(seeker)/applications/data.ts`) dates every application against the
+request (`getApplications` and `getNow`, both `cache()`d), on a New York
+clock, so the sample search is always mid-flight; a timed event that lands on
+a weekend moves to the Monday after. The shape is `(seeker)/tracker.ts`, and
+it is what the tracker's backend should return: an ISO instant for something
+at a time, a bare ISO date for something due on a day. The server decides
+what is upcoming against `getNow()` (a day-only entry stays upcoming until
+its day has ended in UTC-12) but never which day an instant falls on: it
+prints the UTC date, and `<When>` in `(seeker)/local-time.tsx` swaps in the
+viewer's own "Tomorrow, 2:00 PM" after hydration.
+
+**The Applications page keeps every choice in its URL** (`applications/query.ts`):
+`?view=`, `?stage=` (a comma list), `?q=`, the list's `?sort=` and `?app=`,
+the application open in the detail panel. Links and a GET form, not client
+state, so every view stays a server component and the Dashboard can link to a
+filtered list or one application. The layout is the exception in how it
+moves, not in where it lives: the page renders all three layouts, each
+building its links for itself, `applications/view-panes.tsx` shows the one
+the URL names, and the switcher moves `?view=` in place. Anything else that
+builds a link from the layout (the filter bar, Clear Filters) reads it in the
+browser through `useApplicationsQuery`, since a layout switch never asks the
+server to draw them again. A card or row is one link: its role, stretched
+over it. Its next step is a second, `relative` link to that week on
+the Calendar, which paints over the stretched one.
+
+**Every choice of one among a few is `ui/segmented-control.tsx`**: the
+Calendar's Month, Week and Agenda, the Dashboard's range, the Applications
+layouts, the sign-in card's Applicant or Company, and the company chart's
+range. A pill-shaped track (a 5% ink wash, so it reads on the white page and
+the off-white auth card alike, and no outline) with a white thumb that slides
+to the chosen option on the 300ms glide (Motion, below), and jumps under
+reduced motion. The options are equal width, so the thumb is placed with CSS
+alone and the server renders it in place. `SegmentedLinks` is for a choice
+kept in the URL: the thumb moves on the click, before anything else answers.
+Every caller today passes `shallow`, which moves the query in place
+(`components/shallow-routing.tsx`) for content the page already holds, so
+the content redraws with the thumb; without it, the page goes back to the
+server and the content follows a round trip later. `SegmentedToggle` is for component state, on Base UI's
+ToggleGroup for its arrow keys and single tab stop; a null value hides the
+thumb. An icon option is a rendered element, not a component, since a server
+page passes the options. Build a new segmented choice from it rather than
+styling a ToggleGroup by hand.
+
+**The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
+application went in, interviews, offers and their deadlines, closing dates
+and follow-ups, in their kind's stage colour, with a legend. `?view=` picks
+Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
+`?app=` opens the same detail panel Applications does, with a way across.
+Without `?date=` it opens on the viewer's today, which the server cannot
+know, so the views render in the browser behind a placeholder
+(`calendar-view.tsx`, `useHydrated`). They read the view and the day from
+the page's query themselves (`useCalendarQuery` in `view-switch.tsx`), and
+the view switch, the arrows, Today and a day's number move it in place; an
+entry is a real link, since its panel is drawn on the server. Its layout follows a reference the team
+picked: the span's title at the top left with round grey arrows at the top
+right, small uppercase weekday names, each day a light grey rounded tile with
+gaps rather than a ruled grid, today's tile white and outlined in the brand,
+and the legend at the foot. Week days and Agenda entries are the same tiles,
+and Today is a grey pill just left of the arrows, in their fill, so the three
+read as one group.
+It sits open on the page, not in a card: the page panel is already white.
+Month chips name the company and carry no time, since the colour already says
+what kind of entry it is; Week and Agenda name both. A
+link into the Calendar from anywhere else goes through `DayLink` in
+`(seeker)/local-time.tsx`, which picks the viewer's local day the way
+`<When>` picks their words.
 
 A match score has its own colour and never borrows a stage's. The four
 `--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a
@@ -583,6 +704,106 @@ right for date-only strings.
 
 `@/*` maps to `src/*` — that is `frontend/src`, resolved by
 `frontend/tsconfig.json`. It does not reach outside this folder.
+
+## Motion
+
+Everything that moves speaks one language, defined in `globals.css` (the
+Motion block in `@theme`, and the view-transition rules after it) and shown
+moving at `/design-kit/motion`. The rules:
+
+- **Three curves, picked by role.** `--ease-glide` for what travels and
+  settles (a thumb, a highlight, a card lifting, a page arriving),
+  `--ease-spring` for what pops into place (a chip's cross, a badge, never
+  anything that travels far), `--ease-exit` for what leaves. Durations go by
+  role too: 150ms for a press or a colour, 200ms for a hover fill or a nudge,
+  about 250ms for content arriving, 300 to 320ms for a glide. An exit is
+  always shorter than the entrance after it, so the old thing is gone before
+  the new one asks to be looked at.
+- **Every control answers the pointer.** A button presses to 98%, an icon
+  button or a calendar arrow to 90%, a segment to 96%, and a card that is one
+  whole target lifts 2px onto `--shadow-lift` and settles on the press. The
+  presses live in `ui/button.tsx`, `ui/icon-button.tsx` and
+  `ui/segmented-control.tsx`, so a new control gets one by using them. A
+  colour change eases rather than snaps, an underline fades in
+  (`decoration-transparent` to `decoration-current`) rather than appearing,
+  and an arrow leans 2px the way its link goes while the link is hovered.
+- **Content arrives, staggered and capped.** A list rises in
+  (`animate-rise`; a table row takes `animate-fade`, since browsers do not
+  reliably paint a row's transform) with an `animation-delay` per item,
+  capped at the sixth to tenth item so a long list never keeps anyone
+  waiting. Only arrival animates. A figure that changes in place counts to
+  its new value (`ui/animated-number.tsx`, which never counts up on load),
+  and a line of words fades in again, keyed on what it says.
+- **The left panel's highlights glide.** Each menu in
+  `components/app-sidebar.tsx` draws one hover fill and one current fill
+  behind its rows and moves them by row index, with nothing measured, so
+  pointing down the panel slides one fill instead of blinking a fill per row.
+  GlideMenu there has the details.
+- **Pages and views change through React's `<ViewTransition>`**, which Next
+  16 runs on every navigation with no config. `(seeker)/template.tsx` and
+  `company/template.tsx` wrap each section's page. A template remounts when
+  the section changes but not when only the query does, so moving between
+  sections is an exit and an enter (`page-exit`, `page-enter`) while a filter
+  or `?app=` is not. Inside a page, the Applications results are keyed on
+  their shape (the view, the board's columns, or nothing matching) and swap
+  (`swap-enter`, `swap-exit`); within one shape each card or row is keyed by
+  its application (`applications/reflow.tsx`) and glides to its new place
+  when the list is sorted or filtered (`reflow`). The Calendar keys its
+  title and view on the span, and its arrows and Today tag their moves
+  `nav-back` or `nav-forward` (`<ShallowLink transitionType>`, which does what
+  `<Link transitionTypes>` does for a real navigation), so the span slides
+  the way time went (`step-back`, `step-forward`). Every `<ViewTransition>` here sets
+  `default="none"`, so it animates only for the change it names.
+- **A choice the page can already draw never waits on the server.** The
+  Dashboard's range, the Applications layout and the Calendar's view and
+  span move the query in place (`components/shallow-routing.tsx`): the
+  content holds every option and reads the query itself, so it redraws in
+  the next frame, where a link to the server made it trail the segmented
+  control's thumb by a round trip. The shown query is held in
+  `<ShallowRouting>`'s state and set inside a transition, and the address
+  bar follows once that has drawn. It cannot be read straight from
+  `useSearchParams` after a bare `history.pushState`: Next applies that URL
+  in a microtask after the caller's transition has ended (its router
+  reducer is async), so the redraw is an ordinary update and no
+  `<ViewTransition>` runs. Anything that depends on the server (a filter,
+  the list's sort, `?app=`) stays a real link.
+- **The root's own crossfade is off** (`::view-transition-old(root)` is
+  hidden). Everything outside a `<ViewTransition>` then updates live, which
+  is what lets the sidebar's fill glide beside a changing page instead of
+  ghosting at both rows. The overlay lets clicks through.
+- **The detail panel slides out before it navigates.** Closing shuts the
+  sheet locally and drops `?app=` in `onOpenChangeComplete`, since the
+  navigation unmounts it; `applications/detail-panel.tsx` says why it
+  remembers the object it closed on rather than the id.
+- **Reduced motion is one rule**, at the foot of the motion CSS: every
+  animation, transition and view transition completes at once (1ms, not 0,
+  so Base UI's dialogs still hear an animation end). Do not add
+  `motion-reduce:` per component; the rule already covers it.
+- **Chrome skips a view transition in a hidden tab**, and the browser pane
+  times one out while the pane is not on screen ("Transition was aborted
+  because of timeout in DOM update"). Neither is a bug. Check one in a
+  visible window, or watch the `view-transition-class` React sets.
+- **Scout's panel slides in; the page does not get squeezed.** It stays
+  mounted, inert while closed. Opening makes its 396px of room in one step, so
+  the page lays itself out once and then settles into place (a 32px glide and
+  fade, `scout-page-in` in `globals.css`), while the panel slides in from the
+  window's edge on transform alone (360ms). Closing gives the room back at
+  once, and the panel slides out over the page's edge (200ms) as the page
+  settles wider; holding the room until it had gone read as lag. Animating the panel's width instead made
+  the page re-lay itself out every frame, rewrapping text and dropping a
+  column partway through. Below md it rises over the window instead. Its
+  messages rise in, its thinking is three looping dots (`--animate-typing`),
+  and its Send stays hoverable (aria-disabled) so its tooltip can say why it
+  won't send. `components/scout/scout-panel.tsx` has the details.
+- **Clickable means the hand.** Tailwind v4 dropped the pointer from
+  buttons, so `globals.css` restores it in one place: buttons,
+  `role="button"`, tabs, switches, checkboxes, selects and the native parts
+  of a field (a search field's clear cross, a date field's picker, a file
+  input's button) in the base layer, and menu, select and combobox rows in
+  the utilities layer, where it outranks the vendored `cursor-default`. A
+  new clickable element gets the hand from that rule or by being a link;
+  write `cursor-pointer` only on something that is neither, like a `<label>`
+  that toggles a switch.
 
 ## Conventions
 

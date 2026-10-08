@@ -1,9 +1,8 @@
 "use client";
 
-import { Box, Grid3x3 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
 import { MORPH_MS, mountSkyline, type Skyline, type SkylineState } from "./streak-canvas";
@@ -47,16 +46,15 @@ import {
 
 type View = "2d" | "3d";
 
-const VIEWS: { view: View; label: string; Icon: typeof Box }[] = [
-  { view: "2d", label: "Flat heat map", Icon: Grid3x3 },
-  { view: "3d", label: "3D skyline", Icon: Box },
+const VIEW_OPTIONS = [
+  { value: "2d" as const, label: "2D" },
+  { value: "3d" as const, label: "3D" },
 ];
 
 /** From this width the skyline's numbers float in its corners instead of
  *  sitting in a row under it: only in the one-column layout, since the 3fr
  *  column tops out near 530px. */
 const CORNERS_MIN = 560;
-const EASE = "cubic-bezier(0.65, 0, 0.35, 1)";
 
 const NUMBER = new Intl.NumberFormat("en-US");
 const DAY = new Intl.DateTimeFormat("en-US", {
@@ -103,9 +101,11 @@ const utcToday = () => new Date().toISOString().slice(0, 10);
 const cornerStyle = (shown: boolean, offset: number, delay: number) => ({
   opacity: shown ? 1 : 0,
   transform: shown ? "translateY(0)" : `translateY(${offset}px)`,
-  transitionDuration: shown ? "600ms" : "300ms",
+  transitionDuration: shown ? "300ms" : "150ms",
   transitionDelay: shown ? `${Math.round(MORPH_MS * delay)}ms` : "0ms",
-  transitionTimingFunction: EASE,
+  transitionTimingFunction: shown
+    ? "var(--ease-glide)"
+    : "var(--ease-exit)",
 });
 
 export function Streak({ days }: { days: AppliedDay[] }) {
@@ -213,35 +213,12 @@ export function Streak({ days }: { days: AppliedDay[] }) {
         <h2 id="streak" className="text-title text-ink">
           Activity
         </h2>
-        <div
-          role="group"
-          aria-label="Chart View"
-          className="bg-well border-border-subtle rounded-control flex shrink-0 items-center gap-0.5 border p-0.5"
-        >
-          {VIEWS.map(({ view: option, label, Icon }) => (
-            <Tooltip key={option}>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label={label}
-                    aria-pressed={view === option}
-                    onClick={() => setView(option)}
-                    className={cn(
-                      "focus-visible:ring-brand-ring flex size-6.5 items-center justify-center rounded-[0.375rem] focus-visible:ring-2 focus-visible:outline-none",
-                      view === option
-                        ? "bg-panel text-ink ring-border shadow-panel ring-1"
-                        : "text-ink-meta hover:text-ink hover:bg-panel/60",
-                    )}
-                  />
-                }
-              >
-                <Icon aria-hidden="true" className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>{label}</TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
+        <SegmentedToggle
+          label="Chart View"
+          options={VIEW_OPTIONS}
+          value={view}
+          onValueChange={(v) => setView(v as View)}
+        />
       </div>
 
       <div className="relative mt-4">
@@ -263,7 +240,7 @@ export function Streak({ days }: { days: AppliedDay[] }) {
             <>
               <div
                 aria-hidden={!is3d}
-                className="pointer-events-none absolute top-1 right-1 flex flex-col items-end gap-5 transition-[opacity,transform] motion-reduce:transition-none"
+                className="pointer-events-none absolute top-1 right-1 flex flex-col items-end gap-5 transition-[opacity,transform]"
                 style={cornerStyle(is3d, -10, 0.55)}
               >
                 <Stat {...blocks[0]} size={bigSize} align="end" />
@@ -271,7 +248,7 @@ export function Streak({ days }: { days: AppliedDay[] }) {
               </div>
               <div
                 aria-hidden={!is3d}
-                className="pointer-events-none absolute bottom-1 left-1 flex flex-col items-start gap-5 transition-[opacity,transform] motion-reduce:transition-none"
+                className="pointer-events-none absolute bottom-1 left-1 flex flex-col items-start gap-5 transition-[opacity,transform]"
                 style={cornerStyle(is3d, 10, 0.65)}
               >
                 <Stat {...blocks[2]} size={bigSize} align="start" />
@@ -285,7 +262,7 @@ export function Streak({ days }: { days: AppliedDay[] }) {
           ref={tipRef}
           role="tooltip"
           aria-hidden={active < 0}
-          className="bg-foreground text-background text-note pointer-events-none absolute top-0 left-0 z-20 rounded-md px-3 py-1.5 whitespace-nowrap shadow-lg transition-opacity duration-150 motion-reduce:transition-none"
+          className="bg-foreground text-background text-note pointer-events-none absolute top-0 left-0 z-20 rounded-md px-3 py-1.5 whitespace-nowrap shadow-lg transition-opacity duration-150"
           style={{ opacity: active >= 0 ? 1 : 0 }}
         >
           {cell ? (
@@ -306,12 +283,12 @@ export function Streak({ days }: { days: AppliedDay[] }) {
 
       <div
         aria-hidden={!showRow}
-        className="grid transition-[grid-template-rows,opacity] motion-reduce:transition-none"
+        className="grid transition-[grid-template-rows,opacity]"
         style={{
           gridTemplateRows: showRow ? "1fr" : "0fr",
           opacity: showRow ? 1 : 0,
           transitionDuration: `${MORPH_MS}ms`,
-          transitionTimingFunction: EASE,
+          transitionTimingFunction: "var(--ease-glide)",
         }}
       >
         <div className="min-h-0 overflow-hidden">

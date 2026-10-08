@@ -45,9 +45,13 @@ export function NotificationsMenu({
         render={
           <IconButton
             label="Notifications"
-            className={cn("hover:bg-hover hidden size-8 rounded-full sm:inline-flex", className)}
+            className={cn(
+              "group/bell hover:bg-hover hidden size-8 rounded-full sm:inline-flex",
+              className,
+            )}
           >
-            <BellIcon className="size-4" />
+            {/* Swings on its hook once as the pointer arrives. */}
+            <BellIcon className="group-hover/bell:animate-swing size-4 origin-[50%_15%]" />
           </IconButton>
         }
       />
