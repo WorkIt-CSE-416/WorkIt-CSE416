@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
-import { GearIcon } from "@/components/icons";
-import { EmptyState } from "@/components/ui/empty-state";
+import { Card } from "@/components/ui/card";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { SetPasswordForm } from "@/components/set-password-form";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
@@ -12,10 +13,11 @@ export const metadata: Metadata = {
 };
 
 /**
- * /settings, a row in the account menu the bar's photo opens. Nothing can be changed here yet, so it
- * says so inside the shell, under the same heading block as every other
- * seeker screen, rather than leaving a permanent row that opens Next's stock
- * 404. A <div>, since SidebarInset is already the <main>.
+ * /settings, a row in the account menu the bar's photo opens. Password is
+ * the first real section — the first thing here with a backing action, for
+ * an account that signed in with Google or LinkedIn and wants email+password
+ * sign-in too. Notifications and the rest of "privacy and your account"
+ * still have nowhere else to go; they land here the same way once built.
  */
 export default function SettingsPage() {
   return (
@@ -23,9 +25,14 @@ export default function SettingsPage() {
       <h1 className="text-heading text-ink">Settings</h1>
       <p className="text-body text-ink-meta mt-1">Notifications, privacy and your account.</p>
 
-      <EmptyState Icon={GearIcon} title="Settings Are on the Way" className="mt-4">
-        Nothing to change here yet.
-      </EmptyState>
+      <Card as="section" aria-labelledby="password" className="mt-4 max-w-md">
+        <SectionHeading id="password">Password</SectionHeading>
+        <p className="text-meta text-ink-meta mt-1">
+          Set a WorkIt password so you can sign in with your email, in addition to any Google or
+          LinkedIn account you&apos;ve connected.
+        </p>
+        <SetPasswordForm />
+      </Card>
     </div>
   );
 }

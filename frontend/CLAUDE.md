@@ -152,6 +152,11 @@ src/components/   Shared components
                   block as the trigger, Settings and Help as its rows, and
                   shows the header only below lg, where that block is the
                   photo alone
+  company-fields.tsx  Name, size, website, contact details — shared by
+                  signup's Create Company path and Choose Account Type's
+                  Company path
+  set-password-form.tsx  New Password + Confirm Password, shared by
+                  (seeker)/settings and company/settings
   scout/          Scout, the job assistant. scout-store holds the one chat per
                   tab (a module store, so no provider); scout-panel docks
                   beside the page, never over it, and opens only on a click.
@@ -202,6 +207,11 @@ src/lib/          Framework-free helpers
   avatar-rules.ts Accepted photo types and size, for the client-side check
   auth.ts         apiFetch() to the Python API (with optional Bearer token),
                   extractErrorMessage, and auth types. Server-only.
+  oauth-actions.ts  signInWithOAuth, bound to "google" or "linkedin_oidc" —
+                  backs the Google/LinkedIn buttons on /login and /signup
+  password-actions.ts  setPassword — supabase.auth.updateUser({ password }),
+                  for an account that signed in via Google/LinkedIn and
+                  wants email+password sign-in too
   supabase/server.ts  Per-request Supabase client — auth only, never data
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448, violet — the auth card
@@ -575,6 +585,19 @@ side:
   prompt forces the account chooser open every attempt, so a blocked try can
   retry with a different account instead of repeating the same dead end.
   LinkedIn's OIDC prompt support isn't the same, so this stays Google-only.
+- **A Google/LinkedIn-only account can add a WorkIt password at
+  `/settings` or `/company/settings`.** `src/components/set-password-form.tsx`
+  (one form, both shells) calls `src/lib/password-actions.ts`'s `setPassword`,
+  which is `supabase.auth.updateUser({ password })` and nothing else — no
+  backend route involved, since Supabase sets this on `auth.users` regardless
+  of which provider the current session came from. Afterward,
+  `signInWithPassword()` on `/login` works for that email too: it only ever
+  checks that password column, with no notion of "this account signed up via
+  Google" to refuse it. Password is the first real section on both
+  `/settings` pages — the seeker one reached from the account menu's rows,
+  the company one from the panel's footer (see Two audiences below) — which
+  had been empty placeholders until this; notifications and the rest still
+  have nowhere else to go.
 
 **The token travels server-side.** The browser holds only Supabase's
 `sb-*` cookies, on this origin. Server code reads the access token from the
