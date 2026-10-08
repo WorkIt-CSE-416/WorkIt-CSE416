@@ -39,8 +39,9 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <ButtonLink href="/jobs" variant="secondary" size="sm" className="mb-3">
-        <ArrowLeftIcon className="size-3.5" />
+      {/* Its arrow leans back the way it goes while hovered. */}
+      <ButtonLink href="/jobs" variant="secondary" size="sm" className="group/back mb-3">
+        <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
         Back to Jobs
       </ButtonLink>
 

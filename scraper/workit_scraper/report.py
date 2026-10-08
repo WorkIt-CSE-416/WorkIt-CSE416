@@ -175,7 +175,7 @@ def _row(role: Role, index: int) -> str:
         else f'<span class="role" title="{title}">{title}</span>{kind_span}'
     )
     when = "just added" if role.new else _ago(role.posted_at)
-    style = role.work_style or ""
+    style = role.facts.work_style or ""
     pill = f'<span class="pill {esc(style.replace(" ", ""))}">{esc(style)}</span>' if style else ""
     apply_cell = (
         f'<a class="apply" href="{esc(role.apply_url)}" target="_blank" rel="noopener">Apply</a>'

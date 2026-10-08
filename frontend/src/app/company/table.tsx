@@ -35,11 +35,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
-import { SearchIcon } from "@/components/icons";
+import { SearchIcon, SortIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-
-import { SortIcon } from "./icons";
 
 /* Re-exported so jobs-table.tsx's existing `import { formatDate } from
  * "../table"` keeps working — see the note on the real definition for why it

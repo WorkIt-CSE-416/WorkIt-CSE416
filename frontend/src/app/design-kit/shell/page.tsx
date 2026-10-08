@@ -53,15 +53,6 @@ export default function ShellPage() {
             <AccountMenuSpecimen />
           </BarStrip>
         </Row>
-        <Row
-          name="--animate-status-ping"
-          role="The seeker bar's new-roles dot: three pings as the page loads, then it rests. Reload to see it again"
-        >
-          <span aria-hidden="true" className="relative flex size-2">
-            <span className="bg-brand motion-safe:animate-status-ping absolute inset-0 rounded-full" />
-            <span className="bg-brand relative size-2 rounded-full" />
-          </span>
-        </Row>
       </Group>
     </KitPage>
   );

@@ -11,6 +11,8 @@ import {
   Calendar,
   Check,
   ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
   Clock,
   Ellipsis,
   ExternalLink,
@@ -59,6 +61,17 @@ type IconProps = { className?: string };
  */
 
 /* Chrome ------------------------------------------------------------------ */
+
+/** Scout, the job assistant — on job cards, the top bar and the panel's
+ *  header. Filled, so it holds up beside a label. */
+export function SparkleIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M6.6 1.8c.6 3 1.9 4.4 4.9 5-3 .6-4.3 2-4.9 5-.6-3-1.9-4.4-4.9-5 3-.6 4.3-2 4.9-5Z" />
+      <path d="M12.6 9.4c.25 1.2.75 1.7 1.9 1.95-1.15.25-1.65.75-1.9 1.95-.25-1.2-.75-1.7-1.9-1.95 1.15-.25 1.65-.75 1.9-1.95Z" />
+    </svg>
+  );
+}
 
 export function SearchIcon({ className }: IconProps) {
   return <Search aria-hidden className={className} />;
@@ -315,4 +328,20 @@ export function PdfIcon({ className }: IconProps) {
       <path d="M8.9 15.3v-3.4h.8a1.7 1.7 0 0 1 0 3.4Z" />
     </svg>
   );
+}
+
+/**
+ * Sort state on a column heading: the company tables and the seeker's
+ * Applications list.
+ *
+ * Three states, three glyphs from one family. Unsorted shows both chevrons, so
+ * a column that can be sorted looks different from one that cannot even
+ * before anyone clicks it; sorted shows only the direction in force. Colour
+ * changes too (the caller tints it brand once active), but the shape carries
+ * the state on its own, which is what keeps it readable where colour is not.
+ */
+export function SortIcon({ className, direction }: IconProps & { direction?: "asc" | "desc" }) {
+  const Glyph =
+    direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
+  return <Glyph aria-hidden className={className} />;
 }

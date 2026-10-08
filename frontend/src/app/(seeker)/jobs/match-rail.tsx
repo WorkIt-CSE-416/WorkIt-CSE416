@@ -41,6 +41,10 @@ import type { Highlight } from "./data";
  * available yet rather than a dash. Not a made-up number: a fake 87% on a
  * real role would read as a real verdict.
  *
+ * THE ARC DRAWS ITSELF to the score when the rail appears, from twelve
+ * o'clock round (--animate-ring-fill), so the length reads as an amount
+ * being measured out rather than a shape printed on the card.
+ *
  * `standalone` only changes the shape — a card with its own rounded corners
  * and border, rather than a rail flush against a bigger card's edge — not the
  * fill.
@@ -79,6 +83,7 @@ function MatchRing({ score }: { score: number | null }) {
             strokeLinecap="round"
             strokeDasharray={`${(CIRCUMFERENCE * score) / 100} ${CIRCUMFERENCE}`}
             style={{ stroke: color }}
+            className="animate-ring-fill"
           />
         )}
       </svg>

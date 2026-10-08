@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
 import { ResumeUpload } from "@/components/resume-upload";
+import { SegmentedToggle } from "@/components/ui/segmented-control";
 import {
   Dialog,
   DialogClose,
@@ -85,6 +86,39 @@ export function DropdownSpecimen() {
         <DropdownMenuItem>Reset to Default</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Both sizes of the segmented control, holding their own choice, so the
+ *  thumb's slide can be tried here. The link form looks the same. */
+export function SegmentedSpecimen() {
+  const [view, setView] = useState("week");
+  const [type, setType] = useState("applicant");
+
+  return (
+    <div className="flex w-full max-w-sm flex-col gap-3">
+      <SegmentedToggle
+        label="Calendar View"
+        options={[
+          { value: "month", label: "Month" },
+          { value: "week", label: "Week" },
+          { value: "agenda", label: "Agenda" },
+        ]}
+        value={view}
+        onValueChange={setView}
+      />
+      <SegmentedToggle
+        label="Account Type"
+        options={[
+          { value: "applicant", label: "Applicant" },
+          { value: "company", label: "Company" },
+        ]}
+        value={type}
+        onValueChange={setType}
+        size="lg"
+        className="w-full"
+      />
+    </div>
   );
 }
 

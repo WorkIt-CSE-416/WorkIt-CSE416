@@ -116,6 +116,7 @@ const FACT_NAME = {
   workStyle: "Work style",
   experienceLevel: "Level",
   minYearsExperience: "Years",
+  startTerm: "Start date",
 } as const;
 
 export type JobPostingCardData = {
@@ -150,11 +151,15 @@ export type JobPostingCardData = {
   /** "3+ yrs exp" — null when the role has no minimum (an internship, a new
    *  grad role). */
   minYearsExperience: string | null | NotListed;
+  /** "Start in Summer 2027" — an internship's in place of years, since that is
+   *  what a student plans around. Omit for any other role. */
+  startTerm?: string | null | NotListed;
 };
 
-/** Ink at rest, brand on hover — see the note on the title and company name. */
+/** Ink at rest, brand on hover, eased rather than snapped. See the note on
+ *  the title and company name. */
 const INK_LINK =
-  "text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none";
+  "text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
 
 export function JobPostingCard({
   job,
@@ -178,6 +183,7 @@ export function JobPostingCard({
       ["workStyle", workStyleIcon(workStyle), job.workStyle],
       ["experienceLevel", LevelIcon, job.experienceLevel],
       ["minYearsExperience", CalendarIcon, job.minYearsExperience],
+      ["startTerm", CalendarIcon, job.startTerm],
     ] as const
   ).filter(([, , text]) => text != null);
 

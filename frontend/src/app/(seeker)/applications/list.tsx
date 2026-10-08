@@ -1,69 +1,172 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+
+import { SortIcon } from "@/components/icons";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/shadcn/table";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
+import { cn } from "@/lib/cn";
 
-import { STAGE_COLOR } from "../stage-colors";
-import { APPLICATIONS, type StagedApplication } from "./data";
+import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
+import { nextEvent, shortDay, type Application } from "../tracker";
+import { MatchBadge } from "./match-badge";
 import { NextStep } from "./next-step";
+import { applicationsHref, sortApplications, type ApplicationsQuery, type Sort } from "./query";
+import { Reflow } from "./reflow";
 
 /**
- * The applications as rows.
+ * The applications as a table: role and company, stage, next step, the day it
+ * went in, and the match, one row each.
  *
- * NO MOCKUP EXISTS FOR THIS VIEW. The switcher in the grid mockup offers grid
- * and list, so shipping the switcher without a list would leave a third of it
- * dead. Rather than invent a layout, this row carries exactly the fields the
- * grid card carries, in the order the grid stacks them, using the row shape the
- * search results already established. Treat it as a placeholder holding the
- * right data, not as a design.
+ * It was a stack of cards holding the grid card's fields, marked in the code
+ * as a placeholder. A table is what a list of like records wants: columns a
+ * reader can scan down, and headings that sort. Its frame follows the company
+ * Dashboard's Recent Applicants (company/applicants-preview.tsx): one white
+ * card, 12px grey headings, rules between rows and no box around each.
  *
- * The next step is the board and grid's own block (./next-step.tsx), held to
- * one line each for the label and the date so a long one cannot make its row
- * taller than the rest. The date beside it is the same 12px grey as the
- * next step's date, so the two read as one kind of text.
+ * SORTING IS A LINK, ?sort=, like every other choice on this page, so the
+ * table stays a server component and an order can be shared. Three columns
+ * sort, each the way it is read: Next Step soonest first, Applied latest
+ * first, Match best first. Role and stage do not; the stage filter above the
+ * table is how a stage is picked out. The heading in force says so in
+ * aria-sort as well as in its chevron.
  *
- * Only the role flexes. The next step (192px, room for the longest label
- * with the glyph), the date (128px) and the stage badge (96px, wide enough
- * for Interviewing) are fixed slots, so every column starts at the same x on
- * every row, and a narrow page takes its width from the role rather than
- * cutting the next step to "Next: Appli…" as a shared flex ratio did.
- *
- * The middle columns drop out below `@2xl/main` and `@4xl/main` (the page's
- * own width, not the window's) rather than wrapping: a row that reflows onto
- * three lines has stopped being a row, and role, company and stage are the
- * three things a narrow screen still needs. Of the two, the next step stays
- * longer, since it is the one thing on the row still to happen.
+ * Columns drop out as the page narrows (the page's own width, @container/main,
+ * not the window's) rather than the table scrolling sideways: Match first,
+ * then Applied, then the next step, keeping role and stage, the two things a
+ * phone still needs. A row opens its application's detail panel; the role is
+ * the link, stretched across the row.
  */
-function ListRow({ item }: { item: StagedApplication }) {
-  const { Icon, stage } = item;
+const TH = "px-4 text-note text-ink-meta font-medium";
+
+/** Which way each sortable column runs, for aria-sort and the chevron. */
+const DIRECTION: Record<Sort, "asc" | "desc"> = { next: "asc", applied: "desc", match: "desc" };
+
+function SortHead({
+  sort,
+  query,
+  className,
+  children,
+}: {
+  sort: Sort;
+  query: ApplicationsQuery;
+  className?: string;
+  children: ReactNode;
+}) {
+  const active = query.sort === sort;
+  const direction = DIRECTION[sort];
 
   return (
-    <Card as="li" padding="sm" className="flex items-center gap-3">
-      <CompanyTile Icon={Icon} size="sm" tone="outline" />
-
-      <div className="min-w-0 flex-1">
-        <h2 className="text-subtitle text-ink truncate leading-5">{item.role}</h2>
-        <p className="text-note text-ink-meta truncate">{item.company}</p>
-      </div>
-
-      <NextStep next={item.next} truncate className="hidden w-48 shrink-0 @2xl/main:flex" />
-
-      <p className="text-note text-ink-meta hidden w-32 shrink-0 truncate @4xl/main:block">
-        {item.meta.text}
-      </p>
-
-      <span className="flex w-24 shrink-0 justify-end">
-        <Badge tone={STAGE_COLOR[stage.stage].tone}>{stage.title}</Badge>
-      </span>
-    </Card>
+    <TableHead
+      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : undefined}
+      className={cn(TH, className)}
+    >
+      <Link
+        href={applicationsHref(query, { sort, app: null })}
+        scroll={false}
+        className="hover:text-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+      >
+        {children}
+        {/* Keyed on its state, so the glyph pops in when the column takes
+            the sort rather than swapping in place. */}
+        <SortIcon
+          key={active ? direction : "none"}
+          className={cn("animate-pop size-3.5 shrink-0", active ? "text-brand" : "text-ink-faint")}
+          direction={active ? direction : undefined}
+        />
+      </Link>
+    </TableHead>
   );
 }
 
-export function ApplicationsList() {
+export function ApplicationsList({
+  applications,
+  query,
+  now,
+}: {
+  applications: Application[];
+  query: ApplicationsQuery;
+  now: Date;
+}) {
+  const rows = sortApplications(applications, query.sort, now);
+
   return (
-    <ul className="mt-4 flex flex-col gap-2">
-      {APPLICATIONS.map((item) => (
-        <ListRow key={`${item.company}-${item.role}`} item={item} />
-      ))}
-    </ul>
+    <Card padding="none" className="mt-4 overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className={cn(TH, "w-full")}>Role</TableHead>
+            <TableHead className={TH}>Stage</TableHead>
+            <SortHead sort="next" query={query} className="hidden @lg/main:table-cell">
+              Next Step
+            </SortHead>
+            <SortHead sort="applied" query={query} className="hidden @2xl/main:table-cell">
+              Applied
+            </SortHead>
+            <SortHead sort="match" query={query} className="hidden @3xl/main:table-cell">
+              Match
+            </SortHead>
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {rows.map((app, i) => {
+            const { Icon } = app;
+
+            return (
+              // Fades in down the table on arrival (a row cannot rise: its
+              // transform does not reliably paint), 25ms apart, and glides to
+              // its new place when the sort or a filter moves it.
+              <Reflow key={app.id}>
+                <TableRow
+                  className="hover:bg-hover animate-fade relative"
+                  style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+                >
+                  {/* w-full with max-w-0 is the table idiom for "take what the
+                    other columns leave, and truncate inside it": without
+                    it a long role sets its own minimum width and the table
+                    scrolls sideways inside the card. */}
+                  <TableCell className="w-full max-w-0 px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <CompanyTile Icon={Icon} size="sm" tone="outline" />
+                      <div className="min-w-0">
+                        <Link
+                          href={applicationsHref(query, { app: app.id })}
+                          scroll={false}
+                          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+                        >
+                          {app.role}
+                        </Link>
+                        <p className="text-note text-ink-meta truncate">{app.company}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-4">
+                    <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
+                  </TableCell>
+                  <TableCell className="hidden px-4 @lg/main:table-cell">
+                    <NextStep next={nextEvent(app, now)} truncate className="w-48" />
+                  </TableCell>
+                  <TableCell className="text-note text-ink-meta hidden px-4 @2xl/main:table-cell">
+                    {app.appliedOn ? shortDay(app.appliedOn) : "Not yet"}
+                  </TableCell>
+                  <TableCell className="hidden px-4 @3xl/main:table-cell">
+                    <MatchBadge score={app.match} />
+                  </TableCell>
+                </TableRow>
+              </Reflow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </Card>
   );
 }

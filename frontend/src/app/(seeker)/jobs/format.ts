@@ -22,7 +22,9 @@ const WORK_STYLE_LABEL: Record<WorkStyle, string> = {
 };
 
 const EXPERIENCE_LABEL: Record<ExperienceLevel, string> = {
-  internship: "Internship",
+  // "Intern", as Jobright prints the level: the job type beside it already
+  // reads "Internship".
+  internship: "Intern",
   new_grad: "New Grad",
   experienced: "Experienced",
 };
@@ -77,11 +79,13 @@ export function formatJobLocation(job: Pick<Recommendation, "locationCity" | "lo
   return job.locationCountry ? formatCountry(job.locationCountry) : null;
 }
 
+const PERIOD_LABEL = { hour: "hr", week: "wk", month: "mo", year: "yr" } as const;
+
 export function formatSalary(
-  job: Pick<
-    Recommendation,
-    "salary" | "salaryMin" | "salaryMax" | "salaryCurrency" | "salaryPeriod"
-  >,
+  job: Pick<Recommendation, "salary" | "salaryMin" | "salaryMax" | "salaryCurrency"> & {
+    /** Wider than `Recommendation`'s: a scraped internship can pay by the month. */
+    salaryPeriod: keyof typeof PERIOD_LABEL;
+  },
 ) {
   const fmt = new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -94,13 +98,20 @@ export function formatSalary(
     notation: "compact",
   });
 
-  const period = job.salaryPeriod === "year" ? "yr" : "hr";
+  const period = PERIOD_LABEL[job.salaryPeriod];
+  // A range whose ends meet is one amount: scraped pay always arrives as a
+  // range (scraper/workit_scraper/feed.py `salary`).
   const range =
-    job.salaryMin != null && job.salaryMax != null
+    job.salaryMin != null && job.salaryMax != null && job.salaryMin !== job.salaryMax
       ? `${fmt.format(job.salaryMin)} - ${fmt.format(job.salaryMax)}`
-      : fmt.format(job.salary ?? 0);
+      : fmt.format(job.salary ?? job.salaryMin ?? 0);
 
   return `${range}/${period}`;
+}
+
+/** "2+ yrs exp", as the composer's preview prints it. */
+export function formatMinYears(years: number) {
+  return `${years}+ yrs exp`;
 }
 
 export function formatPosted(uploadedAt: string) {

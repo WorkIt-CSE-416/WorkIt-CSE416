@@ -1,9 +1,10 @@
 "use client";
 
 import { FileText, Phone } from "lucide-react";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
-import { MailIcon, PdfIcon, PencilIcon, PinIcon, TrashIcon } from "@/components/icons";
+import { MailIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import {
   Dialog,
   DialogClose,
@@ -18,10 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
-import { PROFILE } from "./data";
 import { SectionAction } from "./section-action";
 import { ResumeUpload } from "@/components/resume-upload";
 import {
@@ -36,6 +37,7 @@ import {
   type ParsedResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
+import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 import { EMPTY_RESUME, ResumeEditDialog, type SectionKey } from "./resume-edit-dialog";
 import { RESUME_ROW, ResumeRow } from "./resume-row";
 import { ExperienceSection, SkillsSection } from "./resume-sections";
@@ -45,10 +47,11 @@ import { SEEKER_GUTTER } from "../gutter";
 import { useProfileCache } from "../profile-cache";
 
 /**
- * The profile screen. Resumes, the profile photo, and Work Experience/Skills
- * are live: the last two render one resume's parsed content (shownResume) and
- * save edits back to it. Name and contact details still render the fixture in
- * ./data. A return visit renders the last visit's data at once
+ * The profile screen. Resumes, the profile photo, Work Experience/Skills and
+ * identity fields are all live. The last two render one resume's parsed
+ * content (shownResume) and save edits back to it. Name, headline, email and
+ * phone come from the applicant_profiles table via getProfile(). A return
+ * visit renders the last visit's data at once
  * (../profile-cache.tsx) and refetches it behind the scenes. The autofill
  * switch is a bare checkbox with role="switch" that styles its own on state.
  * The tab title is set in ./layout.tsx, because a client page cannot export
@@ -83,12 +86,6 @@ import { useProfileCache } from "../profile-cache";
  * failed resume list holds the first row's place in grey rather than red, so
  * a list that did not load is not mistaken for one with nothing in it.
  */
-const CONTACT = [
-  { Icon: MailIcon, label: "Email", value: PROFILE.email },
-  { Icon: Phone, label: "Phone", value: PROFILE.phone },
-  { Icon: PinIcon, label: "Location", value: PROFILE.location },
-];
-
 const MAX_RESUMES = 5;
 
 /** The resume Work Experience and Skills show: the primary one, else the newest. */
@@ -99,8 +96,15 @@ function shownResume(resumes: ResumeItem[]) {
 export default function ProfilePage() {
   // The last visit's data, if any, read once. A return visit renders it at
   // once, and the effects below refetch in the background.
+  const router = useRouter();
   const cache = useProfileCache();
   const [cached] = useState(cache.read);
+
+  // Identity fields from the backend.
+  const [applicantProfile, setApplicantProfile] = useState<ApplicantProfile | null>(
+    cached?.applicantProfile ?? null,
+  );
+  const [editOpen, setEditOpen] = useState(false);
 
   // Resume items. `uploading` is the name of the file in flight, or null.
   const [resumeList, setResumeList] = useState<ResumeItem[]>(cached?.resumes ?? []);
@@ -161,6 +165,13 @@ export default function ProfilePage() {
         setAvatarBusy(false);
         setAvatarLoaded(true);
       });
+
+    getProfile()
+      .then(({ profile: p, error }) => {
+        if (error) setLoadFailed(true);
+        else if (p) setApplicantProfile(p);
+      })
+      .catch(() => setLoadFailed(true));
   }, []);
 
   // Save each settled state for the next visit. Not mid-load, not while a
@@ -168,9 +179,9 @@ export default function ProfilePage() {
   // after a failed load, which would show the next visit an empty profile.
   useEffect(() => {
     if (loaded && !profileLoading && !avatarBusy && !loadFailed) {
-      cache.write({ resumes: resumeList, shown: profile, avatarUrl });
+      cache.write({ resumes: resumeList, shown: profile, avatarUrl, applicantProfile });
     }
-  }, [cache, loaded, profileLoading, avatarBusy, loadFailed, resumeList, profile, avatarUrl]);
+  }, [cache, loaded, profileLoading, avatarBusy, loadFailed, resumeList, profile, avatarUrl, applicantProfile]);
 
   async function handleAvatarSelect(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -201,6 +212,7 @@ export default function ProfilePage() {
         return;
       }
       setAvatarUrl(url ?? previous);
+      router.refresh();
     } finally {
       URL.revokeObjectURL(preview);
       setAvatarBusy(false);
@@ -218,6 +230,7 @@ export default function ProfilePage() {
       return;
     }
     setAvatarUrl(null);
+    router.refresh();
   }
 
   async function loadProfile(resume: ResumeItem | undefined) {
@@ -455,7 +468,7 @@ export default function ProfilePage() {
       >
         <div className="relative shrink-0">
           <Avatar
-            name={PROFILE.name}
+            name={applicantProfile?.full_name ?? ""}
             src={avatarUrl}
             className={cn(
               "text-title size-16 @xl/main:size-18",
@@ -482,7 +495,9 @@ export default function ProfilePage() {
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <SectionHeading id="identity">{PROFILE.name}</SectionHeading>
+            <SectionHeading id="identity">
+              {applicantProfile?.full_name ?? "\u00A0"}
+            </SectionHeading>
             {avatarUrl && !avatarBusy && (
               <SectionAction onClick={handleAvatarRemove}>
                 <TrashIcon />
@@ -490,21 +505,33 @@ export default function ProfilePage() {
               </SectionAction>
             )}
           </div>
-          <p className="text-body text-ink-meta">{PROFILE.title}</p>
+          <p className="text-body text-ink-meta">
+            {applicantProfile?.headline ?? "\u00A0"}
+          </p>
 
-          {/* One wrapping row: three short facts side by side on a desktop,
-              stacking only as far as a phone's width makes them. Each label
-              is for a screen reader; the glyph says it to the eye. */}
           <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
-            {CONTACT.map(({ Icon, label, value }) => (
-              <div key={label} className="flex max-w-full min-w-0 items-center gap-2">
+            {applicantProfile?.email && (
+              <div className="flex max-w-full min-w-0 items-center gap-2">
                 <dt className="contents">
-                  <Icon className="text-ink-meta size-4 shrink-0" />
-                  <span className="sr-only">{label}</span>
+                  <MailIcon className="text-ink-meta size-4 shrink-0" />
+                  <span className="sr-only">Email</span>
                 </dt>
-                <dd className="text-body text-ink-muted truncate">{value}</dd>
+                <dd className="text-body text-ink-muted truncate">
+                  {applicantProfile.email}
+                </dd>
               </div>
-            ))}
+            )}
+            {applicantProfile?.phone_number && (
+              <div className="flex max-w-full min-w-0 items-center gap-2">
+                <dt className="contents">
+                  <Phone className="text-ink-meta size-4 shrink-0" />
+                  <span className="sr-only">Phone</span>
+                </dt>
+                <dd className="text-body text-ink-muted truncate">
+                  {applicantProfile.phone_number}
+                </dd>
+              </div>
+            )}
           </dl>
 
           {avatarError && (
@@ -513,6 +540,15 @@ export default function ProfilePage() {
             </p>
           )}
         </div>
+
+        {applicantProfile && (
+          <div className="ml-auto shrink-0 self-start">
+            <SectionAction onClick={() => setEditOpen(true)}>
+              <PencilIcon />
+              Edit
+            </SectionAction>
+          </div>
+        )}
       </section>
 
       {/* From @4xl the card splits the way the page below it does: the list
@@ -690,15 +726,157 @@ export default function ProfilePage() {
                 defaultChecked
                 className="peer sr-only"
               />
+              {/* The thumb glides across on the app's glide while the track
+                  fades to brand, and it pinches in a little while pressed,
+                  so the switch answers the finger before it moves. */}
               <label
                 htmlFor="autofill"
                 aria-hidden="true"
-                className="bg-ink-faint peer-checked:bg-brand peer-focus-visible:ring-brand-ring relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors peer-focus-visible:ring-[3px] peer-focus-visible:ring-offset-2 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-4"
+                className="bg-ink-faint peer-checked:bg-brand peer-focus-visible:ring-brand-ring after:ease-glide relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 peer-focus-visible:ring-[3px] peer-focus-visible:ring-offset-2 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-[0_1px_2px_rgb(18_26_40/0.2)] after:transition-transform after:duration-200 after:content-[''] peer-checked:after:translate-x-4 active:after:scale-90"
               />
             </div>
           </section>
         </div>
       </div>
+
+      {applicantProfile && editOpen && (
+        <EditProfileDialog
+          profile={applicantProfile}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onSaved={setApplicantProfile}
+        />
+      )}
     </div>
   );
+}
+
+// --- Edit Profile Dialog ---------------------------------------------------
+
+const PROFILE_FIELDS = [
+  { id: "full_name", label: "Full Name", required: true },
+  { id: "headline", label: "Headline" },
+  { id: "phone_number", label: "Phone Number" },
+  { id: "linkedin_url", label: "LinkedIn" },
+  { id: "portfolio_url", label: "Portfolio" },
+  { id: "github_url", label: "GitHub" },
+  { id: "other_url", label: "Other URL" },
+] as const;
+
+type EditableField = (typeof PROFILE_FIELDS)[number]["id"];
+
+function EditProfileDialog({
+  profile,
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  profile: ApplicantProfile;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSaved: (p: ApplicantProfile) => void;
+}) {
+  // Key changes reset state via the parent's key prop; no effect needed.
+  const [draft, setDraft] = useState<Record<EditableField, string>>(() => fieldsToDraft(profile));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function set(field: EditableField, value: string) {
+    setDraft((d) => ({ ...d, [field]: value }));
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    const fields: Record<string, string | null> = {};
+    for (const { id } of PROFILE_FIELDS) {
+      const v = draft[id].trim();
+      // Send the field if it changed from the current profile value.
+      const current = profile[id] ?? "";
+      if (v !== current) fields[id] = v || null;
+    }
+    // full_name must not be null
+    if ("full_name" in fields) fields.full_name = draft.full_name.trim() || profile.full_name;
+
+    if (Object.keys(fields).length === 0) {
+      onOpenChange(false);
+      setSaving(false);
+      return;
+    }
+
+    const { profile: updated, error: err } = await updateProfile(fields);
+    setSaving(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    if (updated) onSaved(updated);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="text-subtitle font-semibold">Edit Profile</DialogTitle>
+          <DialogDescription>
+            Update your profile information. Email is changed through your account settings.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label className={FIELD_LABEL}>Email</label>
+            <input
+              disabled
+              value={profile.email}
+              className={cn(FIELD_CONTROL, "px-3.5 py-2.5")}
+            />
+          </div>
+
+          {PROFILE_FIELDS.map(({ id, label, ...rest }) => (
+            <div key={id} className="flex flex-col gap-1">
+              <label htmlFor={`edit-${id}`} className={FIELD_LABEL}>
+                {label}
+              </label>
+              <input
+                id={`edit-${id}`}
+                value={draft[id]}
+                onChange={(e) => set(id, e.target.value)}
+                required={"required" in rest}
+                className={cn(FIELD_CONTROL, "px-3.5 py-2.5")}
+              />
+            </div>
+          ))}
+
+          {error && (
+            <p role="alert" className="text-meta text-danger">
+              {error}
+            </p>
+          )}
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving\u2026" : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function fieldsToDraft(p: ApplicantProfile): Record<EditableField, string> {
+  return {
+    full_name: p.full_name,
+    headline: p.headline ?? "",
+    phone_number: p.phone_number ?? "",
+    linkedin_url: p.linkedin_url ?? "",
+    portfolio_url: p.portfolio_url ?? "",
+    github_url: p.github_url ?? "",
+    other_url: p.other_url ?? "",
+  };
 }

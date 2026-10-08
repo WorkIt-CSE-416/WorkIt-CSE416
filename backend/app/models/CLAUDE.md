@@ -195,7 +195,7 @@ edit. That window has closed — `dee263a84adb` created all nine types on
 domain does not grow with the product. For anything that will, a lookup table
 costs a join and saves the coordination.
 
-## Locations — countries, states, and the resolver not yet written
+## Locations — countries, states, and the resolver
 
 ### The tables
 
@@ -205,28 +205,46 @@ surrogate ids:
 - `countries.code` — ISO 3166-1 alpha-2 (`US`, `GB`).
 - `states.code` — ISO 3166-2 (`US-CA`), with `country_code` → `countries`.
 
-**The code is the key.** A job posting stores `US-CA` itself, so filtering
-"jobs in California" is `WHERE location_state = 'US-CA'` with no join. The join
-to `states` is only for the display name.
+**The code is the key.** A job location stores `US-CA` itself, so filtering
+"jobs in California" is `job_locations.state = 'US-CA'` with no join to
+`states`. That join is only for the display name.
 
 **The foreign keys are for integrity, not speed.** They make Postgres reject
 `'NY'`, `'New York'` or `'US-XX'`, so every row spells a place one way. The
-speed comes from `job_postings_loc_idx` on `(location_country, location_state)`;
-Postgres does not index a foreign key column by itself.
+speed comes from `job_locations_place_idx` on `(country, state)`; Postgres
+does not index a foreign key column by itself. Filter with the country as
+well as the state (`country = 'US' AND state = 'US-CA'`), which a state code
+always implies, so that index's leading column is used.
 
-### How job_postings references them
+### job_locations — where a job is offered
 
-- `location_country` — nullable since `e6230622efb3`, with its **own** FK to
-  `countries`. Postgres skips a composite FK when any of its columns is NULL
-  (`MATCH SIMPLE`), so without this a country-only row would go unchecked.
-  NULL means the posting names no location; `ZZ` means it names one the seed
-  does not cover. The `state_requires_country` CHECK still forbids a state
-  without a country.
-- `location_state` — nullable. "United States" or a country with no seeded
+`job_postings` holds no location codes since `4138dcee44b1`. Each place a job
+is offered is one `job_locations` row (`Job_Location` in `jobs.py`): a job in
+San Francisco and New York has two, a job naming no place has none. One
+column pair on the job could not hold both, so a New York filter would miss
+every job whose first-listed office was elsewhere — 78 of the 1,069 scraped
+jobs list several. "Jobs in California" is an `EXISTS` on this table.
+
+- `country` — NOT NULL, with its **own** FK to `countries`. Postgres skips a
+  composite FK when any of its columns is NULL (`MATCH SIMPLE`), so without
+  it a country-only row would go unchecked. `ZZ` means a place the seed does
+  not cover.
+- `state` — nullable. "United States" or a country with no seeded
   subdivisions has no state.
-- The composite FK `(location_state, location_country)` → `states(code,
-  country_code)` rejects a state from the wrong country: `('US-NY', 'CA')`
-  fails.
+- The composite FK `(state, country)` → `states(code, country_code)` rejects a
+  state from the wrong country: `('US-NY', 'CA')` fails.
+- `UNIQUE NULLS NOT DISTINCT (job_id, country, state)` stops the same place
+  twice. `NULLS NOT DISTINCT` matters: plain `UNIQUE` treats two
+  `(job, US, NULL)` rows as different. It needs Postgres 15+, so test locally
+  on 15 or later. That constraint's index also serves lookups by `job_id`,
+  which is why the column has no index of its own.
+- `ON DELETE CASCADE` from the job: deleting a job deletes its places.
+- **Display uses `job_postings.location_raw`**, never these rows. The codes are
+  for filtering and lose the city.
+- **The company API keeps one place per job.** Its body and response still
+  carry `locationCountry`/`locationState`; `routers/company_jobs.py` writes
+  them as the job's single row and reads them back the same way, so the
+  composer did not change. Several places are for scraped jobs.
 - **Remote is `work_style`, not a location.** A remote posting may still name
   a country ("Remote, US"). Never add a sentinel "REMOTE" code; it duplicates
   `work_style` and cannot say "remote, US only".
@@ -266,7 +284,7 @@ real postings need it. `frontend/src/app/company/jobs/new/data.ts`'s
 Consequences, until someone adds them back:
 
 - A posting in an unseeded country cannot be stored with that country — its
-  `location_country` fails the FK. The resolver must return nothing for it
+  `job_locations.country` fails the FK. The resolver must return nothing for it
   rather than guess a neighbour.
 - Puerto Rico, Guam and the other US outlying areas exist only as US states
   (`US-PR`), not as countries (`PR`).
@@ -280,7 +298,7 @@ anywhere, add countries in a **new** seed migration instead — Alembic never
 re-runs an applied revision, so an edit would reach fresh databases only.
 
 **Only the US has states.** A posting anywhere else stores its country with
-`location_state` NULL. That scope was chosen on purpose: earlier drafts seeded
+`state` NULL. That scope was chosen on purpose: earlier drafts seeded
 15 countries' subdivisions (310 rows), then the UK's four nations alone, and
 both were cut as more than the product needs for now. Adding a country later is
 a new seed migration, not an edit to one already applied, and follows the
@@ -305,108 +323,145 @@ Rules the seeds follow, which a new one must follow too:
   Ireland's is four historic provinces and Singapore's five districts; both are
   better left country-only.
 
-### The resolver — design settled, code not in this branch
+### The resolver — `app/services/location_resolver.py`
 
-Scraped postings give free text ("New York, NY"). Something must turn that into
-`(location_country, location_state)` before insert. The design below was
-prototyped on 2026-09-22 against a larger seed; the cases below are
-restated for the US-only seed that shipped, then left for a
-separate branch. A draft may still be reachable in commit `554e279`.
+Turns a scraped posting's free text into `job_locations` rows:
+`"San Francisco, CA • New York, NY"` → `Place("US", "US-CA")`,
+`Place("US", "US-NY")`. Built 2026-10-07; the module docstring walks through
+the five steps, and `tests/test_location_resolver.py` pins about 80 real and
+made-up strings to their answers. **Add a failing string there before changing
+a rule**: the rules interact, and fixes broke other shapes more than once
+while it was written.
 
-**Where.** `app/services/location_resolver.py`. **Never in this folder**:
-`__init__.py` imports every file here as a model at startup.
+**Where.** `app/services/`, never this folder (`__init__.py` imports every
+file here as a model). Pure: no database, no network.
 
-**Built from the tables, not from pycountry.** Load `countries` and `states`
-once per process (two small queries) into in-memory dicts. Every code it
-returns is then one the FKs accept. Lookups are dict hits; speed is a non-issue
-next to fetching the posting over HTTP.
+**Codes come from the database, names from data.** The import builds
+`LocationResolver(countries, states)` from the `countries`/`states` tables, so
+every code it returns passes the FKs, and seeding a country later needs no
+code change (a test proves it with `GB-ENG`). A place in an unseeded country
+becomes `ZZ`. Names come from `data/places.tsv` (below) plus the seeded
+states' names and codes. The only hand-written lists are vocabulary: filler
+words ("remote", "hq", "office"), a dozen country nicknames GeoNames spells
+differently ("uk", "czech republic", "turkiye"), areas wholly outside the US
+("europe", "apac"), and two metro names ("bay area", "silicon valley").
 
-**Interface, both directions:**
+**How it reads a string**, in short:
 
-```
-country_code("U.S.A.")            -> "US"     country_name("US")    -> "United States"
-state_code("new york")            -> "US-NY"  state_name("US-NY")   -> "New York"
-resolve("Austin, Texas, USA")     -> ("US", "US-TX")
-resolve("San Francisco")          -> None
-```
+1. Split on separators that only mean "another place": `•` `;` `|` `/`, and
+   a *lowercase* ` or ` / ` and ` between names. `Portland, OR` is Oregon;
+   `Newfoundland and Labrador` is one name.
+2. Split on commas, brackets and a spaced dash into pieces; drop filler.
+3. Read each piece as every city, region and country it can be. A run of
+   names without commas (`US-WA-Bellevue`, `Long Beach CA`) is broken into
+   the longest known names, narrowest first. An unknown piece of 5+ letters
+   is checked for a misspelt region or country (`Pennslyvania`).
+4. Group pieces into places: a name, then broader qualifiers. A piece that
+   can't qualify the one before (`Austin, New York`) starts a new place, so
+   `Cambridge, MA, Arlington, VA` is two places and `Boston, MA, USA` one.
+5. Decide each place. A city must fit its qualifiers; one alone takes the
+   most populous match, or a US match at least half that size. A name alone
+   prefers a US state, then a country, then a region abroad (unless it is
+   also a US city of 250k+), then a city.
 
-**Normalize every key and every input the same way:** casefold, strip accents
-(NFKD, drop combining marks), drop periods, map `’` to `'`, collapse whitespace.
-Then "U.S." = "us", "Türkiye" = "turkiye", and "Québec" = "quebec".
+The numbers that tune it are constants at the top of the module, each with
+the case that set it: `_US_PREFERENCE` (Cambridge, MA over England),
+`_MAJOR_CITY` (`Perth, WA` is Australia, `Springfield, VT` stays Vermont),
+`_BIG_US_CITY` (`San Jose` is California, `Ontario` the province),
+`_TYPO_CUTOFF`.
 
-**State keys are stored per country**, because abbreviations repeat once more
-countries are seeded ("WA" is Washington and Western Australia). Each state is
-keyed by its name, its full code (`us-ny`) and its suffix (`ny`). Skip
-numeric suffixes if a future seed has them (`JP-13` is Tokyo, and a bare "13"
-means nothing). Looked up without a country, a key that matches several states
-returns the US one if there is one, otherwise nothing.
+**Two-letter pieces** are a state or country code before they are a city
+(Wa is a city in Ghana). Between a US state and a country, the city decides:
+`Indianapolis, IN` is Indiana, `Berlin, DE` Germany, `Amsterdam, NL` the
+Netherlands.
 
-**Aliases the tables cannot produce**, kept as two dicts in the resolver:
+**Coverage on the 1,069-job feed (2026-10-07):** 1,046 resolve to at least one
+place; 20 name none ("Remote", "Any Location"); 3 miss (`Any SpaceX Site`,
+`RWC HQ`). `Resolution.unresolved` lists the pieces of a miss and stays empty
+for strings that name no place, so the import can log only real misses.
 
-- Countries: nicknames (`usa`, `uk`, `uae`, `russia`, `turkey`, `czech
-  republic`, `holland`, `korea`…) and local-language names (`deutschland`,
-  `espana`, `italia`, `schweiz`, `suisse`, `nederland`, `brasil`, `osterreich`).
-  Many of these point at countries the trimmed seed dropped; when the resolver
-  loads, discard any alias whose target is not in `countries`, or it returns
-  a code the FK rejects.
-- States: only `washington dc` → US-DC today. A future seed whose English
-  names override ISO's adds the local names here (`bayern` → DE-BY); derive
-  them by comparing pycountry's names with `states.name`, not by hand, and add
-  them in the same PR as the seed.
-- Alias England, Scotland, Wales and Northern Ireland to `GB` as countries
-  while GB has no states, or "Edinburgh, Scotland" resolves to nothing. If GB
-  states are ever seeded, drop these aliases: the nations become states
-  (`GB-ENG`…), and resolving them as states still yields GB.
+**Known misses, accepted:**
 
-**`resolve(text)`.** Split on commas, drop empty parts, read from the right. Try
-the last part, in order:
+- A lone name that's a region abroad and a US city under 250k goes abroad:
+  `Santa Cruz` is Bolivia's province, not Santa Cruz, CA.
+- Lone `LA` is Louisiana, not Los Angeles; lone `Washington` is the state.
+- A lone city with a much bigger foreign namesake goes abroad:
+  `Birmingham` is England.
+- Abbreviations GeoNames lacks (`RWC` for Redwood City) resolve to nothing.
+- Non-US regions never become state codes unless that country's states are
+  seeded under GeoNames' admin1 code (true for `GB-ENG`, not for most).
 
-1. a **US state** → that state, country US
-2. a **country** → that country; then try the part before it as a state
-   *within that country*
-3. **any other country's state** → that state and its country
-4. otherwise → `None`
+**Unresolved postings are stored anyway** with no `job_locations` rows;
+`location_raw` (`b40588efa7b7`) keeps the text, so they can be resolved again
+when the resolver improves.
 
-The order wins the collisions that matter on a US job board. Short codes
-collide constantly:
+### data/places.tsv — the gazetteer
 
-| Input | Result | Instead of |
-| --- | --- | --- |
-| `Indianapolis, IN` | US-IN | India |
-| `Atlanta, Georgia` | US-GA | the country Georgia |
-| `Amsterdam, NL` | NL | Newfoundland |
+Built by `scripts/build_geonames.py` from GeoNames' `cities15000` (≈34k
+cities of 15,000+ people, with population, country, state and alternate
+names), `countryInfo` and `admin1CodesASCII` (first-level regions
+worldwide). About 3.2 MB, committed, so a build is reproducible and the import
+never downloads anything. Re-run the script to refresh it.
 
-Known misses, accepted: "Berlin, DE" → Delaware, "Regina, SK" → Slovakia,
-"Perth, WA" → Washington. Spelled-out names resolve correctly. Step 3 only
-matters once a second country has states; with the US alone, a bare "ON" or
-"Bavaria" resolves to nothing. With the 15-country seed, India, Georgia, the
-Netherlands and Slovakia are not seeded either, so the collisions above cannot
-happen yet — keep the order anyway, since they return with those countries.
+- **CC BY 4.0:** the attribution line at the top of the file must stay.
+- Alternate names are kept only in plain Latin letters; other scripts would
+  triple the file and match nothing an English job board writes.
+- Towns under 15,000 are absent, which is fine when a state follows
+  (`Montpelier, VT`) and a miss when one stands alone. `cities5000` is the
+  next size up if that starts to matter.
+- It ships with the Vercel deploy although only the import reads it.
 
-Cases checked against the seeds, as a starting test set:
+## job_postings holds company-posted and scraped jobs
 
-```
-New York, NY                          US, US-NY
-Seattle, WA, United States            US, US-WA
-Washington, D.C.                      US, US-DC
-London, England, United Kingdom       GB, —
-London, UK                            GB, —
-Edinburgh, Scotland                   GB, —       (via the scotland alias)
-Paris, Île-de-France, France          FR, —       (no FR states seeded)
-München, Bayern, Deutschland          DE, —       (via the deutschland alias)
-Bengaluru, Karnataka, India           IN, —
-Toronto, ON, Canada                   CA, —
-Remote, US                            US, —
-Dublin, Ireland                       IE, —
-San Francisco / Remote / ""           None
-```
+One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
 
-**What it cannot do.** A city alone ("San Francisco") has no ISO entry; that
-needs city data such as GeoNames `cities15000.txt` (city → country + admin1),
-picking the most populous match for a repeated name. Until then, do not guess
-on a miss: log it, since misses show which aliases to add. `job_postings` has
-no column for the raw text, so an unresolved posting cannot be stored for a
-later retry. Add a `location_raw` column if that matters.
+- **Set** — posted through the company form by that company.
+- **NULL** — scraped, imported from the scraper's `feed.json`. The employer is
+  `company_name`/`company_logo_url`, and `apply_url` is where the seeker
+  applies. `apply_url` is unique because the scraper dedupes on it, which
+  makes it the key an import upserts on. `description` is the scraper's
+  plain-text copy, which Scout reads; it is most of the table's size (first
+  import, 2026-10-07: 4.9 MB of text stored as 3.2 MB compressed, in TOAST,
+  for 1,069 jobs).
+
+Chosen over a separate scraped-jobs table so a seeker feed, search and
+location filter are one query over one table, and saves/applications can
+reference either kind with one foreign key. There is no `source` column on
+purpose: it would only restate whether `company_id` is NULL, and the two
+could disagree. If a company ever claims a scraped job, setting `company_id`
+is what makes it theirs.
+
+**The nullable columns are nullable for scraped rows only.** `company_id`,
+`description`, `job_type`, `experience_level` and `work_style` were
+`NOT NULL`; the `company_job_complete` CHECK still requires the last four when
+`company_id` is set, and `scraped_job_completed` requires `company_name` and
+`apply_url` when it is not. Add a column one kind needs to the matching CHECK,
+not a bare `NOT NULL`.
+
+**No salary is required at the database level** — `salary_exist` was dropped,
+since job boards rarely state one. `JobPostingCreate` in
+`schemas/company_jobs.py` still requires one from the company form; that is
+a product rule, kept in the API.
+
+**`status` defaults to `published`** in the model and the database, so an
+import that sends no status lists the job at once. The company form always
+sends one (draft unless published), so a company's job is unaffected.
+
+**Company routes stay safe without changes:** they filter on
+`company_id = account.company_id`, which a scraped row's NULL never matches.
+Anything that lists jobs *across* companies must decide whether it wants
+`company_id IS NULL` filtered.
+
+`posted_at` is when the job board says the job went up; `created_at` is when
+the row was stored. Nothing sets `posted_at` for a company's job yet.
+
+**Company search uses a trigram GIN index** on `company_name`
+(`55f3c813be50`), so `ILIKE '%term%'` and the fuzzy `<%` operator look
+matches up instead of scanning. Measured on 2026-10-06: about 140 KB for the
+1,069-job feed and about 3.1 MB at 100k rows. A search under 3 characters
+produces no trigram and scans anyway. `title` had one too, dropped in
+`4cfa4c1836cd`; title search has no index now. `company_name` is only filled for scraped jobs, so
+searching company-posted jobs by employer needs a join or a copied name.
 
 ## Identity lives in auth.users
 

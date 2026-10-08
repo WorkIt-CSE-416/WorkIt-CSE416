@@ -1,41 +1,34 @@
-import Link from "next/link";
+"use client";
 
-import { cn } from "@/lib/cn";
+import { useShallowParams } from "@/components/shallow-routing";
+import { SegmentedLinks } from "@/components/ui/segmented-control";
 
-import { RANGES, type RangeKey } from "./data";
+import { parseRange, rangeHref, RANGES } from "./range";
+
+/** The range the page is showing (components/shallow-routing.tsx), so
+ *  everything that follows it redraws the moment the switch moves. */
+export function useRange() {
+  return parseRange(useShallowParams().get("range"));
+}
 
 /**
  * The window the Dashboard reports on: This Week, 30 Days, or the whole
- * recruiting season. Links on ?range= rather than client state, the way the
- * applications board's view switcher works, so a window is shareable, survives
- * a reload, and costs no JavaScript — the page re-renders on the server with
- * the new figures.
+ * recruiting season, kept in ?range= (ui/segmented-control.tsx), so a window
+ * is shareable and survives a reload.
+ *
+ * IT MOVES THE URL IN PLACE (`shallow`), not to the server. The headline
+ * numbers (./headline.tsx) and the chart (./activity.tsx) are handed every
+ * range up front and read ?range= themselves, so a new range counts its
+ * figures and redraws its line with the thumb. As a link to the server, the
+ * thumb arrived and the numbers followed a round trip later.
  */
-export function RangeSwitch({ current }: { current: RangeKey }) {
+export function RangeSwitch() {
   return (
-    <nav
-      aria-label="Time Range"
-      className="bg-well border-border-subtle rounded-control flex shrink-0 items-center gap-0.5 border p-0.5"
-    >
-      {RANGES.map(({ key, label }) => {
-        const isActive = key === current;
-
-        return (
-          <Link
-            key={key}
-            href={key === "week" ? "/dashboard" : `/dashboard?range=${key}`}
-            aria-current={isActive ? "true" : undefined}
-            className={cn(
-              "text-note focus-visible:ring-brand-ring flex h-6.5 items-center rounded-[0.375rem] px-2.5 font-medium focus-visible:ring-2 focus-visible:outline-none",
-              isActive
-                ? "bg-panel text-ink ring-border shadow-panel ring-1"
-                : "text-ink-meta hover:text-ink hover:bg-panel/60",
-            )}
-          >
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
+    <SegmentedLinks
+      shallow
+      label="Time Range"
+      value={useRange()}
+      options={RANGES.map(({ key, label }) => ({ value: key, label, href: rangeHref(key) }))}
+    />
   );
 }

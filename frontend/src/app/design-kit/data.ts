@@ -29,7 +29,12 @@ export const SECTIONS = {
   shape: {
     slug: "shape",
     title: "Shape and Elevation",
-    note: "Three radii, two shadows and two content widths. WorkIt's own; stock Tailwind's rounded-sm/md/lg keep their default values, which is what existing call sites were measured against.",
+    note: "Three radii, three shadows and two content widths. WorkIt's own; stock Tailwind's rounded-sm/md/lg keep their default values, which is what existing call sites were measured against.",
+  },
+  motion: {
+    slug: "motion",
+    title: "Motion",
+    note: "Three curves, the animations built on them, and the view transitions pages and views change through. Every specimen replays on demand. Under reduced motion all of it completes at once, so the replays land instantly.",
   },
   buttons: {
     slug: "buttons",
@@ -62,6 +67,7 @@ export const SECTION_ORDER = [
   SECTIONS.colour,
   SECTIONS.type,
   SECTIONS.shape,
+  SECTIONS.motion,
   SECTIONS.buttons,
   SECTIONS.forms,
   SECTIONS.display,
@@ -304,6 +310,112 @@ export const WIDTHS: { token: string; cls: string; role: string }[] = [
 export const SHADOWS: { token: string; cls: string; role: string }[] = [
   { token: "--shadow-card", cls: "shadow-card", role: "Login card — 20px falloff" },
   { token: "--shadow-panel", cls: "shadow-panel", role: "App cards — a 1px halo" },
+  {
+    token: "--shadow-lift",
+    cls: "shadow-lift",
+    role: "A whole-card target under the pointer, lifted 2px",
+  },
+];
+
+export const EASINGS: { token: string; cls: string; role: string }[] = [
+  {
+    token: "--ease-glide",
+    cls: "ease-glide",
+    role: "What travels and settles: a thumb, a highlight, a page arriving",
+  },
+  {
+    token: "--ease-spring",
+    cls: "ease-spring",
+    role: "What pops into place: a chip's cross, a badge. Never anything that travels far",
+  },
+  {
+    token: "--ease-exit",
+    cls: "ease-exit",
+    role: "What leaves: it speeds away and does not linger",
+  },
+];
+
+/** `demo` picks the specimen motion/demos.tsx draws for the animation. */
+export const ANIMATIONS: {
+  token: string;
+  cls: string;
+  demo: "card" | "cross" | "row" | "rail" | "bar" | "ring" | "bell" | "dots" | "ping";
+  role: string;
+}[] = [
+  {
+    token: "--animate-rise",
+    cls: "animate-rise",
+    demo: "card",
+    role: "Content arriving: cards, rows, timeline steps, staggered and capped",
+  },
+  {
+    token: "--animate-pop",
+    cls: "animate-pop",
+    demo: "cross",
+    role: "Something appearing where it stands: a chip's cross, the Next badge, a sort glyph",
+  },
+  {
+    token: "--animate-fade",
+    cls: "animate-fade",
+    demo: "row",
+    role: "A fade alone, for what cannot move: a table row, a stat's comparison line",
+  },
+  {
+    token: "--animate-draw-y",
+    cls: "animate-draw-y",
+    demo: "rail",
+    role: "A line drawing down from its origin: the detail panel's timeline rail",
+  },
+  {
+    token: "--animate-draw-x",
+    cls: "animate-draw-x",
+    demo: "bar",
+    role: "A bar drawing across: Waiting to Hear Back, Profile Strength",
+  },
+  {
+    token: "--animate-ring-fill",
+    cls: "animate-ring-fill",
+    demo: "ring",
+    role: "A ring's arc measuring out to its value: the match score",
+  },
+  {
+    token: "--animate-swing",
+    cls: "animate-swing",
+    demo: "bell",
+    role: "The bar's bell, once, as the pointer reaches it",
+  },
+  {
+    token: "--animate-status-ping",
+    cls: "animate-status-ping",
+    demo: "ping",
+    role: "A dot calling for a look, three pings then rest: the detail panel's Next step",
+  },
+  {
+    token: "--animate-typing",
+    cls: "animate-typing",
+    demo: "dots",
+    role: "Scout's three thinking dots, staggered 150ms; the one animation that loops",
+  },
+];
+
+/** The classes globals.css gives React's <ViewTransition>, by what changed. */
+export const VIEW_TRANSITIONS: { name: string; role: string }[] = [
+  {
+    name: "page-enter · page-exit",
+    role: "Between sections, from each shell's template.tsx: out in 120ms, in rising 8px",
+  },
+  {
+    name: "swap-enter · swap-exit",
+    role: "The same place with new content: an Applications view, the board's columns, a Calendar view",
+  },
+  {
+    name: "step-forward · step-back",
+    role: "The Calendar moving through time, by its arrows and Today: the span slides the way time went",
+  },
+  {
+    name: "reflow",
+    role: "An item gliding to its new place when a list is sorted or filtered",
+  },
 ];
 
 /** Every Button variant, in the order the page shows them. */

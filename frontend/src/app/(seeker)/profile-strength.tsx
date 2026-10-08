@@ -57,18 +57,21 @@ export async function ProfileStrength() {
         aria-valuenow={done}
         className="bg-rail-selected mt-2 h-1.5 overflow-hidden rounded-full"
       >
+        {/* Fills from the left as the panel arrives. */}
         <span
-          className="bg-brand block h-full rounded-full"
-          style={{ width: `${(done / steps.length) * 100}%` }}
+          className="bg-brand animate-draw-x block h-full origin-left rounded-full"
+          style={{ width: `${(done / steps.length) * 100}%`, animationDelay: "200ms" }}
         />
       </div>
 
       <Link
         href="/profile"
-        className="text-note text-brand-ink focus-visible:ring-brand-ring mt-2 inline-flex items-center gap-1 rounded-xs font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+        // The underline fades in and the arrow leans on, as a section link's
+        // does.
+        className="group/strength text-note text-brand-ink focus-visible:ring-brand-ring mt-2 inline-flex items-center gap-1 rounded-xs font-medium underline decoration-transparent underline-offset-2 transition-[text-decoration-color] duration-150 hover:decoration-current focus-visible:ring-2 focus-visible:outline-none"
       >
         {next.todo}
-        <ArrowRightIcon className="size-3" />
+        <ArrowRightIcon className="ease-glide size-3 transition-transform duration-200 group-hover/strength:translate-x-0.5" />
       </Link>
     </div>
   );
