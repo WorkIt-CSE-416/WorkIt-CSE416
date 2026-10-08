@@ -61,7 +61,8 @@ export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";
  *  Only places that have a job are listed. */
 export type JobLocationOption = {
   code: string;
-  /** "United States", "California, United States", "Other Countries". */
+  /** "United States", "California", "Other". A state's label is its name
+   *  alone: the Location facet lists it under its country. */
   label: string;
   jobs: number;
 };

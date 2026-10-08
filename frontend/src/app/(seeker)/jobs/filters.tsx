@@ -93,8 +93,10 @@ function FacetTrigger({
 }
 
 /** An option whose value is what it says, or a value with its own label
- *  (a location's code, "US-CA", shown as "California, United States"). */
-type FacetOption = string | { value: string; label: string };
+ *  (a location's code, "US-CA", shown as "California"), its row's own
+ *  classes (a state's indent under its country), and whether it is folded
+ *  away for now (a state under an unticked country). */
+type FacetOption = string | { value: string; label: string; className?: string; folded?: boolean };
 
 /** The list shared by every facet's popup: checkbox rows where a facet takes
  *  several picks, the vendored check-mark rows where it takes one. */
@@ -112,10 +114,20 @@ function FacetPopup({
   return (
     <SelectContent className={className}>
       {options.map((option) => {
-        const { value, label } =
+        const { value, label, className, folded } =
           typeof option === "string" ? { value: option, label: option } : option;
+        // A folded row stays mounted, hidden and disabled (so arrow keys and
+        // typeahead skip it), never removed: Base UI 1.7 prunes the selection
+        // when the item list shrinks, against the value from before the press,
+        // so unticking a country put it straight back
+        // (select/positioner/SelectPositioner.js, onMapChange).
         return (
-          <Item key={value} value={value}>
+          <Item
+            key={value}
+            value={value}
+            disabled={folded}
+            className={cn(className, folded && "hidden")}
+          >
             {label}
           </Item>
         );
@@ -204,8 +216,33 @@ const EMPTY_FACETS: FacetState = {
   industry: [],
 };
 
-/** Location's facet once its options have arrived. Wider than its trigger:
- *  "District of Columbia, United States" would wrap in 144px. */
+/** "US" for "US-CA", and for "US" itself. */
+const countryOf = (code: string) => code.split("-")[0];
+const isState = (code: string) => code.includes("-");
+
+/** The URL's places as the popup's ticks: a state ticks its country too, since
+ *  a country's states only show while it is ticked. */
+function ticksFrom(places: readonly string[]): string[] {
+  return [...new Set(places.flatMap((code) => (isState(code) ? [countryOf(code), code] : [code])))];
+}
+
+/** The popup's ticks as the URL's places. A country alone means all of it; a
+ *  country with states ticked means just those states. A state whose country
+ *  was just unticked goes with it. */
+function placesFrom(ticks: readonly string[]): string[] {
+  return ticks
+    .filter((code) => !isState(code))
+    .flatMap((country) => {
+      const states = ticks.filter((code) => isState(code) && countryOf(code) === country);
+      return states.length > 0 ? states : [country];
+    });
+}
+
+/** Location's facet once its options have arrived. Lists the countries
+ *  ("United States", "Other"); ticking one opens its states beneath it,
+ *  indented, to narrow it further. `values` and `onChange` speak the URL's
+ *  places, never the ticks. Wider than its trigger, so "District of Columbia"
+ *  keeps to one line. */
 function LocationFacet({
   locations,
   values,
@@ -218,13 +255,19 @@ function LocationFacet({
   className?: string;
 }) {
   const options = use(locations);
+  const ticks = ticksFrom(values);
 
   return (
     <Facet
       label="Location"
-      options={options.map(({ code, label }) => ({ value: code, label }))}
-      values={values}
-      onChange={onChange}
+      options={options.map(({ code, label }) => ({
+        value: code,
+        label,
+        className: isState(code) ? "pl-6" : undefined,
+        folded: isState(code) && !ticks.includes(countryOf(code)),
+      }))}
+      values={ticks}
+      onChange={(next) => onChange(placesFrom(next))}
       disabled={options.length === 0}
       className={className}
       popupClassName="w-auto max-w-80 min-w-(--anchor-width)"
@@ -241,7 +284,7 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
         <Facet
           label="Location"
           options={[]}
-          values={props.values}
+          values={ticksFrom(props.values)}
           onChange={props.onChange}
           disabled
           className={props.className}
