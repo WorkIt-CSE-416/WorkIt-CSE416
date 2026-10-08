@@ -170,7 +170,36 @@ every case in `tests/test_details.py` was seen in a real posting:
   2027 program") or a start month, but only of the title's year; a year alone in a
   description is as likely a founding date. Years are any 20xx judged against
   today (`details._near`: last year to three ahead), so no pattern needs editing
-  as the calendar moves.
+  as the calendar moves. A date range in the title starts at its first month
+  ("(January - August 2027)" is January, not the "August 2027" at its end), and a
+  title's words skip the deadline guard: Rivian's "Applications" is a team. With no
+  year anywhere, a bare month or season stands ("May - August", "As a summer
+  intern"), taking the title's year when it has one.
+
+**Audit them against the source, not against each other** (2026-10-08). Every posting
+showing a "not listed" fact was re-fetched whole from its board and searched; a few were
+opened on the employer's own page too, which never showed anything the API did not.
+Most gaps were honest -- 444 of 474 without pay, 267 of 311 internships without a start,
+253 of 269 new grads without years state none -- and the rest became the patterns now in
+`details.py`, each with its posting's sentence in `tests/test_details.py`
+(`TestAuditFindings`). What it taught:
+
+- **A period right after an amount proves pay** ("Intern/Undergraduate: $34/hour"),
+  unless the money is something else just before it (`_NOT_PAY_BEFORE`: save, budget,
+  401(k), allowance -- "save $40,000 a year" is not pay).
+- **A currency can be a code with no symbol** ("800 USD monthly", "34.000 - 38.000 EUR",
+  "CAD $30-50/hour"), thousands can be "." ("$120.000"), and a range's low end can be
+  short ("€55-65,000").
+- **A LinkedIn tag (`#LI-Hybrid`) is the employer's own work-style label** and wins;
+  **Hybrid beside On site is Hybrid** (Lyft: "in-office on a hybrid schedule, 3 days
+  per week"); naming weekdays onsite is hybrid. Greenhouse boards add a "Working
+  Conditions" field, and Lever boards sometimes put "Remote" in `commitment`.
+- **"Remote" and "hybrid" block the On-site guess only when they are about work**
+  (`shortlist.FLEXIBLE`): "remote battery monitoring" and "hybrid cloud" are not.
+- **Measure a pattern change on the whole feed before trusting it:** compare every fact
+  before and after, and read every *changed* value, not only the newly filled ones. That
+  is how three regressions were caught here (a title range read from its end, a
+  currency code before the symbol, "lease" matching inside "please").
 
 **The company name comes from `boards.csv`, not the provider.** Greenhouse's
 `company_name` carries internal labels ("LinkedIn Job Wrapping", "DRW - University

@@ -519,3 +519,160 @@ def test_ashby_values_are_never_carried_forward() -> None:
     now = replace(first, page=read_page())
     tuesday = store.update(monday, [now], [], RunStats(), "2026-10-07T09:00:00+00:00")
     assert tuesday.jobs[0].facts.job_type is None
+
+
+class TestAuditFindings:
+    """Facts the 2026-10-08 audit found stated but missed. Each string is from the
+    posting named; each "stays empty" case is from a real posting too."""
+
+    def test_pay_proved_by_its_period(self) -> None:
+        # xAI, Freeform, Cresta, Qualified Health: labelled by level, not by "pay".
+        text = "Software Engineering Intern/Freshman/Sophomore: $30 USD per hour"
+        assert details.pay(text) == Pay("USD", 30, 30, "hour")
+        assert details.pay("Perks & Benefits:\n$30-$50 per hour subject to taxes") == Pay(
+            "USD", 30, 50, "hour"
+        )
+
+    def test_pay_with_a_currency_code_and_no_symbol(self) -> None:
+        # Sezzle, ION Group.
+        text = "The salary for the SRE Intern is 800 USD monthly gross."
+        assert details.pay(text) == Pay("USD", 800, 800, "month")
+        assert details.pay("Gross Salary Range\n34.000 - 38.000 EUR") == Pay(
+            "EUR", 34000, 38000, "year"
+        )
+
+    def test_pay_shorthand_and_european_thousands(self) -> None:
+        # Mendix, Atoms.
+        text = "The salary range for this position is €55-65,000 annually"
+        assert details.pay(text) == Pay("EUR", 55000, 65000, "year")
+        text = "The base salary range for this role is $120.000 - $140.000 per year."
+        assert details.pay(text) == Pay("USD", 120000, 140000, "year")
+
+    def test_pay_currency_before_the_symbol(self) -> None:
+        # Cresta.
+        assert details.pay("Compensation: CAD $30-50/hour") == Pay("CAD", 30, 50, "hour")
+        assert details.pay("💰£42,500 pro rata") == Pay("GBP", 42500, 42500, "year")  # Monzo
+
+    def test_money_that_is_not_pay(self) -> None:
+        # Canonical's learning budget, Awetomaton's 401(k) limit.
+        assert details.pay("development budget of USD 2,000 per year") is None
+        assert details.pay("This is a benefit of up to $24,500 for 2026.") is None
+
+    def test_ashby_bi_weekly_pay_is_halved_to_a_week(self) -> None:
+        # Persona: "$7.5K – $8K bi-weekly".
+        pay = Pay.from_interval("USD", 7500, 8000, "2 WEEK")
+        assert pay == Pay("USD", 3750, 4000, "week")
+
+    def test_linkedin_tags_are_the_employers_label(self) -> None:
+        # Pure Storage, Shift, Notion.
+        assert details.work_style("Able to work full-time | #LI-ONSITE") == "On site"
+        assert details.work_style("#LI-RH1 #LI-REMOTE") == "Remote"
+
+    def test_hybrid_beside_on_site_is_hybrid(self) -> None:
+        # Lyft.
+        text = (
+            "This role will be in-office on a hybrid schedule — Team Members will be "
+            "expected to work in the office 3 days per week"
+        )
+        assert details.work_style(text) == "Hybrid"
+
+    def test_more_hybrid_phrasings(self) -> None:
+        # Profluent, NISC, WPP, Dev Technology, Roblox.
+        for text in (
+            "Hybrid: 2–3 days on-site per week at our Emeryville, CA headquarters",
+            "Work Schedule:\nHybrid from one of our office locations",
+            "we've adopted a hybrid approach, with teams in the office around four days a week",
+            "Must be able to commute to the Reston, Virginia office a minimum of 2 days a week",
+            "Roles that are based in an office are onsite Tuesday, Wednesday, and Thursday",
+        ):
+            assert details.work_style(text) == "Hybrid", text
+
+    def test_more_on_site_and_remote_phrasings(self) -> None:
+        # SpaceX, Amperesand, CoVar, Stripe; Axon, Docugami.
+        for text in (
+            "Able to work full time, onsite for a minimum of 12 consecutive weeks",
+            "Available to work on-site.",
+            "In-person in Durham, NC",
+            "working in person from Stripe’s San Francisco or Seattle office",
+        ):
+            assert details.work_style(text) == "On site", text
+        assert details.work_style("Location: Remote anywhere in Australia") == "Remote"
+        assert details.work_style("This position will primarily be remote") == "Remote"
+
+    def test_an_offered_choice_stays_empty(self) -> None:
+        # GenScript.
+        text = "Onsite preferably, but open to US Remote for the right candidate"
+        assert details.work_style(text) is None
+
+    def test_more_start_phrasings(self) -> None:
+        intern = "Software Engineer Intern"
+        assert details.start_term(intern, "through the summer of 2027") == "Summer 2027"
+        assert details.start_term(intern, "12 weeks between June and September 2027") == "June 2027"
+        text = "a 6-month internship beginning in February, March, April, May, or June 2027"
+        assert details.start_term(intern, text) == "February 2027"
+        assert details.start_term("Software Development Co-op (Jan '27)", None) == "January 2027"
+
+    def test_a_title_range_starts_at_its_first_month(self) -> None:
+        # Rivian (whose title also says "Applications"), Visier, EQ Bank.
+        title = (
+            "Software Engineering Intern - Applications, Infotainment & Mobile "
+            "(January - August 2027)"
+        )
+        assert details.start_term(title, None) == "January 2027"
+        assert (
+            details.start_term("Software Developer Intern (January to June 2027)", None)
+            == "January 2027"
+        )
+        assert (
+            details.start_term("Intern, AI Adoption Operations, Jan - Dec 2027", None)
+            == "January 2027"
+        )
+
+    def test_a_month_or_season_with_no_year(self) -> None:
+        # TensorWave, Shift, ZipRecruiter, Brave; with the title's year when it has one.
+        intern = "Software Engineer Intern"
+        assert details.start_term(intern, "- Paid Internship\n- May - August (12 weeks)") == "May"
+        assert details.start_term(intern, "start your internship around August 31th") == "August"
+        assert details.start_term(intern, "As a summer intern, you’ll join our program") == "Summer"
+        assert details.start_term(intern, "Remote - Fall Semester") == "Fall"
+        assert (
+            details.start_term(f"{intern} (2027)", "Join our summer internship program")
+            == "Summer 2027"
+        )
+
+    def test_dates_that_are_not_the_start(self) -> None:
+        intern = "Software Engineer Intern"
+        # Jump, Rackner, SharkNinja.
+        assert details.start_term(intern, "internships during a non-summer term") is None
+        assert details.start_term(intern, "Lease covering March 26-September 23") is None
+        assert details.start_term(intern, "may affect starting pay within this range") is None
+
+    def test_more_years_phrasings(self) -> None:
+        # Synack, Akuna, Rover.
+        assert details.min_years("~1yr of work/internship experience relevant to this role") == 1
+        assert details.min_years("0-2 years’ experience, must be graduating by Jul 2027") == 0
+        assert details.min_years("1-4 years as a professional software developer") == 1
+
+    def test_more_job_type_phrasings(self) -> None:
+        # SingleStore, Sezzle, Stripe; IMC's experience is not a job type.
+        assert details.job_type("Employment Status: Full-time") == "full_time"
+        assert details.job_type("#Li-remote #Full-time") == "full_time"
+        assert (
+            details.job_type("Must be available to start full-time before December 1")
+            == "full_time"
+        )
+        assert (
+            details.job_type("requires 1–3 years of full-time, post-graduation work experience")
+            is None
+        )
+        assert details.job_type_label("Employee-Regular") == "full_time"
+
+
+class TestProviderWorkStyleFields:
+    def test_greenhouse_working_conditions(self) -> None:
+        assert (
+            providers._greenhouse_work_style([{"name": "Working Conditions", "value": "Hybrid"}])
+            == "Hybrid"
+        )
+        assert providers._greenhouse_work_style([{"name": "Is Remote?", "value": True}]) == "Remote"
+        assert providers._greenhouse_work_style([{"name": "Cost Center", "value": "4991"}]) is None
