@@ -7,6 +7,8 @@ import { Suspense } from "react";
 
 import { LogoLockup } from "@/components/logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
+import { ScoutLauncher } from "@/components/scout/scout-buttons";
+import { ScoutPanel } from "@/components/scout/scout-panel";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { getSessionUser } from "@/lib/session";
@@ -170,6 +172,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
             <MobileSearch />
 
+            <ScoutLauncher className={BAR_CIRCLE} />
+
             <NotificationsMenu className={BAR_CIRCLE}>
               New matches and replies from employers will show up here.
             </NotificationsMenu>
@@ -184,15 +188,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             default, which would push the column past h-svh and hand the
             scroll back to the document. overscroll-contain so a fling that
             outruns the page does not chain onto the document. */}
-        <SidebarInset
-          id="content"
-          tabIndex={-1}
-          className="bg-panel border-rail-border shadow-panel rounded-shell @container/main min-h-0 flex-1 overflow-y-auto overscroll-contain border focus:outline-none"
-        >
-          {/* Outlives a single page so My Profile renders at once on a return
-              visit; see profile-cache.tsx for why it lives here. */}
-          <ProfileCacheProvider>{children}</ProfileCacheProvider>
-        </SidebarInset>
+        {/* A row, so Scout's panel docks beside the page as one more floating
+            panel instead of covering it; min-w-0 lets the page shrink for it. */}
+        <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
+          <SidebarInset
+            id="content"
+            tabIndex={-1}
+            className="bg-panel border-rail-border shadow-panel rounded-shell @container/main min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain border focus:outline-none"
+          >
+            {/* Outlives a single page so My Profile renders at once on a return
+                visit; see profile-cache.tsx for why it lives here. */}
+            <ProfileCacheProvider>{children}</ProfileCacheProvider>
+          </SidebarInset>
+          <ScoutPanel />
+        </div>
       </div>
     </SidebarProvider>
   );

@@ -32,10 +32,29 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "company": role.company,
         "apply_url": role.apply_url,
         "experience_level": "internship" if Tag.INTERN in role.tags else "new_grad",
-        "work_style": WORK_STYLE[role.work_style] if role.work_style else None,
+        "work_style": WORK_STYLE[role.facts.work_style] if role.facts.work_style else None,
         "location": role.location_label or None,
         "posted_at": role.posted_at,
         "logo_url": logos.get(role.board_key),
+        "description": role.description,
+        "job_type": role.facts.job_type,
+        **salary(role),
+        "min_years_experience": role.facts.min_years,
+        "start_term": role.facts.start_term,
+    }
+
+
+def salary(role: Role) -> dict[str, object]:
+    """`job_postings`' salary columns, always as a range: a single amount is a
+    range whose ends meet, and the card prints it once (format.ts formatSalary).
+    `salary` is the company composer's single-amount column; we never fill it."""
+    pay = role.facts.pay
+    return {
+        "salary": None,
+        "salary_min": pay.low if pay else None,
+        "salary_max": pay.high if pay else None,
+        "salary_currency": pay.currency if pay else None,
+        "salary_period": pay.period if pay else None,
     }
 
 

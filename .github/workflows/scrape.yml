@@ -1,0 +1,97 @@
+name: Scrape jobs
+
+# Scrapes every job board in scraper/boards.csv and imports the shortlist into
+# Supabase's job_postings, every six hours. Root CLAUDE.md's CI section explains
+# the schedule, the secret it needs and how it fails.
+on:
+  schedule:
+    # Off the hour: GitHub delays, and under load drops, runs scheduled on it.
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Read every board, quiet ones included (scraper --full)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Import with --dry-run: report what would change, write nothing"
+        type: boolean
+        default: false
+  # A change to the scraper, the import or this file runs the whole path once,
+  # with the import always a dry run, so it is proven before it merges.
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/scrape.yml"
+      - "scraper/**"
+      - "backend/app/scripts/import_jobs.py"
+      - "backend/app/schemas/jobs.py"
+
+# One run at a time: two imports at once would race on the same rows, and two
+# scrapes would double the load on every board.
+concurrency:
+  group: scrape-jobs
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scrape-and-import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # jobs.json is the scraper's memory: first-seen dates, each posting's page,
+      # which boards were read when. Without it a run re-reads every Greenhouse
+      # page and counts nothing as new. Restore the newest one.
+      - name: Restore the scraper's store
+        uses: actions/cache/restore@v4
+        with:
+          path: scraper/jobs.json
+          key: scraper-store-${{ github.run_id }}
+          restore-keys: scraper-store-
+
+      - name: Scrape
+        working-directory: scraper
+        run: python3 -m workit_scraper ${{ inputs.full && '--full' || '' }}
+
+      # Saved only after a scrape that finished, so a crashed run can't hand the
+      # next one a half-written store.
+      - name: Save the scraper's store
+        uses: actions/cache/save@v4
+        with:
+          path: scraper/jobs.json
+          key: scraper-store-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Keep the feed and page for a week
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-${{ github.run_id }}
+          path: |
+            scraper/feed.json
+            scraper/internships.html
+          retention-days: 7
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install the backend
+        working-directory: backend
+        run: uv sync --locked
+
+      - name: Import into Supabase
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          uv run python -m app.scripts.import_jobs ../scraper/feed.json ${DRY_RUN:+"$DRY_RUN"}

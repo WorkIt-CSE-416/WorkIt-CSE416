@@ -14,11 +14,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
-from app.deps import get_current_account
+from app.deps import assert_applicant_owns, get_current_account
 from app.models.dto import ParsedResume, ResumeStatus
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
-from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.schemas.auth import AuthenticatedAccount
 from app.utils.resume_parser import count_sections, parse_resume
 
 router = APIRouter()
@@ -140,12 +140,6 @@ PDF_MAGIC = b"%PDF"
 DOCX_MAGIC = b"PK\x03\x04"
 
 
-def _assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUID) -> None:
-    """Shared ownership guard for all resume endpoints."""
-    if account.account_type != AccountType.APPLICANT or account.id != applicant_id:
-        raise HTTPException(403, "Forbidden")
-
-
 async def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
     """Size and type checks shared by parse and upload. Returns the bytes,
     extension and MIME type."""
@@ -195,7 +189,7 @@ async def parse_resume_preview(
 ):
     """Parse without saving, so the applicant can review and edit the result
     before it is stored. Touches neither Storage nor the database."""
-    _assert_applicant_owns(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
     contents, ext, _ = await _read_upload(file)
     parsed = _safe_parse(await _extract(contents, ext))
     return {"parsed_json": parsed.model_dump(mode="json") if parsed else None}
@@ -215,7 +209,7 @@ async def upload_resume(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session)
 ):
-    _assert_applicant_owns(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
 
     reviewed = None
     if parsed_json is not None:
@@ -299,7 +293,7 @@ async def list_resumes(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
-    _assert_applicant_owns(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
 
     result = await session.execute(
         select(Resume)
@@ -348,7 +342,7 @@ async def get_resume(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
-    _assert_applicant_owns(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     return {"id": str(resume.id), "parsed_json": resume.parsed_json}
 
@@ -363,7 +357,7 @@ async def update_resume(
 ):
     """Replace the parsed content with the applicant's edits from the profile.
     The whole ParsedResume is sent, so one entry's edit is a full replace."""
-    _assert_applicant_owns(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
     _reject_oversized(body)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     resume.parsed_json = body.model_dump(mode="json")
@@ -386,7 +380,7 @@ async def set_default_resume(
 ):
     """Make this the applicant's primary resume. It is a pointer on the profile
     (default_resume_id, ON DELETE SET NULL), so deleting the resume clears it."""
-    _assert_applicant_owns(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
@@ -411,7 +405,7 @@ async def get_resume_file_url(
     """A short-lived link to the uploaded file, for the profile's preview. A
     browser shows a PDF itself; it can't show a DOCX, so that link downloads
     the file under the name it was uploaded with."""
-    _assert_applicant_owns(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     if not resume.storage_path:
         raise HTTPException(404, "Resume file not found")
@@ -439,7 +433,7 @@ async def delete_resume(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
-    _assert_applicant_owns(account, applicant_id)
+    assert_applicant_owns(account, applicant_id)
 
     resume = await _get_owned_resume(session, applicant_id, resume_id)
 

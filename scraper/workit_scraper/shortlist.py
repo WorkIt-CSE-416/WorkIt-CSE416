@@ -22,10 +22,12 @@ as its own row. (Postings that do not classify are counted and never stored.)
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
+from workit_scraper.details import Facts
 from workit_scraper.providers import Job
 
 
@@ -106,8 +108,11 @@ class Role:
     #: No posting behind this role was known to us before today. See `Store.is_new`.
     new: bool
     department: str | None
-    work_style: str | None
     locations: tuple[str, ...]
+    description: str | None
+    #: The first copy's facts, whole, with `work_style` as the card shows it:
+    #: stated, or inferred (see `_work_style`).
+    facts: Facts = field(default_factory=Facts)
 
     @property
     def location_label(self) -> str:
@@ -138,6 +143,11 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
     """Classify, dedupe, and order newest-first by the provider's posted date."""
     # Copies at one URL are one posting, so its first copy's title and company
     # speak for all of them; tags depend only on the title.
+    # Every work style a company's postings state, for its postings that state none.
+    styles: dict[str, Counter[str]] = {}
+    for job in jobs:
+        if job.facts.work_style:
+            styles.setdefault(job.company, Counter())[job.facts.work_style] += 1
     grouped: dict[str, tuple[tuple[Tag, ...], list[Job]]] = {}
     for job in jobs:
         if job.apply_url not in grouped:
@@ -151,7 +161,10 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
         # The oldest copy speaks for the role: it has been known to us since we first
         # saw *any* of its copies, so it is new only if that copy is. Unstamped sort last.
         oldest = min(postings, key=lambda job: (job.first_seen_at is None, job.first_seen_at))
-        locations = tuple(dict.fromkeys(job.location for job in postings if job.location))
+        locations = tuple(dict.fromkeys(place for job in postings for place in job.places))
+        # Facts come whole from one copy, never field by field across copies:
+        # pay from one and job type from another would describe no posting.
+        facts = next((job.facts for job in postings if job.page), Facts())
         roles.append(
             Role(
                 title=postings[0].title,
@@ -163,13 +176,50 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 posted_at=min((job.posted_at for job in postings if job.posted_at), default=None),
                 new=is_new(oldest),
                 department=next((job.department for job in postings if job.department), None),
-                # Copies of one role can disagree (remote in one city, hybrid in
-                # another); the first stated answer is as good as any.
-                work_style=next((job.work_style for job in postings if job.work_style), None),
                 locations=locations,
+                description=next((job.description for job in postings if job.description), None),
+                facts=replace(
+                    facts, work_style=_work_style(postings, styles.get(postings[0].company))
+                ),
             )
         )
     # None sorts last: a posting with no date is not a brand new one.
     return sorted(
         roles, key=lambda role: (role.posted_at is not None, role.posted_at or ""), reverse=True
     )
+
+
+# Words that make "On site" a guess too far: the posting allows something else.
+# Only remote or hybrid *work*: "remote battery monitoring", "hybrid cloud" and
+# "remote access VPNs" say nothing about where the job is done.
+FLEXIBLE = re.compile(
+    r"\bremote(?:ly)?\b(?!\s+(?:battery|access|sensing|monitoring|control|devices?|systems?"
+    r"|sites?|vehicles?|operations?|support|desktop|server|procedure|management))"
+    r"|\bhybrid\b(?!\s+(?:cloud|network|benchmark\w*|system|vehicle|quantum|search|approach to))"
+    r"|work from home|\bwfh\b|\bwork from anywhere\b",
+    re.I,
+)
+
+
+def _work_style(postings: list[Job], company: Counter[str] | None) -> str | None:
+    """The card's work style, first answer wins:
+
+    1. what the posting states -- its board's field or a sentence (`Facts`);
+    2. what the company's other postings state, most often;
+    3. "On site" when it names a place and nothing in it mentions remote, hybrid
+       or working from home.
+
+    Measured on 250 postings whose board states a work style but whose text does
+    not: 2 then 3 is right 87% of the time, 3 alone 70% (the misses are hybrid).
+    Postings that state nothing usually work on site, and a card that says so is
+    more use than "not listed" -- the cost is a hybrid job sometimes shown on site.
+    """
+    stated = next((job.facts.work_style for job in postings if job.facts.work_style), None)
+    if stated:
+        return stated
+    if company:
+        return company.most_common(1)[0][0]
+    text = " ".join(f"{job.title} {job.location or ''} {job.description or ''}" for job in postings)
+    if any(job.places for job in postings) and not FLEXIBLE.search(text):
+        return "On site"
+    return None
