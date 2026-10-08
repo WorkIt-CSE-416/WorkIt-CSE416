@@ -119,7 +119,9 @@ app/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
     jobs.py       GET /jobs — published scraped jobs from job_postings, public,
-                  no descriptions; `fetch_listing` is shared with scout.py
+                  no descriptions, narrowed by ?location=; GET /jobs/locations
+                  — the places that have jobs, named. `fetch_listing` is
+                  shared with scout.py
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, get, replace,
                   delete, set default, signed file link; extracts text from

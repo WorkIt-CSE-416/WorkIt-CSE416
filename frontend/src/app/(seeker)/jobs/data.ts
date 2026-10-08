@@ -125,8 +125,6 @@ export const EXPERIENCE_OPTIONS = ["Internship", "New Grad", "Experienced"];
 
 export const DATE_POSTED_OPTIONS = ["Past 24 Hours", "Past Week", "Past Month"];
 
-export const LOCATION_OPTIONS = ["Remote (US)", "New York, NY", "Seattle, WA", "Austin, TX"];
-
 export const SALARY_OPTIONS = ["$80k+", "$120k+", "$160k+", "$200k+"];
 
 export const INDUSTRY_OPTIONS = [

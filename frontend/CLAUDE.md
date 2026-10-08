@@ -83,6 +83,9 @@ src/app/          App Router routes, layouts, pages
                   panel, the top bar, the page) floating on --color-frame,
                   and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
+                  /jobs and /search take ?location= (repeated ISO codes,
+                  US or US-CA): the Location facet in jobs/filters.tsx,
+                  fed by GET /jobs/locations, the one facet that filters.
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and

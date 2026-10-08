@@ -16,21 +16,32 @@ about, and looks it up with fetch_listing.
 
 Public on purpose: a list of public job postings says nothing about the caller.
 
+?location= narrows the feed to jobs offered in any of the places named, by
+their job_locations rows: a country code ("US") matches every job in that
+country, a state code ("US-CA") its state. GET /jobs/locations lists the
+places that have jobs, with names, for the job board's Location filter. A job
+the location resolver couldn't place has no rows, so any location filter
+leaves it out (models/CLAUDE.md, the resolver section).
+
 Descriptions are left out of the list: the cards never show them, and at
 several thousand characters each they would make every feed load many times
 heavier — so the query doesn't read them either. fetch_listing does, for Scout.
 """
 
 import uuid
+from collections.abc import Iterable, Sequence
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import Row, and_, select
+from pydantic import StringConstraints
+from sqlalchemy import Row, and_, distinct, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.dto import job_post_status
-from app.models.jobs import Job_Post
-from app.schemas.jobs import JobListing
+from app.models.jobs import Job_Location, Job_Post
+from app.models.locations import Country, State
+from app.schemas.jobs import JobListing, JobLocationOption
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -55,6 +66,14 @@ _COLUMNS = (
 )
 
 _LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
+
+# A country ("US") or a state ("US-CA"). Only the shape is checked: a code no
+# job uses matches nothing, which is the right answer for it.
+PlaceCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}(-[A-Z0-9]{1,3})?$")]
+
+# The catch-all country for places outside the seed (models/CLAUDE.md), named
+# "Other". It goes last, and its placeholder state ZZ-ZZ is never listed.
+_OTHER = "ZZ"
 
 
 def to_listing(row: Row, description: str | None = None) -> JobListing:
@@ -86,18 +105,82 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
     )
 
 
-async def fetch_listings(db: AsyncSession, limit: int) -> list[JobListing]:
+def offered_in(places: Iterable[str]):
     '''
-    the newest published scraped jobs, by when their board says they went up
+    true for a job with a job_locations row in any of these places. A state
+    code is matched with its country too, so job_locations_place_idx, which
+    leads with country, serves it
     '''
+    clauses = [
+        and_(Job_Location.country == code[:2], Job_Location.state == code)
+        if "-" in code
+        else Job_Location.country == code
+        for code in places
+    ]
+    return exists().where(Job_Location.job_id == Job_Post.id, or_(*clauses))
+
+
+async def fetch_listings(
+    db: AsyncSession, limit: int, places: Sequence[str] = ()
+) -> list[JobListing]:
+    '''
+    the newest published scraped jobs, by when their board says they went up,
+    offered in any of `places` when it names some
+    '''
+    query = select(*_COLUMNS).where(_LISTED)
+    if places:
+        query = query.where(offered_in(places))
     rows = await db.execute(
-        select(*_COLUMNS)
-        .where(_LISTED)
         # id breaks ties, so the order is the same on every request.
-        .order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id)
-        .limit(limit)
+        query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id).limit(limit)
     )
     return [to_listing(row) for row in rows]
+
+
+def location_options(
+    countries: Iterable[Row], states: Iterable[Row]
+) -> list[JobLocationOption]:
+    '''
+    each country, busiest first, followed by its states A to Z; the catch-all
+    country last, without its placeholder state. A state is labelled with its
+    own name: the job board lists it under its country. `countries` rows are
+    (code, name, jobs) and `states` rows (code, country, name, jobs)
+    '''
+    by_country: dict[str, list[Row]] = {}
+    for state in states:
+        by_country.setdefault(state.country, []).append(state)
+
+    options = []
+    for country in sorted(countries, key=lambda c: (c.code == _OTHER, -c.jobs, c.name)):
+        options.append(JobLocationOption(code=country.code, label=country.name, jobs=country.jobs))
+        if country.code == _OTHER:
+            continue
+        for state in sorted(by_country.get(country.code, []), key=lambda s: s.name):
+            options.append(JobLocationOption(code=state.code, label=state.name, jobs=state.jobs))
+    return options
+
+
+async def fetch_location_options(db: AsyncSession) -> list[JobLocationOption]:
+    '''
+    every country and state with a published scraped job, and how many
+    '''
+    jobs = func.count(distinct(Job_Location.job_id)).label("jobs")
+    listed = and_(Job_Post.id == Job_Location.job_id, _LISTED)
+    countries = await db.execute(
+        select(Country.code, Country.name, jobs)
+        .join(Job_Location, Job_Location.country == Country.code)
+        .join(Job_Post, listed)
+        .group_by(Country.code, Country.name)
+    )
+    states = await db.execute(
+        select(State.code, State.country_code.label("country"), State.name, jobs)
+        .join(Job_Location, and_(
+            Job_Location.country == State.country_code, Job_Location.state == State.code
+        ))
+        .join(Job_Post, listed)
+        .group_by(State.code, State.country_code, State.name)
+    )
+    return location_options(countries.all(), states.all())
 
 
 async def fetch_listing(db: AsyncSession, job_id: str) -> JobListing | None:
@@ -122,7 +205,16 @@ async def fetch_listing(db: AsyncSession, job_id: str) -> JobListing | None:
 )
 async def list_jobs(
     limit: int = Query(50, ge=1, le=500),
+    # Repeated for several: ?location=US-CA&location=US-NY. Capped so a URL
+    # can't turn into a thousand-clause query.
+    location: list[PlaceCode] = Query([], max_length=60),
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
     """Newest roles first. Empty until the first import has run."""
-    return await fetch_listings(db, limit)
+    return await fetch_listings(db, limit, location)
+
+
+@router.get("/locations", response_model=list[JobLocationOption])
+async def list_locations(db: AsyncSession = Depends(get_session)) -> list[JobLocationOption]:
+    """The places GET /jobs?location= can narrow to: only those with a job."""
+    return await fetch_location_options(db)
