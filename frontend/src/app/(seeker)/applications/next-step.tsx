@@ -1,7 +1,8 @@
 import { CalendarIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
-import type { Application } from "./data";
+import { DayLink, When } from "../local-time";
+import type { TrackerEvent } from "../tracker";
 
 /**
  * An application's next commitment: what it is, then when. The board card, the
@@ -20,13 +21,21 @@ import type { Application } from "./data";
  *
  * `truncate` holds each line to one row, for the list, where a wrapped label
  * would make that row taller than the rest. The cards let a label wrap.
+ *
+ * The caller picks the event (`nextEvent` in ../tracker.ts) and the date is
+ * printed in the viewer's own time by <When>.
+ *
+ * The step is a link to its week on the Calendar. It sits inside a card whose
+ * role link is stretched over the whole card, so it is `relative`: a
+ * positioned box later in the card paints over that link and takes its own
+ * clicks.
  */
 export function NextStep({
   next,
   truncate = false,
   className,
 }: {
-  next: Application["next"];
+  next: TrackerEvent | undefined;
   truncate?: boolean;
   className?: string;
 }) {
@@ -34,12 +43,23 @@ export function NextStep({
     <div className={cn("flex min-h-8 items-start gap-2", className)}>
       <CalendarIcon className="text-ink-meta mt-0.5 size-3.5 shrink-0" />
       {next ? (
-        <div className="min-w-0">
-          <p className={cn("text-note text-ink font-medium", truncate && "truncate")}>
-            {next.label}
-          </p>
-          <p className={cn("text-note text-ink-meta", truncate && "truncate")}>{next.when}</p>
-        </div>
+        <DayLink
+          at={next.at}
+          view="week"
+          className="group/step focus-visible:ring-brand-ring relative min-w-0 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <span
+            className={cn(
+              "text-note text-ink block font-medium group-hover/step:underline",
+              truncate && "truncate",
+            )}
+          >
+            {next.title}
+          </span>
+          <span className={cn("text-note text-ink-meta block", truncate && "truncate")}>
+            <When at={next.at} />
+          </span>
+        </DayLink>
       ) : (
         <p className="text-note text-ink-meta">Nothing scheduled</p>
       )}

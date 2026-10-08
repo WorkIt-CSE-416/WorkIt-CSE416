@@ -9,7 +9,7 @@ import { getCurrentAccount } from "@/lib/session";
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
 import { Activity } from "./activity";
-import { ACTIVITY, RANGES, STATS, UP_NEXT, parseRange } from "./data";
+import { ACTIVITY, RANGES, STATS, getUpNext, parseRange } from "./data";
 import { NewMatches, NewMatchesSkeleton } from "./new-matches";
 import { NextUpHero } from "./next-up-hero";
 import { RangeSwitch } from "./range-switch";
@@ -64,7 +64,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const { period, note } = RANGES.find((option) => option.key === range)!;
   const account = await getCurrentAccount();
   const firstName = account?.full_name.split(" ")[0];
-  const [next, ...later] = UP_NEXT;
+  const [next, ...later] = getUpNext();
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>

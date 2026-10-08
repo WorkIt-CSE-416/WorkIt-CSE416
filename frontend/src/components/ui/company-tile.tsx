@@ -20,12 +20,13 @@ import { cn } from "@/lib/cn";
  * an empty bordered square rather than a tint. The Applications board, grid
  * and list use it at sm, because there a tinted tile read as a stage colour
  * (violet is Applied, green is Offer), so their tiles stay neutral and the
- * column or badge carries the stage. The company job page's header uses it at
- * sm, and the company profile's hero at xl, on a cover nobody has chosen yet.
+ * column or badge carries the stage; their detail panel uses it at md, beside
+ * the role's 20px title. The company job page's header uses it at sm, and the
+ * company profile's hero at xl, on a cover nobody has chosen yet.
  */
 const SIZES = {
   sm: { box: "size-8 rounded", icon: "size-4" }, // applications board, grid and list
-  md: { box: "size-10 rounded-control", icon: "size-5" }, // design kit only
+  md: { box: "size-10 rounded-control", icon: "size-5" }, // applications detail panel
   lg: { box: "size-16 rounded-control", icon: "size-7" }, // design kit only
   xl: { box: "size-24 rounded-card", icon: "size-10" }, // company profile hero
 } as const;

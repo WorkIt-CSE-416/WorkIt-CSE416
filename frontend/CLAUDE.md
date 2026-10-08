@@ -83,7 +83,15 @@ src/app/          App Router routes, layouts, pages
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
-                  error state, so a role looks the same on both pages
+                  error state, so a role looks the same on both pages.
+                  /applications is the tracker: a board, grid and list over
+                  the fixture in applications/data.ts, every choice in the
+                  URL (applications/query.ts), ?app= opening one application
+                  in the detail panel. tracker.ts is the tracker's shape and
+                  date logic; local-time.tsx prints its dates in the
+                  viewer's own zone and links them to the Calendar.
+                  /calendar puts the same entries on a Month, Week or
+                  Agenda (calendar/), rendered in the browser
   api/scout/      The one route handler: forwards a Scout turn to the API with
                   the session's token and pipes the NDJSON reply back. A route
                   handler, not an action, because the reply streams
@@ -145,8 +153,8 @@ src/components/   Shared components
   ui/             Presentational primitives: badge, button, card, company-tile,
                   empty-state, fact, filter-chip (only the design kit shows
                   it today), icon-button, search-field, section,
-                  section-heading, section-link, select-field, text-field,
-                  text-link
+                  section-heading, section-link, segmented-control,
+                  select-field, text-field, text-link
   shadcn/         Vendored shadcn/ui components — generated, treat as read-only
     hooks/        Vendored hooks, same rule (components.json points here, so
                   `shadcn add` never writes a top-level src/hooks)
@@ -250,8 +258,8 @@ The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-The seeker panel holds only the search (Dashboard, Jobs, Applications, My
-Profile), with no caption over it. Settings, Help and Sign Out, once its General
+The seeker panel holds only the search (Dashboard, Jobs, Applications,
+Calendar, My Profile), with no caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
@@ -266,8 +274,15 @@ each kind of content its own surface instead of a white card each: the numbers
 open under the greeting, one violet Next Up hero (the only solid colour), open
 sections for Activity and the lists. There is no pipeline section: its
 funnel only restated the headline numbers. Fixtures are in
-`(seeker)/dashboard/data.ts` until the tracker is real. Its range is
-`?range=`, links rather than client state.
+`(seeker)/dashboard/data.ts` until the tracker is real, except Next Up and Up
+Next, which take the tracker fixture's upcoming events (`getUpNext`). Next
+Up's arrow opens that application's detail panel and its date that week on
+the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
+All the Agenda; Waiting's Follow Up opens the Applications list filtered to
+Applied. The stat tiles do not link: their figures are a separate fixture
+from the tracker's twelve applications, so a tile would open a list that
+disagrees with its number. Its range is `?range=`, links rather than
+client state.
 
 The company Dashboard and the seeker Profile follow the same surfaces. On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
@@ -281,11 +296,70 @@ variant="section">` for an action. Keep it that way: a page of identical boxes
 has no first place to look. Each page's docblock says what goes where.
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the Dashboard's Up Next and the Applications board, grid and list alike; on the board
-the stage tints the column panel, never the cards inside it. The three views
-also say the same thing about an application: each shows its next step
-through `(seeker)/applications/next-step.tsx` ("Nothing scheduled" when
-there is none). There is no progress bar; it only restated the stage.
+the Dashboard's Up Next, the Applications board, grid, list and detail panel,
+and the Calendar alike; on the board the stage tints the column panel, never the cards
+inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
+interview is Interviewing's amber, an offer Offer's green, a deadline Saved's
+grey, the applied date and a follow-up Applied's violet. The three views also
+say the same thing about an application: each shows its next step through
+`(seeker)/applications/next-step.tsx` ("Nothing scheduled" when there is
+none). There is no progress bar; it only restated the stage.
+
+**Application dates are real dates.** The tracker fixture
+(`(seeker)/applications/data.ts`) dates every application against the
+request (`getApplications` and `getNow`, both `cache()`d), on a New York
+clock, so the sample search is always mid-flight; a timed event that lands on
+a weekend moves to the Monday after. The shape is `(seeker)/tracker.ts`, and
+it is what the tracker's backend should return: an ISO instant for something
+at a time, a bare ISO date for something due on a day. The server decides
+what is upcoming against `getNow()` (a day-only entry stays upcoming until
+its day has ended in UTC-12) but never which day an instant falls on: it
+prints the UTC date, and `<When>` in `(seeker)/local-time.tsx` swaps in the
+viewer's own "Tomorrow, 2:00 PM" after hydration.
+
+**The Applications page keeps every choice in its URL** (`applications/query.ts`):
+`?view=`, `?stage=` (a comma list), `?q=`, the list's `?sort=` and `?app=`,
+the application open in the detail panel. Links and a GET form, not client
+state, so every view stays a server component and the Dashboard can link to a
+filtered list or one application. A card or row is one link: its role,
+stretched over it. Its next step is a second, `relative` link to that week on
+the Calendar, which paints over the stretched one.
+
+**Every choice of one among a few is `ui/segmented-control.tsx`**: the
+Calendar's Month, Week and Agenda, the Dashboard's range, the Applications
+layouts, the sign-in card's Applicant or Company, and the company chart's
+range. A pill-shaped track (a 5% ink wash, so it reads on the white page and
+the off-white auth card alike, and no outline) with a white thumb that slides
+to the chosen option on a 300ms ease-out, and jumps under reduced motion. The
+options are equal width, so the thumb is placed with CSS alone and the server
+renders it in place. `SegmentedLinks` is for a choice kept in the URL: the
+thumb moves on the click, before the new page arrives, so the motion never
+waits on the network. `SegmentedToggle` is for component state, on Base UI's
+ToggleGroup for its arrow keys and single tab stop; a null value hides the
+thumb. An icon option is a rendered element, not a component, since a server
+page passes the options. Build a new segmented choice from it rather than
+styling a ToggleGroup by hand.
+
+**The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
+application went in, interviews, offers and their deadlines, closing dates
+and follow-ups, in their kind's stage colour, with a legend. `?view=` picks
+Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
+`?app=` opens the same detail panel Applications does, with a way across.
+Without `?date=` it opens on the viewer's today, which the server cannot
+know, so the views render in the browser behind a placeholder
+(`calendar-view.tsx`, `useHydrated`). Its layout follows a reference the team
+picked: the span's title at the top left with round grey arrows at the top
+right, small uppercase weekday names, each day a light grey rounded tile with
+gaps rather than a ruled grid, today's tile white and outlined in the brand,
+and the legend at the foot. Week days and Agenda entries are the same tiles,
+and Today is a grey pill just left of the arrows, in their fill, so the three
+read as one group.
+It sits open on the page, not in a card: the page panel is already white.
+Month chips name the company and carry no time, since the colour already says
+what kind of entry it is; Week and Agenda name both. A
+link into the Calendar from anywhere else goes through `DayLink` in
+`(seeker)/local-time.tsx`, which picks the viewer's local day the way
+`<When>` picks their words.
 
 A match score has its own colour and never borrows a stage's. The four
 `--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a

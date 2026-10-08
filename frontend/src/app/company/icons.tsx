@@ -1,11 +1,4 @@
-import {
-  ArrowUpToLine,
-  Building2,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  Download,
-} from "lucide-react";
+import { ArrowUpToLine, Building2, Download } from "lucide-react";
 
 type IconProps = { className?: string };
 
@@ -37,19 +30,4 @@ export function DownloadIcon({ className }: IconProps) {
  *  highest the line reached in the window. */
 export function PeakIcon({ className }: IconProps) {
   return <ArrowUpToLine aria-hidden className={className} />;
-}
-
-/**
- * Sort state on a column heading.
- *
- * Three states, three glyphs from one family. Unsorted shows both chevrons, so
- * a column that can be sorted looks different from one that cannot even
- * before anyone clicks it; sorted shows only the direction in force. Colour
- * changes too (the caller tints it brand once active), but the shape carries
- * the state on its own, which is what keeps it readable where colour is not.
- */
-export function SortIcon({ className, direction }: IconProps & { direction?: "asc" | "desc" }) {
-  const Glyph =
-    direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
-  return <Glyph aria-hidden className={className} />;
 }

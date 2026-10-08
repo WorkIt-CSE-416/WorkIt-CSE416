@@ -11,6 +11,8 @@ import {
   Calendar,
   Check,
   ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
   Clock,
   Ellipsis,
   ExternalLink,
@@ -326,4 +328,20 @@ export function PdfIcon({ className }: IconProps) {
       <path d="M8.9 15.3v-3.4h.8a1.7 1.7 0 0 1 0 3.4Z" />
     </svg>
   );
+}
+
+/**
+ * Sort state on a column heading: the company tables and the seeker's
+ * Applications list.
+ *
+ * Three states, three glyphs from one family. Unsorted shows both chevrons, so
+ * a column that can be sorted looks different from one that cannot even
+ * before anyone clicks it; sorted shows only the direction in force. Colour
+ * changes too (the caller tints it brand once active), but the shape carries
+ * the state on its own, which is what keeps it readable where colour is not.
+ */
+export function SortIcon({ className, direction }: IconProps & { direction?: "asc" | "desc" }) {
+  const Glyph =
+    direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
+  return <Glyph aria-hidden className={className} />;
 }

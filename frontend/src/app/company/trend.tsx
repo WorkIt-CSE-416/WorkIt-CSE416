@@ -10,8 +10,8 @@ import {
 } from "@/components/shadcn/chart";
 import { UserIcon } from "@/components/icons";
 import { useIsMobile } from "@/components/shadcn/hooks/use-mobile";
-import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { Badge } from "@/components/ui/badge";
+import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { SectionHeading } from "@/components/ui/section-heading";
 
 import type { DayCount } from "./data";
@@ -175,42 +175,27 @@ export function Trend() {
       <div className="flex items-center justify-between gap-3">
         <SectionHeading id="applications">Applications</SectionHeading>
 
-        {/* Base UI's ToggleGroup gives this arrow-key navigation and one tab
-            stop, which a row of buttons would not.
-
-            `value` is an array, and an EMPTY one is meaningful here rather than
-            a state to guard against: a window picked from the calendar matches
-            no preset, and pressing nothing is the honest rendering of that.
-            Pressing the pressed item also empties it, which would otherwise
-            silently un-scope the page — hence the guard in the handler. */}
-        <ToggleGroup
-          value={active ? [active.label] : []}
-          onValueChange={([next]) => {
+        {/* The shared segmented control (ui/segmented-control.tsx), with its
+            sliding thumb. `value` may be null, and that is meaningful here: a
+            window picked from the calendar matches no preset, so no option
+            is chosen and the thumb fades out. Each option shows the preset's
+            abbreviation; its accessible name is the full label. The -my-0.5
+            lets its 32px sit centred on the 28px heading without making the
+            row taller. */}
+        <SegmentedToggle
+          label="Time Range"
+          options={TOGGLE_PRESETS.map((preset) => ({
+            value: preset.label,
+            label: preset.short,
+            ariaLabel: preset.label,
+          }))}
+          value={active?.label ?? null}
+          onValueChange={(next) => {
             const preset = TOGGLE_PRESETS.find((p) => p.label === next);
             if (preset) setRange(preset.range);
           }}
-          aria-label="Time Range"
-          /* 0.5, not 0: spacing={0} switches on the vendored group's
-             joined-segment rules, which square off the pressed chip's inner
-             corners. 0.5 is a 2px gap, the same as the track's padding, and
-             each chip's 5px radius is the track's 8px less its 1px border and
-             that padding, so the corners nest. */
-          spacing={0.5}
-          className="border-border-subtle bg-well rounded-control -my-[3px] shrink-0 border p-0.5"
-        >
-          {TOGGLE_PRESETS.map((preset) => (
-            <ToggleGroupItem
-              key={preset.label}
-              value={preset.label}
-              size="sm"
-              /* The chip is abbreviated; the accessible name is not. */
-              aria-label={preset.label}
-              className="text-note text-ink-meta hover:text-ink aria-pressed:bg-panel aria-pressed:text-ink rounded-[5px] px-2.5 aria-pressed:shadow-sm"
-            >
-              {preset.short}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+          className="-my-0.5 shrink-0"
+        />
       </div>
 
       {/* Two chips, not a sentence, as on the seeker Dashboard's Activity: the
