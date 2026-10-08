@@ -113,7 +113,7 @@ export function StatusRing() {
           {/* No accessibilityLayer, and no tab stop on the wedges: recharts'
             keyboard layer made the svg and its pie layer unnamed tab stops
             with no visible focus, and every value is already text in the
-            legend beside it. As in (seeker)/dashboard/activity.tsx. */}
+            legend beside it. As in trend.tsx. */}
           <ChartContainer config={config} className="mx-auto aspect-auto h-44 w-full">
             <PieChart accessibilityLayer={false}>
               <ChartTooltip

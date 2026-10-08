@@ -185,6 +185,19 @@ export const COLOR_GROUPS: ColorGroup[] = [
     ],
   },
   {
+    title: "Streak",
+    note: "The Dashboard's Activity streak: applications sent in a day, lightest to heaviest, on the heat map and the skyline it folds into. The brand's violet, since the habit is the seeker's own and no stage or score holds that hue on a chart. Validated as an ordinal ramp — monotone lightness, every step 0.06 or more apart, one hue — and fills only, never text. A day with none is --color-border-subtle.",
+    tokens: [
+      { token: "--color-streak-1", role: "Light, the lightest step · 2.13:1 on white" },
+      { token: "--color-streak-2", role: "Moderate · 3.50:1 on white" },
+      { token: "--color-streak-3", role: "→ --color-brand · Heavy · 6.26:1 on white" },
+      {
+        token: "--color-streak-4",
+        role: "→ --color-brand-active · Heaviest, the deepest step · 9.88:1 on white",
+      },
+    ],
+  },
+  {
     title: "Borders",
     tokens: [
       { token: "--color-border", role: "Card outline" },

@@ -15,8 +15,8 @@ import { cn } from "@/lib/cn";
  * `tone` is the colour, and it defaults from the variant — a status reads brand
  * and a tag reads neutral, which is what every pill on the board wants. It can
  * be overridden because shape and colour do not always move together: a stage
- * badge takes its stage's tone, and the Dashboard's activity chips are tags
- * tinted brand, positive or warning.
+ * badge takes its stage's tone, and the company Dashboard's trend chips are
+ * tags tinted brand or inert.
  */
 const VARIANTS = {
   /* py-px gave the chip a 17px box, which read as a label squeezed onto its
@@ -88,7 +88,7 @@ export function Badge({
   variant?: BadgeVariant;
   tone?: BadgeTone;
   /** Force the rounded shape onto a `tag`: the /search result count, the
-   *  profile's resume count, the Dashboards' activity chips. */
+   *  profile's resume count, the company Dashboard's trend chips. */
   pill?: boolean;
   children: ReactNode;
 }) {

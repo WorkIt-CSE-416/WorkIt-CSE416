@@ -20,7 +20,7 @@ import { formatRange, matchPreset, rangeLength, TOGGLE_PRESETS, useRange } from 
 
 /**
  * Applications over time, with the window under the reader's control. Open on
- * the page under its heading, as the seeker Dashboard's Activity is, rather
+ * the page under its heading, as the seeker Dashboard's sections are, rather
  * than in a card.
  *
  * THE ONLY CHART HERE THAT EARNS RECHARTS. The other two are bars on a shared
@@ -198,8 +198,7 @@ export function Trend() {
         />
       </div>
 
-      {/* Two chips, not a sentence, as on the seeker Dashboard's Activity: the
-          window's total and its busiest point. A sentence here ran to two
+      {/* Two chips, not a sentence: the window's total and its busiest point. A sentence here ran to two
           lines for some windows and one for others, and the chart under it
           jumped by a line when the range changed; a chip row is one height
           whatever it says. The window itself is in the header's picker. */}
@@ -223,8 +222,7 @@ export function Trend() {
       {/* What the chips and the chart say, as one sentence for a screen
           reader. The chart is drawn for the eye, so recharts'
           accessibilityLayer is off below: it made the svg an unnamed
-          role="application" tab stop with no visible focus, as
-          (seeker)/dashboard/activity.tsx found. */}
+          role="application" tab stop with no visible focus. */}
       <p className="sr-only">
         {total.toLocaleString()} applications over {formatRange(range)}
         {busiest.count > 0 && `, peaking at ${busiest.count} ${pointPhrase(busiest.date, weekly)}`}.

@@ -314,10 +314,28 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. The stat tiles do not link: their figures are a separate fixture
 from the tracker's twelve applications, so a tile would open a list that
 disagrees with its number. Its range is `?range=`, moved in place: the
-headline (`dashboard/headline.tsx`) and the chart are handed every range's
-figures and read `?range=` themselves (`useRange` in `range-switch.tsx`), so
-a new range counts its numbers with the switch's thumb instead of after the
-server draws the page again.
+headline (`dashboard/headline.tsx`) is handed every range's figures and reads
+`?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
+its numbers with the switch's thumb instead of after the server draws the
+page again. The streak always shows the full year regardless of range.
+
+**Activity is a daily streak** (`(seeker)/dashboard/streak.tsx`), no longer
+a weekly pace chart: the past year of applications per day as a heat map that
+folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
+heading is Activity; its files and tokens say streak. `streak-model.ts`
+is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
+canvas engine (no React: the section mounts it once and it re-reads a ref
+every frame), `streak.tsx` the section. It stays beside the Dashboard rather
+than in `components/ui` until a second route wants it. The canvas reads its
+colours off the section at mount: `--color-streak-1..4`, a violet ramp
+validated as ordinal in `globals.css`, and `--color-border-subtle` for an
+empty day, so a token edit restyles it. The current streak runs to the
+viewer's today (yesterday while today is open), so `today` comes from
+`useSyncExternalStore`: UTC on the server, the browser's own after hydration.
+It ignores `?range=`, since a streak is every day. Its fixture is
+`appliedDays()` in `data.ts`, seeded and walked from a fixed epoch so a date
+keeps its count; the tracker swaps in one `{ date: appliedOn, count: 1 }` per
+sent application.
 
 The company Dashboard and the seeker Profile follow the same surfaces. On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
