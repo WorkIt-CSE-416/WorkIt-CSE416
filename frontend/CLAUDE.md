@@ -368,7 +368,9 @@ years when it does) is passed as `NOT_LISTED` from
 `components/job-posting-card.tsx` and drawn as its icon with "Salary not
 listed" in italic. An internship shows when it starts in place of years (the card's
 `startTerm` fact: "Start in Summer 2027", or "Start date not listed"), and
-its job type always reads "Internship", as Jobright shows it, and the match rail is its placeholder
+its job type always reads "Internship", as Jobright shows it. Scraped pay
+always arrives as a min/max range, and `formatSalary` prints one whose ends
+meet as a single amount. The match rail is its placeholder
 (`score={null}`: an empty ring and "Score Coming Soon") until matching
 exists. Null still means a fact the posting has none of, and is left out. A live fetch in a page calls
 `await connection()` so `next build` does not prerender it with no API running.

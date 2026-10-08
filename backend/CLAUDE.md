@@ -108,10 +108,8 @@ app/
     auth.py       Signup body, /auth/me response
     profile.py    ApplicantProfileResponse and ApplicantProfileUpdate
     jobs.py       JobListing — also the parser for scraper/feed.json
-    company_jobs.py  JobPostingCreate and JobPosting, for /company/jobs.
-                  A company's salary_period is year or hour only: week and
-                  month exist for scraped internships' stipends, and the
-                  composer offers neither
+    company_jobs.py  JobPostingCreate and JobPosting, for /company/jobs
+                  (pay period: year or hour only; db/job_posting.md)
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me

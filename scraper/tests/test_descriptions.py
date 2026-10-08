@@ -99,7 +99,7 @@ class TestStore:
         assert store.load(tmp_path / "jobs.json").jobs == run_.jobs
 
 
-class TestDescribe:
+class TestWithPage:
     def test_only_unread_greenhouse_postings_are_fetched(self, monkeypatch) -> None:
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
         jobs = [job("greenhouse", "1"), job("greenhouse", "2", "Known."), job("lever", "3")]
@@ -110,7 +110,7 @@ class TestDescribe:
             return replace(j, page=page("Fetched."))
 
         monkeypatch.setattr(providers, "describe_greenhouse", describe_greenhouse)
-        described = run.describe(jobs, robots)
+        described = [run.with_page(j, robots) for j in jobs]
         assert fetched == ["1"]
         assert [j.description for j in described] == ["Fetched.", "Known.", None]
 
@@ -121,13 +121,13 @@ class TestDescribe:
             providers, "describe_greenhouse", lambda j: fetched.append(j.external_id) or j
         )
         stale = replace(job("greenhouse", "1"), page=page("Known.", providers.PAGE_VERSION - 1))
-        run.describe([stale], robots)
+        run.with_page(stale, robots)
         assert fetched == ["1"]
 
     def test_robots_disallow_leaves_it_undescribed(self, monkeypatch) -> None:
         robots = SimpleNamespace(allows=lambda url: False)
         fetched: list[Job] = []
         monkeypatch.setattr(providers, "describe_greenhouse", fetched.append)
-        described = run.describe([job()], robots)
+        described = run.with_page(job(), robots)
         assert fetched == []
-        assert described[0].description is None
+        assert described.description is None

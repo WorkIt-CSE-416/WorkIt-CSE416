@@ -307,6 +307,19 @@ class TestStartTerm:
     def test_season_in_the_title_without_a_year(self) -> None:
         assert details.start_term("Software Engineering Intern (Summer)", None) == "Summer"
 
+    def test_years_are_judged_against_today(self, monkeypatch) -> None:
+        # No fixed range to go stale: a far year is not a cohort, whatever the date.
+        assert details.start_term("Software Engineer Intern (2015)", None) is None
+        assert details.start_term("Software Engineer Intern", "Our Summer 2031 program") is None
+
+        class Later(details.date):
+            @classmethod
+            def today(cls):
+                return cls(2031, 1, 1)
+
+        monkeypatch.setattr(details, "date", Later)
+        assert details.start_term("Software Engineer Intern (Summer 2031)", None) == "Summer 2031"
+
     def test_a_bare_year_in_a_description_says_nothing(self) -> None:
         assert details.start_term("Software Engineer Intern", "Founded in 2025.") is None
 
@@ -366,13 +379,10 @@ class TestFeed:
         [role] = pick([job], is_new=lambda job: False)
         return feed.row(role, {})
 
-    def test_one_amount_fills_salary(self) -> None:
+    def test_one_amount_is_a_range_whose_ends_meet(self) -> None:
         row = self.role(Facts(pay=Pay("GBP", 3000, 3000, "month")))
-        assert (row["salary"], row["salary_currency"], row["salary_period"]) == (
-            3000,
-            "GBP",
-            "month",
-        )
+        assert (row["salary"], row["salary_min"], row["salary_max"]) == (None, 3000, 3000)
+        assert (row["salary_currency"], row["salary_period"]) == ("GBP", "month")
 
     def test_a_range_fills_min_and_max(self) -> None:
         row = self.role(Facts(pay=Pay("USD", 32, 46, "hour")))
@@ -385,6 +395,22 @@ class TestFeed:
         assert row["min_years_experience"] is None
 
 
+class TestRoleFacts:
+    def test_facts_come_whole_from_one_copy(self) -> None:
+        # Two copies at one URL: pay from one and job type from the other would
+        # describe no posting at all.
+        first = greenhouse_job(page=read_page(facts=Facts(pay=Pay("USD", 40, 40, "hour"))))
+        second = replace(
+            greenhouse_job(page=read_page(facts=Facts(job_type="full_time"))),
+            token="cloudflare-2",
+            external_id="2",
+        )
+        stamped = [replace(j, first_seen_at="2026-10-05T09:00:00+00:00") for j in (first, second)]
+        [role] = pick(stamped, is_new=lambda j: False)
+        assert role.facts.pay == Pay("USD", 40, 40, "hour")
+        assert role.facts.job_type is None
+
+
 class TestCardWorkStyle:
     """Stated first, then the company's other postings, then On site for a place
     with no word of anything else."""
@@ -394,7 +420,7 @@ class TestCardWorkStyle:
             [replace(j, first_seen_at="2026-10-05T09:00:00+00:00") for j in jobs],
             is_new=lambda j: False,
         )
-        return {role.title: role.work_style for role in roles}
+        return {role.title: role.facts.work_style for role in roles}
 
     def posting(
         self, eid: str, title: str, company: str, location: str, text: str, style=None

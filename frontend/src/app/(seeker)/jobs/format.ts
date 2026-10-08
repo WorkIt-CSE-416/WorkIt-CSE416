@@ -99,10 +99,12 @@ export function formatSalary(
   });
 
   const period = PERIOD_LABEL[job.salaryPeriod];
+  // A range whose ends meet is one amount: scraped pay always arrives as a
+  // range (scraper/workit_scraper/feed.py `salary`).
   const range =
-    job.salaryMin != null && job.salaryMax != null
+    job.salaryMin != null && job.salaryMax != null && job.salaryMin !== job.salaryMax
       ? `${fmt.format(job.salaryMin)} - ${fmt.format(job.salaryMax)}`
-      : fmt.format(job.salary ?? 0);
+      : fmt.format(job.salary ?? job.salaryMin ?? 0);
 
   return `${range}/${period}`;
 }
