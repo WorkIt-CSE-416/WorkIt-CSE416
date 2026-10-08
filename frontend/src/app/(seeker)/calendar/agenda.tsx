@@ -67,7 +67,7 @@ export function Agenda({
                     <Link
                       href={openHref(event.applicationId)}
                       scroll={false}
-                      className="bg-app hover:bg-hover rounded-card focus-visible:ring-brand-ring flex items-center gap-3 px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                      className="group/agenda bg-app hover:bg-hover rounded-card focus-visible:ring-brand-ring ease-glide flex items-center gap-3 px-3 py-2.5 transition-[background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99]"
                     >
                       <span className="text-note text-ink-meta w-16 shrink-0">
                         {shortTime(event.at) ?? "All Day"}
@@ -75,7 +75,7 @@ export function Agenda({
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "flex size-8 shrink-0 items-center justify-center rounded-full text-white",
+                          "ease-glide flex size-8 shrink-0 items-center justify-center rounded-full text-white transition-transform duration-200 group-hover/agenda:scale-105",
                           look.fill,
                         )}
                       >

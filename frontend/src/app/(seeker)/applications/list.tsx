@@ -20,6 +20,7 @@ import { nextEvent, shortDay, type Application } from "../tracker";
 import { MatchBadge } from "./match-badge";
 import { NextStep } from "./next-step";
 import { applicationsHref, sortApplications, type ApplicationsQuery, type Sort } from "./query";
+import { Reflow } from "./reflow";
 
 /**
  * The applications as a table: role and company, stage, next step, the day it
@@ -71,11 +72,14 @@ function SortHead({
       <Link
         href={applicationsHref(query, { sort, app: null })}
         scroll={false}
-        className="hover:text-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+        className="hover:text-ink focus-visible:ring-brand-ring inline-flex items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
       >
         {children}
+        {/* Keyed on its state, so the glyph pops in when the column takes
+            the sort rather than swapping in place. */}
         <SortIcon
-          className={cn("size-3.5 shrink-0", active ? "text-brand" : "text-ink-faint")}
+          key={active ? direction : "none"}
+          className={cn("animate-pop size-3.5 shrink-0", active ? "text-brand" : "text-ink-faint")}
           direction={active ? direction : undefined}
         />
       </Link>
@@ -114,43 +118,51 @@ export function ApplicationsList({
         </TableHeader>
 
         <TableBody>
-          {rows.map((app) => {
+          {rows.map((app, i) => {
             const { Icon } = app;
 
             return (
-              <TableRow key={app.id} className="hover:bg-hover relative">
-                {/* w-full with max-w-0 is the table idiom for "take what the
+              // Fades in down the table on arrival (a row cannot rise: its
+              // transform does not reliably paint), 25ms apart, and glides to
+              // its new place when the sort or a filter moves it.
+              <Reflow key={app.id}>
+                <TableRow
+                  className="hover:bg-hover animate-fade relative"
+                  style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+                >
+                  {/* w-full with max-w-0 is the table idiom for "take what the
                     other columns leave, and truncate inside it": without
                     it a long role sets its own minimum width and the table
                     scrolls sideways inside the card. */}
-                <TableCell className="w-full max-w-0 px-4 py-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <CompanyTile Icon={Icon} size="sm" tone="outline" />
-                    <div className="min-w-0">
-                      <Link
-                        href={applicationsHref(query, { app: app.id })}
-                        scroll={false}
-                        className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
-                      >
-                        {app.role}
-                      </Link>
-                      <p className="text-note text-ink-meta truncate">{app.company}</p>
+                  <TableCell className="w-full max-w-0 px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <CompanyTile Icon={Icon} size="sm" tone="outline" />
+                      <div className="min-w-0">
+                        <Link
+                          href={applicationsHref(query, { app: app.id })}
+                          scroll={false}
+                          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+                        >
+                          {app.role}
+                        </Link>
+                        <p className="text-note text-ink-meta truncate">{app.company}</p>
+                      </div>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-4">
-                  <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
-                </TableCell>
-                <TableCell className="hidden px-4 @lg/main:table-cell">
-                  <NextStep next={nextEvent(app, now)} truncate className="w-48" />
-                </TableCell>
-                <TableCell className="text-note text-ink-meta hidden px-4 @2xl/main:table-cell">
-                  {app.appliedOn ? shortDay(app.appliedOn) : "Not yet"}
-                </TableCell>
-                <TableCell className="hidden px-4 @3xl/main:table-cell">
-                  <MatchBadge score={app.match} />
-                </TableCell>
-              </TableRow>
+                  </TableCell>
+                  <TableCell className="px-4">
+                    <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
+                  </TableCell>
+                  <TableCell className="hidden px-4 @lg/main:table-cell">
+                    <NextStep next={nextEvent(app, now)} truncate className="w-48" />
+                  </TableCell>
+                  <TableCell className="text-note text-ink-meta hidden px-4 @2xl/main:table-cell">
+                    {app.appliedOn ? shortDay(app.appliedOn) : "Not yet"}
+                  </TableCell>
+                  <TableCell className="hidden px-4 @3xl/main:table-cell">
+                    <MatchBadge score={app.match} />
+                  </TableCell>
+                </TableRow>
+              </Reflow>
             );
           })}
         </TableBody>

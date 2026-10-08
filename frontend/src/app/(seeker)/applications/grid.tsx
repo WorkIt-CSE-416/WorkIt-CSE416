@@ -8,6 +8,7 @@ import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
 import { nextEvent, sinceLabel, type Application } from "../tracker";
 import { NextStep } from "./next-step";
 import { applicationsHref, type ApplicationsQuery } from "./query";
+import { Reflow } from "./reflow";
 
 /**
  * The applications as a grid of cards, one card per application.
@@ -48,14 +49,27 @@ import { applicationsHref, type ApplicationsQuery } from "./query";
  * Like a board card, the whole card opens the application's detail panel:
  * the role is the link, stretched over the card.
  */
-function GridCard({ item, href, now }: { item: Application; href: string; now: Date }) {
+function GridCard({
+  item,
+  href,
+  now,
+  delay,
+}: {
+  item: Application;
+  href: string;
+  now: Date;
+  delay: number;
+}) {
   const { Icon, stage } = item;
 
   return (
     <Card
       as="li"
       padding="none"
-      className="hover:border-brand/40 relative flex flex-col overflow-hidden transition-colors"
+      // Rises in after the cards before it and lifts under the pointer, as
+      // a board card does.
+      className="hover:border-brand/40 hover:shadow-lift ease-glide animate-rise relative flex flex-col overflow-hidden transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+      style={{ animationDelay: `${delay}ms` }}
     >
       <div className="bg-well border-border-subtle flex items-start gap-2 border-b p-3">
         <CompanyTile Icon={Icon} size="sm" tone="outline" />
@@ -98,13 +112,16 @@ export function ApplicationsGrid({
 }) {
   return (
     <ul className="mt-4 grid gap-4 @xl/main:grid-cols-2 @3xl/main:grid-cols-3 @5xl/main:grid-cols-4">
-      {applications.map((item) => (
-        <GridCard
-          key={item.id}
-          item={item}
-          href={applicationsHref(query, { app: item.id })}
-          now={now}
-        />
+      {applications.map((item, i) => (
+        <Reflow key={item.id}>
+          <GridCard
+            item={item}
+            href={applicationsHref(query, { app: item.id })}
+            now={now}
+            // 30ms apart, capped at the eighth card so a long grid never waits.
+            delay={Math.min(i, 8) * 30}
+          />
+        </Reflow>
       ))}
     </ul>
   );

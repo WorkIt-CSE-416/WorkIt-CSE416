@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { CalendarIcon, SearchIcon } from "@/components/icons";
 import { buttonClasses } from "@/components/ui/button";
@@ -14,10 +13,11 @@ import { nextEvent, timelineOf } from "../tracker";
 import { ApplicationsBoard } from "./board";
 import { getApplications, getNow } from "./data";
 import { DetailPanel } from "./detail-panel";
-import { FilterBar } from "./filter-bar";
+import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
-import { applicationsHref, filterApplications, parseQuery } from "./query";
+import { applicationsHref, filterApplications, parseQuery, type View } from "./query";
+import { ViewPanes } from "./view-panes";
 import { ViewSwitcher } from "./view-switcher";
 
 export const metadata: Metadata = {
@@ -33,6 +33,12 @@ export const metadata: Metadata = {
  * search in the filter bar, the list's sort, and ?app=, the application open
  * in the detail panel. So every view stays a server component, and the
  * Dashboard can link straight to a filtered list or one application.
+ *
+ * ALL THREE LAYOUTS ARE RENDERED, each with its own links, and
+ * ./view-panes.tsx shows the one the URL names. The layout switch moves the
+ * URL in place, so a new layout appears with the switch's thumb rather than
+ * after this page is drawn again. Filters, the sort and ?app= still come
+ * through here, since the filtering and the panel are done on the server.
  *
  * Nothing writes yet. The board's column menus and an offer card's button are
  * still inert, and a card opens its panel rather than an editor.
@@ -52,56 +58,60 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
 
   const open = query.app ? all.find((app) => app.id === query.app) : undefined;
 
+  // Each layout's links carry its own layout, so whichever is shown, its
+  // cards and sort headings keep it.
+  const as = (view: View) => ({ ...query, view });
+
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* Wraps below sm, where the title and the switcher don't share a
-          line. items-start, as on the Dashboard, so the switcher sits level
+      {/* The switcher is three glyphs, so it fits beside the title at every
+          width: the subtitle wraps rather than pushing it onto a line of its
+          own. items-start, as on the Dashboard, so the switcher sits level
           with the title rather than the subtitle. */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-heading text-ink">My Applications</h1>
           <p className="text-body text-ink-meta mt-1">Track and manage your career progress.</p>
         </div>
 
-        <ViewSwitcher query={query} />
+        <ViewSwitcher />
       </div>
 
-      <FilterBar query={query} counts={counts} />
+      <FilterBar counts={counts} />
 
-      {shown.length === 0 ? (
-        <EmptyState
-          Icon={SearchIcon}
-          title="No Matching Applications"
-          className="mt-4"
-          action={
-            <Link
-              href={applicationsHref(query, { stages: [], q: "", app: null })}
-              className={buttonClasses({ variant: "secondary", size: "sm" })}
+      <ViewPanes
+        columns={query.stages.join(",")}
+        panes={
+          shown.length === 0
+            ? null
+            : {
+                board: (
+                  <ApplicationsBoard
+                    applications={shown}
+                    stages={query.stages.length > 0 ? query.stages : STAGE_ORDER}
+                    query={as("board")}
+                    now={now}
+                  />
+                ),
+                grid: <ApplicationsGrid applications={shown} query={as("grid")} now={now} />,
+                list: <ApplicationsList applications={shown} query={as("list")} now={now} />,
+              }
+        }
+        empty={
+          shown.length === 0 && (
+            <EmptyState
+              Icon={SearchIcon}
+              title="No Matching Applications"
+              className="mt-4"
+              action={
+                <ClearFiltersLink className={buttonClasses({ variant: "secondary", size: "sm" })} />
+              }
             >
-              Clear Filters
-            </Link>
-          }
-        >
-          Nothing you&apos;re tracking matches these filters.
-        </EmptyState>
-      ) : (
-        <>
-          {query.view === "board" && (
-            <ApplicationsBoard
-              applications={shown}
-              stages={query.stages.length > 0 ? query.stages : STAGE_ORDER}
-              query={query}
-              now={now}
-            />
-          )}
-          {query.view === "grid" && (
-            <ApplicationsGrid applications={shown} query={query} now={now} />
-          )}
-          {query.view === "list" && (
-            <ApplicationsList applications={shown} query={query} now={now} />
-          )}
-        </>
-      )}
+              Nothing you&apos;re tracking matches these filters.
+            </EmptyState>
+          )
+        }
+      />
 
       {open && (
         <DetailPanel

@@ -50,7 +50,8 @@ export function NextStep({
         >
           <span
             className={cn(
-              "text-note text-ink block font-medium group-hover/step:underline",
+              // The underline fades in under the pointer rather than snapping.
+              "text-note text-ink block font-medium underline decoration-transparent underline-offset-2 transition-[text-decoration-color] duration-150 group-hover/step:decoration-current",
               truncate && "truncate",
             )}
           >

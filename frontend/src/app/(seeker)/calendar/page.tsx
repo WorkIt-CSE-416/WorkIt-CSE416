@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ArrowRightIcon } from "@/components/icons";
 import { buttonClasses } from "@/components/ui/button";
 import { CompanyTile } from "@/components/ui/company-tile";
-import { SegmentedLinks } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
 import { getApplications, getNow } from "../applications/data";
@@ -12,7 +11,8 @@ import { DetailPanel } from "../applications/detail-panel";
 import { SEEKER_GUTTER } from "../gutter";
 import { allEvents, timelineOf } from "../tracker";
 import { CalendarView } from "./calendar-view";
-import { CALENDAR_VIEWS, calendarHref, parseCalendarQuery, VIEW_LABEL } from "./query";
+import { calendarHref, parseCalendarQuery } from "./query";
+import { CalendarViewSwitch } from "./view-switch";
 
 export const metadata: Metadata = {
   title: "Calendar",
@@ -25,9 +25,11 @@ export const metadata: Metadata = {
  * closing dates and follow-ups, each in its kind's stage colour.
  *
  * Month, Week or Agenda, picked like the Dashboard's range
- * (ui/segmented-control.tsx), and anchored with ?date= (./query.ts). The views render in the
- * browser (./calendar-view.tsx); this page passes them every entry from the
- * tracker fixture and draws the parts that need no zone.
+ * (ui/segmented-control.tsx), and anchored with ?date= (./query.ts). The views
+ * render in the browser (./calendar-view.tsx) and read the view and the day
+ * from the URL themselves, so changing either moves the URL in place and
+ * never comes back here; this page passes them every entry from the tracker
+ * fixture and draws the parts that need no zone.
  *
  * An entry opens its application's detail panel, the same one Applications
  * opens, here over the calendar, with a way across to Applications.
@@ -39,26 +41,21 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      {/* The view switch stays top right wherever the title can keep 300px
+          beside it (512px of content), the subtitle wrapping before the
+          switch moves; narrower, it sits under the title. */}
+      <div className="flex flex-col items-start gap-4 @[36rem]/main:flex-row @[36rem]/main:justify-between">
+        <div className="min-w-0">
           <h1 className="text-heading text-ink">Calendar</h1>
           <p className="text-body text-ink-meta mt-1">
             Every date in your search, from the day you applied to the offer deadline.
           </p>
         </div>
 
-        <SegmentedLinks
-          label="Calendar View"
-          value={query.view}
-          options={CALENDAR_VIEWS.map((view) => ({
-            value: view,
-            label: VIEW_LABEL[view],
-            href: calendarHref({ view, date: query.date }),
-          }))}
-        />
+        <CalendarViewSwitch />
       </div>
 
-      <CalendarView view={query.view} date={query.date} events={allEvents(applications)} />
+      <CalendarView events={allEvents(applications)} />
 
       {open && (
         <DetailPanel

@@ -69,7 +69,9 @@ export function IconButton({
         aria-label={label}
         className={cn(
           VARIANTS[variant],
-          "focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+          // Presses in further than a button (90%): a glyph is small, and a
+          // smaller squeeze would not read. Colours fade on the same clock.
+          "transition-[color,background-color,border-color,transform] duration-150 ease-out focus-visible:outline-none active:scale-90 disabled:pointer-events-none disabled:opacity-50",
           className,
         )}
         {...props}

@@ -1,5 +1,6 @@
 import { getApplications, getNow } from "../applications/data";
 import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
+import type { RangeKey } from "./range";
 
 /**
  * The seeker Dashboard's fixtures: the headline numbers and activity per
@@ -15,26 +16,6 @@ import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
  * season of one. When the tracker lands, both pages read it, and this file
  * becomes the fetch.
  */
-
-export type RangeKey = "week" | "month" | "season";
-
-export const RANGES: {
-  key: RangeKey;
-  label: string;
-  /** What a delta is compared against; null where there is nothing before. */
-  period: string | null;
-  /** Under each headline number where there is no delta to show. */
-  note?: string;
-}[] = [
-  { key: "week", label: "This Week", period: "last week" },
-  { key: "month", label: "30 Days", period: "prior 30 days" },
-  // A season has nothing before it to compare against, so no deltas.
-  { key: "season", label: "Season", period: null, note: "Since Aug 4" },
-];
-
-export function parseRange(value: string | string[] | undefined): RangeKey {
-  return RANGES.some((range) => range.key === value) ? (value as RangeKey) : "week";
-}
 
 /* Headline numbers ------------------------------------------------------- */
 

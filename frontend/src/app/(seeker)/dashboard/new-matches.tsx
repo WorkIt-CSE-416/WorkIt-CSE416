@@ -71,8 +71,14 @@ export async function NewMatches() {
             aria-label="Latest Roles"
             className="divide-border-subtle focus-visible:ring-brand-ring flex min-h-0 flex-1 flex-col divide-y rounded-xs focus-visible:ring-2 focus-visible:outline-none @4xl/main:overflow-y-auto @4xl/main:overscroll-contain @4xl/main:pr-2 @4xl/main:pb-6 @max-4xl/main:[&>li:nth-child(5)]:border-b-0 @max-4xl/main:[&>li:nth-child(n+6)]:hidden"
           >
-            {latest.map((job) => (
-              <li key={job.id} className="flex items-center gap-3 py-2.5">
+            {latest.map((job, i) => (
+              // The roles rise in as the feed arrives, 30ms apart and capped
+              // at the eighth, so the list never makes anyone wait.
+              <li
+                key={job.id}
+                style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
+                className="animate-rise flex items-center gap-3 py-2.5"
+              >
                 <CompanyLogo
                   name={job.company}
                   src={job.logo_url}
@@ -92,7 +98,7 @@ export async function NewMatches() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Apply to ${job.title} at ${job.company}`}
-                  className="text-label text-brand-ink focus-visible:ring-brand-ring relative shrink-0 rounded-xs after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:underline focus-visible:ring-2 focus-visible:outline-none"
+                  className="text-label text-brand-ink focus-visible:ring-brand-ring relative shrink-0 rounded-xs underline decoration-transparent underline-offset-4 transition-[text-decoration-color] duration-150 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:decoration-current focus-visible:ring-2 focus-visible:outline-none"
                 >
                   Apply
                 </a>

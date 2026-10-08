@@ -49,8 +49,14 @@ async function Feed() {
           own. */}
       <h2 className="sr-only">Recommended Jobs</h2>
       <ul className="mt-4 flex flex-col gap-3">
-        {jobs.map((job) => (
-          <li key={job.id}>
+        {jobs.map((job, i) => (
+          // The cards rise in as the feed arrives, 50ms apart and capped at
+          // the sixth, about a screenful, so the list never makes anyone wait.
+          <li
+            key={job.id}
+            style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
+            className="animate-rise"
+          >
             <ListingCard job={job} />
           </li>
         ))}
