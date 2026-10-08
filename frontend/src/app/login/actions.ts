@@ -63,9 +63,12 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     // }
     // else
     // {
-    //   redirect(`/jobs`)
+    //   redirect(`/dashboard`)
     // }
-    redirect(`/profile`);
+    // A returning applicant lands on the Dashboard, the seeker's home. A new
+    // account goes to /profile instead (signup/actions.ts and the OAuth
+    // callback's choose-account-type step), in onboarding's place.
+    redirect(`/dashboard`);
   }
   redirect(`/company`);
 }

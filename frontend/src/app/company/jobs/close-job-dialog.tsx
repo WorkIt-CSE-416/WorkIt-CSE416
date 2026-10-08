@@ -56,7 +56,7 @@ export function CloseJobDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Close {title}?</DialogTitle>
+          <DialogTitle className="text-subtitle font-semibold">Close {title}?</DialogTitle>
           <DialogDescription>
             Applicants won&apos;t be able to apply anymore, and a closed job can&apos;t be reopened
             or edited.
@@ -66,9 +66,9 @@ export function CloseJobDialog({
         {error && <p className="text-meta text-danger">{error}</p>}
 
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep it open</Button>} />
+          <DialogClose render={<Button variant="secondary">Keep It Open</Button>} />
           <Button variant="destructive" onClick={close} disabled={isClosing}>
-            Close job
+            Close Job
           </Button>
         </DialogFooter>
       </DialogContent>

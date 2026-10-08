@@ -22,6 +22,11 @@ import { viewHref, type View } from "./views";
  * decoration on top of it. Every option is icon-only, so every option is named,
  * and the name is its tooltip — the same pairing IconButton makes, written out
  * here because these are links rather than buttons.
+ *
+ * The raised segment carries a 1px ring as well as its shadow: white on the
+ * well's grey is 1.07:1, so without an edge the active option barely shows.
+ * Each option is 26px, which with the well's padding and border makes the
+ * group 32px, the height of the Filter button beside it.
  */
 const OPTIONS: { view: View; label: string; Icon: typeof BoardIcon }[] = [
   { view: "board", label: "Board", Icon: BoardIcon },
@@ -45,12 +50,12 @@ export function ViewSwitcher({ current }: { current: View }) {
               render={
                 <Link
                   href={viewHref(view)}
-                  aria-label={`${label} view`}
+                  aria-label={`${label} View`}
                   aria-current={isActive ? "true" : undefined}
                   className={cn(
-                    "focus-visible:ring-brand-ring flex size-7 items-center justify-center rounded-[0.375rem] focus-visible:ring-2 focus-visible:outline-none",
+                    "focus-visible:ring-brand-ring flex size-6.5 items-center justify-center rounded-[0.375rem] focus-visible:ring-2 focus-visible:outline-none",
                     isActive
-                      ? "bg-panel text-ink shadow-panel"
+                      ? "bg-panel text-ink ring-border shadow-panel ring-1"
                       : "text-ink-meta hover:text-ink hover:bg-panel/60",
                   )}
                 />
@@ -58,7 +63,7 @@ export function ViewSwitcher({ current }: { current: View }) {
             >
               <Icon className="size-4" />
             </TooltipTrigger>
-            <TooltipContent>{label} view</TooltipContent>
+            <TooltipContent>{label} View</TooltipContent>
           </Tooltip>
         );
       })}

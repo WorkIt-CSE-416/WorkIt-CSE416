@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
+import { SearchIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
@@ -131,7 +132,10 @@ export function SelectAllHeader({ table }: { table: SelectAllTable }) {
       checked={all}
       indeterminate={!all && table.getIsSomeRowsSelected()}
       onCheckedChange={(checked) => table.toggleAllRowsSelected(checked)}
-      aria-label="Select all rows"
+      aria-label="Select All Rows"
+      // ink-faint, not shadcn's input hairline: 3.11:1 on white against 1.19:1,
+      // so an empty box can be seen at all.
+      className="border-ink-faint"
     />
   );
 }
@@ -148,7 +152,8 @@ export function SelectRowCell({ row, label }: { row: SelectableRow; label: strin
       onCheckedChange={(checked) => row.toggleSelected(checked)}
       aria-label={`Select ${label}`}
       // Above <RowLink>'s row-wide overlay, or ticking a box opens the record.
-      className="relative z-10"
+      // ink-faint for the same contrast reason as the header's box.
+      className="border-ink-faint relative z-10"
     />
   );
 }
@@ -239,11 +244,11 @@ export type FilterSpec = {
   /** Accessible name for the trigger. The column, singular: "Stage". */
   label: string;
   /**
-   * Plural of `label`, for the row that clears the filter: "All stages". Its
+   * Plural of `label`, for the row that clears the filter: "All Stages". Its
    * own field because English will not derive it — "status" pluralises to
    * "statuses" — and because one string cannot be both a good accessible name
    * and good display copy. Reusing `label` for both is what had these reading
-   * "All stage" beside "All roles".
+   * "All Stage" beside "All Roles".
    */
   plural: string;
   options: string[];
@@ -265,11 +270,17 @@ export function TableToolbar<T extends RowData>({
   table,
   searchColumnId,
   searchPlaceholder,
+  searchLabel,
   filters = [],
 }: {
   table: CompanyTable<T>;
   searchColumnId: string;
+  /** Hint inside the empty box, sentence case: "Search applicants". */
   searchPlaceholder: string;
+  /** Accessible name for the box, Title Case like the bar's own search field:
+   *  "Search Applicants". Its own prop for the reason FilterSpec has `plural`:
+   *  one string cannot be both a sentence-case hint and a Title Case name. */
+  searchLabel: string;
   filters?: FilterSpec[];
 }) {
   const selected = table.getSelectedRowIds?.() ?? {};
@@ -280,13 +291,18 @@ export function TableToolbar<T extends RowData>({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={(table.getColumn(searchColumnId)?.getFilterValue() as string) ?? ""}
-          onChange={(e) => table.getColumn(searchColumnId)?.setFilterValue(e.target.value)}
-          placeholder={searchPlaceholder}
-          aria-label={searchPlaceholder}
-          className="h-8 w-full sm:max-w-64"
-        />
+        {/* The magnifier marks it as a search box, the way the bar's own
+            search field above it is marked. */}
+        <div className="relative w-full sm:max-w-64">
+          <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+          <Input
+            value={(table.getColumn(searchColumnId)?.getFilterValue() as string) ?? ""}
+            onChange={(e) => table.getColumn(searchColumnId)?.setFilterValue(e.target.value)}
+            placeholder={searchPlaceholder}
+            aria-label={searchLabel}
+            className="h-8 w-full pl-8"
+          />
+        </div>
 
         {filters.map(({ columnId, label, plural, options }) => {
           const column = table.getColumn(columnId);
@@ -299,7 +315,7 @@ export function TableToolbar<T extends RowData>({
              closed filter read "__all__"; every other option was unaffected
              because its value and its label are the same string. */
           const items = [
-            { value: ALL, label: `All ${plural.toLowerCase()}` },
+            { value: ALL, label: `All ${plural}` },
             ...options.map((option) => ({ value: option, label: option })),
           ];
 
@@ -399,7 +415,6 @@ export function DataTable<T extends RowData>({
   empty: string;
 }) {
   const rows = table.getRowModel().rows;
-  const columnCount = table.getAllLeafColumns().length;
 
   return (
     /* overflow-hidden, not overflow-x-auto: shadcn's <Table> already wraps
@@ -461,33 +476,34 @@ export function DataTable<T extends RowData>({
         </TableHeader>
 
         <TableBody>
-          {rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={columnCount} className="text-note text-ink-meta h-24 text-center">
-                {empty}
-              </TableCell>
+          {rows.map((row) => (
+            /* relative anchors <RowLink>'s overlay to this row. */
+            <TableRow
+              key={row.id}
+              data-state={row.getIsSelected() ? "selected" : undefined}
+              className="relative"
+            >
+              {row.getAllCells().map((cell) => (
+                <TableCell
+                  key={cell.id}
+                  className={cn("px-4", cell.column.columnDef.meta?.className)}
+                >
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
             </TableRow>
-          ) : (
-            rows.map((row) => (
-              /* relative anchors <RowLink>'s overlay to this row. */
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() ? "selected" : undefined}
-                className="relative"
-              >
-                {row.getAllCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={cn("px-4", cell.column.columnDef.meta?.className)}
-                  >
-                    <table.FlexRender cell={cell} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          )}
+          ))}
         </TableBody>
       </Table>
+
+      {/* Outside the table, so outside <Table>'s horizontal scroller. In a
+          colSpan cell it was centred across the full 736px table, which on a
+          phone put the message mostly past the 325px the scroller shows.
+          No rule of its own: the header row's border-b already sits on the
+          table's bottom edge, and a second one here drew a double rule. */}
+      {rows.length === 0 && (
+        <p className="text-note text-ink-meta px-4 py-10 text-center">{empty}</p>
+      )}
     </div>
   );
 }

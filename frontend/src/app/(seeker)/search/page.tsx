@@ -1,179 +1,198 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { BookmarkIcon, CoinIcon, FilterIcon, PinIcon } from "@/components/icons";
+import { SearchIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { CompanyTile } from "@/components/ui/company-tile";
-import { Fact } from "@/components/ui/fact";
-import { FilterChip } from "@/components/ui/filter-chip";
-import { IconButton } from "@/components/ui/icon-button";
-import { Points, Section } from "@/components/ui/section";
-import { SectionHeading } from "@/components/ui/section-heading";
-import { TextLink } from "@/components/ui/text-link";
+import { ButtonLink } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
-import { DETAIL, FILTERS, JOBS, type Job } from "./data";
-import { BoltIcon, ExternalLinkIcon } from "./icons";
+import { SEEKER_GUTTER } from "../gutter";
+import { JobFilters } from "../jobs/filters";
+import { ListingCard, ListingsError, ListingsSkeleton } from "../jobs/listing-card";
+import { getJobListings, type JobListing } from "../jobs/listings";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
   description: "Find your next role.",
 };
 
-/* KAN-43 renders the search mockup only, against the fixtures in ./data —
- * nothing here reads or writes yet, so the filters, the bookmarks and Apply Now
- * are inert on purpose. The query field itself lives in the top bar, see the
- * note in ../layout.tsx about why. */
+/**
+ * /search, where the top bar's field lands with the query as ?q. It reads the
+ * same live feed as /jobs (../jobs/listings), keeps the roles whose title or
+ * company name contains the query, ignoring case, and draws them with the
+ * feed's own card (../jobs/listing-card) under the feed's own filters, so a
+ * role looks and acts the same whichever way it was found.
+ *
+ * It replaced KAN-43's mockup: a results column and a detail pane over two
+ * fixtures. A scraped role has no description for a pane to show, and on a
+ * phone the pane was hidden, which left a result nothing could open. Apply
+ * Now on each card opens the employer's posting, as it does on /jobs.
+ *
+ * The heading and the filters paint at once; the count and the list stream in
+ * behind placeholders in their own shape. Both await one search, started
+ * here, so they cannot disagree and the API is asked once. Each boundary is
+ * keyed by the query, so a new search shows its placeholders straight away
+ * instead of holding the old results on screen until the new ones arrive.
+ *
+ * The filters are inert, as they are on /jobs; see ../jobs/filters.
+ */
 
-function ResultCard({ job }: { job: Job }) {
-  const { Icon } = job;
+type Search = Awaited<ReturnType<typeof getJobListings>>;
+
+/** True when the query appears in the role's title or its company's name. */
+function matches(job: JobListing, needle: string) {
+  return job.title.toLowerCase().includes(needle) || job.company.toLowerCase().includes(needle);
+}
+
+/** The live feed narrowed to the query. An error passes through untouched. */
+async function search(query: string): Promise<Search> {
+  const feed = await getJobListings();
+  if (feed.error != null) return feed;
+
+  const needle = query.toLowerCase();
+  return { jobs: feed.jobs.filter((job) => matches(job, needle)), error: null };
+}
+
+/** "12 Roles" beside the heading. Nothing when there is nothing to count:
+ *  the empty state under the filters says so in words. */
+async function ResultCount({ results }: { results: Promise<Search> }) {
+  const { jobs } = await results;
+  if (!jobs?.length) return null;
 
   return (
-    <Card
-      as="article"
-      padding="sm"
-      selected={job.selected}
-      aria-current={job.selected ? "true" : undefined}
-    >
-      <div className="flex items-start gap-3">
-        <CompanyTile Icon={Icon} size="md" tone={job.tone} />
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-1.5">
-            <h3 className="text-subtitle text-ink min-w-0 flex-1">{job.title}</h3>
-            {job.isNew && <Badge tone="positive">New</Badge>}
-            <IconButton
-              label={job.saved ? `Remove ${job.title} from saved` : `Save ${job.title}`}
-              tooltip={job.saved ? "Remove from saved" : "Save"}
-              className={cn(job.saved ? "text-brand" : "text-border-strong hover:text-ink-meta")}
-            >
-              <BookmarkIcon filled={job.saved} className="size-3.5" />
-            </IconButton>
-          </div>
-          <p className="text-note text-ink-meta mt-0.5">{job.company}</p>
-        </div>
-      </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-1">
-        <Fact Icon={PinIcon}>{job.location}</Fact>
-        <Fact Icon={CoinIcon}>{job.salary}</Fact>
-      </div>
-
-      <div className="mt-2.5 flex items-center justify-between gap-3">
-        <p className="text-meta text-ink-faint">{job.posted}</p>
-        <p className="text-meta text-brand flex items-center gap-0.5 font-semibold">
-          {job.match}% Match
-          {job.hot && <BoltIcon className="size-3" />}
-        </p>
-      </div>
-    </Card>
+    <Badge variant="tag" pill>
+      {jobs.length} {jobs.length === 1 ? "Role" : "Roles"}
+    </Badge>
   );
 }
 
-/** The dots between the employer, the location and the hiring status. */
-function Dot() {
-  return <span aria-hidden="true" className="bg-border-strong size-1 shrink-0 rounded-full" />;
+/** The count's place while the search runs: the badge's own box and type, with
+ *  the text hidden, so it is the size of a two-digit count. It sits in the
+ *  same fixed slot the count lands in, so swapping one for the other moves
+ *  nothing. */
+function ResultCountSkeleton() {
+  return (
+    <span
+      aria-hidden="true"
+      className="bg-muted text-note inline-flex animate-pulse rounded-full px-2 py-0.5 text-transparent"
+    >
+      00 Roles
+    </span>
+  );
 }
 
-export default function SearchPage() {
-  const job = JOBS.find((entry) => entry.selected) ?? JOBS[0];
+/** The matching roles, or the state that stands in for them. */
+async function Results({ results, query }: { results: Promise<Search>; query: string }) {
+  const { jobs, error } = await results;
+
+  if (error != null) {
+    return <ListingsError error={error} retryHref={`/search?q=${encodeURIComponent(query)}`} />;
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <EmptyState
+        Icon={SearchIcon}
+        title={`No Roles Match “${query}”`}
+        className="mt-4"
+        action={
+          <ButtonLink href="/jobs" variant="secondary" size="sm">
+            Browse All Jobs
+          </ButtonLink>
+        }
+      >
+        Try a different title or company name, or browse every role in the feed.
+      </EmptyState>
+    );
+  }
 
   return (
-    <div className="flex flex-1 items-stretch">
-      <aside
-        aria-labelledby="results-heading"
-        className="bg-well border-border-subtle flex w-90 shrink-0 flex-col border-r"
-      >
-        <div className="bg-panel px-2 pt-3 pb-4">
-          <div className="flex items-center justify-between gap-3">
-            <SectionHeading as="h1" id="results-heading">
-              Search Results
-            </SectionHeading>
-            <Badge variant="tag" pill>
-              {JOBS.length} Jobs
-            </Badge>
-          </div>
+    <>
+      {/* The level between the page's h1 and each card's h3, as on /jobs. */}
+      <h2 className="sr-only">Search Results</h2>
+      <ul className="mt-4 flex flex-col gap-3">
+        {jobs.map((job) => (
+          <li key={job.id}>
+            <ListingCard job={job} />
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
 
-          <div className="mt-2 flex items-center gap-1.5">
-            {FILTERS.map((filter) => (
-              <FilterChip key={filter.label} label={filter.label} active={filter.active} />
-            ))}
-            <IconButton label="More filters" variant="outline" className="ml-auto size-6.5">
-              <FilterIcon className="size-3.5" />
-            </IconButton>
-          </div>
-        </div>
+export default async function SearchPage({ searchParams }: PageProps<"/search">) {
+  const { q } = await searchParams;
+  const query = typeof q === "string" ? q.trim() : "";
 
-        <ul className="flex flex-col gap-2.5 p-2">
-          {JOBS.map((entry) => (
-            <li key={entry.id}>
-              <ResultCard job={entry} />
-            </li>
-          ))}
-        </ul>
-      </aside>
+  /* The heading and subtitle every state shares, at /jobs's sizes. */
+  const subtitle = (
+    <p className="text-body text-ink-meta mt-1">
+      Roles from today&apos;s feed, matched by title or company.
+    </p>
+  );
 
-      <main className="bg-panel min-w-0 flex-1 px-6 pt-5 pb-12">
-        <Card as="header" padding="lg" elevated={false} className="flex items-center gap-4">
-          <CompanyTile Icon={job.Icon} size="lg" tone="outline" />
+  /* Reached by submitting an empty field, or by the URL alone. No filters and
+     no count, since nothing has been searched for them to narrow or count. */
+  if (!query) {
+    return (
+      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+        <h1 className="text-heading text-ink">Search Jobs</h1>
+        {subtitle}
 
-          <div className="min-w-0 flex-1">
-            <h2 className="text-display text-ink">{job.title}</h2>
+        <EmptyState
+          Icon={SearchIcon}
+          title="Search for a Role"
+          className="mt-6"
+          action={
+            <ButtonLink href="/jobs" variant="secondary" size="sm">
+              Browse All Jobs
+            </ButtonLink>
+          }
+        >
+          Search by job title or company name, or browse every role in the feed.
+        </EmptyState>
+      </div>
+    );
+  }
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              <TextLink href="/companies" className="text-label font-semibold">
-                {job.company}
-              </TextLink>
-              <Dot />
-              <span className="text-label text-ink-meta font-normal">{job.location}</span>
-              <Dot />
-              <Badge tone="positive">{DETAIL.status}</Badge>
-            </div>
-          </div>
+  const results = search(query);
 
-          <IconButton
-            label={`Save ${job.title}`}
-            tooltip="Save"
-            variant="outline"
-            className="text-ink-meta h-10 w-6 shrink-0"
-          >
-            <BookmarkIcon className="size-4" />
-          </IconButton>
+  return (
+    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      {/* The heading runs inline, so the count follows its last word however
+          far a long query wraps it. As the end of a flex row it was pushed to
+          the far edge whenever the heading wrapped, where it read as
+          belonging to nothing.
 
-          <Button size="lg" className="shrink-0">
-            Apply Now
-            <ExternalLinkIcon className="size-4" />
-          </Button>
-        </Card>
+          The count's slot is a fixed width (72px holds "999 Roles"), held
+          whether it shows the placeholder, a count or nothing at all, so a
+          long query wraps at the same word before and after the results land
+          and nothing below moves. It is centred on the heading's x-height
+          (align-middle, against the wrapper's own text-heading) rather than
+          sitting on the baseline, where the pill hung below the heading's
+          letters. The count is a live region, so a screen reader hears how
+          many roles a search found once they land. */}
+      <div className="text-heading break-words">
+        <h1 className="text-heading text-ink inline">Results for “{query}”</h1>
+        <span role="status" className="ml-3 inline-flex w-18 align-middle">
+          <Suspense key={query} fallback={<ResultCountSkeleton />}>
+            <ResultCount results={results} />
+          </Suspense>
+        </span>
+      </div>
+      {subtitle}
 
-        <dl className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {DETAIL.stats.map(({ label, value, Icon }) => (
-            <div
-              key={label}
-              className="bg-well border-border-subtle rounded-control border px-3 py-3"
-            >
-              <dt className="text-caption text-ink-meta flex items-center gap-1.5 uppercase">
-                <Icon className="size-3.5 shrink-0" />
-                {label}
-              </dt>
-              <dd className="text-subtitle text-ink mt-1">{value}</dd>
-            </div>
-          ))}
-        </dl>
+      {/* A container, so the facets switch on the row's own width, as on
+          /jobs. */}
+      <div className="@container mt-4 flex flex-wrap items-center gap-2">
+        <JobFilters />
+      </div>
 
-        <Section title="About the Role">
-          <p className="text-label text-ink-muted mt-3 leading-5 font-normal">{DETAIL.about}</p>
-        </Section>
-
-        <Section title="What You'll Do">
-          <Points items={DETAIL.responsibilities} />
-        </Section>
-
-        <Section title="Qualifications">
-          <Points items={DETAIL.qualifications} />
-        </Section>
-      </main>
+      <Suspense key={query} fallback={<ListingsSkeleton />}>
+        <Results results={results} query={query} />
+      </Suspense>
     </div>
   );
 }

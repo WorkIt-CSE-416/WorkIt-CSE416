@@ -5,11 +5,13 @@ import { BuildingIcon } from "../../icons";
 import { ArrowLeftIcon, PencilIcon } from "@/components/icons";
 import { getJobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
-import { ButtonLink, Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { CompanyTile } from "@/components/ui/company-tile";
 import { getCompanyJob } from "@/lib/job-queries";
 import { Points, Section } from "@/components/ui/section";
 
+import { STATUS_TONE } from "../data";
 import { ApplicantOverviewPanel } from "./applicant-overview";
 
 export async function generateMetadata({
@@ -25,6 +27,11 @@ export async function generateMetadata({
  * /company/jobs/[jobId] — the per-role screen the index page's docblock
  * promised. Read-only management view for now: the posting's own facts,
  * plus how far along it is with applicants.
+ *
+ * The status badge leads the actions, as it leads the jobs list and the
+ * editor, so a Closed posting never reads as live. Edit opens the composer at
+ * /edit, and is absent once a posting is Closed: there is nothing left to
+ * change. Fixture ids 404 there until this page reads real jobs.
  */
 export default async function CompanyJobDetailPage({ params }: PageProps<"/company/jobs/[jobId]">) {
   const { jobId } = await params;
@@ -42,7 +49,7 @@ export default async function CompanyJobDetailPage({ params }: PageProps<"/compa
   }
 
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-6 py-6 sm:px-12">
+    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
       <ButtonLink href="/company/jobs" variant="secondary" size="sm" className="mb-3">
         <ArrowLeftIcon className="size-3.5" />
         Back to Jobs
@@ -52,16 +59,27 @@ export default async function CompanyJobDetailPage({ params }: PageProps<"/compa
         posting={posting}
         tile={<CompanyTile Icon={BuildingIcon} size="sm" tone="outline" />}
         actions={
-          <Button variant="outline">
-            <PencilIcon className="size-3.5" />
-            Edit
-          </Button>
+          <>
+            <Badge variant="status" tone={STATUS_TONE[posting.status]}>
+              {posting.status}
+            </Badge>
+            {posting.status !== "Closed" && (
+              <ButtonLink
+                href={`/company/jobs/${posting.id}/edit`}
+                variant="outline"
+                className="ml-auto @xl:ml-0"
+              >
+                <PencilIcon className="size-3.5" />
+                Edit
+              </ButtonLink>
+            )}
+          </>
         }
         rail={<ApplicantOverviewPanel posting={posting} />}
       />
 
       <Section title="About the Role">
-        <p className="text-label text-ink-muted mt-3 leading-5 font-normal">{posting.about}</p>
+        <p className="text-body text-ink-muted mt-3 max-w-[68ch]">{posting.about}</p>
       </Section>
 
       <Section title="What You'll Do">

@@ -13,10 +13,10 @@ import { cn } from "@/lib/cn";
  * thing keeping the two apart at a glance.
  *
  * `tone` is the colour, and it defaults from the variant — a status reads brand
- * and a tag reads neutral, which is what every pill on the board wants. The
- * search screen is the reason it can be overridden: its "New" and "Actively
- * Hiring" pills are green, and its result count is a neutral tag that has to be
- * fully rounded, so shape and colour stopped moving together.
+ * and a tag reads neutral, which is what every pill on the board wants. It can
+ * be overridden because shape and colour do not always move together: a stage
+ * badge takes its stage's tone, and the Dashboard's activity chips are tags
+ * tinted brand, positive or warning.
  */
 const VARIANTS = {
   /* py-px gave the chip a 17px box, which read as a label squeezed onto its
@@ -40,9 +40,10 @@ const VARIANTS = {
  * being in a screen and being in an interview cost a hiring team completely
  * different amounts of its week.
  *
- * `neutral` stays exactly as it was. It is the default for every `tag` — skill
- * pills, salary bands, the search screen's result count — and the mockups draw
- * all of those blue-tinted. `inert` is the grey that statuses wanted from it.
+ * `neutral` stays exactly as it was. It is the default for every `tag` (skill
+ * pills, salary bands, the /search result count), and the mockups draw
+ * all of those brand-tinted (blue in the mockups, violet since KAN-140).
+ * `inert` is the grey that statuses wanted from it.
  *
  * `positive` wears --color-positive-ink rather than --color-positive, which is
  * the one tone whose text colour is not simply its fill colour darkened by
@@ -56,7 +57,7 @@ const TONES = {
   brand: "bg-brand-tint text-brand",
   /** In flight, late — the expensive half, where a team's time is committed. */
   advanced: "bg-advanced-tint text-advanced",
-  /** A tag's fill. Blue-tinted, and the default for `tag` rather than a state. */
+  /** A tag's fill. Brand-tinted, and the default for `tag` rather than a state. */
   neutral: "bg-brand-tint text-ink-muted",
   /** Finished well — an offer, a live posting. */
   positive: "bg-positive-tint text-positive-ink",
@@ -67,8 +68,10 @@ const TONES = {
   /** Over or not yet begun; nothing is happening and nothing is owed. */
   inert: "bg-inert-tint text-ink-meta",
   /** Not live at all. No fill, because there is nothing to fill in yet — a
-   *  draft is the one state that has never been published. */
-  outline: "border-border-strong text-ink-meta border bg-transparent",
+   *  draft is the one state that has never been published. An inset ring, not
+   *  a border, so the pill is the same 23px as its siblings; --color-ink-faint
+   *  gives the edge 3.11:1 on white. */
+  outline: "text-ink-meta ring-ink-faint bg-transparent ring-1 ring-inset",
 } as const;
 
 export type BadgeVariant = keyof typeof VARIANTS;
@@ -84,7 +87,8 @@ export function Badge({
 }: {
   variant?: BadgeVariant;
   tone?: BadgeTone;
-  /** Force the rounded shape onto a `tag` — the search screen's result count. */
+  /** Force the rounded shape onto a `tag`: the /search result count, the
+   *  profile's resume count, the Dashboards' activity chips. */
   pill?: boolean;
   children: ReactNode;
 }) {

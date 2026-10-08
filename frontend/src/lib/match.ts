@@ -10,27 +10,30 @@
  * are a placeholder: whoever owns the matching model sets the real ones, and
  * the labels are the only place the screen states them.
  *
- * Four bands, blue through red, rather than one flat colour at every score.
- * Top band reuses `--color-brand` — the score that earns the app's own
- * primary colour is the one worth calling out — and the three below it step
- * through green, yellow and red so the bands read as a falling scale rather
- * than a set of unrelated badges. Green and red here are a warmer, more
- * saturated pair than `--color-positive`/`--color-negative`, chosen so a
- * match score doesn't borrow the applications board's vocabulary for "you
- * have an offer" / "rejected". That matters more now the board's cards carry a
- * match badge: an Offer card draws both greens at once, and they mean two
- * different things.
+ * Four bands on one magenta ramp, the `--color-match-*` tokens in globals.css,
+ * lightest for Weak and deepest for Excellent. A better match is a deeper
+ * colour, so the bands read as one rising scale, and the ring's colour agrees
+ * with its length. The ramp is its own hue on purpose. The bands used to be the
+ * brand violet and a green, a yellow and a red, which are the Applied, Offer
+ * and Interviewing stages' colours and the danger red: a 95% card in the
+ * Interviewing column wore an Applied ring, and an Offer card drew two greens
+ * that meant different things. Stages own violet, blue, amber, green and grey;
+ * a score owns magenta. The tokens' note says why that hue, and measures every
+ * step on white and on the rail's well.
  *
- * One hue per band, not two bands sharing a hue family (the old green/lime
- * and amber/orange pairs read as the same colour at a glance). Fair match —
- * the old 50-64 band — folds into Weak match instead of getting its own
- * colour, since below Good is all "don't count on this one."
+ * The colour only ever paints a stroke, a dot, a bar or a glyph. The tier's
+ * words are ink-muted wherever they are printed (see `MatchRail`), so no step
+ * has to pass as text.
+ *
+ * Four bands, not five: Fair Match, the old 50-64 band, folds into Weak Match
+ * instead of getting its own step, since below Good is all "don't count on
+ * this one."
  */
 const TIERS = [
-  { min: 90, label: "Excellent match", color: "var(--color-brand)" },
-  { min: 80, label: "Strong match", color: "#22c55e" },
-  { min: 65, label: "Good match", color: "#eab308" },
-  { min: 0, label: "Weak match", color: "#ef4444" },
+  { min: 90, label: "Excellent Match", color: "var(--color-match-excellent)" },
+  { min: 80, label: "Strong Match", color: "var(--color-match-strong)" },
+  { min: 65, label: "Good Match", color: "var(--color-match-good)" },
+  { min: 0, label: "Weak Match", color: "var(--color-match-weak)" },
 ] as const;
 
 function tierFor(score: number) {
@@ -41,7 +44,9 @@ export function matchTier(score: number) {
   return tierFor(score).label;
 }
 
-/** The colour a match's ring and tier label draw in — see the note on `TIERS`. */
+/** The colour a match's ring, the dot before its tier label, the match badge
+ *  and the company Dashboard's match bar draw in, as a `var()` reference for
+ *  an inline style or an SVG stroke. See the note on `TIERS`. */
 export function matchColor(score: number) {
   return tierFor(score).color;
 }

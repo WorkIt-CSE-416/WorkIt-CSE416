@@ -14,15 +14,14 @@ export function apiUpload(
   return fetch(`${API_URL}${path}`, {
     method,
     body,
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
   });
 }
-
 
 export function apiGet(path: string, accessToken?: string): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  })
+  });
 }
 
 export function apiDelete(path: string, accessToken?: string): Promise<Response> {

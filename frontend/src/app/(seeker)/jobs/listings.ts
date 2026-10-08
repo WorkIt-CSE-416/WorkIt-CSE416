@@ -10,7 +10,8 @@ import type { ExperienceLevel, WorkStyle } from "./data";
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which serves the
  * scraper's feed.json (backend/app/routers/jobs.py). Mirrors
- * backend/app/schemas/jobs.py field for field.
+ * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
+ * narrows it to the query) and by the Dashboard's New Matches.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. `filters.tsx` is a client
  * component importing its option lists from ./data, and `apiGet` is

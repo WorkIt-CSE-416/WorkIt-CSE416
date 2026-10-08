@@ -24,19 +24,22 @@ import { cn } from "@/lib/cn";
  * the flex rows these sit in. TooltipProvider is in the root layout.
  */
 const VARIANTS = {
-  /** Bare glyph — top-bar utilities and row actions. */
+  /** Bare glyph: top-bar utilities and row actions. Centred in whatever box
+   *  the call site sizes it to, and the ::after reaches 8px past the box, so
+   *  an unsized 16px glyph is still a 32px target without moving anything
+   *  around it. */
   quiet:
-    "text-ink-meta hover:text-ink focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2",
+    "text-ink-meta hover:text-ink focus-visible:ring-brand-ring relative inline-flex items-center justify-center rounded-xs after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2",
   /** Bordered — an icon action that has to hold its own beside a filled
    *  button, so it needs the same visual weight a button has. Size it at the
-   *  call site: the search detail pane's bookmark is deliberately narrower
-   *  than it is tall, to sit under the Apply button's height. */
+   *  call site: the feed card's Not Interested button is size-8, the `sm`
+   *  button height, to line up with the actions beside it. */
   outline:
     "border-border-subtle bg-panel text-ink-meta hover:bg-hover hover:text-ink focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
   /** Brand disc — an edit affordance overlapping the thing it edits. The border
    *  matches the panel behind it so the disc reads as cut out of the surface. */
   brand:
-    "bg-brand text-on-brand border-panel hover:bg-brand-hover focus-visible:ring-brand-ring inline-flex size-6.5 items-center justify-center rounded-full border-2 focus-visible:ring-2",
+    "bg-brand text-on-brand border-panel hover:bg-brand-hover focus-visible:ring-brand-ring inline-flex size-6.5 items-center justify-center rounded-full border-2 focus-visible:ring-2 focus-visible:ring-offset-2",
 } as const;
 
 export type IconButtonVariant = keyof typeof VARIANTS;
@@ -64,7 +67,11 @@ export function IconButton({
       <TooltipTrigger
         type={type}
         aria-label={label}
-        className={cn(VARIANTS[variant], "focus-visible:outline-none", className)}
+        className={cn(
+          VARIANTS[variant],
+          "focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+          className,
+        )}
         {...props}
       >
         {children}

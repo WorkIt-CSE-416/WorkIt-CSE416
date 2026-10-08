@@ -1,25 +1,26 @@
 import type { ComponentType } from "react";
 
+import { CalendarIcon, ClockIcon, CoinIcon, MonitorIcon, PinIcon } from "@/components/icons";
+
 import {
-  AwardIcon,
-  BriefcaseIcon,
-  CalendarIcon,
-  CoinIcon,
-  MonitorIcon,
-  PinIcon,
-} from "@/components/icons";
+  BuildingIcon,
+  CloudIcon,
+  CubeIcon,
+  LandmarkIcon,
+  LeafIcon,
+  NodesIcon,
+  OrbitIcon,
+  PlaneIcon,
+  StorefrontIcon,
+} from "./icons";
 
-import { BuildingIcon, ClockIcon, CloudIcon, CubeIcon, NodesIcon, StorefrontIcon } from "./icons";
-
-export type Tone = "brand" | "positive";
+import type { StageKey } from "../stage-colors";
 
 export type Application = {
   role: string;
   company: string;
   /** Stand-in for the company logo — see the note in icons.tsx. */
   Icon: ComponentType<{ className?: string }>;
-  /** Tints the company tile. Only an offer leaves brand. */
-  tone?: Tone;
   /** Where the application stands, shown as a chip beside the role. */
   status?: string;
   saved?: boolean;
@@ -27,13 +28,15 @@ export type Application = {
   tags?: string[];
   /** The scheduled thing this card is waiting on. */
   next?: { label: string; when: string };
+  /** A few words of when. On the board it shares the footer with the match,
+   *  and in the grid and list it sits beside the stage pill, so it never names
+   *  the stage itself: "14 days in", "Sent Sep 28", not "Interviewing for 14
+   *  days" or "Applied Sep 28". */
   meta: { text: string; Icon?: ComponentType<{ className?: string }> };
   /** A link in the footer — the one action a saved row offers. */
   action?: { label: string; href: string };
   /** A filled button, for the one card whose action cannot wait. */
   cta?: string;
-  /** Whose interview it is; the mockup shows a face here. */
-  owner?: string;
   /**
    * Exists because the shadcn kanban design has a slot for it and WorkIt had no
    * field to fill it: a card there carries a two-line description. An invented
@@ -44,8 +47,8 @@ export type Application = {
   summary?: string;
   /**
    * 0-100. How well the job fits the seeker — the same score the Jobs screen
-   * shows, read in the bands in @/lib/match. Per application, unlike a stage's
-   * `progress`, so two cards in one column can disagree. Invented here.
+   * shows, read in the bands in @/lib/match. Per application rather than per
+   * stage, so two cards in one column can disagree. Invented here.
    */
   match: number;
   /** Draws the card selected. The mockup draws the Lead Designer card this way,
@@ -55,15 +58,10 @@ export type Application = {
 
 export type Column = {
   title: string;
-  /** Painted along the card's top edge, so a card carries its column with it. */
-  accent: "pale" | "brand" | "positive";
-  /**
-   * How far through the pipeline this stage is. The grid and list draw a bar
-   * where the board draws a column, and this is what fills it — progress is a
-   * property of the stage, not of the application, so a card can never show a
-   * percentage that disagrees with the column it sits in.
-   */
-  progress: number;
+  /** Which stage the column is: its panel's tint, the icon and count in its
+   *  header, and the grid and list's badges. One map for every screen:
+   *  ../stage-colors.ts. */
+  stage: StageKey;
   items: Application[];
 };
 
@@ -74,8 +72,9 @@ export type Column = {
  * two clamped lines, a next step, a match score, and no `cta` — so every card
  * on the board draws at the height of the mockup's Interviewing card. Cards of
  * mixed heights made it hard to judge how the board scrolls, which is what the
- * extra cards are for. Keep new cards to the same shape: a role or a next-step
- * label long enough to wrap, or a `cta`, makes that one card taller.
+ * extra cards are for. Keep new cards to the same shape: a next-step label long
+ * enough to wrap, or a `cta`, makes that one card taller. (A role cannot: the
+ * board clamps it at two lines and always holds two lines' height.)
  *
  * The mockup draws the first two cards in Saved and Applied and the first in
  * Interviewing and Offer. The rest are invented, and so is every `next` except
@@ -95,8 +94,7 @@ export type Column = {
 export const COLUMNS: Column[] = [
   {
     title: "Saved",
-    accent: "pale",
-    progress: 25,
+    stage: "saved",
     items: [
       {
         role: "Product Designer",
@@ -108,7 +106,7 @@ export const COLUMNS: Column[] = [
         saved: true,
         tags: ["Remote", "$120k - $150k"],
         next: { label: "Next: Application Closes", when: "Oct 20, 11:59 PM EST" },
-        meta: { text: "Saved 2 days ago" },
+        meta: { text: "Added 2 days ago" },
         action: { label: "Apply", href: "/apply" },
       },
       {
@@ -120,7 +118,7 @@ export const COLUMNS: Column[] = [
         Icon: CubeIcon,
         saved: true,
         next: { label: "Next: Coffee Chat", when: "Thursday, 10:00 AM EST" },
-        meta: { text: "Saved 1 week ago" },
+        meta: { text: "Added 1 week ago" },
       },
       {
         role: "Interaction Designer",
@@ -131,14 +129,13 @@ export const COLUMNS: Column[] = [
         Icon: MonitorIcon,
         saved: true,
         next: { label: "Next: Virtual Info Session", when: "Oct 18, 1:00 PM EST" },
-        meta: { text: "Saved 3 days ago" },
+        meta: { text: "Added 3 days ago" },
       },
     ],
   },
   {
     title: "Applied",
-    accent: "brand",
-    progress: 50,
+    stage: "applied",
     items: [
       {
         role: "UX Researcher",
@@ -149,7 +146,7 @@ export const COLUMNS: Column[] = [
         Icon: NodesIcon,
         status: "Applied",
         next: { label: "Next: Hear Back By", when: "Oct 26, per the recruiter" },
-        meta: { text: "Oct 12, 2023", Icon: CalendarIcon },
+        meta: { text: "Sent Sep 28", Icon: CalendarIcon },
       },
       {
         role: "Senior UI Designer",
@@ -159,7 +156,7 @@ export const COLUMNS: Column[] = [
         Icon: StorefrontIcon,
         status: "Applied",
         next: { label: "Next: Recruiter Screen", when: "Oct 17, 11:30 AM EST" },
-        meta: { text: "Oct 10, 2023", Icon: CalendarIcon },
+        meta: { text: "Sent Sep 25", Icon: CalendarIcon },
       },
       {
         role: "Product Engineer",
@@ -167,17 +164,16 @@ export const COLUMNS: Column[] = [
         match: 70,
         summary:
           "Full-stack work on self-serve dashboards. Referred by a former teammate on the data team.",
-        Icon: BriefcaseIcon,
+        Icon: OrbitIcon,
         status: "Applied",
         next: { label: "Next: Follow Up", when: "Oct 15, if no reply" },
-        meta: { text: "Oct 8, 2023", Icon: CalendarIcon },
+        meta: { text: "Sent Sep 22", Icon: CalendarIcon },
       },
     ],
   },
   {
     title: "Interviewing",
-    accent: "brand",
-    progress: 75,
+    stage: "interviewing",
     items: [
       {
         role: "Lead Designer",
@@ -188,8 +184,7 @@ export const COLUMNS: Column[] = [
         Icon: CloudIcon,
         status: "Round 2",
         next: { label: "Next: Technical Interview", when: "Tomorrow, 2:00 PM EST" },
-        meta: { text: "14 days active", Icon: ClockIcon },
-        owner: "Alex Chen",
+        meta: { text: "14 days in", Icon: ClockIcon },
       },
       {
         role: "Design Systems Lead",
@@ -200,7 +195,7 @@ export const COLUMNS: Column[] = [
         Icon: PinIcon,
         status: "Round 1",
         next: { label: "Next: Hiring Manager Call", when: "Oct 16, 3:30 PM EST" },
-        meta: { text: "6 days active", Icon: ClockIcon },
+        meta: { text: "6 days in", Icon: ClockIcon },
       },
       {
         role: "Product Designer II",
@@ -208,17 +203,16 @@ export const COLUMNS: Column[] = [
         match: 58,
         summary:
           "Onboarding and account flows for their consumer app. The last step is an onsite with the team.",
-        Icon: BuildingIcon,
+        Icon: LandmarkIcon,
         status: "Final Round",
         next: { label: "Next: Onsite Interview", when: "Oct 19, 9:00 AM EST" },
-        meta: { text: "21 days active", Icon: ClockIcon },
+        meta: { text: "21 days in", Icon: ClockIcon },
       },
     ],
   },
   {
     title: "Offer",
-    accent: "positive",
-    progress: 100,
+    stage: "offer",
     items: [
       {
         role: "UI Developer",
@@ -226,9 +220,8 @@ export const COLUMNS: Column[] = [
         match: 90,
         summary: "Offer in hand for their payments dashboard team. Needs an answer by the 20th.",
         Icon: CoinIcon,
-        tone: "positive",
         next: { label: "Next: Negotiation Call", when: "Oct 17, 4:00 PM EST" },
-        meta: { text: "Deadline to accept: Oct 20, 2023" },
+        meta: { text: "Respond by Oct 20" },
       },
       {
         role: "Frontend Developer",
@@ -236,10 +229,9 @@ export const COLUMNS: Column[] = [
         match: 81,
         summary:
           "Offer from the booking experience team, with a signing bonus. Waiting on the benefits details.",
-        Icon: BriefcaseIcon,
-        tone: "positive",
+        Icon: PlaneIcon,
         next: { label: "Next: Benefits Review", when: "Oct 18, 11:00 AM EST" },
-        meta: { text: "Deadline to accept: Oct 27, 2023" },
+        meta: { text: "Respond by Oct 27" },
       },
       {
         role: "UI/UX Designer",
@@ -247,10 +239,9 @@ export const COLUMNS: Column[] = [
         match: 67,
         summary:
           "Verbal offer for the customer portal redesign. The written offer follows their reference checks.",
-        Icon: AwardIcon,
-        tone: "positive",
+        Icon: LeafIcon,
         next: { label: "Next: Reference Check", when: "Oct 18, 2:00 PM EST" },
-        meta: { text: "Deadline to accept: Nov 3, 2023" },
+        meta: { text: "Respond by Nov 3" },
       },
     ],
   },

@@ -13,17 +13,15 @@ import { SECTION_ORDER } from "./data";
  * A client component only because it reads the pathname to mark the current
  * section; everything it links to renders on the server.
  *
- * It is a plain list rather than the app's <NavLink>, which underlines a tab in
- * a horizontal bar and carries the top bar's proportions with it. This is a
- * vertical index beside a document, so the active row is filled rather than
- * underlined — the same treatment the company sidebar uses, for the same
- * reason.
+ * A vertical index beside a document, so the active row is filled rather
+ * than underlined, the way both shells' left panels mark the section you are
+ * on.
  */
 export function KitNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Design kit sections" className="md:w-44 md:shrink-0">
+    <nav aria-label="Design Kit Sections" className="md:w-44 md:shrink-0">
       <ul className="flex flex-row flex-wrap gap-1 md:sticky md:top-10 md:flex-col md:flex-nowrap">
         <li>
           <KitLink href="/design-kit" active={pathname === "/design-kit"}>

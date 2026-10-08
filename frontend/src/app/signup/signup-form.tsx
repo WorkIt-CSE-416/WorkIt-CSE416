@@ -4,11 +4,13 @@ different form for applicant, company, and company_membership sign up
 */
 "use client";
 
+import { Building2, CircleAlert, UserRoundPlus } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { AccountTypeSwitcher, type AccountTypeValue } from "@/components/account-type-switcher";
 import { CompanyFields } from "@/components/company-fields";
-import { ArrowRightIcon, BriefcaseIcon, LockIcon, MailIcon, UserIcon } from "@/components/icons";
+import { SoonBadge } from "@/components/auth-alternatives";
+import { ArrowRightIcon, LockIcon, MailIcon } from "@/components/icons";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
@@ -35,25 +37,31 @@ const INITIAL_STATE: SignupState = {
 // anon key, e.g. updateUser). Change all three together.
 const PASSWORD_MIN_LENGTH = 8;
 
-/** The two doors behind the Company tab. Only "create" has a form so far. */
+/**
+ * The two doors behind the Company tab. Only "create" has a form so far, so
+ * "join" is drawn disabled and marked Soon rather than offered as an equal
+ * choice that leads nowhere. Building2 is the company glyph the company shell
+ * uses. UserRoundPlus is you joining a team; UsersRound already means
+ * Applicants in the company shell.
+ */
 const COMPANY_PATHS = [
   {
     value: "create",
     label: "Create Company",
     hint: "Set up a new company page",
-    icon: BriefcaseIcon,
+    icon: Building2,
   },
   {
     value: "join",
     label: "Join a Company",
     hint: "Join your team on WorkIt",
-    icon: UserIcon,
+    icon: UserRoundPlus,
   },
 ] as const;
 
 type CompanyPath = (typeof COMPANY_PATHS)[number]["value"];
 
-const OPTIONAL = <span className="text-meta text-ink-faint">Optional</span>;
+const OPTIONAL = <span className="text-meta text-ink-meta">Optional</span>;
 
 /** Caption over each group of the company form — same type as "Or continue with". */
 const SECTION = "text-caption text-ink-muted uppercase";
@@ -62,8 +70,9 @@ const SECTION = "text-caption text-ink-muted uppercase";
  * The interactive half of /signup — logo and heading stay server-rendered in
  * page.tsx. The account-type switcher lives here rather than there because
  * the fields below it depend on its value: Applicant goes straight to the
- * form, Company first asks Create or Join and shows nothing until one is
- * picked. useActionState needs a Client Component anyway.
+ * form, Company opens on Create with its fields already showing (Join is
+ * disabled until it has a form). useActionState needs a Client Component
+ * anyway.
  *
  * The switcher still sits outside <form> and reaches it through its hidden
  * input's `form` attribute, same as on /login.
@@ -72,7 +81,7 @@ export function SignupForm({ formId }: { formId: string }) {
   const [state, formAction, pending] = useActionState(createAccount, INITIAL_STATE);
 
   const [accountType, setAccountType] = useState<AccountTypeValue>("applicant");
-  const [companyPath, setCompanyPath] = useState<CompanyPath | null>(null);
+  const [companyPath, setCompanyPath] = useState<CompanyPath | null>("create");
   // Controlled, unlike the text fields: React's post-action form reset only
   // clears uncontrolled inputs, so a picked size survives a failed submit
   // without a round-trip through SignupState.
@@ -88,6 +97,7 @@ export function SignupForm({ formId }: { formId: string }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmAttempted, setConfirmAttempted] = useState(false);
   const passwordsMismatch = password !== confirmPassword;
+  const confirmInvalid = confirmAttempted && passwordsMismatch;
 
   const isCompany = accountType === "company";
   const showForm = !isCompany || companyPath === "create";
@@ -104,33 +114,37 @@ export function SignupForm({ formId }: { formId: string }) {
           onValueChange={([next]) => {
             if (next) setCompanyPath(next as CompanyPath);
           }}
-          aria-label="Create or join a company"
-          className="mt-2.5 grid w-full grid-cols-2 gap-2.5"
+          aria-label="Create or Join a Company"
+          /* One column below `sm`, like every paired row in the form below:
+           * at phone width a half-width tile wrapped each label onto two
+           * lines and pushed Join's Soon pill out past its edge. */
+          className="mt-2.5 grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2"
         >
           {COMPANY_PATHS.map(({ value, label, hint, icon: Icon }) => (
             <ToggleGroupItem
               key={value}
               value={value}
+              disabled={value === "join"}
               /* A tile, not a segment: it is a choice between two flows, and
                * the hint line says what each one leads to. Pressed state uses
                * the switcher's brand tint so the two controls read as one
-               * family. */
-              className="rounded-control border-border-subtle text-ink-muted hover:bg-hover hover:text-ink aria-pressed:border-brand/50 aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex h-auto flex-col items-start gap-0.5 border px-3.5 py-2.5 text-left whitespace-normal"
+               * family. Disabled dims the tile's icon, label and hint but not
+               * its Soon pill, so the pill reads the same as the one on the
+               * divider below; disabled:opacity-100 cancels the vendored
+               * toggle's whole-tile disabled:opacity-50. */
+              className="rounded-control border-border-subtle text-ink-muted hover:bg-hover hover:text-ink aria-pressed:border-brand/50 aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex h-auto flex-col items-start gap-0.5 border px-3.5 py-2.5 text-left whitespace-normal disabled:opacity-100"
             >
               <span className="text-label flex items-center gap-2">
-                <Icon className="size-4" />
-                {label}
+                <Icon className="size-4 group-disabled/toggle:opacity-50" />
+                <span className="group-disabled/toggle:opacity-50">{label}</span>
+                {value === "join" && <SoonBadge />}
               </span>
-              <span className="text-meta text-ink-faint font-normal">{hint}</span>
+              <span className="text-meta text-ink-meta font-normal group-disabled/toggle:opacity-50">
+                {hint}
+              </span>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-      )}
-
-      {isCompany && companyPath === "join" && (
-        <p className="text-body text-ink-muted border-border-subtle rounded-control mt-4 border border-dashed px-3.5 py-4 text-center">
-          Joining an existing company is coming soon.
-        </p>
       )}
 
       {showForm && (
@@ -149,7 +163,7 @@ export function SignupForm({ formId }: { formId: string }) {
               setConfirmAttempted(true);
             }
           }}
-          className="mt-4 flex flex-col"
+          className="mt-5 flex flex-col"
         >
           <div className="flex flex-col gap-2.5">
             {isCompany && (
@@ -171,7 +185,7 @@ export function SignupForm({ formId }: { formId: string }) {
 
                 {/* The fields below are the same as an applicant's, but they
                     describe the company's owner — the person signing in. */}
-                <p className={cn(SECTION, "mt-2")}>Owner account</p>
+                <p className={cn(SECTION, "mt-2")}>Owner Account</p>
               </>
             )}
 
@@ -216,7 +230,7 @@ export function SignupForm({ formId }: { formId: string }) {
               type="email"
               /* On the company path this is the owner's own sign-in, which is
                * not necessarily the company's public contact address above. */
-              label={isCompany ? "Sign-in Email" : "Email Address"}
+              label={isCompany ? "Sign-In Email" : "Email Address"}
               icon={MailIcon}
               autoComplete="email"
               maxLength={100}
@@ -224,19 +238,27 @@ export function SignupForm({ formId }: { formId: string }) {
               defaultValue={state.email}
             />
 
-            <TextField
-              id="password"
-              name="password"
-              type="password"
-              label="Password"
-              icon={LockIcon}
-              autoComplete="new-password"
-              required
-              minLength={PASSWORD_MIN_LENGTH}
-              maxLength={20}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
+            {/* No maxLength: the API sets none, and a 20-character cap here
+                cut a pasted password short in this field but not in Confirm,
+                which then reported a mismatch nobody could see. */}
+            <div className="flex flex-col gap-1">
+              <TextField
+                id="password"
+                name="password"
+                type="password"
+                label="Password"
+                icon={LockIcon}
+                autoComplete="new-password"
+                required
+                minLength={PASSWORD_MIN_LENGTH}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                aria-describedby="password-hint"
+              />
+              <p id="password-hint" className="text-meta text-ink-meta">
+                At least {PASSWORD_MIN_LENGTH} characters
+              </p>
+            </div>
 
             <div className="flex flex-col gap-1">
               <TextField
@@ -249,14 +271,29 @@ export function SignupForm({ formId }: { formId: string }) {
                 required
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
+                aria-invalid={confirmInvalid || undefined}
+                aria-describedby={confirmInvalid ? "confirm-password-error" : undefined}
               />
-              {confirmAttempted && passwordsMismatch && (
-                <p className="text-meta text-danger">Passwords do not match.</p>
+              {confirmInvalid && (
+                <p id="confirm-password-error" role="alert" className="text-meta text-danger">
+                  Passwords do not match.
+                </p>
               )}
             </div>
           </div>
 
-          {state.error && <p className="text-meta text-danger mt-2.5">{state.error}</p>}
+          {/* Same banner as /login's. It names no single field, so it marks
+              none; the field-level messages above do that. */}
+          {state.error && (
+            <p
+              id="signup-error"
+              role="alert"
+              className="text-label text-danger bg-danger-tint rounded-control mt-2.5 flex items-start gap-2 px-3 py-2"
+            >
+              <CircleAlert className="mt-px size-4 shrink-0" aria-hidden />
+              {state.error}
+            </p>
+          )}
 
           <Button type="submit" size="lg" className="mt-2.5" disabled={pending}>
             {pending

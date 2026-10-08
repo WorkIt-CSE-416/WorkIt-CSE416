@@ -18,8 +18,8 @@ import {
  * it is a coordinated migration (backend/app/models/CLAUDE.md), not an edit.
  */
 const JOB_TYPE = {
-  "Full-time": "full_time",
-  "Part-time": "part_time",
+  "Full-Time": "full_time",
+  "Part-Time": "part_time",
   Contract: "contract",
 } as const satisfies Record<string, JobPayload["jobType"]>;
 
@@ -32,7 +32,7 @@ const EXPERIENCE_LEVEL = {
 const WORK_STYLE = {
   Remote: "remote",
   Hybrid: "hybrid",
-  "On-site": "onsite",
+  "On-Site": "onsite",
 } as const satisfies Record<string, JobPayload["workStyle"]>;
 
 const SALARY_PERIOD = {
@@ -136,7 +136,7 @@ export function fromCompanyJob(job: CompanyJob): {
       jobType: labelFor(JOB_TYPE, job.job_type),
       experienceLevel: labelFor(EXPERIENCE_LEVEL, job.experience_level),
       minYearsExperience: toText(job.min_years_experience),
-      salaryType: isRange ? "Range" : "Exact figure",
+      salaryType: isRange ? "Range" : "Exact Figure",
       salary: toText(job.salary),
       salaryMin: toText(job.salary_min),
       salaryMax: toText(job.salary_max),

@@ -25,7 +25,7 @@ export default function Home() {
       </div>
 
       <div className="grid w-full max-w-md gap-4 sm:grid-cols-2">
-        <ButtonLink href="/applications" size="lg" className="h-auto flex-col gap-1 py-4">
+        <ButtonLink href="/dashboard" size="lg" className="h-auto flex-col gap-1 py-4">
           I&apos;m a Job Seeker
           <span className="text-note font-normal opacity-80">Find and track applications</span>
         </ButtonLink>

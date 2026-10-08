@@ -14,7 +14,7 @@ export type AuditLogEntry = {
   timestamp: string;
   /** Admin username or automated agent that performed the action. */
   actor: string;
-  /** Machine-style verb, rendered as a pill. */
+  /** Machine-style verb, rendered as plain monospace code. */
   action: string;
   /** What the action was performed on. */
   target: string;
