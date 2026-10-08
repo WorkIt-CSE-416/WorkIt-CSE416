@@ -39,7 +39,8 @@ DESCRIPTION_CHARS = 8000
 
 #: Bump when what a `Page` holds changes, so Greenhouse postings stored before it
 #: are read once more. 5: the Page model (one value instead of nine fields).
-PAGE_VERSION = 5
+#: 8: work-model metadata, LinkedIn tags and the facts the 2026-10-08 audit found missed.
+PAGE_VERSION = 8
 
 
 class BoardNotFound(Exception):
@@ -412,7 +413,9 @@ def lever(token: str, company: str) -> list[Job]:
                     title,
                     _lever_description(row),
                     stated_type=details.job_type_label(categories.get("commitment")),
-                    stated_style=_work_style(row.get("workplaceType"), categories.get("location")),
+                    # Some boards put the work model in `commitment` ("Remote").
+                    stated_style=_work_style(row.get("workplaceType"), categories.get("location"))
+                    or _work_style(categories.get("commitment"), None),
                     stated_pay=_lever_pay(row),
                 ),
             )
@@ -444,11 +447,29 @@ def describe_greenhouse(job: Job) -> Job:
             stated_type=_greenhouse_job_type(payload.get("metadata") or []),
             # Greenhouse has no work-model field, but boards name one as the
             # location: Cloudflare's "In-Office", others' "Hybrid".
-            stated_style=_work_style(job.location, job.location),
+            stated_style=_work_style(job.location, job.location)
+            or _greenhouse_work_style(payload.get("metadata") or []),
             stated_pay=_greenhouse_pay(payload.get("pay_input_ranges") or []),
             offices=tuple(o["name"] for o in payload.get("offices") or [] if o.get("name")),
         ),
     )
+
+
+def _greenhouse_work_style(metadata: list[dict]) -> str | None:
+    """A board's own work-model field: "Working Conditions: Hybrid" (Ashby-style
+    location types), "Is Remote?: true"."""
+    for field in metadata:
+        name, value = str(field.get("name")), field.get("value")
+        named = re.search(
+            r"working conditions|work(?:place)? (?:type|model|arrangement)|location type",
+            name,
+            re.I,
+        )
+        if named and (style := _work_style(value, None)):
+            return style
+        if re.search(r"\bis remote\b|\bremote\??$", name, re.I) and value is True:
+            return "Remote"
+    return None
 
 
 def _greenhouse_job_type(metadata: list[dict]) -> str | None:

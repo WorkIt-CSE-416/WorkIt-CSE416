@@ -37,11 +37,15 @@ class Pay:
         monthly and weekly stipend Ashby and Lever sent (Strada's "$7.5K per
         month"). Only an amount impossible for the period is refused.
         """
-        period = _INTERVAL.get(str(interval))
+        period, per = _INTERVAL.get(str(interval), (None, 1))
         found = _amounts(currency, low, high)
-        if period is None or found is None or not plausible(period, found[1], found[2]):
+        if period is None or found is None:
             return None
-        return cls(*found, period)
+        # Persona pays "$7.5K – $8K bi-weekly": the card's week is half of it.
+        currency, lo, hi = found[0], found[1] / per, found[2] / per
+        if not plausible(period, lo, hi):
+            return None
+        return cls(currency, lo, hi, period)
 
     @classmethod
     def from_amounts(cls, currency: object, low: object, high: object, *labels: str) -> Pay | None:
@@ -54,16 +58,17 @@ class Pay:
         return cls(*found, period) if period else None
 
 
-#: How Ashby and Lever spell a pay period.
+#: How Ashby and Lever spell a pay period, and how many card periods it spans.
 _INTERVAL = {
-    "1 HOUR": "hour",
-    "1 WEEK": "week",
-    "1 MONTH": "month",
-    "1 YEAR": "year",
-    "per-hour-wage": "hour",
-    "per-week-salary": "week",
-    "per-month-salary": "month",
-    "per-year-salary": "year",
+    "1 HOUR": ("hour", 1),
+    "1 WEEK": ("week", 1),
+    "2 WEEK": ("week", 2),
+    "1 MONTH": ("month", 1),
+    "1 YEAR": ("year", 1),
+    "per-hour-wage": ("hour", 1),
+    "per-week-salary": ("week", 1),
+    "per-month-salary": ("month", 1),
+    "per-year-salary": ("year", 1),
 }
 
 
@@ -120,15 +125,40 @@ SYMBOL = {"$": "USD", "€": "EUR", "£": "GBP"}
 DOLLAR_PREFIX = {"CA": "CAD", "C": "CAD", "AU": "AUD", "A": "AUD", "S": "SGD", "US": "USD"}
 CODES = ("USD", "EUR", "GBP", "CAD", "AUD", "SGD", "CHF")
 
-_NUMBER = r"(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kK])?"
+# Thousands grouped by "," or by "." ("34.000 EUR"); a "." before exactly two
+# digits is cents ("$40.00").
+_NUMBER = r"(\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d{3})+(?!\d)|\d+(?:\.\d+)?)\s*([kK])?"
+_CODE = r"(USD|EUR|GBP|CAD|AUD|SGD|CHF)"
+_RANGE_TO = r"\s*(?:-|–|—|to)\s*"
 _PAY = re.compile(
     rf"(?:(?<![A-Za-z])(CA|AU|US|C|A|S)(?=\$))?([$€£])\s?{_NUMBER}"
-    rf"(?:\s*(?:-|–|—|to)\s*(?:[A-Z]{{0,2}}[$€£])?\s?{_NUMBER})?"
+    rf"(?:{_RANGE_TO}(?:[A-Z]{{0,2}}[$€£])?\s?{_NUMBER})?"
+    r"(?P<tail>[^.\n]{0,40})",
+)
+# The same with a currency code instead of a symbol: "800 USD monthly",
+# "34.000 - 38.000 EUR", "USD 110,000 - 140,000".
+_PAY_CODE = re.compile(
+    rf"\b(?:{_CODE}\s?)?{_NUMBER}(?:{_RANGE_TO}{_NUMBER})?\s*(?:{_CODE}\b)?"
     r"(?P<tail>[^.\n]{0,40})",
 )
 # Funding, revenue and headcount use the same symbols as pay.
 _NOT_PAY = re.compile(r"\s*(?:m|mm|b|bn|million|billion|trillion|\+)\b", re.I)
-_PAID = re.compile(r"salary|pay|compensation|wage|rate|stipend|base|range|earn", re.I)
+# Money just before which is not this role's pay.
+_NOT_PAY_BEFORE = re.compile(
+    r"\b(?:save[sd]?|saving|budget|401|match|limit|revenue|raised|funding|allowance"
+    r"|reimburse\w*|worth|valuation|benefit of)\b[^.\n]{0,40}$",
+    re.I,
+)
+_PAID = re.compile(
+    r"salary|pay|compensation|wage|rate|stipend|base|range|earn|pro rata|gross", re.I
+)
+# A period right after an amount says it is pay, whatever labels it:
+# "Intern/Undergraduate: $34/hour", "$30-$50 per hour subject to taxes".
+_PERIOD_AFTER = re.compile(
+    r"^\s*(?:USD|CAD|EUR|GBP|SGD|AUD)?\s*(?:per\s+(?:hour|week|month|year|annum)|an?\s+(?:hour|week|month|year)"
+    r"|/\s*(?:h(?:ou)?r|w(?:ee)?k|mo(?:nth)?|y(?:ea)?r)\b|hourly|weekly|monthly|annually)",
+    re.I,
+)
 _PERIOD = (
     ("hour", re.compile(r"per\s+hour|an\s+hour|/\s*h(?:ou)?r\b|\bhourly\b", re.I)),
     ("week", re.compile(r"per\s+week|a\s+week|/\s*w(?:ee)?k\b|\bweekly\b", re.I)),
@@ -138,6 +168,8 @@ _PERIOD = (
 
 
 def _amount(digits: str, thousands: str | None) -> float:
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", digits):
+        digits = digits.replace(".", "")
     return float(digits.replace(",", "")) * (1000 if thousands else 1)
 
 
@@ -176,27 +208,55 @@ def period_for(low: float, high: float, *labels: str) -> str | None:
     return None
 
 
+def _candidates(text: str):
+    """(start, currency, low, high, tail) for every amount written with a symbol
+    or a currency code, in the order they appear."""
+    found = []
+    for m in _PAY.finditer(text):
+        prefix, symbol, low, low_k, high, high_k, tail = m.groups()
+        # The code after the amount ("$34-$36/hour CAD") or just before the symbol
+        # ("CAD $30-50/hour").
+        code = next(
+            (
+                c
+                for c in CODES
+                if re.search(rf"\b{c}\b", tail + " " + text[max(0, m.start() - 5) : m.start()])
+            ),
+            None,
+        )
+        currency = code or (DOLLAR_PREFIX[prefix] if prefix else SYMBOL[symbol])
+        found.append((m.start(), currency, (low, low_k), (high, high_k), tail))
+    for m in _PAY_CODE.finditer(text):
+        pre, low, low_k, high, high_k, post, tail = m.groups()
+        if pre or post:
+            found.append((m.start(), pre or post, (low, low_k), (high, high_k), tail))
+    return sorted(found, key=lambda f: f[0])
+
+
 def pay(text: str | None) -> Pay | None:
     """The first amount the description offers as pay for this role."""
-    for match in _PAY.finditer(text or ""):
-        prefix, symbol, low, low_k, high, high_k, tail = match.groups()
+    text = text or ""
+    for start, currency, (low, low_k), (high, high_k), tail in _candidates(text):
         if _NOT_PAY.match(tail):
             continue
-        lo = _amount(low, low_k)
+        lo = _amount(low, low_k or high_k)
         hi = _amount(high, high_k) if high else lo
+        # "€55-65,000" and "$5-10k": the low end is written short.
+        if high and lo < 1000 <= hi and lo * 1000 <= hi and not low_k:
+            lo *= 1000
         if hi < lo:
             continue
-        before = text[max(0, match.start() - 60) : match.start()]
+        before = text[max(0, start - 60) : start]
+        if _NOT_PAY_BEFORE.search(before):
+            continue
         # A label is only near enough to speak for the amount on its own line or
         # the one before it: "Hourly Rate:\n$50—$50 USD".
         label = "\n".join(before.split("\n")[-2:])
-        if not _PAID.search(label + tail):
+        if not (_PAID.search(label + tail) or _PERIOD_AFTER.match(tail)):
             continue
         period = period_for(lo, hi, tail, label)
         if period is None:
             continue
-        code = next((code for code in CODES if re.search(rf"\b{code}\b", tail + before)), None)
-        currency = code or (DOLLAR_PREFIX[prefix] if prefix else SYMBOL[symbol])
         return Pay(currency=currency, low=lo, high=hi, period=period)
     return None
 
@@ -218,6 +278,15 @@ _JOB_TYPE = tuple(
         ("part_time", rf"{_THIS_IS}part[- ]time\b"),
         ("contract", r"\bcontract(?:-to-hire)?\s+(?:role|position|engagement|assignment)\b"),
         ("contract", r"\b(?:independent\s+)?contractor\s+(?:role|position)\b|\b1099\b"),
+        # SingleStore "Employment Status: Full-time"; Sezzle "#Full-time"; Stripe
+        # "Must be available to start full-time".
+        ("full_time", r"\b(?:employment|job|position)\s+(?:status|type)\s*:\s*full[- ]?time\b"),
+        ("part_time", r"\b(?:employment|job|position)\s+(?:status|type)\s*:\s*part[- ]?time\b"),
+        (
+            "full_time",
+            r"#full[- ]?time\b|\b(?:start|begin)\s+full[- ]time\b(?!\s+(?:work\s+)?experience)",
+        ),
+        ("part_time", r"#part[- ]?time\b"),
     )
 )
 # Written just before a statement, these make it about some other job: "not
@@ -251,7 +320,8 @@ def job_type_label(value: object) -> str | None:
     "Intern" says nothing about hours, so it is None and the description decides.
     """
     text = re.sub(r"[\s_-]", "", str(value or "")).lower()
-    if "fulltime" in text or text == "regular":
+    # "Regular" and Greenhouse's "Employee-Regular": a permanent, full-time hire.
+    if "fulltime" in text or text.endswith("regular"):
         return "full_time"
     if "parttime" in text:
         return "part_time"
@@ -265,11 +335,30 @@ _THIS_ROLE = r"\b(?:this|the)\s+(?:role|position|internship|job)\s+is\s+(?:fully
 _WORK_STYLE = tuple(
     (label, re.compile(pattern, re.I))
     for label, pattern in (
-        ("Remote", rf"{_THIS_ROLE}remote\b|\bfully remote\s+(?:role|position|internship)\b"),
+        (
+            "Remote",
+            rf"{_THIS_ROLE}remote\b|\bfully remote\s+(?:role|position|internship)\b"
+            # Axon: "Location: Remote anywhere in Australia"; Docugami: "will
+            # primarily be remote".
+            r"|\blocation\s*:\s*remote\b|\b(?:will|would)\s+(?:primarily\s+)?be\s+(?:fully\s+)?remote\b",
+        ),
         (
             "Hybrid",
             rf"{_THIS_ROLE}hybrid\b|\bhybrid\s+(?:role|position|schedule|work|model|arrangement)\b"
-            r"|\b[1-4]\s*days?\s*(?:a|per)\s*week\s*(?:in|at)\s*(?:the|our)?\s*office\b",
+            r"|\b[1-4]\s*days?\s*(?:a|per)\s*week\s*(?:in|at)\s*(?:the|our)?\s*office\b"
+            # Profluent "Hybrid: 2–3 days on-site per week"; NISC "Hybrid from one of
+            # our office locations"; WPP, Geotab, CTC: a hybrid approach/working model.
+            r"|\bhybrid\s*(?::|from\b)"
+            r"|\bhybrid\s+(?:approach|working\s+model|workplace\s+model|work\s+model)\b"
+            r"|\b[1-4](?:\s*[-–]\s*[1-4])?\s*days?\s+"
+            r"(?:on[- ]?site|in[- ]office|in[- ]person)\s+(?:a|per)\s+week\b"
+            # Roblox "onsite Tuesday, Wednesday, and Thursday, with optional presence
+            # on Monday"; Axon "onsite Tuesday through Friday and remote on Mondays".
+            r"|\bon[- ]?site\s+(?:on\s+)?(?:mon|tue|wed|thu|fri)\w*day\b"
+            r"(?!\s*(?:-|–|to|through)\s*friday)"
+            # Dev Technology: "commute to the Reston, Virginia office a minimum of 2 days a week".
+            r"|\boffice\s+(?:a\s+minimum\s+of\s+|at\s+least\s+|around\s+)?(?:[1-4]|one|two|three|four)"
+            r"(?:\s*[-–]\s*[1-4])?\s+days?\s+(?:a|per)\s+week\b",
         ),
         (
             "On site",
@@ -283,25 +372,46 @@ _WORK_STYLE = tuple(
             r"|\b(?:must|required to|expected to|need to)\s+(?:be\s+|work\s+)?"
             r"(?:on[- ]?site|in[- ]person|in\s+(?:the\s+)?office)\b"
             r"|\bnot\s+(?:a\s+)?remote\b|\bno\s+remote\b"
-            r"|\bnot\s+(?:considering|offering|open\s+to)\s+remote\b",
+            r"|\bnot\s+(?:considering|offering|open\s+to)\s+remote\b"
+            # SpaceX "Able to work full time, onsite"; Amperesand "Available to work
+            # on-site"; CoVar "In-person in Durham, NC"; Stripe "working in person
+            # from Stripe's San Francisco or Seattle office".
+            r"|\bwork(?:ing)?\s+(?:full[- ]time,?\s+)?on[- ]?site\b"
+            r"|\bin[- ]person\s+in\s+[A-Z]|\bworking\s+in\s+person\s+from\b",
         ),
     )
 )
+
+
+# LinkedIn's location tags, which employers paste into postings on purpose.
+_LI_TAG = re.compile(r"#LI[-_ ]?(on[- ]?site|hybrid|remote)\b", re.I)
 
 
 def work_style(text: str | None) -> str | None:
     """Remote, Hybrid or On site when the description says which this role is.
 
     Only sentences about the role: "a remote-first company" and "hybrid cloud"
-    say nothing about where this intern sits. Two answers are no answer.
+    say nothing about where this intern sits. A LinkedIn tag ("#LI-Hybrid") is
+    the employer's own label and wins. Hybrid beside On site is Hybrid -- in
+    the office some days ("in-office on a hybrid schedule, 3 days per week",
+    Lyft); any other two answers are no answer.
     """
-    stated = {label for label, pattern in _WORK_STYLE if pattern.search(text or "")}
+    text = text or ""
+    if tag := _LI_TAG.search(text):
+        word = tag[1].lower()
+        return "Remote" if word == "remote" else "Hybrid" if word == "hybrid" else "On site"
+    stated = {label for label, pattern in _WORK_STYLE if pattern.search(text)}
+    if stated == {"Hybrid", "On site"}:
+        return "Hybrid"
     return stated.pop() if len(stated) == 1 else None
 
 
 _YEARS = re.compile(
-    r"(\d{1,2})\s*(?:\+|plus)?\s*(?:(?:-|–|to)\s*\d{1,2}\s*)?\+?\s*years?"
-    r"\s+(?:of\s+)?((?:[\w/&+,()'’-]+\s+){0,6}?)(?:experience|exp)\b",
+    # "~1yr of work experience" (Synack), "0-2 years' experience" (Akuna),
+    # "1-4 years as a professional software developer" (Rover).
+    r"(\d{1,2})\s*(?:\+|plus)?\s*(?:(?:-|–|to)\s*\d{1,2}\s*)?\+?\s*(?:years?|yrs?)['’]?"
+    r"\s+(?:of\s+)?((?:[\w/&+,()'’-]+\s+){0,6}?)"
+    r"(?:experience|exp|as\s+an?\s+(?:professional|software|data|engineer|developer))\b",
     re.I,
 )
 # A ceiling, not a requirement: "less than 2 years of full-time work experience".
@@ -346,7 +456,8 @@ _SEASON = r"(winter|spring|summer|fall|autumn)"
 _MONTH = rf"({'|'.join(m[:3] for m in _MONTHS)})[a-z]*\.?"
 _TERM = (
     # "Summer 2027", "Fall '26", "Summer/Fall 2027" (the first named)
-    re.compile(rf"\b{_SEASON}(?:\s*(?:/|or|and|&|,)\s*{_SEASON})?\s*'?\s*{_YEAR}", re.I),
+    # and Compeer's "the summer of 2027".
+    re.compile(rf"\b{_SEASON}(?:\s*(?:/|or|and|&|,)\s*{_SEASON})?\s*(?:of\s+)?'?\s*{_YEAR}", re.I),
     # Waymo's "2027 Summer Intern"
     re.compile(rf"\b20(\d\d)\s+{_SEASON}\b", re.I),
 )
@@ -355,6 +466,29 @@ _START_MONTH = re.compile(
     re.I,
 )
 _TITLE_YEAR = re.compile(r"\b20(\d\d)\b")
+# Nanopath's "Software Development Co-op (Jan '27)".
+_TITLE_MONTH = re.compile(rf"\b{_MONTH}\s*(?:'|20)(\d\d)\b", re.I)
+# The first month of a list that ends in a year: Datadog "beginning in February,
+# March, April, May, or June 2027"; Monzo "between June and September 2027".
+_MONTH_LIST = re.compile(
+    rf"\b(?:start\w*|begin\w*|between|from)\s+(?:in\s+)?{_MONTH}"
+    r"(?:[^.\n]{0,50}?)\b20(\d\d)\b",
+    re.I,
+)
+# No year anywhere, only the month or season: TensorWave "May - August (12
+# weeks)", Acron "run May through August", Shift "start your internship around
+# August 31", ZipRecruiter "As a summer intern", Brave "Remote - Fall Semester".
+_BARE_MONTH = re.compile(
+    rf"\b{_MONTH}(?:\s+\d{{1,2}}(?:st|nd|rd|th)?)?\s*(?:-|–|—|to|through|until)\s*"
+    rf"(?:{'|'.join(m[:3] for m in _MONTHS)})[a-z]*\b"
+    rf"|\bstart\w*\b[^.\n]{{0,30}}?\b(?:in|around|on)\s+{_MONTH}",
+    re.I,
+)
+_BARE_SEASON = re.compile(
+    rf"(?<!non-)(?<!non )\b{_SEASON}(?:\s*/\s*{_SEASON})?\s+"
+    r"(?:intern(?:ship)?s?|semester|term|co-?op|cohort|program)\b",
+    re.I,
+)
 _TITLE_SEASON = re.compile(rf"\b{_SEASON}\b", re.I)
 # A work period: "January 2027 to June 2027", "Jan 2027 - August 2027",
 # "May 24 - Aug 20, 2027", "JUNE – AUGUST 2026". The first month is the start.
@@ -366,7 +500,9 @@ _PERIOD_RANGE = re.compile(
 )
 # Dates that are not the internship's: when to graduate, when to apply by.
 _NOT_THE_TERM = re.compile(
-    r"graduat|deadline|clos(?:e|ing)|apply|applications?|expected|earned|degree", re.I
+    r"graduat|deadline|clos(?:e|ing)|apply|applications?|expected|earned|degree"
+    r"|\blease\b|\blicen[cs]e\b|\bvisa\b|\bvalid\b",
+    re.I,
 )
 
 
@@ -388,6 +524,12 @@ def start_term(title: str, text: str | None) -> str | None:
     """
     if term := _season_term(title):
         return term
+    # A range in the title starts at its first month: "(January- August 2027)",
+    # "Jan - Dec 2027" -- never the "August 2027" at its end.
+    if term := _work_period(title, guarded=False):
+        return term
+    if month := next((m for m in _TITLE_MONTH.finditer(title) if _near(m[2])), None):
+        return f"{_month_name(month[1])} 20{month[2]}"
     year = next((m[1] for m in _TITLE_YEAR.finditer(title) if _near(m[1])), None)
     title_year = f"20{year}" if year else None
     # The description may name the season, but not a different cohort's.
@@ -395,9 +537,13 @@ def start_term(title: str, text: str | None) -> str | None:
         _season_term(text or "", guarded=True),
         _start_month(text or ""),
         _work_period(text or ""),
+        _month_list(text or ""),
     ):
         if term and (title_year is None or term.endswith(title_year)):
             return term
+    # Only a month or a season, with no year of its own: the title's, if it has one.
+    if bare := _bare_term(text or ""):
+        return f"{bare} {title_year}" if title_year else bare
     if title_year:
         return title_year
     # "Software Engineering Intern (Summer)": the season, with no year to give.
@@ -407,9 +553,40 @@ def start_term(title: str, text: str | None) -> str | None:
     )
 
 
-def _work_period(text: str) -> str | None:
+def _month_name(abbreviation: str) -> str:
+    return next(m for m in _MONTHS if m.lower().startswith(abbreviation.lower()))
+
+
+def _month_list(text: str) -> str | None:
+    for match in _MONTH_LIST.finditer(text):
+        if _NOT_THE_TERM.search(text[max(0, match.start() - 50) : match.end()]):
+            continue
+        if _near(match[2]):
+            return f"{_month_name(match[1])} 20{match[2]}"
+    return None
+
+
+def _bare_term(text: str) -> str | None:
+    """A start month or the internship's season, named without a year."""
+    found = []
+    for pattern in (_BARE_MONTH, _BARE_SEASON):
+        for match in pattern.finditer(text):
+            if _NOT_THE_TERM.search(text[max(0, match.start() - 50) : match.end()]):
+                continue
+            word = next(g for g in match.groups() if g)
+            if pattern is _BARE_MONTH:
+                found.append((match.start(), _month_name(word)))
+            else:
+                found.append((match.start(), "Fall" if word.lower() == "autumn" else word.title()))
+            break
+    return min(found)[1] if found else None
+
+
+def _work_period(text: str, *, guarded: bool = True) -> str | None:
+    """The first month of a work period. `guarded` skips application and
+    graduation dates -- in a description; a title's "Applications" is a team."""
     for match in _PERIOD_RANGE.finditer(text):
-        if _NOT_THE_TERM.search(text[max(0, match.start() - 50) : match.start()]):
+        if guarded and _NOT_THE_TERM.search(text[max(0, match.start() - 50) : match.start()]):
             continue
         if not _near(match[2] or match[3]):
             continue

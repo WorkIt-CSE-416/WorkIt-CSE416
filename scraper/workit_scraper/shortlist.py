@@ -190,7 +190,15 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
 
 
 # Words that make "On site" a guess too far: the posting allows something else.
-FLEXIBLE = re.compile(r"\bremote\b|\bhybrid\b|work from home|\bwfh\b|\banywhere\b", re.I)
+# Only remote or hybrid *work*: "remote battery monitoring", "hybrid cloud" and
+# "remote access VPNs" say nothing about where the job is done.
+FLEXIBLE = re.compile(
+    r"\bremote(?:ly)?\b(?!\s+(?:battery|access|sensing|monitoring|control|devices?|systems?"
+    r"|sites?|vehicles?|operations?|support|desktop|server|procedure|management))"
+    r"|\bhybrid\b(?!\s+(?:cloud|network|benchmark\w*|system|vehicle|quantum|search|approach to))"
+    r"|work from home|\bwfh\b|\bwork from anywhere\b",
+    re.I,
+)
 
 
 def _work_style(postings: list[Job], company: Counter[str] | None) -> str | None:
