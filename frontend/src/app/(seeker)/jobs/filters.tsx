@@ -27,10 +27,12 @@ import { cn } from "@/lib/cn";
 import {
   DATE_POSTED_OPTIONS,
   EXPERIENCE_OPTIONS,
-  INDUSTRY_OPTIONS,
   JOB_TYPE_OPTIONS,
+  NO_FILTERS,
   SALARY_OPTIONS,
   WORKPLACE_OPTIONS,
+  type FacetOption,
+  type FeedFilters,
 } from "./data";
 import type { JobLocationOption } from "./listings";
 
@@ -42,14 +44,16 @@ import type { JobLocationOption } from "./listings";
  * no search field: Base UI's Combobox handles arrow keys and Enter on its
  * input, so without one its list cannot be reached from the keyboard at all.
  *
- * Location is the one facet that filters, and the one that is a Popover
- * (LocationFacet says why). Its options are the places that have jobs
- * (`GET /jobs/locations`, with names, never ISO codes), and its picks are
- * the page's `?location=` codes, so the server fetches the feed
- * narrowed to them and a reload or a shared link keeps them. A pick replaces
- * the URL rather than pushing it, so ticking five places is not five steps of
- * Back. The rest stay inert on purpose, matching every other control on the
- * cards: each is a button that opens a list of options. The button's own
+ * Location, Workplace, Experience and Date Posted filter: their picks are the
+ * page's `?location=`, `?workplace=`, `?experience=` and `?posted=` (each
+ * option's value, never its label), so the server fetches the feed narrowed
+ * to them and a reload or a shared link keeps them. A pick replaces the URL
+ * rather than pushing it, so ticking five places is not five steps of Back.
+ * Location is the one that is a Popover (LocationFacet says why), its options
+ * the places that have jobs (`GET /jobs/locations`, with names, never ISO
+ * codes). Job Type and Salary stay inert until the API filters on them; job
+ * type is on most jobs, salary on few. Every facet is a button that opens a
+ * list of options. The button's own
  * label never changes (a facet's picks show up as checked items inside the
  * popup, not as chips on the trigger), and the trigger picks up a brand tint
  * once a pick has been made and the popup has closed, the one visible signal
@@ -57,6 +61,7 @@ import type { JobLocationOption } from "./listings";
  * count after the label.
  *
  * The inert facets' state lives here: nothing outside this file reads it.
+ * Industry had a facet too; it was dropped, since no job carries one.
  */
 
 /** The look every facet's button shares, Select or Popover: a small
@@ -106,14 +111,14 @@ function FacetTrigger({
 
 /** The list shared by every facet's popup: checkbox rows where a facet takes
  *  several picks, the vendored check-mark rows where it takes one. */
-function FacetPopup({ options, multiple }: { options: readonly string[]; multiple: boolean }) {
+function FacetPopup({ options, multiple }: { options: readonly FacetOption[]; multiple: boolean }) {
   const Item = multiple ? SelectCheckboxItem : SelectItem;
 
   return (
     <SelectContent>
-      {options.map((option) => (
-        <Item key={option} value={option}>
-          {option}
+      {options.map(({ value, label }) => (
+        <Item key={value} value={value}>
+          {label}
         </Item>
       ))}
     </SelectContent>
@@ -137,7 +142,8 @@ function Facet({
   className,
 }: {
   label: string;
-  options: readonly string[];
+  options: readonly FacetOption[];
+  /** The picked options' values. */
   values: string[];
   onChange: (values: string[]) => void;
   multiple?: boolean;
@@ -171,23 +177,13 @@ function Facet({
   );
 }
 
+/** The inert facets' picks. */
 type FacetState = {
   jobType: string[];
-  workplace: string[];
-  experience: string[];
-  datePosted: string[];
   salary: string[];
-  industry: string[];
 };
 
-const EMPTY_FACETS: FacetState = {
-  jobType: [],
-  workplace: [],
-  experience: [],
-  datePosted: [],
-  salary: [],
-  industry: [],
-};
+const EMPTY_FACETS: FacetState = { jobType: [], salary: [] };
 
 /** "US" for "US-CA", and for "US" itself. */
 const countryOf = (code: string) => code.split("-")[0];
@@ -313,7 +309,9 @@ function LocationFacet({
         className={facetTriggerClasses(ticks.length, open, className)}
       >
         Location
-        {ticks.length > 0 && <span className="sr-only">, {ticks.length} selected</span>}
+        {/* The URL's places, not the ticks: picking California ticks the
+            United States too, and should still say 1. */}
+        {values.length > 0 && <span className="sr-only">, {values.length} selected</span>}
         <ChevronDownIcon className="text-muted-foreground size-4" />
       </PopoverTrigger>
       <PopoverContent
@@ -376,7 +374,7 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
         <button
           type="button"
           disabled
-          className={facetTriggerClasses(ticksFrom(props.values).length, false, props.className)}
+          className={facetTriggerClasses(props.values.length, false, props.className)}
         >
           Location
           <ChevronDownIcon className="text-muted-foreground size-4" />
@@ -389,38 +387,44 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
 }
 
 /** The facet row plus the All Filters sheet for everything that doesn't fit.
- *  `locations` is the Location facet's options, still loading; `places` the
- *  `?location=` codes the page was opened with. */
+ *  `locations` is the Location facet's options, still loading; `filters` the
+ *  feed filters the page was opened with (readFilters in ./listings). */
 export function JobFilters({
   locations,
-  places,
+  filters,
 }: {
   locations: Promise<JobLocationOption[]>;
-  places: string[];
+  filters: FeedFilters;
 }) {
   const [facets, setFacets] = useState<FacetState>(EMPTY_FACETS);
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  // The picks show checked at once; `places` catches up when the narrowed
+  // The picks show checked at once; `filters` catches up when the narrowed
   // page arrives.
-  const [shownPlaces, showPlaces] = useOptimistic(places);
+  const [shown, show] = useOptimistic(filters);
 
   function set<K extends keyof FacetState>(key: K, value: FacetState[K]) {
     setFacets((prev) => ({ ...prev, [key]: value }));
   }
 
-  /** Moves `?location=` to these codes, keeping the rest of the query (?q on
+  /** Moves the URL's filters to these, keeping the rest of the query (?q on
    *  /search). The server draws the feed again, narrowed. */
-  function setPlaces(values: string[]) {
+  function navigate(next: FeedFilters) {
     startTransition(() => {
-      showPlaces(values);
+      show(next);
       const query = new URLSearchParams(window.location.search);
-      query.delete("location");
-      for (const value of values) query.append("location", value);
+      for (const [key, values] of Object.entries(next)) {
+        query.delete(key);
+        for (const value of values) query.append(key, value);
+      }
       const search = query.toString();
       router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
     });
+  }
+
+  function setFilter(key: keyof FeedFilters, values: string[]) {
+    navigate({ ...shown, [key]: values });
   }
 
   return (
@@ -435,29 +439,29 @@ export function JobFilters({
       <Facet
         label="Workplace"
         options={WORKPLACE_OPTIONS}
-        values={facets.workplace}
-        onChange={(values) => set("workplace", values)}
+        values={shown.workplace}
+        onChange={(values) => setFilter("workplace", values)}
         className="hidden w-36 @4xl:flex"
       />
       <Facet
         label="Experience"
         options={EXPERIENCE_OPTIONS}
-        values={facets.experience}
-        onChange={(values) => set("experience", values)}
+        values={shown.experience}
+        onChange={(values) => setFilter("experience", values)}
         className="hidden w-36 @4xl:flex"
       />
       <Facet
         label="Date Posted"
         options={DATE_POSTED_OPTIONS}
-        values={facets.datePosted}
-        onChange={(values) => set("datePosted", values)}
+        values={shown.posted}
+        onChange={(values) => setFilter("posted", values)}
         multiple={false}
         className="hidden w-36 @4xl:flex"
       />
       <Location
         locations={locations}
-        values={shownPlaces}
-        onChange={setPlaces}
+        values={shown.location}
+        onChange={(values) => setFilter("location", values)}
         className="hidden w-36 @4xl:flex"
       />
 
@@ -503,29 +507,29 @@ export function JobFilters({
             <Facet
               label="Workplace"
               options={WORKPLACE_OPTIONS}
-              values={facets.workplace}
-              onChange={(values) => set("workplace", values)}
+              values={shown.workplace}
+              onChange={(values) => setFilter("workplace", values)}
               className="w-full"
             />
             <Facet
               label="Experience"
               options={EXPERIENCE_OPTIONS}
-              values={facets.experience}
-              onChange={(values) => set("experience", values)}
+              values={shown.experience}
+              onChange={(values) => setFilter("experience", values)}
               className="w-full"
             />
             <Facet
               label="Date Posted"
               options={DATE_POSTED_OPTIONS}
-              values={facets.datePosted}
-              onChange={(values) => set("datePosted", values)}
+              values={shown.posted}
+              onChange={(values) => setFilter("posted", values)}
               multiple={false}
               className="w-full"
             />
             <Location
               locations={locations}
-              values={shownPlaces}
-              onChange={setPlaces}
+              values={shown.location}
+              onChange={(values) => setFilter("location", values)}
               className="w-full"
             />
             <Facet
@@ -536,13 +540,6 @@ export function JobFilters({
               multiple={false}
               className="w-full"
             />
-            <Facet
-              label="Industry"
-              options={INDUSTRY_OPTIONS}
-              values={facets.industry}
-              onChange={(values) => set("industry", values)}
-              className="w-full"
-            />
           </div>
 
           <SheetFooter className="flex-row justify-between">
@@ -551,7 +548,7 @@ export function JobFilters({
               size="sm"
               onClick={() => {
                 setFacets(EMPTY_FACETS);
-                if (shownPlaces.length > 0) setPlaces([]);
+                if (Object.values(shown).some((values) => values.length > 0)) navigate(NO_FILTERS);
               }}
             >
               Clear All

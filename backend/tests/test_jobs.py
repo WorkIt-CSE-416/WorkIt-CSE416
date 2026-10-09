@@ -84,7 +84,7 @@ def test_row_without_a_date():
 
 
 def test_route_leaves_descriptions_out(no_database, monkeypatch):
-    async def fetch(db, limit, places):
+    async def fetch(db, limit, places, *filters):
         return [to_listing(ROW, "long text")]
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
@@ -96,7 +96,7 @@ def test_route_leaves_descriptions_out(no_database, monkeypatch):
 def test_route_passes_the_limit(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, places):
+    async def fetch(db, limit, places, *filters):
         seen.append(limit)
         return []
 
@@ -117,7 +117,7 @@ def test_a_feed_written_before_descriptions_still_parses():
 def test_route_passes_the_places(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, places):
+    async def fetch(db, limit, places, *filters):
         seen.append(places)
         return []
 
@@ -131,6 +131,26 @@ def test_route_passes_the_places(no_database, monkeypatch):
 @pytest.mark.parametrize("code", ["us", "California", "US-", "USA", "US-CA;"])
 def test_route_rejects_a_malformed_place(no_database, code):
     assert TestClient(app).get("/jobs", params={"location": code}).status_code == 422
+
+
+def test_route_passes_the_other_filters(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, places, workplaces, levels, posted):
+        seen.append((workplaces, levels, posted))
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    assert client.get("/jobs").status_code == 200
+    query = "?workplace=remote&workplace=hybrid&experience=new_grad&posted=week"
+    assert client.get("/jobs" + query).status_code == 200
+    assert seen == [([], [], None), (["remote", "hybrid"], ["new_grad"], "week")]
+
+
+@pytest.mark.parametrize("param", ["workplace=Remote", "experience=senior", "posted=year"])
+def test_route_rejects_an_unknown_filter_value(no_database, param):
+    assert TestClient(app).get("/jobs?" + param).status_code == 422
 
 
 def test_route_caps_the_places(no_database):

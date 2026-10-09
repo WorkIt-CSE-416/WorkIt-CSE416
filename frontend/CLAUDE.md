@@ -84,8 +84,17 @@ src/app/          App Router routes, layouts, pages
                   and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
                   /jobs and /search take ?location= (repeated ISO codes,
-                  US or US-CA): the Location facet in jobs/filters.tsx,
-                  fed by GET /jobs/locations, the one facet that filters.
+                  US or US-CA), ?workplace=, ?experience= and ?posted=
+                  (option values from jobs/data.ts, never labels), passed
+                  straight on to GET /jobs. readFilters in
+                  jobs/listings.ts drops anything the API would 422 on
+                  (places past 60 too), so a bad link narrows less
+                  instead of reading as an outage whose Try Again repeats
+                  it; a new filter param goes through it. Location,
+                  Workplace, Experience and Date Posted filter; Job Type
+                  and Salary are still inert, and Industry was removed
+                  until jobs carry one. The Location facet in
+                  jobs/filters.tsx is fed by GET /jobs/locations.
                   A Popover of two panels, not a Select: countries left,
                   the ticked country's states right. A country alone is
                   all of it, with states ticked just those

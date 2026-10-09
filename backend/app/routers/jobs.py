@@ -23,6 +23,13 @@ places that have jobs, with names, for the job board's Location filter. A job
 the location resolver couldn't place has no rows, so any location filter
 leaves it out (models/CLAUDE.md, the resolver section).
 
+?workplace= (remote, hybrid, onsite) and ?experience= (internship, new_grad)
+keep jobs with any of the values named, and ?posted= (day, week, month) those
+posted within that long. Each narrows on top of the others, so ticking two
+workplaces widens the feed and ticking a workplace and a place narrows it. A
+job missing the column (a few have no work_style) is left out by any filter
+on it.
+
 Descriptions are left out of the list: the cards never show them, and at
 several thousand characters each they would make every feed load many times
 heavier — so the query doesn't read them either. fetch_listing does, for Scout.
@@ -30,7 +37,8 @@ heavier — so the query doesn't read them either. fetch_listing does, for Scout
 
 import uuid
 from collections.abc import Iterable, Sequence
-from typing import Annotated
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import StringConstraints
@@ -38,7 +46,7 @@ from sqlalchemy import Row, and_, distinct, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models.dto import job_post_status
+from app.models.dto import experience_level, job_post_status, work_style
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing, JobLocationOption
@@ -68,12 +76,21 @@ _COLUMNS = (
 _LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
 
 # A country ("US") or a state ("US-CA"). Only the shape is checked: a code no
-# job uses matches nothing, which is the right answer for it.
+# job uses matches nothing, which is the right answer for it. The frontend's
+# readPlaces (jobs/listings.ts) filters ?location= by the same pattern.
 PlaceCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}(-[A-Z0-9]{1,3})?$")]
 
 # The catch-all country for places outside the seed (models/CLAUDE.md), named
 # "Other". It goes last, and its placeholder state ZZ-ZZ is never listed.
 _OTHER = "ZZ"
+
+# ?posted=: how far back each choice reaches. A month is 30 days.
+PostedWithin = Literal["day", "week", "month"]
+_POSTED_WITHIN: dict[str, timedelta] = {
+    "day": timedelta(days=1),
+    "week": timedelta(days=7),
+    "month": timedelta(days=30),
+}
 
 
 def to_listing(row: Row, description: str | None = None) -> JobListing:
@@ -121,15 +138,27 @@ def offered_in(places: Iterable[str]):
 
 
 async def fetch_listings(
-    db: AsyncSession, limit: int, places: Sequence[str] = ()
+    db: AsyncSession,
+    limit: int,
+    places: Sequence[str] = (),
+    workplaces: Sequence[work_style] = (),
+    levels: Sequence[experience_level] = (),
+    posted: PostedWithin | None = None,
 ) -> list[JobListing]:
     '''
     the newest published scraped jobs, by when their board says they went up,
-    offered in any of `places` when it names some
+    offered in any of `places`, in any of `workplaces`, at any of `levels`
+    and posted within `posted`, each only when it names some
     '''
     query = select(*_COLUMNS).where(_LISTED)
     if places:
         query = query.where(offered_in(places))
+    if workplaces:
+        query = query.where(Job_Post.work_style.in_(workplaces))
+    if levels:
+        query = query.where(Job_Post.experience_level.in_(levels))
+    if posted:
+        query = query.where(Job_Post.posted_at >= datetime.now(UTC) - _POSTED_WITHIN[posted])
     rows = await db.execute(
         # id breaks ties, so the order is the same on every request.
         query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id).limit(limit)
@@ -208,10 +237,14 @@ async def list_jobs(
     # Repeated for several: ?location=US-CA&location=US-NY. Capped so a URL
     # can't turn into a thousand-clause query.
     location: list[PlaceCode] = Query([], max_length=60),
+    # Repeated like ?location=. The enums bound them, so no cap is needed.
+    workplace: list[work_style] = Query([]),
+    experience: list[experience_level] = Query([]),
+    posted: PostedWithin | None = None,
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
     """Newest roles first. Empty until the first import has run."""
-    return await fetch_listings(db, limit, location)
+    return await fetch_listings(db, limit, location, workplace, experience, posted)
 
 
 @router.get("/locations", response_model=list[JobLocationOption])
