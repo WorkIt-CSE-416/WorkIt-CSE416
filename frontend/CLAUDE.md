@@ -92,7 +92,10 @@ src/app/          App Router routes, layouts, pages
                   dropping any value the API would refuse, so a stale
                   link narrows by what was valid instead of erroring.
                   jobs/filters.tsx draws the row (KAN-170); every facet
-                  filters, and Industry is gone (no data). Salary is a
+                  filters, and Industry is gone (no data). As the row
+                  narrows its facets step out one at a time, least used
+                  first, and All Filters stays a normal button; never
+                  stretch it across the row. Salary is a
                   Popover: hourly presets for internships, yearly for new
                   grads, both when neither or both are picked, and an
                   "At Least" field; the API compares every posting's pay

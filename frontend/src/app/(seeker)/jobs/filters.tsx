@@ -603,24 +603,27 @@ export function JobFilters({
 
   return (
     <>
+      {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
+          and All Filters stays a normal button at every width. Each facet is
+          144px and the button about 120, so the row fits them on one line
+          from these widths of row (the page's @container, so an open sidebar
+          or Scout counts): Location and All Filters anywhere, then
+          Workplace from 448px, Experience 672, Date Posted 768 and Job Type
+          896. It used to drop all five at once below 896px and stretch All
+          Filters across the row, which on a laptop with the sidebar open
+          left one wide bar where four filters had fit. The sheet holds
+          every facet, and Salary, which the row has no room for. */}
+      {facets.location("w-36")}
+      {facets.workplace("hidden w-36 @md:flex")}
+      {facets.experience("hidden w-36 @2xl:flex")}
+      {facets.datePosted("hidden w-36 @3xl:flex")}
       {facets.jobType("hidden w-36 @4xl:flex")}
-      {facets.workplace("hidden w-36 @4xl:flex")}
-      {facets.experience("hidden w-36 @4xl:flex")}
-      {facets.datePosted("hidden w-36 @4xl:flex")}
-      {facets.location("hidden w-36 @4xl:flex")}
 
-      {/* Under 896px of row (the page's @container, so an open sidebar
-          counts) the five facets step out and this is the whole row. Five
-          144px facets and this button need about 870px, so whenever the facets
-          show they sit on one line; at a window's breakpoints they wrapped
-          into a ragged block whenever the sidebar was open. The sheet it
-          opens holds every one of them, and Salary, which the row has no
-          room for. */}
       <Button
         variant="secondary"
         size="sm"
         onClick={() => setAllFiltersOpen(true)}
-        className="ml-auto @max-4xl:ml-0 @max-4xl:w-full"
+        className="ml-auto"
       >
         <FilterIcon className="size-4" />
         All Filters
