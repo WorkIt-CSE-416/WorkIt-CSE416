@@ -18,9 +18,18 @@ boards.csv and adds what the lists name now. A board with nothing open costs one
 request a run, and one that was deleted is reported "not found" by the scraper.
 
 Sources, credited in the header this writes:
-  github.com/SimplifyJobs/Summer2026-Internships
+  github.com/SimplifyJobs/Summer2027-Internships
   github.com/SimplifyJobs/New-Grad-Positions
-  github.com/vanshb03/Summer2026-Internships
+  github.com/vanshb03/Summer2027-Internships
+
+The two internship lists are one repo each, renamed every season (both were
+Summer2026 until 2026), and GitHub serves a renamed repo's files at its old
+address too. So an old name keeps working, but name the current one.
+
+The scheduled scrape runs this before every scrape (.github/workflows/scrape.yml),
+so a company a list names today is read on the next run without anyone committing
+it. Since boards are only added and nothing is written until every list has
+loaded, a failed download leaves boards.csv as it was.
 """
 
 from __future__ import annotations
@@ -36,9 +45,9 @@ from workit_scraper.polite import Robots
 from workit_scraper.providers import Board
 
 SOURCES = [
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/.github/scripts/listings.json",
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
     "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
-    "https://raw.githubusercontent.com/vanshb03/Summer2026-Internships/dev/.github/scripts/listings.json",
+    "https://raw.githubusercontent.com/vanshb03/Summer2027-Internships/dev/.github/scripts/listings.json",
 ]
 
 PATTERNS = {
@@ -140,8 +149,8 @@ def main() -> int:
         handle.write(
             f"# Candidate job boards, last grown by build_boards.py on {today}.\n"
             "# Board slugs harvested from public apply URLs in the curated internship\n"
-            "# lists at SimplifyJobs/Summer2026-Internships, SimplifyJobs/New-Grad-Positions\n"
-            "# and vanshb03/Summer2026-Internships, plus boards verified by hand.\n"
+            "# lists at SimplifyJobs/Summer2027-Internships, SimplifyJobs/New-Grad-Positions\n"
+            "# and vanshb03/Summer2027-Internships, plus boards verified by hand.\n"
             "# Boards are only added, never removed, so earlier seasons' stay.\n"
             "# These are candidates, not conclusions: every board must answer the\n"
             "# employer's own API before any posting reaches the page.\n"
