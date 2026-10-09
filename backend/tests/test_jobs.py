@@ -20,7 +20,8 @@ from app.routers.jobs import (
     location_options,
     matching,
     offered_in,
-    term_order,
+    season_is_over,
+    season_of,
     to_listing,
 )
 from app.schemas.jobs import FacetCount, JobFacets, JobListing
@@ -295,33 +296,87 @@ def test_visa_not_ruled_out_keeps_the_silent_majority():
     )
 
 
-def test_route_reads_start_terms_and_visa(no_database, monkeypatch):
+def test_route_reads_seasons_and_visa(no_database, monkeypatch):
     seen = []
 
     async def fetch(db, limit, filters):
         seen.append(filters)
         return []
 
+    async def terms_in(db, seasons):
+        # The raw terms the feed uses for those seasons.
+        assert list(seasons) == ["summer-2027", "2027"]
+        return ["Summer 2027", "June 2027", "2027"]
+
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
-    params = [("start_term", "Summer 2027"), ("start_term", "Fall 2026"), ("visa", "sponsors")]
+    monkeypatch.setattr("app.routers.jobs.terms_in", terms_in)
+    params = [("start_term", "summer-2027"), ("start_term", "2027"), ("visa", "sponsors")]
     assert TestClient(app).get("/jobs", params=params).status_code == 200
     (filters,) = seen
-    assert list(filters.start_terms) == ["Summer 2027", "Fall 2026"]
+    assert list(filters.start_terms) == ["Summer 2027", "June 2027", "2027"]
     assert filters.visa == "sponsors"
     assert _sql(matching(filters)[0]) == (
-        "job_postings.start_term IN ('Summer 2027', 'Fall 2026')"
+        "job_postings.start_term IN ('Summer 2027', 'June 2027', '2027')"
     )
+
+
+def test_a_season_no_posting_names_matches_nothing(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters):
+        seen.append(filters.start_terms)
+        return []
+
+    async def terms_in(db, seasons):
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    monkeypatch.setattr("app.routers.jobs.terms_in", terms_in)
+    assert TestClient(app).get("/jobs?start_term=fall-2030").status_code == 200
+    # Not an empty filter, which would mean "any start date".
+    assert seen == [["\0"]]
+
+
+@pytest.mark.parametrize("key", ["Summer 2027", "summer2027", "monsoon-2027", "27"])
+def test_route_rejects_a_malformed_season(no_database, key):
+    assert TestClient(app).get("/jobs", params={"start_term": key}).status_code == 422
 
 
 def test_route_rejects_an_unknown_visa_option(no_database):
     assert TestClient(app).get("/jobs?visa=maybe").status_code == 422
 
 
-def test_start_terms_sort_by_the_calendar():
-    terms = ["Summer 2027", "Fall 2026", "2027", "January 2027", "Spring 2027", "Rolling"]
-    assert sorted(terms, key=term_order) == [
-        "Fall 2026", "2027", "January 2027", "Spring 2027", "Summer 2027", "Rolling",
-    ]
+@pytest.mark.parametrize(
+    ("term", "season"),
+    [
+        ("Summer 2027", "summer-2027"),
+        ("June 2027", "summer-2027"),
+        ("January 2027", "winter-2027"),
+        # December starts the next year's winter.
+        ("December 2026", "winter-2027"),
+        ("Autumn 2027", "fall-2027"),
+        ("2027", "2027"),
+        # No year: the scraper didn't guess one, and the filter doesn't either.
+        ("Summer", None),
+    ],
+)
+def test_terms_fall_into_seasons(term, season):
+    assert season_of(term) == season
+
+
+@pytest.mark.parametrize(
+    ("key", "day", "over"),
+    [
+        ("winter-2027", "2027-02-28", False),
+        ("winter-2027", "2027-03-01", True),
+        ("fall-2026", "2026-11-30", False),
+        ("fall-2026", "2026-12-01", True),
+        ("2026", "2026-12-31", False),
+        ("2026", "2027-01-01", True),
+    ],
+)
+def test_a_season_is_over_once_the_next_begins(key, day, over):
+    assert season_is_over(key, datetime.date.fromisoformat(day)) is over
 
 
 def test_route_lists_facets(no_database, monkeypatch):

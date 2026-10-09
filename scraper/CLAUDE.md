@@ -407,7 +407,7 @@ this package: `backend/CLAUDE.md` keeps anything outside `backend/` out of its b
 So `feed.row()` is the whole contract, and its fields must match
 `backend/app/schemas/jobs.py` — add a field in both or neither, and a new column needs
 its migration. Card facts land in `job_postings`' own columns (`job_type`, `salary*`,
-`min_years_experience`, `start_term`); descriptions ride along in the rows, and the
+`min_years_experience`, `start_term`, `sponsorship`); descriptions ride along in the rows, and the
 list query simply never selects them.
 
 Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's labels

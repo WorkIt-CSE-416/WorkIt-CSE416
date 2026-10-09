@@ -22,7 +22,9 @@ import {
   FilterIcon,
   LevelIcon,
   PinIcon,
+  VisaIcon,
   workStyleIcon,
+  CalendarIcon,
 } from "@/components/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
@@ -54,12 +56,14 @@ import {
   JOB_TYPE_OPTIONS,
   NO_FILTERS,
   PAY_OPTIONS,
+  VISA_OPTIONS,
   WORKPLACE_OPTIONS,
   isFiltered,
+  seasonLabel,
   type FeedFilters,
   type PayPer,
 } from "./filter-query";
-import type { JobLocationOption } from "./listings";
+import type { JobFacets, JobLocationOption } from "./listings";
 
 /**
  * The filter row on /jobs and on /search, built on Base UI's `Select` (via
@@ -157,7 +161,7 @@ function FacetTrigger({
   );
 }
 
-type Option = { value: string; label: string; Icon?: Glyph };
+type Option = { value: string; label: string; Icon?: Glyph; count?: ReactNode };
 
 /** The list shared by every facet's popup: checkbox rows where a facet takes
  *  several picks, the vendored check-mark rows where it takes one. */
@@ -168,14 +172,11 @@ function FacetPopup({ options, multiple }: { options: readonly Option[]; multipl
     <SelectContent>
       {options.map((option) => (
         <Item key={option.value} value={option.value}>
-          {option.Icon ? (
-            <span className="flex items-center gap-2">
-              <option.Icon className="text-ink-meta size-4 shrink-0" />
-              {option.label}
-            </span>
-          ) : (
-            option.label
-          )}
+          <span className="flex items-center gap-2">
+            {option.Icon && <option.Icon className="text-ink-meta size-4 shrink-0" />}
+            {option.label}
+            {option.count}
+          </span>
         </Item>
       ))}
     </SelectContent>
@@ -274,12 +275,15 @@ function placesFrom(ticks: readonly string[]): string[] {
  *  marks the country whose states the other panel lists. */
 function CheckRow({
   label,
+  count,
   checked,
   current = false,
   role = "checkbox",
   onToggle,
 }: {
   label: string;
+  /** How many jobs the option holds, after the label. */
+  count?: number;
   checked: boolean;
   current?: boolean;
   /** "radio" for one choice among the rows of a radiogroup (Salary). */
@@ -297,7 +301,10 @@ function CheckRow({
         current && "bg-accent",
       )}
     >
-      {label}
+      <span>
+        {label}
+        {count != null && <JobCount n={count} />}
+      </span>
       <span
         aria-hidden
         className={cn(
@@ -387,10 +394,11 @@ function LocationFacet({
       >
         <div role="group" aria-label="Countries" className="flex min-w-40 flex-col">
           <PanelHeading>Country</PanelHeading>
-          {countries.map(({ code, label }) => (
+          {countries.map(({ code, label, jobs }) => (
             <CheckRow
               key={code}
               label={label}
+              count={jobs}
               checked={ticks.includes(code)}
               current={code === shown}
               onToggle={() => toggleCountry(code)}
@@ -415,10 +423,11 @@ function LocationFacet({
               aria-label={`States in ${countries.find(({ code }) => code === shown)?.label}`}
               className="flex max-h-72 flex-col overflow-y-auto overscroll-contain"
             >
-              {statesOf(shown).map(({ code, label }) => (
+              {statesOf(shown).map(({ code, label, jobs }) => (
                 <CheckRow
                   key={code}
                   label={label}
+                  count={jobs}
                   checked={ticks.includes(code)}
                   onToggle={() => toggleState(code)}
                 />
@@ -449,6 +458,122 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
     >
       <LocationFacet {...props} />
     </Suspense>
+  );
+}
+
+/** A job count after an option's label, in the row's quiet grey. Counts are
+ *  across the whole feed, not narrowed by the other filters (GET
+ *  /jobs/facets), so they say how big an option is, not how many of the
+ *  current results it holds. */
+function JobCount({ n }: { n: number }) {
+  return <span className="text-ink-meta ml-1.5 tabular-nums">{n.toLocaleString("en-US")}</span>;
+}
+
+type FacetGroup = keyof JobFacets;
+
+/** An option's count once GET /jobs/facets has answered; nothing until then,
+ *  or for a value the feed holds none of, so the row never waits on it. */
+function OptionCount({
+  facets,
+  group,
+  value,
+}: {
+  facets: Promise<JobFacets>;
+  group: FacetGroup;
+  value: string;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <OptionCountValue facets={facets} group={group} value={value} />
+    </Suspense>
+  );
+}
+
+function OptionCountValue({
+  facets,
+  group,
+  value,
+}: {
+  facets: Promise<JobFacets>;
+  group: FacetGroup;
+  value: string;
+}) {
+  const n = use(facets)[group].find((c) => c.value === value)?.jobs;
+  return n == null ? null : <JobCount n={n} />;
+}
+
+/** A facet's static options with their counts beside them. */
+function counted(
+  options: readonly { value: string | number; label: string }[],
+  facets: Promise<JobFacets>,
+  group: FacetGroup,
+): Option[] {
+  return options.map((o) => ({
+    value: String(o.value),
+    label: o.label,
+    count: <OptionCount facets={facets} group={group} value={String(o.value)} />,
+  }));
+}
+
+/** Start Date: the seasons internships start in ("Summer 2027"), in calendar
+ *  order and only those not yet over, as GET /jobs/facets groups the terms
+ *  postings use ("June 2027" is Summer 2027); any of them. Its options are
+ *  the data's, so it stands disabled in its place until they arrive, as
+ *  Location does. The glyph is the card's start-date calendar. */
+function StartDateFacet({
+  facets,
+  values,
+  onChange,
+  className,
+}: {
+  facets: Promise<JobFacets>;
+  values: string[];
+  onChange: (values: string[]) => void;
+  className?: string;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <button
+          type="button"
+          disabled
+          className={facetTriggerClasses(values.length, false, className)}
+        >
+          <FacetLabel Icon={CalendarIcon} label="Start Date" active={false} />
+          <ChevronDownIcon className="text-muted-foreground size-4" />
+        </button>
+      }
+    >
+      <StartDateOptions facets={facets} values={values} onChange={onChange} className={className} />
+    </Suspense>
+  );
+}
+
+function StartDateOptions({
+  facets,
+  values,
+  onChange,
+  className,
+}: {
+  facets: Promise<JobFacets>;
+  values: string[];
+  onChange: (values: string[]) => void;
+  className?: string;
+}) {
+  const options = use(facets).start_term.map((t) => ({
+    value: t.value,
+    label: seasonLabel(t.value),
+    count: <JobCount n={t.jobs} />,
+  }));
+  return (
+    <Facet
+      Icon={CalendarIcon}
+      label="Start Date"
+      options={options}
+      values={values}
+      onChange={onChange}
+      className={className}
+    />
   );
 }
 
@@ -563,9 +688,12 @@ function SalaryFacet({
  *  picks the page was opened with (./filter-query). */
 export function JobFilters({
   locations,
+  facets,
   filters,
 }: {
   locations: Promise<JobLocationOption[]>;
+  /** Every option's count and the Start Date options, still loading. */
+  facets: Promise<JobFacets>;
   filters: FeedFilters;
 }) {
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
@@ -592,12 +720,12 @@ export function JobFilters({
   const set = (change: Partial<FeedFilters>) => apply({ ...shown, ...change });
 
   // Each facet is drawn twice, in the row and in the sheet, with the same props.
-  const facets = {
+  const facet = {
     jobType: (className: string) => (
       <Facet
         Icon={BriefcaseIcon}
         label="Job Type"
-        options={JOB_TYPE_OPTIONS}
+        options={counted(JOB_TYPE_OPTIONS, facets, "job_type")}
         values={shown.jobTypes}
         onChange={(values) => set({ jobTypes: values as FeedFilters["jobTypes"] })}
         className={className}
@@ -607,7 +735,10 @@ export function JobFilters({
       <Facet
         Icon={workStyleIcon("onsite")}
         label="Workplace"
-        options={WORKPLACE_OPTIONS.map((o) => ({ ...o, Icon: workStyleIcon(o.value) }))}
+        options={counted(WORKPLACE_OPTIONS, facets, "work_style").map((o) => ({
+          ...o,
+          Icon: workStyleIcon(o.value),
+        }))}
         values={shown.workStyles}
         onChange={(values) => set({ workStyles: values as FeedFilters["workStyles"] })}
         className={className}
@@ -617,7 +748,7 @@ export function JobFilters({
       <Facet
         Icon={LevelIcon}
         label="Experience"
-        options={EXPERIENCE_OPTIONS}
+        options={counted(EXPERIENCE_OPTIONS, facets, "experience")}
         values={shown.levels}
         onChange={(values) => set({ levels: values as FeedFilters["levels"] })}
         className={className}
@@ -627,7 +758,7 @@ export function JobFilters({
       <Facet
         Icon={ClockIcon}
         label="Date Posted"
-        options={DATE_POSTED_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+        options={counted(DATE_POSTED_OPTIONS, facets, "posted_within")}
         values={shown.postedWithin != null ? [String(shown.postedWithin)] : []}
         onChange={([value]) => set({ postedWithin: value != null ? Number(value) : null })}
         multiple={false}
@@ -639,6 +770,25 @@ export function JobFilters({
         locations={locations}
         values={shown.places}
         onChange={(places) => set({ places })}
+        className={className}
+      />
+    ),
+    startDate: (className: string) => (
+      <StartDateFacet
+        facets={facets}
+        values={shown.startTerms}
+        onChange={(startTerms) => set({ startTerms })}
+        className={className}
+      />
+    ),
+    visa: (className: string) => (
+      <Facet
+        Icon={VisaIcon}
+        label="Visa"
+        options={counted(VISA_OPTIONS, facets, "visa")}
+        values={shown.visa != null ? [shown.visa] : []}
+        onChange={([value]) => set({ visa: (value as FeedFilters["visa"]) ?? null })}
+        multiple={false}
         className={className}
       />
     ),
@@ -663,16 +813,17 @@ export function JobFilters({
           144px and the button about 120, so the row fits them on one line
           from these widths of row (the page's @container, so an open sidebar
           or Scout counts): Location and All Filters anywhere, then
-          Workplace from 448px, Experience 672, Date Posted 768 and Job Type
-          896. It used to drop all five at once below 896px and stretch All
+          Workplace from 448px, Experience 672, Date Posted 768, Job Type
+          896 and Visa 1024. It used to drop all five at once below 896px and stretch All
           Filters across the row, which on a laptop with the sidebar open
           left one wide bar where four filters had fit. The sheet holds
-          every facet, and Salary, which the row has no room for. */}
-      {facets.location("w-36")}
-      {facets.workplace("hidden w-36 @md:flex")}
-      {facets.experience("hidden w-36 @2xl:flex")}
-      {facets.datePosted("hidden w-36 @3xl:flex")}
-      {facets.jobType("hidden w-36 @4xl:flex")}
+          every facet, and Salary and Start Date, which the row has no room for. */}
+      {facet.location("w-36")}
+      {facet.workplace("hidden w-36 @md:flex")}
+      {facet.experience("hidden w-36 @2xl:flex")}
+      {facet.datePosted("hidden w-36 @3xl:flex")}
+      {facet.jobType("hidden w-36 @4xl:flex")}
+      {facet.visa("hidden w-36 @5xl:flex")}
 
       <Button
         variant="secondary"
@@ -700,12 +851,14 @@ export function JobFilters({
           {/* overscroll-contain: a fling past the end of the list stops here
               instead of chaining on to the page behind. */}
           <div className="flex flex-col gap-2 overflow-y-auto overscroll-contain px-4">
-            {facets.jobType("w-full")}
-            {facets.workplace("w-full")}
-            {facets.experience("w-full")}
-            {facets.datePosted("w-full")}
-            {facets.location("w-full")}
-            {facets.salary("w-full")}
+            {facet.jobType("w-full")}
+            {facet.workplace("w-full")}
+            {facet.experience("w-full")}
+            {facet.datePosted("w-full")}
+            {facet.location("w-full")}
+            {facet.salary("w-full")}
+            {facet.startDate("w-full")}
+            {facet.visa("w-full")}
           </div>
 
           <SheetFooter className="flex-row justify-between">

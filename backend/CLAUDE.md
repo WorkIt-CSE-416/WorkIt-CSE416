@@ -120,7 +120,9 @@ app/
     auth.py       POST /auth/signup, GET /auth/me
     jobs.py       GET /jobs — published scraped jobs from job_postings, public,
                   no descriptions, narrowed by ?location= and the board's other
-                  filters (work style, level, job type, date, pay); GET /jobs/locations
+                  filters (work style, level, job type, date, pay, start
+                  season, visa); GET /jobs/facets counts each option;
+                  GET /jobs/locations
                   — the places that have jobs, named. `fetch_listing` is
                   shared with scout.py
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
@@ -238,8 +240,9 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   the run's own `scraper/feed.json`, not this snapshot; a hand run is the same
   command.
   Order matters when the feed gains a column: apply its migration first
-  (`7c2e9a41d5b3` added `start_term` and the week/month pay periods), then
-  import. An import against the older schema fails on the unknown column and,
+  (`7c2e9a41d5b3` added `start_term` and the week/month pay periods,
+  `b81d4e2f6c09` the `sponsorship` column), then import, then deploy the API
+  that reads it. An import against the older schema fails on the unknown column and,
   being one transaction, writes nothing.
 - **`/jobs` opens a connection per request** (`NullPool`, below), which costs
   about half a second against Supabase where the file read cost

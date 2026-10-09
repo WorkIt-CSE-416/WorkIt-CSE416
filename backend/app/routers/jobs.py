@@ -93,8 +93,11 @@ _COLUMNS = (
 
 _LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
 
-# A start term as postings name them: "Summer 2027", "January 2027", "2027".
-StartTerm = Annotated[str, StringConstraints(min_length=1, max_length=40)]
+# A Start Date option: "summer-2027", or a year, "2027".
+SeasonKey = Annotated[
+    str, StringConstraints(pattern=r"^((winter|spring|summer|fall)-)?20[0-9]{2}$")
+]
+
 
 # A country ("US") or a state ("US-CA"). Only the shape is checked: a code no
 # job uses matches nothing, which is the right answer for it.
@@ -321,8 +324,8 @@ async def list_jobs(
     # In US dollars, per `pay_per`. Capped at a figure no posting reaches.
     min_pay: float | None = Query(None, gt=0, le=10_000_000),
     pay_per: Literal["hour", "year"] = "year",
-    # As GET /jobs/facets lists them ("Summer 2027"); any of them.
-    start_term: list[StartTerm] = Query([], max_length=30),
+    # Seasons as GET /jobs/facets lists them ("summer-2027", or "2027"); any.
+    start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors", "not_ruled_out"] | None = None,
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
@@ -340,7 +343,9 @@ async def list_jobs(
         min_yearly_pay=(
             min_pay * YEARLY[dto.salary_period(pay_per)] if min_pay is not None else None
         ),
-        start_terms=start_term,
+        # The seasons as the raw terms postings use, so the query stays a
+        # plain IN. A season no posting names matches nothing, as it should.
+        start_terms=(await terms_in(db, start_term) or ["\0"]) if start_term else (),
         visa=visa,
     )
     return await fetch_listings(db, limit, filters)
@@ -352,24 +357,84 @@ async def list_locations(db: AsyncSession = Depends(get_session)) -> list[JobLoc
     return await fetch_location_options(db)
 
 
-# Where in its year a term starts, for ordering the Start Date options: a
-# season by its first month, a bare year first. Unknown words sort last.
-_TERM_MONTH = {
+# A posting's start term ("Summer 2027", "January 2027", "2027") as the season a
+# student plans around, for the Start Date filter: 32 different spellings in
+# the feed on 2026-10-09 come down to a handful of seasons. A month joins the
+# season it falls in, December the next year's Winter; a bare year is its own
+# option ("2027", season not stated). A term naming no year ("Summer") is in
+# no season: the scraper doesn't guess one, and neither does this.
+_MONTH = {
     "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
     "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
-    "december": 12, "winter": 1, "spring": 3, "summer": 6, "fall": 9, "autumn": 9,
+    "december": 12,
 }
+_SEASONS = ("winter", "spring", "summer", "fall")
+# The season a month falls in, and the month each season starts.
+_SEASON_OF_MONTH = {1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring",
+                    6: "summer", 7: "summer", 8: "summer", 9: "fall", 10: "fall",
+                    11: "fall", 12: "winter"}
+_SEASON_START = {"winter": 1, "spring": 3, "summer": 6, "fall": 9}
+_SEASON_END = {"winter": 3, "spring": 6, "summer": 9, "fall": 12}
 
 
-def term_order(term: str) -> tuple[int, int, str]:
+def season_of(term: str) -> str | None:
     '''
-    (year, month, text): "2027" before "January 2027" before "Summer 2027". A
-    term naming no year sorts after every dated one
+    the Start Date option a term belongs to: "summer-2027", or "2027" for a year
+    with no season, or None for a term naming no year
     '''
-    words = term.lower().split()
+    words = term.lower().replace("autumn", "fall").split()
     years = [int(w) for w in words if w.isdigit() and len(w) == 4]
-    months = [_TERM_MONTH[w] for w in words if w in _TERM_MONTH]
-    return (years[0] if years else 9999, months[0] if months else 0, term)
+    if not years:
+        return None
+    year = years[0]
+    season = next((w for w in words if w in _SEASONS), None)
+    if season is None:
+        month = next((_MONTH[w] for w in words if w in _MONTH), None)
+        if month is None:
+            return str(year)
+        season = _SEASON_OF_MONTH[month]
+        if month == 12:
+            year += 1
+    return f"{season}-{year}"
+
+
+def season_label(key: str) -> str:
+    '''"summer-2027" as "Summer 2027"; a bare year as itself'''
+    if "-" not in key:
+        return key
+    season, year = key.split("-")
+    return f"{season.title()} {year}"
+
+
+def season_order(key: str) -> tuple[int, int]:
+    '''calendar order, a bare year before its seasons'''
+    if "-" not in key:
+        return (int(key), 0)
+    season, year = key.split("-")
+    return (int(year), _SEASON_START[season])
+
+
+def season_is_over(key: str, today: datetime.date) -> bool:
+    '''
+    true once a season has ended: an option for it would only find postings
+    whose start date has passed. A bare year lasts to its end
+    '''
+    if "-" not in key:
+        return int(key) < today.year
+    season, year = key.split("-")
+    # Each season ends where the next starts: winter (from January here, its
+    # December counted as the year before) at spring's March, fall at December.
+    end = datetime.date(int(year), _SEASON_END[season], 1)
+    return end <= today
+
+
+async def terms_in(db: AsyncSession, seasons: Sequence[str]) -> list[str]:
+    '''the start terms postings use that fall in any of these seasons'''
+    terms = (await db.execute(
+        select(distinct(Job_Post.start_term)).where(_LISTED, Job_Post.start_term.is_not(None))
+    )).scalars()
+    wanted = set(seasons)
+    return [t for t in terms if season_of(t) in wanted]
 
 
 async def fetch_facets(db: AsyncSession) -> JobFacets:
@@ -409,8 +474,18 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
             FacetCount(value="sponsors", jobs=sponsors),
             FacetCount(value="not_ruled_out", jobs=not_ruled_out),
         ],
-        start_term=sorted(await by(Job_Post.start_term), key=lambda c: term_order(c.value)),
+        start_term=_season_counts(await by(Job_Post.start_term), now.date()),
     )
+
+
+def _season_counts(terms: list[FacetCount], today: datetime.date) -> list[FacetCount]:
+    '''per-term counts summed into the seasons that haven't ended, in order'''
+    totals: dict[str, int] = {}
+    for term in terms:
+        key = season_of(term.value)
+        if key is not None and not season_is_over(key, today):
+            totals[key] = totals.get(key, 0) + term.jobs
+    return [FacetCount(value=k, jobs=totals[k]) for k in sorted(totals, key=season_order)]
 
 
 @router.get("/facets", response_model=JobFacets)

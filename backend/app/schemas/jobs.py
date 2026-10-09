@@ -89,8 +89,9 @@ class FacetCount(BaseModel):
 class JobFacets(BaseModel):
     """GET /jobs/facets: every filter option's count, across the whole feed.
 
-    start_term lists the terms postings name, in calendar order; the rest list
-    the values that have a job. A value with no jobs is absent, not zero.
+    start_term lists the seasons postings start in ("summer-2027", or a bare
+    year), in calendar order and only those not yet over; the rest list the
+    values that have a job. A value with no jobs is absent, not zero.
     """
 
     work_style: list[FacetCount]

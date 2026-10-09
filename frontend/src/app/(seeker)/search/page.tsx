@@ -17,7 +17,7 @@ import {
   readFilters,
   type FeedFilters,
 } from "../jobs/filter-query";
-import { getJobListings, getJobLocations, type JobListing } from "../jobs/listings";
+import { getJobFacets, getJobListings, getJobLocations, type JobListing } from "../jobs/listings";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
@@ -217,7 +217,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
       {/* A container, so the facets switch on the row's own width, as on
           /jobs. */}
       <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={getJobLocations()} filters={filters} />
+        <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />
       </div>
 
       <Suspense key={key} fallback={<ListingsSkeleton />}>

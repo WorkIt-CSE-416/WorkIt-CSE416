@@ -103,7 +103,12 @@ src/app/          App Router routes, layouts, pages
                   Popover: hourly presets for internships, yearly for new
                   grads, both when neither or both are picked, and an
                   "At Least" field; the API compares every posting's pay
-                  as a yearly figure in USD. Location, fed by GET
+                  as a yearly figure in USD. Start Date offers seasons
+                  (Summer 2027), grouped by the API from the terms
+                  postings use; Visa offers Sponsors Visas and Hide Jobs
+                  That Rule Me Out. Every option shows its job count from
+                  GET /jobs/facets, across the whole feed rather than the
+                  current results. Location, fed by GET
                   /jobs/locations, is a Popover of two panels, not a
                   Select: countries left,
                   the ticked country's states right. A country alone is

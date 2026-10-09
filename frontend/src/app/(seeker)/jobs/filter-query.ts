@@ -18,6 +18,7 @@ import type { JobType, WorkStyle } from "./data";
 
 export type Level = "internship" | "new_grad";
 export type PayPer = "hour" | "year";
+export type Visa = "sponsors" | "not_ruled_out";
 
 export type FeedFilters = {
   places: string[];
@@ -29,6 +30,10 @@ export type FeedFilters = {
   /** In US dollars per `payPer`; null for any pay. */
   minPay: number | null;
   payPer: PayPer;
+  /** Seasons as GET /jobs/facets lists them: "summer-2027", or a bare year
+   *  ("2027") for postings that name no season. */
+  startTerms: string[];
+  visa: Visa | null;
 };
 
 export const NO_FILTERS: FeedFilters = {
@@ -39,6 +44,8 @@ export const NO_FILTERS: FeedFilters = {
   postedWithin: null,
   minPay: null,
   payPer: "year",
+  startTerms: [],
+  visa: null,
 };
 
 /* Each facet's options, in the words ./format prints on the cards, so a
@@ -73,6 +80,14 @@ export const DATE_POSTED_OPTIONS: { value: number; label: string }[] = [
   { value: 30, label: "Past Month" },
 ];
 
+/** "Sponsors Visas" keeps postings that say they sponsor (a few percent of the
+ *  feed); "Hide Jobs That Rule Me Out" drops the ones that say they don't, or
+ *  want US citizens only, and keeps the many that say nothing (KAN-168). */
+export const VISA_OPTIONS: { value: Visa; label: string }[] = [
+  { value: "sponsors", label: "Sponsors Visas" },
+  { value: "not_ruled_out", label: "Hide Jobs That Rule Me Out" },
+];
+
 /** Picked from the feed's own pay (2026-10-09): an internship tops out around
  *  $48 an hour at the median, a new-grad role around $145k a year. */
 export const PAY_OPTIONS: Record<PayPer, { value: number; label: string }[]> = {
@@ -99,12 +114,17 @@ export const FILTER_KEYS = [
   "posted_within",
   "min_pay",
   "pay_per",
+  "start_term",
+  "visa",
 ] as const;
 
 /** The API's ceiling on ?location= (routers/jobs.py) and its code shape. */
 const MAX_PLACES = 60;
 const PLACE = /^[A-Z]{2}(-[A-Z0-9]{1,3})?$/;
 const MAX_PAY = 10_000_000;
+/** The API's shape and limit for ?start_term= (routers/jobs.py SeasonKey). */
+const SEASON = /^((winter|spring|summer|fall)-)?20[0-9]{2}$/;
+const MAX_SEASONS = 12;
 
 type Params = Record<string, string | string[] | undefined>;
 
@@ -131,6 +151,11 @@ export function readFilters(params: Params): FeedFilters {
     postedWithin: DATE_POSTED_OPTIONS.some((o) => o.value === posted) ? posted : null,
     minPay: Number.isFinite(pay) && pay > 0 && pay <= MAX_PAY ? pay : null,
     payPer: first(params.pay_per) === "hour" ? "hour" : "year",
+    startTerms: [...new Set(all(params.start_term).filter((t) => SEASON.test(t)))].slice(
+      0,
+      MAX_SEASONS,
+    ),
+    visa: pick(params.visa, VISA_OPTIONS)[0] ?? null,
   };
 }
 
@@ -150,6 +175,8 @@ export function filterEntries(filters: FeedFilters): [string, string][] {
           ["pay_per", filters.payPer] as [string, string],
         ]
       : []),
+    ...filters.startTerms.map((t): [string, string] => ["start_term", t]),
+    ...(filters.visa != null ? [["visa", filters.visa] as [string, string]] : []),
   ];
 }
 
@@ -162,4 +189,13 @@ export function filtersQuery(filters: FeedFilters): string {
 /** Whether any filter narrows the feed: what the empty state says depends on it. */
 export function isFiltered(filters: FeedFilters): boolean {
   return filterEntries(filters).length > 0;
+}
+
+/** A Start Date option's words: "summer-2027" is "Summer 2027", and a bare year
+ *  says its season isn't stated. */
+export function seasonLabel(key: string): string {
+  const [season, year] = key.includes("-") ? key.split("-") : [null, key];
+  return season
+    ? `${season[0].toUpperCase()}${season.slice(1)} ${year}`
+    : `${year} (Season Not Stated)`;
 }

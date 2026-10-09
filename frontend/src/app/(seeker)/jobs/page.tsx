@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { JobFilters } from "./filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
 import { filtersQuery, isFiltered, readFilters, type FeedFilters } from "./filter-query";
-import { getJobListings, getJobLocations } from "./listings";
+import { getJobFacets, getJobListings, getJobLocations } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
 
 export const metadata: Metadata = {
@@ -94,7 +94,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
       {/* A container, so the facets switch on the row's own width (see
           ./filters), which an open sidebar narrows, not on the window's. */}
       <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={locations} filters={filters} />
+        <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
       </div>
 
       {/* Keyed by the filters, so a new pick shows the skeleton straight away

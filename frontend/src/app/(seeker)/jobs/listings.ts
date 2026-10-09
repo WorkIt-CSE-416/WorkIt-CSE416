@@ -53,6 +53,9 @@ export type JobListing = {
   /** When an internship starts, as the posting names it: "Summer 2027",
    *  "January 2027", "2027". */
   start_term: string | null;
+  /** What the posting says about visas (KAN-168): it sponsors, it doesn't, or
+   *  US citizens only. Null when it says nothing, which is most postings. */
+  sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
 };
 
 export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";
@@ -96,5 +99,38 @@ export async function getJobLocations(): Promise<JobLocationOption[]> {
     return res.ok ? ((await res.json()) as JobLocationOption[]) : [];
   } catch {
     return [];
+  }
+}
+
+/** One filter option's job count, from `GET /jobs/facets`: `value` as GET /jobs
+ *  takes it ("remote", "full_time", "7", "Summer 2027"). */
+export type FacetCount = { value: string; jobs: number };
+
+/** Every filter option's count across the whole feed (not narrowed by the
+ *  other filters), and the start terms postings name, in calendar order. */
+export type JobFacets = Record<
+  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
+  FacetCount[]
+>;
+
+const NO_FACETS: JobFacets = {
+  work_style: [],
+  experience: [],
+  job_type: [],
+  posted_within: [],
+  visa: [],
+  start_term: [],
+};
+
+/** The filter row's counts and Start Date options. Empty when the API can't be
+ *  reached: the counts stay off and Start Date shows disabled, and the feed
+ *  below reports the error itself. */
+export async function getJobFacets(): Promise<JobFacets> {
+  await connection();
+  try {
+    const res = await apiGet("/jobs/facets");
+    return res.ok ? ((await res.json()) as JobFacets) : NO_FACETS;
+  } catch {
+    return NO_FACETS;
   }
 }
