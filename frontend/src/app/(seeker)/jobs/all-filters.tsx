@@ -5,6 +5,7 @@ import {
   use,
   useEffect,
   useId,
+  useRef,
   useState,
   type ComponentType,
   type ReactNode,
@@ -14,6 +15,7 @@ import {
   BriefcaseIcon,
   CalendarIcon,
   CheckIcon,
+  ChevronDownIcon,
   ClockIcon,
   CloseIcon,
   CoinIcon,
@@ -357,11 +359,20 @@ function Chip({
   );
 }
 
-/** Where: a search box over a checklist of every place that has a job, each
- *  country followed by its states, as GET /jobs/locations orders them; typing
- *  narrows it by name. What is ticked shows under the list as pills, each with
- *  a cross to take it off, so the picks stay in view however the list is
- *  scrolled or searched. Nothing is suggested before the seeker looks. */
+/** Where: a search field that opens a dropdown checklist of every place that
+ *  has a job, each country followed by its states, as GET /jobs/locations
+ *  orders them; typing narrows it by name. The list opens only from the field
+ *  and floats over the panel like any dropdown, so the sections below don't
+ *  move; it stays open while places are ticked, and closes on Escape, on a
+ *  click outside or when focus leaves it. What is ticked shows under the
+ *  field as pills, each with a cross to take it off. Nothing is suggested
+ *  before the seeker looks.
+ *
+ *  Not portaled: it stays inside the panel's scroll area, which has room for
+ *  it below the field, the first thing in the panel. A combobox in the ARIA
+ *  sense: the field owns the list (aria-controls) and a pointer press on a
+ *  row keeps focus in the field (preventDefault), so ticking doesn't close
+ *  it. */
 function LocationPicker({
   options,
   values,
@@ -372,74 +383,124 @@ function LocationPicker({
   onChange: (values: string[]) => void;
 }) {
   const id = useId();
+  const listId = `${id}-list`;
   const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
   const needle = search.trim().toLowerCase();
   const byCode = new Map(options.map((o) => [o.code, o]));
   const shown = needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options;
   const toggle = (code: string) =>
     onChange(values.includes(code) ? values.filter((v) => v !== code) : [...values, code]);
 
+  // A press anywhere outside the field and its list closes it.
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [open]);
+
   return (
     <div className="flex w-full flex-col gap-2.5">
-      <label htmlFor={id} className="sr-only">
-        Search a State or Country
-      </label>
-      <div className="border-border focus-within:ring-brand-ring flex h-9 items-center gap-2 rounded-md border px-2.5 focus-within:ring-2">
-        <SearchIcon className="text-ink-meta size-4 shrink-0" />
-        <input
-          id={id}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search a state or country"
-          className="text-body text-ink placeholder:text-ink-meta min-w-0 flex-1 bg-transparent outline-none"
-        />
-      </div>
-
-      {/* overscroll-contain: the list's own scroll stops at its ends instead of
-          moving the panel behind it. */}
       <div
-        role="group"
-        aria-label="Places"
-        className="border-border-subtle flex max-h-52 flex-col overflow-y-auto overscroll-contain rounded-md border p-1"
+        ref={root}
+        className="relative"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+        }}
       >
-        {shown.length === 0 ? (
-          <p className="text-note text-ink-meta px-2 py-1.5">No place by that name has jobs.</p>
-        ) : (
-          shown.map((o) => {
-            // A state sits indented under its country, unless a search has
-            // pulled it out of that order.
-            const nested = o.code.includes("-") && !needle;
-            const checked = values.includes(o.code);
-            return (
-              <button
-                key={o.code}
-                type="button"
-                role="checkbox"
-                aria-checked={checked}
-                onClick={() => toggle(o.code)}
-                className={cn(
-                  "hover:bg-accent focus-visible:bg-accent text-body flex w-full items-center gap-2.5 rounded-md py-1.5 pr-2 text-left outline-hidden",
-                  nested ? "pl-7" : "pl-2",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
-                    checked && "border-primary bg-primary",
-                  )}
-                >
-                  <CheckIcon className={cn("size-3.5", !checked && "opacity-0")} />
-                </span>
-                <span className={cn("min-w-0 flex-1 truncate", !nested && "font-medium")}>
-                  {o.label}
-                </span>
-                <span className="text-note text-ink-meta tabular-nums">
-                  {o.jobs.toLocaleString("en-US")}
-                </span>
-              </button>
-            );
-          })
+        <label htmlFor={id} className="sr-only">
+          Search a State or Country
+        </label>
+        <div className="border-border focus-within:ring-brand-ring flex h-9 items-center gap-2 rounded-md border px-2.5 focus-within:ring-2">
+          <SearchIcon className="text-ink-meta size-4 shrink-0" />
+          <input
+            id={id}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            autoComplete="off"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setOpen(true);
+            }}
+            onClick={() => setOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && open) {
+                // Closes the list, not the panel around it.
+                event.stopPropagation();
+                setOpen(false);
+              }
+              if (event.key === "ArrowDown") setOpen(true);
+            }}
+            placeholder="Search a state or country"
+            className="text-body text-ink placeholder:text-ink-meta min-w-0 flex-1 bg-transparent outline-none"
+          />
+          <ChevronDownIcon
+            className={cn(
+              "text-ink-meta size-4 shrink-0 transition-transform duration-150",
+              open && "rotate-180",
+            )}
+          />
+        </div>
+
+        {open && (
+          // overscroll-contain: the list's own scroll stops at its ends
+          // instead of moving the panel behind it.
+          <div
+            id={listId}
+            role="listbox"
+            aria-multiselectable="true"
+            aria-label="Places"
+            className="bg-popover ring-foreground/10 absolute inset-x-0 top-full z-20 mt-1 flex max-h-60 flex-col overflow-y-auto overscroll-contain rounded-md p-1 shadow-md ring-1"
+          >
+            {shown.length === 0 ? (
+              <p className="text-note text-ink-meta px-2 py-1.5">No place by that name has jobs.</p>
+            ) : (
+              shown.map((o) => {
+                // A state sits indented under its country, unless a search
+                // has pulled it out of that order.
+                const nested = o.code.includes("-") && !needle;
+                const checked = values.includes(o.code);
+                return (
+                  <button
+                    key={o.code}
+                    type="button"
+                    role="option"
+                    aria-selected={checked}
+                    // Keep focus in the field, so the list stays open.
+                    onPointerDown={(event) => event.preventDefault()}
+                    onClick={() => toggle(o.code)}
+                    className={cn(
+                      "hover:bg-accent focus-visible:bg-accent text-body flex w-full items-center gap-2.5 rounded-md py-1.5 pr-2 text-left outline-hidden",
+                      nested ? "pl-7" : "pl-2",
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+                        checked && "border-primary bg-primary",
+                      )}
+                    >
+                      <CheckIcon className={cn("size-3.5", !checked && "opacity-0")} />
+                    </span>
+                    <span className={cn("min-w-0 flex-1 truncate", !nested && "font-medium")}>
+                      {o.label}
+                    </span>
+                    <span className="text-note text-ink-meta tabular-nums">
+                      {o.jobs.toLocaleString("en-US")}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
         )}
       </div>
 

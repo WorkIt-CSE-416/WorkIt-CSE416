@@ -109,9 +109,11 @@ src/app/          App Router routes, layouts, pages
                   presets (hourly for internships, yearly for new grads)
                   that fill the minimum; a posting matches when its own
                   range overlaps it, compared as yearly figures in USD.
-                  Location in the panel is a search over a checklist of
-                  every place, picks shown below it as pills with a cross,
-                  and nothing pre-picked. Start Date offers seasons
+                  Location in the panel is a search field whose checklist
+                  of every place opens only from the field and floats over
+                  the panel like a dropdown (it never pushes the sections
+                  down), picks shown below the field as pills with a
+                  cross, and nothing pre-picked. Start Date offers seasons
                   (Summer 2027), grouped by the API from the terms
                   postings use; Visa offers Sponsors Visas and Hide Jobs
                   That Rule Me Out. Every option shows its job count from
