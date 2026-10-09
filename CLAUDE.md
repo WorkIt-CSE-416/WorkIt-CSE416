@@ -144,6 +144,10 @@ only writes the rows that changed.
 
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
+- **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
+  before every scrape, from the curated GitHub lists, so a company they name
+  today is read on the next run without a commit. It only ever adds; the rules
+  are in `scraper/CLAUDE.md`.
 - **The scraper's memory** (`scraper/jobs.json`) lives in the Actions cache,
   restored from the newest entry and saved only after a scrape that finished. A
   missed cache is safe, just slow: that run re-reads every Greenhouse page and

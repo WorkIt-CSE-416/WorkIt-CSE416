@@ -13,9 +13,9 @@ Then open `internships.html` in any browser (double-click it in your file manage
 
 No install step: Python 3.12+ and the standard library only.
 
-Board slugs are seeded from [SimplifyJobs/Summer2026-Internships](https://github.com/SimplifyJobs/Summer2026-Internships),
+Board slugs are seeded from [SimplifyJobs/Summer2027-Internships](https://github.com/SimplifyJobs/Summer2027-Internships),
 [SimplifyJobs/New-Grad-Positions](https://github.com/SimplifyJobs/New-Grad-Positions)
-and [vanshb03/Summer2026-Internships](https://github.com/vanshb03/Summer2026-Internships);
+and [vanshb03/Summer2027-Internships](https://github.com/vanshb03/Summer2027-Internships);
 postings are always read from the employer's own board.
 
 Design and conventions: [`CLAUDE.md`](CLAUDE.md).
