@@ -1,12 +1,12 @@
 name: Scrape jobs
 
 # Scrapes every job board in scraper/boards.csv and imports the shortlist into
-# Supabase's job_postings, every six hours. Root CLAUDE.md's CI section explains
+# Supabase's job_postings, every three hours. Root CLAUDE.md's CI section explains
 # the schedule, the secret it needs and how it fails.
 on:
   schedule:
     # Off the hour: GitHub delays, and under load drops, runs scheduled on it.
-    - cron: "17 */6 * * *"
+    - cron: "17 */3 * * *"
   workflow_dispatch:
     inputs:
       full:
