@@ -56,14 +56,16 @@ import { Fact } from "@/components/ui/fact";
  * THE FACTS ARE TWO FIXED ROWS of three, so a fact sits in the same column
  * on every card and a stack of cards scans as a table:
  *
- *   Location · Work style · Salary          where, how, and what it pays
- *   Job type · Level · Start or Years       the rest
+ *   Location · Job type · Salary            where, what kind of job, its pay
+ *   Work style · Level · Start or Years     the rest
  *
  * A fact the posting doesn't give keeps its slot, empty (SLOTS below), so the
  * salary of the card above still sits over this one's and every card is the
  * same height. Salary is in the first row because it is what a seeker scans
  * for next after where (asked for 2026-10-09), though 40% of scraped roles
- * leave its slot empty; level moved down beside the start date it goes with. On a body under
+ * leave its slot empty; level moved down beside the start date it goes with.
+ * Job type sits before work style, as Jobright orders them (asked for the
+ * same day). On a body under
  * 448px (two columns, a phone) the empty slots close up instead: columns that
  * narrow don't line up across cards anyway, and holes would only waste room.
  * For a while the facts were a wrapping row, because a scraped role stated
@@ -179,9 +181,9 @@ function slotsOf(job: JobPostingCardData): Slot[] {
   const workStyle = isNotListed(job.workStyle) ? null : job.workStyle;
   return [
     ["location", PinIcon, job.location],
-    ["workStyle", workStyleIcon(workStyle), job.workStyle],
-    ["salary", CoinIcon, job.salary],
     ["jobType", BriefcaseIcon, job.jobType],
+    ["salary", CoinIcon, job.salary],
+    ["workStyle", workStyleIcon(workStyle), job.workStyle],
     ["experienceLevel", LevelIcon, job.experienceLevel],
     job.startTerm === undefined
       ? ["minYearsExperience", CalendarIcon, job.minYearsExperience]

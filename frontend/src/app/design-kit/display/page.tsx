@@ -118,7 +118,7 @@ export default function DisplayPage() {
 
       <Group
         title="Job Postings"
-        note="One card for the seeker's Jobs feed, its search results and the company composer's preview. Its facts are two fixed rows (location, work style, salary; then job type, level, start or years), values in ink beside grey glyphs, so each sits in the same column on every card. What the board never said leaves its slot empty, which a screen reader hears as “not listed”, and the match rail waits for scoring."
+        note="One card for the seeker's Jobs feed, its search results and the company composer's preview. Its facts are two fixed rows (location, job type, salary; then work style, level, start or years), values in ink beside grey glyphs, so each sits in the same column on every card. What the board never said leaves its slot empty, which a screen reader hears as “not listed”, and the match rail waits for scoring."
       >
         <Row name="<JobPostingCard>" role="A fixture role, every fact known, with its match rail">
           <div className="w-full">
