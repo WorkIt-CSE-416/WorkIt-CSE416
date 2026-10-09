@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import {
   Suspense,
+  type ComponentType,
   startTransition,
   use,
   useId,
@@ -12,7 +13,17 @@ import {
   type ReactNode,
 } from "react";
 
-import { CheckIcon, ChevronDownIcon, FilterIcon } from "@/components/icons";
+import {
+  BriefcaseIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ClockIcon,
+  CoinIcon,
+  FilterIcon,
+  LevelIcon,
+  PinIcon,
+  workStyleIcon,
+} from "@/components/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
   Sheet,
@@ -70,6 +81,16 @@ import type { JobLocationOption } from "./listings";
  * closed, the one visible signal that a facet is in use. A screen reader hears
  * the same thing as the pick count after the label.
  *
+ * EACH FACET WEARS ITS FACT'S GLYPH, the one the job card draws beside the
+ * same fact (Location's pin, Salary's coin, Job Type's briefcase, Experience's
+ * mortarboard), so the row and the card read as one vocabulary. Date Posted
+ * takes a clock, not the card's calendar, which there means the start date.
+ * Inside a popup an option has a glyph only where it differs by option:
+ * Workplace's building, two arrows and house, exactly as the card picks them
+ * (workStyleIcon). The same briefcase on every Job Type row would say nothing
+ * the button doesn't. Glyphs are ink-meta, as on the card, and brand once the
+ * facet is in use, with its label.
+ *
  * Location and Salary are Popovers rather than Selects: Location for its two
  * panels (LocationFacet says why), Salary for its "At least" field
  * (SalaryFacet). Job Type is how the job is set up and Experience the career
@@ -88,6 +109,19 @@ function facetTriggerClasses(count: number, open: boolean, className?: string) {
   );
 }
 
+type Glyph = ComponentType<{ className?: string }>;
+
+/** A facet button's glyph and label, the glyph in the card's grey until the
+ *  facet is in use, then in the brand with the label. */
+function FacetLabel({ Icon, label, active }: { Icon: Glyph; label: string; active: boolean }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <Icon className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")} />
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
 /** The button every facet opens from. Its label is static (a facet's picks
  *  never rewrite it), so the only thing that changes is the tint. The tint is
  *  colour alone, so the pick count rides after the label for a screen reader.
@@ -96,11 +130,13 @@ function facetTriggerClasses(count: number, open: boolean, className?: string) {
  *  over it: `data-[size=default]:h-auto` undoes its fixed height, and
  *  `data-placeholder:text-ink` its grey label while nothing is picked. */
 function FacetTrigger({
+  Icon,
   label,
   count,
   open,
   className,
 }: {
+  Icon: Glyph;
   label: string;
   /** How many options are picked. */
   count: number;
@@ -115,13 +151,13 @@ function FacetTrigger({
         cn("data-placeholder:text-ink data-[size=default]:h-auto", className),
       )}
     >
-      {label}
+      <FacetLabel Icon={Icon} label={label} active={count > 0 && !open} />
       {count > 0 && <span className="sr-only">, {count} selected</span>}
     </SelectTrigger>
   );
 }
 
-type Option = { value: string; label: string };
+type Option = { value: string; label: string; Icon?: Glyph };
 
 /** The list shared by every facet's popup: checkbox rows where a facet takes
  *  several picks, the vendored check-mark rows where it takes one. */
@@ -132,7 +168,14 @@ function FacetPopup({ options, multiple }: { options: readonly Option[]; multipl
     <SelectContent>
       {options.map((option) => (
         <Item key={option.value} value={option.value}>
-          {option.label}
+          {option.Icon ? (
+            <span className="flex items-center gap-2">
+              <option.Icon className="text-ink-meta size-4 shrink-0" />
+              {option.label}
+            </span>
+          ) : (
+            option.label
+          )}
         </Item>
       ))}
     </SelectContent>
@@ -148,6 +191,7 @@ function FacetPopup({ options, multiple }: { options: readonly Option[]; multipl
  *  it: Base UI reports that press with the same value, and with no "Any"
  *  option there is otherwise no way back to no pick from the row. */
 function Facet({
+  Icon,
   label,
   options,
   values,
@@ -155,6 +199,7 @@ function Facet({
   multiple = true,
   className,
 }: {
+  Icon: Glyph;
   label: string;
   options: readonly Option[];
   values: string[];
@@ -164,7 +209,13 @@ function Facet({
 }) {
   const [open, setOpen] = useState(false);
   const trigger = (
-    <FacetTrigger label={label} count={values.length} open={open} className={className} />
+    <FacetTrigger
+      Icon={Icon}
+      label={label}
+      count={values.length}
+      open={open}
+      className={className}
+    />
   );
 
   if (!multiple) {
@@ -325,7 +376,7 @@ function LocationFacet({
         disabled={options.length === 0}
         className={facetTriggerClasses(ticks.length, open, className)}
       >
-        Location
+        <FacetLabel Icon={PinIcon} label="Location" active={ticks.length > 0 && !open} />
         {ticks.length > 0 && <span className="sr-only">, {ticks.length} selected</span>}
         <ChevronDownIcon className="text-muted-foreground size-4" />
       </PopoverTrigger>
@@ -391,7 +442,7 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
           disabled
           className={facetTriggerClasses(ticksFrom(props.values).length, false, props.className)}
         >
-          Location
+          <FacetLabel Icon={PinIcon} label="Location" active={false} />
           <ChevronDownIcon className="text-muted-foreground size-4" />
         </button>
       }
@@ -448,7 +499,7 @@ function SalaryFacet({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className={facetTriggerClasses(minPay != null ? 1 : 0, open, className)}>
-        Salary
+        <FacetLabel Icon={CoinIcon} label="Salary" active={minPay != null && !open} />
         {minPay != null && <span className="sr-only">, 1 selected</span>}
         <ChevronDownIcon className="text-muted-foreground size-4" />
       </PopoverTrigger>
@@ -544,6 +595,7 @@ export function JobFilters({
   const facets = {
     jobType: (className: string) => (
       <Facet
+        Icon={BriefcaseIcon}
         label="Job Type"
         options={JOB_TYPE_OPTIONS}
         values={shown.jobTypes}
@@ -553,8 +605,9 @@ export function JobFilters({
     ),
     workplace: (className: string) => (
       <Facet
+        Icon={workStyleIcon("onsite")}
         label="Workplace"
-        options={WORKPLACE_OPTIONS}
+        options={WORKPLACE_OPTIONS.map((o) => ({ ...o, Icon: workStyleIcon(o.value) }))}
         values={shown.workStyles}
         onChange={(values) => set({ workStyles: values as FeedFilters["workStyles"] })}
         className={className}
@@ -562,6 +615,7 @@ export function JobFilters({
     ),
     experience: (className: string) => (
       <Facet
+        Icon={LevelIcon}
         label="Experience"
         options={EXPERIENCE_OPTIONS}
         values={shown.levels}
@@ -571,6 +625,7 @@ export function JobFilters({
     ),
     datePosted: (className: string) => (
       <Facet
+        Icon={ClockIcon}
         label="Date Posted"
         options={DATE_POSTED_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
         values={shown.postedWithin != null ? [String(shown.postedWithin)] : []}

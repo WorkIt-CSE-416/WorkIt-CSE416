@@ -95,7 +95,11 @@ src/app/          App Router routes, layouts, pages
                   filters, and Industry is gone (no data). As the row
                   narrows its facets step out one at a time, least used
                   first, and All Filters stays a normal button; never
-                  stretch it across the row. Salary is a
+                  stretch it across the row. Each facet button wears the
+                  glyph the job card draws for its fact (Date Posted a
+                  clock, since the card's calendar is the start date), and
+                  inside a popup only Workplace's options carry glyphs,
+                  the card's own three. Salary is a
                   Popover: hourly presets for internships, yearly for new
                   grads, both when neither or both are picked, and an
                   "At Least" field; the API compares every posting's pay
