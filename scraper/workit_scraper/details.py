@@ -1,7 +1,8 @@
 """Facts a posting states in its description rather than in a field.
 
 Pay, employment type, work style and years of experience reach the card from a provider's
-own field when it has one (`providers`), and from here when it does not. Every
+own field when it has one (`providers`), and from here when it does not. Start term and
+visa sponsorship come only from here. Every
 pattern reads a statement about *this* role and declines anything less: "not
 considering part-time", "less than 2 years" and "$5M raised" are all in real
 descriptions, and a wrong fact on the card is worse than "not listed".
@@ -93,6 +94,9 @@ class Facts:
     min_years: int | None = None
     #: When an internship starts: "Summer 2027", "2027". See `start_term`.
     start_term: str | None = None
+    #: What the posting says about visas: "sponsors", "no_sponsorship" or
+    #: "citizens_only". See `sponsorship`.
+    sponsorship: str | None = None
 
     @classmethod
     def from_row(cls, row: dict) -> Facts:
@@ -117,6 +121,7 @@ def read(
         pay=stated_pay or pay(text),
         min_years=min_years(text),
         start_term=start_term(title, text),
+        sponsorship=sponsorship(title, text),
     )
 
 
@@ -618,3 +623,173 @@ def _season_term(source: str, *, guarded: bool = False) -> str | None:
         season = "Fall" if season.lower() == "autumn" else season.title()
         return f"{season} 20{year}"
     return None
+
+
+#: What a posting can say about visas, strongest first: when it says more than
+#: one, the first wins. A "no" anywhere outweighs a "yes", and citizens only is
+#: the strictest "no".
+SPONSORSHIP = ("citizens_only", "no_sponsorship", "sponsors")
+
+_US = r"(?:US|United\s+States|American)"
+# The rest of a US-person list ("US citizen, lawful permanent resident, ..."):
+# a green card holder qualifies, so it is not citizens only.
+_OR_RESIDENT = (
+    r"[^.]{0,80}?\b(?:permanent\s+residen\w*|green\s+card|protected\s+individual|asylee|refugee)"
+)
+# A US clearance. A bare "security clearance" can be the UK's or Australia's.
+_CLEARANCE = (
+    r"\b(?:US|secret|top[- ]secret|TS|SCI|DoD|DOE|Q|polygraph|poly)\b[^.]{0,30}?"
+    r"(?<!Public\sTrust\s)\bclearance\b"
+)
+_REQUIRED = r"\b(?:must|require[sd]?|requiring|requirement|condition\s+of\s+employment)\b"
+_CITIZENS_ONLY = re.compile(
+    rf"\b{_US}\s+citizenship\s+(?:is\s+)?(?:required|a\s+requirement|mandatory)\b"
+    rf"|\brequire[sd]?\s+(?:\w+\s+){{0,2}}?{_US}\s+citizenship\b"
+    rf"|\b(?:must|required\s+to)\s+(?:be|hold|have)\s+(?:an?\s+)?{_US}\s+citizen(?:ship)?\b"
+    rf"(?!{_OR_RESIDENT})"
+    rf"|\b{_US}\s+citizens?\s+only\b|\bonly\s+(?:\w+\s+){{0,2}}?{_US}\s+citizens\b"
+    # Requirement lists without a verb: "US Citizenship and ability to get a US
+    # Security Clearance" (MORSE), "Work authorization: US citizen" (CoVar).
+    rf"|^\W*(?:currently\s+an?\s+)?{_US}\s+citizen(?:ship)?\b(?!{_OR_RESIDENT})"
+    rf"|\bauthori[sz]ation\s*:\s*{_US}\s+citizen\b"
+    # "Active TS/SCI clearance with Polygraph required", "requires eligibility to
+    # obtain and maintain a US security clearance"; and Palantir's verbless "Active
+    # US Security clearance, or eligibility and willingness to obtain" under "What We
+    # Require".
+    rf"|{_CLEARANCE}[^.]{{0,40}}?{_REQUIRED}|{_REQUIRED}[^.]{{0,60}}?{_CLEARANCE}"
+    rf"|^\W*(?:active|current|hold|holding|eligib\w*|ability|able)\b[^.]{{0,40}}?{_CLEARANCE}"
+    # "Clearance: Secret level required", "Required Clearance: Top Secret".
+    r"|\bclearance\s*:\s*(?:active\s+)?(?:secret|top[- ]secret|TS|SCI)\b",
+    re.I,
+)
+# Said of a clearance or citizenship, these make it something other than a
+# requirement of this role: "is a plus but not required", "may be required
+# depending on program", Palantir's "For USG: ..." beside "For all other roles".
+_NOT_REQUIRED = re.compile(
+    r"\b(?:plus|preferred|bonus|nice|desired|not\s+required|may\s+be\s+required|may\s+require"
+    r"|differential)\b|^\W*for\s+[^:]{1,30}:",
+    re.I,
+)
+# A heading over a list: "What We Require", "Preferred Qualifications", "Bonus skills".
+_HEADING = re.compile(
+    r"^\W*(?:[A-Za-z/&' -]{0,30}\s)?(?:qualifications?|requirements?|require[ds]?|preferred"
+    r"|bonus|nice[- ]to[- ]haves?|must[- ]haves?|skills|clearance|value[sd]?)\b"
+    r"[\w\s/&'()-]{0,25}:?\s*$",
+    re.I,
+)
+_PREFERRED_HEADING = re.compile(r"\b(?:preferred|bonus|nice|plus|desired|value[sd]?)\b", re.I)
+
+_SPONSOR = r"sponsor(?:ship|s|ing)?\b"  # not "company-sponsored events"
+_NO_SPONSORSHIP = re.compile(
+    # "We are not able to sponsor visas or take over sponsorship", "will not
+    # sponsor", "unable to provide sponsorship"; but Samaya's "aren't able to
+    # successfully sponsor visas for every role" follows "We do sponsor visas!".
+    r"\b(?:not|unable|cannot|can't|won't|don't|doesn't|aren't|isn't|never|no\s+longer)\b"
+    rf"[^.]{{0,40}}?\b{_SPONSOR}(?![^.]{{0,40}}\bfor\s+every\b)"
+    # Roblox: "may not be able to employ candidates ... or support future H-1B sponsorship".
+    rf"|\bmay\s+not\s+be\s+able\s+to\b[^.]{{0,150}}?\b{_SPONSOR}"
+    r"|\bsponsorship\b[^.]{0,30}?\b(?:is\s+not|isn't|not)\s+(?:be\s+)?"
+    r"(?:available|provided|offered|possible)\b|\bsponsorship\s*:\s*(?:no|not|none|n/a)\b"
+    r"|\bno\s+(?:visa\s+|immigration\s+|H-?1-?B\s+)?sponsorship\b"
+    # "authorized to work in the US without current or future sponsorship"
+    rf"|\bwithout\b[^.]{{0,60}}?\b{_SPONSOR}",
+    re.I,
+)
+# A US person (ITAR): a citizen, a permanent resident or a protected individual.
+# No visa holder is one, so requiring it is a "no", unless the posting offers
+# an export licence instead (`_EXPORT_LICENCE`).
+_US_PERSON = re.compile(
+    rf"{_REQUIRED}[^.]{{0,100}}?\b{_US}\s+persons?\b|\bonly\s+hire\b[^.]{{0,20}}\bUS\s+persons?\b"
+    rf"|\bUS\s+persons?\b(?:\s+status)?[^.]{{0,60}}?{_REQUIRED}|\bqualify\s+as\s+a\s+US\s+person\b"
+    rf"|(?:{_REQUIRED}[^.]{{0,80}}?|^\W*){_US}\s+citizens?(?:hip)?\b{_OR_RESIDENT}",
+    re.I,
+)
+# Before a US-person requirement, these make it some other role's or a maybe:
+# "Certain roles may require US Person status", Kodiak's "Should the position
+# require ... US person status".
+_HYPOTHETICAL = re.compile(
+    r"\b(?:may|might|should\s+the)\b|\b(?:certain|some)\s+(?:roles|positions)\b", re.I
+)
+_EXPORT_LICENCE = re.compile(
+    r"\b(?:eligible|obtain)\w*\b[^.]{0,100}?\b(?:export\s+(?:control\s+)?licen[sc]\w*"
+    r"|export\s+authori[sz]ation|required\s+authori[sz]ations?)",
+    re.I,
+)
+_SPONSORS = re.compile(
+    # A benefits list's "- Visa Sponsorship"; "Kodiak may provide visa sponsorship";
+    # "Ambrook can support visa sponsorship (OPT/CPT, TN, J-1)".
+    r"\b(?:visa|immigration|H-?1-?B)\s+sponsorships?\b"
+    # "We do sponsor and take over sponsorship of employment visas", "happy to
+    # sponsor international candidates", "sponsor Visa's if needed".
+    rf"|\b{_SPONSOR}\s+(?:\w+\s+){{0,3}}?(?:visas?\b|visa's|H-?1-?B"
+    r"|international\s+(?:candidates|students|applicants))"
+    r"|\bsponsorship\s+is\s+(?:available|offered|provided)\b|\bsponsorship\s*:\s*yes\b",
+    re.I,
+)
+# Said with a sponsorship, these make it something else: a requirement
+# ("candidates who require sponsorship"), or another role's ("available for
+# selected roles").
+_NOT_THIS_OFFER = re.compile(
+    r"\b(?:require[sd]?|requiring|need|needs|needing)\b"
+    r"|\b(?:selected|certain|some)\s+(?:roles|positions)\b",
+    re.I,
+)
+# Jump Trading posts "we sponsor work visas for full-time positions" on its
+# internships too, which CPT or OPT covers: an intern's card says nothing.
+_FULL_TIME_ONLY = re.compile(r"\bfor\s+(?:our\s+)?full[- ]time\s+(?:positions|roles|hires)\b", re.I)
+_INTERN_TITLE = re.compile(r"\bintern(?:ship)?s?\b|\bco-?op\b", re.I)
+# IMC sponsors, except for "candidates who currently have citizenship from
+# Russia, Belarus or Iran": a rule for some nationalities says nothing of the rest.
+_SOME_NATIONALITIES = re.compile(r"\bcitizenship\s+from\b|\bRussia\b|\bBelarus\b|\bIran\b", re.I)
+# Sponsoring an export licence is not sponsoring a visa.
+_EXPORT = re.compile(r"\bexport\s+licen[sc]\w*", re.I)
+
+# "U.S." would end a sentence early.
+_US_DOTTED = re.compile(r"\bU\.\s?S\.(?:\s?A\.)?", re.I)
+_SENTENCE = re.compile(r"[^.!?\n]+[.!?]?")
+
+
+def sponsorship(title: str, text: str | None) -> str | None:
+    """What the description says about visas, read sentence by sentence.
+
+    `citizens_only`: US citizenship, or a US security clearance (which needs it),
+    is required. `no_sponsorship`: the role will not sponsor a visa, or requires
+    the applicant to be a US person (citizen, permanent resident or protected
+    individual) with no export licence offered instead. `sponsors`: it says it
+    does. None when it says nothing usable, OPT and CPT included: they are a
+    student's own authorization, not the employer's sponsorship.
+    """
+    text = _US_DOTTED.sub("US", text or "")
+    licence_offered = bool(_EXPORT_LICENCE.search(text))
+    stated = set()
+    for match in _SENTENCE.finditer(text):
+        sentence = match[0].strip()
+        if _SOME_NATIONALITIES.search(sentence):
+            continue
+        if (
+            _CITIZENS_ONLY.search(sentence)
+            and not _NOT_REQUIRED.search(sentence)
+            and not _under_preferred(text, match.start())
+        ):
+            stated.add("citizens_only")
+        elif (_NO_SPONSORSHIP.search(sentence) and not _EXPORT.search(sentence)) or (
+            (person := _US_PERSON.search(sentence))
+            and not licence_offered
+            and not _HYPOTHETICAL.search(sentence[: person.end()])
+        ):
+            stated.add("no_sponsorship")
+        elif _SPONSORS.search(sentence) and not (
+            _NOT_THIS_OFFER.search(sentence)
+            or (_FULL_TIME_ONLY.search(sentence) and _INTERN_TITLE.search(title))
+        ):
+            stated.add("sponsors")
+    return next((value for value in SPONSORSHIP if value in stated), None)
+
+
+def _under_preferred(text: str, start: int) -> bool:
+    """Whether the list a line sits in is headed as optional ("Preferred
+    Qualifications", "Bonus skills") rather than required."""
+    for line in reversed(text[:start].split("\n")[:-1]):
+        if len(line) <= 45 and _HEADING.match(line):
+            return bool(_PREFERRED_HEADING.search(line))
+    return False

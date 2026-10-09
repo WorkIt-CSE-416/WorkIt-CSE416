@@ -28,7 +28,7 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 | `web.py` | the one HTTP GET: our User-Agent, no cross-origin redirects |
 | `polite.py` | robots.txt and per-origin pacing |
 | `providers.py` | `Board`, `Job`, and one function per ATS mapping its JSON onto `Job` |
-| `details.py` | pay, job type and years of experience read out of a description |
+| `details.py` | pay, job type, years of experience, start term and visa sponsorship read out of a description |
 | `store.py` | `jobs.json`, `first_seen_at`, and what "listed" and "new today" mean |
 | `shortlist.py` | which postings belong on the page, and collapsing duplicates |
 | `report.py` | rendering the page |
@@ -200,6 +200,68 @@ Most gaps were honest -- 444 of 474 without pay, 267 of 311 internships without 
   before and after, and read every *changed* value, not only the newly filled ones. That
   is how three regressions were caught here (a title range read from its end, a
   currency code before the symbol, "lease" matching inside "please").
+
+### Visa sponsorship (KAN-168)
+
+`Facts.sponsorship` is what the posting says about visas, read by `details.sponsorship`
+from the whole description like every other fact (visa lines sit near the end, past
+the cut on 635 of ~1,090 stored copies):
+
+| value | meaning |
+|---|---|
+| `citizens_only` | US citizenship, or a US security clearance (which needs it), is required |
+| `no_sponsorship` | the role will not sponsor a visa, or requires a US person (below) |
+| `sponsors` | the posting says it sponsors, including a benefits bullet "Visa Sponsorship" |
+| `None` | nothing usable, which is most postings |
+
+**It is not in `feed.json` yet.** The feed is the backend's contract: the field
+goes into `feed.row()` in the same change that adds the `job_postings` column, its
+migration and `backend/app/schemas/jobs.py`. Until then it lives in `jobs.json` only,
+and the page does not show it either. `PAGE_VERSION` 9 is what reads it into Greenhouse
+pages stored before it.
+
+The rules, each from a posting in `tests/test_details.py` (`TestSponsorship`):
+
+- **Read sentence by sentence; strongest wins.** Citizens only beats no, and no beats
+  yes, across the whole posting. "U.S." is rewritten to "US" first, or it would end
+  the sentence.
+- **A "U.S. person" is not only a citizen.** ITAR's definition takes green card
+  holders, refugees and asylees, so "must be a U.S. citizen, lawful permanent resident
+  ... or protected individual" (Astranis, Anduril, Varda) is `no_sponsorship`, never
+  `citizens_only`: no visa holder qualifies, but a permanent resident does. When the
+  same posting offers an export licence instead ("or be eligible to obtain the
+  required authorizations": 58 postings at 17 companies, SpaceX, Rocket Lab and
+  Antares among them; Hermeus's "deemed export licensing") it says nothing, since a
+  visa holder can still be hired. This is the call that most changes the counts: read
+  the other way, those 58 would be `no_sponsorship`.
+- **A clearance counts only when it is US and required.** A US marker (US, Secret,
+  TS/SCI, DoD, DOE, Q, polygraph) is needed, because Palantir's UK and Australian
+  internships ask for their own countries' clearances. "A plus but not required",
+  "may be required", Palantir's "For USG:" scoping, and any list headed as optional
+  ("What We Value", "Preferred", "Nice to Have", `_under_preferred`) do not count;
+  Palantir's verbless "Active US Security clearance, or eligibility ..." does under
+  "What We Require".
+- **OPT and CPT are not sponsorship.** They are the student's own authorization, so
+  "OPT/CPT eligible" and Akuna's "including F-1 students using OPT" are `None`. No
+  pattern reads "OPT" at all, which also keeps "optimised" and "adoption" out.
+- **Statements about this role only.** "Sponsorship for an export license"
+  (Cloudflare), "company-sponsored events", "available for selected roles" (Maven),
+  "Certain roles may require U.S. Person status" (Rivet) and IMC's rule for
+  candidates from Russia, Belarus or Iran (IMC otherwise sponsors) say nothing. Jump
+  Trading's "we sponsor work visas for full-time positions" is `sponsors` on its
+  full-time postings and `None` on its internships, which is why the function takes
+  the title.
+- **Negations need their sponsor word.** "We are not able to sponsor visas or take
+  over sponsorship" (Enova) is a no that a loose "able to sponsor visas" read as yes;
+  Samaya's "aren't able to successfully sponsor visas for every role" right after
+  "We do sponsor visas!" is not a no.
+
+Measured 2026-10-09 on a live `--full` run, from each posting's whole text: of 1,101
+roles on the feed, 62 `citizens_only`, 97 `no_sponsorship`, 37 `sponsors` and 905
+`None`. Every `sponsors` and `citizens_only` posting and 30 `no_sponsorship` ones
+were read against their sentence. Known misses, left as `None` on purpose: a
+requirement list with no heading and no verb that could be either list; "authorized
+to work in the US now and in the future" with no word of sponsorship.
 
 **The company name comes from `boards.csv`, not the provider.** Greenhouse's
 `company_name` carries internal labels ("LinkedIn Job Wrapping", "DRW - University
