@@ -66,7 +66,7 @@ from app.models import dto
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
-from app.schemas.jobs import JobListing, JobLocationOption
+from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobLocationOption
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -83,6 +83,7 @@ _COLUMNS = (
     Job_Post.job_type,
     Job_Post.min_years_experience,
     Job_Post.start_term,
+    Job_Post.sponsorship,
     Job_Post.salary,
     Job_Post.salary_min,
     Job_Post.salary_max,
@@ -91,6 +92,9 @@ _COLUMNS = (
 )
 
 _LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
+
+# A start term as postings name them: "Summer 2027", "January 2027", "2027".
+StartTerm = Annotated[str, StringConstraints(min_length=1, max_length=40)]
 
 # A country ("US") or a state ("US-CA"). Only the shape is checked: a code no
 # job uses matches nothing, which is the right answer for it.
@@ -121,6 +125,7 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
         job_type=row.job_type,
         min_years_experience=row.min_years_experience,
         start_term=row.start_term,
+        sponsorship=row.sponsorship,
         salary=row.salary,
         salary_min=row.salary_min,
         salary_max=row.salary_max,
@@ -168,6 +173,12 @@ class JobFilters:
     posted_since: datetime.datetime | None = None
     # A yearly figure in US dollars: ?min_pay=45&pay_per=hour is 93,600.
     min_yearly_pay: float | None = None
+    # An internship's start, as the posting names it ("Summer 2027").
+    start_terms: Sequence[str] = ()
+    # "sponsors": the posting says it sponsors visas. "not_ruled_out": hide a
+    # posting that says it doesn't, or wants US citizens only, and keep the
+    # ones that say nothing, which is most of them (KAN-168).
+    visa: Literal["sponsors", "not_ruled_out"] | None = None
 
 
 def yearly_pay() -> ColumnElement[float]:
@@ -201,6 +212,17 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.min_yearly_pay is not None:
         clauses.append(Job_Post.salary_currency == "USD")
         clauses.append(yearly_pay() >= filters.min_yearly_pay)
+    if filters.start_terms:
+        clauses.append(Job_Post.start_term.in_(filters.start_terms))
+    if filters.visa == "sponsors":
+        clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
+    elif filters.visa == "not_ruled_out":
+        clauses.append(
+            or_(
+                Job_Post.sponsorship.is_(None),
+                Job_Post.sponsorship == dto.visa_sponsorship.sponsors,
+            )
+        )
     return clauses
 
 
@@ -299,6 +321,9 @@ async def list_jobs(
     # In US dollars, per `pay_per`. Capped at a figure no posting reaches.
     min_pay: float | None = Query(None, gt=0, le=10_000_000),
     pay_per: Literal["hour", "year"] = "year",
+    # As GET /jobs/facets lists them ("Summer 2027"); any of them.
+    start_term: list[StartTerm] = Query([], max_length=30),
+    visa: Literal["sponsors", "not_ruled_out"] | None = None,
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
     """Newest roles first. Empty until the first import has run."""
@@ -315,6 +340,8 @@ async def list_jobs(
         min_yearly_pay=(
             min_pay * YEARLY[dto.salary_period(pay_per)] if min_pay is not None else None
         ),
+        start_terms=start_term,
+        visa=visa,
     )
     return await fetch_listings(db, limit, filters)
 
@@ -323,3 +350,70 @@ async def list_jobs(
 async def list_locations(db: AsyncSession = Depends(get_session)) -> list[JobLocationOption]:
     """The places GET /jobs?location= can narrow to: only those with a job."""
     return await fetch_location_options(db)
+
+
+# Where in its year a term starts, for ordering the Start Date options: a
+# season by its first month, a bare year first. Unknown words sort last.
+_TERM_MONTH = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
+    "december": 12, "winter": 1, "spring": 3, "summer": 6, "fall": 9, "autumn": 9,
+}
+
+
+def term_order(term: str) -> tuple[int, int, str]:
+    '''
+    (year, month, text): "2027" before "January 2027" before "Summer 2027". A
+    term naming no year sorts after every dated one
+    '''
+    words = term.lower().split()
+    years = [int(w) for w in words if w.isdigit() and len(w) == 4]
+    months = [_TERM_MONTH[w] for w in words if w in _TERM_MONTH]
+    return (years[0] if years else 9999, months[0] if months else 0, term)
+
+
+async def fetch_facets(db: AsyncSession) -> JobFacets:
+    '''
+    how many published scraped jobs each filter option holds, across the whole
+    feed (not narrowed by the other filters), so the filter row can show a
+    count beside every option
+    '''
+    async def by(column) -> list[FacetCount]:
+        rows = await db.execute(
+            select(column, func.count()).where(_LISTED, column.is_not(None)).group_by(column)
+        )
+        return [FacetCount(value=str(value), jobs=n) for value, n in rows]
+
+    now = datetime.datetime.now(datetime.UTC)
+    posted = (await db.execute(
+        select(*(
+            func.count().filter(Job_Post.posted_at >= now - datetime.timedelta(days=d))
+            for d in (1, 7, 30)
+        )).where(_LISTED)
+    )).one()
+    sponsors, not_ruled_out = (await db.execute(
+        select(
+            func.count().filter(Job_Post.sponsorship == dto.visa_sponsorship.sponsors),
+            func.count().filter(or_(
+                Job_Post.sponsorship.is_(None),
+                Job_Post.sponsorship == dto.visa_sponsorship.sponsors,
+            )),
+        ).where(_LISTED)
+    )).one()
+    return JobFacets(
+        work_style=await by(Job_Post.work_style),
+        experience=await by(Job_Post.experience_level),
+        job_type=await by(Job_Post.job_type),
+        posted_within=[FacetCount(value=str(d), jobs=n) for d, n in zip((1, 7, 30), posted)],
+        visa=[
+            FacetCount(value="sponsors", jobs=sponsors),
+            FacetCount(value="not_ruled_out", jobs=not_ruled_out),
+        ],
+        start_term=sorted(await by(Job_Post.start_term), key=lambda c: term_order(c.value)),
+    )
+
+
+@router.get("/facets", response_model=JobFacets)
+async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
+    """Each filter option's job count, for the job board's filter row."""
+    return await fetch_facets(db)

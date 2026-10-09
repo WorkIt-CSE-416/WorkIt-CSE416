@@ -20,9 +20,10 @@ from app.routers.jobs import (
     location_options,
     matching,
     offered_in,
+    term_order,
     to_listing,
 )
-from app.schemas.jobs import JobListing
+from app.schemas.jobs import FacetCount, JobFacets, JobListing
 
 ROW = SimpleNamespace(
     id=uuid.UUID("6f1c0e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b"),
@@ -37,6 +38,7 @@ ROW = SimpleNamespace(
     job_type=None,
     min_years_experience=None,
     start_term="Summer 2027",
+    sponsorship=dto.visa_sponsorship.sponsors,
     salary=None,
     salary_min=40.0,
     salary_max=46.0,
@@ -74,6 +76,7 @@ def test_row_becomes_the_feed_shape():
         "salary_period": dto.salary_period.hour,
         "min_years_experience": None,
         "start_term": "Summer 2027",
+        "sponsorship": dto.visa_sponsorship.sponsors,
     }
 
 
@@ -277,3 +280,59 @@ def test_each_filter_narrows_its_own_column():
         "job_postings.experience_level IN ('new_grad')",
         "job_postings.job_type IN ('part_time', 'contract')",
     ]
+
+
+def test_visa_sponsors_keeps_only_stated_sponsors():
+    (clause,) = matching(JobFilters(visa="sponsors"))
+    assert _sql(clause) == "job_postings.sponsorship = 'sponsors'"
+
+
+def test_visa_not_ruled_out_keeps_the_silent_majority():
+    # Most postings say nothing about visas; hiding them would empty the feed.
+    (clause,) = matching(JobFilters(visa="not_ruled_out"))
+    assert _sql(clause) == (
+        "job_postings.sponsorship IS NULL OR job_postings.sponsorship = 'sponsors'"
+    )
+
+
+def test_route_reads_start_terms_and_visa(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    params = [("start_term", "Summer 2027"), ("start_term", "Fall 2026"), ("visa", "sponsors")]
+    assert TestClient(app).get("/jobs", params=params).status_code == 200
+    (filters,) = seen
+    assert list(filters.start_terms) == ["Summer 2027", "Fall 2026"]
+    assert filters.visa == "sponsors"
+    assert _sql(matching(filters)[0]) == (
+        "job_postings.start_term IN ('Summer 2027', 'Fall 2026')"
+    )
+
+
+def test_route_rejects_an_unknown_visa_option(no_database):
+    assert TestClient(app).get("/jobs?visa=maybe").status_code == 422
+
+
+def test_start_terms_sort_by_the_calendar():
+    terms = ["Summer 2027", "Fall 2026", "2027", "January 2027", "Spring 2027", "Rolling"]
+    assert sorted(terms, key=term_order) == [
+        "Fall 2026", "2027", "January 2027", "Spring 2027", "Summer 2027", "Rolling",
+    ]
+
+
+def test_route_lists_facets(no_database, monkeypatch):
+    facets = JobFacets(
+        work_style=[FacetCount(value="remote", jobs=73)],
+        experience=[], job_type=[], posted_within=[], visa=[], start_term=[],
+    )
+
+    async def fetch(db):
+        return facets
+
+    monkeypatch.setattr("app.routers.jobs.fetch_facets", fetch)
+    body = TestClient(app).get("/jobs/facets").json()
+    assert body["work_style"] == [{"value": "remote", "jobs": 73}]
