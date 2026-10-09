@@ -83,10 +83,22 @@ src/app/          App Router routes, layouts, pages
                   panel, the top bar, the page) floating on --color-frame,
                   and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
-                  /jobs and /search take ?location= (repeated ISO codes,
-                  US or US-CA): the Location facet in jobs/filters.tsx,
-                  fed by GET /jobs/locations, the one facet that filters.
-                  A Popover of two panels, not a Select: countries left,
+                  /jobs and /search filter on the server by the query:
+                  ?location= (repeated ISO codes, US or US-CA),
+                  ?work_style=, ?experience=, ?job_type= (repeated),
+                  ?posted_within= (days), ?min_pay= with ?pay_per= (hour
+                  or year), GET /jobs' own names. jobs/filter-query.ts
+                  reads and writes them for the pages and the row alike,
+                  dropping any value the API would refuse, so a stale
+                  link narrows by what was valid instead of erroring.
+                  jobs/filters.tsx draws the row (KAN-170); every facet
+                  filters, and Industry is gone (no data). Salary is a
+                  Popover: hourly presets for internships, yearly for new
+                  grads, both when neither or both are picked, and an
+                  "At Least" field; the API compares every posting's pay
+                  as a yearly figure in USD. Location, fed by GET
+                  /jobs/locations, is a Popover of two panels, not a
+                  Select: countries left,
                   the ticked country's states right. A country alone is
                   all of it, with states ticked just those
                   (ticksFrom/placesFrom there). Don't move it back into a
@@ -524,7 +536,11 @@ italic, and over half the feed's cards had at least one. Under 448px of card
 body the empty slots close up instead. The title stops at two lines and a
 fact at its column's edge, each whole on hover. An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
-2027"), and its job type always reads "Internship", as Jobright shows it. Scraped pay
+2027"). Its job type is how the job is set up (Full-Time, Part-Time,
+Contract), an internship's too, never "Internship": that is its level, and
+the Job Type filter would otherwise return "Full-Time" cards that say
+"Internship" where the type goes (KAN-170 reversed the Jobright-style
+"Internship" here). Scraped pay
 always arrives as a min/max range, and `formatSalary` prints one whose ends
 meet as a single amount. The match rail is its placeholder
 (`score={null}`: an empty ring and "Score Coming Soon") until matching

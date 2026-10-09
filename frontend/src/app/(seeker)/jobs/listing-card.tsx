@@ -40,9 +40,10 @@ import { MatchRail } from "./match-rail";
  *   location_city/country  `location`, one string from the board; a remote
  *                          role with none has nothing to list, so it is left
  *                          out (Work Style says Remote), as on a fixture
- *   job_type               "Internship" on every internship, as Jobright
- *                          shows it; otherwise `job_type`, when the posting
- *                          states it
+ *   job_type               `job_type`, when the posting states it: how the
+ *                          job is set up (Full-Time, Part-Time, Contract),
+ *                          an internship's too. Never "Internship": that is
+ *                          the level, beside it
  *   salary_*               `salary_*`, when the posting states pay
  *   work_style             `work_style`, when the board states it
  *   experience_level       `experience_level`, always: the scraper keeps
@@ -107,10 +108,12 @@ export function ListingCard({ job }: { job: JobListing }) {
   );
 }
 
+/** How the job is set up, the same for an internship as for any role, so the
+ *  slot agrees with the Job Type filter (KAN-170). It used to read
+ *  "Internship" on every internship, as Jobright does, which put the career
+ *  stage in two slots and had "Full-Time" filters return cards saying
+ *  "Internship" where the type goes. */
 function jobType(job: JobListing) {
-  // Jobright's rule: an internship's job type is "Internship", whatever hours
-  // it states. "Full-Time" beside "Internship" read as a contradiction.
-  if (job.experience_level === "internship") return "Internship";
   return job.job_type ? formatJobType(job.job_type) : NOT_LISTED;
 }
 
