@@ -40,7 +40,8 @@ DESCRIPTION_CHARS = 8000
 #: Bump when what a `Page` holds changes, so Greenhouse postings stored before it
 #: are read once more. 5: the Page model (one value instead of nine fields).
 #: 8: work-model metadata, LinkedIn tags and the facts the 2026-10-08 audit found missed.
-PAGE_VERSION = 8
+#: 9: visa sponsorship (`details.sponsorship`).
+PAGE_VERSION = 9
 
 
 class BoardNotFound(Exception):
