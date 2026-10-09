@@ -1,7 +1,15 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Suspense, type ComponentType, use, useOptimistic, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  type ComponentType,
+  use,
+  useEffect,
+  useOptimistic,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
   BriefcaseIcon,
@@ -488,6 +496,34 @@ function counted(
   }));
 }
 
+const hasPlaces = (places: JobLocationOption[]) => places.length > 0;
+const hasCounts = (counts: JobFacets) => counts.work_style.length > 0;
+
+/** The first of a series of promises that resolves with data, held from then
+ *  on; until one has, the latest. The row's places and counts don't change
+ *  with the filters, so once they've loaded, the promise each later render
+ *  hands down would only re-suspend Location and blank the counts while the
+ *  same figures load again. But a first load that failed (the API down, an
+ *  empty answer) mustn't stick for the visit: Next caches only good answers,
+ *  so a later render's promise is worth taking until one comes back filled. */
+function useHeldOnceFilled<T>(latest: Promise<T>, filled: (value: T) => boolean): Promise<T> {
+  const [held, setHeld] = useState(latest);
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (settled) return;
+    let alive = true;
+    held.then((value) => {
+      if (!alive) return;
+      if (filled(value)) setSettled(true);
+      else if (latest !== held) setHeld(latest);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [held, latest, settled, filled]);
+  return held;
+}
+
 /** The facet row plus the All Filters panel (./all-filters), which holds every
  *  facet, and Salary, Start Date and Visa, which the row has no room for.
  *  `locations` is the Location facet's options, still loading; `filters` the
@@ -507,8 +543,8 @@ export function JobFilters({
   // screen. They don't depend on the filters, so the promises each filter
   // change's render hands down again would only re-suspend Location and blank
   // every count while the same figures load a second time.
-  const [locations] = useState(locationsLoading);
-  const [facets] = useState(facetsLoading);
+  const locations = useHeldOnceFilled(locationsLoading, hasPlaces);
+  const facets = useHeldOnceFilled(facetsLoading, hasCounts);
   const startFeedTransition = useFeedTransition();
   const router = useRouter();
   const pathname = usePathname();

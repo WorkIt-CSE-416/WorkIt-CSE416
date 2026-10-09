@@ -8,8 +8,9 @@ import type { JobType, WorkStyle } from "./data";
  * The URL's names are `GET /jobs`' own (backend/app/routers/jobs.py), so a
  * page passes its query to the API as it stands: ?location= (repeated ISO
  * codes), ?work_style=, ?experience=, ?job_type= (repeated, any of),
- * ?posted_within= (days), and ?min_pay= and ?max_pay= with ?pay_per= (hour
- * or year), a range either end of which may be open.
+ * ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or
+ * year, a range either end of which may be open), ?start_term= (seasons,
+ * "summer-2027", repeated) and ?visa= (sponsors or not_ruled_out).
  *
  * READING DROPS WHAT THE API WOULD REFUSE. A value outside the options, a
  * malformed place or a 61st one is left out here rather than sent on, so a

@@ -14,11 +14,11 @@ import { filtersQuery, NO_FILTERS, type FeedFilters } from "./filter-query";
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
  * narrows it to the query) and by the Dashboard's New Matches.
  *
- * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. `filters.tsx` is a client
- * component importing its option lists from ./data, and `apiGet` is
+ * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
+ * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
  * server-only — putting the fetch there would pull it into the client bundle
  * and fail the build. ./data keeps the fixtures, which still back the
- * expanded view at /jobs/[jobId] and the filter options.
+ * expanded view at /jobs/[jobId]; the filter options are in ./filter-query.
  *
  * Its own type, not an optional-everything `Recommendation`: a scraped role has
  * no description or match score, and states its salary, job type and years
@@ -109,7 +109,7 @@ export async function getJobLocations(): Promise<JobLocationOption[]> {
 }
 
 /** One filter option's job count, from `GET /jobs/facets`: `value` as GET /jobs
- *  takes it ("remote", "full_time", "7", "Summer 2027"). */
+ *  takes it ("remote", "full_time", "7", "summer-2027"). */
 export type FacetCount = { value: string; jobs: number };
 
 /** Every filter option's count across the whole feed (not narrowed by the

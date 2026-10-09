@@ -1,6 +1,6 @@
 /**
- * The fixtures behind the expanded view at /jobs/[jobId] and the filter
- * options. The feed itself is live now — see ./listings, and its header for
+ * The fixtures behind the expanded view at /jobs/[jobId] (the filter options
+ * are in ./filter-query). The feed itself is live now — see ./listings, and its header for
  * why the fetch is not in this file.
  *
  * Shaped after `backend/db/job_posting.md`'s `job_postings` table (plus

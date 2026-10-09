@@ -87,7 +87,8 @@ src/app/          App Router routes, layouts, pages
                   ?location= (repeated ISO codes, US or US-CA),
                   ?work_style=, ?experience=, ?job_type= (repeated),
                   ?posted_within= (days), ?min_pay= and ?max_pay= with
-                  ?pay_per= (hour or year), GET /jobs' own names. jobs/filter-query.ts
+                  ?pay_per= (hour or year), ?start_term= (seasons) and
+                  ?visa=, GET /jobs' own names. jobs/filter-query.ts
                   reads and writes them for the pages and the row alike,
                   dropping any value the API would refuse, so a stale
                   link narrows by what was valid instead of erroring.
@@ -115,11 +116,15 @@ src/app/          App Router routes, layouts, pages
                   presets (hourly for internships, yearly for new grads)
                   that fill the minimum; a posting matches when its own
                   range overlaps it, compared as yearly figures in USD.
-                  Location in the panel is a search field whose checklist
-                  of every place opens only from the field and floats over
-                  the panel like a dropdown (it never pushes the sections
-                  down), picks shown below the field as pills with a
-                  cross, and nothing pre-picked. Start Date offers seasons
+                  Location and Start Date in the panel are one picker
+                  (SearchPicker in jobs/all-filters.tsx): a search field
+                  whose checklist opens only from the field and floats
+                  over the panel like a dropdown (it never pushes the
+                  sections down), a keyboard combobox (Up, Down, Enter,
+                  Escape closing only the list), picks shown below as
+                  pills with a cross, and nothing pre-picked. Clear All
+                  remounts the pickers so typed text clears too. A picked
+                  state narrows its country, in the panel as in the row. Start Date offers seasons
                   (Summer 2027), grouped by the API from the terms
                   postings use; Visa offers Sponsors Visas and Hide Jobs
                   That Rule Me Out. Every option shows its job count from
@@ -132,7 +137,7 @@ src/app/          App Router routes, layouts, pages
                   (ticksFrom/placesFrom there). Don't move it back into a
                   Select with rows that come and go: a multiple Select
                   whose item list shrinks (Base UI 1.7) re-applies the
-                  value from before the press, which undid the untick
+                  value from before the press, which undid the untick.
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and

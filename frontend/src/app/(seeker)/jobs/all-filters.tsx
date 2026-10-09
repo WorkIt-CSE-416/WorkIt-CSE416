@@ -118,6 +118,9 @@ function PanelBody({
   const places = use(locations);
   const counts = use(facets);
   const [draft, setDraft] = useState(filters);
+  // Bumped by Clear All: the pickers below keep what is typed in them (a
+  // search, a salary figure) in their own state, so they are remounted empty.
+  const [cleared, setCleared] = useState(0);
   const count = useDraftCount(draft);
 
   const set = (change: Partial<FeedFilters>) => setDraft((d) => ({ ...d, ...change }));
@@ -130,8 +133,17 @@ function PanelBody({
           scrolling the page behind. */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
         <Section Icon={PinIcon} label="Location" first>
-          <LocationPicker
-            options={places}
+          <SearchPicker
+            key={`places-${cleared}`}
+            label="Places"
+            placeholder="Search a state or country"
+            empty="No place by that name has jobs."
+            options={places.map((p) => ({
+              value: p.code,
+              label: p.label,
+              count: p.jobs,
+              nested: p.code.includes("-"),
+            }))}
             values={draft.places}
             onChange={(next) => set({ places: next })}
           />
@@ -201,6 +213,7 @@ function PanelBody({
 
         <Section Icon={CoinIcon} label="Salary">
           <SalaryPicker
+            key={`pay-${cleared}`}
             levels={draft.levels}
             minPay={draft.minPay}
             maxPay={draft.maxPay}
@@ -214,22 +227,19 @@ function PanelBody({
             {counts.start_term.length === 0 ? (
               <p className="text-note text-ink-meta">No start dates in the feed yet.</p>
             ) : (
-              counts.start_term.map((t) => (
-                <Chip
-                  key={t.value}
-                  pressed={draft.startTerms.includes(t.value)}
-                  count={t.jobs}
-                  onClick={() =>
-                    set({
-                      startTerms: draft.startTerms.includes(t.value)
-                        ? draft.startTerms.filter((v) => v !== t.value)
-                        : [...draft.startTerms, t.value],
-                    })
-                  }
-                >
-                  {seasonLabel(t.value)}
-                </Chip>
-              ))
+              <SearchPicker
+                key={`seasons-${cleared}`}
+                label="Start Dates"
+                placeholder="Search a season"
+                empty="No season by that name has jobs."
+                options={counts.start_term.map((t) => ({
+                  value: t.value,
+                  label: seasonLabel(t.value),
+                  count: t.jobs,
+                }))}
+                values={draft.startTerms}
+                onChange={(next) => set({ startTerms: next })}
+              />
             )}
           </Section>
 
@@ -249,10 +259,17 @@ function PanelBody({
       </div>
 
       <div className="border-border-subtle flex items-center justify-between gap-3 border-t px-5 py-3">
-        <Button variant="ghost" size="sm" onClick={() => setDraft(NO_FILTERS)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setDraft(NO_FILTERS);
+            setCleared((n) => n + 1);
+          }}
+        >
           Clear All
         </Button>
-        <Button size="sm" onClick={() => onApply(withoutCoveredStates(draft))}>
+        <Button size="sm" onClick={() => onApply(statesNarrowCountries(draft))}>
           {count == null
             ? "Show Jobs"
             : `Show ${count.toLocaleString("en-US")} ${count === 1 ? "Job" : "Jobs"}`}
@@ -263,24 +280,28 @@ function PanelBody({
 }
 
 /** The draft's job count, asked for a quarter second after the picks stop
- *  changing; the last one asked for wins. Null until the first answer, or
- *  when the API can't give one. */
+ *  changing; the last one asked for wins. Null while the current picks are
+ *  being counted (the button says "Show Jobs" rather than the last picks'
+ *  number, which a quick click would otherwise apply under), and when the
+ *  API can't give one. */
 function useDraftCount(draft: FeedFilters): number | null {
-  const [count, setCount] = useState<number | null>(null);
+  const [answer, setAnswer] = useState<{ query: string; n: number | null } | null>(null);
   const query = filtersQuery(draft);
   useEffect(() => {
     let current = true;
     const timer = setTimeout(() => {
-      countJobs(query).then((n) => {
-        if (current) setCount(n);
-      });
+      countJobs(query)
+        .catch(() => null)
+        .then((n) => {
+          if (current) setAnswer({ query, n });
+        });
     }, 250);
     return () => {
       current = false;
       clearTimeout(timer);
     };
   }, [query]);
-  return count;
+  return answer?.query === query ? answer.n : null;
 }
 
 /** `values` with `value` added or removed, kept in the options' order. */
@@ -289,12 +310,15 @@ function toggle<T>(values: T[], value: T, options: readonly { value: T }[]): T[]
   return options.map((o) => o.value).filter((v) => next.includes(v));
 }
 
-/** A state whose country is also picked adds nothing: the country holds it. */
-function withoutCoveredStates(filters: FeedFilters): FeedFilters {
-  const countries = new Set(filters.places.filter((p) => !p.includes("-")));
+/** A picked state narrows its country: United States and California is
+ *  California, the same rule as the row's Location (ticksFrom/placesFrom in
+ *  ./filters), so the two give one feed for the same picks. */
+function statesNarrowCountries(filters: FeedFilters): FeedFilters {
   return {
     ...filters,
-    places: filters.places.filter((p) => !p.includes("-") || !countries.has(p.split("-")[0])),
+    places: filters.places.filter(
+      (p) => p.includes("-") || !filters.places.some((q) => q.startsWith(`${p}-`)),
+    ),
   };
 }
 
@@ -359,39 +383,68 @@ function Chip({
   );
 }
 
-/** Where: a search field that opens a dropdown checklist of every place that
- *  has a job, each country followed by its states, as GET /jobs/locations
- *  orders them; typing narrows it by name. The list opens only from the field
- *  and floats over the panel like any dropdown, so the sections below don't
- *  move; it stays open while places are ticked, and closes on Escape, on a
- *  click outside or when focus leaves it. What is ticked shows under the
- *  field as pills, each with a cross to take it off. Nothing is suggested
- *  before the seeker looks.
+type PickOption = {
+  value: string;
+  label: string;
+  count?: number;
+  /** Drawn indented under the option before it (a state under its country)
+   *  while nothing is typed. */
+  nested?: boolean;
+};
+
+/** A search field that opens a dropdown checklist, and what is ticked as
+ *  pills under it, each with a cross to take it off: Location (every place,
+ *  each country followed by its states) and Start Date (the seasons). The
+ *  list opens only from the field (a click, typing or ArrowDown) and floats
+ *  over the panel like any dropdown, so the sections below don't move; it
+ *  stays open while options are ticked, and closes on Escape (which stops
+ *  there, short of closing the panel), on a press outside, or when focus
+ *  leaves it. Nothing is suggested before the seeker looks.
+ *
+ *  A combobox in the ARIA sense: focus stays in the field, Up and Down move
+ *  the active option (aria-activedescendant), Enter ticks it, and the options
+ *  are out of the Tab order, so a keyboard user leaves the list with one Tab
+ *  rather than one per option. A press on any part of the field or list keeps
+ *  focus in the field (preventDefault), so it never blurs the list shut.
  *
  *  Not portaled: it stays inside the panel's scroll area, which has room for
- *  it below the field, the first thing in the panel. A combobox in the ARIA
- *  sense: the field owns the list (aria-controls) and a pointer press on a
- *  row keeps focus in the field (preventDefault), so ticking doesn't close
- *  it. */
-function LocationPicker({
+ *  it below the field. */
+function SearchPicker({
+  label,
+  placeholder,
+  empty,
   options,
   values,
   onChange,
 }: {
-  options: JobLocationOption[];
+  /** The list's accessible name, and the picks' ("Picked Places"). */
+  label: string;
+  placeholder: string;
+  /** What the list says when the search matches nothing. */
+  empty: string;
+  options: PickOption[];
   values: string[];
   onChange: (values: string[]) => void;
 }) {
   const id = useId();
   const listId = `${id}-list`;
+  const optionId = (i: number) => `${id}-option-${i}`;
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
   const needle = search.trim().toLowerCase();
-  const byCode = new Map(options.map((o) => [o.code, o]));
+  const byValue = new Map(options.map((o) => [o.value, o]));
   const shown = needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options;
-  const toggle = (code: string) =>
-    onChange(values.includes(code) ? values.filter((v) => v !== code) : [...values, code]);
+  const current = Math.min(active, Math.max(shown.length - 1, 0));
+  const toggle = (value: string) =>
+    onChange(values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
+
+  function openList() {
+    setOpen(true);
+    input.current?.focus();
+  }
 
   // A press anywhere outside the field and its list closes it.
   useEffect(() => {
@@ -403,6 +456,13 @@ function LocationPicker({
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
 
+  // Keep the active option in view as the arrows move it; only when it moves,
+  // so a wheel scroll through the list isn't pulled back by a re-render.
+  const activeId = optionId(current);
+  useEffect(() => {
+    if (open) document.getElementById(activeId)?.scrollIntoView({ block: "nearest" });
+  }, [open, activeId]);
+
   return (
     <div className="flex w-full flex-col gap-2.5">
       <div
@@ -411,34 +471,57 @@ function LocationPicker({
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
         }}
+        onKeyDown={(event) => {
+          // Closes the list, not the panel around it, wherever focus is.
+          if (event.key === "Escape" && open) {
+            event.stopPropagation();
+            setOpen(false);
+          }
+        }}
       >
         <label htmlFor={id} className="sr-only">
-          Search a State or Country
+          {placeholder}
         </label>
-        <div className="border-border focus-within:ring-brand-ring flex h-9 items-center gap-2 rounded-md border px-2.5 focus-within:ring-2">
+        {/* A press on the field's padding or chevron opens the list and
+            keeps focus in the input rather than blurring it shut. */}
+        <div
+          onPointerDown={(event) => {
+            if (event.target !== input.current) {
+              event.preventDefault();
+              openList();
+            }
+          }}
+          className="border-border focus-within:ring-brand-ring flex h-9 cursor-text items-center gap-2 rounded-md border px-2.5 focus-within:ring-2"
+        >
           <SearchIcon className="text-ink-meta size-4 shrink-0" />
           <input
+            ref={input}
             id={id}
             role="combobox"
             aria-expanded={open}
             aria-controls={listId}
             aria-autocomplete="list"
+            aria-activedescendant={open && shown.length > 0 ? optionId(current) : undefined}
             autoComplete="off"
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
+              setActive(0);
               setOpen(true);
             }}
             onClick={() => setOpen(true)}
             onKeyDown={(event) => {
-              if (event.key === "Escape" && open) {
-                // Closes the list, not the panel around it.
-                event.stopPropagation();
-                setOpen(false);
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                if (!open) return setOpen(true);
+                const step = event.key === "ArrowDown" ? 1 : -1;
+                setActive(Math.min(Math.max(current + step, 0), shown.length - 1));
+              } else if (event.key === "Enter" && open && shown[current]) {
+                event.preventDefault();
+                toggle(shown[current].value);
               }
-              if (event.key === "ArrowDown") setOpen(true);
             }}
-            placeholder="Search a state or country"
+            placeholder={placeholder}
             className="text-body text-ink placeholder:text-ink-meta min-w-0 flex-1 bg-transparent outline-none"
           />
           <ChevronDownIcon
@@ -456,28 +539,30 @@ function LocationPicker({
             id={listId}
             role="listbox"
             aria-multiselectable="true"
-            aria-label="Places"
+            aria-label={label}
+            // Presses anywhere in the list keep focus in the field.
+            onPointerDown={(event) => event.preventDefault()}
             className="bg-popover ring-foreground/10 absolute inset-x-0 top-full z-20 mt-1 flex max-h-60 flex-col overflow-y-auto overscroll-contain rounded-md p-1 shadow-md ring-1"
           >
             {shown.length === 0 ? (
-              <p className="text-note text-ink-meta px-2 py-1.5">No place by that name has jobs.</p>
+              <p className="text-note text-ink-meta px-2 py-1.5">{empty}</p>
             ) : (
-              shown.map((o) => {
-                // A state sits indented under its country, unless a search
-                // has pulled it out of that order.
-                const nested = o.code.includes("-") && !needle;
-                const checked = values.includes(o.code);
+              shown.map((o, i) => {
+                // Indented under its parent, unless a search has pulled it
+                // out of that order.
+                const nested = o.nested && !needle;
+                const checked = values.includes(o.value);
                 return (
-                  <button
-                    key={o.code}
-                    type="button"
+                  <div
+                    key={o.value}
+                    id={optionId(i)}
                     role="option"
                     aria-selected={checked}
-                    // Keep focus in the field, so the list stays open.
-                    onPointerDown={(event) => event.preventDefault()}
-                    onClick={() => toggle(o.code)}
+                    onClick={() => toggle(o.value)}
+                    onPointerMove={() => i !== current && setActive(i)}
                     className={cn(
-                      "hover:bg-accent focus-visible:bg-accent text-body flex w-full items-center gap-2.5 rounded-md py-1.5 pr-2 text-left outline-hidden",
+                      "text-body flex w-full cursor-pointer items-center gap-2.5 rounded-md py-1.5 pr-2 text-left",
+                      i === current && "bg-accent",
                       nested ? "pl-7" : "pl-2",
                     )}
                   >
@@ -493,10 +578,12 @@ function LocationPicker({
                     <span className={cn("min-w-0 flex-1 truncate", !nested && "font-medium")}>
                       {o.label}
                     </span>
-                    <span className="text-note text-ink-meta tabular-nums">
-                      {o.jobs.toLocaleString("en-US")}
-                    </span>
-                  </button>
+                    {o.count != null && (
+                      <span className="text-note text-ink-meta tabular-nums">
+                        {o.count.toLocaleString("en-US")}
+                      </span>
+                    )}
+                  </div>
                 );
               })
             )}
@@ -505,19 +592,19 @@ function LocationPicker({
       </div>
 
       {values.length > 0 && (
-        <ul aria-label="Picked Places" className="flex flex-wrap gap-2">
-          {values.map((code) => {
-            const label = byCode.get(code)?.label ?? code;
+        <ul aria-label={`Picked ${label}`} className="flex flex-wrap gap-2">
+          {values.map((value) => {
+            const name = byValue.get(value)?.label ?? value;
             return (
               <li
-                key={code}
+                key={value}
                 className="border-brand bg-brand-tint text-brand text-note inline-flex h-8 items-center gap-1 rounded-full border pr-1 pl-3 font-medium"
               >
-                {label}
+                {name}
                 <button
                   type="button"
-                  aria-label={`Remove ${label}`}
-                  onClick={() => toggle(code)}
+                  aria-label={`Remove ${name}`}
+                  onClick={() => toggle(value)}
                   className="hover:bg-brand/10 focus-visible:ring-brand-ring flex size-6 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-90"
                 >
                   <CloseIcon className="size-3.5" />
