@@ -90,12 +90,18 @@ export async function getJobListings(
   }
 }
 
+/** How long the filter row's places and counts are reused before asking the API
+ *  again. They change only when an import runs (every few hours), and each ask
+ *  costs the API a database connection and six counting queries, which every
+ *  filter change used to pay again. */
+const COUNTS_TTL = 300;
+
 /** The Location filter's options. Empty when the API can't be reached: the
  *  facet then shows disabled, and the feed below reports the error itself. */
 export async function getJobLocations(): Promise<JobLocationOption[]> {
   await connection();
   try {
-    const res = await apiGet("/jobs/locations");
+    const res = await apiGet("/jobs/locations", undefined, { revalidate: COUNTS_TTL });
     return res.ok ? ((await res.json()) as JobLocationOption[]) : [];
   } catch {
     return [];
@@ -128,7 +134,7 @@ const NO_FACETS: JobFacets = {
 export async function getJobFacets(): Promise<JobFacets> {
   await connection();
   try {
-    const res = await apiGet("/jobs/facets");
+    const res = await apiGet("/jobs/facets", undefined, { revalidate: COUNTS_TTL });
     return res.ok ? ((await res.json()) as JobFacets) : NO_FACETS;
   } catch {
     return NO_FACETS;

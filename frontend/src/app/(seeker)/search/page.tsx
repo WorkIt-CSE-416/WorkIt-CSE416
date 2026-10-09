@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
+import { FeedTransition, PendingFeed } from "../jobs/feed-transition";
 import { JobFilters } from "../jobs/filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "../jobs/listing-card";
 import {
@@ -216,13 +217,19 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
       {/* A container, so the facets switch on the row's own width, as on
           /jobs. */}
-      <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />
-      </div>
+      {/* One transition for a filter change, so the results dim the moment
+          the row starts it (../jobs/feed-transition). */}
+      <FeedTransition>
+        <div className="@container mt-4 flex flex-wrap items-center gap-2">
+          <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />
+        </div>
 
-      <Suspense key={key} fallback={<ListingsSkeleton />}>
-        <Results results={results} query={query} filters={filters} />
-      </Suspense>
+        <PendingFeed>
+          <Suspense key={key} fallback={<ListingsSkeleton />}>
+            <Results results={results} query={query} filters={filters} />
+          </Suspense>
+        </PendingFeed>
+      </FeedTransition>
     </div>
   );
 }

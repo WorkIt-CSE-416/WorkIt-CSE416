@@ -100,7 +100,13 @@ src/app/          App Router routes, layouts, pages
                   as chips, no popups inside it (they landed left or right
                   of their button by the room). Its picks are a draft until
                   "Show N Jobs", which counts the draft as it changes
-                  (GET /jobs/count via jobs/actions.ts). Each facet button wears the
+                  (GET /jobs/count via jobs/actions.ts). Applying a filter
+                  dims the feed at once (jobs/feed-transition.tsx: the row
+                  and the feed share one transition), since the narrowed
+                  page is a round trip plus the API's half second away;
+                  the row's places and counts are fetched once per visit
+                  and cached five minutes (COUNTS_TTL in jobs/listings.ts),
+                  not refetched per change. Each facet button wears the
                   glyph the job card draws for its fact (Date Posted a
                   clock, since the card's calendar is the start date), and
                   inside a popup only Workplace's options carry glyphs,

@@ -1,15 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Suspense,
-  type ComponentType,
-  startTransition,
-  use,
-  useOptimistic,
-  useState,
-  type ReactNode,
-} from "react";
+import { Suspense, type ComponentType, use, useOptimistic, useState, type ReactNode } from "react";
 
 import {
   BriefcaseIcon,
@@ -44,6 +36,7 @@ import {
   type FeedFilters,
 } from "./filter-query";
 import { AllFiltersPanel } from "./all-filters";
+import { useFeedTransition } from "./feed-transition";
 import type { JobFacets, JobLocationOption } from "./listings";
 
 /**
@@ -500,8 +493,8 @@ function counted(
  *  `locations` is the Location facet's options, still loading; `filters` the
  *  picks the page was opened with (./filter-query). */
 export function JobFilters({
-  locations,
-  facets,
+  locations: locationsLoading,
+  facets: facetsLoading,
   filters,
 }: {
   locations: Promise<JobLocationOption[]>;
@@ -510,6 +503,13 @@ export function JobFilters({
   filters: FeedFilters;
 }) {
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
+  // The first page's places and counts, kept for as long as the row is on
+  // screen. They don't depend on the filters, so the promises each filter
+  // change's render hands down again would only re-suspend Location and blank
+  // every count while the same figures load a second time.
+  const [locations] = useState(locationsLoading);
+  const [facets] = useState(facetsLoading);
+  const startFeedTransition = useFeedTransition();
   const router = useRouter();
   const pathname = usePathname();
   // The picks show checked at once; `filters` catches up when the narrowed
@@ -519,7 +519,9 @@ export function JobFilters({
   /** Moves the URL's filters to these, keeping the rest of the query (?q on
    *  /search). The server draws the feed again, narrowed. */
   function apply(next: FeedFilters) {
-    startTransition(() => {
+    // The feed's transition, so the list dims the moment this starts
+    // (./feed-transition).
+    startFeedTransition(() => {
       show(next);
       const query = new URLSearchParams(window.location.search);
       for (const key of FILTER_KEYS) query.delete(key);

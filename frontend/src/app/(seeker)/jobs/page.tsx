@@ -5,6 +5,7 @@ import { BriefcaseIcon } from "@/components/icons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
+import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
 import { filtersQuery, isFiltered, readFilters, type FeedFilters } from "./filter-query";
@@ -93,15 +94,22 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
 
       {/* A container, so the facets switch on the row's own width (see
           ./filters), which an open sidebar narrows, not on the window's. */}
-      <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
-      </div>
+      {/* One transition for a filter change, so the feed dims the moment the
+          row starts it (./feed-transition). */}
+      <FeedTransition>
+        <div className="@container mt-4 flex flex-wrap items-center gap-2">
+          <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
+        </div>
 
-      {/* Keyed by the filters, so a new pick shows the skeleton straight away
-          instead of holding the old list until the narrowed one arrives. */}
-      <Suspense key={filtersQuery(filters)} fallback={<ListingsSkeleton />}>
-        <Feed filters={filters} />
-      </Suspense>
+        {/* Keyed by the filters, so a new pick shows the skeleton straight
+            away instead of holding the old list until the narrowed one
+            arrives. */}
+        <PendingFeed>
+          <Suspense key={filtersQuery(filters)} fallback={<ListingsSkeleton />}>
+            <Feed filters={filters} />
+          </Suspense>
+        </PendingFeed>
+      </FeedTransition>
     </div>
   );
 }
