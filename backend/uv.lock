@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 
 [[package]]
@@ -1043,6 +1043,7 @@ dependencies = [
     { name = "email-validator" },
     { name = "fastapi" },
     { name = "ftfy" },
+    { name = "httpx" },
     { name = "pillow" },
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -1068,6 +1069,7 @@ requires-dist = [
     { name = "email-validator", specifier = ">=2.3.0" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "ftfy", specifier = ">=6.3.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.14.0" },
