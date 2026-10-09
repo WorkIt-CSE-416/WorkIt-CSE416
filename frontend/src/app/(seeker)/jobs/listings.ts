@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 
 import type { ExperienceLevel, JobType, WorkStyle } from "./data";
+import { filtersQuery, NO_FILTERS, type FeedFilters } from "./filter-query";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
@@ -67,29 +68,18 @@ export type JobLocationOption = {
   jobs: number;
 };
 
-/** The `?location=` codes a page was opened with, repeated for several. */
-export function readPlaces(value: string | string[] | undefined): string[] {
-  if (value == null) return [];
-  return typeof value === "string" ? [value] : value;
-}
-
-/** `?location=US-CA&location=US-NY`, or "" for none. Carries the picks into
- *  the API call and into a retry link. */
-export function placesQuery(places: readonly string[]): string {
-  return places.length ? `?${new URLSearchParams(places.map((p) => ["location", p]))}` : "";
-}
-
 /** Public, so no token. An error is a message to print, never fixture jobs in
  *  its place — made-up postings shown silently would read as real ones.
- *  `places` narrows it to jobs offered in any of them (job_locations). */
+ *  `filters` narrows it on the server, the filter row's picks as the URL
+ *  holds them (./filter-query). */
 export async function getJobListings(
-  places: readonly string[] = [],
+  filters: FeedFilters = NO_FILTERS,
 ): Promise<{ jobs: JobListing[]; error: null } | { jobs: null; error: string }> {
   // Request time, not build time: without this `next build` prerenders the
   // feed once — with no API running in CI, that bakes the error in for good.
   await connection();
   try {
-    const res = await apiGet(`/jobs${placesQuery(places)}`);
+    const res = await apiGet(`/jobs${filtersQuery(filters)}`);
     if (!res.ok) return { jobs: null, error: await extractErrorMessage(res) };
     return { jobs: (await res.json()) as JobListing[], error: null };
   } catch {

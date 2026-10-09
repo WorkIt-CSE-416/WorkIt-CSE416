@@ -7,7 +7,8 @@ import { cn } from "@/lib/cn";
 
 import { JobFilters } from "./filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
-import { getJobListings, getJobLocations, placesQuery, readPlaces } from "./listings";
+import { filtersQuery, isFiltered, readFilters, type FeedFilters } from "./filter-query";
+import { getJobListings, getJobLocations } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
 
 export const metadata: Metadata = {
@@ -16,9 +17,10 @@ export const metadata: Metadata = {
 };
 
 /* Built without a mockup, from the layout described in ./data. The feed is
- * live (./listings), narrowed by the Location filter's `?location=` codes
- * (./filters); Save, Not Interested and Ask WorkIt are still inert. The card
- * and its loading and error states are ./listing-card, which /search shares. */
+ * live (./listings), narrowed on the server by the filter row's picks, which
+ * live in the URL (./filter-query, ./filters); Save, Not Interested and Ask
+ * WorkIt are still inert. The card and its loading and error states are
+ * ./listing-card, which /search shares. */
 
 /**
  * The live feed and the states that stand in for it. Its own async component
@@ -28,17 +30,16 @@ export const metadata: Metadata = {
  * A Suspense boundary here rather than a route loading.tsx, which would also
  * cover /jobs/[jobId].
  */
-async function Feed({ places }: { places: string[] }) {
-  const { jobs, error } = await getJobListings(places);
+async function Feed({ filters }: { filters: FeedFilters }) {
+  const { jobs, error } = await getJobListings(filters);
 
   if (error != null)
-    return <ListingsError error={error} retryHref={`/jobs${placesQuery(places)}`} />;
+    return <ListingsError error={error} retryHref={`/jobs${filtersQuery(filters)}`} />;
 
-  if (jobs.length === 0 && places.length > 0) {
+  if (jobs.length === 0 && isFiltered(filters)) {
     return (
-      <EmptyState Icon={BriefcaseIcon} title="No Roles There Yet" className="mt-4">
-        Nothing in the feed is offered in the places you picked. Try another location, or clear the
-        filter.
+      <EmptyState Icon={BriefcaseIcon} title="No Roles Match These Filters" className="mt-4">
+        Nothing in the feed fits every filter you picked. Loosen one, or clear them all.
       </EmptyState>
     );
   }
@@ -76,7 +77,7 @@ async function Feed({ places }: { places: string[] }) {
 }
 
 export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
-  const places = readPlaces((await searchParams).location);
+  const filters = readFilters(await searchParams);
   // Not awaited: the filter row paints at once and the Location facet fills
   // in when its options land.
   const locations = getJobLocations();
@@ -93,13 +94,13 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
       {/* A container, so the facets switch on the row's own width (see
           ./filters), which an open sidebar narrows, not on the window's. */}
       <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={locations} places={places} />
+        <JobFilters locations={locations} filters={filters} />
       </div>
 
-      {/* Keyed by the places, so a new pick shows the skeleton straight away
+      {/* Keyed by the filters, so a new pick shows the skeleton straight away
           instead of holding the old list until the narrowed one arrives. */}
-      <Suspense key={places.join()} fallback={<ListingsSkeleton />}>
-        <Feed places={places} />
+      <Suspense key={filtersQuery(filters)} fallback={<ListingsSkeleton />}>
+        <Feed filters={filters} />
       </Suspense>
     </div>
   );

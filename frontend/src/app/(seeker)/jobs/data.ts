@@ -97,44 +97,6 @@ function daysAgo(days: number) {
   return hoursAgo(days * 24);
 }
 
-/**
- * The facets the filter row offers, and the options behind each one.
- *
- * Location and keyword are deliberately not here: the top bar's search field
- * already owns both, and a filter chip for "United States" or "Frontend
- * Engineer" would just be a second, disagreeing way to set the same query.
- * What's left is the set every job board narrows on — type, workplace,
- * level, and how fresh the posting is — plus the three that are common
- * enough to want but not frequent enough to earn permanent row space, kept
- * behind All Filters instead.
- *
- * Job type and experience offer exactly the schema's enums, in the words
- * ./format prints on the cards, so a filter never names a value no card can
- * carry. "Internship" is a level, not a job type, and "Contract to hire" has
- * no column at all (see the note at the top of this file).
- *
- * Date posted and salary are nested thresholds, so those facets take one pick
- * (see `multiple` in ./filters). No pick is "any", which is why neither list
- * spells it out.
- */
-export const JOB_TYPE_OPTIONS = ["Full-Time", "Part-Time", "Contract"];
-
-export const WORKPLACE_OPTIONS = ["On-Site", "Hybrid", "Remote"];
-
-export const EXPERIENCE_OPTIONS = ["Internship", "New Grad", "Experienced"];
-
-export const DATE_POSTED_OPTIONS = ["Past 24 Hours", "Past Week", "Past Month"];
-
-export const SALARY_OPTIONS = ["$80k+", "$120k+", "$160k+", "$200k+"];
-
-export const INDUSTRY_OPTIONS = [
-  "B2B SaaS",
-  "Data Infrastructure",
-  "Fintech",
-  "Healthcare",
-  "Logistics",
-];
-
 export const RECOMMENDATIONS: Recommendation[] = [
   {
     id: "northwind-staff-frontend-engineer",

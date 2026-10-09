@@ -23,21 +23,46 @@ places that have jobs, with names, for the job board's Location filter. A job
 the location resolver couldn't place has no rows, so any location filter
 leaves it out (models/CLAUDE.md, the resolver section).
 
+The job board's other filters narrow it the same way (JobFilters, KAN-170),
+each by a column every scraped row fills when the posting states it:
+?work_style= and ?job_type= and ?experience= (repeated, any of), ?posted_within=
+(days), and ?min_pay= with ?pay_per= (hour or year). Pay is compared as a yearly
+figure, so an internship paid by the hour, week or month and a new-grad role
+paid by the year meet one threshold: hourly x 2,080, weekly x 52, monthly x 12,
+the same full-time year the frontend's options assume. A posting's top of range
+is its pay ("up to"), and only US dollars compare: 88% of stated pay is USD,
+and the rest can't be weighed against a dollar threshold without exchange
+rates. A job that states no pay, or no value for a filtered column, is left out
+by that filter, as one with no location is by ?location=.
+
 Descriptions are left out of the list: the cards never show them, and at
 several thousand characters each they would make every feed load many times
 heavier — so the query doesn't read them either. fetch_listing does, for Scout.
 """
 
+import datetime
 import uuid
 from collections.abc import Iterable, Sequence
-from typing import Annotated
+from dataclasses import dataclass
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import StringConstraints
-from sqlalchemy import Row, and_, distinct, exists, func, or_, select
+from sqlalchemy import (
+    ColumnElement,
+    Row,
+    and_,
+    case,
+    distinct,
+    exists,
+    func,
+    or_,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
+from app.models import dto
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
@@ -120,16 +145,73 @@ def offered_in(places: Iterable[str]):
     return exists().where(Job_Location.job_id == Job_Post.id, or_(*clauses))
 
 
+# A full-time year: the factor that turns each pay period into a yearly figure.
+# Whole numbers, so a threshold and a posting's pay compare exactly.
+YEARLY = {
+    dto.salary_period.hour: 2080,
+    dto.salary_period.week: 52,
+    dto.salary_period.month: 12,
+    dto.salary_period.year: 1,
+}
+
+
+@dataclass(frozen=True)
+class JobFilters:
+    '''
+    what the job board's filter row asked for. An empty field doesn't filter;
+    several values in one field mean any of them
+    '''
+    places: Sequence[str] = ()
+    work_styles: Sequence[dto.work_style] = ()
+    levels: Sequence[str] = ()
+    job_types: Sequence[dto.job_type] = ()
+    posted_since: datetime.datetime | None = None
+    # A yearly figure in US dollars: ?min_pay=45&pay_per=hour is 93,600.
+    min_yearly_pay: float | None = None
+
+
+def yearly_pay() -> ColumnElement[float]:
+    '''
+    a posting's pay as a yearly figure: the top of its range (or its one
+    amount, or its floor when it gives only that), times its period's factor
+    '''
+    top = func.coalesce(Job_Post.salary_max, Job_Post.salary, Job_Post.salary_min)
+    factor = case(
+        *((Job_Post.salary_period == period, n) for period, n in YEARLY.items()),
+        else_=None,
+    )
+    return top * factor
+
+
+def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
+    '''
+    the WHERE clauses for these filters, beyond published and scraped
+    '''
+    clauses: list[ColumnElement[bool]] = []
+    if filters.places:
+        clauses.append(offered_in(filters.places))
+    if filters.work_styles:
+        clauses.append(Job_Post.work_style.in_(filters.work_styles))
+    if filters.levels:
+        clauses.append(Job_Post.experience_level.in_(filters.levels))
+    if filters.job_types:
+        clauses.append(Job_Post.job_type.in_(filters.job_types))
+    if filters.posted_since is not None:
+        clauses.append(Job_Post.posted_at >= filters.posted_since)
+    if filters.min_yearly_pay is not None:
+        clauses.append(Job_Post.salary_currency == "USD")
+        clauses.append(yearly_pay() >= filters.min_yearly_pay)
+    return clauses
+
+
 async def fetch_listings(
-    db: AsyncSession, limit: int, places: Sequence[str] = ()
+    db: AsyncSession, limit: int, filters: JobFilters = JobFilters()
 ) -> list[JobListing]:
     '''
     the newest published scraped jobs, by when their board says they went up,
-    offered in any of `places` when it names some
+    narrowed by whatever `filters` asks for
     '''
-    query = select(*_COLUMNS).where(_LISTED)
-    if places:
-        query = query.where(offered_in(places))
+    query = select(*_COLUMNS).where(_LISTED, *matching(filters))
     rows = await db.execute(
         # id breaks ties, so the order is the same on every request.
         query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id).limit(limit)
@@ -208,10 +290,33 @@ async def list_jobs(
     # Repeated for several: ?location=US-CA&location=US-NY. Capped so a URL
     # can't turn into a thousand-clause query.
     location: list[PlaceCode] = Query([], max_length=60),
+    # The rest of the filter row; each repeated for several, any of them.
+    work_style: list[dto.work_style] = Query([], max_length=3),
+    experience: list[Literal["internship", "new_grad"]] = Query([], max_length=2),
+    job_type: list[dto.job_type] = Query([], max_length=3),
+    # Days back from now: 1, 7 or 30 from the board, any whole number here.
+    posted_within: int | None = Query(None, ge=1, le=365),
+    # In US dollars, per `pay_per`. Capped at a figure no posting reaches.
+    min_pay: float | None = Query(None, gt=0, le=10_000_000),
+    pay_per: Literal["hour", "year"] = "year",
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
     """Newest roles first. Empty until the first import has run."""
-    return await fetch_listings(db, limit, location)
+    filters = JobFilters(
+        places=location,
+        work_styles=work_style,
+        levels=experience,
+        job_types=job_type,
+        posted_since=(
+            datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=posted_within)
+            if posted_within is not None
+            else None
+        ),
+        min_yearly_pay=(
+            min_pay * YEARLY[dto.salary_period(pay_per)] if min_pay is not None else None
+        ),
+    )
+    return await fetch_listings(db, limit, filters)
 
 
 @router.get("/locations", response_model=list[JobLocationOption])

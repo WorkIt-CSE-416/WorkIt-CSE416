@@ -11,12 +11,13 @@ import { SEEKER_GUTTER } from "../gutter";
 import { JobFilters } from "../jobs/filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "../jobs/listing-card";
 import {
-  getJobListings,
-  getJobLocations,
-  placesQuery,
-  readPlaces,
-  type JobListing,
-} from "../jobs/listings";
+  filterEntries,
+  filtersQuery,
+  isFiltered,
+  readFilters,
+  type FeedFilters,
+} from "../jobs/filter-query";
+import { getJobListings, getJobLocations, type JobListing } from "../jobs/listings";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
@@ -41,8 +42,8 @@ export const metadata: Metadata = {
  * keyed by the query, so a new search shows its placeholders straight away
  * instead of holding the old results on screen until the new ones arrive.
  *
- * The filters are the feed's own: Location narrows the search to its
- * `?location=` places, and the rest are inert, as on /jobs (../jobs/filters).
+ * The filters are the feed's own (../jobs/filter-query): the server narrows
+ * the feed by them first, and the query is matched within what comes back.
  */
 
 type Search = Awaited<ReturnType<typeof getJobListings>>;
@@ -52,10 +53,10 @@ function matches(job: JobListing, needle: string) {
   return job.title.toLowerCase().includes(needle) || job.company.toLowerCase().includes(needle);
 }
 
-/** The live feed in these places, narrowed to the query. An error passes
+/** The live feed under these filters, narrowed to the query. An error passes
  *  through untouched. */
-async function search(query: string, places: string[]): Promise<Search> {
-  const feed = await getJobListings(places);
+async function search(query: string, filters: FeedFilters): Promise<Search> {
+  const feed = await getJobListings(filters);
   if (feed.error != null) return feed;
 
   const needle = query.toLowerCase();
@@ -94,16 +95,16 @@ function ResultCountSkeleton() {
 async function Results({
   results,
   query,
-  places,
+  filters,
 }: {
   results: Promise<Search>;
   query: string;
-  places: string[];
+  filters: FeedFilters;
 }) {
   const { jobs, error } = await results;
 
   if (error != null) {
-    const retry = new URLSearchParams([["q", query], ...places.map((p) => ["location", p])]);
+    const retry = new URLSearchParams([["q", query], ...filterEntries(filters)]);
     return <ListingsError error={error} retryHref={`/search?${retry}`} />;
   }
 
@@ -119,8 +120,8 @@ async function Results({
           </ButtonLink>
         }
       >
-        {places.length > 0
-          ? "Try a different title, company name or location, or browse every role in the feed."
+        {isFiltered(filters)
+          ? "Try a different title or company name, loosen a filter, or browse every role in the feed."
           : "Try a different title or company name, or browse every role in the feed."}
       </EmptyState>
     );
@@ -148,9 +149,9 @@ async function Results({
 }
 
 export default async function SearchPage({ searchParams }: PageProps<"/search">) {
-  const { q, location } = await searchParams;
-  const query = typeof q === "string" ? q.trim() : "";
-  const places = readPlaces(location);
+  const params = await searchParams;
+  const query = typeof params.q === "string" ? params.q.trim() : "";
+  const filters = readFilters(params);
 
   /* The heading and subtitle every state shares, at /jobs's sizes. */
   const subtitle = (
@@ -183,10 +184,10 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     );
   }
 
-  const results = search(query, places);
-  // Keys the boundaries below: a new query or a new set of places shows the
+  const results = search(query, filters);
+  // Keys the boundaries below: a new query or a new set of filters shows the
   // placeholders straight away.
-  const key = `${query}${placesQuery(places)}`;
+  const key = `${query}${filtersQuery(filters)}`;
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -216,11 +217,11 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
       {/* A container, so the facets switch on the row's own width, as on
           /jobs. */}
       <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={getJobLocations()} places={places} />
+        <JobFilters locations={getJobLocations()} filters={filters} />
       </div>
 
       <Suspense key={key} fallback={<ListingsSkeleton />}>
-        <Results results={results} query={query} places={places} />
+        <Results results={results} query={query} filters={filters} />
       </Suspense>
     </div>
   );

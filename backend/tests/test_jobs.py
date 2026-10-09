@@ -14,7 +14,14 @@ from fastapi.testclient import TestClient
 from app.db import get_session
 from app.main import app
 from app.models import dto
-from app.routers.jobs import location_options, offered_in, to_listing
+from app.routers.jobs import (
+    YEARLY,
+    JobFilters,
+    location_options,
+    matching,
+    offered_in,
+    to_listing,
+)
 from app.schemas.jobs import JobListing
 
 ROW = SimpleNamespace(
@@ -84,7 +91,7 @@ def test_row_without_a_date():
 
 
 def test_route_leaves_descriptions_out(no_database, monkeypatch):
-    async def fetch(db, limit, places):
+    async def fetch(db, limit, filters):
         return [to_listing(ROW, "long text")]
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
@@ -96,7 +103,7 @@ def test_route_leaves_descriptions_out(no_database, monkeypatch):
 def test_route_passes_the_limit(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, places):
+    async def fetch(db, limit, filters):
         seen.append(limit)
         return []
 
@@ -117,8 +124,8 @@ def test_a_feed_written_before_descriptions_still_parses():
 def test_route_passes_the_places(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, places):
-        seen.append(places)
+    async def fetch(db, limit, filters):
+        seen.append(filters.places)
         return []
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
@@ -175,4 +182,98 @@ def test_route_lists_locations(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_location_options", fetch)
     assert TestClient(app).get("/jobs/locations").json() == [
         {"code": "US", "label": "United States", "jobs": 3}
+    ]
+
+
+def _sql(clause):
+    return str(clause.compile(compile_kwargs={"literal_binds": True}))
+
+
+def test_no_filters_add_no_clauses():
+    assert matching(JobFilters()) == []
+
+
+def test_route_reads_every_filter(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    params = [
+        ("work_style", "remote"), ("work_style", "hybrid"),
+        ("experience", "internship"),
+        ("job_type", "full_time"),
+        ("posted_within", "7"),
+        ("min_pay", "45"), ("pay_per", "hour"),
+    ]
+    assert TestClient(app).get("/jobs", params=params).status_code == 200
+    (filters,) = seen
+    assert list(filters.work_styles) == [dto.work_style.remote, dto.work_style.hybrid]
+    assert list(filters.levels) == ["internship"]
+    assert list(filters.job_types) == [dto.job_type.full_time]
+    # $45 an hour is a full-time year's 2,080 hours of it.
+    assert filters.min_yearly_pay == 45 * 2080
+    ago = datetime.datetime.now(datetime.UTC) - filters.posted_since
+    assert datetime.timedelta(days=7) <= ago < datetime.timedelta(days=7, minutes=1)
+
+
+def test_a_yearly_minimum_is_taken_as_given(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters):
+        seen.append(filters.min_yearly_pay)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs?min_pay=80000").status_code == 200
+    assert seen == [80000]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "work_style=anywhere",
+        "experience=experienced",  # the feed holds intern and new-grad roles only
+        "job_type=internship",  # a career stage, not how a job is set up
+        "posted_within=0",
+        "min_pay=-5",
+        "min_pay=45&pay_per=month",
+    ],
+)
+def test_route_rejects_a_bad_filter(no_database, query):
+    assert TestClient(app).get(f"/jobs?{query}").status_code == 422
+
+
+def test_pay_compares_as_a_yearly_figure_in_dollars():
+    sql = " ".join(_sql(c) for c in matching(JobFilters(min_yearly_pay=93600.0)))
+    assert "job_postings.salary_currency = 'USD'" in sql
+    # The top of the range first, then a single amount, then a floor alone.
+    assert "coalesce(job_postings.salary_max, job_postings.salary, job_postings.salary_min)" in sql
+    assert "WHEN (job_postings.salary_period = 'hour') THEN 2080" in sql
+    assert "WHEN (job_postings.salary_period = 'month') THEN 12" in sql
+    assert ">= 93600.0" in sql
+
+
+def test_every_pay_period_has_a_yearly_factor():
+    # A period added to the enum without a factor would never match a pay filter.
+    assert set(YEARLY) == set(dto.salary_period)
+
+
+def test_each_filter_narrows_its_own_column():
+    sql = [
+        _sql(c)
+        for c in matching(
+            JobFilters(
+                work_styles=[dto.work_style.onsite],
+                levels=["new_grad"],
+                job_types=[dto.job_type.part_time, dto.job_type.contract],
+            )
+        )
+    ]
+    assert sql == [
+        "job_postings.work_style IN ('onsite')",
+        "job_postings.experience_level IN ('new_grad')",
+        "job_postings.job_type IN ('part_time', 'contract')",
     ]
