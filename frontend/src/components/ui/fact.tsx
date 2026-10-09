@@ -13,20 +13,29 @@ import { cn } from "@/lib/cn";
  * icon at full size and clips only the text, so a long location loses its tail
  * instead of squeezing its pin. That only works because the icon is `shrink-0`
  * and the row can be given a width by whatever lays it out.
+ *
+ * The value is ink and the glyph ink-meta: the value is what a reader came
+ * for, the glyph only says which fact it is. Both were ink-meta until
+ * 2026-10-09, and the job card's facts read as faint beside its title. `title` puts the
+ * whole value on the clipped text's hover, for a value that may not fit.
  */
 export function Fact({
   Icon,
+  title,
   className,
   children,
 }: {
   Icon: ComponentType<{ className?: string }>;
+  title?: string;
   className?: string;
   children: ReactNode;
 }) {
   return (
-    <span className={cn("text-note text-ink-meta flex min-w-0 items-center gap-1.5", className)}>
-      <Icon className="size-3.5 shrink-0" />
-      <span className="truncate">{children}</span>
+    <span className={cn("text-note text-ink flex min-w-0 items-center gap-1.5", className)}>
+      <Icon className="text-ink-meta size-3.5 shrink-0" />
+      <span title={title} className="truncate">
+        {children}
+      </span>
     </span>
   );
 }

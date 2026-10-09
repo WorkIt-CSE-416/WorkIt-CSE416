@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
 import {
@@ -53,13 +53,31 @@ import { Fact } from "@/components/ui/fact";
  * choices live in components/icons.tsx (workStyleIcon, LevelIcon), not here,
  * so the job page can draw the same glyph for the same fact as this card.
  *
- * THE FACTS ARE A RULED GRID, three columns wide (two on a body under 448px),
- * so the salary sits under the salary of the card above and a stack of cards
- * scans as a table. For a while they were a wrapping row, because a scraped
- * role stated only three facts and the grid's columns sat ~300px apart with
- * nothing between them. Now every card states all six, with NOT_LISTED in
- * place of what a board does not give, so the grid fills again. A remote
- * role's absent location is the one fact left out, and its row closes up.
+ * THE FACTS ARE TWO FIXED ROWS of three, so a fact sits in the same column
+ * on every card and a stack of cards scans as a table:
+ *
+ *   Location · Job type · Salary            where, what kind of job, its pay
+ *   Work style · Level · Start or Years     the rest
+ *
+ * A fact the posting doesn't give keeps its slot, empty (SLOTS below), so the
+ * salary of the card above still sits over this one's and every card is the
+ * same height. Salary is in the first row because it is what a seeker scans
+ * for next after where (asked for 2026-10-09), though 40% of scraped roles
+ * leave its slot empty; level moved down beside the start date it goes with.
+ * Job type sits before work style, as Jobright orders them (asked for the
+ * same day). On a body under
+ * 448px (two columns, a phone) the empty slots close up instead: columns that
+ * narrow don't line up across cards anyway, and holes would only waste room.
+ * For a while the facts were a wrapping row, because a scraped role stated
+ * only three and the grid's columns sat ~300px apart with nothing between
+ * them; the fixed slots are what made the grid hold up with gaps in it.
+ *
+ * THE TITLE STOPS AT TWO LINES. Scraped titles run to 110 characters ("…
+ * (Bangkok-based, Relocation Provided)"); a third line pushed the facts of
+ * one card below the others'. The whole title is the heading's `title`, so a
+ * hover shows it, and a fact cut short by its column shows its whole text the
+ * same way. A clamp hides overflow, so a `titleHref` link's focus ring is
+ * kept inside it by the heading's padding.
  *
  * Every field is a pre-formatted string, not a raw `job_postings` value: the
  * seeker feed formats real schema enums (see (seeker)/jobs/format.ts) while the
@@ -75,15 +93,13 @@ import { Fact } from "@/components/ui/fact";
  * title reads as a mistake rather than an affordance.
  *
  * A FACT CAN BE NOT LISTED, which is not the same as null. Null means the
- * posting has nothing there (a remote role has no office location), and the
- * fact is left out. NOT_LISTED means the posting should say it but its source
- * didn't: a scraped role's board gives no salary, job type or years. The card
- * keeps that fact's glyph in its usual place with "Salary not listed" beside
- * it, in italic, so every live card has the full shape of a stated posting
- * and shows where each value will land once the data exists, rather than
- * shrinking to the three facts a board happens to give. The words say it
- * outright; the italic is only a second cue, so the text stays ink-meta and
- * readable rather than fading under AA.
+ * posting has nothing there (a remote role has no office location).
+ * NOT_LISTED means the posting should say it but its source didn't: a scraped
+ * role's board gives no salary, job type or years. Both leave the slot empty
+ * on screen; a NOT_LISTED one also tells a screen reader ("Salary not
+ * listed"), since the gap alone says nothing to one. They used to print
+ * "Salary not listed" in italic on screen too, and on 55% of the feed's cards
+ * at least one slot did: the gaps read better than a column of apologies.
  *
  * THE ACTIONS ARE A RULED ROW ALONG THE BOTTOM, right-aligned, as on the
  * mock cards, at every width. Beside the title they crushed it when the
@@ -105,10 +121,8 @@ function isNotListed(value: unknown): value is NotListed {
   return typeof value === "object" && value !== null && "notListed" in value;
 }
 
-/** What each fact is called when it is not listed: "Salary not listed". Short
- *  enough to fit a grid column whole; "Years of experience not listed" was
- *  cut to "Years of experience n…" in the three-column grid, and the
- *  calendar glyph already says which years. */
+/** What a screen reader hears for a fact that is not listed: "Salary not
+ *  listed". */
 const FACT_NAME = {
   location: "Location",
   jobType: "Job type",
@@ -135,15 +149,15 @@ export type JobPostingCardData = {
    *  Printed after the company name, not as a fact. NOT_LISTED prints "Post
    *  date not listed", for a scraped role whose board never dated it. */
   timing: string | null | NotListed;
-  /** Null omits the fact entirely rather than printing it empty — the rule for
-   *  every nullable fact below. A fully remote posting has no location —
-   *  `workStyle` already says "Remote", and repeating it under the pin icon
-   *  reads as two different facts agreeing by coincidence rather than as one
-   *  fact. */
+  /** Null leaves the fact's slot empty, as NOT_LISTED does, but says nothing
+   *  to a screen reader either: the rule for every nullable fact below. A
+   *  fully remote posting has no location — `workStyle` already says
+   *  "Remote", and repeating it under the pin icon reads as two different
+   *  facts agreeing by coincidence rather than as one fact. */
   location: string | null | NotListed;
-  /** NOT_LISTED for a scraped role: job boards rarely state salary, job type
-   *  or work style, and a guessed "Full-Time" would be a fact no employer
-   *  stated, so the card says it is not listed instead. */
+  /** NOT_LISTED for a scraped role whose board doesn't state it: a guessed
+   *  "Full-Time" would be a fact no employer stated, so the slot stays
+   *  empty instead. */
   jobType: string | null | NotListed;
   salary: string | null | NotListed;
   workStyle: string | null | NotListed;
@@ -152,9 +166,55 @@ export type JobPostingCardData = {
    *  grad role). */
   minYearsExperience: string | null | NotListed;
   /** "Start in Summer 2027" — an internship's in place of years, since that is
-   *  what a student plans around. Omit for any other role. */
+   *  what a student plans around, in the same slot. Omit for any other role:
+   *  given at all, even as null, it takes the slot from `minYearsExperience`. */
   startTerm?: string | null | NotListed;
 };
+
+type FactName = keyof typeof FACT_NAME;
+type Slot = readonly [FactName, ComponentType<{ className?: string }>, FactValue];
+type FactValue = string | null | NotListed;
+
+/** The six slots in reading order, three to a row from 448px of body. See
+ *  "THE FACTS ARE TWO FIXED ROWS" above. */
+function slotsOf(job: JobPostingCardData): Slot[] {
+  const workStyle = isNotListed(job.workStyle) ? null : job.workStyle;
+  return [
+    ["location", PinIcon, job.location],
+    ["jobType", BriefcaseIcon, job.jobType],
+    ["salary", CoinIcon, job.salary],
+    ["workStyle", workStyleIcon(workStyle), job.workStyle],
+    ["experienceLevel", LevelIcon, job.experienceLevel],
+    job.startTerm === undefined
+      ? ["minYearsExperience", CalendarIcon, job.minYearsExperience]
+      : ["startTerm", CalendarIcon, job.startTerm],
+  ];
+}
+
+/** One slot of the grid. A stated fact is its glyph and value, with the whole
+ *  value on hover in case the column cuts it short. An empty one is the same
+ *  row drawn invisibly, so it keeps a row's height even when the whole row is
+ *  empty, and a NOT_LISTED one names itself to a screen reader. Under 448px
+ *  of body the empty slot steps out of the grid (`contents`, its stand-in
+ *  hidden; the sr-only text is absolutely placed, so it takes no cell) and
+ *  the facts after it close up. */
+function FactSlot({ name, Icon, value }: { name: FactName; Icon: Slot[1]; value: FactValue }) {
+  if (typeof value === "string") {
+    return (
+      <Fact Icon={Icon} title={value}>
+        {value}
+      </Fact>
+    );
+  }
+  return (
+    <span className="@max-md:contents">
+      <Fact Icon={Icon} className="invisible @max-md:hidden">
+        {" "}
+      </Fact>
+      {isNotListed(value) && <span className="sr-only">{FACT_NAME[name]} not listed</span>}
+    </span>
+  );
+}
 
 /** Ink at rest, brand on hover, eased rather than snapped. See the note on
  *  the title and company name. */
@@ -172,21 +232,6 @@ export function JobPostingCard({
   actions?: ReactNode;
   rail?: ReactNode;
 }) {
-  // Grid order, with a null dropped rather than printed empty; a NOT_LISTED
-  // keeps its cell.
-  const workStyle = isNotListed(job.workStyle) ? null : job.workStyle;
-  const facts = (
-    [
-      ["location", PinIcon, job.location],
-      ["jobType", BriefcaseIcon, job.jobType],
-      ["salary", CoinIcon, job.salary],
-      ["workStyle", workStyleIcon(workStyle), job.workStyle],
-      ["experienceLevel", LevelIcon, job.experienceLevel],
-      ["minYearsExperience", CalendarIcon, job.minYearsExperience],
-      ["startTerm", CalendarIcon, job.startTerm],
-    ] as const
-  ).filter(([, , text]) => text != null);
-
   return (
     <Card as="article" padding="none" className="@container overflow-hidden">
       {/* The rail goes beside the body once the card is 576px wide (its own
@@ -217,7 +262,13 @@ export function JobPostingCard({
                 )
               )}
 
-              <h3 className="text-title text-ink mt-1.5">
+              {/* p-0.5 inside -m-0.5: room for a link's focus ring, which
+                  the clamp's overflow would otherwise cut, at no change of
+                  place (mt-1 plus the padding is the 1.5 it was). */}
+              <h3
+                title={job.title}
+                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 line-clamp-2 p-0.5"
+              >
                 {job.titleHref ? (
                   <Link href={job.titleHref} className={INK_LINK}>
                     {job.title}
@@ -241,25 +292,11 @@ export function JobPostingCard({
             {headerAction}
           </div>
 
-          {facts.length > 0 && (
-            <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 @md:grid-cols-3">
-              {facts.map(([name, Icon, text]) =>
-                isNotListed(text) ? (
-                  <Fact key={name} Icon={Icon}>
-                    {/* pr-0.5 inside the clipping box: an italic's last
-                        letter leans past its own advance, and Fact's
-                        truncate clips at the box edge, which shaved the top
-                        off the "d" in "listed". */}
-                    <span className="pr-0.5 italic">{FACT_NAME[name]} not listed</span>
-                  </Fact>
-                ) : (
-                  <Fact key={name} Icon={Icon}>
-                    {text}
-                  </Fact>
-                ),
-              )}
-            </div>
-          )}
+          <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 @md:grid-cols-3">
+            {slotsOf(job).map(([name, Icon, value]) => (
+              <FactSlot key={name} name={name} Icon={Icon} value={value} />
+            ))}
+          </div>
 
           {actions && (
             <div className="border-border-subtle mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
