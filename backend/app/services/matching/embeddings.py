@@ -9,10 +9,13 @@ from collections.abc import Sequence
 import httpx        # general Python library for sending HTTP requests
 
 from app.config import get_settings
-from app.models.dto import ParsedResume
+from app.models.dto import EMBEDDING_DIMENSIONS, ParsedResume
 
 logger = logging.getLogger(__name__)
 
+# One model for every writer: laptops, the deployed API and the import all
+# share one database, and vectors from different models can't be compared.
+# Changing MODEL or DIMENSIONS means re-embedding every job and resume.
 MODEL = "gemini-embedding-001"
 
 DIMENSIONS = 768
@@ -67,12 +70,11 @@ async def embed(texts: Sequence[str]) -> list[list[float]] | None:
     }
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            # The key goes in a header, not ?key=
-            # logged URL.
+            # The key goes in a header, not ?key=, so it never shows up in a logged URL.
             response = await client.post(_URL, json=body, headers={"x-goog-api-key": key})
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
-        # 429 is the free tier's quota; the next
+        # 429 is the free tier's quota; the next import or save tries again.        
         logger.warning("Gemini embedding failed: %s %s", exc.response.status_code, exc.response.text[:300])
         return None
     except httpx.HTTPError as exc:

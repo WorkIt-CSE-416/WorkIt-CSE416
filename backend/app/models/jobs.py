@@ -15,10 +15,14 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Computed,
     desc,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+
+from pgvector.sqlalchemy import VECTOR
+from sqlalchemy.dialects.postgresql import TSVECTOR
 
 from app.db import Base
 from app.models import dto
@@ -77,6 +81,21 @@ class Job_Post(BaseModel):
                         server_default=dto.job_post_status.published.name)
     closes_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     posted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # The posting's meaning as a vector
+    embedding: Mapped[list[float] | None] = mapped_column(
+        VECTOR(dto.EMBEDDING_DIMENSIONS), deferred=True
+    )
+    # The title and description as stemmed search terms; matching searches
+    # it for the applicant's own skills. Postgres computes it and keeps it
+    # current, so nothing here ever writes it.
+    fts: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed(
+            "to_tsvector('english', coalesce(title, '') || ' ' || coalesce(description, ''))",
+            persisted=True,
+        ),
+        deferred=True,
+    )
 
     __table_args__ = (
         CheckConstraint(
