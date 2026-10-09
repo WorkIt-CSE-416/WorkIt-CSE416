@@ -118,7 +118,7 @@ export default function DisplayPage() {
 
       <Group
         title="Job Postings"
-        note="One card for the seeker's Jobs feed, its search results and the company composer's preview. A scraped role keeps every fact's place: what the board never said is drawn as its icon with an italic “not listed”, and the match rail waits for scoring."
+        note="One card for the seeker's Jobs feed, its search results and the company composer's preview. Its facts are two fixed rows (location, work style, level; then job type, salary, start or years), so each sits in the same column on every card. What the board never said leaves its slot empty, which a screen reader hears as “not listed”, and the match rail waits for scoring."
       >
         <Row name="<JobPostingCard>" role="A fixture role, every fact known, with its match rail">
           <div className="w-full">
@@ -153,7 +153,10 @@ export default function DisplayPage() {
             />
           </div>
         </Row>
-        <Row name="NOT_LISTED" role="A scraped role: what the board never stated, and no score yet">
+        <Row
+          name="NOT_LISTED"
+          role="A scraped role: what the board never stated keeps its slot, empty, and no score yet"
+        >
           <div className="w-full">
             <JobPostingCard
               job={{

@@ -33,8 +33,9 @@ import { MatchRail } from "./match-rail";
  * postings: six facts and the match rail.
  *
  * EVERY FACT IS A `job_postings` COLUMN, filled from the scraped row where the
- * scraper has it and marked NOT_LISTED where it does not, so the card states
- * the schema rather than whatever a board happened to give:
+ * scraper has it and marked NOT_LISTED where it does not, which the card
+ * draws as an empty slot in that fact's fixed place (see JobPostingCard), so
+ * every card has the schema's shape rather than whatever a board gave:
  *
  *   location_city/country  `location`, one string from the board; a remote
  *                          role with none has nothing to list, so it is left
