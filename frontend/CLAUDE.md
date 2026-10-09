@@ -529,8 +529,8 @@ its `data.ts` still holds the fixtures `filters.tsx` (client) and the
 yet: its id is the employer's apply URL and the detail view reads fixtures
 only, so its card's Apply Now goes to the employer's posting instead.
 A live card still has the full shape of a fixture card: its facts are two
-fixed rows of three (location, work style, level; then job type, salary,
-and start or years), so each fact sits in the same column on every card
+fixed rows of three (location, work style, salary; then job type, level,
+and start or years), each value in ink beside a grey glyph, so each fact sits in the same column on every card
 (KAN-157). Every `job_postings` fact the posting does not state (the scraper
 fills job type, salary and years when it does) is passed as `NOT_LISTED`
 from `components/job-posting-card.tsx` and leaves its slot empty; a screen

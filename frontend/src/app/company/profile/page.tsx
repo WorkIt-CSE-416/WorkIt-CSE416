@@ -175,8 +175,9 @@ function Hero() {
             {COMPANY.name}
           </h2>
 
-          {/* Not <Fact>: that one is text-note in ink-meta, which is a grey for
-              a card. This sits on a dark cover and has to be light. */}
+          {/* Not <Fact>: that one is text-note in ink with an ink-meta glyph,
+              colours for a white card. This sits on a dark cover and has to
+              be light. */}
           <p className="text-body text-on-brand/85 mt-1 flex items-center gap-1.5">
             <PinIcon className="size-3.5 shrink-0" />
             <span className="truncate">{COMPANY.location}</span>
