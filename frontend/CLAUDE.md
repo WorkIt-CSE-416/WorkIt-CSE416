@@ -95,7 +95,12 @@ src/app/          App Router routes, layouts, pages
                   filters, and Industry is gone (no data). As the row
                   narrows its facets step out one at a time, least used
                   first, and All Filters stays a normal button; never
-                  stretch it across the row. Each facet button wears the
+                  stretch it across the row. All Filters opens one panel
+                  (jobs/all-filters.tsx) with every facet's options in view
+                  as chips, no popups inside it (they landed left or right
+                  of their button by the room). Its picks are a draft until
+                  "Show N Jobs", which counts the draft as it changes
+                  (GET /jobs/count via jobs/actions.ts). Each facet button wears the
                   glyph the job card draws for its fact (Date Posted a
                   clock, since the card's calendar is the start date), and
                   inside a popup only Workplace's options carry glyphs,

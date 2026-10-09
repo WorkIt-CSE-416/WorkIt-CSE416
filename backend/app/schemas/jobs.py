@@ -100,3 +100,9 @@ class JobFacets(BaseModel):
     posted_within: list[FacetCount]
     visa: list[FacetCount]
     start_term: list[FacetCount]
+
+
+class JobCount(BaseModel):
+    """GET /jobs/count: how many jobs the filters keep, not capped by a limit."""
+
+    jobs: int

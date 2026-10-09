@@ -391,3 +391,22 @@ def test_route_lists_facets(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_facets", fetch)
     body = TestClient(app).get("/jobs/facets").json()
     assert body["work_style"] == [{"value": "remote", "jobs": 73}]
+
+
+def test_count_reads_the_same_filters(no_database, monkeypatch):
+    seen = []
+
+    async def count(db, filters):
+        seen.append(filters)
+        return 128
+
+    monkeypatch.setattr("app.routers.jobs.fetch_count", count)
+    body = TestClient(app).get("/jobs/count?work_style=remote&visa=not_ruled_out").json()
+    assert body == {"jobs": 128}
+    (filters,) = seen
+    assert list(filters.work_styles) == [dto.work_style.remote]
+    assert filters.visa == "not_ruled_out"
+
+
+def test_count_rejects_what_the_list_rejects(no_database):
+    assert TestClient(app).get("/jobs/count?job_type=internship").status_code == 422

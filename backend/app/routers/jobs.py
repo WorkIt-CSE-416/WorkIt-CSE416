@@ -66,7 +66,13 @@ from app.models import dto
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
-from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobLocationOption
+from app.schemas.jobs import (
+    FacetCount,
+    JobCount,
+    JobFacets,
+    JobListing,
+    JobLocationOption,
+)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -305,13 +311,7 @@ async def fetch_listing(db: AsyncSession, job_id: str) -> JobListing | None:
     return to_listing(row, row.description) if row else None
 
 
-@router.get(
-    "",
-    response_model=list[JobListing],
-    response_model_exclude={"__all__": {"description"}},
-)
-async def list_jobs(
-    limit: int = Query(50, ge=1, le=500),
+async def read_filters(
     # Repeated for several: ?location=US-CA&location=US-NY. Capped so a URL
     # can't turn into a thousand-clause query.
     location: list[PlaceCode] = Query([], max_length=60),
@@ -328,9 +328,12 @@ async def list_jobs(
     start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors", "not_ruled_out"] | None = None,
     db: AsyncSession = Depends(get_session),
-) -> list[JobListing]:
-    """Newest roles first. Empty until the first import has run."""
-    filters = JobFilters(
+) -> JobFilters:
+    '''
+    the job board's filters from the query, shared by GET /jobs and GET
+    /jobs/count so a count always describes the list it stands for
+    '''
+    return JobFilters(
         places=location,
         work_styles=work_style,
         levels=experience,
@@ -348,7 +351,37 @@ async def list_jobs(
         start_terms=(await terms_in(db, start_term) or ["\0"]) if start_term else (),
         visa=visa,
     )
+
+
+@router.get(
+    "",
+    response_model=list[JobListing],
+    response_model_exclude={"__all__": {"description"}},
+)
+async def list_jobs(
+    limit: int = Query(50, ge=1, le=500),
+    filters: JobFilters = Depends(read_filters),
+    db: AsyncSession = Depends(get_session),
+) -> list[JobListing]:
+    """Newest roles first. Empty until the first import has run."""
     return await fetch_listings(db, limit, filters)
+
+
+async def fetch_count(db: AsyncSession, filters: JobFilters) -> int:
+    '''how many published scraped jobs these filters keep, past any limit'''
+    return (await db.execute(
+        select(func.count()).select_from(Job_Post).where(_LISTED, *matching(filters))
+    )).scalar_one()
+
+
+@router.get("/count", response_model=JobCount)
+async def count_jobs(
+    filters: JobFilters = Depends(read_filters),
+    db: AsyncSession = Depends(get_session),
+) -> JobCount:
+    """How many jobs GET /jobs would list for the same filters, uncapped: the
+    All Filters panel's "Show 128 jobs"."""
+    return JobCount(jobs=await fetch_count(db, filters))
 
 
 @router.get("/locations", response_model=list[JobLocationOption])

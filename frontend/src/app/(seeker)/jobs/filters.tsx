@@ -6,10 +6,8 @@ import {
   type ComponentType,
   startTransition,
   use,
-  useId,
   useOptimistic,
   useState,
-  type FormEvent,
   type ReactNode,
 } from "react";
 
@@ -18,26 +16,14 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ClockIcon,
-  CoinIcon,
   FilterIcon,
   LevelIcon,
   PinIcon,
   VisaIcon,
   workStyleIcon,
-  CalendarIcon,
 } from "@/components/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/shadcn/sheet";
 import { Button, buttonClasses } from "@/components/ui/button";
-import { SegmentedToggle } from "@/components/ui/segmented-control";
 import {
   Select,
   SelectCheckboxItem,
@@ -45,7 +31,6 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { TextField } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 import {
@@ -54,15 +39,11 @@ import {
   FILTER_KEYS,
   filterEntries,
   JOB_TYPE_OPTIONS,
-  NO_FILTERS,
-  PAY_OPTIONS,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
-  isFiltered,
-  seasonLabel,
   type FeedFilters,
-  type PayPer,
 } from "./filter-query";
+import { AllFiltersPanel } from "./all-filters";
 import type { JobFacets, JobLocationOption } from "./listings";
 
 /**
@@ -95,9 +76,8 @@ import type { JobFacets, JobLocationOption } from "./listings";
  * the button doesn't. Glyphs are ink-meta, as on the card, and brand once the
  * facet is in use, with its label.
  *
- * Location and Salary are Popovers rather than Selects: Location for its two
- * panels (LocationFacet says why), Salary for its "At least" field
- * (SalaryFacet). Job Type is how the job is set up and Experience the career
+ * Location is a Popover rather than a Select, for its two panels
+ * (LocationFacet says why). Job Type is how the job is set up and Experience the career
  * stage, kept apart on purpose: "Internship" is only ever the second.
  */
 
@@ -169,7 +149,10 @@ function FacetPopup({ options, multiple }: { options: readonly Option[]; multipl
   const Item = multiple ? SelectCheckboxItem : SelectItem;
 
   return (
-    <SelectContent>
+    // Below the button and level with its left edge, like every popup in the
+    // row. Base UI's default lays the list over the button so the picked row
+    // sits on it, which put each facet's list somewhere different.
+    <SelectContent alignItemWithTrigger={false} align="start">
       {options.map((option) => (
         <Item key={option.value} value={option.value}>
           <span className="flex items-center gap-2">
@@ -278,7 +261,6 @@ function CheckRow({
   count,
   checked,
   current = false,
-  role = "checkbox",
   onToggle,
 }: {
   label: string;
@@ -286,14 +268,12 @@ function CheckRow({
   count?: number;
   checked: boolean;
   current?: boolean;
-  /** "radio" for one choice among the rows of a radiogroup (Salary). */
-  role?: "checkbox" | "radio";
   onToggle: () => void;
 }) {
   return (
     <button
       type="button"
-      role={role}
+      role="checkbox"
       aria-checked={checked}
       onClick={onToggle}
       className={cn(
@@ -309,7 +289,7 @@ function CheckRow({
         aria-hidden
         className={cn(
           "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center border transition-colors",
-          role === "radio" ? "rounded-full" : "rounded-[4px]",
+          "rounded-[4px]",
           checked && "border-primary bg-primary",
         )}
       >
@@ -515,175 +495,8 @@ function counted(
   }));
 }
 
-/** Start Date: the seasons internships start in ("Summer 2027"), in calendar
- *  order and only those not yet over, as GET /jobs/facets groups the terms
- *  postings use ("June 2027" is Summer 2027); any of them. Its options are
- *  the data's, so it stands disabled in its place until they arrive, as
- *  Location does. The glyph is the card's start-date calendar. */
-function StartDateFacet({
-  facets,
-  values,
-  onChange,
-  className,
-}: {
-  facets: Promise<JobFacets>;
-  values: string[];
-  onChange: (values: string[]) => void;
-  className?: string;
-}) {
-  return (
-    <Suspense
-      fallback={
-        <button
-          type="button"
-          disabled
-          className={facetTriggerClasses(values.length, false, className)}
-        >
-          <FacetLabel Icon={CalendarIcon} label="Start Date" active={false} />
-          <ChevronDownIcon className="text-muted-foreground size-4" />
-        </button>
-      }
-    >
-      <StartDateOptions facets={facets} values={values} onChange={onChange} className={className} />
-    </Suspense>
-  );
-}
-
-function StartDateOptions({
-  facets,
-  values,
-  onChange,
-  className,
-}: {
-  facets: Promise<JobFacets>;
-  values: string[];
-  onChange: (values: string[]) => void;
-  className?: string;
-}) {
-  const options = use(facets).start_term.map((t) => ({
-    value: t.value,
-    label: seasonLabel(t.value),
-    count: <JobCount n={t.jobs} />,
-  }));
-  return (
-    <Facet
-      Icon={CalendarIcon}
-      label="Start Date"
-      options={options}
-      values={values}
-      onChange={onChange}
-      className={className}
-    />
-  );
-}
-
-/** Which pay options to offer: an internship's by the hour and a new-grad
- *  role's by the year, as each is mostly paid, and both when the Experience
- *  facet picks neither or both. */
-function payUnitsFor(levels: FeedFilters["levels"]): PayPer[] {
-  if (levels.length === 1) return levels[0] === "internship" ? ["hour"] : ["year"];
-  return ["hour", "year"];
-}
-
-const PAY_UNIT_LABEL: Record<PayPer, string> = { hour: "Hourly", year: "Yearly" };
-
-/** Salary: a minimum, never a range (nobody wants to hide a job for paying
- *  more). The presets for the career stage picked, or both sets, as one
- *  radio group; then "At least", for a figure the presets don't have, with
- *  its unit on a segmented toggle. Picking the checked preset again clears
- *  it. The API compares every posting's pay as a yearly figure, so an
- *  hourly minimum still finds a role paid by the month (routers/jobs.py). */
-function SalaryFacet({
-  levels,
-  minPay,
-  payPer,
-  onChange,
-  className,
-}: {
-  levels: FeedFilters["levels"];
-  minPay: number | null;
-  payPer: PayPer;
-  onChange: (minPay: number | null, payPer: PayPer) => void;
-  className?: string;
-}) {
-  const id = useId();
-  const [open, setOpen] = useState(false);
-  const units = payUnitsFor(levels);
-  const preset = minPay != null && PAY_OPTIONS[payPer].some((o) => o.value === minPay);
-  // The field holds a custom minimum, never a preset's.
-  const [draft, setDraft] = useState(minPay != null && !preset ? String(minPay) : "");
-  const [draftPer, setDraftPer] = useState<PayPer>(payPer);
-  const amount = Number(draft);
-  const valid = draft.trim() !== "" && Number.isFinite(amount) && amount > 0;
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (valid) onChange(amount, draftPer);
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={facetTriggerClasses(minPay != null ? 1 : 0, open, className)}>
-        <FacetLabel Icon={CoinIcon} label="Salary" active={minPay != null && !open} />
-        {minPay != null && <span className="sr-only">, 1 selected</span>}
-        <ChevronDownIcon className="text-muted-foreground size-4" />
-      </PopoverTrigger>
-      <PopoverContent align="start" aria-label="Salary" className="w-64 flex-col gap-0 p-1">
-        {units.map((unit) => (
-          <div key={unit} role="radiogroup" aria-label={`${PAY_UNIT_LABEL[unit]} Minimum`}>
-            <PanelHeading>{PAY_UNIT_LABEL[unit]}</PanelHeading>
-            {PAY_OPTIONS[unit].map((option) => {
-              const checked = minPay === option.value && payPer === unit;
-              return (
-                <CheckRow
-                  key={option.value}
-                  role="radio"
-                  label={option.label}
-                  checked={checked}
-                  onToggle={() => {
-                    setDraft("");
-                    onChange(checked ? null : option.value, unit);
-                  }}
-                />
-              );
-            })}
-          </div>
-        ))}
-
-        <div className="bg-border my-1 h-px" />
-
-        <form onSubmit={submit} className="flex flex-col gap-2 px-2 pt-1 pb-2">
-          <TextField
-            id={`${id}-pay`}
-            label="At Least"
-            type="number"
-            inputMode="decimal"
-            min={1}
-            placeholder={draftPer === "hour" ? "42" : "95000"}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <div className="flex items-center justify-between gap-2">
-            <SegmentedToggle
-              label="Pay Unit"
-              options={[
-                { value: "hour", label: "/hr", ariaLabel: "Per hour" },
-                { value: "year", label: "/yr", ariaLabel: "Per year" },
-              ]}
-              value={draftPer}
-              onValueChange={(value) => setDraftPer(value as PayPer)}
-            />
-            <Button type="submit" size="sm" disabled={!valid}>
-              Apply
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-/** The facet row plus the All Filters sheet for everything that doesn't fit.
+/** The facet row plus the All Filters panel (./all-filters), which holds every
+ *  facet, and Salary, Start Date and Visa, which the row has no room for.
  *  `locations` is the Location facet's options, still loading; `filters` the
  *  picks the page was opened with (./filter-query). */
 export function JobFilters({
@@ -719,7 +532,7 @@ export function JobFilters({
   /** One facet's change, the others as they stand. */
   const set = (change: Partial<FeedFilters>) => apply({ ...shown, ...change });
 
-  // Each facet is drawn twice, in the row and in the sheet, with the same props.
+  // The row's facets, each given the width classes its place in the row needs.
   const facet = {
     jobType: (className: string) => (
       <Facet
@@ -773,14 +586,6 @@ export function JobFilters({
         className={className}
       />
     ),
-    startDate: (className: string) => (
-      <StartDateFacet
-        facets={facets}
-        values={shown.startTerms}
-        onChange={(startTerms) => set({ startTerms })}
-        className={className}
-      />
-    ),
     visa: (className: string) => (
       <Facet
         Icon={VisaIcon}
@@ -789,18 +594,6 @@ export function JobFilters({
         values={shown.visa != null ? [shown.visa] : []}
         onChange={([value]) => set({ visa: (value as FeedFilters["visa"]) ?? null })}
         multiple={false}
-        className={className}
-      />
-    ),
-    salary: (className: string) => (
-      <SalaryFacet
-        // Remounted on every change, so the "At least" field starts from
-        // the minimum the URL holds (empty after Clear All or a preset).
-        key={`${shown.minPay}-${shown.payPer}`}
-        levels={shown.levels}
-        minPay={shown.minPay}
-        payPer={shown.payPer}
-        onChange={(minPay, payPer) => set({ minPay, payPer })}
         className={className}
       />
     ),
@@ -816,7 +609,7 @@ export function JobFilters({
           Workplace from 448px, Experience 672, Date Posted 768, Job Type
           896 and Visa 1024. It used to drop all five at once below 896px and stretch All
           Filters across the row, which on a laptop with the sidebar open
-          left one wide bar where four filters had fit. The sheet holds
+          left one wide bar where four filters had fit. The panel holds
           every facet, and Salary and Start Date, which the row has no room for. */}
       {facet.location("w-36")}
       {facet.workplace("hidden w-36 @md:flex")}
@@ -835,45 +628,14 @@ export function JobFilters({
         All Filters
       </Button>
 
-      {/* Fully modal (Base UI's default), not `modal="trap-focus"`: only a
-          true modal locks page scroll, so the options list is the one thing
-          that scrolls while the sheet is open. */}
-      <Sheet open={allFiltersOpen} onOpenChange={setAllFiltersOpen}>
-        {/* Floats: inset from the viewport's right, top and bottom edges with
-            every corner rounded, instead of the stock full-height panel flush
-            against the right edge. */}
-        <SheetContent className="rounded-card border data-[side=right]:inset-y-3 data-[side=right]:right-3 data-[side=right]:h-auto">
-          <SheetHeader>
-            <SheetTitle className="text-subtitle font-semibold">All Filters</SheetTitle>
-            <SheetDescription>Narrow the feed by role, place and pay.</SheetDescription>
-          </SheetHeader>
-
-          {/* overscroll-contain: a fling past the end of the list stops here
-              instead of chaining on to the page behind. */}
-          <div className="flex flex-col gap-2 overflow-y-auto overscroll-contain px-4">
-            {facet.jobType("w-full")}
-            {facet.workplace("w-full")}
-            {facet.experience("w-full")}
-            {facet.datePosted("w-full")}
-            {facet.location("w-full")}
-            {facet.salary("w-full")}
-            {facet.startDate("w-full")}
-            {facet.visa("w-full")}
-          </div>
-
-          <SheetFooter className="flex-row justify-between">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!isFiltered(shown)}
-              onClick={() => apply(NO_FILTERS)}
-            >
-              Clear All
-            </Button>
-            <SheetClose render={<Button size="sm">Done</Button>} />
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      <AllFiltersPanel
+        open={allFiltersOpen}
+        onOpenChange={setAllFiltersOpen}
+        filters={shown}
+        locations={locations}
+        facets={facets}
+        onApply={apply}
+      />
     </>
   );
 }
