@@ -6,12 +6,12 @@ import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
-import { Activity } from "./activity";
-import { ACTIVITY, STATS, getUpNext } from "./data";
+import { STATS, getUpNext, appliedDays } from "./data";
 import { Headline } from "./headline";
 import { NewMatches, NewMatchesSkeleton } from "./new-matches";
 import { NextUpHero } from "./next-up-hero";
 import { RangeSwitch } from "./range-switch";
+import { Streak } from "./streak";
 import { UpNext } from "./up-next";
 import { Waiting } from "./waiting";
 
@@ -43,11 +43,13 @@ export const metadata: Metadata = {
  * it restated the headline numbers at the top in a second shape; the board
  * at /applications is where stages are worked.
  *
- * The range scopes the numbers and the activity; Next Up, Up Next, New
- * Matches and Waiting are about now. The range is read in the browser
- * (./range-switch.tsx): this page hands the headline and the chart every
- * range's figures, and a switch redraws them in place without asking the
- * server for the page again.
+ * The range scopes the numbers only. Activity is a daily streak over the past
+ * year, since a streak is about every day rather than a window of them; it
+ * used to be a weekly pace chart, which said less about the habit than a
+ * year of days does. The range is read in the browser (./range-switch.tsx):
+ * this page hands the headline every range's figures, and a switch redraws
+ * them in place without asking the server for the page again. Next Up, Up
+ * Next, New Matches and Waiting are about now.
  *
  * Most of it is fixtures (./data.ts) until the application tracker has a
  * backend; New Matches is the live feed.
@@ -88,7 +90,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
-        <Activity byRange={ACTIVITY} />
+        <Streak days={appliedDays()} />
         <UpNext items={later} />
       </div>
 
