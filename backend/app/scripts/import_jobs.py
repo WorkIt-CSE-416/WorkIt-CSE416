@@ -74,7 +74,7 @@ _FEED_COLUMNS = (
     "job_type", "min_years_experience", "start_term", "sponsorship",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 10.
+# asyncpg allows 32,767 parameters a statement; a row here binds 19.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.

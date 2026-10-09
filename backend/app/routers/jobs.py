@@ -185,8 +185,11 @@ class JobFilters:
     # posting matches when its pay range overlaps this one.
     min_yearly_pay: float | None = None
     max_yearly_pay: float | None = None
-    # An internship's start, as the posting names it ("Summer 2027").
-    start_terms: Sequence[str] = ()
+    # The start terms postings name ("Summer 2027") for the seasons asked for.
+    # None: any start date. Empty: seasons were asked for that no posting
+    # names, which matches nothing (never a placeholder value: Postgres
+    # refuses some, as a NUL byte once proved with a 500).
+    start_terms: Sequence[str] | None = None
     # "sponsors": the posting says it sponsors visas. "not_ruled_out": hide a
     # posting that says it doesn't, or wants US citizens only, and keep the
     # ones that say nothing, which is most of them (KAN-168).
@@ -234,7 +237,8 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         clauses.append(yearly_pay("top") >= filters.min_yearly_pay)
     if filters.max_yearly_pay is not None:
         clauses.append(yearly_pay("bottom") <= filters.max_yearly_pay)
-    if filters.start_terms:
+    if filters.start_terms is not None:
+        # An empty list renders as an always-false IN.
         clauses.append(Job_Post.start_term.in_(filters.start_terms))
     if filters.visa == "sponsors":
         clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
@@ -348,6 +352,9 @@ async def read_filters(
     the job board's filters from the query, shared by GET /jobs and GET
     /jobs/count so a count always describes the list it stands for
     '''
+    # A range given backwards is still the range meant, as the frontend reads it.
+    if min_pay is not None and max_pay is not None and min_pay > max_pay:
+        min_pay, max_pay = max_pay, min_pay
     return JobFilters(
         places=location,
         work_styles=work_style,
@@ -366,7 +373,7 @@ async def read_filters(
         ),
         # The seasons as the raw terms postings use, so the query stays a
         # plain IN. A season no posting names matches nothing, as it should.
-        start_terms=(await terms_in(db, start_term) or ["\0"]) if start_term else (),
+        start_terms=(await terms_in(db, start_term)) if start_term else None,
         visa=visa,
     )
 
@@ -447,14 +454,6 @@ def season_of(term: str) -> str | None:
         if month == 12:
             year += 1
     return f"{season}-{year}"
-
-
-def season_label(key: str) -> str:
-    '''"summer-2027" as "Summer 2027"; a bare year as itself'''
-    if "-" not in key:
-        return key
-    season, year = key.split("-")
-    return f"{season.title()} {year}"
 
 
 def season_order(key: str) -> tuple[int, int]:

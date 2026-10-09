@@ -81,7 +81,7 @@ class JobLocationOption(BaseModel):
 class FacetCount(BaseModel):
     """One filter option and how many published scraped jobs it holds."""
 
-    # The value GET /jobs takes for it: "remote", "full_time", "7", "Summer 2027".
+    # The value GET /jobs takes for it: "remote", "full_time", "7", "summer-2027".
     value: str
     jobs: int
 

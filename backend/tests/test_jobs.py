@@ -333,8 +333,15 @@ def test_a_season_no_posting_names_matches_nothing(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
     monkeypatch.setattr("app.routers.jobs.terms_in", terms_in)
     assert TestClient(app).get("/jobs?start_term=fall-2030").status_code == 200
-    # Not an empty filter, which would mean "any start date".
-    assert seen == [["\0"]]
+    # An empty list, not None, which would mean "any start date".
+    assert seen == [[]]
+    # And it renders as an always-false clause, not a value Postgres refuses.
+    sql = _sql(matching(JobFilters(start_terms=[]))[0])
+    assert "\x00" not in sql and "start_term IN" in sql
+
+
+def test_no_start_date_filter_adds_no_clause():
+    assert matching(JobFilters(start_terms=None)) == []
 
 
 @pytest.mark.parametrize("key", ["Summer 2027", "summer2027", "monsoon-2027", "27"])
@@ -437,3 +444,15 @@ def test_route_reads_a_pay_range(no_database, monkeypatch):
     assert TestClient(app).get("/jobs?min_pay=30&max_pay=50&pay_per=hour").status_code == 200
     assert TestClient(app).get("/jobs?max_pay=90000").status_code == 200
     assert seen == [(30 * 2080, 50 * 2080), (None, 90000)]
+
+
+def test_a_backwards_pay_range_is_the_range_meant(no_database, monkeypatch):
+    seen = []
+
+    async def count(db, filters):
+        seen.append((filters.min_yearly_pay, filters.max_yearly_pay))
+        return 0
+
+    monkeypatch.setattr("app.routers.jobs.fetch_count", count)
+    assert TestClient(app).get("/jobs/count?min_pay=100000&max_pay=50000").status_code == 200
+    assert seen == [(50000, 100000)]
