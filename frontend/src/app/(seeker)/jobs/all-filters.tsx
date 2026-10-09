@@ -5,6 +5,7 @@ import {
   use,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentType,
@@ -131,7 +132,7 @@ function PanelBody({
     <>
       {/* overscroll-contain: a fling past the end stops here instead of
           scrolling the page behind. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
+      <div data-panel-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
         <Section Icon={PinIcon} label="Location" first>
           <SearchPicker
             key={`places-${cleared}`}
@@ -383,6 +384,12 @@ function Chip({
   );
 }
 
+/** The dropdown's tallest (15rem), its shortest before it would rather flip,
+ *  and its gap from the field. */
+const LIST_MAX = 240;
+const LIST_MIN = 120;
+const LIST_GAP = 8;
+
 type PickOption = {
   value: string;
   label: string;
@@ -433,6 +440,25 @@ function SearchPicker({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<{ above: boolean; height: number }>({
+    above: false,
+    height: LIST_MAX,
+  });
+
+  // Where the list fits: below the field, as a dropdown opens, unless the
+  // panel's scroll area has less room there than above it (Start Date sits
+  // near the panel's foot), and never taller than the room it has. Measured
+  // each time it opens; the list used to run past the panel's edge, cut off.
+  useLayoutEffect(() => {
+    if (!open || !root.current) return;
+    const area = root.current.closest("[data-panel-scroll]") ?? document.documentElement;
+    const box = area.getBoundingClientRect();
+    const field = root.current.getBoundingClientRect();
+    const below = box.bottom - field.bottom - LIST_GAP;
+    const above = field.top - box.top - LIST_GAP;
+    const flip = below < LIST_MAX && above > below;
+    setPlace({ above: flip, height: Math.max(LIST_MIN, Math.min(LIST_MAX, flip ? above : below)) });
+  }, [open]);
   const input = useRef<HTMLInputElement>(null);
   const needle = search.trim().toLowerCase();
   const byValue = new Map(options.map((o) => [o.value, o]));
@@ -542,7 +568,11 @@ function SearchPicker({
             aria-label={label}
             // Presses anywhere in the list keep focus in the field.
             onPointerDown={(event) => event.preventDefault()}
-            className="bg-popover ring-foreground/10 absolute inset-x-0 top-full z-20 mt-1 flex max-h-60 flex-col overflow-y-auto overscroll-contain rounded-md p-1 shadow-md ring-1"
+            style={{ maxHeight: place.height }}
+            className={cn(
+              "bg-popover ring-foreground/10 absolute inset-x-0 z-20 flex flex-col overflow-y-auto overscroll-contain rounded-md p-1 shadow-md ring-1",
+              place.above ? "bottom-full mb-1" : "top-full mt-1",
+            )}
           >
             {shown.length === 0 ? (
               <p className="text-note text-ink-meta px-2 py-1.5">{empty}</p>

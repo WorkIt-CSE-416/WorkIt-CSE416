@@ -120,7 +120,9 @@ src/app/          App Router routes, layouts, pages
                   (SearchPicker in jobs/all-filters.tsx): a search field
                   whose checklist opens only from the field and floats
                   over the panel like a dropdown (it never pushes the
-                  sections down), a keyboard combobox (Up, Down, Enter,
+                  sections down; it opens upward, and no taller than the
+                  room, when the panel's scroll area has less room below
+                  than above, as at Start Date), a keyboard combobox (Up, Down, Enter,
                   Escape closing only the list), picks shown below as
                   pills with a cross, and nothing pre-picked. Clear All
                   remounts the pickers so typed text clears too. A picked
