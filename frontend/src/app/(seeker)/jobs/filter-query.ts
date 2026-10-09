@@ -8,7 +8,8 @@ import type { JobType, WorkStyle } from "./data";
  * The URL's names are `GET /jobs`' own (backend/app/routers/jobs.py), so a
  * page passes its query to the API as it stands: ?location= (repeated ISO
  * codes), ?work_style=, ?experience=, ?job_type= (repeated, any of),
- * ?posted_within= (days), and ?min_pay= with ?pay_per= (hour or year).
+ * ?posted_within= (days), and ?min_pay= and ?max_pay= with ?pay_per= (hour
+ * or year), a range either end of which may be open.
  *
  * READING DROPS WHAT THE API WOULD REFUSE. A value outside the options, a
  * malformed place or a 61st one is left out here rather than sent on, so a
@@ -27,8 +28,10 @@ export type FeedFilters = {
   jobTypes: JobType[];
   /** 1, 7 or 30 from the row; null for any time. */
   postedWithin: number | null;
-  /** In US dollars per `payPer`; null for any pay. */
+  /** A pay range in US dollars per `payPer`; null leaves that end open. A
+   *  posting matches when its own range overlaps it. */
   minPay: number | null;
+  maxPay: number | null;
   payPer: PayPer;
   /** Seasons as GET /jobs/facets lists them: "summer-2027", or a bare year
    *  ("2027") for postings that name no season. */
@@ -43,6 +46,7 @@ export const NO_FILTERS: FeedFilters = {
   jobTypes: [],
   postedWithin: null,
   minPay: null,
+  maxPay: null,
   payPer: "year",
   startTerms: [],
   visa: null,
@@ -113,6 +117,7 @@ export const FILTER_KEYS = [
   "job_type",
   "posted_within",
   "min_pay",
+  "max_pay",
   "pay_per",
   "start_term",
   "visa",
@@ -142,14 +147,22 @@ function pick<T>(value: string | string[] | undefined, options: { value: T }[]):
 /** A page's search params as filters. See "READING DROPS" above. */
 export function readFilters(params: Params): FeedFilters {
   const posted = Number(first(params.posted_within));
-  const pay = Number(first(params.min_pay));
+  const amount = (value: string | string[] | undefined) => {
+    const n = Number(first(value));
+    return Number.isFinite(n) && n > 0 && n <= MAX_PAY ? n : null;
+  };
+  // A range typed backwards is still the range meant.
+  const [minPay, maxPay] = [amount(params.min_pay), amount(params.max_pay)].sort((a, b) =>
+    a != null && b != null ? a - b : 0,
+  );
   return {
     places: [...new Set(all(params.location).filter((p) => PLACE.test(p)))].slice(0, MAX_PLACES),
     workStyles: pick(params.work_style, WORKPLACE_OPTIONS),
     levels: pick(params.experience, EXPERIENCE_OPTIONS),
     jobTypes: pick(params.job_type, JOB_TYPE_OPTIONS),
     postedWithin: DATE_POSTED_OPTIONS.some((o) => o.value === posted) ? posted : null,
-    minPay: Number.isFinite(pay) && pay > 0 && pay <= MAX_PAY ? pay : null,
+    minPay,
+    maxPay,
     payPer: first(params.pay_per) === "hour" ? "hour" : "year",
     startTerms: [...new Set(all(params.start_term).filter((t) => SEASON.test(t)))].slice(
       0,
@@ -169,11 +182,10 @@ export function filterEntries(filters: FeedFilters): [string, string][] {
     ...(filters.postedWithin != null
       ? [["posted_within", String(filters.postedWithin)] as [string, string]]
       : []),
-    ...(filters.minPay != null
-      ? [
-          ["min_pay", String(filters.minPay)] as [string, string],
-          ["pay_per", filters.payPer] as [string, string],
-        ]
+    ...(filters.minPay != null ? [["min_pay", String(filters.minPay)] as [string, string]] : []),
+    ...(filters.maxPay != null ? [["max_pay", String(filters.maxPay)] as [string, string]] : []),
+    ...(filters.minPay != null || filters.maxPay != null
+      ? [["pay_per", filters.payPer] as [string, string]]
       : []),
     ...filters.startTerms.map((t): [string, string] => ["start_term", t]),
     ...(filters.visa != null ? [["visa", filters.visa] as [string, string]] : []),

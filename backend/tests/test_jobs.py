@@ -410,3 +410,30 @@ def test_count_reads_the_same_filters(no_database, monkeypatch):
 
 def test_count_rejects_what_the_list_rejects(no_database):
     assert TestClient(app).get("/jobs/count?job_type=internship").status_code == 422
+
+
+def test_a_pay_range_matches_postings_whose_range_overlaps_it():
+    sql = " ".join(
+        _sql(c) for c in matching(JobFilters(min_yearly_pay=62400.0, max_yearly_pay=104000.0))
+    )
+    # The posting's top reaches the minimum...
+    assert "coalesce(job_postings.salary_max, job_postings.salary, job_postings.salary_min)" in sql
+    assert ">= 62400.0" in sql
+    # ...and its bottom is within the maximum.
+    assert "coalesce(job_postings.salary_min, job_postings.salary, job_postings.salary_max)" in sql
+    assert "<= 104000.0" in sql
+    # One currency clause, not one per end.
+    assert sql.count("salary_currency = 'USD'") == 1
+
+
+def test_route_reads_a_pay_range(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters):
+        seen.append((filters.min_yearly_pay, filters.max_yearly_pay))
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs?min_pay=30&max_pay=50&pay_per=hour").status_code == 200
+    assert TestClient(app).get("/jobs?max_pay=90000").status_code == 200
+    assert seen == [(30 * 2080, 50 * 2080), (None, 90000)]

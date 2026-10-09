@@ -26,11 +26,12 @@ leaves it out (models/CLAUDE.md, the resolver section).
 The job board's other filters narrow it the same way (JobFilters, KAN-170),
 each by a column every scraped row fills when the posting states it:
 ?work_style= and ?job_type= and ?experience= (repeated, any of), ?posted_within=
-(days), and ?min_pay= with ?pay_per= (hour or year). Pay is compared as a yearly
+(days), and ?min_pay= and ?max_pay= with ?pay_per= (hour or year), a range that
+matches any posting whose own pay range overlaps it. Pay is compared as a yearly
 figure, so an internship paid by the hour, week or month and a new-grad role
 paid by the year meet one threshold: hourly x 2,080, weekly x 52, monthly x 12,
-the same full-time year the frontend's options assume. A posting's top of range
-is its pay ("up to"), and only US dollars compare: 88% of stated pay is USD,
+the same full-time year the frontend's options assume. A posting's top meets the
+minimum and its bottom the maximum, and only US dollars compare: 88% of stated pay is USD,
 and the rest can't be weighed against a dollar threshold without exchange
 rates. A job that states no pay, or no value for a filtered column, is left out
 by that filter, as one with no location is by ?location=.
@@ -180,8 +181,10 @@ class JobFilters:
     levels: Sequence[str] = ()
     job_types: Sequence[dto.job_type] = ()
     posted_since: datetime.datetime | None = None
-    # A yearly figure in US dollars: ?min_pay=45&pay_per=hour is 93,600.
+    # Yearly figures in US dollars: ?min_pay=45&pay_per=hour is 93,600. A
+    # posting matches when its pay range overlaps this one.
     min_yearly_pay: float | None = None
+    max_yearly_pay: float | None = None
     # An internship's start, as the posting names it ("Summer 2027").
     start_terms: Sequence[str] = ()
     # "sponsors": the posting says it sponsors visas. "not_ruled_out": hide a
@@ -190,17 +193,22 @@ class JobFilters:
     visa: Literal["sponsors", "not_ruled_out"] | None = None
 
 
-def yearly_pay() -> ColumnElement[float]:
+def yearly_pay(end: Literal["top", "bottom"] = "top") -> ColumnElement[float]:
     '''
-    a posting's pay as a yearly figure: the top of its range (or its one
-    amount, or its floor when it gives only that), times its period's factor
+    one end of a posting's pay range as a yearly figure, times its period's
+    factor: the top (or its one amount, or its floor when it gives only that),
+    or the bottom the same way round
     '''
-    top = func.coalesce(Job_Post.salary_max, Job_Post.salary, Job_Post.salary_min)
+    amount = (
+        func.coalesce(Job_Post.salary_max, Job_Post.salary, Job_Post.salary_min)
+        if end == "top"
+        else func.coalesce(Job_Post.salary_min, Job_Post.salary, Job_Post.salary_max)
+    )
     factor = case(
         *((Job_Post.salary_period == period, n) for period, n in YEARLY.items()),
         else_=None,
     )
-    return top * factor
+    return amount * factor
 
 
 def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
@@ -218,9 +226,14 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         clauses.append(Job_Post.job_type.in_(filters.job_types))
     if filters.posted_since is not None:
         clauses.append(Job_Post.posted_at >= filters.posted_since)
-    if filters.min_yearly_pay is not None:
+    if filters.min_yearly_pay is not None or filters.max_yearly_pay is not None:
         clauses.append(Job_Post.salary_currency == "USD")
-        clauses.append(yearly_pay() >= filters.min_yearly_pay)
+    # Ranges overlap: the posting can pay at least the minimum (its top reaches
+    # it) and starts at or under the maximum (its bottom is within it).
+    if filters.min_yearly_pay is not None:
+        clauses.append(yearly_pay("top") >= filters.min_yearly_pay)
+    if filters.max_yearly_pay is not None:
+        clauses.append(yearly_pay("bottom") <= filters.max_yearly_pay)
     if filters.start_terms:
         clauses.append(Job_Post.start_term.in_(filters.start_terms))
     if filters.visa == "sponsors":
@@ -321,8 +334,10 @@ async def read_filters(
     job_type: list[dto.job_type] = Query([], max_length=3),
     # Days back from now: 1, 7 or 30 from the board, any whole number here.
     posted_within: int | None = Query(None, ge=1, le=365),
-    # In US dollars, per `pay_per`. Capped at a figure no posting reaches.
+    # A pay range in US dollars, per `pay_per`; either end may be left open.
+    # Capped at a figure no posting reaches.
     min_pay: float | None = Query(None, gt=0, le=10_000_000),
+    max_pay: float | None = Query(None, gt=0, le=10_000_000),
     pay_per: Literal["hour", "year"] = "year",
     # Seasons as GET /jobs/facets lists them ("summer-2027", or "2027"); any.
     start_term: list[SeasonKey] = Query([], max_length=12),
@@ -345,6 +360,9 @@ async def read_filters(
         ),
         min_yearly_pay=(
             min_pay * YEARLY[dto.salary_period(pay_per)] if min_pay is not None else None
+        ),
+        max_yearly_pay=(
+            max_pay * YEARLY[dto.salary_period(pay_per)] if max_pay is not None else None
         ),
         # The seasons as the raw terms postings use, so the query stays a
         # plain IN. A season no posting names matches nothing, as it should.

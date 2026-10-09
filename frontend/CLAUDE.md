@@ -86,8 +86,8 @@ src/app/          App Router routes, layouts, pages
                   /jobs and /search filter on the server by the query:
                   ?location= (repeated ISO codes, US or US-CA),
                   ?work_style=, ?experience=, ?job_type= (repeated),
-                  ?posted_within= (days), ?min_pay= with ?pay_per= (hour
-                  or year), GET /jobs' own names. jobs/filter-query.ts
+                  ?posted_within= (days), ?min_pay= and ?max_pay= with
+                  ?pay_per= (hour or year), GET /jobs' own names. jobs/filter-query.ts
                   reads and writes them for the pages and the row alike,
                   dropping any value the API would refuse, so a stale
                   link narrows by what was valid instead of erroring.
@@ -105,10 +105,13 @@ src/app/          App Router routes, layouts, pages
                   clock, since the card's calendar is the start date), and
                   inside a popup only Workplace's options carry glyphs,
                   the card's own three. Salary is a
-                  Popover: hourly presets for internships, yearly for new
-                  grads, both when neither or both are picked, and an
-                  "At Least" field; the API compares every posting's pay
-                  as a yearly figure in USD. Start Date offers seasons
+                  range, "$ 30 /hr – $ 50 /hr", either end open, with
+                  presets (hourly for internships, yearly for new grads)
+                  that fill the minimum; a posting matches when its own
+                  range overlaps it, compared as yearly figures in USD.
+                  Location in the panel is a search over a checklist of
+                  every place, picks shown below it as pills with a cross,
+                  and nothing pre-picked. Start Date offers seasons
                   (Summer 2027), grouped by the API from the terms
                   postings use; Visa offers Sponsors Visas and Hide Jobs
                   That Rule Me Out. Every option shows its job count from

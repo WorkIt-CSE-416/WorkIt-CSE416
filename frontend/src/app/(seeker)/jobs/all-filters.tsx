@@ -13,7 +13,9 @@ import {
 import {
   BriefcaseIcon,
   CalendarIcon,
+  CheckIcon,
   ClockIcon,
+  CloseIcon,
   CoinIcon,
   LevelIcon,
   PinIcon,
@@ -199,8 +201,9 @@ function PanelBody({
           <SalaryPicker
             levels={draft.levels}
             minPay={draft.minPay}
+            maxPay={draft.maxPay}
             payPer={draft.payPer}
-            onChange={(minPay, payPer) => set({ minPay, payPer })}
+            onChange={(minPay, maxPay, payPer) => set({ minPay, maxPay, payPer })}
           />
         </Section>
 
@@ -354,9 +357,11 @@ function Chip({
   );
 }
 
-/** Where: a search over every place that has a job, and the places as chips.
- *  With nothing typed it shows the picks and the busiest places; typing finds
- *  any country or state by name. */
+/** Where: a search box over a checklist of every place that has a job, each
+ *  country followed by its states, as GET /jobs/locations orders them; typing
+ *  narrows it by name. What is ticked shows under the list as pills, each with
+ *  a cross to take it off, so the picks stay in view however the list is
+ *  scrolled or searched. Nothing is suggested before the seeker looks. */
 function LocationPicker({
   options,
   values,
@@ -370,15 +375,9 @@ function LocationPicker({
   const [search, setSearch] = useState("");
   const needle = search.trim().toLowerCase();
   const byCode = new Map(options.map((o) => [o.code, o]));
-  const shown = needle
-    ? options.filter((o) => o.label.toLowerCase().includes(needle)).slice(0, 12)
-    : [
-        ...values.map((v) => byCode.get(v)).filter((o) => o != null),
-        ...[...options]
-          .filter((o) => !values.includes(o.code))
-          .sort((a, b) => b.jobs - a.jobs)
-          .slice(0, 8),
-      ];
+  const shown = needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options;
+  const toggle = (code: string) =>
+    onChange(values.includes(code) ? values.filter((v) => v !== code) : [...values, code]);
 
   return (
     <div className="flex w-full flex-col gap-2.5">
@@ -395,58 +394,110 @@ function LocationPicker({
           className="text-body text-ink placeholder:text-ink-meta min-w-0 flex-1 bg-transparent outline-none"
         />
       </div>
-      <div className="flex flex-wrap gap-2">
+
+      {/* overscroll-contain: the list's own scroll stops at its ends instead of
+          moving the panel behind it. */}
+      <div
+        role="group"
+        aria-label="Places"
+        className="border-border-subtle flex max-h-52 flex-col overflow-y-auto overscroll-contain rounded-md border p-1"
+      >
         {shown.length === 0 ? (
-          <p className="text-note text-ink-meta">No place by that name has jobs.</p>
+          <p className="text-note text-ink-meta px-2 py-1.5">No place by that name has jobs.</p>
         ) : (
-          shown.map((o) => (
-            <Chip
-              key={o.code}
-              pressed={values.includes(o.code)}
-              count={o.jobs}
-              onClick={() =>
-                onChange(
-                  values.includes(o.code)
-                    ? values.filter((v) => v !== o.code)
-                    : [...values, o.code],
-                )
-              }
-            >
-              {o.label}
-            </Chip>
-          ))
+          shown.map((o) => {
+            // A state sits indented under its country, unless a search has
+            // pulled it out of that order.
+            const nested = o.code.includes("-") && !needle;
+            const checked = values.includes(o.code);
+            return (
+              <button
+                key={o.code}
+                type="button"
+                role="checkbox"
+                aria-checked={checked}
+                onClick={() => toggle(o.code)}
+                className={cn(
+                  "hover:bg-accent focus-visible:bg-accent text-body flex w-full items-center gap-2.5 rounded-md py-1.5 pr-2 text-left outline-hidden",
+                  nested ? "pl-7" : "pl-2",
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+                    checked && "border-primary bg-primary",
+                  )}
+                >
+                  <CheckIcon className={cn("size-3.5", !checked && "opacity-0")} />
+                </span>
+                <span className={cn("min-w-0 flex-1 truncate", !nested && "font-medium")}>
+                  {o.label}
+                </span>
+                <span className="text-note text-ink-meta tabular-nums">
+                  {o.jobs.toLocaleString("en-US")}
+                </span>
+              </button>
+            );
+          })
         )}
       </div>
+
+      {values.length > 0 && (
+        <ul aria-label="Picked Places" className="flex flex-wrap gap-2">
+          {values.map((code) => {
+            const label = byCode.get(code)?.label ?? code;
+            return (
+              <li
+                key={code}
+                className="border-brand bg-brand-tint text-brand text-note inline-flex h-8 items-center gap-1 rounded-full border pr-1 pl-3 font-medium"
+              >
+                {label}
+                <button
+                  type="button"
+                  aria-label={`Remove ${label}`}
+                  onClick={() => toggle(code)}
+                  className="hover:bg-brand/10 focus-visible:ring-brand-ring flex size-6 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-90"
+                >
+                  <CloseIcon className="size-3.5" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
 
-/** Pay: the presets for the career stage picked (hourly for internships,
- *  yearly for new grads, both otherwise), or "at least" any figure, with its
- *  unit. A preset and the field are one choice: picking either replaces the
- *  other. */
+/** Pay as a range, in US dollars, by the hour or the year. The presets fill
+ *  the minimum for the career stage picked (hourly for internships, yearly for
+ *  new grads, both otherwise) and leave the maximum open; the fields take any
+ *  figures, either end left empty. A posting matches when its own pay range
+ *  overlaps this one, whatever unit it was posted in (routers/jobs.py). */
 function SalaryPicker({
   levels,
   minPay,
+  maxPay,
   payPer,
   onChange,
 }: {
   levels: FeedFilters["levels"];
   minPay: number | null;
+  maxPay: number | null;
   payPer: PayPer;
-  onChange: (minPay: number | null, payPer: PayPer) => void;
+  onChange: (minPay: number | null, maxPay: number | null, payPer: PayPer) => void;
 }) {
   const id = useId();
   const units: PayPer[] =
     levels.length === 1 ? (levels[0] === "internship" ? ["hour"] : ["year"]) : ["hour", "year"];
-  const preset = minPay != null && PAY_OPTIONS[payPer].some((o) => o.value === minPay);
-  const [draft, setDraft] = useState(minPay != null && !preset ? String(minPay) : "");
-
-  function typed(value: string, per: PayPer) {
-    setDraft(value);
-    const amount = Number(value);
-    onChange(value.trim() !== "" && Number.isFinite(amount) && amount > 0 ? amount : null, per);
-  }
+  const [minText, setMinText] = useState(minPay != null ? String(minPay) : "");
+  const [maxText, setMaxText] = useState(maxPay != null ? String(maxPay) : "");
+  const parse = (text: string) => {
+    const n = Number(text);
+    return text.trim() !== "" && Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const per = payPer === "hour" ? "/hr" : "/yr";
 
   return (
     <div className="flex w-full flex-col gap-3">
@@ -458,14 +509,15 @@ function SalaryPicker({
             </span>
           )}
           {PAY_OPTIONS[unit].map((o) => {
-            const checked = minPay === o.value && payPer === unit;
+            const checked = minPay === o.value && maxPay == null && payPer === unit;
             return (
               <Chip
                 key={o.value}
                 pressed={checked}
                 onClick={() => {
-                  setDraft("");
-                  onChange(checked ? null : o.value, unit);
+                  setMinText(checked ? "" : String(o.value));
+                  setMaxText("");
+                  onChange(checked ? null : o.value, null, unit);
                 }}
               >
                 {o.label}
@@ -474,19 +526,32 @@ function SalaryPicker({
           })}
         </div>
       ))}
+
       <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor={id} className="text-note text-ink-meta">
-          Or At Least
-        </label>
-        <input
-          id={id}
-          type="number"
-          inputMode="decimal"
-          min={1}
-          value={draft}
-          onChange={(event) => typed(event.target.value, payPer)}
-          placeholder={payPer === "hour" ? "42" : "95000"}
-          className="border-border text-body text-ink focus-visible:ring-brand-ring placeholder:text-ink-meta h-8 w-28 rounded-md border px-2.5 outline-none focus-visible:ring-2"
+        <MoneyField
+          id={`${id}-min`}
+          label="Minimum Pay"
+          placeholder={payPer === "hour" ? "30" : "80000"}
+          unit={per}
+          value={minText}
+          onChange={(text) => {
+            setMinText(text);
+            onChange(parse(text), parse(maxText), payPer);
+          }}
+        />
+        <span aria-hidden className="text-ink-meta">
+          –
+        </span>
+        <MoneyField
+          id={`${id}-max`}
+          label="Maximum Pay"
+          placeholder={payPer === "hour" ? "50" : "120000"}
+          unit={per}
+          value={maxText}
+          onChange={(text) => {
+            setMaxText(text);
+            onChange(parse(minText), parse(text), payPer);
+          }}
         />
         <SegmentedToggle
           label="Pay Unit"
@@ -495,9 +560,52 @@ function SalaryPicker({
             { value: "year", label: "/yr", ariaLabel: "Per year" },
           ]}
           value={payPer}
-          onValueChange={(value) => typed(draft, value as PayPer)}
+          // The figures stay; only what they are per changes.
+          onValueChange={(value) => onChange(parse(minText), parse(maxText), value as PayPer)}
         />
       </div>
+    </div>
+  );
+}
+
+/** A dollar amount: "$" before the figure and its unit after, inside one
+ *  field, so it reads as "$ 30 /hr" without a label to decode. */
+function MoneyField({
+  id,
+  label,
+  placeholder,
+  unit,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  unit: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="border-border focus-within:ring-brand-ring text-body flex h-8 w-36 items-center gap-1 rounded-md border px-2.5 focus-within:ring-2">
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <span aria-hidden className="text-ink-meta">
+        $
+      </span>
+      <input
+        id={id}
+        type="number"
+        inputMode="decimal"
+        min={1}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        className="text-ink placeholder:text-ink-meta min-w-0 flex-1 [appearance:textfield] bg-transparent tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <span aria-hidden className="text-note text-ink-meta">
+        {unit}
+      </span>
     </div>
   );
 }
