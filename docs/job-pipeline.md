@@ -305,7 +305,7 @@ can't be shown as matching a fact it never stated.
 | Piece | How it works |
 |---|---|
 | **Filters live in the address** | `/jobs?work_style=remote&role=quant`. A reload or a shared link keeps them. A value the API would refuse is dropped, not shown as an error. |
-| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, Visa, plus All Filters. As the window narrows, filters move into All Filters one at a time; Location always stays. |
+| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. |
 | **All Filters** | One panel with every option as chips. Changes are a draft until "Show N Jobs", whose number is counted live. |
 | **Counts beside options** | From `/jobs/facets` and `/jobs/locations`, cached for 5 minutes (they only change when an import runs). |
 | **Applying a filter** | The list dims at once while the narrowed list loads. |

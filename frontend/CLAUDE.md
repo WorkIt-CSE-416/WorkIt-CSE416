@@ -105,7 +105,8 @@ src/app/          App Router routes, layouts, pages
                   jobs/filters.tsx draws the row (KAN-170); every facet
                   filters, and Industry is gone (no data). As the row
                   narrows its facets step out one at a time, least used
-                  first, and All Filters stays a normal button; never
+                  first, Visa is never in the row (All Filters only, asked
+                  for 2026-10-10), and All Filters stays a normal button; never
                   stretch it across the row. Role (KAN-171: Software
                   Engineering, Data Science, AI & ML, Product Management,
                   Quantitative Finance, Hardware Engineering, the

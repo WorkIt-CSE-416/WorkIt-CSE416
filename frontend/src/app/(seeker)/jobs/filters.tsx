@@ -20,7 +20,6 @@ import {
   LevelIcon,
   PinIcon,
   RoleIcon,
-  VisaIcon,
   workStyleIcon,
 } from "@/components/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
@@ -41,7 +40,6 @@ import {
   filterEntries,
   JOB_TYPE_OPTIONS,
   ROLE_OPTIONS,
-  VISA_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "./filter-query";
@@ -530,7 +528,7 @@ function useHeldOnceFilled<T>(latest: Promise<T>, filled: (value: T) => boolean)
 }
 
 /** The facet row plus the All Filters panel (./all-filters), which holds every
- *  facet, and Salary, Start Date and Visa, which the row has no room for.
+ *  facet, and Salary, Start Date and Visa, which the row leaves to it.
  *  `locations` is the Location facet's options, still loading; `filters` the
  *  picks the page was opened with (./filter-query). */
 export function JobFilters({
@@ -639,17 +637,6 @@ export function JobFilters({
         className={className}
       />
     ),
-    visa: (className: string) => (
-      <Facet
-        Icon={VisaIcon}
-        label="Visa"
-        options={counted(VISA_OPTIONS, facets, "visa")}
-        values={shown.visa != null ? [shown.visa] : []}
-        onChange={([value]) => set({ visa: (value as FeedFilters["visa"]) ?? null })}
-        multiple={false}
-        className={className}
-      />
-    ),
   };
 
   return (
@@ -659,13 +646,13 @@ export function JobFilters({
           144px and the button about 110, so the row fits them on one line
           from these widths of row (the page's @container, so an open sidebar
           or Scout counts): Location and All Filters anywhere, then Role from
-          448px, Workplace 672, Experience 768, Date Posted 896, Job Type
-          1024 and Visa 1280 (seven need about 1,180, past 1152's @6xl).
+          448px, Workplace 672, Experience 768, Date Posted 896 and Job Type
+          1024.
           Role sits second, beside Location (KAN-171): with five disciplines
           in one feed, which kind of role is the first thing a seeker narrows
           by, and half the roles are software (806 of 1,635 kept postings
           on 2026-10-10), so a quant or product seeker otherwise scrolls past
-          them all. Visa, the facet that gives way, rests in the panel. The
+          them all. Visa is in the panel only (asked for 2026-10-10). The
           row used to drop all its facets at once below 896px and stretch All
           Filters across the row, which on a laptop with the sidebar open
           left one wide bar where four filters had fit. The panel holds
@@ -676,7 +663,6 @@ export function JobFilters({
       {facet.experience("hidden w-36 @3xl:flex")}
       {facet.datePosted("hidden w-36 @4xl:flex")}
       {facet.jobType("hidden w-36 @5xl:flex")}
-      {facet.visa("hidden w-36 @7xl:flex")}
 
       <Button
         variant="secondary"
