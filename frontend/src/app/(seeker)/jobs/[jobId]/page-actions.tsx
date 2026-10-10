@@ -84,8 +84,10 @@ export function ShareButton({ title }: { title: string }) {
       variant="outline"
       className="size-8 shrink-0"
       onClick={() =>
-        navigator.clipboard
-          .writeText(window.location.href)
+        // Inside a promise, so a missing clipboard (an http address on a
+        // phone, where navigator.clipboard is undefined) lands in the catch.
+        Promise.resolve()
+          .then(() => navigator.clipboard.writeText(window.location.href))
           .then(() => setSaid("Link copied"))
           .catch(() => setSaid("Couldn't copy the link"))
       }

@@ -347,7 +347,9 @@ The rules, each from a posting in `tests/test_details.py` (`TestSponsorship`):
   sponsor visas or take over sponsorship" (Enova) is a no that a loose "able to sponsor
   visas" read as yes; Samaya's "aren't able to successfully sponsor visas for every
   role" right after "We do sponsor visas!" is not a no. A negation stops at a comma
-  (Corvus's "preferred but not required, can sponsor visas" is a yes), and "whether or
+  that starts a new clause (Corvus's "preferred but not required, can sponsor visas"
+  is a yes) but not at one around an aside ("We are not, at this time, able to sponsor
+  visas" is a no; stopping at every comma read it as a yes), and "whether or
   not" and "without regard to sponsorship status" are not one. "Candidates who require
   sponsorship will not be considered" is a no; "when sponsorship is unavailable"
   (Xsolla, on gas fees) is nothing.

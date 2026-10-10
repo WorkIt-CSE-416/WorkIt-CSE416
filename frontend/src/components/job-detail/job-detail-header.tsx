@@ -77,8 +77,11 @@ export function JobDetailHeader({
   const timing =
     showDeadline && posting.closesAt ? (
       <ClosesOn iso={posting.closesAt} />
-    ) : (
+    ) : posting.postedAt ? (
       formatPosted(posting.postedAt)
+    ) : (
+      // A live posting its board never dated, as its card says.
+      "Post date not listed"
     );
 
   return (

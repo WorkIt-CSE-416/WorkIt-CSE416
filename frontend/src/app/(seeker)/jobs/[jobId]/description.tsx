@@ -17,7 +17,7 @@
  *     a lone or long line under one
  *
  * A run of short lines ("Python", "Go", "Rust") is a list, never a stack of
- * subheadings. Measured on live postings (2026-10-09): about half came out as
+ * subheadings, but a line ending ":" heads one whatever follows it. Measured on live postings (2026-10-09): about half came out as
  * thirty-odd one-line paragraphs before this read their subheadings.
  *
  * The scraper cuts a long posting at 8,000 characters and ends it " …"
@@ -72,8 +72,14 @@ export function toBlocks(text: string): Block[] {
   // A subheading stands alone with text after it: two heading-like lines in a
   // row are short list items ("Python", "Go"), and a last line heads nothing.
   const candidate = lines.map((line) => !BULLET.test(line) && headingLike(line));
+  // A line ending ":" says it heads what follows, so it stays one even when
+  // the first item under it is short ("Requirements:" then "Python"); that
+  // demoted 184 of 1,160 postings' subheadings (review, 2026-10-10).
   const heading = candidate.map(
-    (c, i) => c && i < lines.length - 1 && !candidate[i - 1] && !candidate[i + 1],
+    (c, i) =>
+      c &&
+      i < lines.length - 1 &&
+      (lines[i].endsWith(":") || (!candidate[i - 1] && !candidate[i + 1])),
   );
 
   const blocks: Block[] = [];
