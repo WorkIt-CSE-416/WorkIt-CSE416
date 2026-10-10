@@ -41,10 +41,12 @@ import { MatchRail } from "./match-rail";
  *   location_city/country  `location`, one string from the board; a remote
  *                          role with none has nothing to list, so it is left
  *                          out (Work Style says Remote), as on a fixture
- *   job_type               `job_type`, when the posting states it: how the
- *                          job is set up (Full-Time, Part-Time, Contract),
- *                          an internship's too. Never "Internship": that is
- *                          the level, beside it
+ *   job_type               `job_type`, when the posting states it (or the
+ *                          scraper's Full-Time for a silent new-grad role or
+ *                          summer internship): how the job is set up
+ *                          (Full-Time, Part-Time, Contract), an internship's
+ *                          too. Never "Internship": that is the level,
+ *                          beside it
  *   salary_*               `salary_*`, when the posting states pay
  *   work_style             `work_style`, when the board states it
  *   experience_level       `experience_level`, always: the scraper keeps

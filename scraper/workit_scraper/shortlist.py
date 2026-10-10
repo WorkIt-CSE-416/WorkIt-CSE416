@@ -187,8 +187,8 @@ class Role:
     department: str | None
     locations: tuple[str, ...]
     description: str | None
-    #: The first copy's facts, whole, with `work_style` as the card shows it:
-    #: stated, or inferred (see `_work_style`).
+    #: The first copy's facts, whole, with `work_style` and `job_type` as the card
+    #: shows them: stated, or inferred (see `_work_style` and `_job_type`).
     facts: Facts = field(default_factory=Facts)
 
     @property
@@ -259,7 +259,9 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 locations=locations,
                 description=next((job.description for job in postings if job.description), None),
                 facts=replace(
-                    facts, work_style=_work_style(postings, styles.get(postings[0].company))
+                    facts,
+                    work_style=_work_style(postings, styles.get(postings[0].company)),
+                    job_type=_job_type(tags, postings[0].title, facts),
                 ),
             )
         )
@@ -302,4 +304,37 @@ def _work_style(postings: list[Job], company: Counter[str] | None) -> str | None
     text = " ".join(f"{job.title} {job.location or ''} {job.description or ''}" for job in postings)
     if any(job.places for job in postings) and not FLEXIBLE.search(text):
         return "On site"
+    return None
+
+
+# Words that make an internship something other than a summer one: a term in the
+# school year, or a schedule that is not full days.
+NOT_SUMMER = re.compile(
+    r"\bfall\b|\bautumn\b|\bspring\b|\bwinter\b|\bsemesters?\b|\bpart[- ]time\b|\bco-?ops?\b",
+    re.I,
+)
+SUMMER = re.compile(r"\bsummer\b", re.I)
+
+
+def _job_type(tags: tuple[Tag, ...], title: str, facts: Facts) -> str | None:
+    """The card's job type, first answer wins:
+
+    1. what the posting states -- its board's field or a sentence (`Facts`);
+    2. "full_time" for a new-grad role;
+    3. "full_time" for a summer internship: its title or start term says Summer,
+       and neither names fall, spring, winter, a semester, part-time or a co-op.
+
+    Measured on the live feed (2026-10-10): 216 of 216 new-grad roles that state a
+    job type say full-time, and 71 of 74 summer internships (the other three:
+    part-time twice, contract once). Any other internship stays empty: school-year
+    terms and co-ops are often part-time. A stated type always wins, so this never
+    turns a part-time or contract posting into a full-time one.
+    """
+    if facts.job_type:
+        return facts.job_type
+    if Tag.NEW_GRAD in tags:
+        return "full_time"
+    words = f"{title} {facts.start_term or ''}"
+    if SUMMER.search(words) and not NOT_SUMMER.search(words):
+        return "full_time"
     return None

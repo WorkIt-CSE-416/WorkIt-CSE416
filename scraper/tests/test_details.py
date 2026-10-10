@@ -474,6 +474,52 @@ class TestCardWorkStyle:
         assert self.card(silent) == {"Software Engineer Intern": None}
 
 
+class TestCardJobType:
+    """Stated first; then Full-time for a new grad or a summer internship, which
+    nearly all are where they say (`shortlist._job_type`); nothing for any other."""
+
+    def card(self, title: str, facts: Facts | None = None) -> str | None:
+        job = greenhouse_job(
+            title=title,
+            first_seen_at="2026-10-05T09:00:00+00:00",
+            page=read_page(facts=facts),
+        )
+        [role] = pick([job], is_new=lambda j: False)
+        return role.facts.job_type
+
+    def test_a_silent_new_grad_is_full_time(self) -> None:
+        assert self.card("Software Engineer, New Grad") == "full_time"
+
+    def test_a_silent_summer_internship_is_full_time(self) -> None:
+        assert self.card("Software Engineer Intern (Summer 2027)") == "full_time"
+
+    def test_a_summer_start_term_counts(self) -> None:
+        facts = Facts(start_term="Summer 2027")
+        assert self.card("Software Engineer Intern", facts) == "full_time"
+
+    def test_other_internships_stay_empty(self) -> None:
+        for title in (
+            "Software Engineer Intern (Fall 2026)",
+            "Software Engineer Intern (Spring 2027)",
+            "Machine Learning Intern/Co-op (Summer 2027)",
+            "Part-Time Software Engineer Intern (Summer 2027)",
+            "Software Engineer Intern - Summer/Fall 2027",
+            "Software Engineer Intern (2027)",
+        ):
+            assert self.card(title) is None, title
+
+    def test_a_school_year_start_term_is_not_summer(self) -> None:
+        facts = Facts(start_term="Fall 2026")
+        assert self.card("Software Engineer Intern (Summer)", facts) is None
+
+    def test_a_stated_type_wins(self) -> None:
+        # The Voleon Group's "Software Engineer Intern - (Summer 2027)" is a contract.
+        for stated in ("part_time", "contract"):
+            facts = Facts(job_type=stated)
+            assert self.card("Software Engineer Intern - (Summer 2027)", facts) == stated
+            assert self.card("Software Engineer, New Grad", facts) == stated
+
+
 class TestStatedInterval:
     """A period the provider states is trusted: size alone cannot tell a month from a week."""
 

@@ -43,7 +43,8 @@ export type JobListing = {
   logo_url: string | null;
   /** The rest of the card, named after `job_postings`' columns. Null when the
    *  posting never states it — the scraper reads the board's own fields, then
-   *  the description, and guesses nothing. */
+   *  the description, and infers only by measured rules (job type Full-Time
+   *  for a silent new-grad role or summer internship). */
   job_type: JobType | null;
   /** One amount, or `salary_min`/`salary_max` for a range; all null when the
    *  posting states no pay. */

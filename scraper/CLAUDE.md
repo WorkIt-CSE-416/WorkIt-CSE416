@@ -176,7 +176,7 @@ internships both read "Software Engineer Intern (2027) · In-Office" until `Job.
 took the city from the posting page's `offices`. Two cards that look identical are
 usually this, not a dedupe bug -- `pick` keys on the apply URL on purpose (below).
 
-## The card's facts: the provider's field, then the description, never a default
+## The card's facts: the provider's field, then the description, then only a measured rule
 
 The app's card shows six facts: location, job type, salary, work style, level and
 years of experience -- or, on an internship, when it starts ("Start in Summer 2027"),
@@ -186,7 +186,7 @@ where it has one (Ashby `employmentType` and `compensation`, Lever `commitment` 
 `salary_*`, Recruitee `employment_type_code` and `salary`, BambooHR
 `employmentStatusLabel` and `compensation`), and otherwise from
 the description by `details.py`. What neither states stays null, and the card says
-"not listed" -- except work style, below.
+"not listed" -- except work style and job type, each inferred by a measured rule below.
 
 **Facts are read from the whole description, when it is fetched** (`details.read`, from
 `providers._page`),
@@ -227,6 +227,16 @@ every case in `tests/test_details.py` was seen in a real posting, except
   right 87% of the time, "On site" alone 70% -- the misses are hybrid jobs. Only
   specific hybrid wording counts as stated ("3 days a week in the office", "hybrid
   schedule"): a bare "hybrid" was wrong 38 times in 89 ("hybrid cloud").
+- **Job type is the other** (`shortlist._job_type`, KAN-171): what the posting states,
+  then "full_time" for a new-grad role or a summer internship (its title or start term
+  says Summer, and neither names fall, spring, winter, a semester, part-time or a
+  co-op). Measured on the live feed (2026-10-10): 216 of 216 new-grad roles that state
+  a type say full-time, and 71 of 74 summer internships (two part-time, one contract).
+  Every other internship stays empty: school-year terms and co-ops are often
+  part-time. A stated type always wins, so a part-time or contract posting is never
+  turned full-time. It runs in `pick`, not `details.read`, so `--offline` applies it to
+  stored postings with no re-read. On the cached feed it filled 467 of 1,635 roles
+  (empty job types went from 1,047 to 580).
 - **A start term comes from the title first.** "Software Engineer Intern (2027)" is the
   employer's label for its cohort. The description can name the season ("our Summer
   2027 program") or a start month, but only of the title's year; a year alone in a

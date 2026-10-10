@@ -620,7 +620,9 @@ A live card still has the full shape of a fixture card: its facts are two
 fixed rows of three (location, job type, salary; then work style, level,
 and start or years), each value in ink beside a grey glyph, so each fact sits in the same column on every card
 (KAN-157). Every `job_postings` fact the posting does not state (the scraper
-fills job type, salary and years when it does) is passed as `NOT_LISTED`
+fills job type, salary and years when it does, plus job type Full-Time for a
+silent new-grad role or summer internship, a measured rule in
+`scraper/CLAUDE.md`) is passed as `NOT_LISTED`
 from `components/job-posting-card.tsx` and leaves its slot empty; a screen
 reader still hears "Salary not listed". The slots used to print that in
 italic, and over half the feed's cards had at least one. Under 448px of card

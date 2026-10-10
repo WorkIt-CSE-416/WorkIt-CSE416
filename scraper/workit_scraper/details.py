@@ -91,8 +91,8 @@ def _amounts(currency: object, low: object, high: object) -> tuple[str, float, f
 class Facts:
     """The card's facts about one posting, each None when nothing states it.
 
-    `work_style` is what the posting itself states; `shortlist` may still infer
-    one for the card when it is None.
+    `work_style` and `job_type` are what the posting itself states; `shortlist`
+    may still infer either for the card when it is None.
     """
 
     job_type: str | None = None

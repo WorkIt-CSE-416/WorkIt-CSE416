@@ -49,8 +49,9 @@ class JobListing(BaseModel):
     description: str | None = None
     # The rest of the card, named after job_postings' columns. Each is None when
     # the posting never states it: the scraper reads the job board's own fields
-    # first, then the whole description, and guesses nothing. Defaulted so an
-    # older feed.json still parses.
+    # first, then the whole description, and infers only by measured rules
+    # (job_type full_time for a silent new-grad role or summer internship;
+    # scraper/CLAUDE.md). Defaulted so an older feed.json still parses.
     job_type: dto.job_type | None = None
     # One amount, or a min and max when the posting gives a range.
     salary: float | None = None

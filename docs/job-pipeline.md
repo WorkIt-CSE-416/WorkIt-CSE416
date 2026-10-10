@@ -144,14 +144,16 @@ mechanical, civil and building-services roles stay out.
 
 The rule everywhere: **use the hiring system's own field first, then the
 description's text, and never guess.** A missing fact stays empty rather than
-filled with a likely value.
+filled with a likely value. The two exceptions are rules measured on the live
+feed to be nearly always right: work style falls back to "On site", and job type
+to full-time for new-grad roles and summer internships.
 
 | Fact | Where it comes from | How often a job posting states it |
 |---|---|---|
 | Location | The company job board's location text | Almost always |
 | Work style (remote, hybrid, on-site) | The hiring system's field (Ashby, Lever, Workable, BambooHR); on Greenhouse, a location that says "Remote"; else the description | About 97% |
 | Experience level | The title (internship or new grad) | Always |
-| Job type (full-time, part-time, contract) | The hiring system's field, else the description | Most |
+| Job type (full-time, part-time, contract) | The hiring system's field, else the description; else full-time for a new-grad role or a summer internship (216 of 216 new-grad and 71 of 74 summer job postings that state one say full-time) | About 37% stated; about 65% with the full-time rule. Other internships stay empty |
 | Pay | The description ("$40-$50/hr"), never a funding amount | About 60% |
 | Start date | The description ("Summer 2027") | Most internships |
 | Years of experience | The description ("2+ years") | Some new-grad roles |
