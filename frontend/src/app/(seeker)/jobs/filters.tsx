@@ -365,7 +365,9 @@ function LocationFacet({
         className={facetTriggerClasses(ticks.length, open, className)}
       >
         <FacetLabel Icon={PinIcon} label="Location" active={ticks.length > 0 && !open} />
-        {ticks.length > 0 && <span className="sr-only">, {ticks.length} selected</span>}
+        {/* The URL's places, not the ticks: picking California ticks the
+            United States too, and should still say 1. */}
+        {values.length > 0 && <span className="sr-only">, {values.length} selected</span>}
         <ChevronDownIcon className="text-muted-foreground size-4" />
       </PopoverTrigger>
       <PopoverContent
@@ -430,7 +432,7 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
         <button
           type="button"
           disabled
-          className={facetTriggerClasses(ticksFrom(props.values).length, false, props.className)}
+          className={facetTriggerClasses(props.values.length, false, props.className)}
         >
           <FacetLabel Icon={PinIcon} label="Location" active={false} />
           <ChevronDownIcon className="text-muted-foreground size-4" />

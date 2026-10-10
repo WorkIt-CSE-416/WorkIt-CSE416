@@ -8,7 +8,7 @@ cd scraper
 python3 -m workit_scraper                          # scrape, then write the page and feed.json
 python3 -m workit_scraper --full                   # the same, quiet boards included
 python3 -m workit_scraper --offline                # no network; rewrite both from jobs.json
-python3 build_boards.py                            # regenerate boards.csv
+python3 build_boards.py                            # add the boards the lists name now
 uvx pytest                                         # the tests
 ```
 
@@ -384,12 +384,28 @@ rested quiet boards.
 
 ## `boards.csv` is a seed, not a conclusion
 
-`build_boards.py` regenerates it from public curated internship lists — regenerate
-rather than hand-editing rows. Those lists are kept by people who add a company when it
+`build_boards.py` grows it from public curated internship lists: run it rather
+than hand-editing rows. Those lists are kept by people who add a company when it
 starts hiring interns, so about a quarter of their boards yield an early-career
 software role, against roughly a twentieth of a random ATS registry. We take one fact
 from them — which ATS slug a company uses — and nothing else: every board still has to
 answer the employer's own API, and postings are always scraped from the employer.
+
+**The scheduled scrape grows it before every run** (KAN-167). Run once by hand on
+2026-09-27 and never again, the committed list had missed 72 companies the lists
+named by 2026-10-09: none of them was ever scraped. A run now adds whatever the lists
+name that day, so a new company is read on the next run without a commit. That is
+safe because the list only grows: a board already in the file is kept, a list that
+fails to download raises before anything is written, and the step is
+`continue-on-error`, so the scrape still runs on the committed list. Those additions
+live only in that run, so re-run `build_boards.py` and commit `boards.csv` now and
+then, which keeps a local run reading what the scheduled one does.
+
+**The internship lists are renamed each season** (`Summer2026-Internships` became
+`Summer2027-Internships`), and GitHub serves a renamed repo's files at the old address
+too, so an old name in `SOURCES` keeps working. Update it to the current name each
+season anyway; a list that starts a new repo instead of renaming would otherwise go
+unread.
 
 ## Filter changes need a real title
 
