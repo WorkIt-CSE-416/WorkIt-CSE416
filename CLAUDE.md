@@ -248,6 +248,12 @@ the failure it prevents. That is what these files are for.
 - Prettier owns formatting for code and runs from `frontend/`; it is configured
   to skip the markdown docs. The repo root's `CLAUDE.md` and `README.md` are
   outside its reach entirely.
+- **Job terms, in docs, tickets, PRs and messages for people:** a **hiring
+  system** (Greenhouse, Workable: an ATS) hosts **company job boards** (one
+  company's page of open jobs), which list **job postings**. Never call a
+  hiring system a "job board", and call WorkIt's own `/jobs` "the Jobs page".
+  The scraper's code keeps its older names (`board`, `provider`); don't rename
+  code for this.
 
 ## Project-local skill
 
