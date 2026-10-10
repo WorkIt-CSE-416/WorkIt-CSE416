@@ -1,4 +1,4 @@
-# Candidate job boards, last grown by build_boards.py on 2026-10-09.
+# Candidate job boards, last grown by build_boards.py on 2026-10-10.
 # Board slugs harvested from public apply URLs in the curated internship
 # lists at SimplifyJobs/Summer2027-Internships, SimplifyJobs/New-Grad-Positions
 # and vanshb03/Summer2027-Internships, plus boards verified by hand.
@@ -394,6 +394,7 @@ ashby,mercor,Mercor
 ashby,meridianlink,Meridian Link
 ashby,meshy,Meshy
 ashby,metaview,Metaview
+ashby,meter,Meter
 ashby,meticulous,Meticulous
 ashby,mindrobotics,Mind Robotics
 ashby,mintlify,Mintlify
@@ -419,6 +420,7 @@ ashby,nash,Nash
 ashby,nationgraph,NationGraph
 ashby,navi,Navi AI
 ashby,nectar-social,Nectar Social
+ashby,neko-health,Neko Health
 ashby,neocognition,NeoCognition
 ashby,neon-health,Neon Health
 ashby,netic,Cybernetic Labs
@@ -698,6 +700,48 @@ ashby,zettabyte-space,Zettabyte
 ashby,zilch,Zilch
 ashby,zip,Zip
 ashby,zuru,Zuru
+bamboohr,adidev,Adidev Technologies Inc
+bamboohr,alkira,Alkira
+bamboohr,alleghenycounty,Allegheny County
+bamboohr,apollomce,Apollo Mission Critical Engineering
+bamboohr,armstrongfluidtechnology,Armstrong Fluid Technology
+bamboohr,asuresoftware,Asure
+bamboohr,berkshiregrey,Berkshire Grey
+bamboohr,bga,BowerGroupAsia
+bamboohr,binsentry,BinSentry
+bamboohr,calpionplutus,Calpion/Plutus Health
+bamboohr,conetec,ConeTec Group
+bamboohr,contentguru,Content Guru
+bamboohr,dcbel,dcbel Inc
+bamboohr,dubak,Dubak Electrical
+bamboohr,eposnowgroup,Epos Now Group
+bamboohr,euna,EUNA Solutions
+bamboohr,fispan,FISPAN
+bamboohr,fullbay,Fullbay
+bamboohr,ihlgroup,IHL Group
+bamboohr,lexical,Lexical Intelligence
+bamboohr,lunaroutpost,Lunar Outpost
+bamboohr,marqueebrands,Marquee Brands
+bamboohr,mujin,Mujin
+bamboohr,nexthopai,Nexthop.ai
+bamboohr,onearc,"BAE Systems OneArc USA, Inc"
+bamboohr,optionsit,Options Technology
+bamboohr,pencor,Pencor Services
+bamboohr,phihong,PHIHONG USA
+bamboohr,pictonmahoney,Picton Mahoney Asset Management
+bamboohr,quiktrakcontractor,Quiktrak
+bamboohr,ruekertmielke,Ruekert & Mielke
+bamboohr,safransed,Safran
+bamboohr,selectorsoftware,Selector Software
+bamboohr,specteraerospace,Specter Aerospace
+bamboohr,subseacraft,Subsea Craft
+bamboohr,tggaccounting,TGG Accounting
+bamboohr,tnuck,Tuckernuck
+bamboohr,tricrobotics,TRIC Robotics
+bamboohr,unitedsmarttech,United Smart Tech
+bamboohr,upike,University of Pikeville
+bamboohr,versafile1,VersaFile
+bamboohr,vestalcorporation,Vestal Corporation
 greenhouse,10alabs,10a Labs
 greenhouse,10beauty,10Beauty
 greenhouse,1800contacts,1-800 Contacts
@@ -725,6 +769,7 @@ greenhouse,adelphirealworld,Adelphi Real World
 greenhouse,adswerveinc,Adswerve
 greenhouse,advancedspace,Advanced Space
 greenhouse,advancedtechnologyservices,Advanced Technology Services
+greenhouse,adyen,Adyen
 greenhouse,aegworldwide,AEG
 greenhouse,aevexaerospace,Aevex Aerospace
 greenhouse,affirm,Affirm
@@ -1455,6 +1500,7 @@ greenhouse,tebra,Tebra
 greenhouse,technergetics,Technergetics
 greenhouse,tegnainc,TEGNA
 greenhouse,teletrackingtechnologiesinc,TeleTracking
+greenhouse,tenet3,Tenet3
 greenhouse,tenon,Tenon
 greenhouse,tenstorrent,Tenstorrent
 greenhouse,tenstorrentuniversity,Tenstorrent
@@ -1773,6 +1819,7 @@ lever,patchmypc,Patch My PC
 lever,pelmorex,Pelmorex
 lever,pentagrp,Penta Group
 lever,penumbrainc,Penumbra Inc
+lever,perrknight,Perr&Knight
 lever,picklerobot,Pickle Robot
 lever,pigment,Pigment
 lever,pingwind,PingWind
@@ -1907,3 +1954,183 @@ lever,zeneducate,Zen Educate
 lever,zoox,Zoox
 lever,zopa,Zopa
 lever,zushealth,Zus Health
+recruitee,1x,1X
+recruitee,hardrockdigital,Hard Rock Digital
+workable,accora,Accora
+workable,aerones,Aerones
+workable,aetos-systems-inc,Aetos Systems
+workable,ageo,AGEO Autonomy
+workable,al-warren-oil-company-inc,Al Warren Oil Company
+workable,alexander-dennis,Alexander Dennis
+workable,alphax,AlphaHire
+workable,altom-transport,Altom Transport
+workable,amax-1,AMAX
+workable,arch-aerial-llc,Arch Aerial
+workable,arena-investors-lp,Arena Investors I Quaestor Advisors
+workable,arondite,Arondite
+workable,ascendis-pharma,Ascendis Pharma
+workable,avalore,Avalore
+workable,avk-seg-uk-ltd,AVK
+workable,bci-brands,BCI Brands
+workable,belmond-uk-ltd,Belmond
+workable,bestex-research,BestEx Research
+workable,bff,Best Friend Finance
+workable,bipventures,BIP Ventures
+workable,blacklinesafety,Blackline Safety
+workable,brady-martz,Brady Martz
+workable,cadillacf1team,Cadillac Formula 1 Team
+workable,capula-investment-management-ltd,Capula
+workable,charlotte-tilbury,Charlotte Tilbury
+workable,christie-lites-3,Christie
+workable,civica-uk-ltd-1,Civica
+workable,cloudfactory,CloudFactory
+workable,cmic,CMiC
+workable,cogna,Cogna
+workable,coldquanta,Infleqtion
+workable,connectprep,ConnectPrep
+workable,coretek-services,Coretek Services
+workable,cornerstone-research-group-inc,CRG Defense
+workable,credence,Credence
+workable,currier-plastics,Currier Plastics
+workable,cwill-us,CWILL
+workable,datavisor-jobs,DataVisor
+workable,dayshape,Dayshape
+workable,dcthomson,DC Thomson
+workable,debenhamsgroup,Debenhams Group
+workable,digitalmediaservices,DMS
+workable,disa-technologies,DISA Technologies
+workable,double-eleven,Double Eleven
+workable,eagle-seven,Eagle Seven
+workable,ecareers,e-Careers
+workable,elevate-semiconductor,Elevate Semiconductor
+workable,eluvio,Eluvio
+workable,employee-owned-holdings-inc,Employee Owned Holdings
+workable,enfos-inc,ENFOS
+workable,esgusa,ESG - USA
+workable,fasanara,Fasanara
+workable,fifty-five,Fifty-Five
+workable,financeit,Financeit
+workable,flexcompute,Flexcompute
+workable,flexion-robotics,Flexion Robotics
+workable,focus-group,Focus Group
+workable,focusrite,The Focusrite Group
+workable,fuse-integration,Fuse Integration
+workable,generation-west-virginia-1,Generation West Virginia
+workable,genetec-inc,Genetec
+workable,get-career-site,"Global Engineering & Technology, Inc. (GET)"
+workable,getbits,Bits
+workable,go-media,GO Media
+workable,grayce,Grayce
+workable,harlem-childrens-zone,Harlem Children's Zone
+workable,healthcorpsorg,HealthCorps
+workable,hokali,HOKALI
+workable,homey,Homey
+workable,hyperlight,HyperLight
+workable,indra-uk,Indra Group UK & Ireland
+workable,innovaccer-analytics,Innovaccer
+workable,interimage,InterImage
+workable,javelin-global-commodities,Javelin Global Commodities
+workable,jcc-greater-boston,JCC Greater Boston
+workable,jeffreym-consulting,JeffreyM Consulting
+workable,joinblink,Blink
+workable,kanbrick,Kanbrick
+workable,kestra-medical-technologies-inc,Kestra
+workable,kihomac,KIHOMAC
+workable,leap-legal-software,LEAP Legal Software
+workable,longshot-systems-ltd,Longshot Systems
+workable,lovey,Lovey
+workable,lovingly,Lovingly
+workable,luminance-1,Luminance
+workable,luxium-solutions-llc,Luxium Solutions
+workable,matternet,Matternet
+workable,mila-2,Montreal Institute for Learning Algorithms
+workable,mindex,Mindex
+workable,mistywest,MistyWest
+workable,motia,Motia
+workable,msr-fsr,MSR-FSR
+workable,murphy-research,Murphy Research
+workable,mustard-systems,Mustard Systems
+workable,navionsl,Navion Senior Solutions
+workable,new-flyer,New Flyer
+workable,nu-quantum,Nu Quantum
+workable,oceancomm,OceanComm
+workable,onlogic-inc,OnLogic
+workable,onyx-capital-group,Onyx Capital Group
+workable,openworks-engineering,OpenWorks Engineering
+workable,optisigns-inc,OptiSigns
+workable,optitrack,OptiTrack
+workable,oxford-quantum-circuits-8,Oxford Quantum Circuits (OQC)
+workable,paxton-access,Paxton Access
+workable,perryhomes,Perry Homes
+workable,planetart,PlanetArt
+workable,pony-dot-ai,pony.ai
+workable,praytell,Praytell
+workable,premium-merchant-funding-3,Premium Merchant Funding
+workable,prevail,Prevail
+workable,pronexus-1,ProNexus
+workable,q5-partners,Q5
+workable,qodeworld,qode.world
+workable,quadric-dot-i-o-inc,Quadric
+workable,raveaerospace,RAVE Aerospace
+workable,rebellion,Rebellion
+workable,red-rabbit-robotics,Red Rabbit Robotics
+workable,responsiveads-inc,ResponsiveAds
+workable,ripjar,Ripjar
+workable,rmf-engineering-inc,RMF Engineering
+workable,rokt,Rokt
+workable,rovex-technologies-corporation,Rovex Technologies
+workable,rystad-energy,Rystad Energy
+workable,saalex,Saalex
+workable,scitec,SciTec
+workable,scout-clean-energy,Scout Clean Energy
+workable,seeq,Seeq
+workable,sei,Stockholm Environment Institute - U.S.
+workable,semios,The Semios Group
+workable,sigmadefense,Sigma Defense
+workable,skygig,SkyGig
+workable,slip-robotics,Slip Robotics
+workable,softheon,Softheon
+workable,solirius-consulting-1,Solirius Reply
+workable,somerce,Somerce
+workable,sorting-robotics,Sorting Robotics
+workable,staffordgray,Stafford Gray
+workable,starling-bank,Starling Bank
+workable,swoon-editions,Swoon Editions
+workable,sword-group,Sword Group
+workable,syntiant,Syntiant
+workable,szns,SZNS Solutions
+workable,tarte-inc,tarte cosmetics
+workable,tecsa,Tecsa
+workable,teguar-corporation,Teguar
+workable,terabase-energy,Terabase
+workable,teserac-inc,Teserac
+workable,texas-sports-academy-main,Texas Sports Academy
+workable,the-anywhere-company,The Anywhere
+workable,theshipyard,The Shipyard
+workable,thingtrax,Thingtrax
+workable,thorlabs,Thorlabs
+workable,tickpick,TickPick
+workable,tmeic-corporation-americas,TMEIC
+workable,tokamak-energy,Tokamak Energy
+workable,tp-link-usa-corp,TP-Link Systems
+workable,trexquant,Trexquant
+workable,trycaddi,Caddi Workflow Automation
+workable,turabify-co,Turabify
+workable,twgai,TWG Global
+workable,twocircles,Two Circles
+workable,ubds,UBDS Group
+workable,validus-risk-management,Validus Risk Management
+workable,valsoft-corp,Valsoft Corporation
+workable,vanguard-ems-inc,Vanguard EMS
+workable,vectoratomic,Vector Atomic
+workable,viewline-ventures,Viewline Ventures
+workable,vortexa,Vortexa
+workable,wallstreetquants,WallStreetQuants
+workable,we-are-social-1,We Are Social
+workable,western-magnetics,Western Magnetics
+workable,willis-aviation,Willis Aviation
+workable,xodus-group,Xodus Group
+workable,zaber,Zaber Technologies
+workable,zaizi,Zaizi
+workable,zego,Zego
+workable,zippd,Zippd

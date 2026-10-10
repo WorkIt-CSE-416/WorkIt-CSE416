@@ -36,31 +36,34 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 | `logos.py` | each company's logo, read once off its job board's page |
 | `__main__.py` | the thread pool and the two commands |
 
-All three providers return a whole board in one request, so there is no pagination.
+Every provider returns a whole board in one request, so there is no pagination.
 
-## A Greenhouse posting's own page is read once, and only for kept postings
+## Some postings' own pages are read once, and only for kept postings
 
 What a posting's own text says is one value, `providers.Page`: the description
 (plain text, cut to `DESCRIPTION_CHARS` for Scout), the card's `details.Facts`,
-and on Greenhouse the posting's offices. Lever and Ashby send it with the board's
-list, so their `Job.page` is rebuilt on every read. Greenhouse does not: its
-`content=true` would send every posting's full HTML, hundreds of megabytes a run
-to describe the ~2% we keep. So a Greenhouse listing has `page=None`, and
-`__main__.with_page` reads each *kept* posting's own page once (with
-`pay_transparency=true`), through the same robots and pacing. A posting whose page
-fails or is disallowed simply has none.
+and on Greenhouse the posting's offices. Lever, Ashby and Recruitee send it with the
+board's list, so their `Job.page` is rebuilt on every read. Greenhouse, Workable and
+BambooHR do not (`providers.JOB_URL`). Greenhouse's `content=true` would send every
+posting's full HTML, hundreds of megabytes a run to describe the ~2% we keep;
+Workable's widget has no work model or pay; BambooHR's list has no description,
+date or pay at all. So their listings have `page=None`, and `__main__.with_page`
+reads each *kept* posting's own page once (`providers.describe`), through the same
+robots and pacing. A posting whose page fails or is disallowed simply has none.
 
 **The store carries a `Page` forward whole: `job.page or old.page`.** That one rule is
 the point of the model. It used to be nine flat fields carried one by one, and two
 bugs came of it: a Greenhouse listing's title-only "2027" overwrote the page's
 "Summer 2027", and Strada's internship stayed "full-time" after Ashby changed it.
-Ashby and Lever always bring a fresh page, so theirs always wins.
+Ashby, Lever and Recruitee always bring a fresh page, so theirs always wins.
+`posted_at` is carried the same way, for BambooHR, whose date is only on the page.
 
 `Page.version` is the `providers.PAGE_VERSION` it was read under, and `with_page`
 reads again any whose version is older. **Bump `PAGE_VERSION` whenever a `Page`
 starts holding something new**, or postings already stored never get it; the bump
-costs one read per kept Greenhouse posting, once. `with_page` only ever sees postings
-a board just listed, so one that has left its board is never asked for.
+costs one read per kept Greenhouse, Workable and BambooHR posting, once. `with_page`
+only ever sees postings a board just listed, so one that has left its board is never
+asked for.
 
 That carrying forward means **changing `DESCRIPTION_CHARS` does not re-cut
 Greenhouse descriptions already stored.** After changing it, clear them so the
@@ -92,9 +95,63 @@ still needs no install. `[tool.pytest.ini_options]` sets `pythonpath = ["."]` be
 3. Its name in `FETCHERS`.
 4. Its apply-URL pattern in `build_boards.PATTERNS`, or no board of it ever reaches
    `boards.csv`.
+5. If its list leaves out the description or a fact the posting's own page has: the
+   page's URL in `JOB_URL` and a `describe_<ats>` in `describe`'s table.
+6. If its board page has a square logo: `logos.PAGE` and `logos.PATTERN`, and the
+   image host in `frontend/next.config.ts` (see Logos below).
+7. If each company is its own subdomain: its domain in `polite.SHARED_PACE`.
 
 Read the provider's `robots.txt` before writing anything. SmartRecruiters is absent
 because it disallows us, and that is the whole reason.
+
+### Workable, Recruitee and BambooHR (KAN-171)
+
+Added 2026-10-10. All three allow us: `apply.workable.com` disallows nothing, each
+`{company}.recruitee.com` only `/v/` and each `{company}.bamboohr.com` only its embed
+scripts. Each reader's test (`tests/test_providers.py`) is built from that day's real
+responses.
+
+What they added that day, on a run with no store yet (so every board read): the
+curated lists named 178 Workable boards, 42 BambooHR and 2 Recruitee (1X has since
+left Recruitee), and all the rest answered. They held 4,858, 1,487 and 58 postings,
+and 34, 18 and 0 roles reached the feed (of 1,217). Recruitee is that small because
+nine of the lists' ~37,000 apply links point at it, at two companies; it stays
+because a board costs one request a run. The run took 3.4 minutes
+the second time, still Lever's pace; the 45 extra robots.txt reads add 7.5 seconds up
+front, read one after another.
+
+- **Workable** lists through the careers widget Workable documents for embedding
+  (`/api/v1/widget/accounts/{slug}`) and reads a kept posting's page from
+  `/api/v2/accounts/{slug}/jobs/{shortcode}`, what its own careers page reads. Only
+  the page says hybrid (`workplace`) and pay (`salary_from`, `salary_to`,
+  `salary_frequency`); the widget has just a `telecommuting` flag. The widget lists
+  a job once per location under one shortcode (Trexquant's C++ engineer: a Stamford
+  row and a New York row), so rows are merged on it. A location marked `hidden`
+  stays hidden, though the row's top-level city still names it (Hugging Face's
+  "EMEA Remote" roles hide Paris). `published_on` is the date, not `created_at`:
+  Flexcompute's CFD developer was created in 2024 and posted in 2026.
+- **Recruitee** sends everything in one list (`/api/offers/`). The location is the
+  place names the employer typed (`locations[].name`); the split city and state
+  beside each are a form's defaults (Hard Rock Digital's "United States" has the
+  city "United States" in Florida), and `location` is just "Remote job" on any
+  remote posting. Three work-style flags can be set together; remote wins, since a
+  job that may be done remotely is what a remote filter is for. Salary amounts are
+  strings. A company that left Recruitee (1X) still answers `/api/offers/` with a
+  404, but its robots.txt redirects to recruitee.com, which `polite` reads as
+  disallow, so such a board shows as "skipped, robots.txt disallows us", not "no
+  such board". Harmless (it has nothing to list) and left that way.
+- **BambooHR** lists `/careers/list` and reads a kept posting's
+  `/careers/{id}/detail` for its description, `datePosted`, `locationType` (`0` on
+  site, `1` remote, `2` hybrid: read off postings that say which) and
+  `compensation`, which is free text ("$90,000 to $115,000", "$25-$30/hour"): it is
+  given a "Compensation:" label and read by `details.pay`. A slug that is not a
+  board redirects to www.bamboohr.com instead of a 404, which `bamboohr()` turns
+  into `BoardNotFound`.
+
+Only Workable's logos are read (below). BambooHR's header logo is served as
+`application/octet-stream` from numbered hosts (`images7.bamboohr.com`), which
+next/image may refuse, and Recruitee's sits inside a 1 MB board page for the one
+board we read; their cards show initials until someone checks both.
 
 **A 404 means the board does not exist. A 200 carrying an empty list means a real board
 with nothing open right now.** Raise `BoardNotFound` for the first and return `[]` for
@@ -104,10 +161,12 @@ hiring", which nobody notices.
 **Providers disagree about types.** Lever sends `createdAt` as an `int` in some records
 and a numeric string in others; trusting one shape silently dropped every Lever board on
 the first live run. `_iso()` takes `object` and narrows on purpose — normalise through
-it rather than reading a provider field directly.
+it rather than reading a provider field directly. Workable and BambooHR send a bare
+date and Recruitee "2026-10-08 10:34:56 UTC"; a time with no zone is UTC, never the
+machine's own.
 
-**They also disagree about what they publish at all.** Ashby and Lever state a work
-model; Greenhouse has no field for one, so a Greenhouse posting states one only when
+**They also disagree about what they publish at all.** Ashby, Lever, Recruitee,
+BambooHR and Workable (on its page) state a work model; Greenhouse has no field for one, so a Greenhouse posting states one only when
 its location *is* a work model -- Cloudflare names every location "In-Office" -- or a
 sentence says so. What the card shows when nothing states it is decided in
 `shortlist`; see the card's facts below.
@@ -123,7 +182,9 @@ The app's card shows six facts: location, job type, salary, work style, level an
 years of experience -- or, on an internship, when it starts ("Start in Summer 2027"),
 since nobody asks an intern for years. Each is filled from the provider's own field
 where it has one (Ashby `employmentType` and `compensation`, Lever `commitment` and
-`salaryRange`, Greenhouse `pay_input_ranges` and board metadata), and otherwise from
+`salaryRange`, Greenhouse `pay_input_ranges` and board metadata, Workable `type` and
+`salary_*`, Recruitee `employment_type_code` and `salary`, BambooHR
+`employmentStatusLabel` and `compensation`), and otherwise from
 the description by `details.py`. What neither states stays null, and the card says
 "not listed" -- except work style, below.
 
@@ -359,6 +420,11 @@ Every request goes through `web.get` and, before it, `polite.Robots` — includi
   asks for one second) and holds `DEFAULT_DELAY_S` against origins that publish none.
   Greenhouse publishes none, and across ~1,800 boards at eight in flight we would
   otherwise run at roughly 60 requests a second. Keep it in the path of every fetch.
+- **A provider is paced as one host even when each company is its own origin.**
+  Recruitee and BambooHR serve every board from `{company}.<provider>.com`, so
+  per-origin pacing alone would let a lane's eight workers hit one provider eight
+  boards at a time. `polite.SHARED_PACE` gives all of a provider's subdomains one
+  lock; each still has its own robots.txt, read up front like any other.
 - `web.get` refuses a redirect to another origin, since robots.txt was checked for
   the one we asked for.
 
@@ -564,7 +630,7 @@ must render with the network off.
 No uploaded logo -- or an Ashby one under 64px, which blurs in the 80px tile (Bedrock
 uploaded 50px) -- and the logo is the company website's favicon via Google's favicon
 service, which answers 404 (so the card's initials) for a site without one. The website
-must come from the board: Ashby's `publicWebsite`, a Greenhouse board's job descriptions
+must come from the board: Ashby's `publicWebsite`, a Workable account's `url`, a Greenhouse board's job descriptions
 (Scale AI, Vercel), or where the board redirects (Stripe). Descriptions and redirects
 only count when the domain's name is in the board token or company name
 (`logos.stated_site`) -- descriptions also link eeoc.gov and TikTok, and Accenture's
@@ -578,7 +644,13 @@ opened and confirmed is the same company.
 those hosts must match `frontend/next.config.ts`'s `images.remotePatterns` exactly.** `next/image` throws on
 any other host, which fails the whole Jobs page, not one card. Greenhouse is read from
 `job-boards.greenhouse.io` because `boards.` redirects there cross-origin; Lever's
-`og:image` is a 1200x630 banner, so its header `<img>` is used instead.
+`og:image` is a 1200x630 banner, so its header `<img>` is used instead. Workable's
+board page is a script shell, so its logo is read from the account JSON
+(`/api/v1/accounts/{slug}`): `logo` on `workablehr.s3.amazonaws.com` under
+`/uploads/account/logo/`, never its `open_graph_logo`. It is 120px tall, a square or
+a wordmark up to 720 wide (17 of the first 25), which the card letterboxes like any
+other wordmark. Recruitee and BambooHR
+are not in `logos.PAGE` at all (see the KAN-171 notes above).
 
 ## Committed data
 
