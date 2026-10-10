@@ -66,6 +66,111 @@ export function formatCountry(country: string) {
   }
 }
 
+/** US states, DC and Puerto Rico by name, lowercased, to their postal codes. */
+const US_STATES: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "puerto rico": "PR",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+};
+
+/** The ways postings name the US as a country, lowercased, dots dropped. */
+const US_NAMES = new Set(["united states", "united states of america", "usa", "us"]);
+
+/** What separates one place from the next in a scraped location: "Bellevue,
+ *  WA; New York, NY" or "Austin | Remote". Not a slash, which postings use
+ *  inside one place ("Remote/Hybrid if local to Maryland"). */
+const PLACE_SEPARATOR = /\s*(?:;|\||•)\s*/;
+
+/** One place as a job board would print it: "Philadelphia, Pennsylvania,
+ *  United States" is "Philadelphia, PA", "Mountain View, CA, USA" is
+ *  "Mountain View, CA". A state after a city is shortened to its code, and
+ *  the US dropped once a city or state comes before it. A remote place keeps
+ *  its country, since "Remote, US" says who may apply. Anything else (a city
+ *  abroad, "San Francisco" with no state) is printed as the posting wrote it:
+ *  only the text is tidied, never a place guessed at. */
+function tidyPlace(place: string): string {
+  const parts = place
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const remote = parts.some((part) => /\bremote\b/i.test(part));
+  const kept = parts.filter(
+    (part, i) => remote || i === 0 || !US_NAMES.has(part.toLowerCase().replaceAll(".", "")),
+  );
+  return kept.map((part, i) => (i > 0 ? (US_STATES[part.toLowerCase()] ?? part) : part)).join(", ");
+}
+
+/**
+ * A scraped location's places, each tidied (tidyPlace), in the posting's
+ * order and without repeats. Empty for no location. The board's text is
+ * kept as written in the database (`location_raw`); this only changes how it
+ * reads, so the Location filter, which reads the resolver's codes, is
+ * untouched (KAN-171).
+ */
+export function placesOf(location: string | null): string[] {
+  if (!location) return [];
+  const places = location.split(PLACE_SEPARATOR).map(tidyPlace).filter(Boolean);
+  return [...new Set(places)];
+}
+
+/** The card's location: its one place, or its first and how many more
+ *  ("Bellevue, WA +2 more"). A posting listed in several offices used to
+ *  print them all on one line, cut off at the card's column. Null for none. */
+export function formatPlaces(location: string | null): string | null {
+  const places = placesOf(location);
+  if (places.length === 0) return null;
+  return places.length === 1 ? places[0] : `${places[0]} +${places.length - 1} more`;
+}
+
 /**
  * A posting's location as one string: city and country when it has a city,
  * the country alone when it doesn't (a Remote role restricted to, say, the

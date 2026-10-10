@@ -202,7 +202,7 @@ table. Scraped ones have no `company_id`.
 |---|---|
 | `title`, `company_name`, `apply_url`, `company_logo_url` | What the card shows; `apply_url` is unique |
 | `description` | The full text, for the job posting's page and Scout |
-| `location_raw` | The location as written, for display |
+| `location_raw` | The location as the company job board wrote it; the website tidies it for display (section 7.1) |
 | `work_style` | `remote`, `hybrid`, `onsite`, or empty |
 | `experience_level` | `internship` or `new_grad` |
 | `job_type` | `full_time`, `part_time`, `contract`, or empty |
@@ -218,7 +218,9 @@ table. Scraped ones have no `company_id`.
 
 A job posting in three cities has three rows. Each row is a country code (`US`)
 and optionally a state (`US-CA`). Filtering by place reads these rows; the card
-shows `location_raw` instead.
+shows a tidied `location_raw` instead (section 7.1). No city is stored: state is
+as fine as the Location filter goes, and a city list (thousands of names, 30+
+Springfields) would cost far more than a student filtering internships gains.
 
 | Location text | Rows |
 |---|---|
@@ -291,6 +293,7 @@ can't be shown as matching a fact it never stated.
 | **Applying a filter** | The list dims at once while the narrowed list loads. |
 | **Load More** | The first 50 job postings, then a button adding 50 more with the same filters, until "That's every role that matches." |
 | **Search** | The words go to the API (`q`), so a search covers every job posting, not only the first 50. |
+| **Location on a card** | Tidied from the raw text: "Philadelphia, Pennsylvania, United States" reads "Philadelphia, PA", and several places read "Austin, TX +3 more", with every place listed on the job posting's page. Text with no state ("San Francisco") or abroad is shown as written; nothing is guessed. `placesOf` in `jobs/format.ts`. |
 | **Pinned header** | The title and filters stay at the top while the list scrolls; on a phone only the filter row stays. |
 
 ### 7.2 A job posting's page, `/jobs/[id]`
@@ -321,6 +324,7 @@ browser can't restore your place by itself. The app does it instead:
 | Limit | Why | What would fix it |
 |---|---|---|
 | Six hiring systems, not the ones large companies use | Each hiring system needs its own reader | Workday (most large employers) is KAN-134 |
+| A card can read "San Francisco" or "SF" rather than "San Francisco, CA" | The website only tidies the text the company wrote; it never guesses a state | Have the import write a display label from the city the resolver already finds (one text column, no city list) |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |

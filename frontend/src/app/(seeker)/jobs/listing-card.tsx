@@ -14,6 +14,7 @@ import {
   formatExperienceLevel,
   formatJobType,
   formatMinYears,
+  formatPlaces,
   formatPosted,
   formatSalary,
   formatWorkStyle,
@@ -109,7 +110,9 @@ export function ListingCard({ job }: { job: JobListing }) {
  *  the page and its card never describe one job two ways. */
 export function listingFacts(job: JobListing) {
   return {
-    location: job.location ?? (job.work_style === "remote" ? null : NOT_LISTED),
+    // Tidied for reading ("Philadelphia, PA", "Bellevue, WA +2 more"); the
+    // job posting's page lists every place.
+    location: formatPlaces(job.location) ?? (job.work_style === "remote" ? null : NOT_LISTED),
     jobType: jobType(job),
     salary: salary(job),
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
