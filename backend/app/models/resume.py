@@ -1,10 +1,11 @@
 import uuid as _uuid
 
+from pgvector.sqlalchemy import (
+    VECTOR,  # for storing embeddings in Postgres (gives PG a vector type)
+)
 from sqlalchemy import ForeignKey, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-
-from pgvector.sqlalchemy import VECTOR      # for storing embeddings in Postgres (gives PG a vector type)
 
 from app.db import BaseModel
 from app.models.dto import EMBEDDING_DIMENSIONS, ResumeStatus

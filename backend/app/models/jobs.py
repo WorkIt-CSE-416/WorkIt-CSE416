@@ -4,9 +4,11 @@ hold model schema for job posting tables
 import datetime
 import uuid
 
+from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import (
     CHAR,
     CheckConstraint,
+    Computed,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -15,14 +17,11 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    Computed,
     desc,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
-
-from pgvector.sqlalchemy import VECTOR
 from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 from app.models import dto

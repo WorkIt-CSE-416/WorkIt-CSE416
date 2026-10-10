@@ -6,10 +6,10 @@ meaning in any field.
 import logging
 from collections.abc import Sequence
 
-import httpx        # general Python library for sending HTTP requests
+import httpx  # general Python library for sending HTTP requests
 
 from app.config import get_settings
-from app.models.dto import EMBEDDING_DIMENSIONS, ParsedResume
+from app.models.dto import ParsedResume
 
 logger = logging.getLogger(__name__)
 

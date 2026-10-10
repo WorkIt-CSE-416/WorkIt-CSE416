@@ -26,7 +26,8 @@ all live on this side. The Next.js app holds no ORM and no credentials.
 
 FastAPI · Uvicorn · SQLAlchemy 2.0 (async, over asyncpg) · Alembic ·
 pydantic-settings · supabase-py (Storage, Auth admin) · PyJWT · Pillow
-(profile-photo re-encoding). Python 3.12,
+(profile-photo re-encoding) · httpx (Gemini embeddings) · pgvector (the
+`vector` column type). Python 3.12,
 pinned by `requires-python = ">=3.12,<3.13"`.
 
 Dependencies are managed by **uv**. `uv add <pkg>` to add one, `uv sync` to
@@ -127,6 +128,9 @@ app/
     avatar.py     Validates and re-encodes an upload to a 512px WebP
     location_resolver.py  Free-text job location → ISO places, from
                   data/places.tsv (app/models/CLAUDE.md)
+    matching/     Job matching (KAN-139). embeddings.py turns postings and
+                  resumes into Gemini vectors; its own CLAUDE.md has the
+                  design and what is still unbuilt
   scripts/        Commands run by hand, `uv run python -m app.scripts.<name>`
     import_jobs.py  feed.json → job_postings + job_locations, in one transaction
   utils/
@@ -214,7 +218,9 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   points Scout at a local Ollama that a deployment does not have, and every
   Scout reply is "offline". **Never `DIRECT_URL`:** migrations are run by
   hand, locally (`alembic/CLAUDE.md`); the deployed API has no business
-  holding the migration connection.
+  holding the migration connection. `GEMINI_API_KEY` is read but nothing
+  uses it yet (`app/services/matching/CLAUDE.md`). Set it here, and as an
+  Actions secret for the scheduled import, when matching starts embedding.
 - **`GET /jobs` reads `job_postings`, not a file** (since 2026-10-07). The
   deployed jobs are whatever the last `app.scripts.import_jobs` run left
   there; a deploy changes nothing about them, and an empty table is an empty
