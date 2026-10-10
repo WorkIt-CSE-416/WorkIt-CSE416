@@ -79,6 +79,14 @@ step that runs the location resolver and writes `job_locations`. A scraped
 row written any other way never shows up in the location filter.
 `app/models/CLAUDE.md` (the resolver section) has the rule.
 
+It writes each job's `roles` (its categories and specialties, KAN-172) and
+derives `role_category` from them, the first category when it is one of that
+column's five, for the code that still reads it. A feed written before KAN-172
+has `role_category` and no `roles`; that one category stands for them. Twelve
+categories more than doubled the feed (3,507 job postings on 2026-10-10,
+against 1,723 under the old five) and its `feed.json` (19 MB with
+descriptions, against 9 MB).
+
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
 extraction (`test_resume_extraction.py`), the location resolver
 (`test_location_resolver.py`, which reads the real `data/places.tsv`) and

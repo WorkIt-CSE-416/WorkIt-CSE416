@@ -192,7 +192,7 @@ transaction**: if any step fails, nothing changes.
 |---|---|
 | 1. Check | Every row is checked against the API's schema |
 | 2. Read places | Each location's text is turned into place codes (section 5.2) |
-| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. |
+| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. Its `roles` are written, and the old `role_category` from them (the first category, when it is one of the five that column knows) |
 | 4. Places | Each job posting's place rows are brought in line |
 | 5. Close | Job postings no longer in the feed are marked closed; one that comes back reopens |
 
@@ -280,7 +280,7 @@ All public, no sign-in needed (they serve public job postings).
 |---|---|
 | `GET /jobs` | A page of published job postings, newest first, without descriptions |
 | `GET /jobs/count` | How many job postings match, for "Show 128 Jobs" and /search's count |
-| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed |
+| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both) |
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
 
@@ -295,7 +295,7 @@ with **and**.
 | `work_style` | `remote` | That work style |
 | `experience` | `internship` | That level |
 | `job_type` | `full_time` | That type |
-| `role` | `quant` | That category |
+| `role` | `quant`, `engineering/civil` | A job posting whose `roles` hold it: a category matches every job posting in it, either of its two, and a specialty only those named for it |
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
 | `start_term` | `summer-2027` | That season; seasons that have ended aren't offered |
