@@ -529,6 +529,24 @@ company's own job leaves it NULL. Its migration is `aa41fdc1ba80`, which
 revises `4485d7a7a712`. Like any mapped column, apply it before deploying a
 branch that maps it (the section above).
 
+**`job_postings.roles` supersedes it (KAN-172): `text[]`, NOT NULL, default
+`{}`**, a scraped role's category and specialty keys, first category first
+(`["data_ai", "software", "data_ai/ml"]`): twelve categories, up to two a job,
+and their specialties. Plain text rather than an enum, so a new key is a
+scraper and API change and never a migration; the API checks keys against its
+own list. A company's own job stores `{}`, which no role filter matches. The
+GIN index `job_postings_roles_idx` serves `GET /jobs?role=`, an array overlap
+(`roles && ARRAY[...]`). Its migration is `98ab19cfe840`, which revises
+`5c8d6ee05a0c`, and seeds `roles` from `role_category` for the rows already
+there. **Expand, then contract:** `role_category` is not dropped, because the
+API deployed when the migration is applied still reads it; the import keeps
+writing it (the first category, when it is one of the enum's five) until a
+later migration drops it once nothing reads it. The model maps `roles` with
+the database's default only, so an insert naming no roles leaves the column to
+the database; the ORM still reads it back after an insert, so as with any
+mapped column, apply the migration right after its PR merges, before that
+deployment serves company job creation (the section above).
+
 ## Identity lives in auth.users
 
 Supabase Auth owns credentials (`../../CLAUDE.md`'s Auth section). **No table
