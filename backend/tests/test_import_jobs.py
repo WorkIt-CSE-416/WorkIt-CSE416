@@ -38,6 +38,7 @@ def test_row_shape(resolver):
         "experience_level": dto.experience_level.internship,
         "work_style": dto.work_style.onsite,
         "location_raw": "Austin, TX",
+        "location_label": "Austin, TX",
         "posted_at": datetime.datetime(2026, 10, 6, 2, 42, 6, tzinfo=datetime.UTC),
         "status": dto.job_post_status.published,
         "job_type": None,

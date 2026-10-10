@@ -36,6 +36,9 @@ export type JobListing = {
   experience_level: Exclude<ExperienceLevel, "experienced">;
   work_style: WorkStyle | null;
   location: string | null;
+  /** The card's version, "San Francisco, CA", where the import placed a US
+   *  city (job_postings.location_label); null leaves `location` to be tidied. */
+  location_label: string | null;
   posted_at: string | null;
   logo_url: string | null;
   /** The rest of the card, named after `job_postings`' columns. Null when the

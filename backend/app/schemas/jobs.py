@@ -36,6 +36,10 @@ class JobListing(BaseModel):
     work_style: work_style | None
     # One place, or "N locations" for a role posted to several offices.
     location: str | None
+    # The card's version of it, "San Francisco, CA", from the import
+    # (job_postings.location_label). Never in the scraper's feed, so it
+    # defaults to None there.
+    location_label: str | None = None
     posted_at: str | None
     # The logo the company uploaded to its job board; None when it has none.
     logo_url: str | None

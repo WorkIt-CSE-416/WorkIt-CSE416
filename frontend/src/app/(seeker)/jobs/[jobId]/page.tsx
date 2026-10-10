@@ -62,7 +62,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
     );
   }
   if (job == null) notFound();
-  const places = placesOf(job.location);
+  const places = placesOf(job.location_label ?? job.location);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>

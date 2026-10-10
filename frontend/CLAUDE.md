@@ -606,14 +606,16 @@ posting, Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in
 sessionStorage).
-A live card's location is the board's text tidied (`placesOf` and
+A live card's location is the import's `location_label` where it has one
+("San Francisco, CA" for "SF": the resolver's city, backend
+models/CLAUDE.md), else the board's text tidied (`placesOf` and
 `formatPlaces` in `(seeker)/jobs/format.ts`, KAN-171): a state after a city
 becomes its code, a trailing US is dropped ("Philadelphia, Pennsylvania,
-United States" reads "Philadelphia, PA"), and several places read "Austin,
-TX +3 more", with all of them on the job posting's page. It never guesses: a
-city with no state, or one abroad, prints as written, and a remote place keeps
-its country. No city is stored or filtered on, as the team decided
-(2026-10-09); a cleaner label would come from the import, not from here.
+United States" reads "Philadelphia, PA"). Several places read "Austin, TX +3
+more", with all of them on the job posting's page. The tidying never
+guesses: a city with no state, or one abroad, prints as written, and a
+remote place keeps its country. No city is filtered on, as the team decided
+(2026-10-09): the label is display text only.
 A live card still has the full shape of a fixture card: its facts are two
 fixed rows of three (location, job type, salary; then work style, level,
 and start or years), each value in ink beside a grey glyph, so each fact sits in the same column on every card

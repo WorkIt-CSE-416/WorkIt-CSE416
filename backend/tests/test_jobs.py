@@ -34,6 +34,7 @@ ROW = SimpleNamespace(
     experience_level=dto.experience_level.internship,
     work_style=dto.work_style.hybrid,
     location_raw="Mountain View, CA",
+    location_label="Mountain View, CA",
     posted_at=datetime.datetime(2026, 10, 6, 2, 42, 6, tzinfo=datetime.UTC),
     company_logo_url=None,
     job_type=None,
@@ -66,6 +67,7 @@ def test_row_becomes_the_feed_shape():
         "experience_level": "internship",
         "work_style": dto.work_style.hybrid,
         "location": "Mountain View, CA",
+        "location_label": "Mountain View, CA",
         # The same string feed.json carried, so the frontend's dates don't move.
         "posted_at": "2026-10-06T02:42:06+00:00",
         "logo_url": None,
