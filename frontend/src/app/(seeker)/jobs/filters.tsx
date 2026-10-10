@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Suspense, startTransition, use, useOptimistic, useState, type ReactNode } from "react";
 
-import { FilterIcon } from "@/components/icons";
+import { CheckIcon, ChevronDownIcon, FilterIcon } from "@/components/icons";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
   Sheet,
   SheetClose,
@@ -25,12 +27,14 @@ import { cn } from "@/lib/cn";
 import {
   DATE_POSTED_OPTIONS,
   EXPERIENCE_OPTIONS,
-  INDUSTRY_OPTIONS,
   JOB_TYPE_OPTIONS,
-  LOCATION_OPTIONS,
+  NO_FILTERS,
   SALARY_OPTIONS,
   WORKPLACE_OPTIONS,
+  type FacetOption,
+  type FeedFilters,
 } from "./data";
+import type { JobLocationOption } from "./listings";
 
 /**
  * The filter row on /jobs and on /search, built on Base UI's `Select` (via
@@ -40,27 +44,45 @@ import {
  * no search field: Base UI's Combobox handles arrow keys and Enter on its
  * input, so without one its list cannot be reached from the keyboard at all.
  *
- * Stays inert on purpose: nothing here re-filters the listings on either
- * page, matching every other control on their cards. What's real is the
- * UI: each facet is a button that opens a list of options. The button's own
+ * Location, Workplace, Experience and Date Posted filter: their picks are the
+ * page's `?location=`, `?workplace=`, `?experience=` and `?posted=` (each
+ * option's value, never its label), so the server fetches the feed narrowed
+ * to them and a reload or a shared link keeps them. A pick replaces the URL
+ * rather than pushing it, so ticking five places is not five steps of Back.
+ * Location is the one that is a Popover (LocationFacet says why), its options
+ * the places that have jobs (`GET /jobs/locations`, with names, never ISO
+ * codes). Job Type and Salary stay inert until the API filters on them; job
+ * type is on most jobs, salary on few. Every facet is a button that opens a
+ * list of options. The button's own
  * label never changes (a facet's picks show up as checked items inside the
  * popup, not as chips on the trigger), and the trigger picks up a brand tint
  * once a pick has been made and the popup has closed, the one visible signal
  * that a facet is in use. A screen reader hears the same thing as the pick
  * count after the label.
  *
- * State lives here, not lifted to the page: nothing outside this file reads
- * a filter's value, so there is nothing to lift it for yet.
+ * The inert facets' state lives here: nothing outside this file reads it.
+ * Industry had a facet too; it was dropped, since no job carries one.
  */
 
+/** The look every facet's button shares, Select or Popover: a small
+ *  secondary button that picks up a brand tint once the facet has a pick and
+ *  its popup is closed, the one visible signal that it is in use. */
+function facetTriggerClasses(count: number, open: boolean, className?: string) {
+  return cn(
+    buttonClasses({ variant: "secondary", size: "sm" }),
+    "h-auto justify-between",
+    count > 0 && !open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
+    className,
+  );
+}
+
 /** The button every facet opens from. Its label is static (a facet's picks
- *  never rewrite it), so the only thing that changes is the tint once the
- *  facet has a pick and its popup is closed. The tint is colour alone, so the
- *  pick count rides after the label for a screen reader.
+ *  never rewrite it), so the only thing that changes is the tint. The tint is
+ *  colour alone, so the pick count rides after the label for a screen reader.
  *
  *  The vendored SelectTrigger is a form field, so the button's look is laid
- *  over it: `h-auto` undoes its fixed height, and `data-placeholder:text-ink`
- *  its grey label while nothing is picked. */
+ *  over it: `data-[size=default]:h-auto` undoes its fixed height, and
+ *  `data-placeholder:text-ink` its grey label while nothing is picked. */
 function FacetTrigger({
   label,
   count,
@@ -75,11 +97,10 @@ function FacetTrigger({
 }) {
   return (
     <SelectTrigger
-      className={cn(
-        buttonClasses({ variant: "secondary", size: "sm" }),
-        "data-placeholder:text-ink h-auto justify-between data-[size=default]:h-auto",
-        count > 0 && !open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
-        className,
+      className={facetTriggerClasses(
+        count,
+        open,
+        cn("data-placeholder:text-ink data-[size=default]:h-auto", className),
       )}
     >
       {label}
@@ -90,14 +111,14 @@ function FacetTrigger({
 
 /** The list shared by every facet's popup: checkbox rows where a facet takes
  *  several picks, the vendored check-mark rows where it takes one. */
-function FacetPopup({ options, multiple }: { options: readonly string[]; multiple: boolean }) {
+function FacetPopup({ options, multiple }: { options: readonly FacetOption[]; multiple: boolean }) {
   const Item = multiple ? SelectCheckboxItem : SelectItem;
 
   return (
     <SelectContent>
-      {options.map((option) => (
-        <Item key={option} value={option}>
-          {option}
+      {options.map(({ value, label }) => (
+        <Item key={value} value={value}>
+          {label}
         </Item>
       ))}
     </SelectContent>
@@ -121,7 +142,8 @@ function Facet({
   className,
 }: {
   label: string;
-  options: readonly string[];
+  options: readonly FacetOption[];
+  /** The picked options' values. */
   values: string[];
   onChange: (values: string[]) => void;
   multiple?: boolean;
@@ -155,33 +177,254 @@ function Facet({
   );
 }
 
+/** The inert facets' picks. */
 type FacetState = {
   jobType: string[];
-  workplace: string[];
-  experience: string[];
-  datePosted: string[];
-  location: string[];
   salary: string[];
-  industry: string[];
 };
 
-const EMPTY_FACETS: FacetState = {
-  jobType: [],
-  workplace: [],
-  experience: [],
-  datePosted: [],
-  location: [],
-  salary: [],
-  industry: [],
-};
+const EMPTY_FACETS: FacetState = { jobType: [], salary: [] };
 
-/** The facet row plus the All Filters sheet for everything that doesn't fit. */
-export function JobFilters() {
+/** "US" for "US-CA", and for "US" itself. */
+const countryOf = (code: string) => code.split("-")[0];
+const isState = (code: string) => code.includes("-");
+
+/** The URL's places as the popup's ticks: a state ticks its country too. */
+function ticksFrom(places: readonly string[]): string[] {
+  return [...new Set(places.flatMap((code) => (isState(code) ? [countryOf(code), code] : [code])))];
+}
+
+/** The popup's ticks as the URL's places. A country alone means all of it; a
+ *  country with states ticked means just those states. */
+function placesFrom(ticks: readonly string[]): string[] {
+  return ticks
+    .filter((code) => !isState(code))
+    .flatMap((country) => {
+      const states = ticks.filter((code) => isState(code) && countryOf(code) === country);
+      return states.length > 0 ? states : [country];
+    });
+}
+
+/** One row of the Location popup: a label and a box, the same look as the
+ *  Select facets' SelectCheckboxItem, as a real checkbox button. `current`
+ *  marks the country whose states the other panel lists. */
+function CheckRow({
+  label,
+  checked,
+  current = false,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  current?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onToggle}
+      className={cn(
+        "hover:bg-accent focus-visible:bg-accent text-body flex w-full items-center justify-between gap-3 rounded-md py-1 pr-1.5 pl-2 text-left outline-hidden",
+        current && "bg-accent",
+      )}
+    >
+      {label}
+      <span
+        aria-hidden
+        className={cn(
+          "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+          checked && "border-primary bg-primary",
+        )}
+      >
+        <CheckIcon className={cn("size-3.5", !checked && "opacity-0")} />
+      </span>
+    </button>
+  );
+}
+
+/** A panel's small heading. */
+function PanelHeading({ children }: { children: ReactNode }) {
+  return <p className="text-note text-ink-meta px-2 pt-1 pb-1.5">{children}</p>;
+}
+
+/** Location once its options have arrived: a popover of two panels,
+ *  countries on the left ("United States", "Other") and the states of the
+ *  ticked country on the right. Ticking a country means all of it and opens
+ *  its states beside it; ticking states narrows it to those. Unticking the
+ *  country drops its states with it.
+ *
+ *  A Popover, not a Select like the other facets: a Select draws one list,
+ *  and states nested in it read as one long dropdown. `values` and
+ *  `onChange` speak the URL's places, never the ticks. */
+function LocationFacet({
+  locations,
+  values,
+  onChange,
+  className,
+}: {
+  locations: Promise<JobLocationOption[]>;
+  values: string[];
+  onChange: (values: string[]) => void;
+  className?: string;
+}) {
+  const options = use(locations);
+  const [open, setOpen] = useState(false);
+  // The country whose states the right panel lists: the last one ticked
+  // that has states, else the first ticked one that does.
+  const [picked, setPicked] = useState<string | null>(null);
+
+  const ticks = ticksFrom(values);
+  const countries = options.filter(({ code }) => !isState(code));
+  const statesOf = (country: string) =>
+    options.filter(({ code }) => isState(code) && countryOf(code) === country);
+  const hasStates = (country: string) => statesOf(country).length > 0;
+  const shown =
+    (picked != null && ticks.includes(picked) ? picked : null) ??
+    countries.find(({ code }) => ticks.includes(code) && hasStates(code))?.code ??
+    null;
+
+  function toggleCountry(country: string) {
+    if (ticks.includes(country)) {
+      onChange(placesFrom(ticks.filter((code) => countryOf(code) !== country)));
+    } else {
+      if (hasStates(country)) setPicked(country);
+      onChange(placesFrom([...ticks, country]));
+    }
+  }
+
+  function toggleState(state: string) {
+    onChange(
+      placesFrom(
+        ticks.includes(state) ? ticks.filter((code) => code !== state) : [...ticks, state],
+      ),
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        disabled={options.length === 0}
+        className={facetTriggerClasses(ticks.length, open, className)}
+      >
+        Location
+        {/* The URL's places, not the ticks: picking California ticks the
+            United States too, and should still say 1. */}
+        {values.length > 0 && <span className="sr-only">, {values.length} selected</span>}
+        <ChevronDownIcon className="text-muted-foreground size-4" />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        aria-label="Location"
+        className="w-auto max-w-[calc(100vw-2rem)] flex-col gap-0 p-1 sm:flex-row"
+      >
+        <div role="group" aria-label="Countries" className="flex min-w-40 flex-col">
+          <PanelHeading>Country</PanelHeading>
+          {countries.map(({ code, label }) => (
+            <CheckRow
+              key={code}
+              label={label}
+              checked={ticks.includes(code)}
+              current={code === shown}
+              onToggle={() => toggleCountry(code)}
+            />
+          ))}
+        </div>
+
+        <div className="bg-border my-1 h-px sm:mx-1 sm:my-0 sm:h-auto sm:w-px" />
+
+        {/* Fixed width, so the popup keeps its size as countries are ticked
+            and the states come and go. overscroll-contain: a fling past the
+            end of the states stops here instead of scrolling the page. */}
+        <div className="flex w-full flex-col sm:w-56">
+          <PanelHeading>State</PanelHeading>
+          {shown == null ? (
+            <p className="text-body text-ink-meta px-2 pb-2">
+              Tick a country to narrow it by state.
+            </p>
+          ) : (
+            <div
+              role="group"
+              aria-label={`States in ${countries.find(({ code }) => code === shown)?.label}`}
+              className="flex max-h-72 flex-col overflow-y-auto overscroll-contain"
+            >
+              {statesOf(shown).map(({ code, label }) => (
+                <CheckRow
+                  key={code}
+                  label={label}
+                  checked={ticks.includes(code)}
+                  onToggle={() => toggleState(code)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Location's facet, standing disabled in its own place until the options
+ *  arrive, so the row paints at once and nothing moves when they land. */
+function Location(props: Parameters<typeof LocationFacet>[0]) {
+  return (
+    <Suspense
+      fallback={
+        <button
+          type="button"
+          disabled
+          className={facetTriggerClasses(props.values.length, false, props.className)}
+        >
+          Location
+          <ChevronDownIcon className="text-muted-foreground size-4" />
+        </button>
+      }
+    >
+      <LocationFacet {...props} />
+    </Suspense>
+  );
+}
+
+/** The facet row plus the All Filters sheet for everything that doesn't fit.
+ *  `locations` is the Location facet's options, still loading; `filters` the
+ *  feed filters the page was opened with (readFilters in ./listings). */
+export function JobFilters({
+  locations,
+  filters,
+}: {
+  locations: Promise<JobLocationOption[]>;
+  filters: FeedFilters;
+}) {
   const [facets, setFacets] = useState<FacetState>(EMPTY_FACETS);
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  // The picks show checked at once; `filters` catches up when the narrowed
+  // page arrives.
+  const [shown, show] = useOptimistic(filters);
 
   function set<K extends keyof FacetState>(key: K, value: FacetState[K]) {
     setFacets((prev) => ({ ...prev, [key]: value }));
+  }
+
+  /** Moves the URL's filters to these, keeping the rest of the query (?q on
+   *  /search). The server draws the feed again, narrowed. */
+  function navigate(next: FeedFilters) {
+    startTransition(() => {
+      show(next);
+      const query = new URLSearchParams(window.location.search);
+      for (const [key, values] of Object.entries(next)) {
+        query.delete(key);
+        for (const value of values) query.append(key, value);
+      }
+      const search = query.toString();
+      router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
+    });
+  }
+
+  function setFilter(key: keyof FeedFilters, values: string[]) {
+    navigate({ ...shown, [key]: values });
   }
 
   return (
@@ -191,42 +434,48 @@ export function JobFilters() {
         options={JOB_TYPE_OPTIONS}
         values={facets.jobType}
         onChange={(values) => set("jobType", values)}
-        className="hidden w-36 @3xl:flex"
+        className="hidden w-36 @4xl:flex"
       />
       <Facet
         label="Workplace"
         options={WORKPLACE_OPTIONS}
-        values={facets.workplace}
-        onChange={(values) => set("workplace", values)}
-        className="hidden w-36 @3xl:flex"
+        values={shown.workplace}
+        onChange={(values) => setFilter("workplace", values)}
+        className="hidden w-36 @4xl:flex"
       />
       <Facet
         label="Experience"
         options={EXPERIENCE_OPTIONS}
-        values={facets.experience}
-        onChange={(values) => set("experience", values)}
-        className="hidden w-36 @3xl:flex"
+        values={shown.experience}
+        onChange={(values) => setFilter("experience", values)}
+        className="hidden w-36 @4xl:flex"
       />
       <Facet
         label="Date Posted"
         options={DATE_POSTED_OPTIONS}
-        values={facets.datePosted}
-        onChange={(values) => set("datePosted", values)}
+        values={shown.posted}
+        onChange={(values) => setFilter("posted", values)}
         multiple={false}
-        className="hidden w-36 @3xl:flex"
+        className="hidden w-36 @4xl:flex"
+      />
+      <Location
+        locations={locations}
+        values={shown.location}
+        onChange={(values) => setFilter("location", values)}
+        className="hidden w-36 @4xl:flex"
       />
 
-      {/* Under 768px of row (the page's @container, so an open sidebar
-          counts) the four facets step out and this is the whole row. Four
-          144px facets and this button need 711px, so whenever the facets show
-          they sit on one line; at a window's breakpoints they wrapped into a
-          ragged two-and-three block whenever the sidebar was open. The sheet
-          it opens holds every one of them. */}
+      {/* Under 896px of row (the page's @container, so an open sidebar
+          counts) the five facets step out and this is the whole row. Five
+          144px facets and this button need about 870px, so whenever the facets
+          show they sit on one line; at a window's breakpoints they wrapped
+          into a ragged block whenever the sidebar was open. The sheet it
+          opens holds every one of them. */}
       <Button
         variant="secondary"
         size="sm"
         onClick={() => setAllFiltersOpen(true)}
-        className="ml-auto @max-3xl:ml-0 @max-3xl:w-full"
+        className="ml-auto @max-4xl:ml-0 @max-4xl:w-full"
       >
         <FilterIcon className="size-4" />
         All Filters
@@ -242,7 +491,7 @@ export function JobFilters() {
         <SheetContent className="rounded-card border data-[side=right]:inset-y-3 data-[side=right]:right-3 data-[side=right]:h-auto">
           <SheetHeader>
             <SheetTitle className="text-subtitle font-semibold">All Filters</SheetTitle>
-            <SheetDescription>Narrow the feed by role, workplace and pay.</SheetDescription>
+            <SheetDescription>Narrow the feed by role, place and pay.</SheetDescription>
           </SheetHeader>
 
           {/* overscroll-contain: a fling past the end of the list stops here
@@ -258,30 +507,29 @@ export function JobFilters() {
             <Facet
               label="Workplace"
               options={WORKPLACE_OPTIONS}
-              values={facets.workplace}
-              onChange={(values) => set("workplace", values)}
+              values={shown.workplace}
+              onChange={(values) => setFilter("workplace", values)}
               className="w-full"
             />
             <Facet
               label="Experience"
               options={EXPERIENCE_OPTIONS}
-              values={facets.experience}
-              onChange={(values) => set("experience", values)}
+              values={shown.experience}
+              onChange={(values) => setFilter("experience", values)}
               className="w-full"
             />
             <Facet
               label="Date Posted"
               options={DATE_POSTED_OPTIONS}
-              values={facets.datePosted}
-              onChange={(values) => set("datePosted", values)}
+              values={shown.posted}
+              onChange={(values) => setFilter("posted", values)}
               multiple={false}
               className="w-full"
             />
-            <Facet
-              label="Location"
-              options={LOCATION_OPTIONS}
-              values={facets.location}
-              onChange={(values) => set("location", values)}
+            <Location
+              locations={locations}
+              values={shown.location}
+              onChange={(values) => setFilter("location", values)}
               className="w-full"
             />
             <Facet
@@ -292,17 +540,17 @@ export function JobFilters() {
               multiple={false}
               className="w-full"
             />
-            <Facet
-              label="Industry"
-              options={INDUSTRY_OPTIONS}
-              values={facets.industry}
-              onChange={(values) => set("industry", values)}
-              className="w-full"
-            />
           </div>
 
           <SheetFooter className="flex-row justify-between">
-            <Button variant="secondary" size="sm" onClick={() => setFacets(EMPTY_FACETS)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setFacets(EMPTY_FACETS);
+                if (Object.values(shown).some((values) => values.length > 0)) navigate(NO_FILTERS);
+              }}
+            >
               Clear All
             </Button>
             <SheetClose render={<Button size="sm">Done</Button>} />

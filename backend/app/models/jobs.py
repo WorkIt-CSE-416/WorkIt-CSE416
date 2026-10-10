@@ -61,6 +61,8 @@ class Job_Post(BaseModel):
     start_term: Mapped[str | None] = mapped_column(Text)
 
     work_style: Mapped[dto.work_style | None]
+    # what the posting says about visa sponsorship; NULL when it says nothing
+    sponsorship: Mapped[dto.visa_sponsorship | None]
     # the location text as given, for display. Filtering uses job_locations
     location_raw: Mapped[str | None] = mapped_column(Text)
 

@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { sessionCookieOptions } from "@/lib/supabase/cookies";
+
 /**
  * Keeps the Supabase session fresh. Access tokens are short-lived (an hour by
  * default); `getClaims()` notices an expired one and trades the refresh token
@@ -31,7 +33,7 @@ export async function proxy(request: NextRequest) {
         for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
         response = NextResponse.next({ request });
         for (const { name, value, options } of cookiesToSet) {
-          response.cookies.set(name, value, options);
+          response.cookies.set(name, value, sessionCookieOptions(options));
         }
         // No-cache headers, so a CDN never serves one user's fresh session
         // cookie to another.

@@ -113,6 +113,16 @@ class salary_period(enum.StrEnum):
     week= "week"
     month= "month"
 
+class visa_sponsorship(enum.StrEnum):
+    '''
+    what a posting says about visas, read from its whole text by the scraper
+    (scraper/workit_scraper/details.py). NULL, not a value, when it says nothing
+    '''
+    sponsors= "sponsors"
+    no_sponsorship= "no_sponsorship"
+    # US citizenship or a US security clearance required
+    citizens_only= "citizens_only"
+
 class job_post_status(enum.StrEnum):
     '''
     lifecycle status of a job posting
