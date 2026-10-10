@@ -153,18 +153,26 @@ function PanelBody({
           />
         </Section>
 
-        {/* Full width: its five names are long, and the row puts it second. */}
+        {/* Full width, as Location: its five names are long, and the row
+            puts it second. */}
         <Section Icon={RoleIcon} label="Role">
-          {ROLE_OPTIONS.map((o) => (
-            <Chip
-              key={o.value}
-              pressed={draft.roles.includes(o.value)}
-              count={countOf("role", o.value)}
-              onClick={() => set({ roles: toggle(draft.roles, o.value, ROLE_OPTIONS) })}
-            >
-              {o.label}
-            </Chip>
-          ))}
+          <SearchPicker
+            key={`roles-${cleared}`}
+            label="Roles"
+            placeholder="Search a role"
+            empty="No role by that name."
+            options={ROLE_OPTIONS.map((o) => ({
+              value: o.value,
+              label: o.label,
+              count: countOf("role", o.value),
+            }))}
+            values={draft.roles}
+            onChange={(next) =>
+              set({
+                roles: next.flatMap((v) => ROLE_OPTIONS.find((o) => o.value === v)?.value ?? []),
+              })
+            }
+          />
         </Section>
 
         <div className="grid gap-x-6 sm:grid-cols-2">
@@ -419,12 +427,13 @@ type PickOption = {
 
 /** A search field that opens a dropdown checklist, and what is ticked as
  *  pills under it, each with a cross to take it off: Location (every place,
- *  each country followed by its states) and Start Date (the seasons). The
- *  list opens only from the field (a click, typing or ArrowDown) and floats
- *  over the panel like any dropdown, so the sections below don't move; it
- *  stays open while options are ticked, and closes on Escape (which stops
- *  there, short of closing the panel), on a press outside, or when focus
- *  leaves it. Nothing is suggested before the seeker looks.
+ *  each country followed by its states), Role (the five disciplines) and
+ *  Start Date (the seasons). The list opens only from the field (a click,
+ *  typing or ArrowDown) and floats over the panel like any dropdown, so the
+ *  sections below don't move; it stays open while options are ticked, and
+ *  closes on Escape (which stops there, short of closing the panel), on a
+ *  press outside, or when focus leaves it. Nothing is suggested before the
+ *  seeker looks.
  *
  *  A combobox in the ARIA sense: focus stays in the field, Up and Down move
  *  the active option (aria-activedescendant), Enter ticks it, and the options
