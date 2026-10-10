@@ -195,6 +195,24 @@ edit. That window has closed — `dee263a84adb` created all nine types on
 domain does not grow with the product. For anything that will, a lookup table
 costs a join and saves the coordination.
 
+## A new column reaches the database before the model that maps it
+
+`deferred=True` keeps a column out of reads, not writes. On an ORM INSERT,
+SQLAlchemy adds an explicit `NULL` for every mapped column with no value and no
+default (its own source calls this "legacy behavior"). So a column declared
+here appears in every `Model(...)` insert, even when nothing sets it.
+
+Deploy that model to a database without the column and every such insert fails.
+For `resumes.embedding` (below) that would have meant resume upload answering
+500 "Failed to save resume record", and company job creation an unhandled 500.
+It was caught in review on 2026-10-09, before anything shipped.
+
+Adding a nullable column is harmless to the code already running, so applying
+its migration early costs nothing, but deploying the model first breaks inserts.
+Run `alembic upgrade head` right after merging, before the new deployment is
+live. A column whose value the database supplies (`Computed`, a
+`server_default`) is left out of inserts and is not affected.
+
 ## Locations — countries, states, and the resolver
 
 ### The tables
@@ -478,6 +496,21 @@ matches up instead of scanning. Measured on 2026-10-06: about 140 KB for the
 produces no trigram and scans anyway. `title` had one too, dropped in
 `4cfa4c1836cd`; title search has no index now. `company_name` is only filled for scraped jobs, so
 searching company-posted jobs by employer needs a join or a copied name.
+
+**Job matching adds three columns (KAN-139):**
+- **`job_postings.embedding` and `resumes.embedding`** hold Gemini vectors,
+  `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
+- **`job_postings.fts`** is a generated `tsvector` of the title and
+  description. Postgres computes it and keeps it current, and `Computed` keeps
+  it out of every INSERT and UPDATE, so nothing in Python writes it.
+- **All three are `deferred`**, so the company-jobs and resume routes' ORM loads
+  never pull 768 numbers, or a few KB of search terms, per row.
+- **Their migration is `4485d7a7a712`**, which revises `b81d4e2f6c09` (visa
+  sponsorship). Until it is applied, any branch that maps these columns
+  breaks resume upload and company job creation (see "A new column reaches the database before the model that
+  maps it", above).
+
+What writes them, and why, is `../services/matching/CLAUDE.md`.
 
 ## Identity lives in auth.users
 
