@@ -4,10 +4,9 @@ How a job travels from a company's job board to a card a student can filter,
 open and apply to. Each section stands on its own, so read the one you need.
 
 > **Status (2026-10-10).** This describes the code on `KAN-171-more-jobs`,
-> which builds on PRs #91 (filters and visa) and #92 (the job page). Still
-> being built: readers for three more job boards (Workable, Recruitee and
-> BambooHR). The role categories need their database migration applied
-> before they go live (section 5.3).
+> which builds on PRs #91 (filters and visa) and #92 (the job page). The role
+> categories need their database migration applied before they go live
+> (section 5.3).
 
 ---
 
@@ -16,7 +15,8 @@ open and apply to. Each section stands on its own, so read the one you need.
 ```
  Company job boards          Scraper (Python)              Database (Supabase)
  Greenhouse, Lever,   ──▶   reads, keeps, reads    ──▶    job_postings
- Ashby                      the facts                     job_locations
+ Ashby, Workable,           the facts                     job_locations
+ BambooHR, Recruitee
                             writes feed.json               ▲
                                   │                        │
                                   └──── import script ─────┘
@@ -49,10 +49,22 @@ company on those systems, so we need a list.
 
 | | |
 |---|---|
-| **The list** | `scraper/boards.csv`: about 1,900 boards (869 Greenhouse, 692 Ashby, 340 Lever) |
+| **The list** | `scraper/boards.csv`: about 2,130 boards (table below) |
 | **Where it comes from** | `build_boards.py` reads the apply links in public GitHub internship lists (SimplifyJobs and vanshb03, Summer 2027) and pulls out each company's board name, plus a few boards added by hand |
 | **How often it's rebuilt** | By hand, when someone runs `build_boards.py` |
 | **Words to know** | **ATS** (applicant tracking system): the hiring software a company uses, like Greenhouse. **Board**: one company's page on it. **Slug**: the board's name in its address, like `stripe` |
+
+| Hiring system | Boards | Who uses it | How a board is read |
+|---|---|---|---|
+| Greenhouse | 871 | Tech companies of every size | Board list, then each kept job's own page |
+| Ashby | 694 | Startups | One request per board, everything included |
+| Lever | 341 | Startups and mid-size | One request per board; asks for one second between requests |
+| Workable | 178 | Small and mid-size companies | Board list, then each kept job's own page (for hybrid and pay) |
+| BambooHR | 42 | Small and mid-size companies | Board list, then each kept job's own page (the list has no description) |
+| Recruitee | 2 | Small companies, mostly in Europe | One request per board |
+
+Workable, BambooHR and Recruitee were added in KAN-171. Recruitee has so few
+boards because the GitHub lists barely mention it.
 
 The GitHub lists are only used as a phone book. Every job itself is read from
 the employer's own board, so we get jobs the lists never added, the full
@@ -71,9 +83,9 @@ on it). A run takes a few minutes.
 | Step | What happens |
 |---|---|
 | 1. Pick boards | A board that has ever had a job we keep is read every run. The rest ("quiet" boards) are read one day in three, so a first job at a quiet company can appear up to two days late. `--full` reads every board. |
-| 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each provider has its own lane of workers, so slow Lever doesn't hold up Greenhouse. |
-| 3. Keep the right jobs | Checks each title (section 3.1). About 90,000 postings are read; about 1,600 are kept. |
-| 4. Fetch full pages | Greenhouse's list has no description or pay, so the scraper reads the full page of each kept Greenhouse job, once. |
+| 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each provider has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR and Recruitee give every company its own subdomain, and each provider's subdomains share one pace. |
+| 3. Keep the right jobs | Checks each title (section 3.1). About 100,000 postings are read; about 1,700 are kept. |
+| 4. Fetch full pages | Greenhouse, Workable and BambooHR lists leave out the description, pay or work style, so the scraper reads the full page of each kept job there, once. |
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job (section 3.2). |
 | 6. Merge duplicates | Postings that share one apply link become one job with all their locations. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
@@ -115,7 +127,7 @@ filled with a likely value.
 | Fact | Where it comes from | How often a posting states it |
 |---|---|---|
 | Location | The board's location text | Almost always |
-| Work style (remote, hybrid, on-site) | The board's field (Ashby, Lever); on Greenhouse, a location that says "Remote"; else the description | About 97% |
+| Work style (remote, hybrid, on-site) | The board's field (Ashby, Lever, Workable, BambooHR); on Greenhouse, a location that says "Remote"; else the description | About 97% |
 | Experience level | The title (internship or new grad) | Always |
 | Job type (full-time, part-time, contract) | The board's field, else the description | Most |
 | Pay | The description ("$40-$50/hr"), never a funding amount | About 60% |
@@ -286,7 +298,7 @@ browser can't restore your place by itself. The app does it instead:
 
 | Limit | Why | What would fix it |
 |---|---|---|
-| Only Greenhouse, Lever and Ashby | Each hiring system needs its own reader | Workable, Recruitee and BambooHR are in progress; Workday is KAN-134 |
+| Six hiring systems, not the big-company ones | Each hiring system needs its own reader | Workday (most large employers) is KAN-134 |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |
 | Many jobs lack pay, start date or visa | Employers don't state them | Nothing on our side; filters hide these jobs |
@@ -300,6 +312,7 @@ browser can't restore your place by itself. The app does it instead:
 | To change... | Start in |
 |---|---|
 | Which companies are read | `scraper/build_boards.py`, `scraper/boards.csv` |
+| How a hiring system's boards are read | `scraper/workit_scraper/providers.py` |
 | Which titles are kept, and their category | `scraper/workit_scraper/shortlist.py` |
 | How a fact is read from a description | `scraper/workit_scraper/details.py` |
 | What the import writes | `backend/app/scripts/import_jobs.py` |
