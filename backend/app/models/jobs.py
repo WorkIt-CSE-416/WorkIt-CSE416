@@ -67,6 +67,10 @@ class Job_Post(BaseModel):
     role_category: Mapped[dto.role_category | None]
     # the location text as given, for display. Filtering uses job_locations
     location_raw: Mapped[str | None] = mapped_column(Text)
+    # The card's location, "San Francisco, CA", written by the import from
+    # the city the location resolver picks (KAN-171). Display only: filtering
+    # reads job_locations. NULL leaves the card to tidy location_raw.
+    location_label: Mapped[str | None] = mapped_column(Text)
 
     salary: Mapped[float | None]
     salary_min: Mapped[float | None]
