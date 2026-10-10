@@ -64,8 +64,16 @@ its company job boards, so we keep our own list.
 |---|---|
 | **The list** | `scraper/boards.csv`: about 2,130 company job boards (table below) |
 | **Where it comes from** | `build_boards.py` reads the apply links in public GitHub internship lists (SimplifyJobs and vanshb03, Summer 2027) and pulls out each company job board's name, plus a few added by hand |
-| **How often it's rebuilt** | By hand, when someone runs `build_boards.py` |
+| **How often it's refreshed** | At the start of every scheduled run, every 3 hours (KAN-167), so new companies and new job postings arrive together |
 | **Slug** | A company job board's name in its address, like `stripe` in `boards.greenhouse.io/stripe` |
+
+How the refresh behaves:
+
+| | |
+|---|---|
+| **It only adds** | A company job board a list newly names is added; one already in the file is never dropped, even if the lists stop naming it |
+| **It's safe to fail** | If a list won't download, nothing is changed and the scrape runs on the list as it was |
+| **It isn't saved back** | The additions live only in that run, and each run makes them again. A local run reads the committed `boards.csv`, so re-run `build_boards.py` and commit it now and then to keep the two in step |
 
 | Hiring system | Company job boards | Who uses it | How a company job board is read |
 |---|---|---|---|
@@ -316,7 +324,7 @@ browser can't restore your place by itself. The app does it instead:
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
-| The list of company job boards goes stale | `build_boards.py` runs by hand | Run it on a schedule |
+| A company only arrives once a GitHub list names it | The lists are our only source of company job boards | Find company job boards ourselves too (Common Crawl, an archive of the web) |
 | A new job posting at a quiet company can be two days late | Quiet company job boards are read one day in three | `--full` runs, or reading more often |
 
 ---
