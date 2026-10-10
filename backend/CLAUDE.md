@@ -245,7 +245,8 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   command.
   Order matters when the feed gains a column: apply its migration first
   (`7c2e9a41d5b3` added `start_term` and the week/month pay periods,
-  `b81d4e2f6c09` the `sponsorship` column), then import, then deploy the API
+  `b81d4e2f6c09` the `sponsorship` column, `aa41fdc1ba80` `role_category`),
+  then import, then deploy the API
   that reads it. An import against the older schema fails on the unknown column and,
   being one transaction, writes nothing.
 - **`/jobs` opens a connection per request** (`NullPool`, below), which costs
