@@ -935,6 +935,13 @@ class TestConstructedGuards:
 
     def test_a_negation_stops_at_a_comma_and_at_whether_or_not(self) -> None:
         assert self.says("Don't worry, we sponsor visas.") == "sponsors"
+        # An aside between commas is still inside the "no" (review, 2026-10-10).
+        for text in (
+            "We are not, at this time, able to sponsor visas.",
+            "We do not, however, sponsor visas.",
+            "We do not currently, and will not in the future, sponsor work visas.",
+        ):
+            assert self.says(text) == "no_sponsorship", text
         for text in (
             "Whether or not you require visa sponsorship, we encourage you to apply.",
             "We consider all candidates, without regard to sponsorship status.",

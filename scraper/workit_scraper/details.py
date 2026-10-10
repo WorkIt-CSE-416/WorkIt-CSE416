@@ -709,10 +709,13 @@ _NO_SPONSORSHIP = re.compile(
     # "We are not able to sponsor visas or take over sponsorship", "will not
     # sponsor", "unable to provide sponsorship"; but Samaya's "aren't able to
     # successfully sponsor visas for every role" follows "We do sponsor visas!".
-    # Not across a comma ("Don't worry, we sponsor visas"), and not "whether or not".
+    # Not across a comma that starts a new clause ("Don't worry, we sponsor
+    # visas"), but across one that sets off an aside ("We are not, at this
+    # time, able to sponsor visas"); and not "whether or not".
     r"(?<!\bor\s)\b(?:not|unable|cannot|can't|won't|don't|doesn't|aren't|isn't|never"
     r"|no\s+longer)\b"
-    rf"[^.,;]{{0,40}}?\b{_SPONSOR}(?![^.]{{0,40}}\bfor\s+every\b)"
+    r"(?:(?!,\s*(?:we|but|so|can|could|may|and\s+we)\b)[^.;]){0,40}?"
+    rf"\b{_SPONSOR}(?![^.]{{0,40}}\bfor\s+every\b)"
     # Roblox: "may not be able to employ candidates ... or support future H-1B sponsorship".
     rf"|\bmay\s+not\s+be\s+able\s+to\b[^.]{{0,150}}?\b{_SPONSOR}"
     # Not a condition: "how it degrades when sponsorship is unavailable" is gas fees.
