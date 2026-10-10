@@ -105,7 +105,7 @@ on it). A run takes a few minutes.
 |---|---|
 | 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one day in three, so a first job posting at a quiet company can appear up to two days late. `--full` reads them all. |
 | 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR and Recruitee give every company its own subdomain, and each hiring system's subdomains share one pace. |
-| 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read; about 1,700 are kept. |
+| 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read; about 3,500 are kept. |
 | 4. Fetch full pages | Greenhouse, Workable and BambooHR lists leave out the description, pay or work style, so the scraper reads the full page of each kept job posting there, once. |
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. |
@@ -117,28 +117,39 @@ they were.
 
 ### 3.1 Which job postings are kept
 
-A title must pass three checks:
+A title must pass two checks (KAN-172):
 
 | Check | Passes | Fails |
 |---|---|---|
-| **Early career** | intern, co-op, new grad, graduate, entry level, junior, university, campus, apprentice | anything senior, staff, principal, director, manager |
-| **In one of five categories** | see the table below | a title naming none of them |
-| **Not another discipline** | | sales, marketing, recruiting, HR, finance operations and similar |
+| **Early career** | intern, co-op, working student, Summer Analyst, new grad, graduate, entry level, junior, university, campus, apprentice | anything senior, staff, principal, director, VP; a manager or lead unless it is also junior or an intern; a recruiter *for* a university or campus |
+| **In one of twelve categories** | see the table below | a title naming none of them, or naming first a field we hold off on: law and compliance, consulting, teaching, the arts, public policy, customer support |
 
-Each kept job posting gets **one category** (KAN-171), using the same five
-categories as the SimplifyJobs lists:
+Each kept job posting gets **one category, or two** for the engineering jobs
+that are two at once: a machine learning, AI or data engineer is Data and
+Software, a firmware or embedded engineer Hardware and Software, a quant developer
+Quant and Software. Some also get **specialties**, named in the title:
 
-| Category | Stored as | Examples | Kept (scan of 2026-10-10) |
-|---|---|---|---|
-| Software Engineering | `software` | Software Engineer Intern, Backend, Mobile, DevOps | 806 |
-| Data Science, AI & ML | `data_ai` | Applied Scientist Intern, Data Analyst, Data Engineer | 347 |
-| Hardware Engineering | `hardware` | Electrical Engineering Intern, FPGA, Firmware, Robotics | 258 |
-| Quantitative Finance | `quant` | Quantitative Trader Intern, Quant Researcher | 170 |
-| Product Management | `product` | Product Management Intern, Associate Product Manager | 54 |
+| Category | Stored as | Specialties | Examples | Kept (2026-10-10) |
+|---|---|---|---|---|
+| Software Engineering | `software` | Security & IT (`software/security`): 122 | Software Engineer Intern, Backend, DevOps, IT Helpdesk Intern, Cybersecurity Intern | 957 (1,144 with the second category) |
+| Data Science, AI & ML | `data_ai` | Machine Learning & AI (`data_ai/ml`): 243; Data Science: 75; Data Analytics: 68; Data Engineering: 43 | Applied Scientist Intern, Data Analyst, Data Engineer | 413 |
+| Hardware Engineering | `hardware` | | Electrical Engineering Intern, FPGA, Firmware, Robotics | 287 |
+| Quantitative Finance | `quant` | | Quantitative Trader Intern, Quant Researcher | 187 |
+| Product Management | `product` | | Product Management Intern, Associate Product Manager | 64 |
+| Other Engineering | `engineering` | Civil & Structural (`engineering/civil`): 269; Mechanical: 160; Manufacturing & Industrial: 101; Aerospace: 59 | Civil Engineering Intern, Mechanical Engineer, Propulsion Intern, Nuclear Engineer | 703 |
+| Business & Operations | `business` | | Business Operations Intern, Supply Chain Intern, Project Management Intern | 227 |
+| Accounting & Finance | `finance` | | Accounting Intern, Credit Analyst, Investment Banking Summer Analyst | 198 |
+| Marketing & Communications | `marketing` | | Marketing Intern, Social Media Intern, Copywriter | 157 |
+| Sales & Business Development | `sales` | | Sales Development Representative, Account Executive, Sales Engineer | 156 |
+| HR & Recruiting | `hr` | | Talent Acquisition Intern, People Operations Intern, Junior Recruiter | 100 |
+| Design | `design` | | Product Design Intern, UX Research Intern, Graphic Design Intern | 58 |
 
-Until KAN-171 only Software and AI job postings were kept. Edge cases: firmware
-and embedded count as Hardware, "Quantitative Developer" counts as Quant, and
-mechanical, civil and building-services roles stay out.
+187 job postings have two categories. In all 3,507 were kept, against 1,723
+under the five categories that came before (KAN-171), from the same 101,000 job
+postings. Edge cases: firmware and embedded count as Hardware, "Quantitative
+Developer" counts as Quant, a recruiter of engineers is HR, an electrical engineer
+for buildings and power systems is Other Engineering, and a bare "Engineering
+Intern" names no discipline, so it is dropped.
 
 ### 3.2 Reading the facts
 
@@ -158,7 +169,7 @@ to full-time for new-grad roles and summer internships.
 | Start date | The description ("Summer 2027") | Most internships |
 | Years of experience | The description ("2+ years") | Some new-grad roles |
 | Visa sponsorship | Sentences in the description (KAN-168) | About 1 in 6 |
-| Role category | The title (section 3.1) | Always |
+| Role categories and specialties | The title (section 3.1) | Always |
 
 Visa sponsorship has three answers, or none when the job posting doesn't say:
 
