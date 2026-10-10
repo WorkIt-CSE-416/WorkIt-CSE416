@@ -500,9 +500,9 @@ searching company-posted jobs by employer needs a join or a copied name.
   it out of every INSERT and UPDATE, so nothing in Python writes it.
 - **All three are `deferred`**, so the company-jobs and resume routes' ORM loads
   never pull 768 numbers, or a few KB of search terms, per row.
-- **Their migration isn't written yet.** It waits on `KAN-170`'s. Until it is
-  applied, any branch that maps these columns breaks resume upload and company
-  job creation (see "A new column reaches the database before the model that
+- **Their migration is `4485d7a7a712`**, which revises `b81d4e2f6c09` (visa
+  sponsorship). Until it is applied, any branch that maps these columns
+  breaks resume upload and company job creation (see "A new column reaches the database before the model that
   maps it", above).
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.

@@ -94,9 +94,9 @@ and matching runs without its semantic part, the same way the app runs without
 
 ## Still open
 
-- **The migration that creates the columns.** It waits on `KAN-170`'s migration
-  (`b81d4e2f6c09`) reaching `main`, since the shared database already has that
-  one, and must revise it.
+- **Applying the migration that creates the columns.** It's `4485d7a7a712`,
+  and it goes on the shared database right after its PR merges, before the
+  deployment is live (`../../models/CLAUDE.md` says why).
 - **The rest of the pipeline:** the import's embedding step, the resume `PUT`
   clearing `embedding`, scoring, and `GET /jobs/recommended`.
 - **Unchecked against the live API:** whether Gemini still accepts `taskType`

@@ -135,6 +135,12 @@ and writes the operator class qualified (`extensions.gin_trgm_ops`) because
 only Supabase puts `extensions` on the search path. Follow both when
 installing `ltree`.
 
+**`vector` (pgvector) is installed by `4485d7a7a712` the same way**, for job
+matching's embeddings. Its column type is written qualified,
+`extensions.vector(768)`, for the same reason. A plain Postgres can only run
+that migration if pgvector is available, which is why the recipe below uses
+the `pgvector/pgvector` image.
+
 ## Every new table enables RLS
 
 `ce5b2e3f9b78` enabled row-level security on every `public` table that
@@ -199,7 +205,7 @@ Two habits follow:
 **A throwaway local Postgres runs the whole chain** (done for `7c2e9a41d5b3`):
 
 ```sh
-docker run -d --name workit-local-db -e POSTGRES_PASSWORD=local -p 54329:5432 postgres:15
+docker run -d --name workit-local-db -e POSTGRES_PASSWORD=local -p 54329:5432 pgvector/pgvector:pg15
 docker exec workit-local-db psql -U postgres -c \
   "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY);"
 export DATABASE_URL=postgresql://postgres:local@localhost:54329/postgres
@@ -207,6 +213,10 @@ export DIRECT_URL=$DATABASE_URL
 uv run python -c "from app.config import get_settings as s; print(s().migration_url)"
 uv run alembic upgrade head
 ```
+
+The image is `pgvector/pgvector`, not the plain `postgres:15` this used to
+say. The official image doesn't ship pgvector, so the chain stopped at
+`4485d7a7a712` with `could not open extension control file`.
 
 Supabase owns `auth.users`; `197cfcdecdb8` points a foreign key at it, so the
 stub has to exist first. Exported variables beat the root `.env`
