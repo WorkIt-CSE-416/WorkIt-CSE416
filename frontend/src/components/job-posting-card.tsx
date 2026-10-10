@@ -72,12 +72,14 @@ import { Fact } from "@/components/ui/fact";
  * only three and the grid's columns sat ~300px apart with nothing between
  * them; the fixed slots are what made the grid hold up with gaps in it.
  *
- * THE TITLE STOPS AT TWO LINES. Scraped titles run to 110 characters ("…
- * (Bangkok-based, Relocation Provided)"); a third line pushed the facts of
- * one card below the others'. The whole title is the heading's `title`, so a
- * hover shows it, and a fact cut short by its column shows its whole text the
- * same way. A clamp hides overflow, so a `titleHref` link's focus ring is
- * kept inside it by the heading's padding.
+ * THE TITLE IS ONE LINE, trailing off with an ellipsis. Scraped titles run to
+ * 113 characters ("… (Bangkok-based, Relocation Provided)"), and a title that
+ * wrapped made its card taller than the ones around it (asked for
+ * 2026-10-09; it was clamped at two lines before). The whole title is the
+ * heading's `title`, so a hover shows it, and a fact cut short by its column
+ * shows its whole text the same way. A truncated heading hides its overflow,
+ * so a `titleHref` link's focus ring is kept inside it by the heading's
+ * padding.
  *
  * Every field is a pre-formatted string, not a raw `job_postings` value: the
  * seeker feed formats real schema enums (see (seeker)/jobs/format.ts) while the
@@ -267,7 +269,7 @@ export function JobPostingCard({
                   place (mt-1 plus the padding is the 1.5 it was). */}
               <h3
                 title={job.title}
-                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 line-clamp-2 p-0.5"
+                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5"
               >
                 {job.titleHref ? (
                   <Link href={job.titleHref} className={INK_LINK}>

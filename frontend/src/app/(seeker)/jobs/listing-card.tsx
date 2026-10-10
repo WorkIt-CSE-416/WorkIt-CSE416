@@ -55,8 +55,8 @@ import { MatchRail } from "./match-rail";
  *   uploaded_at            `posted_at`, when the board dated it
  *
  * The match rail is its placeholder (score null): nothing scores a role yet.
- * There is no title link: there is no expanded view for a role with no
- * description. Apply Now leaves for the employer's own posting.
+ * The title opens the role's own page, /jobs/[jobId] (KAN-73), which shows
+ * its description; Apply Now leaves for the employer's own posting.
  */
 export function ListingCard({ job }: { job: JobListing }) {
   return (
@@ -65,13 +65,9 @@ export function ListingCard({ job }: { job: JobListing }) {
         company: job.company,
         logoUrl: job.logo_url,
         title: job.title,
+        titleHref: `/jobs/${job.id}`,
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
-        location: job.location ?? (job.work_style === "remote" ? null : NOT_LISTED),
-        jobType: jobType(job),
-        salary: salary(job),
-        workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
-        experienceLevel: formatExperienceLevel(job.experience_level),
-        ...yearsOrStart(job),
+        ...listingFacts(job),
       }}
       rail={<MatchRail score={null} highlights={[]} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
@@ -106,6 +102,20 @@ export function ListingCard({ job }: { job: JobListing }) {
       }
     />
   );
+}
+
+/** A scraped role's six facts as the card prints them, NOT_LISTED where the
+ *  posting doesn't say. Shared with the role's own page (/jobs/[jobId]), so
+ *  the page and its card never describe one job two ways. */
+export function listingFacts(job: JobListing) {
+  return {
+    location: job.location ?? (job.work_style === "remote" ? null : NOT_LISTED),
+    jobType: jobType(job),
+    salary: salary(job),
+    workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
+    experienceLevel: formatExperienceLevel(job.experience_level),
+    ...yearsOrStart(job),
+  };
 }
 
 /** How the job is set up, the same for an internship as for any role, so the

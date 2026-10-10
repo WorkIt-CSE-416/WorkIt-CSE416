@@ -456,3 +456,33 @@ def test_a_backwards_pay_range_is_the_range_meant(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_count", count)
     assert TestClient(app).get("/jobs/count?min_pay=100000&max_pay=50000").status_code == 200
     assert seen == [(50000, 100000)]
+
+
+def test_one_job_comes_with_its_description(no_database, monkeypatch):
+    async def fetch(db, job_id):
+        assert job_id == "6f1c0e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b"
+        return to_listing(ROW, "Build robots.")
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listing", fetch)
+    body = TestClient(app).get("/jobs/6f1c0e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b").json()
+    assert (body["title"], body["description"]) == ("Robot Software Intern", "Build robots.")
+
+
+def test_a_job_that_is_not_open_is_a_404(no_database, monkeypatch):
+    async def fetch(db, job_id):
+        return None
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listing", fetch)
+    assert TestClient(app).get("/jobs/not-a-job").status_code == 404
+
+
+def test_the_named_paths_are_not_read_as_ids(no_database, monkeypatch):
+    async def fetch(db, job_id):
+        raise AssertionError(f"read {job_id!r} as an id")
+
+    async def count(db, filters):
+        return 0
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listing", fetch)
+    monkeypatch.setattr("app.routers.jobs.fetch_count", count)
+    assert TestClient(app).get("/jobs/count").json() == {"jobs": 0}

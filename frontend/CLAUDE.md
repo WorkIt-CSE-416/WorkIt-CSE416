@@ -556,10 +556,20 @@ component imports that `data.ts`. The server-only API helpers cannot go there
 without breaking the build, so the fetch gets its own sibling marked
 `import "server-only"`. The Jobs feed is the first case: `(seeker)/jobs/listings.ts`
 fetches `GET /jobs` for /jobs, /search and the Dashboard's New Matches, and
-its `data.ts` still holds the fixtures `filters.tsx` (client) and the
-`/jobs/[jobId]` detail view use. A live role cannot open at `/jobs/[jobId]`
-yet: its id is the employer's apply URL and the detail view reads fixtures
-only, so its card's Apply Now goes to the employer's posting instead.
+its `data.ts` still holds the fixtures the company side's job pages use.
+**A live role opens at `/jobs/[jobId]`** (KAN-73): its card's title links
+there, the id is the row's UUID, and `getJobListing` reads `GET /jobs/{id}`,
+whose 404 (closed, a company's own, no such job) is the page's not-found.
+The page is the mock's `JobDetailHeader` with the card's own facts
+(`listingFacts` in `listing-card.tsx`) and the employer's logo, then one
+"About the Role": `[jobId]/description.tsx` reads the plain-text description's
+own shape (Title Case lines as subheadings, the short lines under one as a
+list), and a description the scraper cut at 8,000 characters (it ends " …")
+says so and links to the whole posting. Apply Now leaves for the employer's
+posting, Ask Scout asks about the role, Share copies the page's link, Save
+and Report stay inert. Back to Jobs returns to the feed the seeker came from,
+filters and all (`RememberFeed` on /jobs and /search keeps it in
+sessionStorage).
 A live card still has the full shape of a fixture card: its facts are two
 fixed rows of three (location, job type, salary; then work style, level,
 and start or years), each value in ink beside a grey glyph, so each fact sits in the same column on every card
@@ -568,8 +578,9 @@ fills job type, salary and years when it does) is passed as `NOT_LISTED`
 from `components/job-posting-card.tsx` and leaves its slot empty; a screen
 reader still hears "Salary not listed". The slots used to print that in
 italic, and over half the feed's cards had at least one. Under 448px of card
-body the empty slots close up instead. The title stops at two lines and a
-fact at its column's edge, each whole on hover. An internship shows when it
+body the empty slots close up instead. The title is one line, trailing off
+with an ellipsis (a wrapped title made its card taller than the rest), and a
+fact stops at its column's edge, each whole on hover. An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
 2027"). Its job type is how the job is set up (Full-Time, Part-Time,
 Contract), an internship's too, never "Internship": that is its level, and

@@ -38,7 +38,8 @@ by that filter, as one with no location is by ?location=.
 
 Descriptions are left out of the list: the cards never show them, and at
 several thousand characters each they would make every feed load many times
-heavier — so the query doesn't read them either. fetch_listing does, for Scout.
+heavier — so the query doesn't read them either. fetch_listing does, for Scout
+and for GET /jobs/{job_id}, the job's own page.
 """
 
 import datetime
@@ -47,7 +48,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import StringConstraints
 from sqlalchemy import (
     ColumnElement,
@@ -542,3 +543,16 @@ def _season_counts(terms: list[FacetCount], today: datetime.date) -> list[FacetC
 async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
     """Each filter option's job count, for the job board's filter row."""
     return await fetch_facets(db)
+
+
+# Last, so the paths above ("/count", "/facets", "/locations") are matched as
+# themselves before this one reads them as an id.
+@router.get("/{job_id}", response_model=JobListing)
+async def get_job(job_id: str, db: AsyncSession = Depends(get_session)) -> JobListing:
+    """One published scraped job, with its description, for the job's own page
+    (/jobs/[jobId]). 404 for one that closed, a company's own, or no job at all,
+    which a seeker can't apply to either way."""
+    job = await fetch_listing(db, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="That job isn't open any more.")
+    return job

@@ -5,6 +5,7 @@ import { BriefcaseIcon } from "@/components/icons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
+import { RememberFeed } from "./[jobId]/page-actions";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
@@ -96,6 +97,8 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
           ./filters), which an open sidebar narrows, not on the window's. */}
       {/* One transition for a filter change, so the feed dims the moment the
           row starts it (./feed-transition). */}
+      {/* So a job's page can go back to this list, filters and all. */}
+      <RememberFeed />
       <FeedTransition>
         <div className="@container mt-4 flex flex-wrap items-center gap-2">
           <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />

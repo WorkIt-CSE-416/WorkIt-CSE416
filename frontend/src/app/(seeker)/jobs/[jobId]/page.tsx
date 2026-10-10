@@ -1,102 +1,146 @@
-import { Flag, Share2 } from "lucide-react";
+import { Flag } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { Avatar } from "@/components/avatar";
-import { cn } from "@/lib/cn";
-import { ArrowLeftIcon } from "@/components/icons";
-import { getJobPosting } from "@/components/job-detail/data";
+import { CompanyLogo } from "@/components/company-logo";
+import { ExternalLinkIcon } from "@/components/icons";
+import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
+import { NOT_LISTED } from "@/components/job-posting-card";
 import { SaveButton } from "@/components/save-button";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { AskScoutButton } from "@/components/scout/scout-buttons";
+import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { Points, Section } from "@/components/ui/section";
+import { Section } from "@/components/ui/section";
+import { cn } from "@/lib/cn";
 
-import { MatchRail } from "../match-rail";
 import { SEEKER_GUTTER } from "../../gutter";
+import { ListingsError, listingFacts } from "../listing-card";
+import { getJobListing, type JobListing } from "../listings";
+import { JobDescription } from "./description";
+import { BackToJobs, ShareButton } from "./page-actions";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
-  const posting = getJobPosting(jobId);
-
-  return { title: posting?.status === "Open" ? posting.title : "Job Not Found" };
+  const { job } = await getJobListing(jobId);
+  return { title: job ? `${job.title} at ${job.company}` : "Job Not Found" };
 }
 
 /**
- * /jobs/[jobId] — the expanded view of one recommendation, reached by
- * clicking its title on the /jobs feed. Read-only: nothing here writes yet,
- * same as the rest of the seeker screens.
+ * /jobs/[jobId] — one live role's own page, opened from its card's title on
+ * /jobs or /search (KAN-73). `jobId` is the row's UUID; `GET /jobs/{id}`
+ * answers with the role and its description, or 404 for one that has closed,
+ * a company's own posting, or no such job, all of which get not-found.tsx.
  *
- * Only an Open posting renders. `getJobPosting` also serves the company's own
- * fixtures, and a Draft or Closed one is not a job a seeker can apply to, so
- * it gets the same not-found.tsx as an id that does not exist.
+ * THE MOCK'S HEADER, WITH THE CARD'S FACTS. `JobDetailHeader` is shared with
+ * the company's view of its own postings, so the live role is shaped into its
+ * `JobPosting` (`toPosting`), with the six facts the card prints
+ * (`listingFacts`), so a role reads the same on its card and its page. A fact
+ * the posting doesn't state is left out, not marked.
+ *
+ * ONE "ABOUT THE ROLE", NOT THE MOCK'S THREE SECTIONS. A scraped posting is
+ * plain text in whatever order its employer wrote it; ./description reads its
+ * paragraphs, lists and subheadings from the text itself rather than sorting
+ * it into "What You'll Do" and "Qualifications" by guesswork.
+ *
+ * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
+ * about this role, Share copies the page's link. Save and Report are still
+ * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
+ * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const posting = getJobPosting(jobId);
+  const { job, error } = await getJobListing(jobId);
 
-  if (!posting || posting.status !== "Open") notFound();
+  if (error != null) {
+    return (
+      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+        <BackToJobs />
+        <ListingsError error={error} retryHref={`/jobs/${encodeURIComponent(jobId)}`} />
+      </div>
+    );
+  }
+  if (job == null) notFound();
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* Its arrow leans back the way it goes while hovered. */}
-      <ButtonLink href="/jobs" variant="secondary" size="sm" className="group/back mb-3">
-        <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
-        Back to Jobs
-      </ButtonLink>
+      <BackToJobs />
 
       <JobDetailHeader
-        posting={posting}
-        // Initials, as on the feed card — `rounded` beats <Avatar>'s own
-        // `rounded-full` the same way the card's `rounded-card` does.
-        tile={<Avatar name={posting.companyName} className="text-meta size-8 rounded" />}
-        showDeadline
+        posting={toPosting(job)}
+        // The employer's own logo, as on the card, at the header's 32px; its
+        // initials when it has none.
+        tile={
+          <CompanyLogo name={job.company} src={job.logo_url} className="text-meta size-8 rounded" />
+        }
         actions={
           <>
             {/* Outlined like the feed card's icon actions. On a narrow card
                 these sit left and Apply Now right, on a row of their own. */}
-            <SaveButton title={posting.title} saved={posting.saved} />
+            <SaveButton title={job.title} />
             <IconButton
-              label={`Report ${posting.title}`}
+              label={`Report ${job.title}`}
               tooltip="Report"
               variant="outline"
               className="size-8 shrink-0"
             >
               <Flag className="size-4" />
             </IconButton>
-            <IconButton
-              label={`Share ${posting.title}`}
-              tooltip="Share"
-              variant="outline"
-              className="size-8 shrink-0"
+            <ShareButton title={job.title} />
+            <AskScoutButton id={job.id} title={job.title} company={job.company} />
+            <ButtonLink
+              href={job.apply_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              size="lg"
+              className="ml-auto shrink-0 @xl:ml-0"
             >
-              <Share2 className="size-4" />
-            </IconButton>
-            <Button size="lg" className="ml-auto shrink-0 @xl:ml-0">
               Apply Now
-            </Button>
+              <ExternalLinkIcon className="size-4" />
+              <span className="sr-only"> (opens in a new tab)</span>
+            </ButtonLink>
           </>
-        }
-        // No rail for a job nothing has scored: a 0% "Weak Match" would read
-        // as a verdict when there is no score at all.
-        rail={
-          posting.match != null ? (
-            <MatchRail score={posting.match} highlights={posting.highlights ?? []} standalone />
-          ) : undefined
         }
       />
 
       <Section title="About the Role">
-        <p className="text-body text-ink-muted mt-3 max-w-[68ch]">{posting.about}</p>
-      </Section>
-
-      <Section title="What You'll Do">
-        <Points items={posting.responsibilities} marker />
-      </Section>
-
-      <Section title="Qualifications">
-        <Points items={posting.qualifications} marker />
+        {job.description ? (
+          <JobDescription text={job.description} company={job.company} applyUrl={job.apply_url} />
+        ) : (
+          <p className="text-body text-ink-meta mt-3">
+            This posting has no description here. Apply Now opens it on {job.company}&apos;s site.
+          </p>
+        )}
       </Section>
     </div>
   );
+}
+
+/** A fact's words, or nothing where the posting doesn't say (the header
+ *  leaves that fact out). */
+const text = (value: string | null | typeof NOT_LISTED | undefined) =>
+  typeof value === "string" ? value : "";
+
+/** The live role in the shape the shared header reads. What only a fixture
+ *  carries (an employer blurb, the mock's sections) is empty. */
+function toPosting(job: JobListing): JobPosting {
+  const facts = listingFacts(job);
+  return {
+    id: job.id,
+    companyName: job.company,
+    title: job.title,
+    status: "Open",
+    jobType: text(facts.jobType),
+    workStyle: text(facts.workStyle),
+    level: text(facts.experienceLevel),
+    starts: text("startTerm" in facts ? facts.startTerm : facts.minYearsExperience),
+    locationCity: text(facts.location),
+    salary: text(facts.salary),
+    postedAt: job.posted_at ?? "",
+    updatedAt: job.posted_at ?? "",
+    companyAbout: "",
+    about: "",
+    responsibilities: [],
+    qualifications: [],
+  };
 }

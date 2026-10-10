@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
+import { RememberFeed } from "../jobs/[jobId]/page-actions";
 import { FeedTransition, PendingFeed } from "../jobs/feed-transition";
 import { JobFilters } from "../jobs/filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "../jobs/listing-card";
@@ -219,6 +220,8 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
           /jobs. */}
       {/* One transition for a filter change, so the results dim the moment
           the row starts it (../jobs/feed-transition). */}
+      {/* So a job's page can come back to these results. */}
+      <RememberFeed />
       <FeedTransition>
         <div className="@container mt-4 flex flex-wrap items-center gap-2">
           <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />

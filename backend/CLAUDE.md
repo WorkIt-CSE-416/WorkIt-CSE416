@@ -123,8 +123,9 @@ app/
                   filters (work style, level, job type, date, pay, start
                   season, visa); GET /jobs/facets counts each option;
                   GET /jobs/locations
-                  — the places that have jobs, named. `fetch_listing` is
-                  shared with scout.py
+                  — the places that have jobs, named; GET /jobs/{job_id}
+                  — one open job with its description, for its own page
+                  (404 otherwise). `fetch_listing` serves that and scout.py
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, get, replace,
                   delete, set default, signed file link; extracts text from

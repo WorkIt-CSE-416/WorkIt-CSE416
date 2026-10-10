@@ -126,9 +126,13 @@ export function JobDetailHeader({
               the role does (that's "About the Role", further down). Capped
               at the same 68ch measure as About the Role, since with no rail
               (an unscored job) it would otherwise run the card's width. */}
-          <p className="text-note text-ink-meta mt-4 max-w-[68ch] leading-5">
-            {posting.companyAbout}
-          </p>
+          {/* A scraped job has no line about its employer apart from its
+              description, so it has none here. */}
+          {posting.companyAbout && (
+            <p className="text-note text-ink-meta mt-4 max-w-[68ch] leading-5">
+              {posting.companyAbout}
+            </p>
+          )}
         </div>
 
         {rail}
