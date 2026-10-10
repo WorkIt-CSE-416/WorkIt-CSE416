@@ -148,10 +148,16 @@ export async function getJobFacets(): Promise<JobFacets> {
 /** One open scraped job with its description, for its own page, from
  *  `GET /jobs/{id}`. `null` when the API says it isn't open (closed, a
  *  company's own, or no such job): the page shows its not-found. */
+/** A job posting's id: the row's UUID, all a card ever links to. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getJobListing(
   id: string,
 ): Promise<{ job: JobListing | null; error: null } | { job: null; error: string }> {
   await connection();
+  // Anything else is no job posting. It is not asked for: /jobs/count and the
+  // API's other named routes answer 200 with something that isn't one.
+  if (!UUID.test(id)) return { job: null, error: null };
   try {
     const res = await apiGet(`/jobs/${encodeURIComponent(id)}`);
     if (res.status === 404) return { job: null, error: null };

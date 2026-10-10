@@ -594,7 +594,9 @@ reader still hears "Salary not listed". The slots used to print that in
 italic, and over half the feed's cards had at least one. Under 448px of card
 body the empty slots close up instead. The title is one line, trailing off
 with an ellipsis (a wrapped title made its card taller than the rest), and a
-fact stops at its column's edge, each whole on hover. An internship shows when it
+fact stops at its column's edge. A title is whole on hover; a fact
+isn't, on a card that opens its job posting's page, since the card's click
+layer sits over the facts (the job posting's page shows every fact whole). An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
 2027"). Its job type is how the job is set up (Full-Time, Part-Time,
 Contract), an internship's too, never "Internship": that is its level, and

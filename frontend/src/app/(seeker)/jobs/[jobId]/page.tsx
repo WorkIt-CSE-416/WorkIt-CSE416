@@ -22,8 +22,9 @@ import { BackToJobs, ShareButton } from "./page-actions";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
-  const { job } = await getJobListing(jobId);
-  return { title: job ? `${job.title} at ${job.company}` : "Job Not Found" };
+  const { job, error } = await getJobListing(jobId);
+  if (job) return { title: `${job.title} at ${job.company}` };
+  return { title: error != null ? "Jobs Aren't Loading" : "Job Not Found" };
 }
 
 /**
