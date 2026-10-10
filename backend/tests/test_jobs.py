@@ -156,6 +156,23 @@ def test_a_state_is_matched_with_its_country():
     assert "job_locations.country = 'ZZ'" in sql
 
 
+def test_a_place_keeps_remote_jobs_that_name_none():
+    # "Remote" alone resolves to no place; such a job matches every place,
+    # where it would otherwise vanish under any location filter.
+    sql = _sql(offered_in(["US"]))
+    assert "job_postings.work_style = 'remote'" in sql
+    assert "NOT (EXISTS" in sql
+
+
+def test_every_place_counts_the_remote_jobs_that_name_none():
+    options = location_options(
+        [_country("US", "United States", 900), _country("ZZ", "Other", 40)],
+        [_state("US-CA", "California", 300)],
+        anywhere=15,
+    )
+    assert [(o.code, o.jobs) for o in options] == [("US", 915), ("US-CA", 315), ("ZZ", 55)]
+
+
 def _country(code, name, jobs):
     return SimpleNamespace(code=code, name=name, jobs=jobs)
 

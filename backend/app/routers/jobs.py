@@ -21,7 +21,10 @@ their job_locations rows: a country code ("US") matches every job in that
 country, a state code ("US-CA") its state. GET /jobs/locations lists the
 places that have jobs, with names, for the job board's Location filter. A job
 the location resolver couldn't place has no rows, so any location filter
-leaves it out (models/CLAUDE.md, the resolver section).
+leaves it out (models/CLAUDE.md, the resolver section), except a remote one:
+a posting whose location is only "Remote" names no place to be in, so it
+matches every place, and every place's count includes it (unplaced_remote).
+Without that, Remote + United States hid 15 of the feed's 82 remote roles.
 
 The job board's other filters narrow it the same way (JobFilters, KAN-170),
 each by a column every scraped row fills when the posting states it:
@@ -145,11 +148,27 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
     )
 
 
+def unplaced_remote() -> ColumnElement[bool]:
+    '''
+    true for a remote job with no job_locations rows: its posting says only
+    "Remote" or "Work Remotely", which the resolver reads as no place. It
+    names nowhere it must be done from, so a location filter keeps it.
+    models/CLAUDE.md once filed these under ZZ, but that would have put them
+    beside the roles in Peru and Colombia, hidden from Remote + United States
+    all the same
+    '''
+    return and_(
+        Job_Post.work_style == dto.work_style.remote,
+        ~exists().where(Job_Location.job_id == Job_Post.id),
+    )
+
+
 def offered_in(places: Iterable[str]):
     '''
-    true for a job with a job_locations row in any of these places. A state
-    code is matched with its country too, so job_locations_place_idx, which
-    leads with country, serves it
+    true for a job with a job_locations row in any of these places, or a
+    remote one that names no place (unplaced_remote). A state code is matched
+    with its country too, so job_locations_place_idx, which leads with
+    country, serves it
     '''
     clauses = [
         and_(Job_Location.country == code[:2], Job_Location.state == code)
@@ -157,7 +176,10 @@ def offered_in(places: Iterable[str]):
         else Job_Location.country == code
         for code in places
     ]
-    return exists().where(Job_Location.job_id == Job_Post.id, or_(*clauses))
+    return or_(
+        exists().where(Job_Location.job_id == Job_Post.id, or_(*clauses)),
+        unplaced_remote(),
+    )
 
 
 # A full-time year: the factor that turns each pay period into a yearly figure.
@@ -268,13 +290,15 @@ async def fetch_listings(
 
 
 def location_options(
-    countries: Iterable[Row], states: Iterable[Row]
+    countries: Iterable[Row], states: Iterable[Row], anywhere: int = 0
 ) -> list[JobLocationOption]:
     '''
     each country, busiest first, followed by its states A to Z; the catch-all
     country last, without its placeholder state. A state is labelled with its
     own name: the job board lists it under its country. `countries` rows are
-    (code, name, jobs) and `states` rows (code, country, name, jobs)
+    (code, name, jobs) and `states` rows (code, country, name, jobs).
+    `anywhere` (the unplaced remote jobs, which every place matches) is added
+    to each count, so a count is what picking that place shows
     '''
     by_country: dict[str, list[Row]] = {}
     for state in states:
@@ -282,11 +306,15 @@ def location_options(
 
     options = []
     for country in sorted(countries, key=lambda c: (c.code == _OTHER, -c.jobs, c.name)):
-        options.append(JobLocationOption(code=country.code, label=country.name, jobs=country.jobs))
+        options.append(
+            JobLocationOption(code=country.code, label=country.name, jobs=country.jobs + anywhere)
+        )
         if country.code == _OTHER:
             continue
         for state in sorted(by_country.get(country.code, []), key=lambda s: s.name):
-            options.append(JobLocationOption(code=state.code, label=state.name, jobs=state.jobs))
+            options.append(
+                JobLocationOption(code=state.code, label=state.name, jobs=state.jobs + anywhere)
+            )
     return options
 
 
@@ -310,7 +338,10 @@ async def fetch_location_options(db: AsyncSession) -> list[JobLocationOption]:
         .join(Job_Post, listed)
         .group_by(State.code, State.country_code, State.name)
     )
-    return location_options(countries.all(), states.all())
+    anywhere = await db.scalar(
+        select(func.count()).select_from(Job_Post).where(_LISTED, unplaced_remote())
+    )
+    return location_options(countries.all(), states.all(), anywhere or 0)
 
 
 async def fetch_listing(db: AsyncSession, job_id: str) -> JobListing | None:
