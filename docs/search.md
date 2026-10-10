@@ -1,6 +1,11 @@
+# Human TLDR 
+- each job is mapped to a specific job role that's hard-coded in a list. This supports future filtering, onboarding form and recommendation 
+
 # Search and Role Resolution — Design
 
-Status: agreed 2026-10-10 (KAN-155), not built yet. This is the rationale;
+Status: agreed 2026-10-10 (KAN-155). Built so far: the `job_roles` and
+`job_role_tags` tables (`backend/app/models/job_roles.py`, migration
+`362182aaa4fd`), not yet seeded. This is the rationale;
 once it is built, the migrations are the source of truth for the schema and
 the CLAUDE.md files nearest the code hold the rules.
 
@@ -67,13 +72,14 @@ filter options on the board. A copy in the frontend and another in the
 backend would drift, and only a table gives the tags foreign keys.
 
 ```
-job_roles      (slug text PRIMARY KEY, name text NOT NULL, sort_order smallint NOT NULL)
+job_roles      (slug text PRIMARY KEY, name text NOT NULL UNIQUE, sort_order smallint NOT NULL)
                -- ('software_engineer', 'Software Engineer', 10)
+               -- CHECK slug ~ '^[a-z][a-z0-9_]*$'
 
-job_role_tags  (job_posting_id uuid → job_postings ON DELETE CASCADE,
-                role_slug      text → job_roles,
-                PRIMARY KEY (job_posting_id, role_slug))
-               + index on (role_slug, job_posting_id) for the role filter
+job_role_tags  (job_id    uuid → job_postings ON DELETE CASCADE,
+                role_slug text → job_roles    ON DELETE RESTRICT,
+                PRIMARY KEY (job_id, role_slug))
+               + index on (role_slug, job_id) for the role filter
 ```
 
 - **The key is a readable slug, not a UUID**, like the countries' `'US'`. It
@@ -230,6 +236,7 @@ it (`backend/alembic/CLAUDE.md`).
   the experience filter rather than search by keyword.
 - **Symbols:** the `english` parser reads "C++" and "C#" as "c". Searching for
   them needs a title `ILIKE` fallback, or a different parser for those terms.
-- **Removing a role:** `job_role_tags` cascades, but once `profile_job_roles`
-  exists, removing a role silently drops applicants' picks. Decide before
-  removing one.
+- **Removing a role:** `job_role_tags` refuses it (RESTRICT) while any job is
+  tagged, so a removal deletes the tags first. Once `profile_job_roles`
+  exists, decide what happens to applicants who picked it, or hide the role
+  with an `active` flag instead of deleting it.

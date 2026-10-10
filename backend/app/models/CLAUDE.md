@@ -440,6 +440,37 @@ never downloads anything. Re-run the script to refresh it.
   next size up if that starts to matter.
 - It ships with the Vercel deploy although only the import reads it.
 
+## Job roles — `job_roles.py`
+
+The short list of roles search filters by and onboarding will offer, and the
+roles each job is tagged with. `../../../docs/search.md` has the design and
+why; the rules for this folder:
+
+- **`job_roles` is keyed by `slug`**, like `countries.code`: no surrogate id.
+  The slug is copied into every tag, every onboarding pick and the resolver's
+  alias dict, so **it never changes once shipped**. Renaming what people see
+  changes `name`. The `job_roles_slug_shape` CHECK keeps it lowercase words
+  joined by underscores, so it reads cleanly in `?role=`.
+- **Only migrations change the list**, each a frozen copy of the rows it
+  inserts or updates, as the country and state seeds are. Never import a
+  Python constant into one: editing the constant later would change what an
+  old migration does. The frontend reads the list from the API, never a copy.
+- **`job_role_tags` is many-to-many on purpose.** A job has zero, one or
+  several roles, so there is no `role_slug` column on `job_postings`. The
+  primary key `(job_id, role_slug)` serves lookups by job, and
+  `job_role_tags_role_idx` the role filter. `job_id` is named as in
+  `job_locations`.
+- **Deleting a job drops its tags (CASCADE); deleting a role is refused
+  while any job is tagged with it (RESTRICT).** Removing a role is then
+  deliberate: its migration deletes the tags first. SET NULL isn't possible,
+  as `role_slug` is part of the primary key. Neither foreign key can ever
+  delete a job: a cascade only runs from the table pointed at to the table
+  pointing at it. Onboarding picks should take RESTRICT too.
+- **Their migration is `362182aaa4fd`** (tables only, RLS on both). It revises
+  `4485d7a7a712`, which must be applied first. Nothing reads or writes these
+  tables yet, so deploying the models ahead of the migration is harmless; once
+  the import tags jobs, the migration must be on the database first.
+
 ## job_postings holds company-posted and scraped jobs
 
 One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
