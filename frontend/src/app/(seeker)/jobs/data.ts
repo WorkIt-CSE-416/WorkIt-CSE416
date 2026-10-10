@@ -100,42 +100,61 @@ function daysAgo(days: number) {
 /**
  * The facets the filter row offers, and the options behind each one.
  *
- * Location and keyword are deliberately not here: the top bar's search field
- * already owns both, and a filter chip for "United States" or "Frontend
- * Engineer" would just be a second, disagreeing way to set the same query.
- * What's left is the set every job board narrows on — type, workplace,
- * level, and how fresh the posting is — plus the three that are common
- * enough to want but not frequent enough to earn permanent row space, kept
- * behind All Filters instead.
+ * Keyword is deliberately not here: the top bar's search field owns it.
+ * Location is not either, because its options are the places that have jobs,
+ * from the API (`GET /jobs/locations`). What's left is the set every job
+ * board narrows on — type, workplace, level, and how fresh the posting is —
+ * plus salary, common enough to want but not frequent enough to earn
+ * permanent row space, kept behind All Filters instead.
  *
- * Job type and experience offer exactly the schema's enums, in the words
- * ./format prints on the cards, so a filter never names a value no card can
- * carry. "Internship" is a level, not a job type, and "Contract to hire" has
- * no column at all (see the note at the top of this file).
+ * Each option is a `value`, what the URL and the API carry, and a `label`,
+ * in the words ./format prints on the cards. Workplace, experience and date
+ * posted filter the live feed (./filters); job type and salary are still
+ * inert. Experience offers the two levels the scraper keeps, not the schema's
+ * third, which no live job has. "Internship" is a level, not a job type, and
+ * "Contract to hire" has no column at all (see the note at the top of this
+ * file). Industry had a facet too, and was dropped until jobs carry one.
  *
  * Date posted and salary are nested thresholds, so those facets take one pick
  * (see `multiple` in ./filters). No pick is "any", which is why neither list
  * spells it out.
  */
-export const JOB_TYPE_OPTIONS = ["Full-Time", "Part-Time", "Contract"];
+export type FacetOption = { value: string; label: string };
 
-export const WORKPLACE_OPTIONS = ["On-Site", "Hybrid", "Remote"];
-
-export const EXPERIENCE_OPTIONS = ["Internship", "New Grad", "Experienced"];
-
-export const DATE_POSTED_OPTIONS = ["Past 24 Hours", "Past Week", "Past Month"];
-
-export const LOCATION_OPTIONS = ["Remote (US)", "New York, NY", "Seattle, WA", "Austin, TX"];
-
-export const SALARY_OPTIONS = ["$80k+", "$120k+", "$160k+", "$200k+"];
-
-export const INDUSTRY_OPTIONS = [
-  "B2B SaaS",
-  "Data Infrastructure",
-  "Fintech",
-  "Healthcare",
-  "Logistics",
+export const JOB_TYPE_OPTIONS: FacetOption[] = [
+  { value: "full_time", label: "Full-Time" },
+  { value: "part_time", label: "Part-Time" },
+  { value: "contract", label: "Contract" },
 ];
+
+export const WORKPLACE_OPTIONS: FacetOption[] = [
+  { value: "onsite", label: "On-Site" },
+  { value: "hybrid", label: "Hybrid" },
+  { value: "remote", label: "Remote" },
+];
+
+export const EXPERIENCE_OPTIONS: FacetOption[] = [
+  { value: "internship", label: "Internship" },
+  { value: "new_grad", label: "New Grad" },
+];
+
+/** The API's `?posted=`: within a day, a week, or 30 days. */
+export const DATE_POSTED_OPTIONS: FacetOption[] = [
+  { value: "day", label: "Past 24 Hours" },
+  { value: "week", label: "Past Week" },
+  { value: "month", label: "Past Month" },
+];
+
+/** The filters that narrow the live feed, by the query parameter that
+ *  carries each, in the page's URL and in the API call alike: `location` the
+ *  place codes, the rest the options' values. `posted` holds one at most. */
+export type FeedFilters = Record<"location" | "workplace" | "experience" | "posted", string[]>;
+
+export const NO_FILTERS: FeedFilters = { location: [], workplace: [], experience: [], posted: [] };
+
+export const SALARY_OPTIONS: FacetOption[] = ["$80k+", "$120k+", "$160k+", "$200k+"].map(
+  (label) => ({ value: label, label }),
+);
 
 export const RECOMMENDATIONS: Recommendation[] = [
   {

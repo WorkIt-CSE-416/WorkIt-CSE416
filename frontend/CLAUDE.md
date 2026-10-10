@@ -83,6 +83,25 @@ src/app/          App Router routes, layouts, pages
                   panel, the top bar, the page) floating on --color-frame,
                   and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
+                  /jobs and /search take ?location= (repeated ISO codes,
+                  US or US-CA), ?workplace=, ?experience= and ?posted=
+                  (option values from jobs/data.ts, never labels), passed
+                  straight on to GET /jobs. readFilters in
+                  jobs/listings.ts drops anything the API would 422 on
+                  (places past 60 too), so a bad link narrows less
+                  instead of reading as an outage whose Try Again repeats
+                  it; a new filter param goes through it. Location,
+                  Workplace, Experience and Date Posted filter; Job Type
+                  and Salary are still inert, and Industry was removed
+                  until jobs carry one. The Location facet in
+                  jobs/filters.tsx is fed by GET /jobs/locations.
+                  A Popover of two panels, not a Select: countries left,
+                  the ticked country's states right. A country alone is
+                  all of it, with states ticked just those
+                  (ticksFrom/placesFrom there). Don't move it back into a
+                  Select with rows that come and go: a multiple Select
+                  whose item list shrinks (Base UI 1.7) re-applies the
+                  value from before the press, which undid the untick
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
@@ -203,6 +222,8 @@ src/lib/          Framework-free helpers
   auth.ts         apiFetch() to the Python API (with optional Bearer token),
                   extractErrorMessage, and auth types. Server-only.
   supabase/server.ts  Per-request Supabase client — auth only, never data
+  supabase/cookies.ts  sessionCookieOptions(): httpOnly, 7-day sb-* cookies.
+                  Both cookie writers (server.ts, src/proxy.ts) go through it
 public/           Static assets served from /
   workit-logo.png Full lockup, 1256x448, violet — the auth card
   workit-logo-ink.png  The same lockup in --color-ink, for the company top bar
@@ -601,8 +622,16 @@ side:
   LinkedIn's OIDC prompt support isn't the same, so this stays Google-only.
 
 **The token travels server-side.** The browser holds only Supabase's
-`sb-*` cookies, on this origin. Server code reads the access token from the
-session and passes it to `apiFetch()` as a Bearer header — the API never sees
+`sb-*` cookies, on this origin. They are **httpOnly and live 7 days**
+(`lib/supabase/cookies.ts`, since 2026-10-08; the @supabase/ssr default is
+readable by page scripts and 400 days). The 7 days count from the last
+token refresh, so they are an idle limit, not a cap on how long a session
+lasts; a hard cap is Supabase's session time-box (dashboard → Authentication
+→ Sessions). Set `maxAge` in that helper's `setAll` path, never through
+`createServerClient`'s `cookieOptions`: @supabase/ssr 0.12 overwrites that
+maxAge with its own default. httpOnly holds only while no
+`createBrowserClient()` exists; adding one means turning it off.
+Server code reads the access token from the session and passes it to `apiFetch()` as a Bearer header — the API never sees
 the cookies and needs no CORS. Use `getClaims()`, not `getSession()`, for any
 decision made here; `getSession()` is fine for fetching a token to forward,
 because the API verifies it anyway.

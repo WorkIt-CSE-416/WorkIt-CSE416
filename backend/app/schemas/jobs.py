@@ -59,3 +59,16 @@ class JobListing(BaseModel):
     min_years_experience: int | None = None
     # When an internship starts, as the posting names it: "Summer 2027", "2027".
     start_term: str | None = None
+
+
+class JobLocationOption(BaseModel):
+    """One place the seeker feed can be narrowed to, from GET /jobs/locations."""
+
+    # What GET /jobs?location= takes: a country ("US") or one of its states
+    # ("US-CA"), as job_locations stores them.
+    code: str
+    # For people: "United States", "California", "Other". A state's label is
+    # its name alone; the job board shows it under its country.
+    label: str
+    # Published scraped jobs offered there.
+    jobs: int

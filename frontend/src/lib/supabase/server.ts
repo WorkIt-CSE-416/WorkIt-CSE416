@@ -3,6 +3,8 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+import { sessionCookieOptions } from "@/lib/supabase/cookies";
+
 /**
  * A Supabase client scoped to the current request. Supabase Auth issues our
  * sessions (backend/CLAUDE.md's Auth section): this client signs in, signs
@@ -37,7 +39,7 @@ export async function createSupabaseServerClient() {
       setAll: (cookiesToSet) => {
         try {
           for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set(name, value, options);
+            cookieStore.set(name, value, sessionCookieOptions(options));
           }
         } catch {
           // A Server Component cannot write cookies. That is expected here:

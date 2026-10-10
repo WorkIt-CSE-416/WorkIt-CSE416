@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app.db import get_session
 from app.main import app
 from app.models import dto
-from app.routers.jobs import to_listing
+from app.routers.jobs import location_options, offered_in, to_listing
 from app.schemas.jobs import JobListing
 
 ROW = SimpleNamespace(
@@ -84,7 +84,7 @@ def test_row_without_a_date():
 
 
 def test_route_leaves_descriptions_out(no_database, monkeypatch):
-    async def fetch(db, limit):
+    async def fetch(db, limit, places, *filters):
         return [to_listing(ROW, "long text")]
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
@@ -96,7 +96,7 @@ def test_route_leaves_descriptions_out(no_database, monkeypatch):
 def test_route_passes_the_limit(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit):
+    async def fetch(db, limit, places, *filters):
         seen.append(limit)
         return []
 
@@ -112,3 +112,87 @@ def test_a_feed_written_before_descriptions_still_parses():
     # The import still reads feed.json through JobListing.
     row = {**to_listing(ROW).model_dump(exclude={"description"})}
     assert JobListing.model_validate(row).description is None
+
+
+def test_route_passes_the_places(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, places, *filters):
+        seen.append(places)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    assert client.get("/jobs").status_code == 200
+    assert client.get("/jobs?location=US-CA&location=US").status_code == 200
+    assert seen == [[], ["US-CA", "US"]]
+
+
+@pytest.mark.parametrize("code", ["us", "California", "US-", "USA", "US-CA;"])
+def test_route_rejects_a_malformed_place(no_database, code):
+    assert TestClient(app).get("/jobs", params={"location": code}).status_code == 422
+
+
+def test_route_passes_the_other_filters(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, places, workplaces, levels, posted):
+        seen.append((workplaces, levels, posted))
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    assert client.get("/jobs").status_code == 200
+    query = "?workplace=remote&workplace=hybrid&experience=new_grad&posted=week"
+    assert client.get("/jobs" + query).status_code == 200
+    assert seen == [([], [], None), (["remote", "hybrid"], ["new_grad"], "week")]
+
+
+@pytest.mark.parametrize("param", ["workplace=Remote", "experience=senior", "posted=year"])
+def test_route_rejects_an_unknown_filter_value(no_database, param):
+    assert TestClient(app).get("/jobs?" + param).status_code == 422
+
+
+def test_route_caps_the_places(no_database):
+    params = [("location", "US")] * 61
+    assert TestClient(app).get("/jobs", params=params).status_code == 422
+
+
+def test_a_state_is_matched_with_its_country():
+    # The country comes first so job_locations_place_idx serves a state too.
+    sql = str(offered_in(["US-CA", "ZZ"]).compile(compile_kwargs={"literal_binds": True}))
+    assert "job_locations.country = 'US' AND job_locations.state = 'US-CA'" in sql
+    assert "job_locations.country = 'ZZ'" in sql
+
+
+def _country(code, name, jobs):
+    return SimpleNamespace(code=code, name=name, jobs=jobs)
+
+
+def _state(code, name, jobs):
+    return SimpleNamespace(code=code, country=code[:2], name=name, jobs=jobs)
+
+
+def test_locations_read_as_places():
+    options = location_options(
+        [_country("ZZ", "Other", 40), _country("US", "United States", 900)],
+        [_state("US-NY", "New York", 120), _state("US-CA", "California", 300),
+         _state("ZZ-ZZ", "Other", 2)],
+    )
+    assert [(o.code, o.label, o.jobs) for o in options] == [
+        ("US", "United States", 900),
+        ("US-CA", "California", 300),
+        ("US-NY", "New York", 120),
+        # Last whatever its count, and without its placeholder state.
+        ("ZZ", "Other", 40),
+    ]
+
+
+def test_route_lists_locations(no_database, monkeypatch):
+    async def fetch(db):
+        return location_options([_country("US", "United States", 3)], [])
+
+    monkeypatch.setattr("app.routers.jobs.fetch_location_options", fetch)
+    assert TestClient(app).get("/jobs/locations").json() == [
+        {"code": "US", "label": "United States", "jobs": 3}
+    ]
