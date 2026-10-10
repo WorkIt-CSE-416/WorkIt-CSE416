@@ -9,7 +9,7 @@ from collections.abc import Sequence
 import httpx  # general Python library for sending HTTP requests
 
 from app.config import get_settings
-from app.models.dto import ParsedResume
+from app.models.dto import EMBEDDING_DIMENSIONS, ParsedResume
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Changing MODEL or DIMENSIONS means re-embedding every job and resume.
 MODEL = "gemini-embedding-001"
 
-DIMENSIONS = 768
+DIMENSIONS = EMBEDDING_DIMENSIONS
 
 BATCH_SIZE = 100
 _MAX_CHARS = 6000
