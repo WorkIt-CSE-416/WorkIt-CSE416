@@ -44,7 +44,8 @@ export type JobListing = {
   /** The rest of the card, named after `job_postings`' columns. Null when the
    *  posting never states it — the scraper reads the board's own fields, then
    *  the description, and infers only by measured rules (job type Full-Time
-   *  for a silent new-grad role or summer internship). */
+   *  for a silent new-grad role). An internship's card shows "Internship" as
+   *  its job type whatever this says (listing-card.tsx). */
   job_type: JobType | null;
   /** One amount, or `salary_min`/`salary_max` for a range; all null when the
    *  posting states no pay. */

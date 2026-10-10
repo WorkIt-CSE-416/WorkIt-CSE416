@@ -475,8 +475,9 @@ class TestCardWorkStyle:
 
 
 class TestCardJobType:
-    """Stated first; then Full-time for a new grad or a summer internship, which
-    nearly all are where they say (`shortlist._job_type`); nothing for any other."""
+    """Stated first; then Full-time for a new grad, which every new-grad posting that
+    states a type is (`shortlist._job_type`). An internship is never inferred: the
+    Jobs page shows "Internship" as every internship's job type."""
 
     def card(self, title: str, facts: Facts | None = None) -> str | None:
         job = greenhouse_job(
@@ -490,27 +491,15 @@ class TestCardJobType:
     def test_a_silent_new_grad_is_full_time(self) -> None:
         assert self.card("Software Engineer, New Grad") == "full_time"
 
-    def test_a_silent_summer_internship_is_full_time(self) -> None:
-        assert self.card("Software Engineer Intern (Summer 2027)") == "full_time"
-
-    def test_a_summer_start_term_counts(self) -> None:
-        facts = Facts(start_term="Summer 2027")
-        assert self.card("Software Engineer Intern", facts) == "full_time"
-
-    def test_other_internships_stay_empty(self) -> None:
+    def test_a_silent_internship_stays_empty(self) -> None:
         for title in (
+            "Software Engineer Intern (Summer 2027)",
             "Software Engineer Intern (Fall 2026)",
-            "Software Engineer Intern (Spring 2027)",
             "Machine Learning Intern/Co-op (Summer 2027)",
-            "Part-Time Software Engineer Intern (Summer 2027)",
-            "Software Engineer Intern - Summer/Fall 2027",
             "Software Engineer Intern (2027)",
         ):
             assert self.card(title) is None, title
-
-    def test_a_school_year_start_term_is_not_summer(self) -> None:
-        facts = Facts(start_term="Fall 2026")
-        assert self.card("Software Engineer Intern (Summer)", facts) is None
+        assert self.card("Software Engineer Intern", Facts(start_term="Summer 2027")) is None
 
     def test_a_stated_type_wins(self) -> None:
         # The Voleon Group's "Software Engineer Intern - (Summer 2027)" is a contract.

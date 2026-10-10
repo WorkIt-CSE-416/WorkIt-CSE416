@@ -261,7 +261,7 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 facts=replace(
                     facts,
                     work_style=_work_style(postings, styles.get(postings[0].company)),
-                    job_type=_job_type(tags, postings[0].title, facts),
+                    job_type=_job_type(tags, facts),
                 ),
             )
         )
@@ -307,34 +307,23 @@ def _work_style(postings: list[Job], company: Counter[str] | None) -> str | None
     return None
 
 
-# Words that make an internship something other than a summer one: a term in the
-# school year, or a schedule that is not full days.
-NOT_SUMMER = re.compile(
-    r"\bfall\b|\bautumn\b|\bspring\b|\bwinter\b|\bsemesters?\b|\bpart[- ]time\b|\bco-?ops?\b",
-    re.I,
-)
-SUMMER = re.compile(r"\bsummer\b", re.I)
-
-
-def _job_type(tags: tuple[Tag, ...], title: str, facts: Facts) -> str | None:
+def _job_type(tags: tuple[Tag, ...], facts: Facts) -> str | None:
     """The card's job type, first answer wins:
 
     1. what the posting states -- its board's field or a sentence (`Facts`);
-    2. "full_time" for a new-grad role;
-    3. "full_time" for a summer internship: its title or start term says Summer,
-       and neither names fall, spring, winter, a semester, part-time or a co-op.
+    2. "full_time" for a new-grad role.
 
     Measured on the live feed (2026-10-10): 216 of 216 new-grad roles that state a
-    job type say full-time, and 71 of 74 summer internships (the other three:
-    part-time twice, contract once). Any other internship stays empty: school-year
-    terms and co-ops are often part-time. A stated type always wins, so this never
-    turns a part-time or contract posting into a full-time one.
+    job type say full-time. A stated type always wins, so this never turns a
+    part-time or contract posting into a full-time one.
+
+    An internship is not inferred: the Jobs page shows "Internship" as every
+    internship's job type, whatever its hours (decided 2026-10-10: a card saying
+    "Full-Time Internship" beside "Part-Time Internship" read as two kinds of
+    internship). What an internship's posting states is still kept here.
     """
     if facts.job_type:
         return facts.job_type
     if Tag.NEW_GRAD in tags:
-        return "full_time"
-    words = f"{title} {facts.start_term or ''}"
-    if SUMMER.search(words) and not NOT_SUMMER.search(words):
         return "full_time"
     return None
