@@ -29,6 +29,7 @@ import {
   Plus,
   Search,
   Settings,
+  Shapes,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -234,6 +235,12 @@ export function workStyleIcon(workStyle: string | null) {
  *  Visa filter's, and the job card's once it shows sponsorship (KAN-168). */
 export function VisaIcon({ className }: IconProps) {
   return <Globe aria-hidden className={className} />;
+}
+
+/** A role's discipline (software, data, product, quant, hardware): shapes, one
+ *  of each kind. The Role filter's; the job card doesn't print the fact. */
+export function RoleIcon({ className }: IconProps) {
+  return <Shapes aria-hidden className={className} />;
 }
 
 export function CalendarIcon({ className }: IconProps) {

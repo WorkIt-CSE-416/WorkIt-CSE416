@@ -22,6 +22,7 @@ import {
   CoinIcon,
   LevelIcon,
   PinIcon,
+  RoleIcon,
   SearchIcon,
   VisaIcon,
   workStyleIcon,
@@ -39,6 +40,7 @@ import {
   JOB_TYPE_OPTIONS,
   NO_FILTERS,
   PAY_OPTIONS,
+  ROLE_OPTIONS,
   seasonLabel,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
@@ -148,6 +150,20 @@ function PanelBody({
             values={draft.places}
             onChange={(next) => set({ places: next })}
           />
+        </Section>
+
+        {/* Full width: its five names are long, and the row puts it second. */}
+        <Section Icon={RoleIcon} label="Role">
+          {ROLE_OPTIONS.map((o) => (
+            <Chip
+              key={o.value}
+              pressed={draft.roles.includes(o.value)}
+              count={countOf("role", o.value)}
+              onClick={() => set({ roles: toggle(draft.roles, o.value, ROLE_OPTIONS) })}
+            >
+              {o.label}
+            </Chip>
+          ))}
         </Section>
 
         <div className="grid gap-x-6 sm:grid-cols-2">

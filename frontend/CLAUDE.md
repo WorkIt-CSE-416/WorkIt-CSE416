@@ -85,7 +85,7 @@ src/app/          App Router routes, layouts, pages
                   /dashboard is the seeker's home: sign-in lands there.
                   /jobs and /search filter on the server by the query:
                   ?location= (repeated ISO codes, US or US-CA),
-                  ?work_style=, ?experience=, ?job_type= (repeated),
+                  ?work_style=, ?role=, ?experience=, ?job_type= (repeated),
                   ?posted_within= (days), ?min_pay= and ?max_pay= with
                   ?pay_per= (hour or year), ?start_term= (seasons) and
                   ?visa=, GET /jobs' own names. jobs/filter-query.ts
@@ -106,7 +106,12 @@ src/app/          App Router routes, layouts, pages
                   filters, and Industry is gone (no data). As the row
                   narrows its facets step out one at a time, least used
                   first, and All Filters stays a normal button; never
-                  stretch it across the row. All Filters opens one panel
+                  stretch it across the row. Role (KAN-171: Software
+                  Engineering, Data Science, AI & ML, Product Management,
+                  Quantitative Finance, Hardware Engineering, the
+                  SimplifyJobs lists' five) sits second, after Location,
+                  as the facet a seeker narrows by first; no pick shows
+                  every discipline. All Filters opens one panel
                   (jobs/all-filters.tsx) with every facet's options in view
                   as chips, no popups inside it (they landed left or right
                   of their button by the room). Its picks are a draft until

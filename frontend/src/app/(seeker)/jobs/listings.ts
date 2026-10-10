@@ -6,7 +6,7 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 
 import type { ExperienceLevel, JobType, WorkStyle } from "./data";
-import { filtersQuery, NO_FILTERS, type FeedFilters } from "./filter-query";
+import { filtersQuery, NO_FILTERS, type FeedFilters, type Role } from "./filter-query";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
@@ -60,6 +60,8 @@ export type JobListing = {
   /** What the posting says about visas (KAN-168): it sponsors, it doesn't, or
    *  US citizens only. Null when it says nothing, which is most postings. */
   sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
+  /** The role's discipline, read from its title by the scraper (KAN-171). */
+  role_category: Role | null;
 };
 
 export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";
@@ -119,12 +121,13 @@ export type FacetCount = { value: string; jobs: number };
 /** Every filter option's count across the whole feed (not narrowed by the
  *  other filters), and the start terms postings name, in calendar order. */
 export type JobFacets = Record<
-  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
+  "work_style" | "role" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
   FacetCount[]
 >;
 
 const NO_FACETS: JobFacets = {
   work_style: [],
+  role: [],
   experience: [],
   job_type: [],
   posted_within: [],
