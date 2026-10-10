@@ -1,7 +1,9 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+
+import { forgetFeedPages } from "./jobs/feed-pages";
 
 /**
  * Puts a seeker page back where it was scrolled when the seeker comes back to
@@ -18,8 +20,9 @@ import { useEffect, useRef } from "react";
  * Restoring waits for the page to be tall enough, since a page's content
  * streams in behind its placeholders after it arrives, and gives up after
  * SETTLE_MS or as soon as the seeker scrolls, clicks or types themselves.
- * The feed's own Load More pages come back with it (jobs/feed-list.tsx), so
- * the place it returns to exists.
+ * The feed's own Load More pages come back with it on a return
+ * (jobs/feed-pages.ts), so the place it returns to exists; on any other
+ * arrival they are dropped here, so the list starts at its first page.
  *
  * Rendered once, in the seeker layout; draws nothing. sessionStorage can be
  * off (a private window): then nothing is remembered and nothing breaks.
@@ -104,7 +107,9 @@ export function ScrollMemory() {
     };
   }, []);
 
-  useEffect(() => {
+  // A layout effect: a fresh arrival drops the feed's kept pages before the
+  // page is drawn, so they never flash.
+  useLayoutEffect(() => {
     const key = here();
     let asked = false;
     try {
@@ -115,6 +120,7 @@ export function ScrollMemory() {
     }
     const back = popped.current || asked;
     popped.current = false;
+    if (!back) forgetFeedPages(window.location.pathname);
     const wanted = back ? positions()[key] : undefined;
     const main = document.getElementById("content");
     const content = main?.firstElementChild;

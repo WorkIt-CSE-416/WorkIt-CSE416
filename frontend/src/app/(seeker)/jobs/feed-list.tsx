@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from
 import { Button } from "@/components/ui/button";
 
 import { loadMoreJobs } from "./actions";
+import { keep, readKept, subscribe } from "./feed-pages";
 import { PAGE_SIZE } from "./filter-query";
 import { ListingCard } from "./listing-card";
 import type { JobListing } from "./listings";
@@ -18,15 +19,13 @@ import type { JobListing } from "./listings";
  * team chose: a seeker scrolling a feed wants the next roles under the ones
  * they have read, not a different screen of them.
  *
- * THE LOADED PAGES OUTLIVE THE LIST, kept for the tab's session (`kept`
- * below), so leaving for a role's page and coming back finds the list as
- * long as it was, and ../scroll-memory.tsx can put the seeker back where
- * they were in it; without them the place it returned to didn't exist yet.
- * One list is kept, the last one loaded into, and only for its own query: a
- * new filter or search starts at its first page. They expire after KEPT_FOR,
- * since roles close and an hour-old page would show them still open.
- * The server's first page is always fresh; a kept role it now holds is not
- * shown twice.
+ * THE LOADED PAGES OUTLIVE THE LIST ON A RETURN (./feed-pages): Back from a
+ * job posting's page finds the list as long as it was, so ../scroll-memory.tsx
+ * can put the seeker back where they were in it; without them the place it
+ * returned to didn't exist yet. Any other arrival starts at the first page,
+ * and a new filter or search does too. They expire after KEPT_FOR, since
+ * roles close and an hour-old page would show them still open. The server's
+ * first page is always fresh; a kept role it now holds is not shown twice.
  *
  * A role already on the list is not added twice. Pages are counted by offset,
  * so an import landing between two loads can shift one role into the next
@@ -36,46 +35,6 @@ import type { JobListing } from "./listings";
  * was, so a keyboard carries on reading down the list instead of starting
  * over at the top when the button leaves. A live region says how many came.
  */
-/** How long loaded pages are kept for a return to their list. */
-const KEPT_FOR = 30 * 60 * 1000;
-
-const PAGES = "workit:feed-pages";
-
-type Kept = { query: string; jobs: JobListing[]; offset: number; more: boolean; at: number };
-
-/** The kept pages, in memory and mirrored to sessionStorage so they survive a
- *  reload too. `undefined` until first read. A store rather than state, so a
- *  list reads them as it renders (useSyncExternalStore) with no flash of the
- *  first page alone. */
-let kept: Kept | null | undefined;
-const listeners = new Set<() => void>();
-
-function readKept(): Kept | null {
-  if (kept === undefined) {
-    try {
-      kept = JSON.parse(sessionStorage.getItem(PAGES) ?? "null") as Kept | null;
-    } catch {
-      kept = null;
-    }
-  }
-  return kept && Date.now() - kept.at < KEPT_FOR ? kept : null;
-}
-
-function keep(next: Kept) {
-  kept = next;
-  try {
-    sessionStorage.setItem(PAGES, JSON.stringify(next));
-  } catch {
-    /* storage off or full: kept in memory for this visit */
-  }
-  for (const listener of listeners) listener();
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
 export function FeedList({
   initial,
   more: initialMore,
@@ -120,6 +79,7 @@ export function FeedList({
       const fresh = page.jobs.filter((job) => !shown.has(job.id));
       setError(null);
       keep({
+        path: window.location.pathname,
         query,
         jobs: [...loaded, ...fresh],
         offset: offset + page.jobs.length,

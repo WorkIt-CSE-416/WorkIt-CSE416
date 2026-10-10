@@ -333,7 +333,7 @@ browser can't restore your place by itself. The app does it instead:
 |---|---|
 | Browser Back or Forward | Where you were, on any page in the app |
 | "Back to Jobs" | Where you were in the list, with your Load More pages still loaded (for 30 minutes) |
-| A sidebar link or a fresh link | At the top |
+| A sidebar link, a fresh link or a reload | At the top, with the first 50 job postings |
 
 ---
 

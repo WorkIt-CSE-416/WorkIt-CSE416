@@ -171,9 +171,11 @@ src/app/          App Router routes, layouts, pages
                   numbers, as the team chose) that adds the next 50 with
                   the same filters through jobs/actions.ts. A fetch asks
                   for one past the page, so the button shows only when
-                  there is more. Loaded pages are kept for the session
-                  (30 minutes, one list, its own query only), so a return
-                  finds the list as long as it was.
+                  there is more. Loaded pages are kept for a return
+                  (jobs/feed-pages.ts: 30 minutes, one list, its own
+                  query only), so Back finds the list as long as it was;
+                  a fresh arrival at the list's page (a sidebar link, a
+                  reload) drops them and starts at the first 50.
                   Every seeker page goes back to where it was scrolled on
                   a return: the browser's Back or Forward, or "Back to
                   Jobs" (restoreScrollOn). (seeker)/scroll-memory.tsx keeps
