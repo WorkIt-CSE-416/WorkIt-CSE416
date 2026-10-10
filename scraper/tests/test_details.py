@@ -1,7 +1,8 @@
 """The card's job type, salary and years, read from a provider field or a description.
 
 A wrong one is silent: the card prints "$38/yr" or "Part-Time" with nothing to show it
-came from a misread sentence. Every string below was observed in a scraped posting.
+came from a misread sentence. Every string below was observed in a scraped posting,
+except in `TestConstructedGuards`, whose docstring says why.
 """
 
 from __future__ import annotations
@@ -235,6 +236,14 @@ class TestWholeDescription:
         facts = job.facts
         assert (facts.job_type, facts.min_years, facts.work_style) == ("full_time", 1, "On site")
         assert facts.start_term == "Summer 2027"
+
+    def test_sponsorship_past_the_cut_is_found(self, monkeypatch) -> None:
+        # Sigma's visa line is near the end; 635 of ~1,090 stored copies are cut.
+        blurb = "We build robots. " * 600
+        text = f"{blurb}\nVisa sponsorship is not available for our internship positions"
+        [job] = self.fetch(monkeypatch, self.ashby_row(text))
+        assert "Visa" not in (job.description or "")
+        assert job.facts.sponsorship == "no_sponsorship"
 
     def test_a_provider_field_beats_the_description(self, monkeypatch) -> None:
         row = self.ashby_row("This is a part-time internship.", employmentType="FullTime")
@@ -676,3 +685,325 @@ class TestProviderWorkStyleFields:
         )
         assert providers._greenhouse_work_style([{"name": "Is Remote?", "value": True}]) == "Remote"
         assert providers._greenhouse_work_style([{"name": "Cost Center", "value": "4991"}]) is None
+
+
+class TestSponsorship:
+    """What a posting says about visas, from postings read on 2026-10-09: the feed's,
+    and other roles on the same boards. Each string is from the posting named."""
+
+    INTERN = "Software Engineer Intern"
+
+    def says(self, text: str, title: str = INTERN) -> str | None:
+        return details.sponsorship(title, text)
+
+    def test_will_not_sponsor(self) -> None:
+        for text in (
+            # Enova: a loose "able to sponsor visas" once read this as a yes.
+            "However, we are not able to sponsor visas or take over sponsorship at this time.",
+            "Visa sponsorship is not available for our internship positions",  # Sigma
+            # Zettabyte, Gallup, Qumulo, mthree.
+            "- Applicants must be authorized to work in the United States without visa sponsorship",
+            "Eligibility to work in the United States required; this position is not eligible "
+            "for employment visa sponsorship",
+            "Must be authorized to work in the United States. We are unable to provide visa "
+            "sponsorship or transfer.",
+            "Applicants must be currently authorized to work in the United States on a full-time "
+            "basis. The Company will not sponsor applicants for work visas.",
+            # Roblox, Monzo.
+            "For US based roles only, please note the Company may not be able to employ "
+            "candidates for this role who have United States work authorization related to "
+            "certain U.S. visa categories, or support future H-1B sponsorship at this time.",
+            "You have the right to work in the UK without restrictions for the full 12-week "
+            "internship and would not require visa sponsorship if offered a permanent position.",
+        ):
+            assert self.says(text) == "no_sponsorship", text
+
+    def test_says_it_sponsors(self) -> None:
+        # SingleStore, Verkada, Belvedere, Ambrook, Samaya; Fab2's benefits list.
+        for text in (
+            "Sponsorship is available for this position and other select roles.",
+            "We do sponsor and take over sponsorship of employment visas for this role.",
+            "Sponsorship: Yes",
+            "Ambrook can support visa sponsorship (OPT/CPT, TN, J-1) for eligible candidates.",
+            "Visa Sponsorship: We do sponsor visas! However, we aren't able to successfully "
+            "sponsor visas for every role and every candidate.",
+            "Internship Benefits:\n- Paid Time Off inclusive of Holidays and Sick Time\n"
+            "- Visa Sponsorship\n- Medical, Dental, and Vision insurance",
+        ):
+            assert self.says(text) == "sponsors", text
+
+    def test_no_outweighs_yes_and_citizens_only_outweighs_no(self) -> None:
+        # Fab2's benefit beside Sigma's line; Awetomaton says both of the others.
+        text = "- Visa Sponsorship\nVisa sponsorship is not available for our internship positions"
+        assert self.says(text) == "no_sponsorship"
+        text = "U.S. citizenship is required, as we are unable to provide visa sponsorship."
+        assert self.says(text) == "citizens_only"
+
+    def test_citizenship_or_a_us_clearance_required(self) -> None:
+        for text in (
+            # ASSYST, Meridian Partners, Kitware, CoVar.
+            "Clearance Requirement: US Citizenship is required with eligibility to obtain a "
+            "clearance.",
+            "US Citizenship required and ability to obtain a US Security Clearance.",
+            "Due to contractual requirements, only U.S. citizens will be considered for this "
+            "position.",
+            "Minimum qualifications\nWork authorization: US citizen",
+            # Accenture; Palantir's list with no verb, under its heading.
+            "Clearance:\nMust have a TS/SCI level clearance",
+            "What We Require\nActive US Security clearance, or eligibility and willingness to "
+            "obtain a US Security clearance prior to start of internship",
+        ):
+            assert self.says(text) == "citizens_only", text
+
+    def test_an_optional_clearance_is_not_a_requirement(self) -> None:
+        # Palantir lists it under "What We Value" on some roles; GRVTY as nice to have.
+        for text in (
+            "What We Value\nActive US Security clearance, or eligibility and willingness to "
+            "obtain a US Security clearance.",
+            "For all other roles: An active U.S. security clearance, or eligibility and "
+            "willingness to obtain one, is a plus but not required",
+            "What Would be Nice to Have\nActive or current Top-Secret clearance with SCI access "
+            "and polygraph (TS/SCI with poly).",
+        ):
+            assert self.says(text) is None, text
+
+    def test_a_us_person_is_not_only_a_citizen(self) -> None:
+        # ITAR's "U.S. person" takes green card holders too, so it is no
+        # sponsorship rather than citizens only. Astranis, Anduril, Varda.
+        for text in (
+            "(To comply with U.S. Government space technology export regulations, applicant "
+            "must be a U.S. citizen, lawful permanent resident of the United States, or other "
+            "protected individual as defined by 8 U.S.C. 1324b(a)(3))",
+            "Must be a U.S. Person due to required access to U.S. export controlled information "
+            "or facilities; U.S. clearance eligibility may be required depending on program.",
+            "Because our employees are provided access to export-controlled items, our policy is "
+            "to only hire “U.S. persons” who are permitted to have access to our technology",
+        ):
+            assert self.says(text) == "no_sponsorship", text
+
+    def test_an_export_licence_instead_says_nothing(self) -> None:
+        # Antares, Hermeus: a visa holder can still be hired under a licence.
+        for text in (
+            "To conform to U.S. Government export regulations, applicant must be a (i) U.S. "
+            "citizen or national, (ii) U.S. lawful, permanent resident (aka green card holder), "
+            "(iii) Refugee under 8 U.S.C. § 1157, or (iv) Asylee under 8 U.S.C. § 1158, or be "
+            "eligible to obtain the required authorizations from the U.S. Department of State.",
+            "The person hired will have access to information and items subject to U.S. export "
+            "controls, and therefore, must either be a “U.S. person” as defined by 22 C.F.R. "
+            "§ 120.62 or otherwise eligible for deemed export licensing.",
+        ):
+            assert self.says(text) is None, text
+
+    def test_statements_that_say_nothing_about_this_role(self) -> None:
+        for text in (
+            # Akuna: OPT is the student's own authorization, not a sponsorship.
+            "Legal authorization to work in the U.S. is required on the first day of "
+            "employment including F-1 students using OPT or STEM",
+            # Cloudflare: an export licence's sponsor; Freedom: company events.
+            "Please note that any offer of employment may be conditioned on your authorization "
+            "to receive software or technology controlled under these U.S. export laws without "
+            "sponsorship for an export license.",
+            "Company sponsored events (game nights, holiday party, summer party, happy hours)",
+            # IMC sponsors, except for some nationalities.
+            "IMC is unable to obtain immigration sponsorship for candidates who currently have "
+            "citizenship from Russia, Belarus or Iran",
+            # Rivet, Maven: some other role's.
+            "Certain roles may require U.S. Person status, security clearance eligibility, or "
+            "other requirements imposed by law or government contract.",
+            "Visa sponsorship is available for selected roles, please see our FAQ page for details",
+        ):
+            assert self.says(text) is None, text
+
+    def test_a_full_time_offer_is_not_an_internships(self) -> None:
+        # Jump Trading posts it on both; an intern works on CPT or OPT.
+        text = (
+            "INTERNATIONAL STUDENTS are encouraged to apply. We accept students eligible for "
+            "CPT/OPT and we sponsor work visas for full-time positions."
+        )
+        assert self.says(text, "Campus Software Engineer (Intern)") is None
+        assert self.says(text, "Campus AI Research Engineer (Full-Time)") == "sponsors"
+
+    def test_citizens_in_the_plural(self) -> None:
+        # OpenAI: "must be U.S. citizens" once read as nothing at all.
+        text = (
+            "To comply with a U.S. government contract, applicants for this position must be "
+            "U.S. citizens with the ability to obtain and maintain a Tier 4 (High Risk Public "
+            "Trust) background investigation."
+        )
+        assert self.says(text) == "citizens_only"
+
+    def test_a_need_after_the_offer_or_past_a_comma_is_still_an_offer(self) -> None:
+        for text in (
+            # Frontier Health, n8n, Corvus Robotics, Wordware.
+            "- Visa sponsorship: we are able to sponsor visas if required.",
+            "We can sponsor visas to Germany; for any other country, you need to have existing "
+            "right to work.",
+            # "not required, can sponsor" was once a no: the negation crossed the comma.
+            "This role is in-person hybrid in Mountain View, CA. US work authorization is "
+            "preferred but not required, can sponsor visas.",
+            "- We require US work authorization, but are open to O-1 or J-1 visa sponsorship for "
+            "exceptional candidates.",
+        ):
+            assert self.says(text) == "sponsors", text
+
+    def test_open_only_to_us_persons_is_not_citizens_only(self) -> None:
+        for text in (
+            # GovSignals, Skydio, Proto Labs, Havoc, OpenAI.
+            "Due to the nature of our government work, this role is open only to U.S. citizens "
+            "and other U.S. Persons.",
+            "As a result, this position is open only to U.S. citizens or Green Card holders.",
+            "Due to ITAR regulations, this role is only open to U.S. Citizens, lawful permanent "
+            "residents (green card holders) or foreign nationals granted refugee or asylee status.",
+            "- U.S. citizenship or U.S. person status, per our facility requirements",
+            "To comply with a U.S. government contract, applicants for this position must be "
+            "U.S. citizens, U.S. nationals, or U.S. persons (i.e., U.S. lawful permanent "
+            "residents, refugees, and asylees).",
+        ):
+            assert self.says(text) == "no_sponsorship", text
+
+    def test_only_the_nearest_heading_decides(self) -> None:
+        # CGS: an item graded "preferred" is not a heading over the citizenship below it.
+        text = (
+            "Qualifications:\n- Bachelor’s degree in a relevant field required\n"
+            "- Experience with Salesforce preferred\n"
+            "- Ability to obtain a Public Trust clearance.\n- Must be a United States citizen."
+        )
+        assert self.says(text) == "citizens_only"
+        # Valinor: the benefits heading in capitals ends the "Strongly Preferred" list.
+        text = (
+            "Strongly Preferred\n- Prior experience on an autonomous systems, robotics, or "
+            "maritime/subsea platform.\nWHAT VALINOR OFFERS\n- Unlimited PTO and two-week company "
+            "holiday at the end of every calendar year.\nThis role requires the candidate be "
+            "eligible to obtain and maintain a U.S. security clearance. Active clearance "
+            "preferred, but not required."
+        )
+        assert self.says(text) == "citizens_only"
+        # Skydio: "What Is Required" is a heading, though it ends like a graded item.
+        text = (
+            "Nice to Have\n- Familiarity with foreign disclosure, ITAR, and FMS processes.\n"
+            "What Is Required\n- Ability to lift up to 60 lbs unaided.\n"
+            "- Active Secret or Top Secret security clearance, or the ability to obtain one."
+        )
+        assert self.says(text) == "citizens_only"
+
+    def test_an_export_licence_answers_every_requirement_it_follows(self) -> None:
+        # SpaceX states the requirement in its qualifications and offers the licence
+        # in its ITAR paragraph thousands of characters later: still none.
+        text = (
+            "Applicant for this intern position must be a (i) U.S. citizen or national, (ii) "
+            "U.S. lawful permanent resident (e.g., green card holder), (iii) Refugee under 8 "
+            "U.S.C. § 1157, or (iv) Asylee under 8 U.S.C. § 1158.\n"
+            "Your salary will be determined by academic level. Pay is just one part of your "
+            "total rewards package at SpaceX. You may also be eligible for a stipend to subsidize "
+            "relocation costs, as well as access to our comprehensive medical coverage and a "
+            "401(k) retirement plan.\nITAR REQUIREMENTS:\n"
+            "To conform to U.S. Government export regulations, applicant must be a (i) U.S. "
+            "citizen or national, (ii) U.S. lawful, permanent resident (aka green card holder), "
+            "(iii) Refugee under 8 U.S.C. § 1157, or (iv) Asylee under 8 U.S.C. § 1158, or be "
+            "eligible to obtain the required authorizations from the U.S. Department of State."
+        )
+        assert self.says(text) is None
+
+    def test_sponsored_that_is_not_a_visa(self) -> None:
+        for text in (
+            # Pyka, Vestwell's client, Xsolla, Nexus (a no that names OPT stays a no).
+            "Employer-sponsored health, dental and vision insurance",
+            "- Company-sponsored 401(k) through Vestwell",
+            "Own Gas Abstraction — Set the paymaster and gas-sponsorship strategy: what we "
+            "sponsor, how we meter and cap it, how we defend it from abuse, and how it degrades "
+            "when sponsorship is unavailable.",
+        ):
+            assert self.says(text) is None, text
+        text = (
+            "Nexus Engineering Group does not provide employment visa sponsorship of any kind, "
+            "including CPT, OPT, or employment-based visas."
+        )
+        assert self.says(text) == "no_sponsorship"
+
+    def test_a_stored_page_from_before_it_has_none(self) -> None:
+        assert Facts.from_row({"job_type": "full_time"}).sponsorship is None
+
+
+class TestConstructedGuards:
+    """Constructed guards for KAN-168's fixes, not seen live: each bug was real, but no
+    posting on 2026-10-09 said it this way."""
+
+    INTERN = "Software Engineer Intern"
+
+    def says(self, text: str, title: str = INTERN) -> str | None:
+        return details.sponsorship(title, text)
+
+    def test_a_negation_stops_at_a_comma_and_at_whether_or_not(self) -> None:
+        assert self.says("Don't worry, we sponsor visas.") == "sponsors"
+        # An aside between commas is still inside the "no" (review, 2026-10-10).
+        for text in (
+            "We are not, at this time, able to sponsor visas.",
+            "We do not, however, sponsor visas.",
+            "We do not currently, and will not in the future, sponsor work visas.",
+        ):
+            assert self.says(text) == "no_sponsorship", text
+        for text in (
+            "Whether or not you require visa sponsorship, we encourage you to apply.",
+            "We consider all candidates, without regard to sponsorship status.",
+        ):
+            assert self.says(text) is None, text
+
+    def test_citizenship_said_not_to_be_required(self) -> None:
+        for text in (
+            "U.S. citizenship is not a requirement for this role.",
+            "No US citizenship required.",
+        ):
+            assert self.says(text) is None, text
+
+    def test_headings(self) -> None:
+        for text in (
+            "Preferred Qualifications:\n- Rust\nAdditional Information:\n"
+            "US citizenship is required for this position.",
+            "Requirements:\n- Python skills a plus\n- Must be a US citizen",
+            "Our Values\nWe are customer obsessed.\nUS citizenship is required for this role.",
+            "Must be a U.S citizen.",
+            "Candidates must be US citizens.",
+        ):
+            assert self.says(text) == "citizens_only", text
+
+    def test_needing_sponsorship_disqualifies(self) -> None:
+        for text in (
+            "Candidates who require visa sponsorship will not be considered.",
+            "Applicants requiring sponsorship are not eligible for this role.",
+            "Sponsorship is unavailable for this role.",
+        ):
+            assert self.says(text) == "no_sponsorship", text
+        assert self.says("We sponsor visas for candidates who need them.") == "sponsors"
+
+    def test_opt_and_cpt_only_is_not_sponsorship(self) -> None:
+        for text in (
+            "Visa sponsorship is limited to OPT/CPT.",
+            "Immigration sponsorship: CPT/OPT only, no H-1B.",
+        ):
+            assert self.says(text) is None, text
+
+    def test_customs_clearance_and_join_us(self) -> None:
+        for text in (
+            "Join us to streamline customs clearance; prior logistics experience required.",
+            "Experience with U.S. customs clearance processes is required.",
+        ):
+            assert self.says(text) is None, text
+
+    def test_an_internship_titled_by_its_season(self) -> None:
+        text = "We sponsor work visas for full-time positions."
+        assert self.says(text, "Summer Analyst") is None
+        assert self.says(text, "Quantitative Researcher (Summer 2027)") is None
+        # A year alone is not a season: new-grad titles carry one too.
+        assert self.says(text, "Software Engineer, New Grad 2027") == "sponsors"
+
+    def test_an_export_licence_elsewhere_is_not_offered_instead(self) -> None:
+        text = "Help our customers obtain export licenses. Must be a US person."
+        assert self.says(text) == "no_sponsorship"
+
+    def test_checked_clean(self) -> None:
+        for text in (
+            "Visa sponsors the Olympics.",
+            "Green card holders and US citizens are welcome to apply.",
+            "Work authorization required.",
+        ):
+            assert self.says(text) is None, text

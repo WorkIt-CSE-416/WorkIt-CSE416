@@ -120,8 +120,10 @@ app/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
     jobs.py       GET /jobs — published scraped jobs from job_postings, public,
-                  no descriptions, narrowed by ?location=, ?workplace=,
-                  ?experience= and ?posted=; GET /jobs/locations
+                  no descriptions, narrowed by ?location= and the board's other
+                  filters (work style, level, job type, date, pay, start
+                  season, visa); GET /jobs/facets counts each option;
+                  GET /jobs/locations
                   — the places that have jobs, named. `fetch_listing` is
                   shared with scout.py
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs

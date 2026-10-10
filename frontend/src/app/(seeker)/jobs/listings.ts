@@ -5,17 +5,8 @@ import { connection } from "next/server";
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 
-import {
-  DATE_POSTED_OPTIONS,
-  EXPERIENCE_OPTIONS,
-  NO_FILTERS,
-  WORKPLACE_OPTIONS,
-  type ExperienceLevel,
-  type FacetOption,
-  type FeedFilters,
-  type JobType,
-  type WorkStyle,
-} from "./data";
+import type { ExperienceLevel, JobType, WorkStyle } from "./data";
+import { filtersQuery, NO_FILTERS, type FeedFilters } from "./filter-query";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
@@ -23,11 +14,11 @@ import {
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
  * narrows it to the query) and by the Dashboard's New Matches.
  *
- * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. `filters.tsx` is a client
- * component importing its option lists from ./data, and `apiGet` is
+ * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
+ * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
  * server-only — putting the fetch there would pull it into the client bundle
  * and fail the build. ./data keeps the fixtures, which still back the
- * expanded view at /jobs/[jobId] and the filter options.
+ * expanded view at /jobs/[jobId]; the filter options are in ./filter-query.
  *
  * Its own type, not an optional-everything `Recommendation`: a scraped role has
  * no description or match score, and states its salary, job type and years
@@ -62,6 +53,9 @@ export type JobListing = {
   /** When an internship starts, as the posting names it: "Summer 2027",
    *  "January 2027", "2027". */
   start_term: string | null;
+  /** What the posting says about visas (KAN-168): it sponsors, it doesn't, or
+   *  US citizens only. Null when it says nothing, which is most postings. */
+  sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
 };
 
 export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";
@@ -77,58 +71,10 @@ export type JobLocationOption = {
   jobs: number;
 };
 
-/** The API's PlaceCode (routers/jobs.py): "US" or "US-CA". Keep the two in step. */
-const PLACE = /^[A-Z]{2}(-[A-Z0-9]{1,3})?$/;
-
-/** The `?location=` codes a page was opened with, repeated for several.
- *  Codes the API would 422 on, and any past its cap of 60, are dropped: a bad
- *  link would otherwise read as an outage, and its Try Again repeat the URL. */
-function readPlaces(value: string | string[] | undefined): string[] {
-  if (value == null) return [];
-  return (typeof value === "string" ? [value] : value).filter((v) => PLACE.test(v)).slice(0, 60);
-}
-
-/** The options' values this parameter names, once each and in the options'
- *  order. Anything else is dropped, for readPlaces' reason. */
-function readPicks(value: string | string[] | undefined, options: readonly FacetOption[]) {
-  const picked = new Set(value == null ? [] : typeof value === "string" ? [value] : value);
-  return options.map((option) => option.value).filter((v) => picked.has(v));
-}
-
-/** The feed filters a page was opened with, each only as far as the API
- *  accepts it. */
-export function readFilters(params: Record<string, string | string[] | undefined>): FeedFilters {
-  return {
-    location: readPlaces(params.location),
-    workplace: readPicks(params.workplace, WORKPLACE_OPTIONS),
-    experience: readPicks(params.experience, EXPERIENCE_OPTIONS),
-    posted: readPicks(params.posted, DATE_POSTED_OPTIONS).slice(0, 1),
-  };
-}
-
-/** True when any filter narrows the feed. */
-export function isFiltered(filters: FeedFilters): boolean {
-  return Object.values(filters).some((values) => values.length > 0);
-}
-
-/** The filters as query pairs, `?location=US-CA&location=US-NY&posted=week`,
- *  for the API call, a retry link and a boundary's key. */
-export function filterParams(filters: FeedFilters): URLSearchParams {
-  return new URLSearchParams(
-    Object.entries(filters).flatMap(([key, values]) => values.map((value) => [key, value])),
-  );
-}
-
-/** `path` with the filters' query, or alone when there are none. */
-export function withFilters(path: string, filters: FeedFilters): string {
-  const query = filterParams(filters).toString();
-  return query ? `${path}?${query}` : path;
-}
-
 /** Public, so no token. An error is a message to print, never fixture jobs in
  *  its place — made-up postings shown silently would read as real ones.
- *  `filters` narrow it: `location` to jobs offered in any of those places
- *  (job_locations), and the rest as GET /jobs describes. */
+ *  `filters` narrows it on the server, the filter row's picks as the URL
+ *  holds them (./filter-query). */
 export async function getJobListings(
   filters: FeedFilters = NO_FILTERS,
 ): Promise<{ jobs: JobListing[]; error: null } | { jobs: null; error: string }> {
@@ -136,7 +82,7 @@ export async function getJobListings(
   // feed once — with no API running in CI, that bakes the error in for good.
   await connection();
   try {
-    const res = await apiGet(withFilters("/jobs", filters));
+    const res = await apiGet(`/jobs${filtersQuery(filters)}`);
     if (!res.ok) return { jobs: null, error: await extractErrorMessage(res) };
     return { jobs: (await res.json()) as JobListing[], error: null };
   } catch {
@@ -144,14 +90,53 @@ export async function getJobListings(
   }
 }
 
+/** How long the filter row's places and counts are reused before asking the API
+ *  again. They change only when an import runs (every few hours), and each ask
+ *  costs the API a database connection and six counting queries, which every
+ *  filter change used to pay again. */
+const COUNTS_TTL = 300;
+
 /** The Location filter's options. Empty when the API can't be reached: the
  *  facet then shows disabled, and the feed below reports the error itself. */
 export async function getJobLocations(): Promise<JobLocationOption[]> {
   await connection();
   try {
-    const res = await apiGet("/jobs/locations");
+    const res = await apiGet("/jobs/locations", undefined, { revalidate: COUNTS_TTL });
     return res.ok ? ((await res.json()) as JobLocationOption[]) : [];
   } catch {
     return [];
+  }
+}
+
+/** One filter option's job count, from `GET /jobs/facets`: `value` as GET /jobs
+ *  takes it ("remote", "full_time", "7", "summer-2027"). */
+export type FacetCount = { value: string; jobs: number };
+
+/** Every filter option's count across the whole feed (not narrowed by the
+ *  other filters), and the start terms postings name, in calendar order. */
+export type JobFacets = Record<
+  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
+  FacetCount[]
+>;
+
+const NO_FACETS: JobFacets = {
+  work_style: [],
+  experience: [],
+  job_type: [],
+  posted_within: [],
+  visa: [],
+  start_term: [],
+};
+
+/** The filter row's counts and Start Date options. Empty when the API can't be
+ *  reached: the counts stay off and Start Date shows disabled, and the feed
+ *  below reports the error itself. */
+export async function getJobFacets(): Promise<JobFacets> {
+  await connection();
+  try {
+    const res = await apiGet("/jobs/facets", undefined, { revalidate: COUNTS_TTL });
+    return res.ok ? ((await res.json()) as JobFacets) : NO_FACETS;
+  } catch {
+    return NO_FACETS;
   }
 }

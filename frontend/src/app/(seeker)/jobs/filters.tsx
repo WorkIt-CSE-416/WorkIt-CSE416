@@ -1,19 +1,28 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Suspense, startTransition, use, useOptimistic, useState, type ReactNode } from "react";
-
-import { CheckIcon, ChevronDownIcon, FilterIcon } from "@/components/icons";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/shadcn/sheet";
+  Suspense,
+  type ComponentType,
+  use,
+  useEffect,
+  useOptimistic,
+  useState,
+  type ReactNode,
+} from "react";
+
+import {
+  BriefcaseIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ClockIcon,
+  FilterIcon,
+  LevelIcon,
+  PinIcon,
+  VisaIcon,
+  workStyleIcon,
+} from "@/components/icons";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Button, buttonClasses } from "@/components/ui/button";
 import {
   Select,
@@ -27,14 +36,16 @@ import { cn } from "@/lib/cn";
 import {
   DATE_POSTED_OPTIONS,
   EXPERIENCE_OPTIONS,
+  FILTER_KEYS,
+  filterEntries,
   JOB_TYPE_OPTIONS,
-  NO_FILTERS,
-  SALARY_OPTIONS,
+  VISA_OPTIONS,
   WORKPLACE_OPTIONS,
-  type FacetOption,
   type FeedFilters,
-} from "./data";
-import type { JobLocationOption } from "./listings";
+} from "./filter-query";
+import { AllFiltersPanel } from "./all-filters";
+import { useFeedTransition } from "./feed-transition";
+import type { JobFacets, JobLocationOption } from "./listings";
 
 /**
  * The filter row on /jobs and on /search, built on Base UI's `Select` (via
@@ -44,24 +55,31 @@ import type { JobLocationOption } from "./listings";
  * no search field: Base UI's Combobox handles arrow keys and Enter on its
  * input, so without one its list cannot be reached from the keyboard at all.
  *
- * Location, Workplace, Experience and Date Posted filter: their picks are the
- * page's `?location=`, `?workplace=`, `?experience=` and `?posted=` (each
- * option's value, never its label), so the server fetches the feed narrowed
- * to them and a reload or a shared link keeps them. A pick replaces the URL
- * rather than pushing it, so ticking five places is not five steps of Back.
- * Location is the one that is a Popover (LocationFacet says why), its options
- * the places that have jobs (`GET /jobs/locations`, with names, never ISO
- * codes). Job Type and Salary stay inert until the API filters on them; job
- * type is on most jobs, salary on few. Every facet is a button that opens a
- * list of options. The button's own
- * label never changes (a facet's picks show up as checked items inside the
- * popup, not as chips on the trigger), and the trigger picks up a brand tint
- * once a pick has been made and the popup has closed, the one visible signal
- * that a facet is in use. A screen reader hears the same thing as the pick
- * count after the label.
+ * EVERY FACET FILTERS, ON THE SERVER (KAN-170). Its picks are the page's
+ * query (./filter-query owns the names, the options and the reading), so the
+ * server fetches the feed narrowed to them and a reload or a shared link
+ * keeps them. A pick replaces the URL rather than pushing it, so ticking five
+ * boxes is not five steps of Back, and shows checked at once (useOptimistic)
+ * while the narrowed feed is fetched. Each is a button that opens a list of
+ * options. The button's own label never changes (a facet's picks show up as
+ * checked items inside the popup, not as chips on the trigger), and the
+ * trigger picks up a brand tint once a pick has been made and the popup has
+ * closed, the one visible signal that a facet is in use. A screen reader hears
+ * the same thing as the pick count after the label.
  *
- * The inert facets' state lives here: nothing outside this file reads it.
- * Industry had a facet too; it was dropped, since no job carries one.
+ * EACH FACET WEARS ITS FACT'S GLYPH, the one the job card draws beside the
+ * same fact (Location's pin, Salary's coin, Job Type's briefcase, Experience's
+ * mortarboard), so the row and the card read as one vocabulary. Date Posted
+ * takes a clock, not the card's calendar, which there means the start date.
+ * Inside a popup an option has a glyph only where it differs by option:
+ * Workplace's building, two arrows and house, exactly as the card picks them
+ * (workStyleIcon). The same briefcase on every Job Type row would say nothing
+ * the button doesn't. Glyphs are ink-meta, as on the card, and brand once the
+ * facet is in use, with its label.
+ *
+ * Location is a Popover rather than a Select, for its two panels
+ * (LocationFacet says why). Job Type is how the job is set up and Experience the career
+ * stage, kept apart on purpose: "Internship" is only ever the second.
  */
 
 /** The look every facet's button shares, Select or Popover: a small
@@ -76,6 +94,19 @@ function facetTriggerClasses(count: number, open: boolean, className?: string) {
   );
 }
 
+type Glyph = ComponentType<{ className?: string }>;
+
+/** A facet button's glyph and label, the glyph in the card's grey until the
+ *  facet is in use, then in the brand with the label. */
+function FacetLabel({ Icon, label, active }: { Icon: Glyph; label: string; active: boolean }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <Icon className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")} />
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
 /** The button every facet opens from. Its label is static (a facet's picks
  *  never rewrite it), so the only thing that changes is the tint. The tint is
  *  colour alone, so the pick count rides after the label for a screen reader.
@@ -84,11 +115,13 @@ function facetTriggerClasses(count: number, open: boolean, className?: string) {
  *  over it: `data-[size=default]:h-auto` undoes its fixed height, and
  *  `data-placeholder:text-ink` its grey label while nothing is picked. */
 function FacetTrigger({
+  Icon,
   label,
   count,
   open,
   className,
 }: {
+  Icon: Glyph;
   label: string;
   /** How many options are picked. */
   count: number;
@@ -103,22 +136,31 @@ function FacetTrigger({
         cn("data-placeholder:text-ink data-[size=default]:h-auto", className),
       )}
     >
-      {label}
+      <FacetLabel Icon={Icon} label={label} active={count > 0 && !open} />
       {count > 0 && <span className="sr-only">, {count} selected</span>}
     </SelectTrigger>
   );
 }
 
+type Option = { value: string; label: string; Icon?: Glyph; count?: ReactNode };
+
 /** The list shared by every facet's popup: checkbox rows where a facet takes
  *  several picks, the vendored check-mark rows where it takes one. */
-function FacetPopup({ options, multiple }: { options: readonly FacetOption[]; multiple: boolean }) {
+function FacetPopup({ options, multiple }: { options: readonly Option[]; multiple: boolean }) {
   const Item = multiple ? SelectCheckboxItem : SelectItem;
 
   return (
-    <SelectContent>
-      {options.map(({ value, label }) => (
-        <Item key={value} value={value}>
-          {label}
+    // Below the button and level with its left edge, like every popup in the
+    // row. Base UI's default lays the list over the button so the picked row
+    // sits on it, which put each facet's list somewhere different.
+    <SelectContent alignItemWithTrigger={false} align="start">
+      {options.map((option) => (
+        <Item key={option.value} value={option.value}>
+          <span className="flex items-center gap-2">
+            {option.Icon && <option.Icon className="text-ink-meta size-4 shrink-0" />}
+            {option.label}
+            {option.count}
+          </span>
         </Item>
       ))}
     </SelectContent>
@@ -134,6 +176,7 @@ function FacetPopup({ options, multiple }: { options: readonly FacetOption[]; mu
  *  it: Base UI reports that press with the same value, and with no "Any"
  *  option there is otherwise no way back to no pick from the row. */
 function Facet({
+  Icon,
   label,
   options,
   values,
@@ -141,9 +184,9 @@ function Facet({
   multiple = true,
   className,
 }: {
+  Icon: Glyph;
   label: string;
-  options: readonly FacetOption[];
-  /** The picked options' values. */
+  options: readonly Option[];
   values: string[];
   onChange: (values: string[]) => void;
   multiple?: boolean;
@@ -151,7 +194,13 @@ function Facet({
 }) {
   const [open, setOpen] = useState(false);
   const trigger = (
-    <FacetTrigger label={label} count={values.length} open={open} className={className} />
+    <FacetTrigger
+      Icon={Icon}
+      label={label}
+      count={values.length}
+      open={open}
+      className={className}
+    />
   );
 
   if (!multiple) {
@@ -170,20 +219,20 @@ function Facet({
   }
 
   return (
-    <Select value={values} onValueChange={onChange} onOpenChange={setOpen} multiple>
+    <Select
+      // In the options' order, whatever order they were ticked in.
+      value={values}
+      onValueChange={(next: string[]) =>
+        onChange(options.map((o) => o.value).filter((v) => next.includes(v)))
+      }
+      onOpenChange={setOpen}
+      multiple
+    >
       {trigger}
       <FacetPopup options={options} multiple />
     </Select>
   );
 }
-
-/** The inert facets' picks. */
-type FacetState = {
-  jobType: string[];
-  salary: string[];
-};
-
-const EMPTY_FACETS: FacetState = { jobType: [], salary: [] };
 
 /** "US" for "US-CA", and for "US" itself. */
 const countryOf = (code: string) => code.split("-")[0];
@@ -210,11 +259,14 @@ function placesFrom(ticks: readonly string[]): string[] {
  *  marks the country whose states the other panel lists. */
 function CheckRow({
   label,
+  count,
   checked,
   current = false,
   onToggle,
 }: {
   label: string;
+  /** How many jobs the option holds, after the label. */
+  count?: number;
   checked: boolean;
   current?: boolean;
   onToggle: () => void;
@@ -230,11 +282,15 @@ function CheckRow({
         current && "bg-accent",
       )}
     >
-      {label}
+      <span>
+        {label}
+        {count != null && <JobCount n={count} />}
+      </span>
       <span
         aria-hidden
         className={cn(
-          "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+          "border-ink-meta text-primary-foreground flex size-4 shrink-0 items-center justify-center border transition-colors",
+          "rounded-[4px]",
           checked && "border-primary bg-primary",
         )}
       >
@@ -308,7 +364,7 @@ function LocationFacet({
         disabled={options.length === 0}
         className={facetTriggerClasses(ticks.length, open, className)}
       >
-        Location
+        <FacetLabel Icon={PinIcon} label="Location" active={ticks.length > 0 && !open} />
         {/* The URL's places, not the ticks: picking California ticks the
             United States too, and should still say 1. */}
         {values.length > 0 && <span className="sr-only">, {values.length} selected</span>}
@@ -321,10 +377,11 @@ function LocationFacet({
       >
         <div role="group" aria-label="Countries" className="flex min-w-40 flex-col">
           <PanelHeading>Country</PanelHeading>
-          {countries.map(({ code, label }) => (
+          {countries.map(({ code, label, jobs }) => (
             <CheckRow
               key={code}
               label={label}
+              count={jobs}
               checked={ticks.includes(code)}
               current={code === shown}
               onToggle={() => toggleCountry(code)}
@@ -349,10 +406,11 @@ function LocationFacet({
               aria-label={`States in ${countries.find(({ code }) => code === shown)?.label}`}
               className="flex max-h-72 flex-col overflow-y-auto overscroll-contain"
             >
-              {statesOf(shown).map(({ code, label }) => (
+              {statesOf(shown).map(({ code, label, jobs }) => (
                 <CheckRow
                   key={code}
                   label={label}
+                  count={jobs}
                   checked={ticks.includes(code)}
                   onToggle={() => toggleState(code)}
                 />
@@ -376,7 +434,7 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
           disabled
           className={facetTriggerClasses(props.values.length, false, props.className)}
         >
-          Location
+          <FacetLabel Icon={PinIcon} label="Location" active={false} />
           <ChevronDownIcon className="text-muted-foreground size-4" />
         </button>
       }
@@ -386,177 +444,238 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
   );
 }
 
-/** The facet row plus the All Filters sheet for everything that doesn't fit.
+/** A job count after an option's label, in the row's quiet grey. Counts are
+ *  across the whole feed, not narrowed by the other filters (GET
+ *  /jobs/facets), so they say how big an option is, not how many of the
+ *  current results it holds. */
+function JobCount({ n }: { n: number }) {
+  return <span className="text-ink-meta ml-1.5 tabular-nums">{n.toLocaleString("en-US")}</span>;
+}
+
+type FacetGroup = keyof JobFacets;
+
+/** An option's count once GET /jobs/facets has answered; nothing until then,
+ *  or for a value the feed holds none of, so the row never waits on it. */
+function OptionCount({
+  facets,
+  group,
+  value,
+}: {
+  facets: Promise<JobFacets>;
+  group: FacetGroup;
+  value: string;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <OptionCountValue facets={facets} group={group} value={value} />
+    </Suspense>
+  );
+}
+
+function OptionCountValue({
+  facets,
+  group,
+  value,
+}: {
+  facets: Promise<JobFacets>;
+  group: FacetGroup;
+  value: string;
+}) {
+  const n = use(facets)[group].find((c) => c.value === value)?.jobs;
+  return n == null ? null : <JobCount n={n} />;
+}
+
+/** A facet's static options with their counts beside them. */
+function counted(
+  options: readonly { value: string | number; label: string }[],
+  facets: Promise<JobFacets>,
+  group: FacetGroup,
+): Option[] {
+  return options.map((o) => ({
+    value: String(o.value),
+    label: o.label,
+    count: <OptionCount facets={facets} group={group} value={String(o.value)} />,
+  }));
+}
+
+const hasPlaces = (places: JobLocationOption[]) => places.length > 0;
+const hasCounts = (counts: JobFacets) => counts.work_style.length > 0;
+
+/** The first of a series of promises that resolves with data, held from then
+ *  on; until one has, the latest. The row's places and counts don't change
+ *  with the filters, so once they've loaded, the promise each later render
+ *  hands down would only re-suspend Location and blank the counts while the
+ *  same figures load again. But a first load that failed (the API down, an
+ *  empty answer) mustn't stick for the visit: Next caches only good answers,
+ *  so a later render's promise is worth taking until one comes back filled. */
+function useHeldOnceFilled<T>(latest: Promise<T>, filled: (value: T) => boolean): Promise<T> {
+  const [held, setHeld] = useState(latest);
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (settled) return;
+    let alive = true;
+    held.then((value) => {
+      if (!alive) return;
+      if (filled(value)) setSettled(true);
+      else if (latest !== held) setHeld(latest);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [held, latest, settled, filled]);
+  return held;
+}
+
+/** The facet row plus the All Filters panel (./all-filters), which holds every
+ *  facet, and Salary, Start Date and Visa, which the row has no room for.
  *  `locations` is the Location facet's options, still loading; `filters` the
- *  feed filters the page was opened with (readFilters in ./listings). */
+ *  picks the page was opened with (./filter-query). */
 export function JobFilters({
-  locations,
+  locations: locationsLoading,
+  facets: facetsLoading,
   filters,
 }: {
   locations: Promise<JobLocationOption[]>;
+  /** Every option's count and the Start Date options, still loading. */
+  facets: Promise<JobFacets>;
   filters: FeedFilters;
 }) {
-  const [facets, setFacets] = useState<FacetState>(EMPTY_FACETS);
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
+  // The first page's places and counts, kept for as long as the row is on
+  // screen. They don't depend on the filters, so the promises each filter
+  // change's render hands down again would only re-suspend Location and blank
+  // every count while the same figures load a second time.
+  const locations = useHeldOnceFilled(locationsLoading, hasPlaces);
+  const facets = useHeldOnceFilled(facetsLoading, hasCounts);
+  const startFeedTransition = useFeedTransition();
   const router = useRouter();
   const pathname = usePathname();
   // The picks show checked at once; `filters` catches up when the narrowed
   // page arrives.
   const [shown, show] = useOptimistic(filters);
 
-  function set<K extends keyof FacetState>(key: K, value: FacetState[K]) {
-    setFacets((prev) => ({ ...prev, [key]: value }));
-  }
-
   /** Moves the URL's filters to these, keeping the rest of the query (?q on
    *  /search). The server draws the feed again, narrowed. */
-  function navigate(next: FeedFilters) {
-    startTransition(() => {
+  function apply(next: FeedFilters) {
+    // The feed's transition, so the list dims the moment this starts
+    // (./feed-transition).
+    startFeedTransition(() => {
       show(next);
       const query = new URLSearchParams(window.location.search);
-      for (const [key, values] of Object.entries(next)) {
-        query.delete(key);
-        for (const value of values) query.append(key, value);
-      }
+      for (const key of FILTER_KEYS) query.delete(key);
+      for (const [key, value] of filterEntries(next)) query.append(key, value);
       const search = query.toString();
       router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
     });
   }
 
-  function setFilter(key: keyof FeedFilters, values: string[]) {
-    navigate({ ...shown, [key]: values });
-  }
+  /** One facet's change, the others as they stand. */
+  const set = (change: Partial<FeedFilters>) => apply({ ...shown, ...change });
+
+  // The row's facets, each given the width classes its place in the row needs.
+  const facet = {
+    jobType: (className: string) => (
+      <Facet
+        Icon={BriefcaseIcon}
+        label="Job Type"
+        options={counted(JOB_TYPE_OPTIONS, facets, "job_type")}
+        values={shown.jobTypes}
+        onChange={(values) => set({ jobTypes: values as FeedFilters["jobTypes"] })}
+        className={className}
+      />
+    ),
+    workplace: (className: string) => (
+      <Facet
+        Icon={workStyleIcon("onsite")}
+        label="Workplace"
+        options={counted(WORKPLACE_OPTIONS, facets, "work_style").map((o) => ({
+          ...o,
+          Icon: workStyleIcon(o.value),
+        }))}
+        values={shown.workStyles}
+        onChange={(values) => set({ workStyles: values as FeedFilters["workStyles"] })}
+        className={className}
+      />
+    ),
+    experience: (className: string) => (
+      <Facet
+        Icon={LevelIcon}
+        label="Experience"
+        options={counted(EXPERIENCE_OPTIONS, facets, "experience")}
+        values={shown.levels}
+        onChange={(values) => set({ levels: values as FeedFilters["levels"] })}
+        className={className}
+      />
+    ),
+    datePosted: (className: string) => (
+      <Facet
+        Icon={ClockIcon}
+        label="Date Posted"
+        options={counted(DATE_POSTED_OPTIONS, facets, "posted_within")}
+        values={shown.postedWithin != null ? [String(shown.postedWithin)] : []}
+        onChange={([value]) => set({ postedWithin: value != null ? Number(value) : null })}
+        multiple={false}
+        className={className}
+      />
+    ),
+    location: (className: string) => (
+      <Location
+        locations={locations}
+        values={shown.places}
+        onChange={(places) => set({ places })}
+        className={className}
+      />
+    ),
+    visa: (className: string) => (
+      <Facet
+        Icon={VisaIcon}
+        label="Visa"
+        options={counted(VISA_OPTIONS, facets, "visa")}
+        values={shown.visa != null ? [shown.visa] : []}
+        onChange={([value]) => set({ visa: (value as FeedFilters["visa"]) ?? null })}
+        multiple={false}
+        className={className}
+      />
+    ),
+  };
 
   return (
     <>
-      <Facet
-        label="Job Type"
-        options={JOB_TYPE_OPTIONS}
-        values={facets.jobType}
-        onChange={(values) => set("jobType", values)}
-        className="hidden w-36 @4xl:flex"
-      />
-      <Facet
-        label="Workplace"
-        options={WORKPLACE_OPTIONS}
-        values={shown.workplace}
-        onChange={(values) => setFilter("workplace", values)}
-        className="hidden w-36 @4xl:flex"
-      />
-      <Facet
-        label="Experience"
-        options={EXPERIENCE_OPTIONS}
-        values={shown.experience}
-        onChange={(values) => setFilter("experience", values)}
-        className="hidden w-36 @4xl:flex"
-      />
-      <Facet
-        label="Date Posted"
-        options={DATE_POSTED_OPTIONS}
-        values={shown.posted}
-        onChange={(values) => setFilter("posted", values)}
-        multiple={false}
-        className="hidden w-36 @4xl:flex"
-      />
-      <Location
-        locations={locations}
-        values={shown.location}
-        onChange={(values) => setFilter("location", values)}
-        className="hidden w-36 @4xl:flex"
-      />
+      {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
+          and All Filters stays a normal button at every width. Each facet is
+          144px and the button about 120, so the row fits them on one line
+          from these widths of row (the page's @container, so an open sidebar
+          or Scout counts): Location and All Filters anywhere, then
+          Workplace from 448px, Experience 672, Date Posted 768, Job Type
+          896 and Visa 1024. It used to drop all five at once below 896px and stretch All
+          Filters across the row, which on a laptop with the sidebar open
+          left one wide bar where four filters had fit. The panel holds
+          every facet, and Salary and Start Date, which the row has no room for. */}
+      {facet.location("w-36")}
+      {facet.workplace("hidden w-36 @md:flex")}
+      {facet.experience("hidden w-36 @2xl:flex")}
+      {facet.datePosted("hidden w-36 @3xl:flex")}
+      {facet.jobType("hidden w-36 @4xl:flex")}
+      {facet.visa("hidden w-36 @5xl:flex")}
 
-      {/* Under 896px of row (the page's @container, so an open sidebar
-          counts) the five facets step out and this is the whole row. Five
-          144px facets and this button need about 870px, so whenever the facets
-          show they sit on one line; at a window's breakpoints they wrapped
-          into a ragged block whenever the sidebar was open. The sheet it
-          opens holds every one of them. */}
       <Button
         variant="secondary"
         size="sm"
         onClick={() => setAllFiltersOpen(true)}
-        className="ml-auto @max-4xl:ml-0 @max-4xl:w-full"
+        className="ml-auto"
       >
         <FilterIcon className="size-4" />
         All Filters
       </Button>
 
-      {/* Fully modal (Base UI's default), not `modal="trap-focus"`: only a
-          true modal locks page scroll, so the options list is the one thing
-          that scrolls while the sheet is open. */}
-      <Sheet open={allFiltersOpen} onOpenChange={setAllFiltersOpen}>
-        {/* Floats: inset from the viewport's right, top and bottom edges with
-            every corner rounded, instead of the stock full-height panel flush
-            against the right edge. */}
-        <SheetContent className="rounded-card border data-[side=right]:inset-y-3 data-[side=right]:right-3 data-[side=right]:h-auto">
-          <SheetHeader>
-            <SheetTitle className="text-subtitle font-semibold">All Filters</SheetTitle>
-            <SheetDescription>Narrow the feed by role, place and pay.</SheetDescription>
-          </SheetHeader>
-
-          {/* overscroll-contain: a fling past the end of the list stops here
-              instead of chaining on to the page behind. */}
-          <div className="flex flex-col gap-2 overflow-y-auto overscroll-contain px-4">
-            <Facet
-              label="Job Type"
-              options={JOB_TYPE_OPTIONS}
-              values={facets.jobType}
-              onChange={(values) => set("jobType", values)}
-              className="w-full"
-            />
-            <Facet
-              label="Workplace"
-              options={WORKPLACE_OPTIONS}
-              values={shown.workplace}
-              onChange={(values) => setFilter("workplace", values)}
-              className="w-full"
-            />
-            <Facet
-              label="Experience"
-              options={EXPERIENCE_OPTIONS}
-              values={shown.experience}
-              onChange={(values) => setFilter("experience", values)}
-              className="w-full"
-            />
-            <Facet
-              label="Date Posted"
-              options={DATE_POSTED_OPTIONS}
-              values={shown.posted}
-              onChange={(values) => setFilter("posted", values)}
-              multiple={false}
-              className="w-full"
-            />
-            <Location
-              locations={locations}
-              values={shown.location}
-              onChange={(values) => setFilter("location", values)}
-              className="w-full"
-            />
-            <Facet
-              label="Salary"
-              options={SALARY_OPTIONS}
-              values={facets.salary}
-              onChange={(values) => set("salary", values)}
-              multiple={false}
-              className="w-full"
-            />
-          </div>
-
-          <SheetFooter className="flex-row justify-between">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setFacets(EMPTY_FACETS);
-                if (Object.values(shown).some((values) => values.length > 0)) navigate(NO_FILTERS);
-              }}
-            >
-              Clear All
-            </Button>
-            <SheetClose render={<Button size="sm">Done</Button>} />
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      <AllFiltersPanel
+        open={allFiltersOpen}
+        onOpenChange={setAllFiltersOpen}
+        filters={shown}
+        locations={locations}
+        facets={facets}
+        onApply={apply}
+      />
     </>
   );
 }

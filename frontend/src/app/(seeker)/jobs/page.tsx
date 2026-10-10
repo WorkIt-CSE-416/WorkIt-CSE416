@@ -5,10 +5,11 @@ import { BriefcaseIcon } from "@/components/icons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
+import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
-import { getJobListings, getJobLocations, isFiltered, readFilters, withFilters } from "./listings";
-import type { FeedFilters } from "./data";
+import { filtersQuery, isFiltered, readFilters, type FeedFilters } from "./filter-query";
+import { getJobFacets, getJobListings, getJobLocations } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
 
 export const metadata: Metadata = {
@@ -17,9 +18,10 @@ export const metadata: Metadata = {
 };
 
 /* Built without a mockup, from the layout described in ./data. The feed is
- * live (./listings), narrowed by the filters in the URL: `?location=`,
- * `?workplace=`, `?experience=` and `?posted=` (./filters); Save, Not Interested and Ask WorkIt are still inert. The card
- * and its loading and error states are ./listing-card, which /search shares. */
+ * live (./listings), narrowed on the server by the filter row's picks, which
+ * live in the URL (./filter-query, ./filters); Save, Not Interested and Ask
+ * WorkIt are still inert. The card and its loading and error states are
+ * ./listing-card, which /search shares. */
 
 /**
  * The live feed and the states that stand in for it. Its own async component
@@ -33,13 +35,12 @@ async function Feed({ filters }: { filters: FeedFilters }) {
   const { jobs, error } = await getJobListings(filters);
 
   if (error != null)
-    return <ListingsError error={error} retryHref={withFilters("/jobs", filters)} />;
+    return <ListingsError error={error} retryHref={`/jobs${filtersQuery(filters)}`} />;
 
   if (jobs.length === 0 && isFiltered(filters)) {
     return (
-      <EmptyState Icon={BriefcaseIcon} title="No Roles Match Yet" className="mt-4">
-        Nothing in the feed matches the filters you picked. Loosen one, or clear them under All
-        Filters.
+      <EmptyState Icon={BriefcaseIcon} title="No Roles Match These Filters" className="mt-4">
+        Nothing in the feed fits every filter you picked. Loosen one, or clear them all.
       </EmptyState>
     );
   }
@@ -93,15 +94,22 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
 
       {/* A container, so the facets switch on the row's own width (see
           ./filters), which an open sidebar narrows, not on the window's. */}
-      <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={locations} filters={filters} />
-      </div>
+      {/* One transition for a filter change, so the feed dims the moment the
+          row starts it (./feed-transition). */}
+      <FeedTransition>
+        <div className="@container mt-4 flex flex-wrap items-center gap-2">
+          <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
+        </div>
 
-      {/* Keyed by the filters, so a new pick shows the skeleton straight away
-          instead of holding the old list until the narrowed one arrives. */}
-      <Suspense key={withFilters("", filters)} fallback={<ListingsSkeleton />}>
-        <Feed filters={filters} />
-      </Suspense>
+        {/* Keyed by the filters, so a new pick shows the skeleton straight
+            away instead of holding the old list until the narrowed one
+            arrives. */}
+        <PendingFeed>
+          <Suspense key={filtersQuery(filters)} fallback={<ListingsSkeleton />}>
+            <Feed filters={filters} />
+          </Suspense>
+        </PendingFeed>
+      </FeedTransition>
     </div>
   );
 }

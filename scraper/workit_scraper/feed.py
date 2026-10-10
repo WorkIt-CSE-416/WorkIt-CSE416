@@ -41,6 +41,8 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         **salary(role),
         "min_years_experience": role.facts.min_years,
         "start_term": role.facts.start_term,
+        # "sponsors", "no_sponsorship", "citizens_only" or None (details.py).
+        "sponsorship": role.facts.sponsorship,
     }
 
 

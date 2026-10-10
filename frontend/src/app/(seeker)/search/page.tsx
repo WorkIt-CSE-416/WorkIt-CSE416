@@ -8,17 +8,17 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
+import { FeedTransition, PendingFeed } from "../jobs/feed-transition";
 import { JobFilters } from "../jobs/filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "../jobs/listing-card";
 import {
-  getJobListings,
-  getJobLocations,
-  filterParams,
+  filterEntries,
+  filtersQuery,
   isFiltered,
   readFilters,
-  type JobListing,
-} from "../jobs/listings";
-import type { FeedFilters } from "../jobs/data";
+  type FeedFilters,
+} from "../jobs/filter-query";
+import { getJobFacets, getJobListings, getJobLocations, type JobListing } from "../jobs/listings";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
@@ -43,9 +43,8 @@ export const metadata: Metadata = {
  * keyed by the query, so a new search shows its placeholders straight away
  * instead of holding the old results on screen until the new ones arrive.
  *
- * The filters are the feed's own, carried in the URL beside ?q: Location,
- * Workplace, Experience and Date Posted narrow the search, and Job Type and
- * Salary are inert, as on /jobs (../jobs/filters).
+ * The filters are the feed's own (../jobs/filter-query): the server narrows
+ * the feed by them first, and the query is matched within what comes back.
  */
 
 type Search = Awaited<ReturnType<typeof getJobListings>>;
@@ -106,7 +105,7 @@ async function Results({
   const { jobs, error } = await results;
 
   if (error != null) {
-    const retry = new URLSearchParams([["q", query], ...filterParams(filters)]);
+    const retry = new URLSearchParams([["q", query], ...filterEntries(filters)]);
     return <ListingsError error={error} retryHref={`/search?${retry}`} />;
   }
 
@@ -187,9 +186,9 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   }
 
   const results = search(query, filters);
-  // Keys the boundaries below: a new query or a new pick shows the
+  // Keys the boundaries below: a new query or a new set of filters shows the
   // placeholders straight away.
-  const key = `${query}?${filterParams(filters)}`;
+  const key = `${query}${filtersQuery(filters)}`;
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -218,13 +217,19 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
       {/* A container, so the facets switch on the row's own width, as on
           /jobs. */}
-      <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={getJobLocations()} filters={filters} />
-      </div>
+      {/* One transition for a filter change, so the results dim the moment
+          the row starts it (../jobs/feed-transition). */}
+      <FeedTransition>
+        <div className="@container mt-4 flex flex-wrap items-center gap-2">
+          <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />
+        </div>
 
-      <Suspense key={key} fallback={<ListingsSkeleton />}>
-        <Results results={results} query={query} filters={filters} />
-      </Suspense>
+        <PendingFeed>
+          <Suspense key={key} fallback={<ListingsSkeleton />}>
+            <Results results={results} query={query} filters={filters} />
+          </Suspense>
+        </PendingFeed>
+      </FeedTransition>
     </div>
   );
 }

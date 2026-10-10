@@ -43,6 +43,7 @@ def test_row_shape(resolver):
         "job_type": None,
         "min_years_experience": None,
         "start_term": None,
+        "sponsorship": None,
         # No pay stated: the NOT NULL columns keep their defaults, amounts empty.
         "salary": None,
         "salary_min": None,
@@ -64,6 +65,12 @@ def test_card_facts_are_kept(resolver):
         dto.job_type.full_time, "Summer 2027", 1)
     assert (row["salary"], row["salary_currency"], row["salary_period"]) == (
         7500, "USD", dto.salary_period.month)
+
+
+def test_sponsorship_is_kept(resolver):
+    # The scraper's reading of the posting's visa lines (details.py).
+    prepared = prepare([listing("https://x/1", sponsorship="citizens_only")], resolver)
+    assert prepared.rows[0]["sponsorship"] == dto.visa_sponsorship.citizens_only
 
 
 def test_description_is_kept(resolver):

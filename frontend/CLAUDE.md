@@ -83,25 +83,63 @@ src/app/          App Router routes, layouts, pages
                   panel, the top bar, the page) floating on --color-frame,
                   and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
-                  /jobs and /search take ?location= (repeated ISO codes,
-                  US or US-CA), ?workplace=, ?experience= and ?posted=
-                  (option values from jobs/data.ts, never labels), passed
-                  straight on to GET /jobs. readFilters in
-                  jobs/listings.ts drops anything the API would 422 on
-                  (places past 60 too), so a bad link narrows less
-                  instead of reading as an outage whose Try Again repeats
-                  it; a new filter param goes through it. Location,
-                  Workplace, Experience and Date Posted filter; Job Type
-                  and Salary are still inert, and Industry was removed
-                  until jobs carry one. The Location facet in
-                  jobs/filters.tsx is fed by GET /jobs/locations.
-                  A Popover of two panels, not a Select: countries left,
+                  /jobs and /search filter on the server by the query:
+                  ?location= (repeated ISO codes, US or US-CA),
+                  ?work_style=, ?experience=, ?job_type= (repeated),
+                  ?posted_within= (days), ?min_pay= and ?max_pay= with
+                  ?pay_per= (hour or year), ?start_term= (seasons) and
+                  ?visa=, GET /jobs' own names. jobs/filter-query.ts
+                  reads and writes them for the pages and the row alike,
+                  dropping any value the API would refuse, so a stale
+                  link narrows by what was valid instead of erroring.
+                  jobs/filters.tsx draws the row (KAN-170); every facet
+                  filters, and Industry is gone (no data). As the row
+                  narrows its facets step out one at a time, least used
+                  first, and All Filters stays a normal button; never
+                  stretch it across the row. All Filters opens one panel
+                  (jobs/all-filters.tsx) with every facet's options in view
+                  as chips, no popups inside it (they landed left or right
+                  of their button by the room). Its picks are a draft until
+                  "Show N Jobs", which counts the draft as it changes
+                  (GET /jobs/count via jobs/actions.ts). Applying a filter
+                  dims the feed at once (jobs/feed-transition.tsx: the row
+                  and the feed share one transition), since the narrowed
+                  page is a round trip plus the API's half second away;
+                  the row's places and counts are fetched once per visit
+                  and cached five minutes (COUNTS_TTL in jobs/listings.ts),
+                  not refetched per change. Each facet button wears the
+                  glyph the job card draws for its fact (Date Posted a
+                  clock, since the card's calendar is the start date), and
+                  inside a popup only Workplace's options carry glyphs,
+                  the card's own three. Salary is a
+                  range, "$ 30 /hr – $ 50 /hr", either end open, with
+                  presets (hourly for internships, yearly for new grads)
+                  that fill the minimum; a posting matches when its own
+                  range overlaps it, compared as yearly figures in USD.
+                  Location and Start Date in the panel are one picker
+                  (SearchPicker in jobs/all-filters.tsx): a search field
+                  whose checklist opens only from the field and floats
+                  over the panel like a dropdown (it never pushes the
+                  sections down; it opens upward, and no taller than the
+                  room, when the panel's scroll area has less room below
+                  than above, as at Start Date), a keyboard combobox (Up, Down, Enter,
+                  Escape closing only the list), picks shown below as
+                  pills with a cross, and nothing pre-picked. Clear All
+                  remounts the pickers so typed text clears too. A picked
+                  state narrows its country, in the panel as in the row. Start Date offers seasons
+                  (Summer 2027), grouped by the API from the terms
+                  postings use; Visa offers Sponsors Visas and Hide Jobs
+                  That Rule Me Out. Every option shows its job count from
+                  GET /jobs/facets, across the whole feed rather than the
+                  current results. Location, fed by GET
+                  /jobs/locations, is a Popover of two panels, not a
+                  Select: countries left,
                   the ticked country's states right. A country alone is
                   all of it, with states ticked just those
                   (ticksFrom/placesFrom there). Don't move it back into a
                   Select with rows that come and go: a multiple Select
                   whose item list shrinks (Base UI 1.7) re-applies the
-                  value from before the press, which undid the untick
+                  value from before the press, which undid the untick.
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
@@ -533,7 +571,11 @@ italic, and over half the feed's cards had at least one. Under 448px of card
 body the empty slots close up instead. The title stops at two lines and a
 fact at its column's edge, each whole on hover. An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
-2027"), and its job type always reads "Internship", as Jobright shows it. Scraped pay
+2027"). Its job type is how the job is set up (Full-Time, Part-Time,
+Contract), an internship's too, never "Internship": that is its level, and
+the Job Type filter would otherwise return "Full-Time" cards that say
+"Internship" where the type goes (KAN-170 reversed the Jobright-style
+"Internship" here). Scraped pay
 always arrives as a min/max range, and `formatSalary` prints one whose ends
 meet as a single amount. The match rail is its placeholder
 (`score={null}`: an empty ring and "Score Coming Soon") until matching

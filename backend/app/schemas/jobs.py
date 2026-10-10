@@ -59,6 +59,10 @@ class JobListing(BaseModel):
     min_years_experience: int | None = None
     # When an internship starts, as the posting names it: "Summer 2027", "2027".
     start_term: str | None = None
+    # What the posting says about visas, read from its whole text by the scraper:
+    # it sponsors, it doesn't, or US citizens only. None when it says nothing,
+    # which is most postings. Defaulted so an older feed.json still parses.
+    sponsorship: dto.visa_sponsorship | None = None
 
 
 class JobLocationOption(BaseModel):
@@ -71,4 +75,34 @@ class JobLocationOption(BaseModel):
     # its name alone; the job board shows it under its country.
     label: str
     # Published scraped jobs offered there.
+    jobs: int
+
+
+class FacetCount(BaseModel):
+    """One filter option and how many published scraped jobs it holds."""
+
+    # The value GET /jobs takes for it: "remote", "full_time", "7", "summer-2027".
+    value: str
+    jobs: int
+
+
+class JobFacets(BaseModel):
+    """GET /jobs/facets: every filter option's count, across the whole feed.
+
+    start_term lists the seasons postings start in ("summer-2027", or a bare
+    year), in calendar order and only those not yet over; the rest list the
+    values that have a job. A value with no jobs is absent, not zero.
+    """
+
+    work_style: list[FacetCount]
+    experience: list[FacetCount]
+    job_type: list[FacetCount]
+    posted_within: list[FacetCount]
+    visa: list[FacetCount]
+    start_term: list[FacetCount]
+
+
+class JobCount(BaseModel):
+    """GET /jobs/count: how many jobs the filters keep, not capped by a limit."""
+
     jobs: int
