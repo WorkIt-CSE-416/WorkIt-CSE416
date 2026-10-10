@@ -121,8 +121,8 @@ app/
     auth.py       POST /auth/signup, GET /auth/me
     jobs.py       GET /jobs — published scraped jobs from job_postings, public,
                   no descriptions, narrowed by ?location= and the board's other
-                  filters (work style, level, job type, date, pay, start
-                  season, visa); GET /jobs/facets counts each option;
+                  filters (work style, role, level, job type, date, pay,
+                  start season, visa); GET /jobs/facets counts each option;
                   GET /jobs/locations
                   — the places that have jobs, named; GET /jobs/{job_id}
                   — one open job with its description, for its own page
