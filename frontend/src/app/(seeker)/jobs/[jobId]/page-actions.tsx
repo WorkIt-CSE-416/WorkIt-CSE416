@@ -8,6 +8,8 @@ import { ArrowLeftIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 
+import { restoreScrollOn } from "../../scroll-memory";
+
 /** Where the feed was last seen this session, filters and all. */
 const FEED_KEY = "workit:feed";
 
@@ -44,7 +46,8 @@ function rememberedFeed(): string {
 const noSubscription = () => () => {};
 
 /** "Back to Jobs", to the feed the seeker came from with its filters still
- *  applied (RememberFeed), else /jobs. The server renders /jobs and the
+ *  applied (RememberFeed), else /jobs, scrolled back to where they left it
+ *  (restoreScrollOn, ../../scroll-memory). The server renders /jobs and the
  *  browser swaps in the remembered list after hydration (useSyncExternalStore,
  *  as PostedDate does), so the two never disagree. Its arrow leans back the
  *  way it goes while hovered. */
@@ -53,6 +56,7 @@ export function BackToJobs({ className }: { className?: string }) {
   return (
     <ButtonLink
       href={href}
+      onClick={() => restoreScrollOn(href)}
       variant="secondary"
       size="sm"
       className={className ?? "group/back mb-3"}

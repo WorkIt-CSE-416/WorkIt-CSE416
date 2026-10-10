@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -18,9 +18,15 @@ import type { JobListing } from "./listings";
  * team chose: a seeker scrolling a feed wants the next roles under the ones
  * they have read, not a different screen of them.
  *
- * The page's Suspense boundary is keyed by its filters, so changing one
- * remounts this list at its first page. The loaded pages live only here: a
- * reload, or Back from a job's page, starts at the first page again.
+ * THE LOADED PAGES OUTLIVE THE LIST, kept for the tab's session (`kept`
+ * below), so leaving for a role's page and coming back finds the list as
+ * long as it was, and ../scroll-memory.tsx can put the seeker back where
+ * they were in it; without them the place it returned to didn't exist yet.
+ * One list is kept, the last one loaded into, and only for its own query: a
+ * new filter or search starts at its first page. They expire after KEPT_FOR,
+ * since roles close and an hour-old page would show them still open.
+ * The server's first page is always fresh; a kept role it now holds is not
+ * shown twice.
  *
  * A role already on the list is not added twice. Pages are counted by offset,
  * so an import landing between two loads can shift one role into the next
@@ -30,6 +36,46 @@ import type { JobListing } from "./listings";
  * was, so a keyboard carries on reading down the list instead of starting
  * over at the top when the button leaves. A live region says how many came.
  */
+/** How long loaded pages are kept for a return to their list. */
+const KEPT_FOR = 30 * 60 * 1000;
+
+const PAGES = "workit:feed-pages";
+
+type Kept = { query: string; jobs: JobListing[]; offset: number; more: boolean; at: number };
+
+/** The kept pages, in memory and mirrored to sessionStorage so they survive a
+ *  reload too. `undefined` until first read. A store rather than state, so a
+ *  list reads them as it renders (useSyncExternalStore) with no flash of the
+ *  first page alone. */
+let kept: Kept | null | undefined;
+const listeners = new Set<() => void>();
+
+function readKept(): Kept | null {
+  if (kept === undefined) {
+    try {
+      kept = JSON.parse(sessionStorage.getItem(PAGES) ?? "null") as Kept | null;
+    } catch {
+      kept = null;
+    }
+  }
+  return kept && Date.now() - kept.at < KEPT_FOR ? kept : null;
+}
+
+function keep(next: Kept) {
+  kept = next;
+  try {
+    sessionStorage.setItem(PAGES, JSON.stringify(next));
+  } catch {
+    /* storage off or full: kept in memory for this visit */
+  }
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export function FeedList({
   initial,
   more: initialMore,
@@ -39,11 +85,16 @@ export function FeedList({
   more: boolean;
   query: string;
 }) {
-  const [loaded, setLoaded] = useState<JobListing[]>([]);
+  // The server renders the first page alone; the browser adds the kept
+  // pages, if this list has any, as it hydrates.
+  const stored = useSyncExternalStore(subscribe, readKept, () => null);
+  const mine = stored?.query === query ? stored : null;
+  const firstPage = new Set(initial.map((job) => job.id));
+  const loaded = (mine?.jobs ?? []).filter((job) => !firstPage.has(job.id));
   // How many roles the API has handed over, the next page's offset. Counted
   // before dropping repeats, so a repeat doesn't shift the next page back.
-  const [offset, setOffset] = useState(initial.length);
-  const [more, setMore] = useState(initialMore);
+  const offset = mine?.offset ?? initial.length;
+  const more = mine ? mine.more : initialMore;
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState("");
   const [pending, start] = useTransition();
@@ -68,9 +119,13 @@ export function FeedList({
       const shown = new Set([...initial, ...loaded].map((job) => job.id));
       const fresh = page.jobs.filter((job) => !shown.has(job.id));
       setError(null);
-      setLoaded((prev) => [...prev, ...fresh]);
-      setOffset((prev) => prev + page.jobs.length);
-      setMore(page.more);
+      keep({
+        query,
+        jobs: [...loaded, ...fresh],
+        offset: offset + page.jobs.length,
+        more: page.more,
+        at: Date.now(),
+      });
       setSaid(
         fresh.length === 0
           ? "No more roles."

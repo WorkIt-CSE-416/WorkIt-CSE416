@@ -19,6 +19,7 @@ import { BAR_CIRCLE } from "./bar";
 import { MobileSearch } from "./mobile-search";
 import { ProfileCacheProvider } from "./profile-cache";
 import { ProfileStrength } from "./profile-strength";
+import { ScrollMemory } from "./scroll-memory";
 import { QueryField } from "./search/query-field";
 import { SeekerSidebar } from "./seeker-sidebar";
 
@@ -237,6 +238,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </ProfileCacheProvider>
             </div>
           </SidebarInset>
+          {/* Puts a page back where it was scrolled on a return to it; the
+              <main> above scrolls, not the window, so the browser can't. */}
+          <ScrollMemory />
           <ScoutPanel />
         </div>
       </div>

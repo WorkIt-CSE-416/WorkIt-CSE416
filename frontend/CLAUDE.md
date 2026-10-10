@@ -162,8 +162,15 @@ src/app/          App Router routes, layouts, pages
                   numbers, as the team chose) that adds the next 50 with
                   the same filters through jobs/actions.ts. A fetch asks
                   for one past the page, so the button shows only when
-                  there is more. Loaded pages live in the list's state: a
-                  reload or Back starts at the first page again.
+                  there is more. Loaded pages are kept for the session
+                  (30 minutes, one list, its own query only), so a return
+                  finds the list as long as it was.
+                  Every seeker page goes back to where it was scrolled on
+                  a return: the browser's Back or Forward, or "Back to
+                  Jobs" (restoreScrollOn). (seeker)/scroll-memory.tsx keeps
+                  each address's position, since the shell scrolls its
+                  <main> and not the window, so the browser can't; a page
+                  reached any other way starts at the top.
                   /applications is the tracker: a board, grid and list over
                   the fixture in applications/data.ts, every choice in the
                   URL (applications/query.ts), ?app= opening one application
