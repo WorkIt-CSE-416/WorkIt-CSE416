@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import zlib
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from workit_scraper.providers import Board, Job
@@ -35,6 +35,8 @@ class RunStats:
     boards_missing: int = 0
     boards_skipped: int = 0
     boards_failed: int = 0
+    #: Left for a later run when a lane's time ran out (`__main__.LANE_BUDGET_S`).
+    boards_deferred: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,8 +83,9 @@ class Store:
         seen = _at(job.first_seen_at)
         return seen > _at(board.first_read_at) and seen >= _at(self.scraped_at) - NEW_WINDOW
 
-    def to_read(self, boards: list[Board], now: str) -> list[Board]:
-        """The boards this run reads: every one, except quiet boards not due today.
+    def to_read(self, boards: list[Board], now: str, *, everything: bool = False) -> list[Board]:
+        """The boards this run reads, least recently read first: every one, except
+        quiet boards not due today (all of them with `everything`, for `--full`).
 
         Most boards in boards.csv have never had a posting we keep -- 282 of 333 on
         Lever, whose one-second Crawl-delay made it most of a run. A quiet board is
@@ -93,6 +96,10 @@ class Store:
 
         Skipping is safe for the rest of the store: a quiet board has nothing
         listed, and its `last_read_at` simply does not move.
+
+        The order is for a lane with a time budget (Workday's): it reads from the
+        front until its time is up, so a board never read comes first, then the one
+        read longest ago, and every board gets its turn. Other lanes read all.
         """
         at = _at(now)
         hot = {job.board_key for job in self.jobs}
@@ -100,13 +107,18 @@ class Store:
         for board in boards:
             reads = self.boards.get(board.key)
             if (
-                reads is None
+                everything
+                or reads is None
                 or board.key in hot
                 or at - _at(reads.last_read_at) >= timedelta(days=QUIET_EVERY)
                 or zlib.crc32(board.key.encode()) % QUIET_EVERY == at.toordinal() % QUIET_EVERY
             ):
                 due.append(board)
-        return due
+        never = datetime.min.replace(tzinfo=UTC)
+        return sorted(
+            due,
+            key=lambda b: _at(self.boards[b.key].last_read_at) if b.key in self.boards else never,
+        )
 
     @property
     def counts_new(self) -> bool:
@@ -161,10 +173,17 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     stands until a newer PAGE_VERSION reads it again. Ashby, Lever and Recruitee
     bring a fresh page every read, which always wins -- facts an employer changed
     must not linger. A BambooHR listing has no date either: its page gave it one.
+
+    A Workday listing's date is the reverse: it has one, but only counted back
+    from "Posted 3 Days Ago", a day out either way and gone at "30+ Days Ago",
+    while its page gave the exact one. So a bare Workday listing keeps the stored
+    date; one whose page was just read brings that page's date.
     """
     old = before.get(job.key)
     if not old:
         return job
+    if job.ats == "workday" and job.page is None:
+        return replace(job, page=old.page, posted_at=old.posted_at or job.posted_at)
     return replace(job, page=job.page or old.page, posted_at=job.posted_at or old.posted_at)
 
 

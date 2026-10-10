@@ -25,29 +25,30 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 |---|---|
 | `boards.csv` | the boards to read: `ats,token,company` |
 | `build_boards.py` | regenerating `boards.csv` from public curated internship lists |
-| `web.py` | the one HTTP GET: our User-Agent, no cross-origin redirects |
+| `web.py` | the one HTTP GET (and Workday's one POST): our User-Agent, no cross-origin redirects |
 | `polite.py` | robots.txt and per-origin pacing |
-| `providers.py` | `Board`, `Job`, and one function per ATS mapping its JSON onto `Job` |
+| `providers.py` | `Board`, `Job`, and one function per ATS mapping its JSON onto `Job` (Workday's pages) |
 | `details.py` | pay, job type, years of experience, start term and visa sponsorship read out of a description |
 | `store.py` | `jobs.json`, `first_seen_at`, and what "listed" and "new today" mean |
 | `shortlist.py` | which postings belong on the page, each one's category, and collapsing duplicates |
 | `report.py` | rendering the page |
 | `feed.py` | `feed.json`, the backend's copy of the same roles |
 | `logos.py` | each company's logo, read once off its job board's page |
-| `__main__.py` | the thread pool and the two commands |
+| `__main__.py` | the lanes, Workday's time budget and the two commands |
 
-Every provider returns a whole board in one request, so there is no pagination.
+Every provider but Workday returns a whole board in one request. Workday sends 20
+postings a request, which changes how its boards are read (Workday, below).
 
 ## Some postings' own pages are read once, and only for kept postings
 
 What a posting's own text says is one value, `providers.Page`: the description
 (plain text, cut to `DESCRIPTION_CHARS` for Scout), the card's `details.Facts`,
 and on Greenhouse the posting's offices. Lever, Ashby and Recruitee send it with the
-board's list, so their `Job.page` is rebuilt on every read. Greenhouse, Workable and
-BambooHR do not (`providers.JOB_URL`). Greenhouse's `content=true` would send every
+board's list, so their `Job.page` is rebuilt on every read. Greenhouse, Workable,
+BambooHR and Workday do not (`providers.JOB_URL`). Greenhouse's `content=true` would send every
 posting's full HTML, hundreds of megabytes a run to describe the ~2% we keep;
 Workable's widget has no work model or pay; BambooHR's list has no description,
-date or pay at all. So their listings have `page=None`, and `__main__.with_page`
+date or pay at all; Workday's has no description, exact date or places. So their listings have `page=None`, and `__main__.with_page`
 reads each *kept* posting's own page once (`providers.describe`), through the same
 robots and pacing. A posting whose page fails or is disallowed simply has none.
 
@@ -57,11 +58,14 @@ bugs came of it: a Greenhouse listing's title-only "2027" overwrote the page's
 "Summer 2027", and Strada's internship stayed "full-time" after Ashby changed it.
 Ashby, Lever and Recruitee always bring a fresh page, so theirs always wins.
 `posted_at` is carried the same way, for BambooHR, whose date is only on the page.
+Workday's is the reverse (`store.carry`): its list has a date, counted back from
+"Posted 3 Days Ago", but the page's exact one wins, so a bare Workday listing keeps
+the stored date and never drifts by a day or vanishes at "30+ Days Ago".
 
 `Page.version` is the `providers.PAGE_VERSION` it was read under, and `with_page`
 reads again any whose version is older. **Bump `PAGE_VERSION` whenever a `Page`
 starts holding something new**, or postings already stored never get it; the bump
-costs one read per kept Greenhouse, Workable and BambooHR posting, once. `with_page`
+costs one read per kept Greenhouse, Workable, BambooHR and Workday posting, once. `with_page`
 only ever sees postings a board just listed, so one that has left its board is never
 asked for.
 
@@ -90,8 +94,11 @@ still needs no install. `[tool.pytest.ini_options]` sets `pythonpath = ["."]` be
 ## Adding a provider
 
 1. A function in `providers.py` taking `(token, company)` and returning `list[Job]`.
+   One that makes more than one request per board goes in `PAGED` too, takes
+   `pace` and calls it before each request after the first (Workday's `workday`).
 2. Its URL template in `LISTING_URL`, which both the fetcher and the robots check read
    from, so a board can never be checked at one address and fetched at another.
+   Anything else robots.txt must allow goes in `robots_urls` (Workday's careers site).
 3. Its name in `FETCHERS`.
 4. Its apply-URL pattern in `build_boards.PATTERNS`, or no board of it ever reaches
    `boards.csv`.
@@ -148,6 +155,124 @@ front, read one after another.
   board redirects to www.bamboohr.com instead of a 404, which `bamboohr()` turns
   into `BoardNotFound`.
 
+### Workday (KAN-134)
+
+Added 2026-10-10. Workday is what most large and non-tech employers hire through:
+the curated lists name 1,700 Workday boards (on ~1,475 companies; a company can run
+several careers sites, Boeing 40), against 2,128 for the six other providers
+together, and about 17,500 of their ~37,000 apply links point at it. A board's
+address is `{tenant}.wd{N}.myworkdayjobs.com/{site}`, so its token is
+`{tenant}.wd{N}/{site}` (`nvidia.wd5/nvidiaexternalcareersite`): all three are
+needed to reach it. Links on `wd{N}.myworkdaysite.com/recruiting/{tenant}/{site}`
+name the same board and are read on the tenant's own host.
+
+**It is not a documented public API.** The list is what the careers page itself
+calls, `POST /wday/cxs/{tenant}/{site}/jobs` with `{"appliedFacets": {}, "limit":
+20, "offset": n, "searchText": ""}`, and a posting's record is `GET` on its path
+under the same prefix. Accepted as a risk, like Workable's per-posting page: if
+Workday changes it, the Workday lane fails loudly and the other providers carry on.
+What it does, measured on every board on 2026-10-10:
+
+- **20 postings a request**, and a larger `limit` is a 400. The count (`total`)
+  comes on the first page only; later pages say 0.
+- **The count stops at 2,000.** A board answering exactly 2,000 is capped (NVIDIA
+  has 2,676), and an offset past 2,000 returns the first page again. Boards that
+  report more (Northrop Grumman, 3,740) page past it. 39 boards were capped.
+- **`searchText` is no filter we can trust.** It searches descriptions too
+  ("intern" finds "international"), and against a full read of 105 boards it missed
+  182 of 1,061 early-career titles and 18 of the 209 postings we keep (Elevance's
+  "Information Security Co-Op Internship", ASML's internships). It also saved only a
+  third of the requests. So no Workday board is read by search.
+- **A posting's record has `startDate`, which is the day it went up**, not when the
+  job starts: it matched "Posted 3 Days Ago" on every posting compared. The list's
+  `postedOn` is only relative ("Posted Yesterday", "Posted 30+ Days Ago").
+- Unknown tenant, or the right one on the wrong `wd{N}`: a 422, read as "no such
+  board". A careers site that does not exist: a 404.
+
+**Each board is read whole or not at all** (`providers.workday`), which keeps
+"Nothing closes" true: every page is read, and the read counts only if the distinct
+postings add up to the count Workday gave; otherwise it raises `Incomplete` and is a
+failed read, evidence of nothing. A capped board is read in slices by one of its own
+filters (`_workday_slices`): a filter whose counts add up to the real size, which two
+filters must agree on, with no value itself at 2,000 (NVIDIA: 15 job families, the
+largest 1,723). 22 of the 39 capped boards split this way (Abbott, Booz Allen,
+Applied Materials, Leidos, PNC, T-Mobile, NVIDIA); the rest (Walmart, Target,
+Airbus, Hitachi Energy, Sysco, ...) are skipped as "too large to read whole". So is
+any board past `WORKDAY_MAX` (5,000 postings, 250 requests): Accenture, Dollar Tree,
+CVS, TJX and other retail and hospital chains. 20 boards in all.
+
+**A run reads as many boards as fit in `__main__.LANE_BUDGET_S` (12 minutes)**,
+least recently read first (`Store.to_read`), and leaves the rest for a later run
+(`Outcome.DEFERRED`, "left for a later run"). The 1,469 boards we can read hold
+about 432,000 postings: some 22,000 requests, close to an hour at the eight a
+second the lane sustains (ten is the pace's cap), against a workflow timeout of
+30 minutes. A deferred board is simply not read: its postings stay listed as
+they were, its `last_read_at` does not move, and it is first in line next run. A
+board started in time is always finished, so no read is cut short. The first run
+read 439 boards, so at a run every three hours each Workday board is read about
+every four runs, twelve hours, and the quiet-board rest still applies on top. The
+cost, accepted: a new posting on a Workday board can reach the page about half a
+day late, and a closed one stays listed as long.
+
+**Politeness.** Every tenant has its own robots.txt, and none forbids the API path,
+but most name their careers sites (`Allow: /NVIDIAExternalCareerSite/`), and on 141
+of the 1,700 boards they `Disallow` the very site the lists link: Caterpillar's
+`/CaterpillarCareers/`, Citi's `/2/`, CACI's, eBay's, Equinix's, BlackRock's early
+careers, Expedia's `private`. Reading such a site through the API would read what
+the employer asked crawlers to leave alone, so `providers.robots_urls` checks the
+careers site as well as the API, and those boards are skipped. Workday's paths are case-blind, and so is our reading of its
+robots.txt (`polite.FOLD_CASE`): the lists link `/caterpillarcareers/` as often as
+`/CaterpillarCareers/`. Its robots.txt files are read as the lane reaches each
+host, not up front: one paced request each, and only for the boards a run reads.
+All of Workday is one pace (`polite.SHARED_PACE`), ten requests a second. A 429 is
+retried once (5 boards answered one on the first sweep).
+
+**The card's facts.** Job type is `timeType` ("Full time") through
+`details.job_type_label`. Work style is `remoteType`, which each employer words its
+own way (~80 wordings seen: "Onsite", "Partially Remote", "Office Worker (NOT
+Remote)", "Remote work is not available"), read by `_workday_work_style`: a refusal
+of remote is on site, any hybrid is hybrid, then remote, then on site; most postings
+have none, and the usual rules decide. Location is the list's `locationsText`,
+except "3 Locations", which is no place: the record's `location` and
+`additionalLocations` are joined with "; " into one (`Page.offices`), as Workable
+joins its rows. Kept apart, the card would say "3 locations" and the backend's
+resolver, which splits on ";", would find no place: it found none for 116 of the
+first 664 roles before the join and for 13 after, "Remote" and site names
+(Cleveland-Cliffs' "Rockport Works"). Pay is read from the description (Bose's
+"$21.15-$29.09 per hour"). Workday has no department field we read.
+
+**No logos.** Each careers page names one (`/{site}/assets/logo`), but it is the
+site's banner, not a square: NVIDIA's is 1200x627, Boeing's 1600x400. Micron's is
+an SVG, which next/image refuses without `dangerouslyAllowSVG`, and Salesforce's
+and Disney's come as `text/plain`, which it may refuse. Workday cards show initials
+until someone finds a square image Workday serves cheaply.
+
+**A job on two careers sites is two roles.** Autodesk lists its interns on `ext`
+and `uni`, Booz Allen on `bah_jobs` and `confidential`, Cadence on
+`external_careers` and `univ_careers`, each copy with its own apply URL, and `pick`
+keys on the apply URL on purpose (above). 80 of the first 664 roles were such a
+second copy. Merging them would mean deduping on the tenant and the requisition
+number, which nothing does yet.
+
+**What the first run added** (2026-10-10, on the day's store, so every Workday
+board was new and the run read them from the front of the alphabet):
+
+| | |
+|---|---|
+| Workday boards due | 1,700 |
+| read whole | 439, four of them capped and read in slices (Abbott, Applied Materials, Beth Israel Lahey, Booz Allen) |
+| skipped | 43 by robots.txt, 9 too large |
+| no such board / failed | 12 / 3 (two 403s; AT&T's linkless row, since counted) |
+| left for a later run | 1,194 |
+| postings scanned | 116,025 |
+| kept | 664 (0.6%): software 291, data and AI 151, hardware 149, product 41, quant 32 |
+| facts filled | job type 654, work style 621, start 365, pay 281, sponsorship 227 |
+| run time | 14.8 minutes, against 3.3 for the same run without Workday |
+
+The Workday lane spent its 12 minutes and 2.5 more finishing the boards in flight
+and reading the 664 kept postings' records, at about eight requests a second. The
+other providers' lanes finished inside it, so Workday adds about 11.5 minutes a run.
+
 Only Workable's logos are read (below). BambooHR's header logo is served as
 `application/octet-stream` from numbered hosts (`images7.bamboohr.com`), which
 next/image may refuse, and Recruitee's sits inside a 1 MB board page for the one
@@ -166,7 +291,8 @@ date and Recruitee "2026-10-08 10:34:56 UTC"; a time with no zone is UTC, never 
 machine's own.
 
 **They also disagree about what they publish at all.** Ashby, Lever, Recruitee,
-BambooHR and Workable (on its page) state a work model; Greenhouse has no field for one, so a Greenhouse posting states one only when
+BambooHR and Workable (on its page) state a work model, and Workday does where the
+employer configured the field (about one listing in sixteen); Greenhouse has no field for one, so a Greenhouse posting states one only when
 its location *is* a work model -- Cloudflare names every location "In-Office" -- or a
 sentence says so. What the card shows when nothing states it is decided in
 `shortlist`; see the card's facts below.
@@ -184,7 +310,7 @@ since nobody asks an intern for years. Each is filled from the provider's own fi
 where it has one (Ashby `employmentType` and `compensation`, Lever `commitment` and
 `salaryRange`, Greenhouse `pay_input_ranges` and board metadata, Workable `type` and
 `salary_*`, Recruitee `employment_type_code` and `salary`, BambooHR
-`employmentStatusLabel` and `compensation`), and otherwise from
+`employmentStatusLabel` and `compensation`, Workday `timeType` and `remoteType`), and otherwise from
 the description by `details.py`. What neither states stays null, and the card says
 "not listed" -- except work style and job type, each inferred by a measured rule below.
 
@@ -425,20 +551,25 @@ closing, at most one miss per board per run.
 Every request goes through `web.get` and, before it, `polite.Robots` — including
 `build_boards.py`'s three fetches from GitHub.
 
-- `Robots` reads every origin's robots.txt once, up front. Per RFC 9309, a 4xx means
+- `Robots` reads every origin's robots.txt once: up front for the origins it is
+  given, and on first use, paced, for any other (Workday's ~1,500 hosts, of which a
+  run reaches only some). Per RFC 9309, a 4xx means
   no rules; a 5xx **or an unreachable robots.txt** means complete disallow for the
   run. An outage is not permission.
+- A host whose paths are case-blind has its robots.txt read case-blind too
+  (`polite.FOLD_CASE`, Workday): otherwise `Disallow: /CaterpillarCareers/` would
+  not stop a request for `/caterpillarcareers/`.
 - `Robots.pace()` paces **every** origin: it honours a published `Crawl-delay` (Lever
   asks for one second) and holds `DEFAULT_DELAY_S` against origins that publish none.
   Greenhouse publishes none, and across ~1,800 boards at eight in flight we would
   otherwise run at roughly 60 requests a second. Keep it in the path of every fetch.
 - **A provider is paced as one host even when each company is its own origin.**
-  Recruitee and BambooHR serve every board from `{company}.<provider>.com`, so
+  Recruitee, BambooHR and Workday serve every board from a host of the company's own, so
   per-origin pacing alone would let a lane's eight workers hit one provider eight
   boards at a time. `polite.SHARED_PACE` gives all of a provider's subdomains one
   lock; each still has its own robots.txt, read up front like any other.
-- `web.get` refuses a redirect to another origin, since robots.txt was checked for
-  the one we asked for.
+- `web.get` (and `web.post`, for Workday) refuses a redirect to another origin,
+  since robots.txt was checked for the one we asked for.
 
 ## Speed comes from lanes and quiet boards, never from less pacing
 
@@ -456,9 +587,14 @@ them on its own. Two things cut it; neither touches `Robots.pace`.
   share, and always once that many days have passed. The cost is accepted: a first posting on a quiet board can
   appear two days late. `--full` reads every board. A board with any kept posting, ever,
   is read every run; nothing closes, so it never turns quiet again.
+- **A lane can have a time budget** (`__main__.LANE_BUDGET_S`; only Workday's, 12
+  minutes). It starts boards from the front of `Store.to_read`'s order, least
+  recently read first, and once its time is up leaves the rest for a later run
+  (Workday, above). `--full` keeps the budget: it un-rests quiet boards, it does not
+  make a Workday sweep fit in one run.
 
 The page's "postings scanned" counts what this run read, so it is lower on a run that
-rested quiet boards.
+rested quiet boards or ran out of Workday time.
 
 ## `boards.csv` is a seed, not a conclusion
 
@@ -598,7 +734,11 @@ pytest, in plain-`assert` style: `Test*` classes group cases without subclassing
 "open roles" path through `store.py` and `report.py` — a lost `first_seen_at` or a
 wrong row flag still renders a plausible page. One shipped marking every row "just
 added"; `tests/test_report_and_store.py` has a case for each way that count has been,
-or could be, wrong.
+or could be, wrong. Each provider's reader is tested on its real responses, trimmed:
+`tests/test_providers.py` for Workable, Recruitee and BambooHR, `tests/test_workday.py`
+for Workday, whose paging, slicing, budget, robots and POST each have a case there
+(where a board must be small enough to page by hand, the page size or cap is shrunk,
+never the data).
 
 ## Deliberate limits
 
@@ -609,6 +749,9 @@ Marked in the code with `ponytail:` comments where they apply.
 - **Only matching postings are stored.** Keeping all ~91,000 scanned postings would
   make `jobs.json` tens of megabytes of roles we never display. The page's counts still
   report everything scanned.
+- **A Workday board is read about once a day, not every run**, and the biggest are
+  not read at all (Workday, above). Slicing a capped board two filters deep, or
+  reading a giant board over several runs, would reach more; neither is built.
 
 ## `feed.json` is the backend's only view of us
 
@@ -661,8 +804,8 @@ board page is a script shell, so its logo is read from the account JSON
 (`/api/v1/accounts/{slug}`): `logo` on `workablehr.s3.amazonaws.com` under
 `/uploads/account/logo/`, never its `open_graph_logo`. It is 120px tall, a square or
 a wordmark up to 720 wide (17 of the first 25), which the card letterboxes like any
-other wordmark. Recruitee and BambooHR
-are not in `logos.PAGE` at all (see the KAN-171 notes above).
+other wordmark. Recruitee, BambooHR and Workday
+are not in `logos.PAGE` at all (see the KAN-171 and KAN-134 notes above).
 
 ## Committed data
 

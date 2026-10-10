@@ -253,7 +253,8 @@ def render(roles: list[Role], stats: RunStats, scraped_at: str, *, counts_new: b
 <button class="more" id="more" hidden></button>
 <footer>
   Scraped straight from each employer's own job board through the Greenhouse, Lever,
-  Ashby, Workable, Recruitee and BambooHR public APIs, honouring every board's
+  Ashby, Workable, Recruitee and BambooHR public APIs and the API Workday's careers
+  pages call, honouring every board's
   robots.txt. Dates are when the employer published the posting; a blank work model
   means the employer did not state one.
   <b>New today</b> counts roles first seen in the 24 hours before this scrape, on boards

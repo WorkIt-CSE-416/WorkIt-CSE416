@@ -4,8 +4,9 @@ How a job posting travels from a company job board to a card a student can
 filter, open and apply to. Each section stands on its own, so read the one you
 need.
 
-> **Status (2026-10-10).** This describes the code on `KAN-171-more-jobs`,
-> which builds on PRs #91 (filters and visa) and #92 (the job posting page).
+> **Status (2026-10-10).** This describes the code on `KAN-134-workday`
+> (Workday), which builds on `KAN-171-more-jobs` and so on PRs #91 (filters and
+> visa) and #92 (the job posting page).
 > The role categories need their database migration applied before they go
 > live (section 5.3).
 
@@ -29,8 +30,8 @@ Jobs page** (`/jobs`), never a job board, so the two can't be confused.
  Company job boards          Scraper (Python)              Database (Supabase)
  on Greenhouse, Lever, ──▶  reads, keeps, reads    ──▶    job_postings
  Ashby, Workable,           the facts                     job_locations
- BambooHR, Recruitee
-                            writes feed.json               ▲
+ BambooHR, Recruitee,
+ Workday                    writes feed.json               ▲
                                   │                        │
                                   └──── import script ─────┘
                                         (every 3 hours)
@@ -62,7 +63,7 @@ its company job boards, so we keep our own list.
 
 | | |
 |---|---|
-| **The list** | `scraper/boards.csv`: about 2,130 company job boards (table below) |
+| **The list** | `scraper/boards.csv`: about 3,830 company job boards (table below) |
 | **Where it comes from** | `build_boards.py` reads the apply links in public GitHub internship lists (SimplifyJobs and vanshb03, Summer 2027) and pulls out each company job board's name, plus a few added by hand |
 | **How often it's refreshed** | At the start of every scheduled run, every 3 hours (KAN-167), so new companies and new job postings arrive together |
 | **Slug** | A company job board's name in its address, like `stripe` in `boards.greenhouse.io/stripe` |
@@ -83,9 +84,19 @@ How the refresh behaves:
 | Workable | 178 | Small and mid-size companies | Its list, then each kept job posting's own page (for hybrid and pay) |
 | BambooHR | 42 | Small and mid-size companies | Its list, then each kept job posting's own page (the list has no description) |
 | Recruitee | 2 | Small companies, mostly in Europe | One request, everything included |
+| Workday | 1,700 | Large companies and most non-tech employers: banks, defense, chips, cars, retail, hospitals | 20 job postings a request, so a run reads as many company job boards whole as fit in 12 minutes, the least recently read first; then each kept job posting's own page |
 
-Workable, BambooHR and Recruitee were added in KAN-171. Recruitee has so few
-company job boards because the GitHub lists barely mention it.
+Workable, BambooHR and Recruitee were added in KAN-171, and Workday in KAN-134.
+Recruitee has so few company job boards because the GitHub lists barely mention
+it. Workday is the opposite: nearly half the lists' apply links point at it.
+
+Workday is different in three ways worth knowing:
+
+| | |
+|---|---|
+| **Read over several runs** | Reading every Workday company job board whole takes about 22,000 requests (they hold about 430,000 job postings), far more than one run can make politely. So each run reads them for 12 minutes, starting with the ones read longest ago, and the rest wait their turn. The first run read 439 of them, so each is read about every 12 hours, and a new Workday job posting can take that long to appear (a closed one stays as long) |
+| **Some are skipped** | 141 whose `robots.txt` asks crawlers to stay off that careers site (Caterpillar, Citi, CACI, eBay), and 20 too big to read whole: over 5,000 job postings (Accenture, Walmart, Target, CVS), or capped at 2,000 by Workday with no filter to split them by (Airbus, Sysco) |
+| **No logos yet** | Workday's careers-page images are wide banners, so its cards show the company's initials |
 
 The GitHub lists are only used as a phone book. Every job posting itself is
 read from the company's own job board, so we get job postings the lists never
@@ -97,23 +108,25 @@ added, the full description, and a reliable signal when a job posting closes.
 
 `.github/workflows/scrape.yml` runs the scraper and then the import **every 3
 hours, at 17 minutes past** (off the hour, since GitHub delays runs scheduled
-on it). A run takes a few minutes.
+on it). A run takes about 15 minutes: 12 of them are Workday's share, and the
+other hiring systems finish inside it (about 3 minutes without Workday).
 
 ### What one run does
 
 | Step | What happens |
 |---|---|
-| 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one day in three, so a first job posting at a quiet company can appear up to two days late. `--full` reads them all. |
-| 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR and Recruitee give every company its own subdomain, and each hiring system's subdomains share one pace. |
-| 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read; about 1,700 are kept. |
-| 4. Fetch full pages | Greenhouse, Workable and BambooHR lists leave out the description, pay or work style, so the scraper reads the full page of each kept job posting there, once. |
+| 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one day in three, so a first job posting at a quiet company can appear up to two days late. `--full` reads them all. Workday's are read for 12 minutes a run, least recently read first (section 2). |
+| 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR, Recruitee and Workday give every company its own subdomain, and each hiring system's subdomains share one pace. |
+| 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read on the other hiring systems and about 115,000 more on Workday each run; about 1,700 and (in Workday's first run) 664 were kept. |
+| 4. Fetch full pages | Greenhouse, Workable, BambooHR and Workday lists leave out the description, pay, work style or exact date, so the scraper reads the full page of each kept job posting there, once. |
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
 
 **A job posting only disappears after a complete read of its company job
 board.** If a company job board fails to load, its job postings are kept as
-they were.
+they were. A Workday company job board is read whole or not at all: every
+page, adding up to the count Workday reports, or the read counts for nothing.
 
 ### 3.1 Which job postings are kept
 
@@ -151,7 +164,7 @@ to full-time for new-grad roles and summer internships.
 | Fact | Where it comes from | How often a job posting states it |
 |---|---|---|
 | Location | The company job board's location text | Almost always |
-| Work style (remote, hybrid, on-site) | The hiring system's field (Ashby, Lever, Workable, BambooHR); on Greenhouse, a location that says "Remote"; else the description | About 97% |
+| Work style (remote, hybrid, on-site) | The hiring system's field (Ashby, Lever, Workable, BambooHR, and Workday where the company fills it in); on Greenhouse, a location that says "Remote"; else the description | About 97% |
 | Experience level | The title (internship or new grad) | Always |
 | Job type (full-time, part-time, contract) | The hiring system's field, else the description; else full-time for a new-grad role or a summer internship (216 of 216 new-grad and 71 of 74 summer job postings that state one say full-time) | About 37% stated; about 65% with the full-time rule. Other internships stay empty |
 | Pay | The description ("$40-$50/hr"), never a funding amount | About 60% |
@@ -341,7 +354,11 @@ browser can't restore your place by itself. The app does it instead:
 
 | Limit | Why | What would fix it |
 |---|---|---|
-| Six hiring systems, not the ones large companies use | Each hiring system needs its own reader | Workday (most large employers) is KAN-134 |
+| Seven hiring systems. The next biggest in the GitHub lists go unread: Oracle Cloud (about 3,100 apply links), SmartRecruiters (1,700), iCIMS (1,600) | Each hiring system needs its own reader, and SmartRecruiters' `robots.txt` disallows us | A reader per hiring system, where its `robots.txt` allows |
+| A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
+| A Workday job on two of a company's careers sites shows twice | Each copy has its own apply link (Autodesk's `ext` and `uni` sites): 80 of the first 664 | Merge copies by company and requisition number |
+| The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
+| Workday cards have no logo | Workday's careers-page images are wide banners, and some are SVGs the website's image loader refuses | Find a square image Workday serves |
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -31,6 +32,13 @@ JOBS_JSON = ROOT / "jobs.json"
 PAGE_HTML = ROOT / "internships.html"
 FEED_JSON = ROOT / "feed.json"
 MAX_IN_FLIGHT = 8
+#: How long a lane may keep starting boards. Only Workday has one: it pages 20
+#: postings a request, and its ~1,470 readable boards hold ~430,000 postings,
+#: ~22,000 requests, close to an hour at its pace. So each run reads boards whole,
+#: least recently read first, until this runs out (~440 boards on 2026-10-10); the
+#: rest wait for a later run, which proves nothing about them either way. A board
+#: started in time is finished. 12 minutes keeps a run near 15 of its 30.
+LANE_BUDGET_S = {"workday": 12 * 60}
 
 
 class Outcome(Enum):
@@ -38,6 +46,7 @@ class Outcome(Enum):
     MISSING = auto()
     SKIPPED = auto()
     FAILED = auto()
+    DEFERRED = auto()
 
 
 def load_boards(path: Path) -> list[Board]:
@@ -61,15 +70,21 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
         print(f"  ?  {board.key}: no fetcher for this provider", file=sys.stderr)
         return Outcome.SKIPPED, []
     url = providers.listing_url(board.ats, board.token)
-    if not robots.allows(url):
+    if not all(robots.allows(u) for u in providers.robots_urls(board.ats, board.token)):
         print(f"  -  {board.key}: skipped, robots.txt disallows us")
         return Outcome.SKIPPED, []
     robots.pace(url)
     try:
-        jobs = fetcher(board.token, board.company)
+        if board.ats in providers.PAGED:
+            jobs = fetcher(board.token, board.company, pace=robots.pace)
+        else:
+            jobs = fetcher(board.token, board.company)
     except BoardNotFound:
         print(f"  x  {board.key}: no such board")
         return Outcome.MISSING, []
+    except providers.TooLarge as error:
+        print(f"  -  {board.key}: skipped, too large to read whole ({error})")
+        return Outcome.SKIPPED, []
     except Exception as error:  # noqa: BLE001 - one bad board must not end the run
         print(f"  !  {board.key}: {type(error).__name__}: {error}", file=sys.stderr)
         return Outcome.FAILED, []
@@ -80,9 +95,19 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
 def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     """One provider's boards, then the own pages of their postings that need one
     (`with_page`) -- so Greenhouse's page reads start when its boards are done,
-    not after Lever's. Order is kept, so each board gets its own jobs back."""
+    not after Lever's. Order is kept, so each board gets its own jobs back.
+
+    A lane with a budget (`LANE_BUDGET_S`) starts no board once it has run out."""
+    budget = LANE_BUDGET_S.get(boards[0].ats) if boards else None
+    deadline = time.monotonic() + budget if budget is not None else None
+
+    def read(board: Board) -> tuple[Outcome, list[Job]]:
+        if deadline is not None and time.monotonic() > deadline:
+            return Outcome.DEFERRED, []
+        return _scrape_one(board, robots)
+
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
-        results = list(pool.map(lambda board: _scrape_one(board, robots), boards))
+        results = list(pool.map(read, boards))
         listed = [store.carry(job, before) for _, jobs in results for job in jobs]
         paged = iter(pool.map(lambda job: with_page(job, robots), listed))
     return [(outcome, [next(paged) for _ in jobs]) for outcome, jobs in results]
@@ -117,6 +142,7 @@ def scrape(
         boards_missing=outcomes[Outcome.MISSING],
         boards_skipped=outcomes[Outcome.SKIPPED],
         boards_failed=outcomes[Outcome.FAILED],
+        boards_deferred=outcomes[Outcome.DEFERRED],
     )
     read = [
         board.key
@@ -127,11 +153,11 @@ def scrape(
 
 
 def with_page(job: Job, robots: Robots) -> Job:
-    """The posting with its own page read, if it is a kept Greenhouse, Workable or
-    BambooHR posting with no `Page` under the current PAGE_VERSION; otherwise
-    exactly as it was.
+    """The posting with its own page read, if it is a kept Greenhouse, Workable,
+    BambooHR or Workday posting with no `Page` under the current PAGE_VERSION;
+    otherwise exactly as it was.
 
-    Only those three need this -- Ashby, Lever and Recruitee send it all with the
+    Only those four need this -- Ashby, Lever and Recruitee send it all with the
     list -- and only once per posting, since the store carries the page forward.
     Called on postings a board just listed, so one that has left its board is never
     asked for. A page that fails or is disallowed leaves the posting without one.
@@ -170,20 +196,23 @@ def main(argv: list[str] | None = None) -> int:
     else:
         now = datetime.now(UTC).isoformat()
         boards = load_boards(args.boards)
-        if previous and not args.full:
-            due = previous.to_read(boards, now)
-            print(
-                f"scraping {len(due)} of {len(boards)} boards (quiet ones rest; --full reads all)\n"
-            )
+        if previous:
+            # Least recently read first, even with --full: Workday's lane reads
+            # from the front until its time is up (LANE_BUDGET_S).
+            due = previous.to_read(boards, now, everything=args.full)
+            rest = "" if args.full else " (quiet ones rest; --full reads all)"
+            print(f"scraping {len(due)} of {len(boards)} boards{rest}\n")
             boards = due
         else:
             print(f"scraping {len(boards)} boards\n")
         # Every origin a run touches, so robots.txt is read once, up front. A
         # posting's own page shares its board list's origin (`providers.JOB_URL`).
+        # Not Workday's: one host per company, read as its lane reaches each.
         robots = Robots(
-            providers.listing_url(board.ats, board.token)
+            url
             for board in boards
-            if board.ats in providers.FETCHERS
+            if board.ats in providers.FETCHERS and board.ats not in LANE_BUDGET_S
+            for url in providers.robots_urls(board.ats, board.token)
         )
         before = {job.key: job for job in previous.jobs} if previous else {}
         scanned, stats, read = scrape(boards, robots, before)
@@ -195,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         stats = replace(stats, kept=len(fresh))
         run = store.update(previous, fresh, read, stats, now)
         # Only boards with a job on the page need a logo, and each is read once.
-        # Recruitee and BambooHR have no page to read one from (`logos.PAGE`).
+        # Recruitee, BambooHR and Workday have none we read (`logos.PAGE`).
         unread = sorted(
             {
                 (j.ats, j.token, j.company)
@@ -216,7 +245,8 @@ def main(argv: list[str] | None = None) -> int:
         f"  ({run.stats.boards_ok} boards read,"
         f" {run.stats.boards_missing} not found,"
         f" {run.stats.boards_skipped} skipped,"
-        f" {run.stats.boards_failed} failed)"
+        f" {run.stats.boards_failed} failed,"
+        f" {run.stats.boards_deferred} left for a later run)"
     )
     print(f"wrote {PAGE_HTML} and {FEED_JSON.name}")
     return 0
