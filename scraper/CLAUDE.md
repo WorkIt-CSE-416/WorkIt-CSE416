@@ -30,7 +30,7 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 | `providers.py` | `Board`, `Job`, and one function per ATS mapping its JSON onto `Job` |
 | `details.py` | pay, job type, years of experience, start term and visa sponsorship read out of a description |
 | `store.py` | `jobs.json`, `first_seen_at`, and what "listed" and "new today" mean |
-| `shortlist.py` | which postings belong on the page, and collapsing duplicates |
+| `shortlist.py` | which postings belong on the page, each one's category, and collapsing duplicates |
 | `report.py` | rendering the page |
 | `feed.py` | `feed.json`, the backend's copy of the same roles |
 | `logos.py` | each company's logo, read once off its job board's page |
@@ -45,7 +45,7 @@ What a posting's own text says is one value, `providers.Page`: the description
 and on Greenhouse the posting's offices. Lever and Ashby send it with the board's
 list, so their `Job.page` is rebuilt on every read. Greenhouse does not: its
 `content=true` would send every posting's full HTML, hundreds of megabytes a run
-to describe the ~1% we keep. So a Greenhouse listing has `page=None`, and
+to describe the ~2% we keep. So a Greenhouse listing has `page=None`, and
 `__main__.with_page` reads each *kept* posting's own page once (with
 `pay_transparency=true`), through the same robots and pacing. A posting whose page
 fails or is disallowed simply has none.
@@ -415,19 +415,95 @@ in `tests/test_shortlist.py` was observed on a live board — add cases the same
 a title you actually saw, including the ones that must be rejected. Tag names are the
 `Tag` enum; the page's filter chips read from it too.
 
-**`engineer` on its own is not a software signal**, and reinstating it is the tempting
+**`engineer` on its own is not a signal**, and reinstating it is the tempting
 mistake. Wade Trim posts "Engineer Summer Intern", Olsson posts "Entry-Level Roadway
 Engineer", Rocket Lab posts "Thermal Engineering Intern" -- all real early-career
-engineering, none of it software. `SWE` names the specialisms explicitly instead. The
-cost is accepted: a bare "Engineering Intern" at a software company is dropped too,
-because nothing in that title tells it apart from Wade Trim's.
+engineering, none of it in our five categories. Each category names its specialisms
+explicitly instead. The cost is accepted: a bare "Engineering Intern" at a software
+company is dropped too, because nothing in that title tells it apart from Wade Trim's.
 
-Three more live examples of why the wording is fussy. `\bintern\b` must not fire on
-"Internal Applications". `NOT_SOFTWARE` excludes the phrase `hardware engineer` rather
-than the word `hardware`, so IMC's "Graduate Hardware Engineer" goes and its "Hardware
-Machine Learning PhD Research Internship" stays. `SENIOR` beats the stage, so Together
-AI's "Junior/Senior or Staff Software Engineer" -- one opening at any level -- is not a
-new-grad role. Firmware and embedded are software.
+Two more live examples of why the wording is fussy. `\bintern\b` must not fire on
+"Internal Applications". `SENIOR` beats the stage, so Together AI's "Junior/Senior or
+Staff Software Engineer" -- one opening at any level -- is not a new-grad role.
+
+## Five categories, one per role (KAN-171)
+
+The page used to keep software and AI roles only. It now keeps the SimplifyJobs lists'
+five, the lists `boards.csv` is built from: `software`, `data_ai` (data science, AI and
+machine learning), `product` (product management), `quant` (quantitative research,
+trading and development) and `hardware`. Still early-career only, still never senior,
+and still nothing outside the five: sales, marketing, recruiting, finance, mechanical,
+civil and the rest are `NOT_OURS`, whose words beat every category's.
+
+**One category per role, the first in `CATEGORIES` that matches.** `feed.json` carries
+it as `role_category`, the backend's `role_category` enum: a new category is a change
+on both sides, and a migration. The order is the decision:
+
+1. `QUANT` (quant, quantitative, trader): "Quantitative Developer" is a quant's job.
+2. `PRODUCT` (product manager, management, owner, analyst). `SENIOR`'s `manager`
+   spares "product manager", or every PM title would read as senior.
+3. `DATA_AI`: machine learning, data science and analytics, data engineering, applied
+   science, perception, robot learning. ML outranks what it runs on, so IMC's "Hardware
+   Machine Learning PhD Research Internship" is data.
+4. `HARDWARE`, then 5. `SOFTWARE`. Hardware first, because the software list's generic
+   words ("platform", "infrastructure") would otherwise claim a "Hardware Platform
+   Development Intern".
+6. `ROBOTICS` is hardware only after software has passed: Neuralink's "Software Engineer
+   Intern, Robotics" writes software, Bracket Bot's "Robotics Engineering Intern" builds
+   robots.
+7. `AI` as a bare modifier is weak: "Software Engineer Intern (AI Internal Tools)" is
+   software, as SimplifyJobs files 281 of its 347 titles naming both.
+8. `TRADING` alone is weak: "Campus Python Software Engineer" at Jump is software,
+   "Commodities Trading Intern" is quant, "Trading Operations" is neither.
+
+Decisions, each checked against SimplifyJobs' own labels (their listings carry a
+category) and against our scan:
+
+- **Hardware is electrical, computer, embedded and silicon engineering, RF, optics,
+  avionics, robotics and mechatronics.** Mechanical, thermal, civil, structural,
+  manufacturing and nuclear stay out: different degrees, and SimplifyJobs files 641
+  "electrical" titles under Hardware against 74 "mechanical". An electrical engineer for
+  buildings and utilities is a civil discipline (Burns & McDonnell's "Electrical
+  Engineer-Power Systems", "- Facilities (Healthcare)", "Midstream ..."), and trades are
+  not engineering (an "Electrical Apprentice", a "Technician", a robot "Operator").
+- **Firmware and embedded are hardware**, "Embedded Software Engineer" included. They
+  used to be software here; SimplifyJobs files 681 of 701 under Hardware, which is
+  where an embedded seeker looks.
+- **Data engineers and data analysts are data**, not software (SimplifyJobs: 665 of
+  666, and 1,063 of 1,064).
+- **Product designers are out**, and so are program managers: design and program
+  management are not among the five. "Product Designer, New Grad" used to slip in on
+  nothing; now `product design` is in `NOT_OURS`.
+- **Forward deployed engineers are software** (SimplifyJobs: 114 of 130), the one widening
+  of the software list.
+
+Measured on a live scan of every board on 2026-10-10 (94,271 postings): kept postings
+went from 1,163 to 1,635. By category: software 806, data 347, hardware 258, quant 170,
+product 54. Against SimplifyJobs' labels on their own 21,492 titles, 86% of the 6,584
+we keep land in the same category; most of the rest is SimplifyJobs filing a company's
+every role under one category (Hardware for "Software Engineer Intern" at a chip maker).
+False positives found and guarded, each now a test: Waymo's "Quantitative UX
+Researcher", Belvedere's "Talent Partner - Trading", Brooks's "Run Perception Graduate
+Internship", Hermeus's "Flight Software ... (Hardware-In-The-Loop)", Rivian's "Hardware
+Thermal Simulation", Healf's "Software Engineer (Supply Chain)" (a first draft vetoed
+"supply chain"). **Known misses, accepted:** an MEP firm's bare "Electrical Engineer
+Summer Intern" (Syska Hennessy posts nine) reads as hardware, as nothing in the title
+says buildings; Waymo's "Quantitative Software Engineer" reads as quant; "Product
+Engineer" and a bare "Product Intern" are dropped, being software at one company and
+consumer goods at the next.
+
+**What it costs a run.** Greenhouse reads a page per kept posting, once (above). The
+first live `--full` run after the change, on a store from the day before, read 372
+pages, 335 of them for roles only the new categories keep, and 25 seconds of logos for
+the boards newly on the page: 379 seconds in all, against 349 for the boards alone.
+The page reads cost nothing on the clock, since the Greenhouse lane finishes them while
+Lever's one-second Crawl-delay is still going; after that first run only the day's new
+postings are read.
+
+**Widening the net makes the newly kept roles "new today" once.** Only matching
+postings are stored, so the first run after this change counts every newly kept role on
+a board already read as new (the known limit under "New today", above). Expect a day of
+inflated "new" counts.
 
 ## The page
 
@@ -465,7 +541,8 @@ this package: `backend/CLAUDE.md` keeps anything outside `backend/` out of its b
 So `feed.row()` is the whole contract, and its fields must match
 `backend/app/schemas/jobs.py` — add a field in both or neither, and a new column needs
 its migration. Card facts land in `job_postings`' own columns (`job_type`, `salary*`,
-`min_years_experience`, `start_term`, `sponsorship`); descriptions ride along in the rows, and the
+`min_years_experience`, `start_term`, `sponsorship`), and so does the role's category
+(`role_category`, above); descriptions ride along in the rows, and the
 list query simply never selects them.
 
 Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's labels

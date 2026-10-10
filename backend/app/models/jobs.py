@@ -4,9 +4,11 @@ hold model schema for job posting tables
 import datetime
 import uuid
 
+from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import (
     CHAR,
     CheckConstraint,
+    Computed,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -18,6 +20,7 @@ from sqlalchemy import (
     desc,
     text,
 )
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -60,6 +63,8 @@ class Job_Post(BaseModel):
     work_style: Mapped[dto.work_style | None]
     # what the posting says about visa sponsorship; NULL when it says nothing
     sponsorship: Mapped[dto.visa_sponsorship | None]
+    # a scraped role's discipline (software, data_ai, ...); NULL for a company's job
+    role_category: Mapped[dto.role_category | None]
     # the location text as given, for display. Filtering uses job_locations
     location_raw: Mapped[str | None] = mapped_column(Text)
 
@@ -79,6 +84,21 @@ class Job_Post(BaseModel):
                         server_default=dto.job_post_status.published.name)
     closes_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     posted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # The posting's meaning as a vector
+    embedding: Mapped[list[float] | None] = mapped_column(
+        VECTOR(dto.EMBEDDING_DIMENSIONS), deferred=True
+    )
+    # The title and description as stemmed search terms; matching searches
+    # it for the applicant's own skills. Postgres computes it and keeps it
+    # current, so nothing here ever writes it.
+    fts: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed(
+            "to_tsvector('english', coalesce(title, '') || ' ' || coalesce(description, ''))",
+            persisted=True,
+        ),
+        deferred=True,
+    )
 
     __table_args__ = (
         CheckConstraint(

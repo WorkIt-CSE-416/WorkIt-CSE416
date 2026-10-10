@@ -7,7 +7,7 @@ import type { JobType, WorkStyle } from "./data";
  *
  * The URL's names are `GET /jobs`' own (backend/app/routers/jobs.py), so a
  * page passes its query to the API as it stands: ?location= (repeated ISO
- * codes), ?work_style=, ?experience=, ?job_type= (repeated, any of),
+ * codes), ?work_style=, ?role=, ?experience=, ?job_type= (repeated, any of),
  * ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or
  * year, a range either end of which may be open), ?start_term= (seasons,
  * "summer-2027", repeated) and ?visa= (sponsors or not_ruled_out).
@@ -19,12 +19,16 @@ import type { JobType, WorkStyle } from "./data";
  */
 
 export type Level = "internship" | "new_grad";
+/** A role's discipline, as the scraper reads it from the title (KAN-171). */
+export type Role = "software" | "data_ai" | "product" | "quant" | "hardware";
 export type PayPer = "hour" | "year";
 export type Visa = "sponsors" | "not_ruled_out";
 
 export type FeedFilters = {
   places: string[];
   workStyles: WorkStyle[];
+  /** None is every discipline. */
+  roles: Role[];
   levels: Level[];
   jobTypes: JobType[];
   /** 1, 7 or 30 from the row; null for any time. */
@@ -43,6 +47,7 @@ export type FeedFilters = {
 export const NO_FILTERS: FeedFilters = {
   places: [],
   workStyles: [],
+  roles: [],
   levels: [],
   jobTypes: [],
   postedWithin: null,
@@ -65,6 +70,16 @@ export const WORKPLACE_OPTIONS: { value: WorkStyle; label: string }[] = [
   { value: "onsite", label: "On-Site" },
   { value: "hybrid", label: "Hybrid" },
   { value: "remote", label: "Remote" },
+];
+
+/** The SimplifyJobs lists' five categories, which the scraper's boards come
+ *  from, in their names and order. One per role; no pick shows them all. */
+export const ROLE_OPTIONS: { value: Role; label: string }[] = [
+  { value: "software", label: "Software Engineering" },
+  { value: "data_ai", label: "Data Science, AI & ML" },
+  { value: "product", label: "Product Management" },
+  { value: "quant", label: "Quantitative Finance" },
+  { value: "hardware", label: "Hardware Engineering" },
 ];
 
 /** The career stage. Never a job type: that is how the job is set up. */
@@ -114,6 +129,7 @@ export const PAY_OPTIONS: Record<PayPer, { value: number; label: string }[]> = {
 export const FILTER_KEYS = [
   "location",
   "work_style",
+  "role",
   "experience",
   "job_type",
   "posted_within",
@@ -159,6 +175,7 @@ export function readFilters(params: Params): FeedFilters {
   return {
     places: [...new Set(all(params.location).filter((p) => PLACE.test(p)))].slice(0, MAX_PLACES),
     workStyles: pick(params.work_style, WORKPLACE_OPTIONS),
+    roles: pick(params.role, ROLE_OPTIONS),
     levels: pick(params.experience, EXPERIENCE_OPTIONS),
     jobTypes: pick(params.job_type, JOB_TYPE_OPTIONS),
     postedWithin: DATE_POSTED_OPTIONS.some((o) => o.value === posted) ? posted : null,
@@ -178,6 +195,7 @@ export function filterEntries(filters: FeedFilters): [string, string][] {
   return [
     ...filters.places.map((p): [string, string] => ["location", p]),
     ...filters.workStyles.map((w): [string, string] => ["work_style", w]),
+    ...filters.roles.map((r): [string, string] => ["role", r]),
     ...filters.levels.map((l): [string, string] => ["experience", l]),
     ...filters.jobTypes.map((t): [string, string] => ["job_type", t]),
     ...(filters.postedWithin != null

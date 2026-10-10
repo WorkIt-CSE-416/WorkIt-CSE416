@@ -44,6 +44,7 @@ def test_row_shape(resolver):
         "min_years_experience": None,
         "start_term": None,
         "sponsorship": None,
+        "role_category": None,
         # No pay stated: the NOT NULL columns keep their defaults, amounts empty.
         "salary": None,
         "salary_min": None,
@@ -71,6 +72,18 @@ def test_sponsorship_is_kept(resolver):
     # The scraper's reading of the posting's visa lines (details.py).
     prepared = prepare([listing("https://x/1", sponsorship="citizens_only")], resolver)
     assert prepared.rows[0]["sponsorship"] == dto.visa_sponsorship.citizens_only
+
+
+def test_role_category_is_kept(resolver):
+    # The scraper's reading of the title (shortlist.py): Jane Street's
+    # "Quantitative Trader Intern" is quant.
+    prepared = prepare([listing("https://x/1", role_category="quant")], resolver)
+    assert prepared.rows[0]["role_category"] == dto.role_category.quant
+
+
+def test_a_feed_without_role_categories_still_imports(resolver):
+    # feed.json from before KAN-171 has no role_category key at all.
+    assert prepare([listing("https://x/1")], resolver).rows[0]["role_category"] is None
 
 
 def test_description_is_kept(resolver):

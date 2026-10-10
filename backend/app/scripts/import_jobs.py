@@ -72,9 +72,10 @@ _FEED_COLUMNS = (
     "title", "company_name", "company_logo_url", "description",
     "experience_level", "work_style", "location_raw", "posted_at",
     "job_type", "min_years_experience", "start_term", "sponsorship",
+    "role_category",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 19.
+# asyncpg allows 32,767 parameters a statement; a row here binds 20.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
@@ -170,6 +171,7 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
             "min_years_experience": listing.min_years_experience,
             "start_term": listing.start_term,
             "sponsorship": listing.sponsorship,
+            "role_category": listing.role_category,
             **_pay(listing),
         })
     return Prepared(rows, places, unresolved, no_place, duplicates)

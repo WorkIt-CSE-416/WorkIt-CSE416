@@ -35,8 +35,11 @@ FILTERS = [
     ("all", "All"),
     (Tag.INTERN, "Internships"),
     (Tag.NEW_GRAD, "New grad"),
-    (Tag.SWE, "Software"),
-    (Tag.AI_ML, "AI / ML"),
+    (Tag.SOFTWARE, "Software"),
+    (Tag.DATA_AI, "Data & AI"),
+    (Tag.PRODUCT, "Product"),
+    (Tag.QUANT, "Quant"),
+    (Tag.HARDWARE, "Hardware"),
 ]
 
 _STYLE = """
@@ -163,7 +166,7 @@ def _stamp(iso: str) -> str:
 
 def _row(role: Role, index: int) -> str:
     esc = html.escape
-    kind = " · ".join(tag for tag in role.tags if tag != Tag.SWE) or Tag.SWE
+    kind = " · ".join(tag for tag in role.tags if tag != Tag.SOFTWARE)
     title = esc(role.title)
     kind_span = f'<span class="kind">{esc(kind)}</span>'
     role_cell = (
@@ -238,11 +241,11 @@ def render(roles: list[Role], stats: RunStats, scraped_at: str, *, counts_new: b
 
     return f"""<!doctype html>
 <html lang="en"><meta charset="utf-8">
-<title>Software Internships &amp; New Grad Roles</title>
+<title>Internships &amp; New Grad Roles</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>{_STYLE}</style>
 <body><div class="wrap">
-<h1>Software Internships &amp; New Grad Roles</h1>
+<h1>Internships &amp; New Grad Roles</h1>
 <p class="asof">Scraped {esc(_stamp(scraped_at))}</p>
 <div class="tiles">{tile_html}</div>
 <div class="bar">{chips}<span class="count" id="count"></span></div>

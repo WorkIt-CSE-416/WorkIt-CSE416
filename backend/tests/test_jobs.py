@@ -40,6 +40,7 @@ ROW = SimpleNamespace(
     min_years_experience=None,
     start_term="Summer 2027",
     sponsorship=dto.visa_sponsorship.sponsors,
+    role_category=dto.role_category.hardware,
     salary=None,
     salary_min=40.0,
     salary_max=46.0,
@@ -78,6 +79,7 @@ def test_row_becomes_the_feed_shape():
         "min_years_experience": None,
         "start_term": "Summer 2027",
         "sponsorship": dto.visa_sponsorship.sponsors,
+        "role_category": dto.role_category.hardware,
     }
 
 
@@ -340,6 +342,43 @@ def test_each_filter_narrows_its_own_column():
     ]
 
 
+def test_role_keeps_any_of_the_disciplines_asked_for():
+    (clause,) = matching(JobFilters(roles=[dto.role_category.quant, dto.role_category.product]))
+    assert _sql(clause) == "job_postings.role_category IN ('quant', 'product')"
+
+
+def test_route_reads_roles(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters.roles)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    assert client.get("/jobs?role=data_ai&role=hardware").status_code == 200
+    assert client.get("/jobs").status_code == 200
+    assert seen == [[dto.role_category.data_ai, dto.role_category.hardware], []]
+
+
+@pytest.mark.parametrize("role", ["swe", "Software", "design", "mechanical"])
+def test_route_rejects_an_unknown_role(no_database, role):
+    assert TestClient(app).get("/jobs", params={"role": role}).status_code == 422
+    assert TestClient(app).get("/jobs/count", params={"role": role}).status_code == 422
+
+
+def test_count_reads_roles(no_database, monkeypatch):
+    seen = []
+
+    async def count(db, filters):
+        seen.append(filters.roles)
+        return 3
+
+    monkeypatch.setattr("app.routers.jobs.fetch_count", count)
+    assert TestClient(app).get("/jobs/count?role=product").json() == {"jobs": 3}
+    assert seen == [[dto.role_category.product]]
+
+
 def test_visa_sponsors_keeps_only_stated_sponsors():
     (clause,) = matching(JobFilters(visa="sponsors"))
     assert _sql(clause) == "job_postings.sponsorship = 'sponsors'"
@@ -446,6 +485,7 @@ def test_a_season_is_over_once_the_next_begins(key, day, over):
 def test_route_lists_facets(no_database, monkeypatch):
     facets = JobFacets(
         work_style=[FacetCount(value="remote", jobs=73)],
+        role=[FacetCount(value="quant", jobs=41)],
         experience=[], job_type=[], posted_within=[], visa=[], start_term=[],
     )
 
@@ -455,6 +495,7 @@ def test_route_lists_facets(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_facets", fetch)
     body = TestClient(app).get("/jobs/facets").json()
     assert body["work_style"] == [{"value": "remote", "jobs": 73}]
+    assert body["role"] == [{"value": "quant", "jobs": 41}]
 
 
 def test_count_reads_the_same_filters(no_database, monkeypatch):

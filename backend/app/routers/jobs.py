@@ -28,7 +28,8 @@ Without that, Remote + United States hid 15 of the feed's 82 remote roles.
 
 The job board's other filters narrow it the same way (JobFilters, KAN-170),
 each by a column every scraped row fills when the posting states it:
-?work_style= and ?job_type= and ?experience= (repeated, any of), ?posted_within=
+?work_style=, ?role= (the discipline: software, data_ai, product, quant or
+hardware), ?job_type= and ?experience= (repeated, any of), ?posted_within=
 (days), and ?min_pay= and ?max_pay= with ?pay_per= (hour or year), a range that
 matches any posting whose own pay range overlaps it. Pay is compared as a yearly
 figure, so an internship paid by the hour, week or month and a new-grad role
@@ -95,6 +96,7 @@ _COLUMNS = (
     Job_Post.min_years_experience,
     Job_Post.start_term,
     Job_Post.sponsorship,
+    Job_Post.role_category,
     Job_Post.salary,
     Job_Post.salary_min,
     Job_Post.salary_max,
@@ -140,6 +142,7 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
         min_years_experience=row.min_years_experience,
         start_term=row.start_term,
         sponsorship=row.sponsorship,
+        role_category=row.role_category,
         salary=row.salary,
         salary_min=row.salary_min,
         salary_max=row.salary_max,
@@ -201,6 +204,8 @@ class JobFilters:
     '''
     places: Sequence[str] = ()
     work_styles: Sequence[dto.work_style] = ()
+    # The disciplines asked for (KAN-171); none means every one.
+    roles: Sequence[dto.role_category] = ()
     levels: Sequence[str] = ()
     job_types: Sequence[dto.job_type] = ()
     posted_since: datetime.datetime | None = None
@@ -250,6 +255,8 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         clauses.append(offered_in(filters.places))
     if filters.work_styles:
         clauses.append(Job_Post.work_style.in_(filters.work_styles))
+    if filters.roles:
+        clauses.append(Job_Post.role_category.in_(filters.roles))
     if filters.levels:
         clauses.append(Job_Post.experience_level.in_(filters.levels))
     if filters.job_types:
@@ -380,6 +387,7 @@ async def read_filters(
     location: list[PlaceCode] = Query([], max_length=60),
     # The rest of the filter row; each repeated for several, any of them.
     work_style: list[dto.work_style] = Query([], max_length=3),
+    role: list[dto.role_category] = Query([], max_length=5),
     experience: list[Literal["internship", "new_grad"]] = Query([], max_length=2),
     job_type: list[dto.job_type] = Query([], max_length=3),
     # Days back from now: 1, 7 or 30 from the board, any whole number here.
@@ -406,6 +414,7 @@ async def read_filters(
     return JobFilters(
         places=location,
         work_styles=work_style,
+        roles=role,
         levels=experience,
         job_types=job_type,
         posted_since=(
@@ -571,6 +580,7 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
     )).one()
     return JobFacets(
         work_style=await by(Job_Post.work_style),
+        role=await by(Job_Post.role_category),
         experience=await by(Job_Post.experience_level),
         job_type=await by(Job_Post.job_type),
         posted_within=[FacetCount(value=str(d), jobs=n) for d, n in zip((1, 7, 30), posted)],

@@ -19,6 +19,7 @@ import {
   FilterIcon,
   LevelIcon,
   PinIcon,
+  RoleIcon,
   VisaIcon,
   workStyleIcon,
 } from "@/components/icons";
@@ -39,6 +40,7 @@ import {
   FILTER_KEYS,
   filterEntries,
   JOB_TYPE_OPTIONS,
+  ROLE_OPTIONS,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
@@ -70,7 +72,8 @@ import type { JobFacets, JobLocationOption } from "./listings";
  * EACH FACET WEARS ITS FACT'S GLYPH, the one the job card draws beside the
  * same fact (Location's pin, Salary's coin, Job Type's briefcase, Experience's
  * mortarboard), so the row and the card read as one vocabulary. Date Posted
- * takes a clock, not the card's calendar, which there means the start date.
+ * takes a clock, not the card's calendar, which there means the start date,
+ * and Role, a fact the card doesn't print, takes shapes of its own.
  * Inside a popup an option has a glyph only where it differs by option:
  * Workplace's building, two arrows and house, exactly as the card picks them
  * (workStyleIcon). The same briefcase on every Job Type row would say nothing
@@ -574,6 +577,16 @@ export function JobFilters({
 
   // The row's facets, each given the width classes its place in the row needs.
   const facet = {
+    role: (className: string) => (
+      <Facet
+        Icon={RoleIcon}
+        label="Role"
+        options={counted(ROLE_OPTIONS, facets, "role")}
+        values={shown.roles}
+        onChange={(values) => set({ roles: values as FeedFilters["roles"] })}
+        className={className}
+      />
+    ),
     jobType: (className: string) => (
       <Facet
         Icon={BriefcaseIcon}
@@ -643,20 +656,27 @@ export function JobFilters({
     <>
       {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
           and All Filters stays a normal button at every width. Each facet is
-          144px and the button about 120, so the row fits them on one line
+          144px and the button about 110, so the row fits them on one line
           from these widths of row (the page's @container, so an open sidebar
-          or Scout counts): Location and All Filters anywhere, then
-          Workplace from 448px, Experience 672, Date Posted 768, Job Type
-          896 and Visa 1024. It used to drop all five at once below 896px and stretch All
+          or Scout counts): Location and All Filters anywhere, then Role from
+          448px, Workplace 672, Experience 768, Date Posted 896, Job Type
+          1024 and Visa 1280 (seven need about 1,180, past 1152's @6xl).
+          Role sits second, beside Location (KAN-171): with five disciplines
+          in one feed, which kind of role is the first thing a seeker narrows
+          by, and half the roles are software (806 of 1,635 kept postings
+          on 2026-10-10), so a quant or product seeker otherwise scrolls past
+          them all. Visa, the facet that gives way, rests in the panel. The
+          row used to drop all its facets at once below 896px and stretch All
           Filters across the row, which on a laptop with the sidebar open
           left one wide bar where four filters had fit. The panel holds
           every facet, and Salary and Start Date, which the row has no room for. */}
       {facet.location("w-36")}
-      {facet.workplace("hidden w-36 @md:flex")}
-      {facet.experience("hidden w-36 @2xl:flex")}
-      {facet.datePosted("hidden w-36 @3xl:flex")}
-      {facet.jobType("hidden w-36 @4xl:flex")}
-      {facet.visa("hidden w-36 @5xl:flex")}
+      {facet.role("hidden w-36 @md:flex")}
+      {facet.workplace("hidden w-36 @2xl:flex")}
+      {facet.experience("hidden w-36 @3xl:flex")}
+      {facet.datePosted("hidden w-36 @4xl:flex")}
+      {facet.jobType("hidden w-36 @5xl:flex")}
+      {facet.visa("hidden w-36 @7xl:flex")}
 
       <Button
         variant="secondary"

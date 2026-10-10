@@ -6,6 +6,12 @@ from datetime import date
 
 from pydantic import BaseModel as PydanticBase
 
+# The size of every stored embedding: job_postings.embedding and
+# resumes.embedding are vector(768), and embedding.py asks Gemini for this
+# size. Changing it takes a migration and re-embedding everything.
+EMBEDDING_DIMENSIONS = 768
+
+
 # --- Resume enums ---
 
 class ResumeStatus(str, enum.Enum):
@@ -116,6 +122,20 @@ class visa_sponsorship(enum.StrEnum):
     no_sponsorship= "no_sponsorship"
     # US citizenship or a US security clearance required
     citizens_only= "citizens_only"
+
+class role_category(enum.StrEnum):
+    '''
+    which discipline a scraped role is in, read from its title by the scraper
+    (scraper/workit_scraper/shortlist.py): the SimplifyJobs lists' five. NULL
+    for a company's own job
+    '''
+    software= "software"
+    # data science, AI and machine learning
+    data_ai= "data_ai"
+    product= "product"
+    # quantitative research, trading and development
+    quant= "quant"
+    hardware= "hardware"
 
 class job_post_status(enum.StrEnum):
     '''

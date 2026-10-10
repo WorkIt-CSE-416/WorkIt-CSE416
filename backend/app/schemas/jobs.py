@@ -63,6 +63,11 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
+    # Which of the five disciplines the role is in (software, data_ai, product,
+    # quant, hardware), read from its title by the scraper. None only in a
+    # feed.json written before the scraper kept more than software, which is
+    # why it is defaulted.
+    role_category: dto.role_category | None = None
 
 
 class JobLocationOption(BaseModel):
@@ -95,6 +100,7 @@ class JobFacets(BaseModel):
     """
 
     work_style: list[FacetCount]
+    role: list[FacetCount]
     experience: list[FacetCount]
     job_type: list[FacetCount]
     posted_within: list[FacetCount]
