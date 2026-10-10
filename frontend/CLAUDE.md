@@ -92,6 +92,16 @@ src/app/          App Router routes, layouts, pages
                   reads and writes them for the pages and the row alike,
                   dropping any value the API would refuse, so a stale
                   link narrows by what was valid instead of erroring.
+                  The heading and filter row stay at the top while the
+                  list scrolls under them (jobs/feed-header.tsx, on /jobs
+                  and /search alike), so the filters are in reach from
+                  anywhere in a long list. Below md only the filter row
+                  stays (the heading scrolls away; all three took about a
+                  third of a phone's page). A hairline fades in under it
+                  once the list is scrolling beneath. Its white spans the
+                  page's side gutters (SEEKER_BLEED in gutter.ts); as
+                  wide as the cards only, their shadow showed beside it as
+                  two thin vertical lines while they scrolled under.
                   jobs/filters.tsx draws the row (KAN-170); every facet
                   filters, and Industry is gone (no data). As the row
                   narrows its facets step out one at a time, least used
@@ -556,10 +566,24 @@ component imports that `data.ts`. The server-only API helpers cannot go there
 without breaking the build, so the fetch gets its own sibling marked
 `import "server-only"`. The Jobs feed is the first case: `(seeker)/jobs/listings.ts`
 fetches `GET /jobs` for /jobs, /search and the Dashboard's New Matches, and
-its `data.ts` still holds the fixtures `filters.tsx` (client) and the
-`/jobs/[jobId]` detail view use. A live role cannot open at `/jobs/[jobId]`
-yet: its id is the employer's apply URL and the detail view reads fixtures
-only, so its card's Apply Now goes to the employer's posting instead.
+its `data.ts` still holds the fixtures the company side's job pages use.
+**A live role opens at `/jobs/[jobId]`** (KAN-73): a click anywhere on its
+card goes there (a hidden layer over the card; the title is the real link a
+keyboard and a screen reader reach, and the card's buttons sit above the
+layer). Under the pointer its edge tints, its shadow rises and its title
+turns brand, but it does not lift: a card just under the sticky heading and
+filters lifted into them and was cut off. The id is
+the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
+The page is the mock's `JobDetailHeader` with the card's own facts
+(`listingFacts` in `listing-card.tsx`) and the employer's logo, then one
+"About the Role": `[jobId]/description.tsx` reads the plain-text description's
+own shape (Title Case lines as subheadings, the short lines under one as a
+list), and a description the scraper cut at 8,000 characters (it ends " …")
+says so and links to the whole posting. Apply Now leaves for the employer's
+posting, Ask Scout asks about the role, Share copies the page's link, Save
+and Report stay inert. Back to Jobs returns to the feed the seeker came from,
+filters and all (`RememberFeed` on /jobs and /search keeps it in
+sessionStorage).
 A live card still has the full shape of a fixture card: its facts are two
 fixed rows of three (location, job type, salary; then work style, level,
 and start or years), each value in ink beside a grey glyph, so each fact sits in the same column on every card
@@ -568,8 +592,11 @@ fills job type, salary and years when it does) is passed as `NOT_LISTED`
 from `components/job-posting-card.tsx` and leaves its slot empty; a screen
 reader still hears "Salary not listed". The slots used to print that in
 italic, and over half the feed's cards had at least one. Under 448px of card
-body the empty slots close up instead. The title stops at two lines and a
-fact at its column's edge, each whole on hover. An internship shows when it
+body the empty slots close up instead. The title is one line, trailing off
+with an ellipsis (a wrapped title made its card taller than the rest), and a
+fact stops at its column's edge. A title is whole on hover; a fact
+isn't, on a card that opens its job posting's page, since the card's click
+layer sits over the facts (the job posting's page shows every fact whole). An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
 2027"). Its job type is how the job is set up (Full-Time, Part-Time,
 Contract), an internship's too, never "Internship": that is its level, and

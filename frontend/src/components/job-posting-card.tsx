@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
+import { cn } from "@/lib/cn";
 
 /**
  * The job posting card a seeker sees on their Jobs feed, in the layout it had
@@ -72,12 +73,14 @@ import { Fact } from "@/components/ui/fact";
  * only three and the grid's columns sat ~300px apart with nothing between
  * them; the fixed slots are what made the grid hold up with gaps in it.
  *
- * THE TITLE STOPS AT TWO LINES. Scraped titles run to 110 characters ("…
- * (Bangkok-based, Relocation Provided)"); a third line pushed the facts of
- * one card below the others'. The whole title is the heading's `title`, so a
- * hover shows it, and a fact cut short by its column shows its whole text the
- * same way. A clamp hides overflow, so a `titleHref` link's focus ring is
- * kept inside it by the heading's padding.
+ * THE TITLE IS ONE LINE, trailing off with an ellipsis. Scraped titles run to
+ * 113 characters ("… (Bangkok-based, Relocation Provided)"), and a title that
+ * wrapped made its card taller than the ones around it (asked for
+ * 2026-10-09; it was clamped at two lines before). The whole title is the
+ * heading's `title`, so a hover shows it, and a fact cut short by its column
+ * shows its whole text the same way. A truncated heading hides its overflow,
+ * so a `titleHref` link's focus ring is kept inside it by the heading's
+ * padding.
  *
  * Every field is a pre-formatted string, not a raw `job_postings` value: the
  * seeker feed formats real schema enums (see (seeker)/jobs/format.ts) while the
@@ -233,7 +236,36 @@ export function JobPostingCard({
   rail?: ReactNode;
 }) {
   return (
-    <Card as="article" padding="none" className="@container overflow-hidden">
+    <Card
+      as="article"
+      padding="none"
+      className={cn(
+        "@container overflow-hidden",
+        // One whole target, so the pointer anywhere on it tints its edge,
+        // raises its shadow and turns its title brand. It does not lift, as
+        // the Motion rule has whole-target cards do: the feed's heading and
+        // filters stick over the list (feed-header.tsx), and a card just
+        // under them lifted into them and was cut off.
+        job.titleHref &&
+          "group/card hover:border-brand/40 hover:shadow-lift ease-glide relative transition-[box-shadow,border-color] duration-200",
+      )}
+    >
+      {/* THE WHOLE CARD OPENS THE ROLE, not only its title. This layer is
+          the click target over the card; the title stays the real link that
+          a keyboard and a screen reader reach, so this one is hidden from
+          both. It is the card's own child rather than the title's stretched
+          ::after (the board's way): the body is a size container, which
+          contains an absolute ::after inside the body and left the rail
+          dead. The title, company and actions sit above it (z-2); the facts
+          stay under it, so a click on one opens the role too. */}
+      {job.titleHref && (
+        <Link
+          href={job.titleHref}
+          tabIndex={-1}
+          aria-hidden="true"
+          className="absolute inset-0 z-1"
+        />
+      )}
       {/* The rail goes beside the body once the card is 576px wide (its own
           width, so the shell's panel is accounted for), under it below that.
           It was a window breakpoint, md, which put a 208px rail beside the
@@ -267,10 +299,13 @@ export function JobPostingCard({
                   place (mt-1 plus the padding is the 1.5 it was). */}
               <h3
                 title={job.title}
-                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 line-clamp-2 p-0.5"
+                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5"
               >
                 {job.titleHref ? (
-                  <Link href={job.titleHref} className={INK_LINK}>
+                  <Link
+                    href={job.titleHref}
+                    className={cn(INK_LINK, "group-hover/card:text-brand relative z-2")}
+                  >
                     {job.title}
                   </Link>
                 ) : (
@@ -280,7 +315,7 @@ export function JobPostingCard({
 
               <p className="text-note text-ink mt-0.5 font-semibold">
                 {job.companyHref ? (
-                  <Link href={job.companyHref} className={INK_LINK}>
+                  <Link href={job.companyHref} className={cn(INK_LINK, "relative z-2")}>
                     {job.company}
                   </Link>
                 ) : (
@@ -299,7 +334,7 @@ export function JobPostingCard({
           </div>
 
           {actions && (
-            <div className="border-border-subtle mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+            <div className="border-border-subtle relative z-2 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
               {actions}
             </div>
           )}
