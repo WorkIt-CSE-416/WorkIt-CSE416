@@ -257,8 +257,17 @@ jobs list several. "Jobs in California" is an `EXISTS` on this table.
   on 15 or later. That constraint's index also serves lookups by `job_id`,
   which is why the column has no index of its own.
 - `ON DELETE CASCADE` from the job: deleting a job deletes its places.
-- **Display uses `job_postings.location_raw`**, never these rows. The codes are
-  for filtering and lose the city.
+- **Display uses `job_postings.location_label`, else `location_raw`**, never
+  these rows. The codes are for filtering and lose the city. The import
+  writes `location_label` ("San Francisco, CA") from the city the resolver
+  already picks (`Resolution.label`, KAN-171): a segment becomes "City, ST"
+  only when every place in it is a US city with a state and it names no
+  arrangement ("Remote - San Francisco" keeps its words), so the label never
+  says less than the posting. It is display text, not a city field: nothing
+  filters on it, and the Location filter stays at countries and states (a
+  city filter's options would run to thousands, which the team ruled out on
+  2026-10-09). GeoNames names a job listing wouldn't use are swapped in
+  `_DISPLAY_NAME` ("New York City" reads "New York").
 - **The company API keeps one place per job.** Its body and response still
   carry `locationCountry`/`locationState`; `routers/company_jobs.py` writes
   them as the job's single row and reads them back the same way, so the
@@ -506,6 +515,14 @@ searching company-posted jobs by employer needs a join or a copied name.
   maps it", above).
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.
+
+**`job_postings.role_category` is a scraped role's discipline (KAN-171)**,
+the `role_category` enum: `software`, `data_ai`, `product`, `quant`,
+`hardware`, the SimplifyJobs lists' five. The scraper reads it from the
+title (`scraper/workit_scraper/shortlist.py`) and the import writes it; a
+company's own job leaves it NULL. Its migration is `aa41fdc1ba80`, which
+revises `4485d7a7a712`. Like any mapped column, apply it before deploying a
+branch that maps it (the section above).
 
 ## Identity lives in auth.users
 

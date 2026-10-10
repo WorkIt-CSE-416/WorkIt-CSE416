@@ -123,6 +123,20 @@ class visa_sponsorship(enum.StrEnum):
     # US citizenship or a US security clearance required
     citizens_only= "citizens_only"
 
+class role_category(enum.StrEnum):
+    '''
+    which discipline a scraped role is in, read from its title by the scraper
+    (scraper/workit_scraper/shortlist.py): the SimplifyJobs lists' five. NULL
+    for a company's own job
+    '''
+    software= "software"
+    # data science, AI and machine learning
+    data_ai= "data_ai"
+    product= "product"
+    # quantitative research, trading and development
+    quant= "quant"
+    hardware= "hardware"
+
 class job_post_status(enum.StrEnum):
     '''
     lifecycle status of a job posting
