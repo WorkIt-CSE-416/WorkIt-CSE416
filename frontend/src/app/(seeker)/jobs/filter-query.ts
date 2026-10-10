@@ -199,6 +199,24 @@ export function filtersQuery(filters: FeedFilters): string {
   return entries.length ? `?${new URLSearchParams(entries)}` : "";
 }
 
+/** How many roles a page of the feed holds: what /jobs and /search draw
+ *  first, and what each Load More adds. */
+export const PAGE_SIZE = 50;
+
+/** The filters plus /search's words (`q`, matched by the API in the title or
+ *  company name), as the query a page of the feed is asked for with. */
+export function feedQuery(filters: FeedFilters, q = ""): string {
+  const entries = filterEntries(filters);
+  if (q) entries.push(["q", q]);
+  return entries.length ? `?${new URLSearchParams(entries)}` : "";
+}
+
+/** The query's own `q`, as feedQuery wrote it: trimmed, and capped at the
+ *  API's 200 characters so a long one narrows rather than errors. */
+export function readQuery(params: Params): string {
+  return (first(params.q) ?? "").trim().slice(0, 200);
+}
+
 /** Whether any filter narrows the feed: what the empty state says depends on it. */
 export function isFiltered(filters: FeedFilters): boolean {
   return filterEntries(filters).length > 0;

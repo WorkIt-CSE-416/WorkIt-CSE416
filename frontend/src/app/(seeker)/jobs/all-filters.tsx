@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import {
   Suspense,
   use,
@@ -35,7 +36,7 @@ import { countJobs } from "./actions";
 import {
   DATE_POSTED_OPTIONS,
   EXPERIENCE_OPTIONS,
-  filtersQuery,
+  feedQuery,
   JOB_TYPE_OPTIONS,
   NO_FILTERS,
   PAY_OPTIONS,
@@ -281,13 +282,14 @@ function PanelBody({
 }
 
 /** The draft's job count, asked for a quarter second after the picks stop
- *  changing; the last one asked for wins. Null while the current picks are
+ *  changing; the last one asked for wins. On /search it counts within the
+ *  search's words (`?q`), as the results there are. Null while the current picks are
  *  being counted (the button says "Show Jobs" rather than the last picks'
  *  number, which a quick click would otherwise apply under), and when the
  *  API can't give one. */
 function useDraftCount(draft: FeedFilters): number | null {
   const [answer, setAnswer] = useState<{ query: string; n: number | null } | null>(null);
-  const query = filtersQuery(draft);
+  const query = feedQuery(draft, useSearchParams().get("q") ?? "");
   useEffect(() => {
     let current = true;
     const timer = setTimeout(() => {

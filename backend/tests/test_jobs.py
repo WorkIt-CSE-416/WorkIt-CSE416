@@ -95,7 +95,7 @@ def test_row_without_a_date():
 
 
 def test_route_leaves_descriptions_out(no_database, monkeypatch):
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         return [to_listing(ROW, "long text")]
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
@@ -104,10 +104,50 @@ def test_route_leaves_descriptions_out(no_database, monkeypatch):
     assert "description" not in rows[0]
 
 
+def test_route_passes_the_offset(no_database, monkeypatch):
+    # Load More asks for the page after the one the board shows.
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(offset)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    assert client.get("/jobs").status_code == 200
+    assert client.get("/jobs?offset=50").status_code == 200
+    assert client.get("/jobs?offset=-1").status_code == 422
+    assert seen == [0, 50]
+
+
+def test_route_reads_the_search_words(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters.query)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    for q in ("  Stripe ", "   ", None):
+        assert client.get("/jobs", params={"q": q} if q is not None else {}).status_code == 200
+    # Trimmed, and blank is no search at all.
+    assert seen == ["Stripe", None, None]
+    assert client.get("/jobs", params={"q": "x" * 201}).status_code == 422
+
+
+def test_a_search_matches_title_or_company_and_escapes_wildcards():
+    sql = _sql(matching(JobFilters(query="100%_on"))[0])
+    assert "lower(job_postings.title) LIKE" in sql
+    assert "lower(job_postings.company_name) LIKE" in sql
+    # % and _ are matched as themselves, not as wildcards.
+    assert "100/%/_on" in sql
+
+
 def test_route_passes_the_limit(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(limit)
         return []
 
@@ -128,7 +168,7 @@ def test_a_feed_written_before_descriptions_still_parses():
 def test_route_passes_the_places(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters.places)
         return []
 
@@ -217,7 +257,7 @@ def test_no_filters_add_no_clauses():
 def test_route_reads_every_filter(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters)
         return []
 
@@ -243,7 +283,7 @@ def test_route_reads_every_filter(no_database, monkeypatch):
 def test_a_yearly_minimum_is_taken_as_given(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters.min_yearly_pay)
         return []
 
@@ -316,7 +356,7 @@ def test_visa_not_ruled_out_keeps_the_silent_majority():
 def test_route_reads_seasons_and_visa(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters)
         return []
 
@@ -340,7 +380,7 @@ def test_route_reads_seasons_and_visa(no_database, monkeypatch):
 def test_a_season_no_posting_names_matches_nothing(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters.start_terms)
         return []
 
@@ -453,7 +493,7 @@ def test_a_pay_range_matches_postings_whose_range_overlaps_it():
 def test_route_reads_a_pay_range(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append((filters.min_yearly_pay, filters.max_yearly_pay))
         return []
 

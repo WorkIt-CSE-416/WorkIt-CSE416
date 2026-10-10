@@ -217,6 +217,10 @@ class JobFilters:
     # posting that says it doesn't, or wants US citizens only, and keep the
     # ones that say nothing, which is most of them (KAN-168).
     visa: Literal["sponsors", "not_ruled_out"] | None = None
+    # /search's words, matched in the title or the company's name, ignoring
+    # case. On the server, so a search reaches every job and not only the
+    # page of them the feed has loaded.
+    query: str | None = None
 
 
 def yearly_pay(end: Literal["top", "bottom"] = "top") -> ColumnElement[float]:
@@ -263,6 +267,13 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.start_terms is not None:
         # An empty list renders as an always-false IN.
         clauses.append(Job_Post.start_term.in_(filters.start_terms))
+    if filters.query:
+        clauses.append(
+            or_(
+                Job_Post.title.icontains(filters.query, autoescape=True),
+                Job_Post.company_name.icontains(filters.query, autoescape=True),
+            )
+        )
     if filters.visa == "sponsors":
         clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
     elif filters.visa == "not_ruled_out":
@@ -276,16 +287,19 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
 
 
 async def fetch_listings(
-    db: AsyncSession, limit: int, filters: JobFilters = JobFilters()
+    db: AsyncSession, limit: int, filters: JobFilters = JobFilters(), offset: int = 0
 ) -> list[JobListing]:
     '''
     the newest published scraped jobs, by when their board says they went up,
-    narrowed by whatever `filters` asks for
+    narrowed by whatever `filters` asks for, `offset` of them in
     '''
     query = select(*_COLUMNS).where(_LISTED, *matching(filters))
     rows = await db.execute(
-        # id breaks ties, so the order is the same on every request.
-        query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id).limit(limit)
+        # id breaks ties, so the order is the same on every request and a
+        # page picks up exactly where the last one stopped.
+        query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id)
+        .offset(offset)
+        .limit(limit)
     )
     return [to_listing(row) for row in rows]
 
@@ -378,6 +392,8 @@ async def read_filters(
     # Seasons as GET /jobs/facets lists them ("summer-2027", or "2027"); any.
     start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors", "not_ruled_out"] | None = None,
+    # /search's words. A % or _ in them is matched as itself.
+    q: str | None = Query(None, max_length=200),
     db: AsyncSession = Depends(get_session),
 ) -> JobFilters:
     '''
@@ -407,6 +423,7 @@ async def read_filters(
         # plain IN. A season no posting names matches nothing, as it should.
         start_terms=(await terms_in(db, start_term)) if start_term else None,
         visa=visa,
+        query=(q or "").strip() or None,
     )
 
 
@@ -417,11 +434,16 @@ async def read_filters(
 )
 async def list_jobs(
     limit: int = Query(50, ge=1, le=500),
+    # How many to skip: the job board's Load More asks for the next page
+    # from where its list ends. An offset rather than a cursor, since an
+    # import landing between pages can only repeat a job, which the board
+    # drops by id, or skip one it shows next visit.
+    offset: int = Query(0, ge=0, le=100_000),
     filters: JobFilters = Depends(read_filters),
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
     """Newest roles first. Empty until the first import has run."""
-    return await fetch_listings(db, limit, filters)
+    return await fetch_listings(db, limit, filters, offset)
 
 
 async def fetch_count(db: AsyncSession, filters: JobFilters) -> int:

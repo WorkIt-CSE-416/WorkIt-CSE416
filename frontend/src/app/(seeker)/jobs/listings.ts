@@ -6,13 +6,14 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 
 import type { ExperienceLevel, JobType, WorkStyle } from "./data";
-import { filtersQuery, NO_FILTERS, type FeedFilters } from "./filter-query";
+import { feedQuery, NO_FILTERS, PAGE_SIZE, type FeedFilters } from "./filter-query";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
  * imported job_postings rows (backend/app/routers/jobs.py). Mirrors
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
- * narrows it to the query) and by the Dashboard's New Matches.
+ * sends its words as `q`), by their Load More (./actions) a page at a time, and
+ * by the Dashboard's New Matches.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
  * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
@@ -79,18 +80,45 @@ export type JobLocationOption = {
  *  its place — made-up postings shown silently would read as real ones.
  *  `filters` narrows it on the server, the filter row's picks as the URL
  *  holds them (./filter-query). */
-export async function getJobListings(
-  filters: FeedFilters = NO_FILTERS,
-): Promise<{ jobs: JobListing[]; error: null } | { jobs: null; error: string }> {
+export type FeedPage =
+  { jobs: JobListing[]; more: boolean; error: null } | { jobs: null; more: false; error: string };
+
+/** The first page of the feed under these filters and /search's words, for a
+ *  page to render. */
+export async function getJobListings(filters: FeedFilters = NO_FILTERS, q = ""): Promise<FeedPage> {
   // Request time, not build time: without this `next build` prerenders the
   // feed once — with no API running in CI, that bakes the error in for good.
   await connection();
+  return getFeedPage(feedQuery(filters, q), 0);
+}
+
+/** One page of the feed, `offset` roles in, for a query feedQuery wrote: the
+ *  first render's and each Load More's (./actions). It asks for one role past
+ *  the page, so `more` says whether a Load More would find anything, without
+ *  a count. */
+export async function getFeedPage(query: string, offset: number): Promise<FeedPage> {
+  const params = new URLSearchParams(query);
+  params.set("limit", String(PAGE_SIZE + 1));
+  if (offset > 0) params.set("offset", String(offset));
   try {
-    const res = await apiGet(`/jobs${filtersQuery(filters)}`);
-    if (!res.ok) return { jobs: null, error: await extractErrorMessage(res) };
-    return { jobs: (await res.json()) as JobListing[], error: null };
+    const res = await apiGet(`/jobs?${params}`);
+    if (!res.ok) return { jobs: null, more: false, error: await extractErrorMessage(res) };
+    const jobs = (await res.json()) as JobListing[];
+    return { jobs: jobs.slice(0, PAGE_SIZE), more: jobs.length > PAGE_SIZE, error: null };
   } catch {
-    return { jobs: null, error: "Could not reach the server." };
+    return { jobs: null, more: false, error: "Could not reach the server." };
+  }
+}
+
+/** How many roles these filters and words keep, every page together: /search's
+ *  "128 Roles". Null when the API can't say. */
+export async function getJobCount(filters: FeedFilters, q = ""): Promise<number | null> {
+  try {
+    const res = await apiGet(`/jobs/count${feedQuery(filters, q)}`);
+    if (!res.ok) return null;
+    return ((await res.json()) as { jobs: number }).jobs;
+  } catch {
+    return null;
   }
 }
 

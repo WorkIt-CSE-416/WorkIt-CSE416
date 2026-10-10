@@ -12,15 +12,23 @@ import { RememberFeed } from "../jobs/[jobId]/page-actions";
 import { FeedHeader } from "../jobs/feed-header";
 import { FeedTransition, PendingFeed } from "../jobs/feed-transition";
 import { JobFilters } from "../jobs/filters";
-import { ListingCard, ListingsError, ListingsSkeleton } from "../jobs/listing-card";
+import { FeedList } from "../jobs/feed-list";
+import { ListingsError, ListingsSkeleton } from "../jobs/listing-card";
 import {
+  feedQuery,
   filterEntries,
-  filtersQuery,
   isFiltered,
   readFilters,
+  readQuery,
   type FeedFilters,
 } from "../jobs/filter-query";
-import { getJobFacets, getJobListings, getJobLocations, type JobListing } from "../jobs/listings";
+import {
+  getJobCount,
+  getJobFacets,
+  getJobListings,
+  getJobLocations,
+  type FeedPage,
+} from "../jobs/listings";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
@@ -28,11 +36,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * /search, where the top bar's field lands with the query as ?q. It reads the
- * same live feed as /jobs (../jobs/listings), keeps the roles whose title or
+ * /search, where the top bar's field lands with the query as ?q. It asks the
+ * same live feed as /jobs (../jobs/listings) for the roles whose title or
  * company name contains the query, ignoring case, and draws them with the
- * feed's own card (../jobs/listing-card) under the feed's own filters, so a
- * role looks and acts the same whichever way it was found.
+ * feed's own list and card (../jobs/feed-list) under the feed's own filters,
+ * so a role looks and acts the same whichever way it was found. The API does
+ * the matching, across every job: it used to happen here, inside the 50 the
+ * feed had sent, so the 51st newest role could never be found (KAN-171). A
+ * page holds the first 50 matches, and Load More adds the rest.
  *
  * It replaced KAN-43's mockup: a results column and a detail pane over two
  * fixtures. A scraped role has no description for a pane to show, and on a
@@ -40,41 +51,25 @@ export const metadata: Metadata = {
  * Now on each card opens the employer's posting, as it does on /jobs.
  *
  * The heading and the filters paint at once; the count and the list stream in
- * behind placeholders in their own shape. Both await one search, started
- * here, so they cannot disagree and the API is asked once. Each boundary is
- * keyed by the query, so a new search shows its placeholders straight away
- * instead of holding the old results on screen until the new ones arrive.
+ * behind placeholders in their own shape. The count is every match, not the
+ * page shown, so it comes from GET /jobs/count beside the list's own request,
+ * under the same filters and words. Each boundary is keyed by the query, so a
+ * new search shows its placeholders straight away instead of holding the old
+ * results on screen until the new ones arrive.
  *
- * The filters are the feed's own (../jobs/filter-query): the server narrows
- * the feed by them first, and the query is matched within what comes back.
+ * The filters are the feed's own (../jobs/filter-query), sent with the words.
  */
 
-type Search = Awaited<ReturnType<typeof getJobListings>>;
-
-/** True when the query appears in the role's title or its company's name. */
-function matches(job: JobListing, needle: string) {
-  return job.title.toLowerCase().includes(needle) || job.company.toLowerCase().includes(needle);
-}
-
-/** The live feed under these filters, narrowed to the query. An error passes
- *  through untouched. */
-async function search(query: string, filters: FeedFilters): Promise<Search> {
-  const feed = await getJobListings(filters);
-  if (feed.error != null) return feed;
-
-  const needle = query.toLowerCase();
-  return { jobs: feed.jobs.filter((job) => matches(job, needle)), error: null };
-}
-
-/** "12 Roles" beside the heading. Nothing when there is nothing to count:
- *  the empty state under the filters says so in words. */
-async function ResultCount({ results }: { results: Promise<Search> }) {
-  const { jobs } = await results;
-  if (!jobs?.length) return null;
+/** "128 Roles" beside the heading, every match. Nothing when there is
+ *  nothing to count (the empty state under the filters says so in words) or
+ *  the API can't say. */
+async function ResultCount({ count }: { count: Promise<number | null> }) {
+  const n = await count;
+  if (!n) return null;
 
   return (
     <Badge variant="tag" pill>
-      {jobs.length} {jobs.length === 1 ? "Role" : "Roles"}
+      {n} {n === 1 ? "Role" : "Roles"}
     </Badge>
   );
 }
@@ -100,11 +95,11 @@ async function Results({
   query,
   filters,
 }: {
-  results: Promise<Search>;
+  results: Promise<FeedPage>;
   query: string;
   filters: FeedFilters;
 }) {
-  const { jobs, error } = await results;
+  const { jobs, more, error } = await results;
 
   if (error != null) {
     const retry = new URLSearchParams([["q", query], ...filterEntries(filters)]);
@@ -134,26 +129,15 @@ async function Results({
     <>
       {/* The level between the page's h1 and each card's h3, as on /jobs. */}
       <h2 className="sr-only">Search Results</h2>
-      <ul className="mt-4 flex flex-col gap-3">
-        {jobs.map((job, i) => (
-          // The cards rise in as the feed arrives, 50ms apart and capped at
-          // the sixth, about a screenful, so the list never makes anyone wait.
-          <li
-            key={job.id}
-            style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
-            className="animate-rise"
-          >
-            <ListingCard job={job} />
-          </li>
-        ))}
-      </ul>
+      {/* The first page of matches, and a Load More for the rest. */}
+      <FeedList initial={jobs} more={more} query={feedQuery(filters, query)} />
     </>
   );
 }
 
 export default async function SearchPage({ searchParams }: PageProps<"/search">) {
   const params = await searchParams;
-  const query = typeof params.q === "string" ? params.q.trim() : "";
+  const query = readQuery(params);
   const filters = readFilters(params);
 
   /* The heading and subtitle every state shares, at /jobs's sizes. */
@@ -187,10 +171,11 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     );
   }
 
-  const results = search(query, filters);
+  const results = getJobListings(filters, query);
+  const count = getJobCount(filters, query);
   // Keys the boundaries below: a new query or a new set of filters shows the
   // placeholders straight away.
-  const key = `${query}${filtersQuery(filters)}`;
+  const key = feedQuery(filters, query);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -221,7 +206,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
                 <h1 className="text-heading text-ink inline">Results for “{query}”</h1>
                 <span role="status" className="ml-3 inline-flex w-18 align-middle">
                   <Suspense key={key} fallback={<ResultCountSkeleton />}>
-                    <ResultCount results={results} />
+                    <ResultCount count={count} />
                   </Suspense>
                 </span>
               </div>

@@ -154,6 +154,16 @@ src/app/          App Router routes, layouts, pages
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
                   error state, so a role looks the same on both pages.
+                  The API matches ?q (GET /jobs?q=), across every job; it
+                  used to happen in the page, inside the 50 the feed had
+                  sent. Both pages draw the first 50 (PAGE_SIZE in
+                  jobs/filter-query.ts) and a Load More button under them
+                  (jobs/feed-list.tsx, KAN-171; a button, not page
+                  numbers, as the team chose) that adds the next 50 with
+                  the same filters through jobs/actions.ts. A fetch asks
+                  for one past the page, so the button shows only when
+                  there is more. Loaded pages live in the list's state: a
+                  reload or Back starts at the first page again.
                   /applications is the tracker: a board, grid and list over
                   the fixture in applications/data.ts, every choice in the
                   URL (applications/query.ts), ?app= opening one application
