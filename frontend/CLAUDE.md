@@ -711,7 +711,7 @@ opens a file picker restricted to JPEG/PNG/WebP; the file is checked against
 `avatar-rules.ts`, previewed immediately, and sent through `uploadAvatar`,
 rolling back on failure. The API re-encodes it to a 512px WebP and returns a
 signed URL valid for an hour — so it is fetched per page load, never stored.
-`backend/db/avatar.md` owns the formats, limits and why. The seeker bar
+`docs/avatar.md` (repo root) owns the formats, limits and why. The seeker bar
 fetches it per render (`(seeker)/account-status.tsx`); the company bar still
 shows initials.
 

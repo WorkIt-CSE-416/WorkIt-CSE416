@@ -2,7 +2,7 @@
 
 How an applicant's profile photo is accepted, stored and served. Rationale
 only: Alembic is the source of truth for the column, and
-`app/services/avatar.py` for the exact limits.
+`backend/app/services/avatar.py` for the exact limits.
 
 ## Where the bytes live
 
@@ -101,7 +101,7 @@ bypasses them, and nothing else should write to the bucket.
 
 The 5 MB figure must agree across:
 
-1. `MAX_UPLOAD_BYTES` in `app/services/avatar.py` — the real guard.
+1. `MAX_UPLOAD_BYTES` in `backend/app/services/avatar.py` — the real guard.
 2. `MAX_AVATAR_BYTES` in `frontend/src/lib/avatar-rules.ts` — instant
    feedback in the browser.
 3. `serverActions.bodySizeLimit` in `frontend/next.config.ts` (`6mb`) — must

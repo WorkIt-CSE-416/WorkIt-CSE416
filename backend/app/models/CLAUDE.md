@@ -532,7 +532,7 @@ What that means for the account tables:
   NULL until onboarding completes, and read on every `/auth/me`.
 - **`avatar_path`** is a path in the private `Avatar` Storage bucket, never a
   URL and never image bytes. Renamed from `avatar_url` in `4f1a9c2e7b30`;
-  `../../db/avatar.md` has why.
+  `../../../docs/avatar.md` has why.
 
 ## Known gaps
 
@@ -564,9 +564,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 These belong to later tickets and should not be added here:
 
 - Jobs, applications, pipeline stages, interviews, offers, resume scores. ATS
-  clones model all of them; `../../db/job_posting.md` starts that work.
+  clones model all of them; `../../../docs/job_posting.md` starts that work.
 - Resume storage and parsing — implemented in `resume.py` (model) and
-  `../utils/resume_parser.py` (heuristic parser). See `../../db/resume.md`
+  `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`
   for design rationale.
 - Browser-automation or session state for the autofiller. If autofill needs it
   later, that is a separate `autofill_runs` table, not a column here.

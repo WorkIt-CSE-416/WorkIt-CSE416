@@ -4,8 +4,9 @@ A snapshot of how the two halves of WorkIt actually fit together today —
 what calls what, which libraries are doing the real work, and what shape the
 data is in on each side. This is a point-in-time picture, not a design doc:
 `frontend/CLAUDE.md` and `backend/CLAUDE.md` own the rules and rationale,
-`backend/db/*.md` own schema decisions. Update this file when the shape of
-the system changes, not when a screen gets a new field.
+the schema notes beside this file (`job_posting.md`, `resume.md`,
+`avatar.md`) own schema decisions. Update this file when the shape of the
+system changes, not when a screen gets a new field.
 
 ## The two halves
 

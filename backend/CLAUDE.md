@@ -115,7 +115,7 @@ app/
     profile.py    ApplicantProfileResponse and ApplicantProfileUpdate
     jobs.py       JobListing — also the parser for scraper/feed.json
     company_jobs.py  JobPostingCreate and JobPosting, for /company/jobs
-                  (pay period: year or hour only; db/job_posting.md)
+                  (pay period: year or hour only; ../docs/job_posting.md)
   routers/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
@@ -167,10 +167,6 @@ data/
 scripts/
   build_geonames.py  Rebuilds data/places.tsv from GeoNames. Stdlib only
 alembic.ini       Alembic config. Deliberately holds no database URL
-db/
-  job_posting.md  Schema design notes — rationale, NOT a source of truth
-  resume.md       Same, for resume storage and parsing
-  avatar.md       Profile photo: formats, limits, storage, bucket setup
 pyproject.toml    Dependencies, the pinned Python series, and Vercel's entrypoint
 uv.lock           Exact resolved versions — committed
 ```
@@ -254,7 +250,7 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   for 500 rows. The pooler absorbs it under load; cache the response if the
   feed ever needs to be faster.
 - **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
-  them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
+  them first. Uploads are still capped at 5 MB (`../docs/avatar.md`), so a
   4.5–5 MB upload fails on the deployment with a bare 413.
 - **`../scout` is bundled despite living outside `backend/`.** uv installs it
   as a copy at build time, so the function carries it in site-packages; the
@@ -321,8 +317,8 @@ The two that matter from out here:
 
 - **Alembic is the single source of truth for the schema.** Never change the
   schema in the Supabase dashboard; it bypasses Alembic silently and surfaces
-  weeks later as an unrelated failed migration. `db/*.md` are design rationale,
-  not truth.
+  weeks later as an unrelated failed migration. The schema notes in
+  `../docs/` are design rationale, not truth.
 - **Import every new model in `alembic/env.py`.** A model no import reaches is
   absent from `Base.metadata`, and autogenerate will write a migration
   *dropping* the table it cannot see.

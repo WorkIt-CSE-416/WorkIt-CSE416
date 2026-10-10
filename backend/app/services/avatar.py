@@ -1,7 +1,7 @@
 """
 Turns an uploaded profile photo into the one shape we store: a square WebP,
 AVATAR_SIZE px on a side. Pure bytes in, bytes out — no Storage, no database —
-so the router owns I/O and this owns the image rules. backend/db/avatar.md has
+so the router owns I/O and this owns the image rules. docs/avatar.md has
 the reasoning behind every limit here.
 
 Re-encoding rather than storing the upload as-is is the point:

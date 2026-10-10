@@ -24,6 +24,9 @@ scraper/          The job-board scraper (KAN-55). Standalone and stdlib-only:
                   no runtime dependencies, never touches the database. Runs
                   with plain `python3 -m workit_scraper`; tests run under
                   `uvx pytest`. See scraper/CLAUDE.md.
+docs/             Design docs and rationale that span more than one folder:
+                  the schema notes (job_posting, resume, avatar), search,
+                  and the architecture snapshot
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to
@@ -33,9 +36,10 @@ package.json      No dependencies. Scripts only, each one forwarding to
 LICENSE           MIT license covering the whole repo
 ```
 
-Frontend prose docs live in `frontend/docs/`; database design notes live in
-`backend/db/`. Add a root `docs/` back if something genuinely cross-cutting
-ever needs a home.
+Design docs live in the root `docs/`: the database design notes
+(`job_posting.md`, `resume.md`, `avatar.md`, moved there from `backend/db/`),
+`search.md`, and `architecture.md`. Frontend-only prose stays in
+`frontend/docs/`.
 
 `backend/` gets the same treatment as `frontend/` as it fills in:
 self-contained, its own dependency manifest, its own `backend/CLAUDE.md`. Do
@@ -49,8 +53,8 @@ holds no ORM, no connection string and no schema; Drizzle used to sit in
 `frontend/src/db/` and was removed when the API moved to Python. A query you
 are tempted to write in a React component belongs in an endpoint instead.
 
-Alembic is the single source of truth for schema. `backend/db/*.md` are design
-rationale, and schema edits through the Supabase dashboard are banned — they
+Alembic is the single source of truth for schema. The schema notes in `docs/`
+are design rationale, and schema edits through the Supabase dashboard are banned — they
 bypass Alembic silently.
 
 **Claude never runs `uv run alembic upgrade head` itself** — nor `downgrade`,
@@ -225,8 +229,9 @@ at a time.
   was the point.
 - `frontend/docs/` — prose for the team that is too long for a CLAUDE.md, such
   as `shadcn.md`.
-- `backend/db/` — schema design notes. Rationale only; Alembic is the source
-  of truth for what the schema actually is.
+- `docs/` — design docs that span folders: the schema notes (rationale only;
+  Alembic is the source of truth for what the schema actually is), `search.md`
+  and `architecture.md`.
 
 When something is learned the hard way — a setting that breaks under load, a
 command that must never be re-run — write it into the nearest `CLAUDE.md` with
