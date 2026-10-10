@@ -249,9 +249,10 @@ def render(roles: list[Role], stats: RunStats, scraped_at: str, *, counts_new: b
 {table}
 <button class="more" id="more" hidden></button>
 <footer>
-  Scraped straight from each employer's own job board through the Greenhouse, Lever and
-  Ashby public APIs, honouring every board's robots.txt. Dates are when the employer
-  published the posting; a blank work model means the employer did not state one.
+  Scraped straight from each employer's own job board through the Greenhouse, Lever,
+  Ashby, Workable, Recruitee and BambooHR public APIs, honouring every board's
+  robots.txt. Dates are when the employer published the posting; a blank work model
+  means the employer did not state one.
   <b>New today</b> counts roles first seen in the 24 hours before this scrape, on boards
   we were already watching &mdash; our own observation, which is why it can be stated at
   all: a site that re-reports someone else's feed knows when it ingested a posting, not
