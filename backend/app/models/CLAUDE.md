@@ -512,6 +512,14 @@ searching company-posted jobs by employer needs a join or a copied name.
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.
 
+**`job_postings.role_category` is a scraped role's discipline (KAN-171)**,
+the `role_category` enum: `software`, `data_ai`, `product`, `quant`,
+`hardware`, the SimplifyJobs lists' five. The scraper reads it from the
+title (`scraper/workit_scraper/shortlist.py`) and the import writes it; a
+company's own job leaves it NULL. Its migration is `aa41fdc1ba80`, which
+revises `4485d7a7a712`. Like any mapped column, apply it before deploying a
+branch that maps it (the section above).
+
 ## Identity lives in auth.users
 
 Supabase Auth owns credentials (`../../CLAUDE.md`'s Auth section). **No table
