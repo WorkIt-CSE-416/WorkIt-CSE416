@@ -136,7 +136,8 @@ no new ones; changing a pattern in `details.py` takes a live run (and, for Green
 a `PAGE_VERSION` bump) to reach stored postings.
 
 `details.py` is regex over prose, so it is fussy in the same way `shortlist.py` is, and
-every case in `tests/test_details.py` was seen in a real posting:
+every case in `tests/test_details.py` was seen in a real posting, except
+`TestConstructedGuards` (see the visa section below):
 
 - **Statements about this role only.** "Not considering remote or part-time",
   "full-time or part-time internship", "post-internship opportunities (full-time)" and
@@ -214,17 +215,20 @@ the cut on 635 of ~1,090 stored copies):
 | `sponsors` | the posting says it sponsors, including a benefits bullet "Visa Sponsorship" |
 | `None` | nothing usable, which is most postings |
 
-**It is not in `feed.json` yet.** The feed is the backend's contract: the field
-goes into `feed.row()` in the same change that adds the `job_postings` column, its
-migration and `backend/app/schemas/jobs.py`. Until then it lives in `jobs.json` only,
-and the page does not show it either. `PAGE_VERSION` 9 is what reads it into Greenhouse
-pages stored before it.
+**It is in `feed.json`.** `feed.row()` writes it and the backend's import stores it in
+`job_postings.sponsorship`, so these four values are part of the feed's contract with
+`backend/app/schemas/jobs.py`: a new value is a change on both sides. `internships.html`
+does not show it. Like every fact, a pattern change reaches Lever and Ashby postings on
+the next live run and stored Greenhouse postings only when their page is read again,
+which is why `PAGE_VERSION` went to 9 when sponsorship was added and to 10 with the
+fixes below.
 
 The rules, each from a posting in `tests/test_details.py` (`TestSponsorship`):
 
 - **Read sentence by sentence; strongest wins.** Citizens only beats no, and no beats
-  yes, across the whole posting. "U.S." is rewritten to "US" first, or it would end
-  the sentence.
+  yes, across the whole posting. "U.S." (and "U.S citizen", and the statute's
+  "U.S.C.") is rewritten first, or it would end the sentence. "Must be U.S. citizens"
+  counts in the plural (OpenAI).
 - **A "U.S. person" is not only a citizen.** ITAR's definition takes green card
   holders, refugees and asylees, so "must be a U.S. citizen, lawful permanent resident
   ... or protected individual" (Astranis, Anduril, Varda) is `no_sponsorship`, never
@@ -233,35 +237,73 @@ The rules, each from a posting in `tests/test_details.py` (`TestSponsorship`):
   required authorizations": 58 postings at 17 companies, SpaceX, Rocket Lab and
   Antares among them; Hermeus's "deemed export licensing") it says nothing, since a
   visa holder can still be hired. This is the call that most changes the counts: read
-  the other way, those 58 would be `no_sponsorship`.
+  the other way, those 58 would be `no_sponsorship`. The licence has to follow a
+  US-person requirement (in its sentence or the ~300 characters after it), and then it
+  answers every such requirement in the posting: SpaceX states one in its
+  qualifications and the licence in its ITAR paragraph at the very end. A licence that
+  follows none is some other licence ("Help our customers obtain export licenses").
+  "Open only to U.S. citizens and other U.S. Persons" (GovSignals) or "... or Green Card
+  holders" (Skydio, Proto Labs) is a US-person list too.
 - **A clearance counts only when it is US and required.** A US marker (US, Secret,
   TS/SCI, DoD, DOE, Q, polygraph) is needed, because Palantir's UK and Australian
-  internships ask for their own countries' clearances. "A plus but not required",
-  "may be required", Palantir's "For USG:" scoping, and any list headed as optional
-  ("What We Value", "Preferred", "Nice to Have", `_under_preferred`) do not count;
-  Palantir's verbless "Active US Security clearance, or eligibility ..." does under
-  "What We Require".
+  internships ask for their own countries' clearances. The abbreviations are matched
+  in capitals only ("join us"), and customs clearance is a shipment's. "A plus but not
+  required", "may be required", "not a requirement", Palantir's "For USG:" scoping,
+  and any list headed as optional ("What We Value", "Preferred", "Nice to Have",
+  `_under_preferred`) do not count; Palantir's verbless "Active US Security clearance,
+  or eligibility ..." does under "What We Require".
+- **Only the nearest heading decides.** `_under_preferred` walks back to the first
+  heading-like line: one ending in a colon, one naming a list ("Requirements", "What Is
+  Required", "Strongly Preferred"), or one in capitals (Valinor's "WHAT VALINOR
+  OFFERS"). A bulleted line, or one grading itself in lower case (CGS's "- Experience
+  with Salesforce preferred", ERG's "PE license is preferred"), is an item, never a
+  heading. "Values" is a company's values unless it ends in a colon.
 - **OPT and CPT are not sponsorship.** They are the student's own authorization, so
-  "OPT/CPT eligible" and Akuna's "including F-1 students using OPT" are `None`. No
-  pattern reads "OPT" at all, which also keeps "optimised" and "adoption" out.
+  "OPT/CPT eligible" and Akuna's "including F-1 students using OPT" are `None`, and so
+  is a sponsorship that names only them or says "OPT/CPT only" (`_opt_only`). One that
+  names an employer's visa beside them stands: Ambrook's "(OPT/CPT, TN, J-1)", Jump
+  Trading's "we sponsor work visas". They are read as capitalised whole words, which
+  keeps "optimised" and "adoption" out.
 - **Statements about this role only.** "Sponsorship for an export license"
   (Cloudflare), "company-sponsored events", "available for selected roles" (Maven),
   "Certain roles may require U.S. Person status" (Rivet) and IMC's rule for
   candidates from Russia, Belarus or Iran (IMC otherwise sponsors) say nothing. Jump
   Trading's "we sponsor work visas for full-time positions" is `sponsors` on its
   full-time postings and `None` on its internships, which is why the function takes
-  the title.
-- **Negations need their sponsor word.** "We are not able to sponsor visas or take
-  over sponsorship" (Enova) is a no that a loose "able to sponsor visas" read as yes;
-  Samaya's "aren't able to successfully sponsor visas for every role" right after
-  "We do sponsor visas!" is not a no.
+  the title. An internship is "intern", "co-op" or a season in the title ("Summer
+  Analyst"); a year alone is not, since new-grad titles carry one too.
+- **Negations need their sponsor word, in the same clause.** "We are not able to
+  sponsor visas or take over sponsorship" (Enova) is a no that a loose "able to sponsor
+  visas" read as yes; Samaya's "aren't able to successfully sponsor visas for every
+  role" right after "We do sponsor visas!" is not a no. A negation stops at a comma
+  (Corvus's "preferred but not required, can sponsor visas" is a yes), and "whether or
+  not" and "without regard to sponsorship status" are not one. "Candidates who require
+  sponsorship will not be considered" is a no; "when sponsorship is unavailable"
+  (Xsolla, on gas fees) is nothing.
+- **A need is the candidate's only before the offer.** "Candidates who require
+  sponsorship" offers nothing, but Frontier Health's "we are able to sponsor visas if
+  required" and n8n's "We can sponsor visas to Germany; ... you need to have existing
+  right to work" do, and so does Wordware's "We require US work authorization, but are
+  open to O-1 or J-1 visa sponsorship" (the need is past a comma).
 
-Measured 2026-10-09 on a live `--full` run, from each posting's whole text: of 1,101
-roles on the feed, 62 `citizens_only`, 97 `no_sponsorship`, 37 `sponsors` and 905
-`None`. Every `sponsors` and `citizens_only` posting and 30 `no_sponsorship` ones
-were read against their sentence. Known misses, left as `None` on purpose: a
-requirement list with no heading and no verb that could be either list; "authorized
-to work in the US now and in the future" with no word of sponsorship.
+Measured 2026-10-09 on a live `--full` run, from each posting's whole text: of 1,103
+roles on the feed, 62 `citizens_only`, 97 `no_sponsorship`, 37 `sponsors` and 907
+`None`, the same before and after the fixes above (every `sponsors` and
+`citizens_only` posting and 30 `no_sponsorship` ones were read against their sentence
+in the first pass). The fixes were measured on every description that run read, 38,732
+including the boards' senior and non-software roles: 140 changed, every one read, all
+judged right (53 to `sponsors`, mostly n8n and Wordware; 70 to `no_sponsorship`, Proto
+Labs, GovSignals and Skydio's US-person lists; 17 to `citizens_only`, CGS, ERG,
+Valinor and OpenAI). Two first drafts were caught this way: a 60-character limit on
+verbless items dropped dozens of real "U.S. Citizenship and ability to obtain ..." lines, and
+an export licence counted only beside its sentence lost SpaceX's and Revel's. Known
+misses, left as `None` on purpose: a requirement list with no heading and no verb that
+could be either list; "authorized to work in the US now and in the future" with no word
+of sponsorship.
+
+**`TestConstructedGuards` is the one exception to "seen in a real posting":** KAN-168's
+review found bugs with sentences built to show them, and where no live posting said it
+that way the built sentence stays, in that class only, as a guard.
 
 **The company name comes from `boards.csv`, not the provider.** Greenhouse's
 `company_name` carries internal labels ("LinkedIn Job Wrapping", "DRW - University
