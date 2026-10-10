@@ -113,8 +113,9 @@ src/app/          App Router routes, layouts, pages
                   as the facet a seeker narrows by first; no pick shows
                   every discipline. All Filters opens one panel
                   (jobs/all-filters.tsx) with every facet's options in view
-                  as chips, no popups inside it (they landed left or right
-                  of their button by the room). Its picks are a draft until
+                  as chips, or a search picker for the long lists, and no
+                  facet popups inside it (they landed left or right of
+                  their button by the room). Its picks are a draft until
                   "Show N Jobs", which counts the draft as it changes
                   (GET /jobs/count via jobs/actions.ts). Applying a filter
                   dims the feed at once (jobs/feed-transition.tsx: the row
@@ -131,7 +132,7 @@ src/app/          App Router routes, layouts, pages
                   presets (hourly for internships, yearly for new grads)
                   that fill the minimum; a posting matches when its own
                   range overlaps it, compared as yearly figures in USD.
-                  Location and Start Date in the panel are one picker
+                  Location, Role and Start Date in the panel are one picker
                   (SearchPicker in jobs/all-filters.tsx): a search field
                   whose checklist opens only from the field and floats
                   over the panel like a dropdown (it never pushes the
@@ -140,7 +141,9 @@ src/app/          App Router routes, layouts, pages
                   than above, as at Start Date), a keyboard combobox (Up, Down, Enter,
                   Escape closing only the list), picks shown below as
                   pills with a cross, and nothing pre-picked. Clear All
-                  remounts the pickers so typed text clears too. A picked
+                  remounts the pickers so typed text clears too. The row's
+                  Role stays a checklist dropdown, as Workplace is; only
+                  the panel's is a picker. A picked
                   state narrows its country, in the panel as in the row. Start Date offers seasons
                   (Summer 2027), grouped by the API from the terms
                   postings use; Visa offers Sponsors Visas and Hide Jobs
