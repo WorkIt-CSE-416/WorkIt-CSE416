@@ -93,17 +93,17 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
           row starts it (./feed-transition). */}
       <FeedTransition>
         {/* The heading and filters stay put while the list scrolls. */}
-        <FeedHeader>
-          <h1 className="text-heading text-ink">Recommended for You</h1>
-          <p className="text-body text-ink-meta mt-1">
-            Roles matched to your profile, refreshed every few hours.
-          </p>
-
-          {/* A container, so the facets switch on the row's own width (see
-              ./filters), which an open sidebar narrows, not on the window's. */}
-          <div className="@container mt-4 flex flex-wrap items-center gap-2">
-            <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
-          </div>
+        <FeedHeader
+          heading={
+            <>
+              <h1 className="text-heading text-ink">Recommended for You</h1>
+              <p className="text-body text-ink-meta mt-1">
+                Roles matched to your profile, refreshed every few hours.
+              </p>
+            </>
+          }
+        >
+          <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
         </FeedHeader>
 
         {/* Keyed by the filters, so a new pick shows the skeleton straight

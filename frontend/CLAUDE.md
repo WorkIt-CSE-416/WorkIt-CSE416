@@ -95,10 +95,13 @@ src/app/          App Router routes, layouts, pages
                   The heading and filter row stay at the top while the
                   list scrolls under them (jobs/feed-header.tsx, on /jobs
                   and /search alike), so the filters are in reach from
-                  anywhere in a long list. Its white spans the page's
-                  side gutters (SEEKER_BLEED in gutter.ts); as wide as the
-                  cards only, their shadow showed beside it as two thin
-                  vertical lines while they scrolled under.
+                  anywhere in a long list. Below md only the filter row
+                  stays (the heading scrolls away; all three took about a
+                  third of a phone's page). A hairline fades in under it
+                  once the list is scrolling beneath. Its white spans the
+                  page's side gutters (SEEKER_BLEED in gutter.ts); as
+                  wide as the cards only, their shadow showed beside it as
+                  two thin vertical lines while they scrolled under.
                   jobs/filters.tsx draws the row (KAN-170); every facet
                   filters, and Industry is gone (no data). As the row
                   narrows its facets step out one at a time, least used
