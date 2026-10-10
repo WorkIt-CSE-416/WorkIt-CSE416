@@ -92,6 +92,10 @@ src/app/          App Router routes, layouts, pages
                   reads and writes them for the pages and the row alike,
                   dropping any value the API would refuse, so a stale
                   link narrows by what was valid instead of erroring.
+                  The heading and filter row stay at the top while the
+                  list scrolls under them (jobs/feed-header.tsx, on /jobs
+                  and /search alike), so the filters are in reach from
+                  anywhere in a long list.
                   jobs/filters.tsx draws the row (KAN-170); every facet
                   filters, and Industry is gone (no data). As the row
                   narrows its facets step out one at a time, least used
@@ -560,7 +564,9 @@ its `data.ts` still holds the fixtures the company side's job pages use.
 **A live role opens at `/jobs/[jobId]`** (KAN-73): a click anywhere on its
 card goes there (a hidden layer over the card; the title is the real link a
 keyboard and a screen reader reach, and the card's buttons sit above the
-layer). The card lifts under the pointer with its title in brand. The id is
+layer). Under the pointer its edge tints, its shadow rises and its title
+turns brand, but it does not lift: a card just under the sticky heading and
+filters lifted into them and was cut off. The id is
 the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
 The page is the mock's `JobDetailHeader` with the card's own facts
 (`listingFacts` in `listing-card.tsx`) and the employer's logo, then one

@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { RememberFeed } from "./[jobId]/page-actions";
+import { FeedHeader } from "./feed-header";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
@@ -86,23 +87,24 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <div>
-        <h1 className="text-heading text-ink">Recommended for You</h1>
-        <p className="text-body text-ink-meta mt-1">
-          Roles matched to your profile, refreshed every few hours.
-        </p>
-      </div>
-
-      {/* A container, so the facets switch on the row's own width (see
-          ./filters), which an open sidebar narrows, not on the window's. */}
-      {/* One transition for a filter change, so the feed dims the moment the
-          row starts it (./feed-transition). */}
       {/* So a job's page can go back to this list, filters and all. */}
       <RememberFeed />
+      {/* One transition for a filter change, so the feed dims the moment the
+          row starts it (./feed-transition). */}
       <FeedTransition>
-        <div className="@container mt-4 flex flex-wrap items-center gap-2">
-          <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
-        </div>
+        {/* The heading and filters stay put while the list scrolls. */}
+        <FeedHeader>
+          <h1 className="text-heading text-ink">Recommended for You</h1>
+          <p className="text-body text-ink-meta mt-1">
+            Roles matched to your profile, refreshed every few hours.
+          </p>
+
+          {/* A container, so the facets switch on the row's own width (see
+              ./filters), which an open sidebar narrows, not on the window's. */}
+          <div className="@container mt-4 flex flex-wrap items-center gap-2">
+            <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
+          </div>
+        </FeedHeader>
 
         {/* Keyed by the filters, so a new pick shows the skeleton straight
             away instead of holding the old list until the narrowed one

@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
+import { FeedHeader } from "../jobs/feed-header";
 import { FeedTransition, PendingFeed } from "../jobs/feed-transition";
 import { JobFilters } from "../jobs/filters";
 import { ListingCard, ListingsError, ListingsSkeleton } from "../jobs/listing-card";
@@ -193,39 +194,43 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* The heading runs inline, so the count follows its last word however
-          far a long query wraps it. As the end of a flex row it was pushed to
-          the far edge whenever the heading wrapped, where it read as
-          belonging to nothing.
-
-          The count's slot is a fixed width (72px holds "999 Roles"), held
-          whether it shows the placeholder, a count or nothing at all, so a
-          long query wraps at the same word before and after the results land
-          and nothing below moves. It is centred on the heading's x-height
-          (align-middle, against the wrapper's own text-heading) rather than
-          sitting on the baseline, where the pill hung below the heading's
-          letters. The count is a live region, so a screen reader hears how
-          many roles a search found once they land. */}
-      <div className="text-heading break-words">
-        <h1 className="text-heading text-ink inline">Results for “{query}”</h1>
-        <span role="status" className="ml-3 inline-flex w-18 align-middle">
-          <Suspense key={key} fallback={<ResultCountSkeleton />}>
-            <ResultCount results={results} />
-          </Suspense>
-        </span>
-      </div>
-      {subtitle}
-
-      {/* A container, so the facets switch on the row's own width, as on
-          /jobs. */}
-      {/* One transition for a filter change, so the results dim the moment
-          the row starts it (../jobs/feed-transition). */}
       {/* So a job's page can come back to these results. */}
       <RememberFeed />
+      {/* One transition for a filter change, so the results dim the moment
+          the row starts it (../jobs/feed-transition). */}
       <FeedTransition>
-        <div className="@container mt-4 flex flex-wrap items-center gap-2">
-          <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />
-        </div>
+        {/* The heading and filters stay put while the results scroll, as on
+            /jobs. */}
+        <FeedHeader>
+          {/* The heading runs inline, so the count follows its last word however
+              far a long query wraps it. As the end of a flex row it was pushed to
+              the far edge whenever the heading wrapped, where it read as
+              belonging to nothing.
+
+              The count's slot is a fixed width (72px holds "999 Roles"), held
+              whether it shows the placeholder, a count or nothing at all, so a
+              long query wraps at the same word before and after the results land
+              and nothing below moves. It is centred on the heading's x-height
+              (align-middle, against the wrapper's own text-heading) rather than
+              sitting on the baseline, where the pill hung below the heading's
+              letters. The count is a live region, so a screen reader hears how
+              many roles a search found once they land. */}
+          <div className="text-heading break-words">
+            <h1 className="text-heading text-ink inline">Results for “{query}”</h1>
+            <span role="status" className="ml-3 inline-flex w-18 align-middle">
+              <Suspense key={key} fallback={<ResultCountSkeleton />}>
+                <ResultCount results={results} />
+              </Suspense>
+            </span>
+          </div>
+          {subtitle}
+
+          {/* A container, so the facets switch on the row's own width, as on
+              /jobs. */}
+          <div className="@container mt-4 flex flex-wrap items-center gap-2">
+            <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />
+          </div>
+        </FeedHeader>
 
         <PendingFeed>
           <Suspense key={key} fallback={<ListingsSkeleton />}>

@@ -241,10 +241,13 @@ export function JobPostingCard({
       padding="none"
       className={cn(
         "@container overflow-hidden",
-        // One whole target lifts 2px under the pointer (Motion, in
-        // frontend/CLAUDE.md), and its title turns brand from anywhere on it.
+        // One whole target, so the pointer anywhere on it tints its edge,
+        // raises its shadow and turns its title brand. It does not lift, as
+        // the Motion rule has whole-target cards do: the feed's heading and
+        // filters stick over the list (feed-header.tsx), and a card just
+        // under them lifted into them and was cut off.
         job.titleHref &&
-          "group/card hover:border-brand/40 hover:shadow-lift ease-glide relative transition-[translate,box-shadow,border-color] duration-200 hover:-translate-y-0.5",
+          "group/card hover:border-brand/40 hover:shadow-lift ease-glide relative transition-[box-shadow,border-color] duration-200",
       )}
     >
       {/* THE WHOLE CARD OPENS THE ROLE, not only its title. This layer is
