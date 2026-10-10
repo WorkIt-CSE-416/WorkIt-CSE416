@@ -557,9 +557,11 @@ without breaking the build, so the fetch gets its own sibling marked
 `import "server-only"`. The Jobs feed is the first case: `(seeker)/jobs/listings.ts`
 fetches `GET /jobs` for /jobs, /search and the Dashboard's New Matches, and
 its `data.ts` still holds the fixtures the company side's job pages use.
-**A live role opens at `/jobs/[jobId]`** (KAN-73): its card's title links
-there, the id is the row's UUID, and `getJobListing` reads `GET /jobs/{id}`,
-whose 404 (closed, a company's own, no such job) is the page's not-found.
+**A live role opens at `/jobs/[jobId]`** (KAN-73): a click anywhere on its
+card goes there (a hidden layer over the card; the title is the real link a
+keyboard and a screen reader reach, and the card's buttons sit above the
+layer). The card lifts under the pointer with its title in brand. The id is
+the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
 The page is the mock's `JobDetailHeader` with the card's own facts
 (`listingFacts` in `listing-card.tsx`) and the employer's logo, then one
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's

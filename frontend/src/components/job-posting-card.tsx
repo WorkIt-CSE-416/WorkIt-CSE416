@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
+import { cn } from "@/lib/cn";
 
 /**
  * The job posting card a seeker sees on their Jobs feed, in the layout it had
@@ -235,7 +236,33 @@ export function JobPostingCard({
   rail?: ReactNode;
 }) {
   return (
-    <Card as="article" padding="none" className="@container overflow-hidden">
+    <Card
+      as="article"
+      padding="none"
+      className={cn(
+        "@container overflow-hidden",
+        // One whole target lifts 2px under the pointer (Motion, in
+        // frontend/CLAUDE.md), and its title turns brand from anywhere on it.
+        job.titleHref &&
+          "group/card hover:border-brand/40 hover:shadow-lift ease-glide relative transition-[translate,box-shadow,border-color] duration-200 hover:-translate-y-0.5",
+      )}
+    >
+      {/* THE WHOLE CARD OPENS THE ROLE, not only its title. This layer is
+          the click target over the card; the title stays the real link that
+          a keyboard and a screen reader reach, so this one is hidden from
+          both. It is the card's own child rather than the title's stretched
+          ::after (the board's way): the body is a size container, which
+          contains an absolute ::after inside the body and left the rail
+          dead. The title, company and actions sit above it (z-2); the facts
+          stay under it, so a click on one opens the role too. */}
+      {job.titleHref && (
+        <Link
+          href={job.titleHref}
+          tabIndex={-1}
+          aria-hidden="true"
+          className="absolute inset-0 z-1"
+        />
+      )}
       {/* The rail goes beside the body once the card is 576px wide (its own
           width, so the shell's panel is accounted for), under it below that.
           It was a window breakpoint, md, which put a 208px rail beside the
@@ -272,7 +299,10 @@ export function JobPostingCard({
                 className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5"
               >
                 {job.titleHref ? (
-                  <Link href={job.titleHref} className={INK_LINK}>
+                  <Link
+                    href={job.titleHref}
+                    className={cn(INK_LINK, "group-hover/card:text-brand relative z-2")}
+                  >
                     {job.title}
                   </Link>
                 ) : (
@@ -282,7 +312,7 @@ export function JobPostingCard({
 
               <p className="text-note text-ink mt-0.5 font-semibold">
                 {job.companyHref ? (
-                  <Link href={job.companyHref} className={INK_LINK}>
+                  <Link href={job.companyHref} className={cn(INK_LINK, "relative z-2")}>
                     {job.company}
                   </Link>
                 ) : (
@@ -301,7 +331,7 @@ export function JobPostingCard({
           </div>
 
           {actions && (
-            <div className="border-border-subtle mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+            <div className="border-border-subtle relative z-2 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
               {actions}
             </div>
           )}

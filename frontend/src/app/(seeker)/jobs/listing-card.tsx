@@ -55,7 +55,7 @@ import { MatchRail } from "./match-rail";
  *   uploaded_at            `posted_at`, when the board dated it
  *
  * The match rail is its placeholder (score null): nothing scores a role yet.
- * The title opens the role's own page, /jobs/[jobId] (KAN-73), which shows
+ * The card opens the role's own page, /jobs/[jobId] (KAN-73), which shows
  * its description; Apply Now leaves for the employer's own posting.
  */
 export function ListingCard({ job }: { job: JobListing }) {
