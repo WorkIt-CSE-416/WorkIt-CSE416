@@ -38,8 +38,9 @@ import {
   EXPERIENCE_OPTIONS,
   FILTER_KEYS,
   filterEntries,
+  isSpecialty,
   JOB_TYPE_OPTIONS,
-  ROLE_OPTIONS,
+  ROLE_CATEGORY_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "./filter-query";
@@ -181,6 +182,7 @@ function Facet({
   label,
   options,
   values,
+  picked = values.length,
   onChange,
   multiple = true,
   className,
@@ -189,19 +191,16 @@ function Facet({
   label: string;
   options: readonly Option[];
   values: string[];
+  /** How many picks the facet holds, when some are not among its options
+   *  (Role's specialties, picked in the All Filters panel). */
+  picked?: number;
   onChange: (values: string[]) => void;
   multiple?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = (
-    <FacetTrigger
-      Icon={Icon}
-      label={label}
-      count={values.length}
-      open={open}
-      className={className}
-    />
+    <FacetTrigger Icon={Icon} label={label} count={picked} open={open} className={className} />
   );
 
   if (!multiple) {
@@ -575,13 +574,26 @@ export function JobFilters({
 
   // The row's facets, each given the width classes its place in the row needs.
   const facet = {
+    // The twelve categories only: with their nine specialties the list ran
+    // to 21 rows, taller than a laptop's dropdown, where the panel's search
+    // picker finds a specialty by typing. Specialties picked there stay
+    // picked, and count toward the button's tint, when a category is ticked
+    // here.
     role: (className: string) => (
       <Facet
         Icon={RoleIcon}
         label="Role"
-        options={counted(ROLE_OPTIONS, facets, "role")}
-        values={shown.roles}
-        onChange={(values) => set({ roles: values as FeedFilters["roles"] })}
+        options={counted(ROLE_CATEGORY_OPTIONS, facets, "role")}
+        values={shown.roles.filter((role) => !isSpecialty(role))}
+        picked={shown.roles.length}
+        onChange={(values) =>
+          set({
+            roles: [
+              ...(values as FeedFilters["roles"]),
+              ...shown.roles.filter((role) => isSpecialty(role)),
+            ],
+          })
+        }
         className={className}
       />
     ),
@@ -648,11 +660,12 @@ export function JobFilters({
           or Scout counts): Location and All Filters anywhere, then Role from
           448px, Workplace 672, Experience 768, Date Posted 896 and Job Type
           1024.
-          Role sits second, beside Location (KAN-171): with five disciplines
-          in one feed, which kind of role is the first thing a seeker narrows
-          by, and half the roles are software (806 of 1,635 kept postings
-          on 2026-10-10), so a quant or product seeker otherwise scrolls past
-          them all. Visa is in the panel only (asked for 2026-10-10). The
+          Role sits second, beside Location (KAN-171): with twelve categories
+          in one feed (KAN-172), which kind of role is the first thing a
+          seeker narrows by, and software and engineering are half of it
+          (1,660 of 3,507 job postings on 2026-10-10), so a marketing or
+          design seeker otherwise scrolls past them all. Visa is in the
+          panel only (asked for 2026-10-10). The
           row used to drop all its facets at once below 896px and stretch All
           Filters across the row, which on a laptop with the sidebar open
           left one wide bar where four filters had fit. The panel holds

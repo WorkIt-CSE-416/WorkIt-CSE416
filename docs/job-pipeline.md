@@ -4,10 +4,10 @@ How a job posting travels from a company job board to a card a student can
 filter, open and apply to. Each section stands on its own, so read the one you
 need.
 
-> **Status (2026-10-10).** This describes the code on `KAN-171-more-jobs`,
-> which builds on PRs #91 (filters and visa) and #92 (the job posting page).
-> The role categories need their database migration applied before they go
-> live (section 5.3).
+> **Status (2026-10-10).** This describes the code on `KAN-172-roles`, which
+> builds on `KAN-171-more-jobs` and PRs #91 (filters and visa) and #92 (the job
+> posting page). The twelve role categories need their database migration
+> (`98ab19cfe840`) applied before they go live (section 5.3).
 
 ## Three words used throughout
 
@@ -224,7 +224,8 @@ table. Scraped ones have no `company_id`.
 | `start_term` | As the job posting says it, like "Summer 2027" |
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
-| `role_category` | Section 3.1's five values (new in KAN-171) |
+| `role_category` | The first category when it is one of the five there were before KAN-172 (new in KAN-171). Kept while the deployed code still reads it; `roles` replaces it |
+| `roles` | A list of the job posting's role keys, its categories then its specialties: `["data_ai", "software", "data_ai/ml"]` (KAN-172). Empty for a company's own job |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
 | `embedding`, `fts` | For job matching (KAN-139), not used by the Jobs page yet |
 
@@ -269,6 +270,12 @@ Alembic owns the schema. A new column is a migration, which must be **merged to
 `main` before anyone applies it** to the shared database, and only a person
 runs `uv run alembic upgrade head`. The role categories' migration
 (`aa41fdc1ba80`) is waiting on exactly that.
+
+`roles` (`98ab19cfe840`) is added the safe way round, **expand then
+contract**: the migration adds `roles` beside `role_category`, copies each job
+posting's category into it, and drops nothing, because the code running when it
+is applied still reads `role_category`. KAN-172's import writes both, until a
+later migration drops `role_category` once nothing reads it.
 
 ---
 
@@ -316,8 +323,8 @@ can't be shown as matching a fact it never stated.
 | Piece | How it works |
 |---|---|
 | **Filters live in the address** | `/jobs?work_style=remote&role=quant`. A reload or a shared link keeps them. A value the API would refuse is dropped, not shown as an error. |
-| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. |
-| **All Filters** | One panel with every option as chips. Changes are a draft until "Show N Jobs", whose number is counted live. |
+| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. |
+| **All Filters** | One panel with every option as chips, or a search picker for the long lists: Location, Start Date, and Role, whose specialties ("Mechanical Engineering", "Security & IT") sit indented under their category. Changes are a draft until "Show N Jobs", whose number is counted live. |
 | **Counts beside options** | From `/jobs/facets` and `/jobs/locations`, cached for 5 minutes (they only change when an import runs). |
 | **Applying a filter** | The list dims at once while the narrowed list loads. |
 | **Load More** | The first 50 job postings, then a button adding 50 more with the same filters, until "That's every role that matches." |
@@ -356,6 +363,8 @@ browser can't restore your place by itself. The app does it instead:
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |
+| No law, consulting, teaching, arts, policy or customer support job postings, and none whose title names no field ("Engineering Intern") | Held off in KAN-172; a bare title can't be told apart (a civil firm's "Engineering Intern" from a software company's) | Add a category in the scraper, the API and the Jobs page together (no migration: `roles` is plain text) |
+| Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
 | A company only arrives once a GitHub list names it | The lists are our only source of company job boards | Find company job boards ourselves too (Common Crawl, an archive of the web) |
 | A new job posting at a quiet company can be two days late | Quiet company job boards are read one day in three | `--full` runs, or reading more often |
@@ -368,7 +377,7 @@ browser can't restore your place by itself. The app does it instead:
 |---|---|
 | Which company job boards are read | `scraper/build_boards.py`, `scraper/boards.csv` |
 | How a hiring system's company job boards are read | `scraper/workit_scraper/providers.py` |
-| Which job postings are kept, and their category | `scraper/workit_scraper/shortlist.py` |
+| Which job postings are kept, and their categories and specialties | `scraper/workit_scraper/shortlist.py` |
 | How a fact is read from a description | `scraper/workit_scraper/details.py` |
 | What the import writes | `backend/app/scripts/import_jobs.py` |
 | How a location becomes a place | `backend/app/services/location_resolver.py` |

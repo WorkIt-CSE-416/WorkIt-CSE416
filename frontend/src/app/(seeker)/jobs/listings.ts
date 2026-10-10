@@ -65,8 +65,12 @@ export type JobListing = {
   /** What the posting says about visas (KAN-168): it sponsors, it doesn't, or
    *  US citizens only. Null when it says nothing, which is most postings. */
   sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
-  /** The role's discipline, read from its title by the scraper (KAN-171). */
-  role_category: Role | null;
+  /** The role's categories, first first, then their specialties, read from
+   *  its title by the scraper (KAN-172): ["data_ai", "software", "data_ai/ml"]. */
+  roles: Role[];
+  /** Its first category when that is one of the five there were before
+   *  KAN-172. Superseded by `roles`; the API drops it with its column. */
+  role_category: "software" | "data_ai" | "product" | "quant" | "hardware" | null;
 };
 
 export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";

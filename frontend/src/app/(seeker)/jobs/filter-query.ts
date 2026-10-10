@@ -19,15 +19,13 @@ import type { JobType, WorkStyle } from "./data";
  */
 
 export type Level = "internship" | "new_grad";
-/** A role's discipline, as the scraper reads it from the title (KAN-171). */
-export type Role = "software" | "data_ai" | "product" | "quant" | "hardware";
 export type PayPer = "hour" | "year";
 export type Visa = "sponsors" | "not_ruled_out";
 
 export type FeedFilters = {
   places: string[];
   workStyles: WorkStyle[];
-  /** None is every discipline. */
+  /** Categories and specialties, any of them; none is every role. */
   roles: Role[];
   levels: Level[];
   jobTypes: JobType[];
@@ -72,15 +70,54 @@ export const WORKPLACE_OPTIONS: { value: WorkStyle; label: string }[] = [
   { value: "remote", label: "Remote" },
 ];
 
-/** The SimplifyJobs lists' five categories, which the scraper's boards come
- *  from, in their names and order. One per role; no pick shows them all. */
-export const ROLE_OPTIONS: { value: Role; label: string }[] = [
+/** A role's twelve categories (KAN-172), each followed by its specialties,
+ *  as the scraper reads them from the title and GET /jobs?role= takes them
+ *  (backend/app/models/dto.py role_key). A job posting holds one category
+ *  or two, and any specialties; picking several keeps any of them, and no
+ *  pick shows every role. A specialty's label names its field whole
+ *  ("Mechanical Engineering"), since a search lists it without the category
+ *  above it. */
+export const ROLE_OPTIONS = [
   { value: "software", label: "Software Engineering" },
+  { value: "software/security", label: "Security & IT", category: "software" },
   { value: "data_ai", label: "Data Science, AI & ML" },
-  { value: "product", label: "Product Management" },
-  { value: "quant", label: "Quantitative Finance" },
+  { value: "data_ai/ml", label: "Machine Learning & AI", category: "data_ai" },
+  { value: "data_ai/data_science", label: "Data Science", category: "data_ai" },
+  { value: "data_ai/analytics", label: "Data Analytics", category: "data_ai" },
+  { value: "data_ai/data_engineering", label: "Data Engineering", category: "data_ai" },
   { value: "hardware", label: "Hardware Engineering" },
-];
+  { value: "quant", label: "Quantitative Finance" },
+  { value: "product", label: "Product Management" },
+  { value: "engineering", label: "Other Engineering" },
+  {
+    value: "engineering/civil",
+    label: "Civil & Structural Engineering",
+    category: "engineering",
+  },
+  { value: "engineering/mechanical", label: "Mechanical Engineering", category: "engineering" },
+  {
+    value: "engineering/manufacturing",
+    label: "Manufacturing & Industrial Engineering",
+    category: "engineering",
+  },
+  { value: "engineering/aerospace", label: "Aerospace Engineering", category: "engineering" },
+  { value: "business", label: "Business & Operations" },
+  { value: "finance", label: "Accounting & Finance" },
+  { value: "marketing", label: "Marketing & Communications" },
+  { value: "sales", label: "Sales & Business Development" },
+  { value: "hr", label: "HR & Recruiting" },
+  { value: "design", label: "Design" },
+] as const satisfies readonly { value: string; label: string; category?: string }[];
+
+/** A category or a specialty key: "software", "engineering/civil". */
+export type Role = (typeof ROLE_OPTIONS)[number]["value"];
+
+/** The categories alone, for the filter row's short Role list; the All
+ *  Filters panel's picker offers the specialties too. */
+export const ROLE_CATEGORY_OPTIONS = ROLE_OPTIONS.filter((o) => !("category" in o));
+
+/** Whether a key is a specialty ("engineering/civil"), not a category. */
+export const isSpecialty = (role: Role) => role.includes("/");
 
 /** The career stage. Never a job type: that is how the job is set up. */
 export const EXPERIENCE_OPTIONS: { value: Level; label: string }[] = [
@@ -156,7 +193,7 @@ const all = (value: string | string[] | undefined) =>
 const first = (value: string | string[] | undefined) => all(value)[0];
 
 /** Each value once, in the options' order, keeping only the options' own. */
-function pick<T>(value: string | string[] | undefined, options: { value: T }[]): T[] {
+function pick<T>(value: string | string[] | undefined, options: readonly { value: T }[]): T[] {
   const given = new Set(all(value));
   return options.map((o) => o.value).filter((v) => given.has(String(v)));
 }
