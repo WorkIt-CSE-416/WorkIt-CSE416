@@ -201,7 +201,30 @@ def test_a_search_s_year_is_a_start_term(no_database, monkeypatch):
     assert TestClient(app).get("/jobs", params={"q": "intern 2027"}).status_code == 200
     (filters,) = seen
     assert list(filters.query_start_terms) == ["Summer 2027", "January 2027", "2027"]
+    # ...and the year as typed, for a title that says it.
+    assert list(filters.query_start_phrases) == ["2027"]
     assert list(filters.query_levels) == ["internship"] and list(filters.query_words) == []
+
+
+def test_a_search_s_remote_and_season_reach_the_title_too(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    async def terms_in(db, seasons):
+        assert list(seasons) == ["fall-2027"]
+        return ["Fall 2027"]
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    monkeypatch.setattr("app.routers.jobs.terms_in", terms_in)
+    assert TestClient(app).get("/jobs", params={"q": "Fall 2027 remote hybrid"}).status_code == 200
+    (filters,) = seen
+    assert list(filters.query_start_phrases) == ["fall 2027"]
+    # remote only: hybrid and onsite are the column alone
+    assert list(filters.query_work_style_phrases) == ["remote"]
+    assert [w.value for w in filters.query_work_styles] == ["remote", "hybrid"]
 
 
 @pytest.mark.parametrize(("q", "levels", "styles", "seasons", "left"), [
@@ -229,6 +252,29 @@ def test_a_search_s_roles_each_narrow_on_their_own():
     assert len(clauses) == 2
     assert "job_role_tags.role_slug IN ('ai_ml_engineer')" in _sql(clauses[0])
     assert "job_role_tags.role_slug IN ('software_engineer')" in _sql(clauses[1])
+
+
+def test_a_search_s_start_term_and_remote_also_match_the_title():
+    filters = JobFilters(
+        query_work_styles=[dto.work_style.remote],
+        query_work_style_phrases=["remote"],
+        query_start_terms=["Fall 2027"],
+        query_start_phrases=["fall 2027"],
+    )
+    styles, terms = (_sql(c) for c in matching(filters))
+    assert styles.startswith("job_postings.work_style IN ('remote') OR (lower(job_postings.title) LIKE")
+    assert "'%' || lower('remote') || '%'" in styles
+    assert terms.startswith("job_postings.start_term IN ('Fall 2027') OR (lower(job_postings.title) LIKE")
+    assert "'%' || lower('fall 2027') || '%'" in terms
+    # the title only: never the description
+    assert "description" not in styles + terms and "fts" not in styles + terms
+
+
+def test_a_season_no_posting_names_still_matches_a_title():
+    # no posting's start_term is in the season: the column's empty IN is
+    # false, and the title can still say it
+    (clause,) = matching(JobFilters(query_start_terms=[], query_start_phrases=["fall 2031"]))
+    assert "lower(job_postings.title) LIKE" in _sql(clause)
 
 
 def test_a_search_s_facts_narrow_their_own_columns():

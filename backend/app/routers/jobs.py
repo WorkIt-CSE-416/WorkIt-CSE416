@@ -51,7 +51,9 @@ by that filter, as one with no location is by ?location=.
    "onsite" the work style, "summer 2027" or a bare "2027" the start term.
    Read from the whole query, so "marketing intern" is the marketing role
    and internships both. Like the filters they echo, each hides a job that
-   doesn't state that fact (a start term most of all: about half state one);
+   doesn't state that fact, except that a start term and "remote" also
+   match a title that says them ("Fall 2027", "Remote"): about half the
+   jobs state no start term in its column;
 3. every other word, each of which must be in the job's text (job_postings.
    fts) or its company's name: "stripe intern" is internships at Stripe or
    that mention it. A stop word ("at", "the") is passed over.
@@ -267,6 +269,12 @@ class JobFilters:
     # The start terms postings name for the season or year searched for, as
     # start_terms above; None when the search named none.
     query_start_terms: Sequence[str] | None = None
+    # The season or year as typed ("fall 2027", "2027"), which a title saying
+    # it matches too, so a job whose start term is only in its title is found.
+    query_start_phrases: Sequence[str] = ()
+    # "remote" as typed, when searched for: a title saying it matches beside
+    # the work_style column. Hybrid and onsite are the column alone.
+    query_work_style_phrases: Sequence[str] = ()
     query_words: Sequence[str] = ()
 
 
@@ -318,6 +326,18 @@ def tagged_with(slugs: Iterable[str]) -> ColumnElement[bool]:
     return exists().where(
         Job_Role_Tag.job_id == Job_Post.id, Job_Role_Tag.role_slug.in_(list(slugs))
     )
+
+
+def in_title(phrases: Iterable[str]) -> list[ColumnElement[bool]]:
+    '''
+    a clause per phrase, true for a title containing it, ignoring case: the
+    raw match beside a search's start term and "remote". The title only, not
+    the description: a description's "graduating in 2027" or "not remote" is
+    no start or work style. No index, and none needed: it rides on the scan
+    the column's own test already makes (about 0.2 ms over 1,096 jobs, 8 ms
+    over 110,000, measured 2026-10-11)
+    '''
+    return [Job_Post.title.icontains(phrase, autoescape=True) for phrase in phrases]
 
 
 def word_matches(word: str) -> ColumnElement[bool]:
@@ -373,9 +393,15 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.query_levels:
         clauses.append(Job_Post.experience_level.in_(filters.query_levels))
     if filters.query_work_styles:
-        clauses.append(Job_Post.work_style.in_(filters.query_work_styles))
+        clauses.append(or_(
+            Job_Post.work_style.in_(filters.query_work_styles),
+            *in_title(filters.query_work_style_phrases),
+        ))
     if filters.query_start_terms is not None:
-        clauses.append(Job_Post.start_term.in_(filters.query_start_terms))
+        clauses.append(or_(
+            Job_Post.start_term.in_(filters.query_start_terms),
+            *in_title(filters.query_start_phrases),
+        ))
     clauses.extend(word_matches(word) for word in filters.query_words)
     if filters.visa == "sponsors":
         clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
@@ -504,6 +530,10 @@ class QueryFacts:
     # Start Date keys: "summer-2027", or for a bare year every season of it
     # and the year itself ("2027": a posting naming the year alone).
     seasons: tuple[str, ...] = ()
+    # The words as typed that named a season or year, and "remote", for the
+    # title match beside the column (in_title).
+    season_phrases: tuple[str, ...] = ()
+    remote_phrases: tuple[str, ...] = ()
     used: frozenset[int] = frozenset()
 
 
@@ -517,17 +547,24 @@ def query_facts(words: Sequence[str]) -> QueryFacts:
     levels: list[str] = []
     styles: list[dto.work_style] = []
     seasons: list[str] = []
+    season_phrases: list[str] = []
+    remote_phrases: list[str] = []
     used: set[int] = set()
 
     def take(phrase: tuple[str, ...]) -> bool:
+        typed = " ".join(phrase)
         if phrase in _LEVEL_WORDS:
             levels.append(_LEVEL_WORDS[phrase])
         elif phrase in _WORK_STYLE_WORDS:
             styles.append(_WORK_STYLE_WORDS[phrase])
-        elif len(phrase) == 2 and "-" in (season_of(" ".join(phrase)) or ""):
-            seasons.append(season_of(" ".join(phrase)))
+            if _WORK_STYLE_WORDS[phrase] == dto.work_style.remote:
+                remote_phrases.append(typed)
+        elif len(phrase) == 2 and "-" in (season_of(typed) or ""):
+            seasons.append(season_of(typed))
+            season_phrases.append(typed)
         elif len(phrase) == 1 and _YEAR.match(phrase[0]):
             seasons.extend([*(f"{season}-{phrase[0]}" for season in _SEASONS), phrase[0]])
+            season_phrases.append(typed)
         else:
             return False
         return True
@@ -539,7 +576,8 @@ def query_facts(words: Sequence[str]) -> QueryFacts:
         i += span or 1
     return QueryFacts(
         tuple(dict.fromkeys(levels)), tuple(dict.fromkeys(styles)),
-        tuple(dict.fromkeys(seasons)), frozenset(used),
+        tuple(dict.fromkeys(seasons)), tuple(dict.fromkeys(season_phrases)),
+        tuple(dict.fromkeys(remote_phrases)), frozenset(used),
     )
 
 
@@ -550,6 +588,8 @@ class Search:
     levels: tuple[str, ...] = ()
     work_styles: tuple[dto.work_style, ...] = ()
     seasons: tuple[str, ...] = ()
+    season_phrases: tuple[str, ...] = ()
+    remote_phrases: tuple[str, ...] = ()
     words: tuple[str, ...] = ()
 
 
@@ -572,6 +612,8 @@ async def read_search(db: AsyncSession, q: str | None) -> Search:
         levels=facts.levels,
         work_styles=facts.work_styles,
         seasons=facts.seasons,
+        season_phrases=facts.season_phrases,
+        remote_phrases=facts.remote_phrases,
         words=tuple(w for i, w in enumerate(read.rest) if i not in left),
     )
 
@@ -653,6 +695,8 @@ async def read_filters(
         query_start_terms=(
             await terms_in(db, search.seasons) if search.seasons else None
         ),
+        query_start_phrases=search.season_phrases,
+        query_work_style_phrases=search.remote_phrases,
         query_words=search.words,
     )
 

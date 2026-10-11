@@ -5,6 +5,11 @@
   - construct a look up dict that contains key words for each of the job role from hard coded list 
   - resolve similar meaning titles such as "developer" vs. "engineer" and match all slugs 
 
+- During search: 
+  - run the same resolver to get the roles 
+  - change common words such as Intern, Internship into job categories, Remote to work_style, start_term etc. 
+  - on top of these, search for titles that contain these. (go through description would help but adds too much noise and time)
+
 # Search and Role Resolution — Design
 
 Status: agreed 2026-10-10 (KAN-155). Built so far: the `job_roles` and
@@ -322,6 +327,16 @@ workplace, experience and posted filters the same way: each one narrows.
      they did worse: "intern" missed every "Internship" (the stemmer keeps them
      apart), "2027" matched any description mentioning the year, and "remote"
      matched 132 software jobs where the column holds 31.
+
+     **A start term and "remote" also match the title** (`in_title`): a job
+     counts when its column holds the value *or* its title says the words as
+     typed ("Fall 2027", "Remote"). The title only, never the description,
+     whose "graduating in 2027" and "not remote" are noise: with
+     descriptions, "2027" gained 106 jobs, mostly such mentions, and ran 10x
+     slower at 110k jobs (116 ms, against 19 ms for the title). Measured
+     2026-10-11: the title adds 9 jobs to "2027" and none to "remote", since
+     the scraper already fills both columns from the title; it is a net for
+     what it misses. Hybrid and onsite are the column alone.
   3. **Every other word, one at a time**, must be in the job's text
      (`fts @@ plainto_tsquery('english', word)`, stemmed) **or** its
      company's name (`ILIKE`, as typed). Word by word, so "stripe intern"
