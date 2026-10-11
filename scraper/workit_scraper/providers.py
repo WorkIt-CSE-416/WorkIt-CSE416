@@ -50,7 +50,8 @@ DESCRIPTION_CHARS = 8000
 #: 8: work-model metadata, LinkedIn tags and the facts the 2026-10-08 audit found missed.
 #: 9: visa sponsorship (`details.sponsorship`). 10: the KAN-168 sponsorship fixes
 #: (plural "citizens", narrower negations and headings), so stored pages are re-read.
-PAGE_VERSION = 10
+#: 11: a Workday posting's requisition number (`Page.requisition`).
+PAGE_VERSION = 11
 
 
 class BoardNotFound(Exception):
@@ -175,6 +176,9 @@ class Page:
     #: model ("In-Office"). A Workday posting's places when its list said only
     #: "3 Locations", joined into one ("A; B; C").
     offices: tuple[str, ...] = ()
+    #: A Workday posting's requisition number (`jobReqId`): one job posted on two of
+    #: a company's careers sites has one, and `shortlist.pick` shows it once.
+    requisition: str | None = None
 
     @classmethod
     def from_row(cls, row: dict) -> Page:
@@ -183,6 +187,7 @@ class Page:
             description=row["description"],
             facts=details.Facts.from_row(row["facts"]),
             offices=tuple(row.get("offices") or ()),
+            requisition=row.get("requisition"),
         )
 
 
@@ -358,12 +363,19 @@ def _page(
     stated_style: str | None = None,
     stated_pay: details.Pay | None = None,
     offices: tuple[str, ...] = (),
+    requisition: str | None = None,
 ) -> Page:
     """A Page from a posting's whole text: facts read first, description cut after."""
     facts = details.read(
         title, full, stated_type=stated_type, stated_style=stated_style, stated_pay=stated_pay
     )
-    return Page(version=PAGE_VERSION, description=cap(full), facts=facts, offices=offices)
+    return Page(
+        version=PAGE_VERSION,
+        description=cap(full),
+        facts=facts,
+        offices=offices,
+        requisition=requisition,
+    )
 
 
 def _work_style(value: object, location: str | None) -> str | None:
@@ -913,10 +925,18 @@ def _workday_work_style(value: object) -> str | None:
 
 def describe_workday(job: Job) -> Job:
     """The same Workday posting with what only its own record says: the
-    description, its places, the date it went up, the time type and work model.
+    description, its places, the date it went up, the time type, work model and
+    requisition number.
 
     `startDate` is the day the posting went up, not when the job starts: it is
     exactly the list's "Posted 3 Days Ago" on every posting compared (2026-10-10).
+
+    `jobReqId` is the requisition, the job itself: posted on two careers sites, it
+    is one requisition with two paths (Autodesk's "..._26WD100002-1" on `ext` and
+    "..._26WD100002-3" on `uni`). Only the record states it whole. The path ends in
+    a slug of it plus a posting number, which no rule can split from an id that
+    ends in digits itself (Amgen's "R-257526"), and the list's `bulletFields`
+    show whatever each employer chose to show there.
     """
     payload = _get_json(job_url("workday", job.token, job.external_id))
     assert isinstance(payload, dict)
@@ -938,6 +958,7 @@ def describe_workday(job: Job) -> Job:
             stated_style=_workday_work_style(info.get("remoteType"))
             or _work_style(None, job.location),
             offices=(places,) if places else (),
+            requisition=str(info.get("jobReqId") or "").strip() or None,
         ),
     )
 

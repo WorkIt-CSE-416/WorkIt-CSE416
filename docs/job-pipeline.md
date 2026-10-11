@@ -120,7 +120,7 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 | 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read on the other hiring systems and about 115,000 more on Workday each run; about 1,700 and (in Workday's first run) 664 were kept. |
 | 4. Fetch full pages | Greenhouse, Workable, BambooHR and Workday lists leave out the description, pay, work style or exact date, so the scraper reads the full page of each kept job posting there, once. |
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
-| 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. |
+| 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
 
 **A job posting only disappears after a complete read of its company job
@@ -356,7 +356,6 @@ browser can't restore your place by itself. The app does it instead:
 |---|---|---|
 | Seven hiring systems. The next biggest in the GitHub lists go unread: Oracle Cloud (about 3,100 apply links), SmartRecruiters (1,700), iCIMS (1,600) | Each hiring system needs its own reader, and SmartRecruiters' `robots.txt` disallows us | A reader per hiring system, where its `robots.txt` allows |
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
-| A Workday job on two of a company's careers sites shows twice | Each copy has its own apply link (Autodesk's `ext` and `uni` sites): 80 of the first 664 | Merge copies by company and requisition number |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
 | Workday cards have no logo | Workday's careers-page images are wide banners, and some are SVGs the website's image loader refuses | Find a square image Workday serves |
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |

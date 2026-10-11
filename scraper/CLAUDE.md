@@ -247,12 +247,46 @@ an SVG, which next/image refuses without `dangerouslyAllowSVG`, and Salesforce's
 and Disney's come as `text/plain`, which it may refuse. Workday cards show initials
 until someone finds a square image Workday serves cheaply.
 
-**A job on two careers sites is two roles.** Autodesk lists its interns on `ext`
-and `uni`, Booz Allen on `bah_jobs` and `confidential`, Cadence on
-`external_careers` and `univ_careers`, each copy with its own apply URL, and `pick`
-keys on the apply URL on purpose (above). 80 of the first 664 roles were such a
-second copy. Merging them would mean deduping on the tenant and the requisition
-number, which nothing does yet.
+**A job on two careers sites is one role.** Autodesk lists its interns on `ext`
+and `uni`, Cadence on up to three sites, BMO and CIBC on `campus` and the main
+site, each copy with its own apply URL. Workday calls the job a requisition and
+each copy a posting of it, so `shortlist.pick` merges Workday postings with the
+same company, tenant and requisition number (`_requisition`) into one role with
+every copy's places. It is the one exception to "each URL is its own job" (below):
+only Workday, and only the same number at the same company.
+
+- **The number is the record's `jobReqId`** (`Page.requisition`, from
+  `describe_workday`). It was on all 659 records read on 2026-10-10. The path is
+  no substitute: it ends in a slug of the number plus a posting number
+  (`..._26WD100002-1` on `ext`, `..._26WD100002-3` on `uni`), which no rule splits
+  from a number that ends in digits itself (Amgen's `R-257526`, BorgWarner's
+  `R2026-3965`: stripping `-digits` made 9 Amgen roles one), and the slug is not
+  always the number (Baxter's `JR - 211071`, DMA's `REQ: 636`). The list's
+  `bulletFields` show whatever the employer chose to show there. A posting whose
+  record was not read has no number and stays its own role.
+- **The role links the student site** (`_lead`): the copy whose site name says
+  it is for students (`STUDENT_SITE`: `uni`, `univ_careers`, `campus`, `intern`,
+  `us_early_talent_site`, and run together as in `bpearlycareers`), never a
+  `private` one, then the oldest copy, then the first URL, so the link holds from
+  run to run. The employer made that site for exactly this applicant, and the
+  choice loses nothing: 35 of the 36 merged requisitions read word for word alike
+  on every site, and Autodesk's Oslo role differs only in each site's footer.
+  Nothing else prefers one; the curated lists link both copies. The role's title,
+  description and facts are that copy's.
+- **Measured on the 2026-10-10 store**, with every kept posting's record read
+  again: 38 of the 664 Workday roles were a second copy, of 36 requisitions
+  (Autodesk 25, Cadence 7, BMO 2, Boeing 2, CIBC 1, Becton Dickinson 1), now
+  merged (2,387 roles to 2,349). The links went to `uni` 25 times, `univ_careers`
+  4, `campus` 3, one each `university_talent`, `intern` and `us_early_talent_site`,
+  and once `external_careers` (Boeing's, beside its subsidiaries' site). Every
+  merged pair had one title and one place. The earlier "80" counted titles:
+  Booz Allen's look-alikes on `bah_jobs` and `confidential` are different
+  requisitions, so different openings, and stay apart, as do 79 roles that share
+  a title with another requisition at their company (five of Autodesk's
+  Singapore interns, like Stripe's offices).
+- **`PAGE_VERSION` went to 11** for the number, so the next live run reads each
+  stored Workday posting's record once more (and, as any bump does, each kept
+  Greenhouse, Workable and BambooHR page).
 
 **What the first run added** (2026-10-10, on the day's store, so every Workday
 board was new and the run read them from the front of the alphabet):
@@ -340,9 +374,10 @@ every case in `tests/test_details.py` was seen in a real posting, except
   amount); the card prints an equal range once.
 - **"Intern" is not a job type.** Ashby and Lever say Intern where they could say
   Full-time; it says nothing about hours, so the description decides.
-- **A role's facts come whole from one posting**, its first copy with a page --
-  never field by field across copies of one URL, which would pair one copy's pay
-  with another's job type. `Role.facts.work_style` is the card's answer.
+- **A role's facts come whole from one posting**, the copy it links (`_lead`) or,
+  when that has no page, the first copy with one -- never field by field across
+  copies of one URL, which would pair one copy's pay with another's job type.
+  `Role.facts.work_style` is the card's answer.
 - **Work style is the one fact the card infers** (`shortlist._work_style`), in this
   order: what the posting states (its board's field, or a sentence like Sigma's "an
   in-office work environment"); then what the company's other postings state, most
@@ -736,9 +771,10 @@ wrong row flag still renders a plausible page. One shipped marking every row "ju
 added"; `tests/test_report_and_store.py` has a case for each way that count has been,
 or could be, wrong. Each provider's reader is tested on its real responses, trimmed:
 `tests/test_providers.py` for Workable, Recruitee and BambooHR, `tests/test_workday.py`
-for Workday, whose paging, slicing, budget, robots and POST each have a case there
-(where a board must be small enough to page by hand, the page size or cap is shrunk,
-never the data).
+for Workday, whose paging, slicing, budget, robots, POST and merging of one
+requisition's copies each have a case there (where a board must be small enough to
+page by hand, the page size or cap is shrunk, never the data; the one copy
+relabelled to another company is marked).
 
 ## Deliberate limits
 

@@ -20,9 +20,9 @@ import pytest
 
 from build_boards import tokens
 from workit_scraper import __main__ as run
-from workit_scraper import polite, providers, store, web
-from workit_scraper.details import Pay
-from workit_scraper.providers import BoardNotFound, Incomplete, Job, TooLarge
+from workit_scraper import polite, providers, shortlist, store, web
+from workit_scraper.details import Facts, Pay
+from workit_scraper.providers import BoardNotFound, Incomplete, Job, Page, TooLarge
 from workit_scraper.store import BoardReads, RunStats, Store
 
 AXOS = "axos.wd5/axos"
@@ -389,6 +389,8 @@ class TestRecord:
         assert job.facts.job_type == "full_time"
         assert job.facts.pay == Pay("USD", 21.15, 29.09, "hour")
         assert job.description is not None and job.description.startswith("Job Description")
+        # The requisition, which a copy on another careers site shares.
+        assert job.page is not None and job.page.requisition == "R29270"
 
     def test_remote_type_is_the_stated_work_style(self, monkeypatch) -> None:
         monkeypatch.setattr(providers, "_get_json", lambda url: GM_RECORD)
@@ -439,6 +441,201 @@ class TestRecord:
             [job] = later.jobs
             assert job.posted_at == "2026-10-07T00:00:00+00:00"
             assert job.places[0].startswith("US, MA - Framingham; ")
+
+
+SEEN = "2026-10-10T20:50:07.916560+00:00"
+KRAKOW = "/job/Krakw-POL/Intern--Software-Engineer_26WD101095"
+CADENCE = "/job/SAN-JOSE/CST-Application-Engineer-Intern---Silicon_R56655"
+SINGAPORE_PM = "/job/Singapore-SGP/Intern--Product-Manager--PSET-Access-PM-_26WD"
+BOEING = (
+    "/job/USA---El-Segundo-CA"
+    "/Command-and-Data-Handling-Network--Autonomous-Navigation-Systems-_JR2026523750"
+)
+
+
+def copy(
+    token: str,
+    path: str,
+    requisition: str | None,
+    *,
+    company: str = "Autodesk",
+    title: str = "Intern, Software Engineer",
+    location: str = "Kraków, POL",
+    description: str | None = None,
+    seen: str = SEEN,
+) -> Job:
+    """A Workday posting as `pick` sees it: listed, and its record read (a page
+    with the requisition), or not (no page)."""
+    host, site = token.split("/")
+    page = Page(providers.PAGE_VERSION, description, Facts(), requisition=requisition)
+    return Job(
+        ats="workday",
+        token=token,
+        company=company,
+        external_id=path,
+        title=title,
+        apply_url=f"https://{host}.myworkdayjobs.com/{site}{path}",
+        location=location,
+        page=page if requisition else None,
+        first_seen_at=seen,
+    )
+
+
+def one_role(jobs: list[Job]) -> shortlist.Role:
+    [role] = shortlist.pick(jobs, is_new=lambda job: False)
+    return role
+
+
+class TestOneJobOnTwoSites:
+    """One requisition on several of a company's careers sites is one role
+    (`shortlist.pick`). Sites, paths, titles, places and requisition numbers are
+    the 2026-10-10 records'; descriptions are trimmed."""
+
+    def test_two_sites_are_one_role_linking_the_student_site(self) -> None:
+        ext = copy("autodesk.wd1/ext", f"{KRAKOW}-1", "26WD101095")
+        uni = copy("autodesk.wd1/uni", KRAKOW, "26WD101095")
+        for jobs in ([ext, uni], [uni, ext]):
+            role = one_role(jobs)
+            assert role.apply_url == uni.apply_url
+            assert role.locations == ("Kraków, POL",)
+
+    def test_three_sites_link_a_student_one(self) -> None:
+        # Cadence's CST internship, on its main site and two university ones.
+        main, univ, cst = (
+            copy(
+                f"cadence.wd1/{site}",
+                CADENCE + suffix,
+                "R56655",
+                company="Cadence Design Systems",
+                title="CST Application Engineer Intern - Silicon",
+                location="SAN JOSE",
+            )
+            for site, suffix in [
+                ("external_careers", "-1"),
+                ("univ_careers", ""),
+                ("university_cst", "-3"),
+            ]
+        )
+        assert one_role([main, cst, univ]).apply_url == univ.apply_url
+
+    def test_two_requisitions_with_one_title_are_two_roles(self) -> None:
+        # Autodesk posts two product-management interns in Singapore under one
+        # title, each on both sites.
+        ext_a, uni_a, ext_b, uni_b = (
+            copy(
+                f"autodesk.wd1/{site}",
+                SINGAPORE_PM + number + suffix,
+                f"26WD{number}",
+                title="Intern, Product Manager [PSET-Access-PM]",
+                location="Singapore, SGP",
+            )
+            for site, number, suffix in [
+                ("ext", "100993", "-2"),
+                ("uni", "100993", "-1"),
+                ("ext", "100994", "-2"),
+                ("uni", "100994", ""),
+            ]
+        )
+        roles = shortlist.pick([ext_a, uni_a, ext_b, uni_b], is_new=lambda job: False)
+        assert sorted(role.apply_url for role in roles) == [uni_a.apply_url, uni_b.apply_url]
+
+    def test_other_requisitions_stay_apart(self) -> None:
+        # Booz Allen's two careers sites list one title under two requisitions:
+        # two openings, not one posted twice.
+        copies = [
+            copy(
+                f"bah.wd1/{site}",
+                f"/job/San-Diego-CA/AI-Software-Developer--Junior_{number}",
+                number,
+                company="Booz Allen",
+                title="AI Software Developer, Junior",
+                location="San Diego, CA",
+            )
+            for site, number in [("bah_jobs", "R0248284"), ("confidential", "R0251196")]
+        ]
+        assert len(shortlist.pick(copies, is_new=lambda job: False)) == 2
+
+    def test_only_one_company_and_a_read_record_merge(self) -> None:
+        uni = copy("autodesk.wd1/uni", KRAKOW, "26WD101095")
+        # Relabelled: one tenant can host several companies (Gilead and Kite).
+        other = copy("autodesk.wd1/ext", f"{KRAKOW}-1", "26WD101095", company="Spacemaker")
+        assert len(shortlist.pick([other, uni], is_new=lambda job: False)) == 2
+        # No record read, so no requisition: the copy keeps its own URL.
+        unread = copy("autodesk.wd1/ext", f"{KRAKOW}-1", None)
+        assert len(shortlist.pick([unread, uni], is_new=lambda job: False)) == 2
+
+    def test_with_no_student_site_the_oldest_copy_leads(self) -> None:
+        # Boeing's El Segundo role, on its main site and its subsidiaries' site.
+        main, subsidiary = (
+            copy(
+                f"boeing.wd1/{site}",
+                BOEING + suffix,
+                "JR2026523750",
+                company="The Boeing Company",
+                title="Entry Level Command and Data Handling Network Engineer",
+                location="USA - El Segundo, CA",
+            )
+            for site, suffix in [("external_careers", "-1"), ("external_subsidiary", "")]
+        )
+        # Both seen in one run: the first URL, so the link holds from run to run.
+        assert one_role([subsidiary, main]).apply_url == main.apply_url
+        earlier = replace(subsidiary, first_seen_at="2026-10-09T20:50:07.916560+00:00")
+        assert one_role([main, earlier]).apply_url == earlier.apply_url
+
+    def test_the_lead_copy_is_the_one_described(self) -> None:
+        # Autodesk's Oslo graduate role: one text, each site's own header.
+        opening = "Join Autodesk in Oslo as a Graduate Software Engineer in August 2027"
+        path = "/job/Norway---Oslo/Graduate-Software-Engineer_26WD100002"
+        ext, uni = (
+            copy(
+                f"autodesk.wd1/{site}",
+                path + suffix,
+                "26WD100002",
+                title="Graduate Software Engineer",
+                location="Norway - Oslo",
+                description=text,
+            )
+            for site, suffix, text in [
+                ("ext", "-1", f"Job Requisition ID #\n26WD100002\n{opening}"),
+                ("uni", "-3", opening),
+            ]
+        )
+        assert one_role([ext, uni]).description == opening
+
+    def test_the_requisition_is_kept_in_jobs_json(self, tmp_path) -> None:
+        listed = copy("autodesk.wd1/uni", KRAKOW, "26WD101095")
+        store.save(store.update(None, [listed], [], RunStats(), SEEN), tmp_path / "jobs.json")
+        [job] = store.load(tmp_path / "jobs.json").jobs
+        assert job.page is not None and job.page.requisition == "26WD101095"
+
+    @pytest.mark.parametrize(
+        ("site", "for_students"),
+        [
+            # Every name below is a careers site in boards.csv.
+            ("uni", True),
+            ("univ_careers", True),
+            ("university_talent_intern", True),
+            ("campus", True),
+            ("intern", True),
+            ("us_early_talent_site", True),
+            ("bpearlycareers", True),
+            ("futureforce_newgradroles", True),
+            ("students-graduates", True),
+            ("ext", False),
+            ("external_careers", False),
+            ("external_subsidiary", False),
+            ("search", False),
+            ("international_career_site", False),
+            ("internaljobs", False),
+            ("earlywarningcareers", False),
+            ("novogradac", False),
+            ("unilever_experienced_professionals", False),
+            ("private_postings_intern_conversion_only", False),
+        ],
+    )
+    def test_a_student_site_by_its_name(self, site: str, for_students: bool) -> None:
+        job = copy(f"autodesk.wd1/{site}", KRAKOW, "26WD101095")
+        assert shortlist._for_students(job) is for_students
 
 
 class TestScrapeOne:
