@@ -76,7 +76,7 @@ src/react-canary.d.ts  Loads React's canary types (<ViewTransition>,
                   addTransitionType): the App Router runs React canary, and
                   @types/react's stable entry does not declare them
 src/app/          App Router routes, layouts, pages
-  layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
+  layout.tsx      Root layout — Plus Jakarta Sans (Geist Mono for mono), metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
   (seeker)/       Job-seeker shell, three white rounded panels (the section
@@ -192,7 +192,7 @@ src/components/   Shared components
                   Lucide at its default stroke (the brand marks stay drawn).
                   Every per-route icons.tsx is the same kind of wrapper;
                   draw no new glyph by hand
-  hero-arcs.tsx   The corner arcs on both Dashboards' violet hero
+  hero-arcs.tsx   The corner arcs on the company Dashboard's violet hero
   avatar.tsx      Profile photo when given `src`, initials otherwise
   company-logo.tsx  A company's job-board logo via next/image, falling back
                   to <Avatar> initials. Its hosts are allow-listed in
@@ -341,8 +341,8 @@ the two durations equal. A layout that splits into columns uses
 its own `@container`, and both see the same width whether the panel is open
 or not. On Applications and the Calendar the segmented control sits at the
 top right of the header wherever it fits beside the title, the title
-wrapping first; the Dashboard's range switch sits at the top right of its
-first column and wraps under the greeting where that column is narrow.
+wrapping first; the Dashboard's range switch sits at the top right of the page, beside the
+greeting, and wraps under it where the page is narrow.
 Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
@@ -370,19 +370,71 @@ header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.
 
 `components/stat-tile.tsx` is shared by both dashboards, and both use its
-`plain` variant; its card form has no caller today. The seeker Dashboard gives
-each kind of content its own surface instead of a white card each: the numbers
-open under the greeting, one violet Next Up hero (the only solid colour), open
-sections for Activity and the lists. There is no pipeline section: its
+`plain` variant; its card form has no caller today; the seeker Dashboard
+draws its own numbers (`dashboard/headline.tsx`).
+
+**The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
+reference the user picked: white tiles with no outline on the white page
+panel, set apart by a soft violet-tinted `--shadow-tile` alone,
+`rounded-shell`, `p-5`, 16px apart. An outline on every tile read as a grid
+of grey boxes, and a lavender ground under them read as muted beside the
+shell's white panels; keep both off. Headings and figures are medium weight, figures in
+`--text-figure` (36px), actions are pills (`<Button shape="pill">`). It
+alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
+From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
+gives the page about 1010px and fell back to two columns of oversized
+tiles) the four numbers run across the top in a grid of their own (the
+first filled violet, the only solid tile), and the tiles under them sit in
+thirds. Left to right is apply, then manage: New Matches two thirds wide
+beside Next Up (a white reminder tile, its title in violet over one filled
+pill) over Up Next, then Activity two thirds wide beside Waiting (three
+columns, one per verdict: on track, follow up, likely closed, each labelled
+under it, so no legend; it was a half-ring gauge, whose round-capped parts
+left grey slivers between them and past its ends, then four columns, whose
+two green ones side by side read as a mistake). Not four columns all the way down: that left Next
+Up, Up Next and Waiting 184px wide on a 13-inch laptop, Up Next cut off
+every row, and New Matches showed three jobs. `PLACE` in `page.tsx`
+positions the tiles; from `@3xl/main` they pair up two by two through
+`grid-flow-dense`; stacked, the numbers come first, then Next Up.
+Activity's canvas is capped in height (`MAX_H2`/`MAX_H3` in
+`streak-canvas.ts`) so its row stays short.
+Draw a new Dashboard section with `SectionCard`, never a one-off box.
+Dates and times sit in pills (`<Badge variant="tag" pill>`): Next Up's,
+which links to the Calendar, Up Next's and New Matches' posted time; as 12px
+meta grey in Plus Jakarta Sans they read too faint. A pill sits in its text's
+column, under the title beside a tile or disc, never under the tile itself. New Matches' Apply is a
+filled primary pill. A KPI tile centres its label on its 36px ring (the ring
+hides below 10.5rem of tile), keeps that header row 36px tall, pushes its
+figure to the foot, and gives the line under it a fixed `h-5`, hiding "vs
+last week" where it would wrap, so every figure in a row sits on one line.
+A scroll area inside a tile uses `scrollbar-quiet` (globals.css) and puts
+its edge on the tile's edge: New Matches reaches into the tile's right
+padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
+the tile's side instead of beside the Apply buttons. There is no
+pipeline section: its
 funnel only restated the headline numbers. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real, except Next Up and Up
-Next, which take the tracker fixture's upcoming events (`getUpNext`). Next
-Up's arrow opens that application's detail panel and its date that week on
+Next, which take the tracker fixture's upcoming events (`getUpNext`); Next
+Up wears its application's company tile (`companyIconOf`, the outlined
+`CompanyTile` the Applications detail panel draws at the same size). The
+fixture keeps an interview first on any day of the week: its follow-up sits four days
+out, since a weekend slides tomorrow's interview to Monday. Next
+Up's View Details pill opens that application's detail panel and its date that week on
 the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
 All the Agenda; Waiting's Follow Up opens the Applications list filtered to
-Applied. The stat tiles do not link: their figures are a separate fixture
-from the tracker's twelve applications, so a tile would open a list that
-disagrees with its number. Its range is `?range=`, moved in place: the
+Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
+(still open) plans the real flow, a list of only what has waited two weeks,
+a Scout-drafted note, a recruiter search, then marking an application
+followed up or closed once the tracker has a backend. The headline numbers are Applications, New Roles, Interviews and Saved
+(`getHeadline` in `dashboard/data.ts`); New Roles and Saved replaced
+Response Rate and Offers, which for a student sit near zero all season. New
+Roles is the live feed, `GET /jobs/count?posted_within=` for the range and
+the window before it, cached five minutes; Saved counts the tracker's saved
+applications and ignores the range. Only those two tiles link (to the Jobs
+page filtered by date posted, and to the saved applications), since their
+figures are what their destinations show; Applications and Interviews are a
+separate fixture from the tracker's twelve applications, so a link would
+open a list that disagrees with its number. Its range is `?range=`, moved in place: the
 headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the
@@ -391,7 +443,9 @@ page again. The streak always shows the full year regardless of range.
 **Activity is a daily streak** (`(seeker)/dashboard/streak.tsx`), no longer
 a weekly pace chart: the past year of applications per day as a heat map that
 folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
-heading is Activity; its files and tokens say streak. `streak-model.ts`
+heading is Activity; its files and tokens say streak. It opens on the 2D heat
+map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
+there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
 every frame), `streak.tsx` the section. It stays beside the Dashboard rather
@@ -406,16 +460,17 @@ It ignores `?range=`, since a streak is every day. Its fixture is
 keeps its count; the tracker swaps in one `{ date: appliedOn, count: 1 }` per
 sent application.
 
-The company Dashboard and the seeker Profile follow the same surfaces. On
+The company Dashboard and the seeker Profile still use open sections, the
+seeker Dashboard's old surfaces (it moved to tiles in KAN-173). On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
 the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
 with no cards inside it, and one white card, the Recent Applicants table. On
 /profile: an open identity band, Resume as the only card, and open sections
-for Work Experience, Skills and Application Settings. Both heroes draw
-`components/hero-arcs.tsx`. An open section's one way onward sits at the top
-right of its heading: `ui/section-link.tsx` for a link, `<Button
-variant="section">` for an action. Keep it that way: a page of identical boxes
-has no first place to look. Each page's docblock says what goes where.
+for Work Experience, Skills and Application Settings. The company hero draws
+`components/hero-arcs.tsx`. A section's one way onward, open or carded, sits
+at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
+variant="section">` for an action. Whether those two pages should move to
+cards as well is still open. Each page's docblock says what goes where.
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
 the Dashboard's Up Next, the Applications board, grid, list and detail panel,
@@ -541,7 +596,8 @@ model, so a filtered list cannot select rows nobody can see.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
-`positive`) while painting the mockups' styling, so a component pasted from the
+`positive`) while painting the mockups' styling, plus `shape="pill"` for the
+seeker Dashboard's fully rounded actions, so a component pasted from the
 shadcn docs composes without edits and still looks like WorkIt.
 `shadcn/button.tsx` is a re-export pointing back at it, and an ESLint rule keeps
 app code on the canonical path — likewise for `badge` and `card`, which are not

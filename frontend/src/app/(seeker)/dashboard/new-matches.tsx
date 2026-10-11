@@ -1,15 +1,19 @@
 import { CompanyLogo } from "@/components/company-logo";
+import { Badge } from "@/components/ui/badge";
+import { buttonClasses } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
 import { formatPosted } from "../jobs/format";
 import { getJobListings } from "../jobs/listings";
 import { SectionHeader } from "./section-header";
+import { SectionCard } from "./section-card";
 
 /**
  * The newest roles from the live feed — the one Dashboard card that is real
  * today. "Matches" is the feed's own word for what it shows (Recommended for
  * You); there is no scoring yet, so the order is newest first.
  *
- * Open on the page, like the other lists. A compact list rather than the Jobs
+ * In a card, like the other lists. A compact list rather than the Jobs
  * page's cards: this is a glance at what
  * arrived, with Jobs one click away for the full card and its actions. Apply
  * goes straight to the employer's posting, as it does there.
@@ -17,15 +21,16 @@ import { SectionHeader } from "./section-header";
  * Its own <Suspense> boundary in the page, because it waits on the API and
  * the fixture cards around it don't. The fallback is NewMatchesSkeleton below:
  * the same heading and subtitle over placeholder rows, so the column is not a
- * blank hole beside Waiting while the feed loads.
+ * blank hole beside Next Up while the feed loads.
  */
 /**
- * THE LIST SCROLLS INSIDE THE ROW rather than setting its height. Beside it,
- * Waiting to Hear Back is a fixed size, and the two should end on one line;
- * a list long enough to be useful would otherwise stretch the row and leave
- * Waiting floating above a gap. From @4xl/main the section is `h-0
- * min-h-full` — a grid item that contributes no height of its own and then
- * fills whatever the row's other cell made it — and the list takes the rest
+ * THE LIST SCROLLS INSIDE ITS TILE rather than setting its height. Beside it,
+ * Next Up over Up Next is a fixed height, and the tile should end level with
+ * them; a list long enough to be useful would otherwise stretch the rows and
+ * leave Up Next floating above a gap. From @4xl/main the section is `h-0
+ * min-h-full` across those two rows — a grid item that contributes no height
+ * of its own and then fills whatever its neighbours made them — and the list
+ * takes the rest
  * of that with overflow-y-auto. Stacked on a phone, there is no neighbour to
  * match, so the list does not scroll at all: it shows the first five rows and
  * the page scrolls past them (the fifth drops its divider, which divide-y
@@ -42,14 +47,14 @@ import { SectionHeader } from "./section-header";
  */
 const SHOWN = 12;
 
-export async function NewMatches() {
+export async function NewMatches({ className }: { className?: string }) {
   const { jobs, error } = await getJobListings();
   const latest = (jobs ?? []).slice(0, SHOWN);
 
   return (
-    <section
+    <SectionCard
       aria-labelledby="new-matches"
-      className="flex flex-col @4xl/main:h-0 @4xl/main:min-h-full"
+      className={cn("flex flex-col @4xl/main:h-0 @4xl/main:min-h-full", className)}
     >
       <SectionHeader
         id="new-matches"
@@ -65,11 +70,15 @@ export async function NewMatches() {
             : "No new roles yet. They land here as companies post them."}
         </p>
       ) : (
-        <div className="relative mt-3 flex min-h-0 flex-1 flex-col">
+        <div className="relative mt-3 flex min-h-0 flex-1 flex-col @4xl/main:-mr-5">
+          {/* From @4xl/main the scroll area reaches into the tile's right
+              padding (-mr-5 above) and pads its rows back in (pr-5), so its
+              bar runs down the tile's edge instead of beside the Apply
+              buttons. */}
           <ul
             tabIndex={0}
             aria-label="Latest Roles"
-            className="divide-border-subtle focus-visible:ring-brand-ring flex min-h-0 flex-1 flex-col divide-y rounded-xs focus-visible:ring-2 focus-visible:outline-none @4xl/main:overflow-y-auto @4xl/main:overscroll-contain @4xl/main:pr-2 @4xl/main:pb-6 @max-4xl/main:[&>li:nth-child(5)]:border-b-0 @max-4xl/main:[&>li:nth-child(n+6)]:hidden"
+            className="divide-border-subtle focus-visible:ring-brand-ring scrollbar-quiet flex min-h-0 flex-1 flex-col divide-y rounded-xs focus-visible:ring-2 focus-visible:outline-none @4xl/main:overflow-y-auto @4xl/main:overscroll-contain @4xl/main:pr-5 @4xl/main:pb-6 @max-4xl/main:[&>li:nth-child(5)]:border-b-0 @max-4xl/main:[&>li:nth-child(n+6)]:hidden"
           >
             {latest.map((job, i) => (
               // The roles rise in as the feed arrives, 30ms apart and capped
@@ -88,17 +97,30 @@ export async function NewMatches() {
                   <p className="text-label text-ink @max-4xl/main:line-clamp-2 @4xl/main:truncate">
                     {job.title}
                   </p>
-                  <p className="text-note text-ink-meta truncate">
-                    {job.company}
-                    {job.posted_at && ` · ${formatPosted(job.posted_at)}`}
-                  </p>
+                  {/* The company, then when it was posted in a pill: as grey
+                      text after a dot it was too faint to find. */}
+                  <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-note text-ink-meta min-w-0 truncate">{job.company}</span>
+                    {job.posted_at && (
+                      <Badge variant="tag" pill>
+                        {formatPosted(job.posted_at)}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <a
                   href={job.apply_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Apply to ${job.title} at ${job.company}`}
-                  className="text-label text-brand-ink focus-visible:ring-brand-ring relative shrink-0 rounded-xs underline decoration-transparent underline-offset-4 transition-[text-decoration-color] duration-150 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:decoration-current focus-visible:ring-2 focus-visible:outline-none"
+                  // Filled, the primary button's own look: an outlined Apply
+                  // beside each role read as an afterthought.
+                  className={buttonClasses({
+                    variant: "default",
+                    size: "xs",
+                    shape: "pill",
+                    className: "shrink-0 px-3",
+                  })}
                 >
                   Apply
                 </a>
@@ -107,11 +129,11 @@ export async function NewMatches() {
           </ul>
           <span
             aria-hidden="true"
-            className="from-background pointer-events-none absolute inset-x-0 bottom-0 hidden h-8 bg-linear-to-t to-transparent @4xl/main:block"
+            className="from-background pointer-events-none absolute right-5 bottom-0 left-0 hidden h-8 bg-linear-to-t to-transparent @4xl/main:block"
           />
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -123,12 +145,12 @@ export async function NewMatches() {
  * two lines (349px measured at 375px), so Waiting below barely moves when the
  * roles arrive; beside Waiting it fills the row, as the list does.
  */
-export function NewMatchesSkeleton() {
+export function NewMatchesSkeleton({ className }: { className?: string }) {
   return (
-    <section
+    <SectionCard
       aria-labelledby="new-matches"
       aria-busy="true"
-      className="flex flex-col @4xl/main:h-0 @4xl/main:min-h-full"
+      className={cn("flex flex-col @4xl/main:h-0 @4xl/main:min-h-full", className)}
     >
       <SectionHeader
         id="new-matches"
@@ -151,6 +173,6 @@ export function NewMatchesSkeleton() {
           </li>
         ))}
       </ul>
-    </section>
+    </SectionCard>
   );
 }
