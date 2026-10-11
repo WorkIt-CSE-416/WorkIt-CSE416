@@ -41,7 +41,7 @@ npm run lint         # eslint      (lint:fix to autofix)
 npm run typecheck    # next typegen + tsc --noEmit
 npm run format       # prettier    (format:check to verify only)
 npm run clean        # remove .next, out, coverage, tsbuildinfo
-npm run favicon      # rebuild src/app/favicon.ico from public/workit-icon.png
+npm run favicon      # rebuild src/app/favicon.ico from public/workit-icon.svg
 ```
 
 There is no test runner yet. When one is added, document it here.
@@ -223,8 +223,10 @@ src/app/          App Router routes, layouts, pages
                   shell's provider or a server action
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
-  logo.tsx        The WorkIt logo: <Logo> picks a lockup or half per size,
-                  <LogoLockup> is the seeker shell's mark-plus-word pair
+  logo.tsx        The WorkIt logo, drawn as SVG: a w-shaped figure with its
+                  arms up beside "workit" in outlined Figtree Bold. <Logo>
+                  picks the lockup or a half per size, <LogoLockup> is the
+                  seeker shell's mark-plus-word pair. No image files
   icons.tsx       Glyphs used by more than one route, as thin wrappers over
                   Lucide at its default stroke (the brand marks stay drawn).
                   Every per-route icons.tsx is the same kind of wrapper;
@@ -310,14 +312,9 @@ src/lib/          Framework-free helpers
   supabase/cookies.ts  sessionCookieOptions(): httpOnly, 7-day sb-* cookies.
                   Both cookie writers (server.ts, src/proxy.ts) go through it
 public/           Static assets served from /
-  workit-logo.png Full lockup, 1256x448, violet — the auth card
-  workit-logo-ink.png  The same lockup in --color-ink, for the company top bar
-  workit-icon-ink.png  The ink mark alone, the lockup cut at x=481
-  workit-wordmark-ink.png  The ink "WorkIt" alone, cropped to its letters.
-                  The two make <LogoLockup> in logo.tsx, the seeker shell's
-                  logo, which sets the word at ~55% of the mark's height
-                  (the drawn lockup has it at 40%, which read as too small)
-  workit-icon.png Mark only, 481x448 — favicon source only
+  workit-icon.svg The app icon: the logo's figure in white on a violet
+                  rounded square. The favicon's source (npm run favicon);
+                  the logo itself is drawn in components/logo.tsx
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
   shadcn.md       What shadcn is, how it is wired here, how to pull components

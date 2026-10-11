@@ -21,7 +21,7 @@ export default function CompanyOnboardingPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-10">
       <div className="w-full max-w-md text-center">
-        <Logo size="card" priority className="mx-auto" />
+        <Logo size="card" className="mx-auto" />
         <h1 className="text-title text-ink mt-4">Company onboarding is on its way</h1>
         <p className="text-body text-ink-muted mt-1">
           We&apos;re still designing this step for business accounts — check back soon.
