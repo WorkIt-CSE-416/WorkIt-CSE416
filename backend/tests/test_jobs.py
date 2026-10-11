@@ -45,8 +45,6 @@ ROW = SimpleNamespace(
     min_years_experience=None,
     start_term="Summer 2027",
     sponsorship=dto.visa_sponsorship.sponsors,
-    role_category=dto.role_category.hardware,
-    roles=["hardware", "software"],
     salary=None,
     salary_min=40.0,
     salary_max=46.0,
@@ -94,8 +92,6 @@ def test_row_becomes_the_feed_shape():
         "min_years_experience": None,
         "start_term": "Summer 2027",
         "sponsorship": dto.visa_sponsorship.sponsors,
-        "roles": [dto.role_key.hardware, dto.role_key.software],
-        "role_category": dto.role_category.hardware,
     }
 
 

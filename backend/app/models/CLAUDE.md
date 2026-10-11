@@ -609,33 +609,17 @@ searching company-posted jobs by employer needs a join or a copied name.
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.
 
-**`job_postings.role_category` is a scraped role's discipline (KAN-171)**,
-the `role_category` enum: `software`, `data_ai`, `product`, `quant`,
-`hardware`, the SimplifyJobs lists' five. The scraper reads it from the
-title (`scraper/workit_scraper/shortlist.py`) and the import writes it; a
-company's own job leaves it NULL. Its migration is `aa41fdc1ba80`, which
-revises `4485d7a7a712`. Like any mapped column, apply it before deploying a
-branch that maps it (the section above).
-
-**`job_postings.roles` supersedes it (KAN-172): `text[]`, NOT NULL, default
-`{}`**, a scraped role's category and specialty keys, first category first
-(`["data_ai", "software", "data_ai/ml"]`): twelve categories, up to two a job,
-and their specialties. Plain text rather than an enum, so a new key is a
-scraper and API change and never a migration; the API checks keys against its
-own list. A company's own job stores `{}`, which no role filter matches. The
-GIN index `job_postings_roles_idx` served `GET /jobs?role=`, an array overlap
-(`roles && ARRAY[...]`), until KAN-155 moved that filter to `job_role_tags`;
-nothing reads the column now, and a later migration drops it with
-`role_category`. Its migration is `98ab19cfe840`, which revises
-`5c8d6ee05a0c`, and seeds `roles` from `role_category` for the rows already
-there. **Expand, then contract:** `role_category` is not dropped, because the
-API deployed when the migration is applied still reads it; the import keeps
-writing it (the first category, when it is one of the enum's five) until a
-later migration drops it once nothing reads it. The model maps `roles` with
-the database's default only, so an insert naming no roles leaves the column to
-the database; the ORM still reads it back after an insert, so as with any
-mapped column, apply the migration right after its PR merges, before that
-deployment serves company job creation (the section above).
+**`job_postings.role_category` and `job_postings.roles` are gone
+(`824f0b2e3d84`).** They held the scraper's role keys: `role_category` one of
+five disciplines (KAN-171, `aa41fdc1ba80`, with its `role_category` enum) and
+`roles` up to two of twelve categories plus specialties (KAN-172,
+`98ab19cfe840`, `text[]` with the GIN index `job_postings_roles_idx`), which
+`GET /jobs?role=` filtered on. KAN-155 replaced both with `job_roles` /
+`job_role_tags` (above), and the backend's `dto.role_key` and
+`dto.role_category` went with them. The drop is the contract half of an expand,
+then contract: it must be applied only **after** the code that stopped
+reading and writing the columns is deployed (`../../CLAUDE.md`, Commands).
+Its downgrade puts the columns back empty; the old import refills them.
 
 ## Identity lives in auth.users
 

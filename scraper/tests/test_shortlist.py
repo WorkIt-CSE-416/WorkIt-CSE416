@@ -101,8 +101,8 @@ class TestClassify:
         assert classify("") == ()
 
     def test_the_categories_are_twelve(self):
-        # backend/app/models/dto.py's role_key and the Jobs page's ROLE_OPTIONS
-        # (frontend .../jobs/filter-query.ts) carry these same values.
+        # The scraper's own keep-or-drop categories; the backend's roles are
+        # its job_roles list since KAN-155.
         assert [tag.value for tag in CATEGORY_TAGS] == [
             "software",
             "data_ai",

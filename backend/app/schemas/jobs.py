@@ -69,19 +69,10 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
-    # The role's categories, first first, then their specialties, read from its
-    # title by the scraper: ["data_ai", "software", "data_ai/ml"] (KAN-172).
-    # No longer what GET /jobs?role= filters on (KAN-155 moved that to
-    # job_role_tags); still stored and returned until a later migration drops
-    # the column. Empty in a feed.json written before KAN-172, which is why it
-    # is defaulted.
-    roles: list[dto.role_key] = []
-    # The first of the five disciplines the role was in before KAN-172
-    # (software, data_ai, product, quant, hardware). Superseded by roles: the
-    # scraper no longer sends it, the import derives it from roles for the
-    # column the deployed code still reads, and GET /jobs keeps returning it
-    # until that column is dropped.
-    role_category: dto.role_category | None = None
+    # No roles field: a job's roles are job_role_tags, which the import
+    # resolves from the title (KAN-155). The scraper's own "roles" keys in
+    # feed.json (KAN-172) are ignored, as any key this model doesn't declare
+    # is, so a new scraper key never fails the import.
 
 
 class JobLocationOption(BaseModel):

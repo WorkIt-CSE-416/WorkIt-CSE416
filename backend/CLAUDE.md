@@ -91,11 +91,18 @@ their own PR, merge, and are applied to Supabase **before** the PR whose code
 reads them merges. Otherwise every scheduled import fails, and the Jobs page's
 role filter and search answer 500, until they are.
 
-It writes each job's `roles` (its categories and specialties, KAN-172) and
-derives `role_category` from them, the first category when it is one of that
-column's five, for the code that still reads it. A feed written before KAN-172
-has `role_category` and no `roles`; that one category stands for them. Twelve
-categories more than doubled the feed (3,507 job postings on 2026-10-10,
+**`824f0b2e3d84` is the exception: it goes on *after* the deploy, alone.** It
+drops KAN-172's `roles` and `role_category` columns, which the code before
+KAN-155 selects on every `GET /jobs` and writes on every import. So the order
+is: apply up to `a70c641b2f99` (`uv run alembic upgrade a70c641b2f99`), merge
+and deploy, then `uv run alembic upgrade head`. A plain `upgrade head` before
+the deploy takes the live Jobs page and the scheduled import down.
+
+The feed's `roles` keys (the scraper's categories and specialties, KAN-172)
+and an older feed's `role_category` are ignored: `JobListing` doesn't declare
+them, so a new scraper key never fails the import. A job's roles are its
+`job_role_tags`, resolved from its title (KAN-155). The scraper's twelve
+categories still decide which postings it keeps, and more than doubled the feed (3,507 job postings on 2026-10-10,
 against 1,723 under the old five) and its `feed.json` (19 MB with
 descriptions, against 9 MB).
 
@@ -272,7 +279,8 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   Order matters when the feed gains a column: apply its migration first
   (`7c2e9a41d5b3` added `start_term` and the week/month pay periods,
   `b81d4e2f6c09` the `sponsorship` column, `aa41fdc1ba80` `role_category`,
-  `98ab19cfe840` `roles`), then import, then deploy the API
+  `98ab19cfe840` `roles`, both since dropped by `824f0b2e3d84`), then import,
+  then deploy the API
   that reads it. An import against the older schema fails on the unknown column and,
   being one transaction, writes nothing.
 - **`/jobs` opens a connection per request** (`NullPool`, below), which costs

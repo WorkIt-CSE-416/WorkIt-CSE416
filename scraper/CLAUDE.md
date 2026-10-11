@@ -520,13 +520,11 @@ customer support; a title naming none of the twelve ("Engineering Intern", "Rese
 Intern") is dropped too. `CATEGORY_TAGS` is their order on the page and in the app.
 
 **`feed.json` carries a role's `roles`:** its categories, first first, then its
-specialties (`["data_ai", "software", "data_ai/ml"]`; `Role.roles`). The backend stores
-them in `job_postings.roles`, plain text, so a new key is a change to `Tag` and to the
-backend's `dto.role_key`, but never a migration. Since KAN-155 the Jobs page's Role
-filter no longer reads them: the backend tags each job from its title with its own
-`job_roles` list (`backend/app/services/role_resolver.py`), and the backend drops the
-`roles` column in a later change. The categories still decide what this scraper keeps.
-The feed no longer sends the old one-category `role_category`; the import derives it.
+specialties (`["data_ai", "software", "data_ai/ml"]`; `Role.roles`). **Since KAN-155 the
+backend ignores them:** it tags each job from its title with its own `job_roles` list
+(`backend/app/services/role_resolver.py`), and dropped the `roles` and `role_category`
+columns and `dto.role_key`. So a new key is a change to `Tag` alone. The categories still
+decide what this scraper keeps, which is what they are for now.
 
 **The first discipline the title names is its category** (`CATEGORIES`, first match
 wins). The order is the decision:
@@ -694,16 +692,13 @@ this package: `backend/CLAUDE.md` keeps anything outside `backend/` out of its b
 So `feed.row()` is the whole contract, and its fields must match
 `backend/app/schemas/jobs.py` — add a field in both or neither, and a new column needs
 its migration. Card facts land in `job_postings`' own columns (`job_type`, `salary*`,
-`min_years_experience`, `start_term`, `sponsorship`), and so do the role's categories
-and specialties (`roles`, above; the import derives the old `role_category` from
-them); descriptions ride along in the rows, and the list query simply never selects
-them.
+`min_years_experience`, `start_term`, `sponsorship`); the row's `roles` (above) is the
+one field the backend ignores. Descriptions ride along in the rows, and the list query
+simply never selects them.
 
 Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's labels
 ("On site"). `feed.WORK_STYLE` is indexed, not `.get`: a new label from
-`providers._work_style` should fail a run, not quietly become `null` in the app. A role
-key the backend's `dto.role_key` lacks fails the import the same way, before anything
-is written.
+`providers._work_style` should fail a run, not quietly become `null` in the app.
 
 The scraper still never touches the database.
 

@@ -193,7 +193,7 @@ transaction**: if any step fails, nothing changes.
 |---|---|
 | 1. Check | Every row is checked against the API's schema |
 | 2. Read places | Each location's text is turned into place codes (section 5.2) |
-| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. Its `roles` are written, and the old `role_category` from them (the first category, when it is one of the five that column knows) |
+| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. The feed's `roles` keys are ignored (KAN-155): roles come from step 5 |
 | 4. Places | Each job posting's place rows are brought in line |
 | 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
 | 6. Close | Job postings no longer in the feed are marked closed; one that comes back reopens |
@@ -226,8 +226,6 @@ table. Scraped ones have no `company_id`.
 | `start_term` | As the job posting says it, like "Summer 2027" |
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
-| `role_category` | The first category when it is one of the five there were before KAN-172 (new in KAN-171). Kept while the deployed code still reads it; `roles` replaces it |
-| `roles` | A list of the job posting's role keys, its categories then its specialties: `["data_ai", "software", "data_ai/ml"]` (KAN-172). Empty for a company's own job. No longer read by the API (KAN-155 filters by `job_role_tags`); dropped in a later migration |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
 | `embedding`, `fts` | For job matching (KAN-139), not used by the Jobs page yet |
 
@@ -274,7 +272,7 @@ onboarding and recommendations as well as search. It is what `?role=`, `?q=`
 and the Jobs page's Role filter read. `job_role_tags` links a job posting to
 each role its title names, zero or more. The import fills it from
 `backend/app/services/role_resolver.py`, which matches whole-word aliases in
-the title. This replaced the `roles` column above as the filter; the scraper
+the title. This replaced KAN-172's `roles` column, since dropped; the scraper
 still uses its categories to decide what to keep. `docs/search.md` has the design.
 
 ### 5.4 Changing the schema
@@ -286,12 +284,12 @@ runs `uv run alembic upgrade head`. The role categories' and location labels' mi
 on 2026-10-10.
 
 `roles` (`98ab19cfe840`, merged to `main` on its own in #97 and applied on
-2026-10-11) is added the
-safe way round, **expand then contract**: the migration adds `roles` beside
-`role_category`, copies each job posting's category into it, and drops
-nothing, because the code running when it is applied still reads
-`role_category`. KAN-172's import writes both, until a later migration drops
-`role_category` once nothing reads it.
+2026-10-11) was added the safe way round, **expand then contract**: the
+migration added `roles` beside `role_category` and dropped nothing, because
+the code running when it was applied still read `role_category`. KAN-155
+finished the contract: its code reads `job_role_tags` instead, and
+`824f0b2e3d84` drops both columns, applied only **after** that code is
+deployed (`backend/CLAUDE.md`, Commands).
 
 ---
 

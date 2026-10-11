@@ -44,8 +44,8 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         # "sponsors", "no_sponsorship", "citizens_only" or None (details.py).
         "sponsorship": role.facts.sponsorship,
         # Its categories, first first, then its specialties: ["data_ai", "software",
-        # "data_ai/ml"] (shortlist.Tag; the backend's role_key). The import derives
-        # the old one-category role_category column from the first.
+        # "data_ai/ml"] (shortlist.Tag). The backend ignores them since KAN-155: it
+        # tags each job from its title with its own job_roles list.
         "roles": list(role.roles),
     }
 

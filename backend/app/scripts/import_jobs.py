@@ -85,10 +85,9 @@ _FEED_COLUMNS = (
     "title", "company_name", "company_logo_url", "description",
     "experience_level", "work_style", "location_raw", "location_label", "posted_at",
     "job_type", "min_years_experience", "start_term", "sponsorship",
-    "role_category", "roles",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 22.
+# asyncpg allows 32,767 parameters a statement; a row here binds 20.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
@@ -110,8 +109,7 @@ class Prepared:
     '''
     rows: list[dict]
     places: dict[str, tuple[Place, ...]]
-    # apply_url -> the job_roles slugs its title names, for job_role_tags. Not
-    # the row's "roles": those are the scraper's keys (KAN-172)
+    # apply_url -> the job_roles slugs its title names, for job_role_tags
     role_tags: dict[str, frozenset[str]] = field(default_factory=dict)
     # location text -> the pieces of it that matched nothing
     unresolved: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -184,9 +182,6 @@ def prepare(
         role_tags[listing.apply_url] = resolved_titles[listing.title]
         if not role_tags[listing.apply_url]:
             untagged[listing.title] = untagged.get(listing.title, 0) + 1
-        # The scraper's own role keys (KAN-172), for the roles column; not the
-        # job_roles slugs above, which go to job_role_tags.
-        scraped_roles = _roles(listing)
         rows.append({
             "apply_url": listing.apply_url,
             "title": listing.title,
@@ -207,36 +202,9 @@ def prepare(
             "min_years_experience": listing.min_years_experience,
             "start_term": listing.start_term,
             "sponsorship": listing.sponsorship,
-            "roles": scraped_roles,
-            "role_category": _role_category(scraped_roles),
             **_pay(listing),
         })
     return Prepared(rows, places, role_tags, unresolved, untagged, no_place, duplicates)
-
-
-def _roles(listing: JobListing) -> list[str]:
-    '''
-    the job's role keys, as plain text for the text[] column. A feed written
-    between KAN-171 and KAN-172 has a role_category and no roles: that one
-    category stands for them, rather than wiping the job's roles
-    '''
-    if listing.roles:
-        return [role.value for role in listing.roles]
-    return [listing.role_category.value] if listing.role_category else []
-
-
-# The old one-category column's values. It stays until a later migration drops it,
-# because the API deployed before KAN-172 reads it (expand, then contract).
-_CATEGORIES = {category.value for category in dto.role_category}
-
-
-def _role_category(roles: list[str]) -> dto.role_category | None:
-    '''
-    role_category for code that still reads it: the job's first category when
-    it is one of the column's five, else None (a business or engineering job)
-    '''
-    first = roles[0] if roles else None
-    return dto.role_category(first) if first in _CATEGORIES else None
 
 
 def _pay(listing: JobListing) -> dict:
