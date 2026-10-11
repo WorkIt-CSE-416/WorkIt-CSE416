@@ -7,7 +7,7 @@ import type { JobType, WorkStyle } from "./data";
  *
  * The URL's names are `GET /jobs`' own (backend/app/routers/jobs.py), so a
  * page passes its query to the API as it stands: ?location= (repeated ISO
- * codes), ?work_style=, ?experience=, ?job_type= (repeated, any of),
+ * codes), ?work_style=, ?role=, ?experience=, ?job_type= (repeated, any of),
  * ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or
  * year, a range either end of which may be open), ?start_term= (seasons,
  * "summer-2027", repeated) and ?visa= (sponsors or not_ruled_out).
@@ -19,14 +19,18 @@ import type { JobType, WorkStyle } from "./data";
  */
 
 export type Level = "internship" | "new_grad";
+/** A role's discipline, as the scraper reads it from the title (KAN-171). */
+export type Role = "software" | "data_ai" | "product" | "quant" | "hardware";
 export type PayPer = "hour" | "year";
 export type Visa = "sponsors" | "not_ruled_out";
 
 export type FeedFilters = {
   places: string[];
   workStyles: WorkStyle[];
+  /** None is every discipline. */
+  roles: Role[];
   levels: Level[];
-  jobTypes: JobType[];
+  jobTypes: JobTypeKey[];
   /** 1, 7 or 30 from the row; null for any time. */
   postedWithin: number | null;
   /** A pay range in US dollars per `payPer`; null leaves that end open. A
@@ -43,6 +47,7 @@ export type FeedFilters = {
 export const NO_FILTERS: FeedFilters = {
   places: [],
   workStyles: [],
+  roles: [],
   levels: [],
   jobTypes: [],
   postedWithin: null,
@@ -55,8 +60,8 @@ export const NO_FILTERS: FeedFilters = {
 
 /* Each facet's options, in the words ./format prints on the cards, so a
  * filter never names a value no card can carry. Job type and experience offer
- * the API's own values: "Internship" is a level, never a job type, and the
- * feed holds no "Experienced" roles. Date posted and salary are thresholds,
+ * the API's own values, plus "internship" as a job type (every internship,
+ * KAN-171), and the feed holds no "Experienced" roles. Date posted and salary are thresholds,
  * so those facets take one pick (`multiple` in ./filters); no pick is "any",
  * which is why neither list spells it out. Industry has no data behind it
  * and is not offered. */
@@ -67,16 +72,34 @@ export const WORKPLACE_OPTIONS: { value: WorkStyle; label: string }[] = [
   { value: "remote", label: "Remote" },
 ];
 
-/** The career stage. Never a job type: that is how the job is set up. */
+/** The SimplifyJobs lists' five categories, which the scraper's boards come
+ *  from, in their names and order. One per role; no pick shows them all. */
+export const ROLE_OPTIONS: { value: Role; label: string }[] = [
+  { value: "software", label: "Software Engineering" },
+  { value: "data_ai", label: "Data Science, AI & ML" },
+  { value: "product", label: "Product Management" },
+  { value: "quant", label: "Quantitative Finance" },
+  { value: "hardware", label: "Hardware Engineering" },
+];
+
+/** The career stage. Internship is also a job type (JOB_TYPE_OPTIONS): the
+ *  card shows it there, so both filters offer it. */
 export const EXPERIENCE_OPTIONS: { value: Level; label: string }[] = [
   { value: "internship", label: "Internship" },
   { value: "new_grad", label: "New Grad" },
 ];
 
-export const JOB_TYPE_OPTIONS: { value: JobType; label: string }[] = [
+/** A job type as the card shows it: how a job is set up, and "Internship" for
+ *  every internship whatever its hours (KAN-171, as Jobright does). The API
+ *  matches Full-Time and the rest among the jobs that aren't internships, so
+ *  a card never says "Internship" under a Full-Time filter. */
+export type JobTypeKey = JobType | "internship";
+
+export const JOB_TYPE_OPTIONS: { value: JobTypeKey; label: string }[] = [
   { value: "full_time", label: "Full-Time" },
   { value: "part_time", label: "Part-Time" },
   { value: "contract", label: "Contract" },
+  { value: "internship", label: "Internship" },
 ];
 
 export const DATE_POSTED_OPTIONS: { value: number; label: string }[] = [
@@ -114,6 +137,7 @@ export const PAY_OPTIONS: Record<PayPer, { value: number; label: string }[]> = {
 export const FILTER_KEYS = [
   "location",
   "work_style",
+  "role",
   "experience",
   "job_type",
   "posted_within",
@@ -159,6 +183,7 @@ export function readFilters(params: Params): FeedFilters {
   return {
     places: [...new Set(all(params.location).filter((p) => PLACE.test(p)))].slice(0, MAX_PLACES),
     workStyles: pick(params.work_style, WORKPLACE_OPTIONS),
+    roles: pick(params.role, ROLE_OPTIONS),
     levels: pick(params.experience, EXPERIENCE_OPTIONS),
     jobTypes: pick(params.job_type, JOB_TYPE_OPTIONS),
     postedWithin: DATE_POSTED_OPTIONS.some((o) => o.value === posted) ? posted : null,
@@ -178,6 +203,7 @@ export function filterEntries(filters: FeedFilters): [string, string][] {
   return [
     ...filters.places.map((p): [string, string] => ["location", p]),
     ...filters.workStyles.map((w): [string, string] => ["work_style", w]),
+    ...filters.roles.map((r): [string, string] => ["role", r]),
     ...filters.levels.map((l): [string, string] => ["experience", l]),
     ...filters.jobTypes.map((t): [string, string] => ["job_type", t]),
     ...(filters.postedWithin != null
@@ -197,6 +223,24 @@ export function filterEntries(filters: FeedFilters): [string, string][] {
 export function filtersQuery(filters: FeedFilters): string {
   const entries = filterEntries(filters);
   return entries.length ? `?${new URLSearchParams(entries)}` : "";
+}
+
+/** How many roles a page of the feed holds: what /jobs and /search draw
+ *  first, and what each Load More adds. */
+export const PAGE_SIZE = 50;
+
+/** The filters plus /search's words (`q`, matched by the API in the title or
+ *  company name), as the query a page of the feed is asked for with. */
+export function feedQuery(filters: FeedFilters, q = ""): string {
+  const entries = filterEntries(filters);
+  if (q) entries.push(["q", q]);
+  return entries.length ? `?${new URLSearchParams(entries)}` : "";
+}
+
+/** The query's own `q`, as feedQuery wrote it: trimmed, and capped at the
+ *  API's 200 characters so a long one narrows rather than errors. */
+export function readQuery(params: Params): string {
+  return (first(params.q) ?? "").trim().slice(0, 200);
 }
 
 /** Whether any filter narrows the feed: what the empty state says depends on it. */

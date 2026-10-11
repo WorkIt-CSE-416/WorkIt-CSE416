@@ -127,23 +127,24 @@ def scrape(
 
 
 def with_page(job: Job, robots: Robots) -> Job:
-    """The posting with its own page read, if it is a kept Greenhouse posting with
-    no `Page` under the current PAGE_VERSION; otherwise exactly as it was.
+    """The posting with its own page read, if it is a kept Greenhouse, Workable or
+    BambooHR posting with no `Page` under the current PAGE_VERSION; otherwise
+    exactly as it was.
 
-    Only Greenhouse needs this -- Lever and Ashby send it all with the list -- and
-    only once per posting, since the store carries the page forward. Called on
-    postings a board just listed, so one that has left its board is never asked
-    for. A page that fails or is disallowed leaves the posting without one.
+    Only those three need this -- Ashby, Lever and Recruitee send it all with the
+    list -- and only once per posting, since the store carries the page forward.
+    Called on postings a board just listed, so one that has left its board is never
+    asked for. A page that fails or is disallowed leaves the posting without one.
     """
     current = job.page is not None and job.page.version == providers.PAGE_VERSION
-    if job.ats != "greenhouse" or current or not classify(job.title):
+    if job.ats not in providers.JOB_URL or current or not classify(job.title):
         return job
-    url = providers.greenhouse_job_url(job.token, job.external_id)
+    url = providers.job_url(job.ats, job.token, job.external_id)
     if not robots.allows(url):
         return job
     robots.pace(url)
     try:
-        return providers.describe_greenhouse(job)
+        return providers.describe(job)
     except Exception as error:  # noqa: BLE001 - a missing description is not a failed run
         print(f"  !  {job.key}: no description: {type(error).__name__}: {error}", file=sys.stderr)
         return job
@@ -177,8 +178,8 @@ def main(argv: list[str] | None = None) -> int:
             boards = due
         else:
             print(f"scraping {len(boards)} boards\n")
-        # Every origin a run touches, so robots.txt is read once, up front. Greenhouse
-        # postings' own pages share their board list's origin.
+        # Every origin a run touches, so robots.txt is read once, up front. A
+        # posting's own page shares its board list's origin (`providers.JOB_URL`).
         robots = Robots(
             providers.listing_url(board.ats, board.token)
             for board in boards
@@ -194,11 +195,12 @@ def main(argv: list[str] | None = None) -> int:
         stats = replace(stats, kept=len(fresh))
         run = store.update(previous, fresh, read, stats, now)
         # Only boards with a job on the page need a logo, and each is read once.
+        # Recruitee and BambooHR have no page to read one from (`logos.PAGE`).
         unread = sorted(
             {
                 (j.ats, j.token, j.company)
                 for j in run.jobs
-                if run.is_listed(j) and j.board_key not in run.logos
+                if run.is_listed(j) and j.board_key not in run.logos and j.ats in logos.PAGE
             }
         )
         print(f"\nreading {len(unread)} board pages for logos")

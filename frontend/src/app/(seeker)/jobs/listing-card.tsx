@@ -14,6 +14,7 @@ import {
   formatExperienceLevel,
   formatJobType,
   formatMinYears,
+  formatPlaces,
   formatPosted,
   formatSalary,
   formatWorkStyle,
@@ -40,10 +41,13 @@ import { MatchRail } from "./match-rail";
  *   location_city/country  `location`, one string from the board; a remote
  *                          role with none has nothing to list, so it is left
  *                          out (Work Style says Remote), as on a fixture
- *   job_type               `job_type`, when the posting states it: how the
- *                          job is set up (Full-Time, Part-Time, Contract),
- *                          an internship's too. Never "Internship": that is
- *                          the level, beside it
+ *   job_type               "Internship" for every internship, whatever its
+ *                          hours (as Jobright shows it: one kind of
+ *                          internship, not a full-time and a part-time one).
+ *                          Otherwise `job_type`, when the posting states it,
+ *                          or the scraper's Full-Time for a silent new-grad
+ *                          role: how the job is set up (Full-Time,
+ *                          Part-Time, Contract)
  *   salary_*               `salary_*`, when the posting states pay
  *   work_style             `work_style`, when the board states it
  *   experience_level       `experience_level`, always: the scraper keeps
@@ -109,7 +113,12 @@ export function ListingCard({ job }: { job: JobListing }) {
  *  the page and its card never describe one job two ways. */
 export function listingFacts(job: JobListing) {
   return {
-    location: job.location ?? (job.work_style === "remote" ? null : NOT_LISTED),
+    // The import's label where it placed a US city ("San Francisco, CA" for
+    // "SF"), else the board's text tidied ("Philadelphia, PA"); several read
+    // "Bellevue, WA +2 more", and the job posting's page lists every place.
+    location:
+      formatPlaces(job.location_label ?? job.location) ??
+      (job.work_style === "remote" ? null : NOT_LISTED),
     jobType: jobType(job),
     salary: salary(job),
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
@@ -118,12 +127,14 @@ export function listingFacts(job: JobListing) {
   };
 }
 
-/** How the job is set up, the same for an internship as for any role, so the
- *  slot agrees with the Job Type filter (KAN-170). It used to read
- *  "Internship" on every internship, as Jobright does, which put the career
- *  stage in two slots and had "Full-Time" filters return cards saying
- *  "Internship" where the type goes. */
+/** "Internship" for every internship (KAN-171, as Jobright does), else how
+ *  the job is set up. The Job Type filter matches the same way, so a
+ *  Full-Time filter never returns a card that says "Internship". */
 function jobType(job: JobListing) {
+  // Every internship reads "Internship", whatever hours its posting states:
+  // "Full-Time Internship" beside "Part-Time Internship" read as two kinds of
+  // internship (decided 2026-10-10).
+  if (job.experience_level === "internship") return "Internship";
   return job.job_type ? formatJobType(job.job_type) : NOT_LISTED;
 }
 

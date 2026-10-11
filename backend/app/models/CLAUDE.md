@@ -403,7 +403,10 @@ differently ("uk", "czech republic", "turkiye"), areas wholly outside the US
    can't qualify the one before (`Austin, New York`) starts a new place, so
    `Cambridge, MA, Arlington, VA` is two places and `Boston, MA, USA` one.
 5. Decide each place. A city must fit its qualifiers; one alone takes the
-   most populous match, or a US match at least half that size. A name alone
+   most populous match, or a US match at least half that size, by its own
+   name first: only a name that is no city's own ("SF", "NYC") goes by
+   alternates. "Waterloo" is a Waterloo, not Austin's old name (that put
+   "Austin, TX" on a Waterloo co-op's card, review 2026-10-10). A name alone
    prefers a US state, then a country, then a region abroad (unless it is
    also a US city of 250k+), then a city.
 

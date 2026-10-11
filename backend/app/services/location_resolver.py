@@ -166,6 +166,42 @@ class Resolution:
     # resolved to nothing. Empty when the string named no place at all
     # ("Remote"), so a caller can log only real misses.
     unresolved: tuple[str, ...]
+    # The text as a card should print it, or None when nothing in it was
+    # worth rewriting (see label_of). Display only: nothing filters on it.
+    label: str | None = None
+
+
+# (country, region, city name): a decided place, the city when one decided it.
+_Found = tuple[str, str | None, str | None]
+
+
+def _no_city(found: tuple[str, str | None] | None) -> _Found | None:
+    return (*found, None) if found else None
+
+
+# How the job is done rather than where: a segment naming one keeps its own
+# words in the label, since "Remote - San Francisco" printed as "San
+# Francisco, CA" would hide that it's remote. Office and HQ are left out on
+# purpose: "San Francisco Office" is San Francisco.
+_ARRANGEMENT_RE = re.compile(
+    r"\b(?:remote|remotely|hybrid|work from home|wfh|home based|anywhere|worldwide|flexible)\b"
+)
+
+
+# GeoNames names that job listings don't use, to the name they do.
+_DISPLAY_NAME = {"New York City": "New York"}
+
+
+def _city_label(found: _Found, place: Place | None) -> str | None:
+    '''
+    "San Francisco, CA" for a place decided by a US city with a state, else
+    None: abroad, a state or country alone, and anything unplaced keep the
+    posting's own words, so the label never says less than the posting did
+    '''
+    city = found[2]
+    if city is None or place is None or place.country != "US" or place.state is None:
+        return None
+    return f"{_DISPLAY_NAME.get(city, city)}, {place.state.removeprefix('US-')}"
 
 
 @dataclass(frozen=True)
@@ -173,6 +209,8 @@ class _City:
     country: str
     admin1: str
     population: int
+    # GeoNames' own spelling, for the display label: "San Francisco".
+    name: str
 
 
 @dataclass
@@ -208,7 +246,7 @@ def load_gazetteer(path: Path = PLACES_FILE) -> _Gazetteer:
                 regions[key].add((country, admin1))
         elif cols[0] == "city":
             _kind, country, admin1, population, name, ascii_name, alternates = cols
-            city = _City(country, admin1, int(population))
+            city = _City(country, admin1, int(population), name)
             own = {normalize(name), normalize(ascii_name)}
             for key in own:
                 if key:
@@ -313,11 +351,16 @@ class LocationResolver:
 
         places: list[Place] = []
         unresolved: list[str] = []
+        # Each segment's words for the label: "City, ST" for each place in
+        # it when every one is a US city, else the segment as written.
+        labels: list[str] = []
+        rewritten = False
         for segment in self._segments(text):
             pieces = [p for raw in _PIECE_SPLIT.split(segment) for p in self._read(raw)]
+            cities: list[str] | None = [] if not _ARRANGEMENT_RE.search(normalize(segment)) else None
             for group in self._group(pieces):
                 found = self._decide(group)
-                place = self._to_place(*found) if found else None
+                place = self._to_place(found[0], found[1]) if found else None
                 if place is not None:
                     if place not in places:
                         places.append(place)
@@ -325,7 +368,18 @@ class LocationResolver:
                     unresolved.extend(group.unknown)
                     if group.head is not None and found is None:
                         unresolved.append(group.head.raw)
-        return Resolution(tuple(places), tuple(dict.fromkeys(unresolved)))
+                city = _city_label(found, place) if found and not group.unknown else None
+                if cities is not None and city is not None:
+                    cities.append(city)
+                else:
+                    cities = None
+            if cities:
+                labels.extend(cities)
+                rewritten = True
+            else:
+                labels.append(" ".join(segment.split()))
+        label = "; ".join(dict.fromkeys(labels)) if rewritten else None
+        return Resolution(tuple(places), tuple(dict.fromkeys(unresolved)), label)
 
     def _segments(self, text: str) -> list[str]:
         out = []
@@ -448,10 +502,14 @@ class LocationResolver:
     def _fits(city: _City, qualifier: _Piece) -> bool:
         return (city.country, city.admin1) in qualifier.regions or city.country in qualifier.countries
 
-    def _decide(self, group: _Group) -> tuple[str, str | None] | None:
+    def _decide(self, group: _Group) -> _Found | None:
+        '''
+        (country, region, city name) for one place; the city only when a
+        city is what decided it
+        '''
         head, quals = group.head, group.qualifiers
         if head is None:
-            return self._from_qualifiers(quals)
+            return _no_city(self._from_qualifiers(quals))
 
         if not quals:
             # A name standing alone: a US state, then a country, then another
@@ -459,15 +517,19 @@ class LocationResolver:
             # province, "Singapore" the country.
             us_regions = [r for r in head.regions if r[0] == "US"]
             if us_regions:
-                return min(us_regions)
+                return (*min(us_regions), None)
             if head.countries:
-                return (min(head.countries), None)
+                return (min(head.countries), None, None)
             big_us_city = any(
                 self._is_us(c.country) and c.population >= _BIG_US_CITY for c in head.cities[0]
             )
             if head.regions and not big_us_city:
-                return min(head.regions)
-            return self._pick_city(head.all_cities)
+                return (*min(head.regions), None)
+            # Its own name first, as the gazetteer orders them: "Waterloo" is a
+            # Waterloo before it is Austin's old name, and "Frisco" is Frisco,
+            # TX before it is a nickname for San Francisco. Only a name that is
+            # no city's own ("SF", "NYC") falls back to its alternates.
+            return self._pick_city(head.cities[0] or head.cities[1])
 
         if head.all_cities:
             for tier in head.cities:
@@ -479,11 +541,11 @@ class LocationResolver:
             # doesn't make "Perth, WA" a US place.
             has_us_namesake = any(self._is_us(c.country) for c in head.cities[0])
             if biggest.population >= _MAJOR_CITY and not has_us_namesake:
-                return (biggest.country, biggest.admin1)
-            return self._from_qualifiers(quals)
+                return (biggest.country, biggest.admin1, biggest.name)
+            return _no_city(self._from_qualifiers(quals))
 
         # The head is itself a region or country: "Ontario, Canada".
-        return self._from_qualifiers([head, *quals])
+        return _no_city(self._from_qualifiers([head, *quals]))
 
     def _from_qualifiers(self, quals: list[_Piece]) -> tuple[str, str | None] | None:
         '''
@@ -506,7 +568,7 @@ class LocationResolver:
         fitting.sort(key=lambda c: (c[1] is None, not self._is_us(c[0])))
         return fitting[0]
 
-    def _pick_city(self, cities: list[_City]) -> tuple[str, str | None] | None:
+    def _pick_city(self, cities: list[_City]) -> _Found | None:
         if not cities:
             return None
         biggest = max(cities, key=lambda c: c.population)
@@ -514,8 +576,8 @@ class LocationResolver:
         if us:
             best_us = max(us, key=lambda c: c.population)
             if best_us.population >= _US_PREFERENCE * biggest.population:
-                return (best_us.country, best_us.admin1)
-        return (biggest.country, biggest.admin1)
+                return (best_us.country, best_us.admin1, best_us.name)
+        return (biggest.country, biggest.admin1, biggest.name)
 
     @staticmethod
     def _is_us(country: str) -> bool:

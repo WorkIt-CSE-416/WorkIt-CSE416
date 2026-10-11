@@ -12,12 +12,24 @@ import threading
 import time
 import urllib.error
 from collections.abc import Iterable
+from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 
 from workit_scraper import web
 
 #: Minimum gap between requests to one origin when its robots.txt names no Crawl-delay.
 DEFAULT_DELAY_S = 0.1
+
+#: Providers that give each company its own subdomain (`acme.bamboohr.com`): one
+#: origin, and one robots.txt, per board, but one provider's servers behind them
+#: all. Their origins share one pace, so a lane of eight workers reads BambooHR
+#: as gently as it reads Greenhouse's single host, not eight hosts' worth.
+SHARED_PACE = ("bamboohr.com", "recruitee.com")
+
+
+def _pace_key(origin: str) -> str:
+    host = urlsplit(origin).hostname or ""
+    return next((domain for domain in SHARED_PACE if host.endswith(f".{domain}")), origin)
 
 
 def _read_robots(origin: str) -> RobotFileParser | None:
@@ -48,7 +60,7 @@ class Robots:
     def __init__(self, urls: Iterable[str]) -> None:
         origins = {web.origin(url) for url in urls}
         self._parsers = {origin: _read_robots(origin) for origin in origins}
-        self._locks = {origin: threading.Lock() for origin in origins}
+        self._locks = {_pace_key(origin): threading.Lock() for origin in origins}
 
     def allows(self, url: str) -> bool:
         parser = self._parsers[web.origin(url)]
@@ -60,10 +72,11 @@ class Robots:
         Every origin is paced, not only those that publish a Crawl-delay: Greenhouse
         publishes none, and at eight in flight against ~130 ms responses we would run
         at roughly 60 requests a second across a 1,800-board sweep. DEFAULT_DELAY_S
-        caps each origin near ten requests a second.
+        caps each origin near ten requests a second, and each `SHARED_PACE` provider
+        as a whole.
         """
         origin = web.origin(url)
         parser = self._parsers[origin]
         stated = parser.crawl_delay(web.USER_AGENT) if parser else None
-        with self._locks[origin]:
+        with self._locks[_pace_key(origin)]:
             time.sleep(float(stated) if stated else DEFAULT_DELAY_S)

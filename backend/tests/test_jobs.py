@@ -34,12 +34,14 @@ ROW = SimpleNamespace(
     experience_level=dto.experience_level.internship,
     work_style=dto.work_style.hybrid,
     location_raw="Mountain View, CA",
+    location_label="Mountain View, CA",
     posted_at=datetime.datetime(2026, 10, 6, 2, 42, 6, tzinfo=datetime.UTC),
     company_logo_url=None,
     job_type=None,
     min_years_experience=None,
     start_term="Summer 2027",
     sponsorship=dto.visa_sponsorship.sponsors,
+    role_category=dto.role_category.hardware,
     salary=None,
     salary_min=40.0,
     salary_max=46.0,
@@ -65,6 +67,7 @@ def test_row_becomes_the_feed_shape():
         "experience_level": "internship",
         "work_style": dto.work_style.hybrid,
         "location": "Mountain View, CA",
+        "location_label": "Mountain View, CA",
         # The same string feed.json carried, so the frontend's dates don't move.
         "posted_at": "2026-10-06T02:42:06+00:00",
         "logo_url": None,
@@ -78,6 +81,7 @@ def test_row_becomes_the_feed_shape():
         "min_years_experience": None,
         "start_term": "Summer 2027",
         "sponsorship": dto.visa_sponsorship.sponsors,
+        "role_category": dto.role_category.hardware,
     }
 
 
@@ -95,7 +99,7 @@ def test_row_without_a_date():
 
 
 def test_route_leaves_descriptions_out(no_database, monkeypatch):
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         return [to_listing(ROW, "long text")]
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
@@ -104,10 +108,50 @@ def test_route_leaves_descriptions_out(no_database, monkeypatch):
     assert "description" not in rows[0]
 
 
+def test_route_passes_the_offset(no_database, monkeypatch):
+    # Load More asks for the page after the one the board shows.
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(offset)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    assert client.get("/jobs").status_code == 200
+    assert client.get("/jobs?offset=50").status_code == 200
+    assert client.get("/jobs?offset=-1").status_code == 422
+    assert seen == [0, 50]
+
+
+def test_route_reads_the_search_words(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters.query)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    for q in ("  Stripe ", "   ", None):
+        assert client.get("/jobs", params={"q": q} if q is not None else {}).status_code == 200
+    # Trimmed, and blank is no search at all.
+    assert seen == ["Stripe", None, None]
+    assert client.get("/jobs", params={"q": "x" * 201}).status_code == 422
+
+
+def test_a_search_matches_title_or_company_and_escapes_wildcards():
+    sql = _sql(matching(JobFilters(query="100%_on"))[0])
+    assert "lower(job_postings.title) LIKE" in sql
+    assert "lower(job_postings.company_name) LIKE" in sql
+    # % and _ are matched as themselves, not as wildcards.
+    assert "100/%/_on" in sql
+
+
 def test_route_passes_the_limit(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(limit)
         return []
 
@@ -128,7 +172,7 @@ def test_a_feed_written_before_descriptions_still_parses():
 def test_route_passes_the_places(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters.places)
         return []
 
@@ -217,7 +261,7 @@ def test_no_filters_add_no_clauses():
 def test_route_reads_every_filter(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters)
         return []
 
@@ -243,7 +287,7 @@ def test_route_reads_every_filter(no_database, monkeypatch):
 def test_a_yearly_minimum_is_taken_as_given(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters.min_yearly_pay)
         return []
 
@@ -257,7 +301,7 @@ def test_a_yearly_minimum_is_taken_as_given(no_database, monkeypatch):
     [
         "work_style=anywhere",
         "experience=experienced",  # the feed holds intern and new-grad roles only
-        "job_type=internship",  # a career stage, not how a job is set up
+        "job_type=freelance",
         "posted_within=0",
         "min_pay=-5",
         "min_pay=45&pay_per=month",
@@ -296,8 +340,73 @@ def test_each_filter_narrows_its_own_column():
     assert sql == [
         "job_postings.work_style IN ('onsite')",
         "job_postings.experience_level IN ('new_grad')",
-        "job_postings.job_type IN ('part_time', 'contract')",
+        (
+            "job_postings.experience_level != 'internship'"
+            " AND job_postings.job_type IN ('part_time', 'contract')"
+        ),
     ]
+
+
+def test_internship_is_a_job_type_of_its_own():
+    # The Jobs page shows "Internship" as every internship's job type, so the
+    # filter's Internship is every internship, and Full-Time is only the rest.
+    (clause,) = matching(JobFilters(job_types=["internship"]))
+    assert _sql(clause) == "job_postings.experience_level = 'internship'"
+    (clause,) = matching(JobFilters(job_types=["full_time", "internship"]))
+    assert _sql(clause) == (
+        "job_postings.experience_level = 'internship'"
+        " OR job_postings.experience_level != 'internship'"
+        " AND job_postings.job_type IN ('full_time')"
+    )
+
+
+def test_route_reads_internship_as_a_job_type(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters.job_types)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs?job_type=internship&job_type=part_time").status_code == 200
+    assert list(seen[0]) == ["internship", "part_time"]
+
+
+def test_role_keeps_any_of_the_disciplines_asked_for():
+    (clause,) = matching(JobFilters(roles=[dto.role_category.quant, dto.role_category.product]))
+    assert _sql(clause) == "job_postings.role_category IN ('quant', 'product')"
+
+
+def test_route_reads_roles(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters.roles)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    client = TestClient(app)
+    assert client.get("/jobs?role=data_ai&role=hardware").status_code == 200
+    assert client.get("/jobs").status_code == 200
+    assert seen == [[dto.role_category.data_ai, dto.role_category.hardware], []]
+
+
+@pytest.mark.parametrize("role", ["swe", "Software", "design", "mechanical"])
+def test_route_rejects_an_unknown_role(no_database, role):
+    assert TestClient(app).get("/jobs", params={"role": role}).status_code == 422
+    assert TestClient(app).get("/jobs/count", params={"role": role}).status_code == 422
+
+
+def test_count_reads_roles(no_database, monkeypatch):
+    seen = []
+
+    async def count(db, filters):
+        seen.append(filters.roles)
+        return 3
+
+    monkeypatch.setattr("app.routers.jobs.fetch_count", count)
+    assert TestClient(app).get("/jobs/count?role=product").json() == {"jobs": 3}
+    assert seen == [[dto.role_category.product]]
 
 
 def test_visa_sponsors_keeps_only_stated_sponsors():
@@ -316,7 +425,7 @@ def test_visa_not_ruled_out_keeps_the_silent_majority():
 def test_route_reads_seasons_and_visa(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters)
         return []
 
@@ -340,7 +449,7 @@ def test_route_reads_seasons_and_visa(no_database, monkeypatch):
 def test_a_season_no_posting_names_matches_nothing(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append(filters.start_terms)
         return []
 
@@ -406,6 +515,7 @@ def test_a_season_is_over_once_the_next_begins(key, day, over):
 def test_route_lists_facets(no_database, monkeypatch):
     facets = JobFacets(
         work_style=[FacetCount(value="remote", jobs=73)],
+        role=[FacetCount(value="quant", jobs=41)],
         experience=[], job_type=[], posted_within=[], visa=[], start_term=[],
     )
 
@@ -415,6 +525,7 @@ def test_route_lists_facets(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_facets", fetch)
     body = TestClient(app).get("/jobs/facets").json()
     assert body["work_style"] == [{"value": "remote", "jobs": 73}]
+    assert body["role"] == [{"value": "quant", "jobs": 41}]
 
 
 def test_count_reads_the_same_filters(no_database, monkeypatch):
@@ -433,7 +544,7 @@ def test_count_reads_the_same_filters(no_database, monkeypatch):
 
 
 def test_count_rejects_what_the_list_rejects(no_database):
-    assert TestClient(app).get("/jobs/count?job_type=internship").status_code == 422
+    assert TestClient(app).get("/jobs/count?job_type=freelance").status_code == 422
 
 
 def test_a_pay_range_matches_postings_whose_range_overlaps_it():
@@ -453,7 +564,7 @@ def test_a_pay_range_matches_postings_whose_range_overlaps_it():
 def test_route_reads_a_pay_range(no_database, monkeypatch):
     seen = []
 
-    async def fetch(db, limit, filters):
+    async def fetch(db, limit, filters, offset=0):
         seen.append((filters.min_yearly_pay, filters.max_yearly_pay))
         return []
 

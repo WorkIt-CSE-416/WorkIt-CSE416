@@ -61,6 +61,22 @@ class TestExtract:
             == "https://www.google.com/s2/favicons?domain=beaconsoftware.com&sz=128"
         )
 
+    def test_workable_account_logo_not_the_social_image(self) -> None:
+        # Hugging Face's account, 2026-10-10: a 120x120 square.
+        page = (
+            '{"id":514327,"logo":"https://workablehr.s3.amazonaws.com/uploads/account/logo/'
+            '514327/logo","subdomain":"huggingface","name":"Hugging Face",'
+            '"url":"https://huggingface.co/","details":{"gdpr":{"url":'
+            '"https://apply.workable.com/huggingface/gdpr_policy"}}}'
+        )
+        assert (
+            logos.extract("workable", page)
+            == "https://workablehr.s3.amazonaws.com/uploads/account/logo/514327/logo"
+        )
+        # With no logo, its website's icon -- the account's own `url`, not the GDPR page's.
+        bare = page.replace('"https://workablehr.s3.amazonaws.com/uploads/account/logo/', '"x')
+        assert logos.extract("workable", bare) == logos.favicon("huggingface.co")
+
     def test_a_board_without_a_logo(self) -> None:
         # Axios's Greenhouse board carries no uploaded logo.
         assert logos.extract("greenhouse", "<html><h1>Axios</h1></html>") is None

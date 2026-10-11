@@ -36,6 +36,10 @@ class JobListing(BaseModel):
     work_style: work_style | None
     # One place, or "N locations" for a role posted to several offices.
     location: str | None
+    # The card's version of it, "San Francisco, CA", from the import
+    # (job_postings.location_label). Never in the scraper's feed, so it
+    # defaults to None there.
+    location_label: str | None = None
     posted_at: str | None
     # The logo the company uploaded to its job board; None when it has none.
     logo_url: str | None
@@ -45,8 +49,10 @@ class JobListing(BaseModel):
     description: str | None = None
     # The rest of the card, named after job_postings' columns. Each is None when
     # the posting never states it: the scraper reads the job board's own fields
-    # first, then the whole description, and guesses nothing. Defaulted so an
-    # older feed.json still parses.
+    # first, then the whole description, and infers only by measured rules
+    # (job_type full_time for a silent new-grad role; scraper/CLAUDE.md).
+    # The Jobs page shows "Internship" as an internship's job type whatever
+    # this holds. Defaulted so an older feed.json still parses.
     job_type: dto.job_type | None = None
     # One amount, or a min and max when the posting gives a range.
     salary: float | None = None
@@ -63,6 +69,11 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
+    # Which of the five disciplines the role is in (software, data_ai, product,
+    # quant, hardware), read from its title by the scraper. None only in a
+    # feed.json written before the scraper kept more than software, which is
+    # why it is defaulted.
+    role_category: dto.role_category | None = None
 
 
 class JobLocationOption(BaseModel):
@@ -95,6 +106,7 @@ class JobFacets(BaseModel):
     """
 
     work_style: list[FacetCount]
+    role: list[FacetCount]
     experience: list[FacetCount]
     job_type: list[FacetCount]
     posted_within: list[FacetCount]
