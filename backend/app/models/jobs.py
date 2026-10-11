@@ -101,13 +101,15 @@ class Job_Post(BaseModel):
     embedding: Mapped[list[float] | None] = mapped_column(
         VECTOR(dto.EMBEDDING_DIMENSIONS), deferred=True
     )
-    # The title and description as stemmed search terms; matching searches
-    # it for the applicant's own skills. Postgres computes it and keeps it
-    # current, so nothing here ever writes it.
+    # The title and description as stemmed search terms, the title weighted
+    # A and the description D so a search ranks title matches first
+    # (a70c641b2f99); matching searches it for the applicant's own skills.
+    # Postgres computes it and keeps it current, so nothing here writes it.
     fts: Mapped[str | None] = mapped_column(
         TSVECTOR,
         Computed(
-            "to_tsvector('english', coalesce(title, '') || ' ' || coalesce(description, ''))",
+            "setweight(to_tsvector('english', coalesce(title, '')), 'A') || "
+            "setweight(to_tsvector('english', coalesce(description, '')), 'D')",
             persisted=True,
         ),
         deferred=True,
@@ -138,6 +140,9 @@ class Job_Post(BaseModel):
             desc("created_at")
         ), 
         
+        # a search's fts @@ query (a70c641b2f99)
+        Index("job_postings_fts_idx", "fts", postgresql_using="gin"),
+
         # trigram GIN indexes 
         # for each company name is uploaded, split name into 3 char buckets and store the job
         # when a search title comes in, split into 3, it looks for jobs that are in all buckets

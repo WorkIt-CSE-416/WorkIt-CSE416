@@ -6,7 +6,7 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 
 import type { ExperienceLevel, JobType, WorkStyle } from "./data";
-import { feedQuery, NO_FILTERS, PAGE_SIZE, type FeedFilters, type Role } from "./filter-query";
+import { feedQuery, NO_FILTERS, PAGE_SIZE, type FeedFilters } from "./filter-query";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
@@ -67,8 +67,10 @@ export type JobListing = {
    *  US citizens only. Null when it says nothing, which is most postings. */
   sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
   /** The role's categories, first first, then their specialties, read from
-   *  its title by the scraper (KAN-172): ["data_ai", "software", "data_ai/ml"]. */
-  roles: Role[];
+   *  its title by the scraper (KAN-172): ["data_ai", "software", "data_ai/ml"].
+   *  Not what the Role filter uses any more (that is `job_roles`, KAN-155);
+   *  the API drops it with its column, and nothing on the page reads it. */
+  roles: string[];
   /** Its first category when that is one of the five there were before
    *  KAN-172. Superseded by `roles`; the API drops it with its column. */
   role_category: "software" | "data_ai" | "product" | "quant" | "hardware" | null;
@@ -155,12 +157,18 @@ export async function getJobLocations(): Promise<JobLocationOption[]> {
  *  takes it ("remote", "full_time", "7", "summer-2027"). */
 export type FacetCount = { value: string; jobs: number };
 
+/** A `job_roles` role as the Role filter offers it (KAN-155): `value` its
+ *  slug, as GET /jobs?role= takes it, and `label` its name. */
+export type JobRoleOption = FacetCount & { label: string };
+
 /** Every filter option's count across the whole feed (not narrowed by the
- *  other filters), and the start terms postings name, in calendar order. */
+ *  other filters), and the start terms postings name, in calendar order.
+ *  `role` is also the Role filter's options: the roles that tag a job, in
+ *  the database's order, with their names. */
 export type JobFacets = Record<
-  "work_style" | "role" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
+  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
   FacetCount[]
->;
+> & { role: JobRoleOption[] };
 
 const NO_FACETS: JobFacets = {
   work_style: [],

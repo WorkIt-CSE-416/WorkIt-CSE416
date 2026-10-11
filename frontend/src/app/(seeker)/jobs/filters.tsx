@@ -38,9 +38,7 @@ import {
   EXPERIENCE_OPTIONS,
   FILTER_KEYS,
   filterEntries,
-  isSpecialty,
   JOB_TYPE_OPTIONS,
-  ROLE_CATEGORY_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "./filter-query";
@@ -192,8 +190,8 @@ function Facet({
   label: string;
   options: readonly Option[];
   values: string[];
-  /** How many picks the facet holds, when some are not among its options
-   *  (Role's specialties, picked in the All Filters panel). */
+  /** How many picks the facet holds, when some may not be among its
+   *  options (a role from a link that no job holds today). */
   picked?: number;
   onChange: (values: string[]) => void;
   multiple?: boolean;
@@ -445,6 +443,57 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
   );
 }
 
+/** Role once GET /jobs/facets has answered: the `job_roles` that tag a job,
+ *  in the database's order, each with its count (KAN-155). Its options come
+ *  with the counts, so unlike the other facets it waits on them, as Location
+ *  waits on its places. */
+function RoleFacetOptions({
+  facets,
+  values,
+  onChange,
+  className,
+}: {
+  facets: Promise<JobFacets>;
+  values: string[];
+  onChange: (values: string[]) => void;
+  className?: string;
+}) {
+  const options = use(facets).role.map((o) => ({
+    value: o.value,
+    label: o.label,
+    count: <JobCount n={o.jobs} />,
+  }));
+  return (
+    <Facet
+      Icon={RoleIcon}
+      label="Role"
+      options={options}
+      values={values}
+      onChange={onChange}
+      className={className}
+    />
+  );
+}
+
+function RoleFacet(props: Parameters<typeof RoleFacetOptions>[0]) {
+  return (
+    <Suspense
+      fallback={
+        <button
+          type="button"
+          disabled
+          className={facetTriggerClasses(props.values.length, false, props.className)}
+        >
+          <FacetLabel Icon={RoleIcon} label="Role" active={false} />
+          <ChevronDownIcon className="text-muted-foreground size-4" />
+        </button>
+      }
+    >
+      <RoleFacetOptions {...props} />
+    </Suspense>
+  );
+}
+
 /** A job count after an option's label, in the row's quiet grey. Counts are
  *  across the whole feed, not narrowed by the other filters (GET
  *  /jobs/facets), so they say how big an option is, not how many of the
@@ -575,26 +624,13 @@ export function JobFilters({
 
   // The row's facets, each given the width classes its place in the row needs.
   const facet = {
-    // The twelve categories only: with their nine specialties the list ran
-    // to 21 rows, taller than a laptop's dropdown, where the panel's search
-    // picker finds a specialty by typing. Specialties picked there stay
-    // picked, and count toward the button's tint, when a category is ticked
-    // here.
+    // The job_roles that tag a job (KAN-155), from GET /jobs/facets. The
+    // panel's search picker offers the same list, found by typing.
     role: (className: string) => (
-      <Facet
-        Icon={RoleIcon}
-        label="Role"
-        options={counted(ROLE_CATEGORY_OPTIONS, facets, "role")}
-        values={shown.roles.filter((role) => !isSpecialty(role))}
-        picked={shown.roles.length}
-        onChange={(values) =>
-          set({
-            roles: [
-              ...(values as FeedFilters["roles"]),
-              ...shown.roles.filter((role) => isSpecialty(role)),
-            ],
-          })
-        }
+      <RoleFacet
+        facets={facets}
+        values={shown.roles}
+        onChange={(roles) => set({ roles })}
         className={className}
       />
     ),
@@ -661,8 +697,8 @@ export function JobFilters({
           or Scout counts): Location and All Filters anywhere, then Role from
           448px, Workplace 672, Experience 768, Date Posted 896 and Job Type
           1024.
-          Role sits second, beside Location (KAN-171): with twelve categories
-          in one feed (KAN-172), which kind of role is the first thing a
+          Role sits second, beside Location (KAN-171): with every field in
+          one feed (KAN-172), which kind of role is the first thing a
           seeker narrows by, and software and engineering are half of it
           (1,660 of 3,507 job postings on 2026-10-10), so a marketing or
           design seeker otherwise scrolls past them all. Visa is in the

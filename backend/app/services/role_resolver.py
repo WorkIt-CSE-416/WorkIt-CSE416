@@ -57,7 +57,7 @@ WORD_FORMS = {
     "managers": "manager", "mgr": "manager", "programmers": "programmer",
     "researchers": "researcher", "recruiters": "recruiter", "accountants": "accountant",
     "nurses": "nurse", "nursing": "nurse", "teachers": "teacher", "therapists": "therapist",
-    "agents": "agent",
+    "agents": "agent", "internship": "intern", "internships": "intern",
     "fullstack": "full stack", "frontend": "front end", "backend": "back end",
     "cybersecurity": "cyber security",
 }
@@ -85,7 +85,7 @@ ALIASES: dict[str, tuple[str, ...]] = {
         "machine learning", "machine learning engineer", "ml", "ml engineer", "ai ml", "ml ai",
         "ai engineer", "artificial intelligence", "deep learning", "computer vision", "nlp",
         "natural language processing", "llm", "applied ai", "generative ai", "genai", "mlops",
-        "ai agent", "agentic ai",
+        "ai agent", "agentic ai", "robot learning",
     ),
     "data_engineer": (
         "data engineer", "engineer data", "data platform", "analytics engineer", "etl",
@@ -101,7 +101,7 @@ ALIASES: dict[str, tuple[str, ...]] = {
         "pentester", "appsec", "application security",
     ),
     "qa_engineer": (
-        "qa", "quality assurance", "test engineer", "sdet", "software test", "software tester",
+        "qa", "quality assurance", "sdet", "software test", "software tester",
         "software quality", "software quality engineer", "test automation", "automation test",
     ),
     "quality_engineer": (
@@ -115,15 +115,33 @@ ALIASES: dict[str, tuple[str, ...]] = {
     ),
     "hardware_engineer": (
         "hardware", "asic", "fpga", "silicon", "chip", "vlsi", "rtl", "design verification",
+        "ic design", "digital design", "analog design", "dsp", "rf engineer", "photonics",
+        "radio frequency",
     ),
     "embedded_engineer": (
         "embedded", "firmware", "embedded software", "embedded systems", "firmware development",
     ),
+    "robotics_engineer": ("robotics", "mechatronics", "robot", "autonomy engineer"),
     "electrical_engineer": ("electrical", "electronics engineer", "power systems engineer"),
-    "mechanical_engineer": ("mechanical", "mechanical design"),
+    "mechanical_engineer": (
+        "mechanical", "mechanical design", "turbomachinery", "thermal engineer",
+        "thermal simulation", "product design engineer",
+    ),
+    "aerospace_engineer": (
+        "aerospace", "aeronautical", "astronautical", "propulsion", "avionics", "gnc",
+        "guidance navigation and controls", "guidance navigation and control", "flight test",
+        "mission operations", "spacecraft", "launch engineer",
+    ),
+    "manufacturing_engineer": (
+        "manufacturing", "process engineer", "production engineer", "tooling engineer",
+    ),
+    "industrial_engineer": ("industrial engineer", "industrial and systems engineer"),
+    "systems_engineer": ("systems engineer", "system engineer", "systems engineering intern"),
+    "chemical_engineer": ("chemical", "materials engineer", "nuclear engineer"),
     "civil_engineer": (
         "civil", "transportation engineer", "geotechnical", "water resources engineer",
-        "construction engineer",
+        "construction engineer", "roadway", "survey intern", "surveyor", "environmental engineer",
+        "water infrastructure",
     ),
     "structural_engineer": ("structural", "structures engineer"),
     # data and research
@@ -143,32 +161,83 @@ ALIASES: dict[str, tuple[str, ...]] = {
     # product
     "product_manager": (
         "product manager", "product management", "associate product manager", "apm",
-        "product owner",
+        "product owner", "product operations",
     ),
     "product_designer": (
         "product design", "ux designer", "ui designer", "ui ux", "ux ui", "ux design",
         "ux research", "ux researcher", "user research", "user experience", "interaction designer",
-        "visual designer", "graphic designer", "web designer",
+        "web designer",
     ),
+    "graphic_designer": (
+        "graphic design", "visual designer", "visual design", "brand designer", "motion designer",
+        "illustrator",
+    ),
+    "industrial_designer": ("industrial design",),
     # business
     "business_analyst": ("business analysis", "business systems analyst"),
+    "operations_analyst": (
+        "business operations", "bizops", "strategy and operations", "operations analyst",
+        "operations associate", "operations intern", "trading operations", "strategy analyst",
+        "strategy intern", "deployment strategist", "operations coordinator",
+    ),
+    "project_manager": (
+        "program manager", "project coordinator", "program coordinator", "program management",
+        "project management", "technical program manager", "tpm",
+    ),
+    "supply_chain_analyst": (
+        "supply chain intern", "supply chain associate", "supply chain coordinator",
+        "supply chain planner", "procurement", "sourcing",
+        "logistics intern", "logistics analyst", "logistics coordinator", "buyer", "purchasing",
+        "demand planning", "inventory analyst",
+    ),
+    # finance
+    "financial_analyst": (
+        "finance intern", "finance analyst", "finance associate", "fp a",
+        "corporate finance", "treasury analyst", "treasury intern", "financial planning",
+    ),
+    "investment_banking_analyst": (
+        "investment banking", "investment banker", "mergers and acquisitions", "m a",
+        "capital markets", "leveraged finance",
+    ),
+    "investment_analyst": (
+        "investment intern", "investment associate", "private equity", "venture capital",
+        "equity research", "asset management", "wealth management", "portfolio analyst",
+        "hedge fund",
+    ),
+    "risk_analyst": (
+        "risk intern", "risk management", "credit analyst", "credit risk", "underwriter",
+        "underwriting",
+    ),
+    "actuary": ("actuarial", "actuarial analyst", "actuarial intern"),
     "accountant": (
         "accounting intern", "accounting associate", "accounting analyst", "staff accountant",
-        "cpa", "bookkeeper", "auditor", "audit associate", "tax associate",
+        "cpa", "bookkeeper", "auditor", "audit associate", "tax associate", "audit intern",
+        "tax intern", "audit associate intern",
     ),
     "marketing_specialist": (
         "marketing coordinator", "marketing manager", "marketing associate", "marketing intern",
         "marketing analyst", "product marketing", "growth marketing", "digital marketing",
         "content marketing", "brand manager", "social media manager", "seo specialist",
+        "social media intern", "social media coordinator", "social media specialist",
+        "copywriter", "content writer", "media planning", "media planner", "media buyer",
+        "communications intern", "communications specialist", "public relations",
+        "video buyer", "developer community",
     ),
     "sales_representative": (
         "sales rep", "sales associate", "sales intern", "sales manager", "sales specialist",
         "sales development", "sdr", "bdr", "inside sales", "account executive", "account manager",
         "business developer", "business development", "software sales", "technical sales",
+        "partnerships intern", "partnerships associate", "sales partner",
     ),
     "recruiter": (
         "recruiting coordinator", "recruiting intern", "talent acquisition", "talent partner",
-        "sourcer", "hr", "human resources",
+        "sourcer", "recruiting associate",
+    ),
+    "hr_specialist": (
+        "hr intern", "hr coordinator", "hr generalist", "hr associate",
+        "human resources intern", "human resources assistant", "human resources coordinator",
+        "people operations", "people partner", "total rewards",
+        "talent scientist",
     ),
     # healthcare
     "nurse": ("registered nurse", "rn", "lpn", "nurse practitioner"),
@@ -192,17 +261,21 @@ ALIASES: dict[str, tuple[str, ...]] = {
 
 # Phrases that look like a role and aren't, as words to pass over: an alias
 # that tags nothing. "UIUC Research Park" is a place, "Hardware-In-The-Loop" a
-# kind of testing, "(Embedded Science Team)" a team name.
+# kind of testing, "(Embedded Science Team)" a team name, and a bank's
+# "Infrastructure M&A" or "Infrastructure Finance" a deal group.
 NOT_ROLES = (
     "research park", "hardware in the loop", "embedded science",
+    "infrastructure m a", "infrastructure advisory", "infrastructure finance",
+    "infrastructure investment", "infrastructure investing",
 )
 
 # Roles whose title is the job itself, with any field words only saying which
 # area it serves ("Product Manager, Machine Learning Platform"). When one
 # matches, the other roles the title names are dropped.
 OUTRIGHT = frozenset({
-    "product_manager", "product_designer", "marketing_specialist", "sales_representative",
-    "recruiter", "teacher", "store_manager", "real_estate_agent",
+    "product_manager", "product_designer", "graphic_designer", "industrial_designer",
+    "project_manager", "marketing_specialist", "sales_representative", "recruiter",
+    "hr_specialist", "teacher", "store_manager", "real_estate_agent",
 })
 
 # Typo correction in read_query. Words shorter than FUZZY_MIN_LENGTH are left

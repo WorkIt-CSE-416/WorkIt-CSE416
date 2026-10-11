@@ -98,6 +98,47 @@ CASES = [
     ("Software Engineer, Sales Platform", {"software_engineer"}),
     ("Software Engineer, Recruiting Platform", {"software_engineer"}),
     ("Junior Software Engineer with Accounting Experience (Mexico)", {"software_engineer"}),
+    # the categories the scraper keeps beyond tech (KAN-172), from the titles in
+    # scraper/tests/test_shortlist.py: every one needs a role here, or it drops
+    # out of the Role filter
+    ("Investment Banking Summer Analyst - Infrastructure M&A Advisory - Summer 2027",
+     {"investment_banking_analyst"}),
+    ("Private Equity Investment Intern", {"investment_analyst"}),
+    ("Venture Capital Analyst Intern", {"investment_analyst"}),
+    ("Actuarial Intern  - Summer 2027", {"actuary"}),
+    ("Credit Analyst Intern (Jan 2027)", {"risk_analyst"}),
+    ("Corporate Finance Intern", {"financial_analyst"}),
+    ("Supply Chain Intern Summer 2027", {"supply_chain_analyst"}),
+    ("Business Operations Intern - Summer 2027", {"operations_analyst"}),
+    ("Deployment Strategist, Internship", {"operations_analyst"}),
+    ("Junior Project Manager", {"project_manager"}),
+    ("Hardware Technical Program Management Intern", {"project_manager"}),
+    ("2027 New Graduate - Materials Engineer", {"chemical_engineer"}),
+    ("Propulsion Manufacturing Intern (Summer 2027)",
+     {"aerospace_engineer", "manufacturing_engineer"}),
+    ("2027 Systems Engineer Intern", {"systems_engineer"}),
+    ("Entry-Level Roadway Engineer", {"civil_engineer"}),
+    ("Survey Internship", {"civil_engineer"}),   # "internship" is "intern"
+    ("Water Infrastructure Engineering Intern", {"civil_engineer"}),
+    ("Mechatronics Intern", {"robotics_engineer"}),
+    ("Robot Learning Engineer Intern", {"ai_ml_engineer"}),
+    ("Digital IC Design Engineer Intern", {"hardware_engineer"}),
+    ("Product Design Engineering Intern Opportunities", {"mechanical_engineer"}),
+    ("Graphic Design Intern", {"graphic_designer"}),
+    ("Visual Design Co-op 2027", {"graphic_designer"}),
+    ("Fall 2026: Industrial Design Co-op (October through December)", {"industrial_designer"}),
+    ("Junior Copywriter", {"marketing_specialist"}),
+    ("Media Planning Internship", {"marketing_specialist"}),
+    ("Junior Video Buyer (Mensch)", {"marketing_specialist"}),   # a buyer of ads, not supplies
+    ("People Operations Intern", {"hr_specialist"}),
+    ("Partnerships Intern", {"sales_representative"}),
+    # ... and their fields alone name no role, so a tech job serving one keeps its tag
+    ("Forward Deployed Engineer Intern (HR Technology)", {"solutions_engineer"}),
+    ("Software Engineer Intern, Finance Platform", {"software_engineer"}),
+    ("Graduate Software Engineer (Supply Chain + Operations)", {"software_engineer"}),
+    ("PMO Data Engineering Intern", {"data_engineer"}),
+    # a test engineer is software, hardware or a lab: no one role, so no tag
+    ("Test Engineering Intern Summer 2027", set()),
     # fields beyond the feed, for onboarding
     ("Registered Nurse - ICU", {"nurse"}),
     ("Clinical Psychologist", {"psychologist"}),

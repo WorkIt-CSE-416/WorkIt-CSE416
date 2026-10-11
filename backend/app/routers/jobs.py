@@ -28,8 +28,8 @@ Without that, Remote + United States hid 15 of the feed's 82 remote roles.
 
 The job board's other filters narrow it the same way (JobFilters, KAN-170),
 each by a column every scraped row fills when the posting states it:
-?work_style=, ?role= (a category or a specialty from roles, KAN-172:
-"software", "engineering/civil"; repeated, any of, an array overlap),
+?work_style=, ?role= (job_roles slugs, "software_engineer"; repeated, any
+of: a job tagged in job_role_tags with any of them, KAN-155),
 ?job_type= and ?experience= (repeated, any of), ?posted_within=
 (days), and ?min_pay= and ?max_pay= with ?pay_per= (hour or year), a range that
 matches any posting whose own pay range overlaps it. Pay is compared as a yearly
@@ -40,6 +40,15 @@ minimum and its bottom the maximum, and only US dollars compare: 88% of stated p
 and the rest can't be weighed against a dollar threshold without exchange
 rates. A job that states no pay, or no value for a filtered column, is left out
 by that filter, as one with no location is by ?location=.
+
+?q= is a search, read by the same role resolver the import tags jobs with
+(services/role_resolver.py, read_query, typos corrected): the roles it names
+narrow to jobs tagged with each of them, and the words no role used must
+match the job's text (job_postings.fts, its title weighted above its
+description) or its company's name. With words, the closest matches come
+first: a company named by them, then by ts_rank, then newest. "swe intern
+stripe" is software engineer jobs that mention Stripe or are at Stripe.
+docs/search.md has the design.
 
 Descriptions are left out of the list: the cards never show them, and at
 several thousand characters each they would make every feed load many times
@@ -58,12 +67,12 @@ from pydantic import StringConstraints
 from sqlalchemy import (
     ColumnElement,
     Row,
-    Select,
     and_,
     case,
     distinct,
     exists,
     func,
+    literal_column,
     or_,
     select,
 )
@@ -72,6 +81,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.models import dto
 from app.models.dto import job_post_status
+from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import (
@@ -80,7 +90,9 @@ from app.schemas.jobs import (
     JobFacets,
     JobListing,
     JobLocationOption,
+    JobRoleOption,
 )
+from app.services.role_resolver import RoleResolver
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -119,6 +131,11 @@ SeasonKey = Annotated[
 # A country ("US") or a state ("US-CA"). Only the shape is checked: a code no
 # job uses matches nothing, which is the right answer for it.
 PlaceCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}(-[A-Z0-9]{1,3})?$")]
+
+# A job_roles slug ("software_engineer"). Only the shape is checked, as for a
+# place: a slug no job is tagged with matches nothing. The seed's
+# job_roles_slug_shape CHECK holds the same pattern, capped here.
+RoleSlug = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 
 # The catch-all country for places outside the seed (models/CLAUDE.md), named
 # "Other". It goes last, and its placeholder state ZZ-ZZ is never listed.
@@ -210,9 +227,9 @@ class JobFilters:
     '''
     places: Sequence[str] = ()
     work_styles: Sequence[dto.work_style] = ()
-    # The categories and specialties asked for (KAN-172); none means every one.
-    # A job matches when its roles hold any of them.
-    roles: Sequence[dto.role_key] = ()
+    # The job_roles slugs the Role filter asked for; none means every role. A
+    # job matches when it is tagged with any of them (job_role_tags).
+    roles: Sequence[str] = ()
     levels: Sequence[str] = ()
     # "internship" is every internship, whatever its hours: the Jobs page shows
     # that as an internship's job type, so full_time and the rest match only
@@ -232,10 +249,12 @@ class JobFilters:
     # posting that says it doesn't, or wants US citizens only, and keep the
     # ones that say nothing, which is most of them (KAN-168).
     visa: Literal["sponsors", "not_ruled_out"] | None = None
-    # /search's words, matched in the title or the company's name, ignoring
-    # case. On the server, so a search reaches every job and not only the
-    # page of them the feed has loaded.
-    query: str | None = None
+    # ?q= read by the role resolver: the roles it names, each of which a job
+    # must be tagged with, and the words no role used, which must match the
+    # job's text or its company. On the server, so a search reaches every job
+    # and not only the page of them the feed has loaded.
+    query_roles: Sequence[str] = ()
+    query_words: str | None = None
 
 
 # ?job_type=: the column's three, plus "internship" (see JobFilters.job_types).
@@ -278,6 +297,49 @@ def yearly_pay(end: Literal["top", "bottom"] = "top") -> ColumnElement[float]:
     return amount * factor
 
 
+def tagged_with(slugs: Iterable[str]) -> ColumnElement[bool]:
+    '''
+    true for a job tagged with any of these job_roles slugs. The primary key
+    (job_id, role_slug) serves it
+    '''
+    return exists().where(
+        Job_Role_Tag.job_id == Job_Post.id, Job_Role_Tag.role_slug.in_(list(slugs))
+    )
+
+
+def search_query(words: str) -> ColumnElement:
+    '''
+    the words as a full-text query, read the way a search box is: quotes for a
+    phrase, "or", "-" to exclude, and nothing a user types can make it invalid
+    '''
+    # The config written into the SQL, not bound: the parameter would have to
+    # reach asyncpg as a regconfig, and a constant needs no such typing.
+    return func.websearch_to_tsquery(literal_column("'english'"), words)
+
+
+def text_matches(words: str) -> ColumnElement[bool]:
+    '''
+    true for a job whose text (title and description, fts) holds the words,
+    or whose company's name contains them. The name is matched as typed, not
+    stemmed: "stripe" is Stripe, not every posting that says "stripes"
+    '''
+    return or_(
+        Job_Post.fts.bool_op("@@")(search_query(words)),
+        Job_Post.company_name.icontains(words, autoescape=True),
+    )
+
+
+def relevance(words: str) -> list[ColumnElement]:
+    '''
+    the order for a search with words: a company the words name first, then
+    the closest text (ts_rank, where the title outweighs the description)
+    '''
+    return [
+        case((Job_Post.company_name.icontains(words, autoescape=True), 0), else_=1),
+        func.ts_rank(Job_Post.fts, search_query(words)).desc(),
+    ]
+
+
 def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     '''
     the WHERE clauses for these filters, beyond published and scraped
@@ -288,10 +350,7 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.work_styles:
         clauses.append(Job_Post.work_style.in_(filters.work_styles))
     if filters.roles:
-        # Array overlap, which job_postings_roles_idx (GIN) serves: a job in data
-        # and software matches ?role=software, and so does one whose specialty
-        # alone was asked for.
-        clauses.append(Job_Post.roles.overlap([role.value for role in filters.roles]))
+        clauses.append(tagged_with(filters.roles))
     if filters.levels:
         clauses.append(Job_Post.experience_level.in_(filters.levels))
     if filters.job_types:
@@ -309,13 +368,11 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.start_terms is not None:
         # An empty list renders as an always-false IN.
         clauses.append(Job_Post.start_term.in_(filters.start_terms))
-    if filters.query:
-        clauses.append(
-            or_(
-                Job_Post.title.icontains(filters.query, autoescape=True),
-                Job_Post.company_name.icontains(filters.query, autoescape=True),
-            )
-        )
+    # Each role a search names narrows on its own: "ml software" is jobs
+    # tagged with both, unlike the Role filter's any of.
+    clauses.extend(tagged_with([slug]) for slug in filters.query_roles)
+    if filters.query_words:
+        clauses.append(text_matches(filters.query_words))
     if filters.visa == "sponsors":
         clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
     elif filters.visa == "not_ruled_out":
@@ -336,10 +393,11 @@ async def fetch_listings(
     narrowed by whatever `filters` asks for, `offset` of them in
     '''
     query = select(*_COLUMNS).where(_LISTED, *matching(filters))
+    closest = relevance(filters.query_words) if filters.query_words else []
     rows = await db.execute(
         # id breaks ties, so the order is the same on every request and a
         # page picks up exactly where the last one stopped.
-        query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id)
+        query.order_by(*closest, Job_Post.posted_at.desc().nulls_last(), Job_Post.id)
         .offset(offset)
         .limit(limit)
     )
@@ -416,14 +474,32 @@ async def fetch_listing(db: AsyncSession, job_id: str) -> JobListing | None:
     return to_listing(row, row.description) if row else None
 
 
+# The resolver ?q= is read with, built from job_roles on first use and kept
+# for the life of the process: the roles change only by a migration, and a
+# deploy (a new process) follows one. Tests stand role_resolver in.
+_resolver: RoleResolver | None = None
+
+
+async def role_resolver(db: AsyncSession) -> RoleResolver:
+    '''
+    the role resolver for searches, over the roles the database holds, as the
+    import builds its own
+    '''
+    global _resolver
+    if _resolver is None:
+        roles = {row.slug: row.name for row in await db.execute(select(Job_Role.slug, Job_Role.name))}
+        _resolver = RoleResolver(roles)
+    return _resolver
+
+
 async def read_filters(
     # Repeated for several: ?location=US-CA&location=US-NY. Capped so a URL
     # can't turn into a thousand-clause query.
     location: list[PlaceCode] = Query([], max_length=60),
     # The rest of the filter row; each repeated for several, any of them.
     work_style: list[dto.work_style] = Query([], max_length=3),
-    # A category or a specialty: "software", "data_ai/ml" (dto.role_key).
-    role: list[dto.role_key] = Query([], max_length=len(dto.role_key)),
+    # job_roles slugs: "software_engineer" (KAN-155). Capped like ?location=.
+    role: list[RoleSlug] = Query([], max_length=60),
     experience: list[Literal["internship", "new_grad"]] = Query([], max_length=2),
     job_type: list[JobTypeKey] = Query([], max_length=4),
     # Days back from now: 1, 7 or 30 from the board, any whole number here.
@@ -436,7 +512,7 @@ async def read_filters(
     # Seasons as GET /jobs/facets lists them ("summer-2027", or "2027"); any.
     start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors", "not_ruled_out"] | None = None,
-    # /search's words. A % or _ in them is matched as itself.
+    # /search's words, read by the role resolver (JobFilters.query_roles).
     q: str | None = Query(None, max_length=200),
     db: AsyncSession = Depends(get_session),
 ) -> JobFilters:
@@ -447,6 +523,8 @@ async def read_filters(
     # A range given backwards is still the range meant, as the frontend reads it.
     if min_pay is not None and max_pay is not None and min_pay > max_pay:
         min_pay, max_pay = max_pay, min_pay
+    words = (q or "").strip()
+    read = (await role_resolver(db)).read_query(words) if words else None
     return JobFilters(
         places=location,
         work_styles=work_style,
@@ -468,7 +546,8 @@ async def read_filters(
         # plain IN. A season no posting names matches nothing, as it should.
         start_terms=(await terms_in(db, start_term)) if start_term else None,
         visa=visa,
-        query=(q or "").strip() or None,
+        query_roles=sorted(read.roles) if read else (),
+        query_words=(" ".join(read.rest) or None) if read else None,
     )
 
 
@@ -506,6 +585,40 @@ async def count_jobs(
     """How many jobs GET /jobs would list for the same filters, uncapped: the
     All Filters panel's "Show 128 jobs"."""
     return JobCount(jobs=await fetch_count(db, filters))
+
+
+async def fetch_role_options(db: AsyncSession, *, with_jobs_only: bool) -> list[JobRoleOption]:
+    '''
+    the job_roles roles in their sort_order, each with how many published
+    scraped jobs are tagged with it. `with_jobs_only` leaves out the roles no
+    job has (the Role filter); without it every role is listed (onboarding)
+    '''
+    jobs = (
+        select(Job_Role_Tag.role_slug, func.count().label("jobs"))
+        .join(Job_Post, Job_Post.id == Job_Role_Tag.job_id)
+        .where(_LISTED)
+        .group_by(Job_Role_Tag.role_slug)
+        .subquery()
+    )
+    query = (
+        select(Job_Role.slug, Job_Role.name, func.coalesce(jobs.c.jobs, 0).label("jobs"))
+        .outerjoin(jobs, jobs.c.role_slug == Job_Role.slug)
+        .order_by(Job_Role.sort_order)
+    )
+    if with_jobs_only:
+        query = query.where(jobs.c.jobs > 0)
+    return [
+        JobRoleOption(value=row.slug, label=row.name, jobs=row.jobs)
+        for row in await db.execute(query)
+    ]
+
+
+@router.get("/roles", response_model=list[JobRoleOption])
+async def list_roles(db: AsyncSession = Depends(get_session)) -> list[JobRoleOption]:
+    """Every job_roles role, in its sort_order, with its job count, those with
+    none included: what onboarding offers. The Role filter reads the ones with
+    jobs from GET /jobs/facets."""
+    return await fetch_role_options(db, with_jobs_only=False)
 
 
 @router.get("/locations", response_model=list[JobLocationOption])
@@ -618,7 +731,7 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
     )).one()
     return JobFacets(
         work_style=await by(Job_Post.work_style),
-        role=[FacetCount(value=key, jobs=n) for key, n in await db.execute(role_counts())],
+        role=await fetch_role_options(db, with_jobs_only=True),
         experience=await by(Job_Post.experience_level),
         # As the page shows them: internships count under "internship" alone.
         job_type=[
@@ -632,17 +745,6 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
         ],
         start_term=_season_counts(await by(Job_Post.start_term), now.date()),
     )
-
-
-def role_counts() -> Select:
-    '''
-    how many published scraped jobs hold each role key, category or specialty:
-    one row per key a job has (unnest), counted. A job in two categories counts
-    in both, as either filter would show it. Postgres won't group by a
-    set-returning function, so the keys are unnested in a subquery first
-    '''
-    keys = select(func.unnest(Job_Post.roles).label("key")).where(_LISTED).subquery()
-    return select(keys.c.key, func.count()).group_by(keys.c.key)
 
 
 def _season_counts(terms: list[FacetCount], today: datetime.date) -> list[FacetCount]:
@@ -661,7 +763,7 @@ async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
     return await fetch_facets(db)
 
 
-# Last, so the paths above ("/count", "/facets", "/locations") are matched as
+# Last, so the paths above ("/count", "/facets", "/locations", "/roles") are matched as
 # themselves before this one reads them as an id.
 @router.get("/{job_id}", response_model=JobListing)
 async def get_job(job_id: str, db: AsyncSession = Depends(get_session)) -> JobListing:

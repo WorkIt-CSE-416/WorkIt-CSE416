@@ -460,12 +460,13 @@ never downloads anything. Re-run the script to refresh it.
 ## Job roles — `job_roles.py`
 
 The short list of roles search filters by and onboarding will offer, and the
-roles each job is tagged with. **Not the same thing as `job_postings.roles`**
+roles each job is tagged with. **This is what `GET /jobs?role=`, `?q=` and
+the Jobs page's Role filter read (KAN-155), not `job_postings.roles`**
 (KAN-172, below): that column holds the scraper's own category keys
-(`"data_ai/ml"`), read from the title in `scraper/workit_scraper/shortlist.py`
-and filtered by today's `GET /jobs?role=`. `job_role_tags` holds `job_roles`
-slugs from `services/role_resolver.py`. Both are written by the import; which
-one search and onboarding use is still open (`docs/search.md`). `../../../docs/search.md` has the design and
+(`"data_ai/ml"`), which the import still writes until a later migration drops
+it (expand, then contract). The scraper still uses those keys itself, to
+decide which postings to keep; that is unchanged. `job_role_tags` holds
+`job_roles` slugs from `services/role_resolver.py`. `../../../docs/search.md` has the design and
 why; the rules for this folder:
 
 - **`job_roles` is keyed by `slug`**, like `countries.code`: no surrogate id.
@@ -492,7 +493,9 @@ why; the rules for this folder:
   revises `98ab19cfe840` (main's `roles` column; re-parented from
   `4485d7a7a712` when KAN-155 merged main, before either was applied);
   `ab07572bba38` seeds
-  the first 32 roles, flat, with `sort_order` in gaps of 10 so a role can be
+  the first 49 roles, flat, grouped to cover the twelve categories the
+  scraper keeps (so a job it keeps finds a role), with `sort_order` in gaps
+  of 10 so a role can be
   inserted between two without renumbering. **The import reads `job_roles`
   and writes `job_role_tags`, so both migrations must be on the database
   before that code runs**; without them it refuses and writes nothing
@@ -589,9 +592,14 @@ searching company-posted jobs by employer needs a join or a copied name.
 **Job matching adds three columns (KAN-139):**
 - **`job_postings.embedding` and `resumes.embedding`** hold Gemini vectors,
   `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
-- **`job_postings.fts`** is a generated `tsvector` of the title and
-  description. Postgres computes it and keeps it current, and `Computed` keeps
-  it out of every INSERT and UPDATE, so nothing in Python writes it.
+- **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
+  and description (weighted D), so a search ranks a title match first, with
+  the GIN index `job_postings_fts_idx` serving `GET /jobs?q=`; both from
+  `a70c641b2f99`, which drops and adds the column (a generated column's
+  expression can't be altered in place everywhere). Postgres computes it and
+  keeps it current, and `Computed` keeps it out of every INSERT and UPDATE, so
+  nothing in Python writes it. `@@` ignores weights, so matching's skill
+  overlap reads it unchanged.
 - **All three are `deferred`**, so the company-jobs and resume routes' ORM loads
   never pull 768 numbers, or a few KB of search terms, per row.
 - **Their migration is `4485d7a7a712`**, which revises `b81d4e2f6c09` (visa
@@ -615,8 +623,10 @@ branch that maps it (the section above).
 and their specialties. Plain text rather than an enum, so a new key is a
 scraper and API change and never a migration; the API checks keys against its
 own list. A company's own job stores `{}`, which no role filter matches. The
-GIN index `job_postings_roles_idx` serves `GET /jobs?role=`, an array overlap
-(`roles && ARRAY[...]`). Its migration is `98ab19cfe840`, which revises
+GIN index `job_postings_roles_idx` served `GET /jobs?role=`, an array overlap
+(`roles && ARRAY[...]`), until KAN-155 moved that filter to `job_role_tags`;
+nothing reads the column now, and a later migration drops it with
+`role_category`. Its migration is `98ab19cfe840`, which revises
 `5c8d6ee05a0c`, and seeds `roles` from `role_category` for the rows already
 there. **Expand, then contract:** `role_category` is not dropped, because the
 API deployed when the migration is applied still reads it; the import keeps

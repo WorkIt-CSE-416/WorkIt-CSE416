@@ -9,9 +9,12 @@
 
 Status: agreed 2026-10-10 (KAN-155). Built so far: the `job_roles` and
 `job_role_tags` tables (`backend/app/models/job_roles.py`, migration
-`362182aaa4fd`), the first 32 roles (`ab07572bba38`), and the title resolver
+`362182aaa4fd`), the first 49 roles (`ab07572bba38`), the title resolver
 (`backend/app/services/role_resolver.py`), which the import runs to tag every
-scraped job. This
+scraped job, and the switch: `GET /jobs?role=` and `?q=`, `GET /jobs/roles`,
+the facets' role options, the weighted `fts` and its index (`a70c641b2f99`),
+and the Jobs page's Role filter and search (2026-10-11). Not yet: dropping
+KAN-172's `roles` and `role_category` columns (Still open). This
 is the rationale;
 once it is built, the migrations are the source of truth for the schema and
 the CLAUDE.md files nearest the code hold the rules.
@@ -360,16 +363,21 @@ it (`backend/alembic/CLAUDE.md`).
 
 ## Still open
 
-- **Two role systems after merging main (2026-10-11).** KAN-172 landed on
+- **Retiring KAN-172's role columns (the contract step).** KAN-172 landed on
   `main` while this was built: the scraper classifies each title into its own
-  keys (`shortlist.py`, 12 categories plus specialties such as `data_ai/ml`),
-  the import writes them to `job_postings.roles` (text[], GIN index), and
-  `GET /jobs?role=` and the Jobs page's Role filter already read that. This
-  design's `job_roles` / `job_role_tags` (32 job titles, resolved in the
-  backend, meant for onboarding and recommendations too) now sits beside it;
-  the import writes both. The team needs to pick which one `?role=`,
-  onboarding and recommendations use, or how the two map onto each other,
-  before "The query" above is built.
+  keys (`shortlist.py`, 12 categories plus specialties such as `data_ai/ml`)
+  and the import writes them to `job_postings.roles` and `role_category`.
+  Decided 2026-10-11: `job_roles` is the one role list. `?role=`, `?q=` and
+  the Role filter read `job_role_tags` now, and the 49 roles were grown to
+  cover the twelve categories the scraper keeps (measured on the titles in
+  its own tests: every category 78–100% tagged, with no tag landing in a
+  different category from the scraper's). Once that is deployed: the import
+  stops writing `roles` and `role_category`, `JobListing` drops both (so a
+  new scraper key no longer fails the import's validation), and a new
+  migration drops the columns, `job_postings_roles_idx` and the
+  `role_category` enum. KAN-172's migrations stay as they are. **The scraper
+  is unchanged throughout:** its categories still decide which postings it
+  keeps, which is a separate job from tagging them.
 - **Typeahead:** one endpoint suggesting roles and companies as the user
   types, or two.
 - **Roles for company-posted jobs:** the company form picks them, or the

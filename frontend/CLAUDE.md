@@ -83,7 +83,9 @@ src/app/          App Router routes, layouts, pages
                   panel, the top bar, the page) floating on --color-frame,
                   and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
-                  /jobs and /search filter on the server by the query:
+                  /jobs and /search filter on the server by the query
+                  (/search's ?q= is read by the API's role resolver:
+                  roles, a typo corrected, then text and company):
                   ?location= (repeated ISO codes, US or US-CA),
                   ?work_style=, ?role=, ?experience=, ?job_type= (repeated),
                   ?posted_within= (days), ?min_pay= and ?max_pay= with
@@ -107,18 +109,18 @@ src/app/          App Router routes, layouts, pages
                   narrows its facets step out one at a time, least used
                   first, Visa is never in the row (All Filters only, asked
                   for 2026-10-10), and All Filters stays a normal button; never
-                  stretch it across the row. Role (KAN-172: twelve
-                  categories, Software Engineering to Design, and nine
-                  specialties under three of them, ROLE_OPTIONS in
-                  jobs/filter-query.ts; a job posting has one category or
-                  two, so it counts under both) sits second, after
-                  Location, as the facet a seeker narrows by first; no
-                  pick shows every role. The row's Role lists the twelve
-                  categories only: with the specialties it ran to 21 rows,
-                  taller than a laptop's dropdown, while the panel's
-                  picker finds one by typing. A specialty picked there
-                  stays picked when the row ticks a category, and tints
-                  the row's button. All Filters opens one panel
+                  stretch it across the row. Role (KAN-155: the
+                  `job_roles` list, slugs like software_engineer, a job
+                  tagged with each role its title names, so it counts
+                  under each) sits second, after Location, as the facet a
+                  seeker narrows by first; no pick shows every role. Its
+                  options are not in the code: the row and the panel read
+                  them, names and counts, from GET /jobs/facets' `role`
+                  (only roles with a job, in the database's order), and
+                  the row's Role waits on them behind a disabled button
+                  as Location waits on its places. filter-query.ts checks
+                  a ?role= by shape only, like a place, so an old
+                  KAN-172 link's "data_ai/ml" is dropped, not sent. All Filters opens one panel
                   (jobs/all-filters.tsx) with every facet's options in view
                   as chips, or a search picker for the long lists, and no
                   facet popups inside it (they landed left or right of

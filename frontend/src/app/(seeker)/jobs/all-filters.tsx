@@ -41,7 +41,6 @@ import {
   JOB_TYPE_OPTIONS,
   NO_FILTERS,
   PAY_OPTIONS,
-  ROLE_OPTIONS,
   seasonLabel,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
@@ -154,26 +153,22 @@ function PanelBody({
         </Section>
 
         {/* Full width, as Location: its names are long, and the row puts it
-            second. Each category is followed by its specialties, indented
-            as a country's states are (KAN-172). */}
+            second. The job_roles that tag a job, in the database's order,
+            from GET /jobs/facets (KAN-155). */}
         <Section Icon={RoleIcon} label="Role">
           <SearchPicker
             key={`roles-${cleared}`}
             label="Roles"
-            placeholder="Search a role or a specialty"
+            placeholder="Search a role"
             empty="No role by that name."
-            options={ROLE_OPTIONS.map((o) => ({
+            options={counts.role.map((o) => ({
               value: o.value,
               label: o.label,
-              count: countOf("role", o.value),
-              nested: "category" in o,
+              count: o.jobs,
+              nested: false,
             }))}
             values={draft.roles}
-            onChange={(next) =>
-              set({
-                roles: next.flatMap((v) => ROLE_OPTIONS.find((o) => o.value === v)?.value ?? []),
-              })
-            }
+            onChange={(next) => set({ roles: next })}
           />
         </Section>
 

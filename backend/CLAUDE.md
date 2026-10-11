@@ -84,9 +84,12 @@ first: that is the list to grow the aliases from.
 
 **It refuses (exit 2, nothing written) when `job_roles` lacks a slug the
 aliases name**, which is what it does before the role migrations
-(`362182aaa4fd`, `ab07572bba38`) are applied. The scheduled scrape runs this
-from `main`, so those migrations must be on Supabase before the change that
-added role tagging merges, or every scheduled run fails until they are.
+(`362182aaa4fd`, `ab07572bba38`) are applied. The API reads those tables and
+the weighted `fts` index (`a70c641b2f99`) too. So, as the team ships schema
+(`../docs/job-pipeline.md`, Changing the schema): the migrations go up in
+their own PR, merge, and are applied to Supabase **before** the PR whose code
+reads them merges. Otherwise every scheduled import fails, and the Jobs page's
+role filter and search answer 500, until they are.
 
 It writes each job's `roles` (its categories and specialties, KAN-172) and
 derives `role_category` from them, the first category when it is one of that
@@ -160,9 +163,6 @@ app/
     role_resolver.py  Job title (or search query) → job_roles slugs, from
                   the aliases in the file; queries are typo-corrected,
                   titles never (app/models/CLAUDE.md, Job roles)
-    try_role_resolver.py  Scratch tool: prints what titles or a --query
-                  resolve to, roles read from the seed migration. Not a test;
-                  real cases go in tests/test_role_resolver.py
     matching/     Job matching (KAN-139). embeddings.py turns postings and
                   resumes into Gemini vectors; its own CLAUDE.md has the
                   design and what is still unbuilt
