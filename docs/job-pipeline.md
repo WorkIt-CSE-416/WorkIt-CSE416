@@ -6,9 +6,8 @@ need.
 
 > **Status (2026-10-11).** This describes the code on `KAN-134-workday` (the
 > Workday reader), which builds on `main` after the KAN-171 batch (#95) and
-> merges `KAN-172-roles` (the twelve categories, #98). The roles migration
-> (`98ab19cfe840`, the `roles` column) went to `main` first (#97) and was
-> applied on 2026-10-11 (section 5.3).
+> the twelve role categories (#98). Every database column it uses is on
+> `main` and applied (section 5.3).
 
 ## Three words used throughout
 
