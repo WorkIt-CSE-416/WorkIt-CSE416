@@ -6,8 +6,8 @@ need.
 
 > **Status (2026-10-11).** This describes the code on `KAN-172-roles`, which
 > builds on `main` after the KAN-171 batch (#95). Its migration
-> (`98ab19cfe840`, the `roles` column) went to `main` first (#97) and must be
-> applied before this code goes live (section 5.3).
+> (`98ab19cfe840`, the `roles` column) went to `main` first (#97) and was
+> applied on 2026-10-11 (section 5.3).
 
 ## Three words used throughout
 
@@ -273,7 +273,8 @@ runs `uv run alembic upgrade head`. The role categories' and location labels' mi
 (`aa41fdc1ba80`, `5c8d6ee05a0c`) went to `main` first (#94) and were applied
 on 2026-10-10.
 
-`roles` (`98ab19cfe840`, merged to `main` on its own in #97) is added the
+`roles` (`98ab19cfe840`, merged to `main` on its own in #97 and applied on
+2026-10-11) is added the
 safe way round, **expand then contract**: the migration adds `roles` beside
 `role_category`, copies each job posting's category into it, and drops
 nothing, because the code running when it is applied still reads
