@@ -14,8 +14,9 @@ holds unique. One run, in one transaction:
 1. validates every row against schemas/jobs.py (the feed's contract);
 2. resolves each distinct location string (services/location_resolver.py)
    against the countries and states in the database;
-3. inserts new jobs and updates changed ones, description included,
-   ON CONFLICT (apply_url). A row
+3. inserts new jobs and updates changed ones, description and roles included,
+   ON CONFLICT (apply_url), with role_category derived from roles for the code
+   that still reads it (KAN-172). A row
    whose fields all match is left alone, so updated_at means something and a
    second run on the same feed changes nothing;
 4. brings each job's job_locations rows in line with what the resolver says;
@@ -72,10 +73,10 @@ _FEED_COLUMNS = (
     "title", "company_name", "company_logo_url", "description",
     "experience_level", "work_style", "location_raw", "location_label", "posted_at",
     "job_type", "min_years_experience", "start_term", "sponsorship",
-    "role_category",
+    "role_category", "roles",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 21.
+# asyncpg allows 32,767 parameters a statement; a row here binds 22.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
@@ -154,6 +155,7 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
         if not found:
             no_place += 1
         places[listing.apply_url] = found
+        roles = _roles(listing)
         rows.append({
             "apply_url": listing.apply_url,
             "title": listing.title,
@@ -174,10 +176,36 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
             "min_years_experience": listing.min_years_experience,
             "start_term": listing.start_term,
             "sponsorship": listing.sponsorship,
-            "role_category": listing.role_category,
+            "roles": roles,
+            "role_category": _role_category(roles),
             **_pay(listing),
         })
     return Prepared(rows, places, unresolved, no_place, duplicates)
+
+
+def _roles(listing: JobListing) -> list[str]:
+    '''
+    the job's role keys, as plain text for the text[] column. A feed written
+    between KAN-171 and KAN-172 has a role_category and no roles: that one
+    category stands for them, rather than wiping the job's roles
+    '''
+    if listing.roles:
+        return [role.value for role in listing.roles]
+    return [listing.role_category.value] if listing.role_category else []
+
+
+# The old one-category column's values. It stays until a later migration drops it,
+# because the API deployed before KAN-172 reads it (expand, then contract).
+_CATEGORIES = {category.value for category in dto.role_category}
+
+
+def _role_category(roles: list[str]) -> dto.role_category | None:
+    '''
+    role_category for code that still reads it: the job's first category when
+    it is one of the column's five, else None (a business or engineering job)
+    '''
+    first = roles[0] if roles else None
+    return dto.role_category(first) if first in _CATEGORIES else None
 
 
 def _pay(listing: JobListing) -> dict:

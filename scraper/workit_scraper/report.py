@@ -31,16 +31,27 @@ from workit_scraper.store import RunStats
 #: slow to scroll on a projector.
 INITIAL_ROWS = 200
 
+#: The chips: the two stages, then a role's twelve categories (shortlist.CATEGORY_TAGS),
+#: which match a role in either of its categories. Specialties have no chip.
 FILTERS = [
     ("all", "All"),
     (Tag.INTERN, "Internships"),
     (Tag.NEW_GRAD, "New grad"),
     (Tag.SOFTWARE, "Software"),
     (Tag.DATA_AI, "Data & AI"),
-    (Tag.PRODUCT, "Product"),
-    (Tag.QUANT, "Quant"),
     (Tag.HARDWARE, "Hardware"),
+    (Tag.QUANT, "Quant"),
+    (Tag.PRODUCT, "Product"),
+    (Tag.ENGINEERING, "Engineering"),
+    (Tag.BUSINESS, "Business"),
+    (Tag.FINANCE, "Finance"),
+    (Tag.MARKETING, "Marketing"),
+    (Tag.SALES, "Sales"),
+    (Tag.HR, "HR"),
+    (Tag.DESIGN, "Design"),
 ]
+#: A row's kind: its stage and categories, by the chips' names.
+LABELS = dict(FILTERS[1:])
 
 _STYLE = """
 :root{--bg:#fff;--ink:#12161C;--grey:#5B6675;--faint:#98A2AE;--line:#E6EAEE;
@@ -166,7 +177,7 @@ def _stamp(iso: str) -> str:
 
 def _row(role: Role, index: int) -> str:
     esc = html.escape
-    kind = " · ".join(tag for tag in role.tags if tag != Tag.SOFTWARE)
+    kind = " · ".join(LABELS[tag] for tag in role.tags if tag in LABELS)
     title = esc(role.title)
     kind_span = f'<span class="kind">{esc(kind)}</span>'
     role_cell = (

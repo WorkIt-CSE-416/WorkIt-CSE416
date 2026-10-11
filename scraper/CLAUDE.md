@@ -30,7 +30,7 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 | `providers.py` | `Board`, `Job`, and one function per ATS mapping its JSON onto `Job` (Workday's pages) |
 | `details.py` | pay, job type, years of experience, start term and visa sponsorship read out of a description |
 | `store.py` | `jobs.json`, `first_seen_at`, and what "listed" and "new today" mean |
-| `shortlist.py` | which postings belong on the page, each one's category, and collapsing duplicates |
+| `shortlist.py` | which postings belong on the page, each one's categories and specialties, and collapsing duplicates |
 | `report.py` | rendering the page |
 | `feed.py` | `feed.json`, the backend's copy of the same roles |
 | `logos.py` | each company's logo, read once off its job board's page |
@@ -692,89 +692,161 @@ a title you actually saw, including the ones that must be rejected. Tag names ar
 `Tag` enum; the page's filter chips read from it too.
 
 **`engineer` on its own is not a signal**, and reinstating it is the tempting
-mistake. Wade Trim posts "Engineer Summer Intern", Olsson posts "Entry-Level Roadway
-Engineer", Rocket Lab posts "Thermal Engineering Intern" -- all real early-career
-engineering, none of it in our five categories. Each category names its specialisms
-explicitly instead. The cost is accepted: a bare "Engineering Intern" at a software
-company is dropped too, because nothing in that title tells it apart from Wade Trim's.
+mistake. Wade Trim posts "Engineer Summer Intern", a civil firm, and Decagon posts
+"Engineering Intern (Summer 2027)", a software one: nothing in either title tells them
+apart, so both are dropped. Each category names its disciplines instead (Olsson's
+"Entry-Level Roadway Engineer" is civil, Rocket Lab's "Thermal Engineering Intern"
+mechanical).
 
 Two more live examples of why the wording is fussy. `\bintern\b` must not fire on
 "Internal Applications". `SENIOR` beats the stage, so Together AI's "Junior/Senior or
 Staff Software Engineer" -- one opening at any level -- is not a new-grad role.
 
-## Five categories, one per role (KAN-171)
+## Twelve categories, their specialties, up to two a role (KAN-172)
 
-The page used to keep software and AI roles only. It now keeps the SimplifyJobs lists'
-five, the lists `boards.csv` is built from: `software`, `data_ai` (data science, AI and
-machine learning), `product` (product management), `quant` (quantitative research,
-trading and development) and `hardware`. Still early-career only, still never senior,
-and still nothing outside the five: sales, marketing, recruiting, finance, mechanical,
-civil and the rest are `NOT_OURS`, whose words beat every category's.
+The page kept software and AI roles until KAN-171, then the SimplifyJobs lists' five.
+It now keeps twelve categories: `software`, `data_ai` (data science, AI and machine
+learning), `hardware`, `quant` (quantitative research, trading and development),
+`product` (product management), `engineering` (civil, mechanical, manufacturing,
+aerospace and every other degree outside software and hardware), `business`
+(operations, strategy, supply chain, program and project management), `finance`
+(accounting, banking, investing, insurance), `marketing` (and communications), `sales`
+(and business development), `hr` (and recruiting) and `design` (product, UX, UI and
+visual design, UX research). Still early-career only and never senior. **Held off, so
+dropped:** law and compliance, consulting, teaching, the arts, public policy and
+customer support; a title naming none of the twelve ("Engineering Intern", "Research
+Intern") is dropped too. `CATEGORY_TAGS` is their order on the page and in the app.
 
-**One category per role, the first in `CATEGORIES` that matches.** `feed.json` carries
-it as `role_category`, the backend's `role_category` enum: a new category is a change
-on both sides, and a migration. The order is the decision:
+**`feed.json` carries a role's `roles`:** its categories, first first, then its
+specialties (`["data_ai", "software", "data_ai/ml"]`; `Role.roles`). The backend stores
+them in `job_postings.roles`, plain text, so a new key is a change to `Tag`, to the
+backend's `dto.role_key` and to the Jobs page's `ROLE_OPTIONS`, but never a migration.
+The feed no longer sends the old one-category `role_category`; the import derives it.
 
-1. `QUANT` (quant, quantitative, trader): "Quantitative Developer" is a quant's job.
-2. `PRODUCT` (product manager, management, owner, analyst). `SENIOR`'s `manager`
-   spares "product manager", or every PM title would read as senior.
-3. `DATA_AI`: machine learning, data science and analytics, data engineering, applied
-   science, perception, robot learning. ML outranks what it runs on, so IMC's "Hardware
-   Machine Learning PhD Research Internship" is data.
-4. `HARDWARE`, then 5. `SOFTWARE`. Hardware first, because the software list's generic
-   words ("platform", "infrastructure") would otherwise claim a "Hardware Platform
-   Development Intern".
-6. `ROBOTICS` is hardware only after software has passed: Neuralink's "Software Engineer
-   Intern, Robotics" writes software, Bracket Bot's "Robotics Engineering Intern" builds
-   robots.
-7. `AI` as a bare modifier is weak: "Software Engineer Intern (AI Internal Tools)" is
-   software, as SimplifyJobs files 281 of its 347 titles naming both.
-8. `TRADING` alone is weak: "Campus Python Software Engineer" at Jump is software,
-   "Commodities Trading Intern" is quant, "Trading Operations" is neither.
+**The first discipline the title names is its category** (`CATEGORIES`, first match
+wins). The order is the decision:
 
-Decisions, each checked against SimplifyJobs' own labels (their listings carry a
-category) and against our scan:
+1. **Job names first**, whatever they are about: a recruiter (`HR`), law (held),
+   selling (`SALES`), a designer (`DESIGN`), program or project management and
+   business analysis (`PROJECTS`, business). Jane Street's "Campus Recruiter, Machine
+   Learning and Quantitative Research" recruits, "Sales Engineer Intern" sells, Waymo's
+   "Quantitative UX Researcher" studies users, Astera Labs' "Hardware Technical Program
+   Management Intern" manages a program.
+2. **The technical disciplines, most specific first:** `QUANT` (a quant word names the
+   job: "Quantitative Developer"), `PRODUCT`, data and AI (ML outranks what it runs on:
+   IMC's "Hardware Machine Learning PhD Research Internship" is data), `EMBEDDED`
+   (firmware and embedded are hardware, ahead of software), `SOFTWARE`'s own words,
+   consulting (held; after software, so Latitude's "Entry Level Software Consultant"
+   stays software), `SECURITY_IT` (software), `SUPPORT` (held; after IT, so a help desk
+   is IT, and ahead of hardware: RF-SMART's "Hardware Support Internship"), `SUPPLY`
+   (business; ahead of hardware: "Hardware Sourcing Intern"), `HARDWARE_JOB` (a
+   "hardware engineer" by name), `ENGINEERING`, then the rest of `HARDWARE`.
+   Engineering ranks ahead of hardware so Rivian's "Hardware Thermal Simulation
+   Engineering Intern" is thermal work and an electrical engineer for buildings and
+   utilities is a civil discipline (Burns & McDonnell's "Electrical Engineer-Power
+   Systems", Olsson's "Electrical Engineering Internship - Facilities (Healthcare)"),
+   and behind software so Valstad's "Software Engineering Intern, 3D & Manufacturing
+   Applications" writes software.
+3. **The business disciplines:** `PARTNERS` (partnerships and go-to-market, sales only
+   when no other job is named: Agoda's "Salesforce Developer, Strategic Partnerships"
+   develops), support roles and compliance (held), `FINANCE`, `MARKETING`, `BUSINESS`,
+   then the held arts, policy and teaching.
+4. **The modifiers, which only name a job nothing else does:** software's generic words
+   ("web", "platform", a programming language), robotics (hardware), "AI" (data),
+   "trading" (quant), engineering named by what it does ("Systems Engineer", "Test
+   Engineering Intern"), and business's "operations", "strategy" and "analyst", never on
+   an engineer's or a scientist's title (K2 Space's "Vehicle Operations Engineering
+   Intern", Ginkgo's "Automation Scientist Intern, RAC Operations").
 
-- **Hardware is electrical, computer, embedded and silicon engineering, RF, optics,
-  avionics, robotics and mechatronics.** Mechanical, thermal, civil, structural,
-  manufacturing and nuclear stay out: different degrees, and SimplifyJobs files 641
-  "electrical" titles under Hardware against 74 "mechanical". An electrical engineer for
-  buildings and utilities is a civil discipline (Burns & McDonnell's "Electrical
-  Engineer-Power Systems", "- Facilities (Healthcare)", "Midstream ..."), and trades are
-  not engineering (an "Electrical Apprentice", a "Technician", a robot "Operator").
-- **Firmware and embedded are hardware**, "Embedded Software Engineer" included. They
-  used to be software here; SimplifyJobs files 681 of 701 under Hardware, which is
-  where an embedded seeker looks.
-- **Data engineers and data analysts are data**, not software (SimplifyJobs: 665 of
-  666, and 1,063 of 1,064).
-- **Product designers are out**, and so are program managers: design and program
-  management are not among the five. "Product Designer, New Grad" used to slip in on
-  nothing; now `product design` is in `NOT_OURS`.
-- **Forward deployed engineers are software** (SimplifyJobs: 114 of 130), the one widening
-  of the software list.
+**A second category only for engineering jobs that are two at once** (`SECOND`): an
+ML, AI or data engineer is data and software (Cresta's "Machine Learning Engineering
+Intern", Figma's "Data Engineer Intern"), a firmware or embedded engineer hardware and
+software (Graphcore's "Graduate Firmware Engineer"), a quant developer quant and
+software. A research engineer researches, and a data scientist or an analyst analyses:
+one category. Weak words never add one: "Software Engineer Intern (AI Internal Tools)" is
+software only. Electrical plus mechanical was measured and left out: six titles, half
+of them building or trade work.
 
-Measured on a live scan of every board on 2026-10-10 (94,271 postings): kept postings
-went from 1,163 to 1,635. By category: software 806, data 347, hardware 258, quant 170,
-product 54. Against SimplifyJobs' labels on their own 21,492 titles, 86% of the 6,584
-we keep land in the same category; most of the rest is SimplifyJobs filing a company's
-every role under one category (Hardware for "Software Engineer Intern" at a chip maker).
-False positives found and guarded, each now a test: Waymo's "Quantitative UX
-Researcher", Belvedere's "Talent Partner - Trading", Brooks's "Run Perception Graduate
-Internship", Hermeus's "Flight Software ... (Hardware-In-The-Loop)", Rivian's "Hardware
-Thermal Simulation", Healf's "Software Engineer (Supply Chain)" (a first draft vetoed
-"supply chain"). **Known misses, accepted:** an MEP firm's bare "Electrical Engineer
-Summer Intern" (Syska Hennessy posts nine) reads as hardware, as nothing in the title
-says buildings; Waymo's "Quantitative Software Engineer" reads as quant; "Product
-Engineer" and a bare "Product Intern" are dropped, being software at one company and
-consumer goods at the next.
+**Specialties** (`SPECIALTIES`) are named in the title, within a category the role has;
+a role can have several (Rocket Lab's "Propulsion Manufacturing Intern" is manufacturing
+and aerospace) or none. Software has one, `software/security` (security and IT, a help
+desk included: Jobright files help desks under support, but IT is the job most students
+start in); data and AI four (`ml`, `data_science`, `analytics`, `data_engineering`);
+engineering four (`civil`, `mechanical`, `manufacturing`, `aerospace`). Measured and left
+plain `engineering`: power and building systems (about 40 job postings, BGE's
+power-systems engineers, Olsson's substations) and chemical, materials and nuclear
+(about 20).
 
-**What it costs a run.** Greenhouse reads a page per kept posting, once (above). The
-first live `--full` run after the change, on a store from the day before, read 372
-pages, 335 of them for roles only the new categories keep, and 25 seconds of logos for
-the boards newly on the page: 379 seconds in all, against 349 for the boards alone.
-The page reads cost nothing on the clock, since the Greenhouse lane finishes them while
-Lever's one-second Crawl-delay is still going; after that first run only the day's new
-postings are read.
+**The stage** (`stage`). Two additions, each from real titles: a bank's or a fund's
+"Summer Analyst" (both words: FT Partners' "2027 Equity Research Summer Analyst (US)",
+UVIMCO's "Investment Analyst - Summer 2027"; five job postings, none a summer camp's) and
+a working student ("Working Student", German "Werkstudent", "Student Worker": IMC,
+Axon, Clera, Zoox; 28 job postings), both internships. And three guards the new
+categories needed:
+
+- **A manager or a lead is senior** unless the title says the person is junior or a
+  student ("Junior Account Manager", "Sales Partner Manager Intern"): sales, marketing
+  and operations careers start with those titles. The old rule dropped every manager but
+  a product manager.
+- **Who a role recruits is not its stage** (`AUDIENCE`): Stripe's "University
+  Recruiter", Bridgewater's "Campus Talent Associate", Belvedere's "Early Career Talent
+  Partner - Trading". A recruiter is kept only when the title says the person is junior
+  or a student (`Stage.personal`): Path Robotics' "Early Career & University Relations
+  Recruiter" is not. A year after it makes campus recruitment a program's name (Artefact's
+  "Applied AI Engineer - China Campus Recruitment 2027").
+- **Where a role is, is not its stage** (`PLACE`): Brooks's "Retail Sales Associate,
+  University Village", SpaceX's "Bastrop Campus Planning Manager".
+
+Decisions, each checked against the 2026-10-10 scan:
+
+- **Firmware and embedded are hardware** (SimplifyJobs: 681 of 701), and their engineers
+  software too. **Data engineers and data analysts are data**, not software (665 of 666,
+  and 1,063 of 1,064). **Forward deployed engineers are software** (114 of 130). As in
+  KAN-171.
+- **Solutions engineers sell.** SimplifyJobs and Jobright split them; Astera Labs'
+  "Platform Solutions Engineer Intern" moved from software to sales.
+- **Product designers are design** and **"Trading Operations" is business**; both were
+  dropped before.
+- **A bare "Product Intern" is still dropped**, as is "Product Engineer": software at one
+  company, consumer goods at the next.
+
+**Measured** on a listings-only scan of every board on 2026-10-10 (101,100 job postings)
+and the live `--full` run the same evening (101,098): kept job postings went from 1,723
+to 3,507 (2,571 internships, 936 new-grad roles). By first category: software 957,
+engineering 703, data_ai 413, hardware 287, business 227, finance 198, quant 187,
+marketing 157, sales 156, hr 100, product 64, design 58; software in either category
+1,144. Specialties: civil 269, ml 243, mechanical 160, security 122, manufacturing 101,
+data science 75, analytics 68, aerospace 59, data engineering 43. Two categories: 187
+(data and software 131, hardware and software 39, quant and software 17). Of the 1,723
+the five kept, every change was read: 16 have another first category (MARGO's and three
+Astera Labs titles to sales; three to data and AI, still software second; two each to
+marketing, design, engineering and software; one to finance) and 4 are dropped (three
+data-and-AI consultants at Celonis, and AlphaHire's research liaison, who recruits).
+Against SimplifyJobs' labels on their own 21,458 titles, 86.4% of those we keep
+in their five land in the same one, as before; 1,235 more are kept in the new
+categories. Against Jobright's own lists (80,000 titles filed by field), of the titles
+we keep: Account 84% finance, Business-Analyst 71% business, Design 88% design, HR 68%
+hr (most of the rest are "Management Trainee" internships, business here), Management
+94% business, Marketing 88% marketing, Sales 91% sales; most of their Consultant,
+Legal, Art, Public Sector and Education titles are dropped. False positives found and
+guarded, each now a test, among them Palantir's "Privacy and Civil Liberties Software
+Engineer", DRW's "Software Developer Intern - Industrial Placement", TensorWave's
+"Developer Community Engagement Intern" (marketing), WPP's "Junior Video Buyer" (media,
+not purchasing), EQT's "Water Infrastructure Engineering Intern" (civil, not software)
+and Belmond's hotel kitchens. **Known misses, accepted:** Jump Trading's and PDT
+Partners' "Systems Engineer" are IT jobs read as engineering; an MEP firm's bare
+"Electrical Engineer Summer Intern" reads as hardware; Welo Global's "AI Data Rater"
+reads as data, as before.
+
+**What it costs a run.** The first live `--full` run after the change, on a store from
+earlier that day, took 412 seconds: 352 for the boards and the job postings' own pages
+(Greenhouse read 1,088 more, about 110 seconds at its pacing, in its own lane while
+Lever's one-second Crawl-delay was still going) and 48 for 242 newly listed boards'
+logos. (Workable's 173 and BambooHR's 78 page reads were all of theirs: that store
+predated both.) After that only the day's new job postings are read. The lasting cost is
+quiet boards: a board with any kept job posting is read every run, and 97 more have one
+(Lever 68 to 99, Greenhouse 233 to 316), which adds about 20 seconds of Lever's
+Crawl-delay to a scheduled run. `feed.json` is 19 MB, from 9.
 
 **Widening the net makes the newly kept roles "new today" once.** Only matching
 postings are stored, so the first run after this change counts every newly kept role on
@@ -825,13 +897,16 @@ this package: `backend/CLAUDE.md` keeps anything outside `backend/` out of its b
 So `feed.row()` is the whole contract, and its fields must match
 `backend/app/schemas/jobs.py` — add a field in both or neither, and a new column needs
 its migration. Card facts land in `job_postings`' own columns (`job_type`, `salary*`,
-`min_years_experience`, `start_term`, `sponsorship`), and so does the role's category
-(`role_category`, above); descriptions ride along in the rows, and the
-list query simply never selects them.
+`min_years_experience`, `start_term`, `sponsorship`), and so do the role's categories
+and specialties (`roles`, above; the import derives the old `role_category` from
+them); descriptions ride along in the rows, and the list query simply never selects
+them.
 
 Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's labels
 ("On site"). `feed.WORK_STYLE` is indexed, not `.get`: a new label from
-`providers._work_style` should fail a run, not quietly become `null` in the app.
+`providers._work_style` should fail a run, not quietly become `null` in the app. A role
+key the backend's `dto.role_key` lacks fails the import the same way, before anything
+is written.
 
 The scraper still never touches the database.
 

@@ -69,10 +69,16 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
-    # Which of the five disciplines the role is in (software, data_ai, product,
-    # quant, hardware), read from its title by the scraper. None only in a
-    # feed.json written before the scraper kept more than software, which is
-    # why it is defaulted.
+    # The role's categories, first first, then their specialties, read from its
+    # title by the scraper: ["data_ai", "software", "data_ai/ml"] (KAN-172).
+    # GET /jobs?role= filters on these. Empty in a feed.json written before
+    # KAN-172, which is why it is defaulted.
+    roles: list[dto.role_key] = []
+    # The first of the five disciplines the role was in before KAN-172
+    # (software, data_ai, product, quant, hardware). Superseded by roles: the
+    # scraper no longer sends it, the import derives it from roles for the
+    # column the deployed code still reads, and GET /jobs keeps returning it
+    # until that column is dropped.
     role_category: dto.role_category | None = None
 
 
@@ -101,8 +107,10 @@ class JobFacets(BaseModel):
     """GET /jobs/facets: every filter option's count, across the whole feed.
 
     start_term lists the seasons postings start in ("summer-2027", or a bare
-    year), in calendar order and only those not yet over; the rest list the
-    values that have a job. A value with no jobs is absent, not zero.
+    year), in calendar order and only those not yet over; role lists every
+    category and specialty key a job holds ("software", "data_ai/ml"), a job in
+    two categories counting in both; the rest list the values that have a job.
+    A value with no jobs is absent, not zero.
     """
 
     work_style: list[FacetCount]
