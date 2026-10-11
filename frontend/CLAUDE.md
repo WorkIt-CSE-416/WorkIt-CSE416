@@ -107,12 +107,18 @@ src/app/          App Router routes, layouts, pages
                   narrows its facets step out one at a time, least used
                   first, Visa is never in the row (All Filters only, asked
                   for 2026-10-10), and All Filters stays a normal button; never
-                  stretch it across the row. Role (KAN-171: Software
-                  Engineering, Data Science, AI & ML, Product Management,
-                  Quantitative Finance, Hardware Engineering, the
-                  SimplifyJobs lists' five) sits second, after Location,
-                  as the facet a seeker narrows by first; no pick shows
-                  every discipline. All Filters opens one panel
+                  stretch it across the row. Role (KAN-172: twelve
+                  categories, Software Engineering to Design, and nine
+                  specialties under three of them, ROLE_OPTIONS in
+                  jobs/filter-query.ts; a job posting has one category or
+                  two, so it counts under both) sits second, after
+                  Location, as the facet a seeker narrows by first; no
+                  pick shows every role. The row's Role lists the twelve
+                  categories only: with the specialties it ran to 21 rows,
+                  taller than a laptop's dropdown, while the panel's
+                  picker finds one by typing. A specialty picked there
+                  stays picked when the row ticks a category, and tints
+                  the row's button. All Filters opens one panel
                   (jobs/all-filters.tsx) with every facet's options in view
                   as chips, or a search picker for the long lists, and no
                   facet popups inside it (they landed left or right of
@@ -134,7 +140,10 @@ src/app/          App Router routes, layouts, pages
                   that fill the minimum; a posting matches when its own
                   range overlaps it, compared as yearly figures in USD.
                   Location, Role and Start Date in the panel are one picker
-                  (SearchPicker in jobs/all-filters.tsx): a search field
+                  (SearchPicker in jobs/all-filters.tsx; Role's specialties
+                  indented under their category, as a country's states
+                  are, and named whole, "Mechanical Engineering", since a
+                  search lists them alone): a search field
                   whose checklist opens only from the field and floats
                   over the panel like a dropdown (it never pushes the
                   sections down; it opens upward, and no taller than the

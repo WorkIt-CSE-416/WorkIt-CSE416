@@ -4,9 +4,10 @@ How a job posting travels from a company job board to a card a student can
 filter, open and apply to. Each section stands on its own, so read the one you
 need.
 
-> **Status (2026-10-10).** This describes the code on `KAN-171-more-jobs`,
-> which builds on PRs #91 (filters and visa) and #92 (the job posting page).
-> Its database columns were applied on 2026-10-10 (#94).
+> **Status (2026-10-11).** This describes the code on `KAN-172-roles`, which
+> builds on `main` after the KAN-171 batch (#95). Its migration
+> (`98ab19cfe840`, the `roles` column) went to `main` first (#97) and was
+> applied on 2026-10-11 (section 5.3).
 
 ## Three words used throughout
 
@@ -104,7 +105,7 @@ on it). A run takes a few minutes.
 |---|---|
 | 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one day in three, so a first job posting at a quiet company can appear up to two days late. `--full` reads them all. |
 | 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR and Recruitee give every company its own subdomain, and each hiring system's subdomains share one pace. |
-| 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read; about 1,700 are kept. |
+| 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read; about 3,500 are kept. |
 | 4. Fetch full pages | Greenhouse, Workable and BambooHR lists leave out the description, pay or work style, so the scraper reads the full page of each kept job posting there, once. |
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. |
@@ -116,28 +117,39 @@ they were.
 
 ### 3.1 Which job postings are kept
 
-A title must pass three checks:
+A title must pass two checks (KAN-172):
 
 | Check | Passes | Fails |
 |---|---|---|
-| **Early career** | intern, co-op, new grad, graduate, entry level, junior, university, campus, apprentice | anything senior, staff, principal, director, manager |
-| **In one of five categories** | see the table below | a title naming none of them |
-| **Not another discipline** | | sales, marketing, recruiting, HR, finance operations and similar |
+| **Early career** | intern, co-op, working student, Summer Analyst, new grad, graduate, entry level, junior, university, campus, apprentice | anything senior, staff, principal, director, VP; a manager or lead unless it is also junior or an intern; a recruiter *for* a university or campus |
+| **In one of twelve categories** | see the table below | a title naming none of them, or naming first a field we hold off on: law and compliance, consulting, teaching, the arts, public policy, customer support |
 
-Each kept job posting gets **one category** (KAN-171), using the same five
-categories as the SimplifyJobs lists:
+Each kept job posting gets **one category, or two** for the engineering jobs
+that are two at once: a machine learning, AI or data engineer is Data and
+Software, a firmware or embedded engineer Hardware and Software, a quant developer
+Quant and Software. Some also get **specialties**, named in the title:
 
-| Category | Stored as | Examples | Kept (scan of 2026-10-10) |
-|---|---|---|---|
-| Software Engineering | `software` | Software Engineer Intern, Backend, Mobile, DevOps | 806 |
-| Data Science, AI & ML | `data_ai` | Applied Scientist Intern, Data Analyst, Data Engineer | 347 |
-| Hardware Engineering | `hardware` | Electrical Engineering Intern, FPGA, Firmware, Robotics | 258 |
-| Quantitative Finance | `quant` | Quantitative Trader Intern, Quant Researcher | 170 |
-| Product Management | `product` | Product Management Intern, Associate Product Manager | 54 |
+| Category | Stored as | Specialties | Examples | Kept (2026-10-10) |
+|---|---|---|---|---|
+| Software Engineering | `software` | Security & IT (`software/security`): 122 | Software Engineer Intern, Backend, DevOps, IT Helpdesk Intern, Cybersecurity Intern | 957 (1,144 with the second category) |
+| Data Science, AI & ML | `data_ai` | Machine Learning & AI (`data_ai/ml`): 243; Data Science: 75; Data Analytics: 68; Data Engineering: 43 | Applied Scientist Intern, Data Analyst, Data Engineer | 413 |
+| Hardware Engineering | `hardware` | | Electrical Engineering Intern, FPGA, Firmware, Robotics | 287 |
+| Quantitative Finance | `quant` | | Quantitative Trader Intern, Quant Researcher | 187 |
+| Product Management | `product` | | Product Management Intern, Associate Product Manager | 64 |
+| Other Engineering | `engineering` | Civil & Structural (`engineering/civil`): 269; Mechanical: 160; Manufacturing & Industrial: 101; Aerospace: 59 | Civil Engineering Intern, Mechanical Engineer, Propulsion Intern, Nuclear Engineer | 703 |
+| Business & Operations | `business` | | Business Operations Intern, Supply Chain Intern, Project Management Intern | 227 |
+| Accounting & Finance | `finance` | | Accounting Intern, Credit Analyst, Investment Banking Summer Analyst | 198 |
+| Marketing & Communications | `marketing` | | Marketing Intern, Social Media Intern, Copywriter | 157 |
+| Sales & Business Development | `sales` | | Sales Development Representative, Account Executive, Sales Engineer | 156 |
+| HR & Recruiting | `hr` | | Talent Acquisition Intern, People Operations Intern, Junior Recruiter | 100 |
+| Design | `design` | | Product Design Intern, UX Research Intern, Graphic Design Intern | 58 |
 
-Until KAN-171 only Software and AI job postings were kept. Edge cases: firmware
-and embedded count as Hardware, "Quantitative Developer" counts as Quant, and
-mechanical, civil and building-services roles stay out.
+187 job postings have two categories. In all 3,507 were kept, against 1,723
+under the five categories that came before (KAN-171), from the same 101,000 job
+postings. Edge cases: firmware and embedded count as Hardware, "Quantitative
+Developer" counts as Quant, a recruiter of engineers is HR, an electrical engineer
+for buildings and power systems is Other Engineering, and a bare "Engineering
+Intern" names no discipline, so it is dropped.
 
 ### 3.2 Reading the facts
 
@@ -158,7 +170,7 @@ to full-time for new-grad roles. An internship's job type is always shown as
 | Start date | The description ("Summer 2027") | Most internships |
 | Years of experience | The description ("2+ years") | Some new-grad roles |
 | Visa sponsorship | Sentences in the description (KAN-168) | About 1 in 6 |
-| Role category | The title (section 3.1) | Always |
+| Role categories and specialties | The title (section 3.1) | Always |
 
 Visa sponsorship has three answers, or none when the job posting doesn't say:
 
@@ -181,7 +193,7 @@ transaction**: if any step fails, nothing changes.
 |---|---|
 | 1. Check | Every row is checked against the API's schema |
 | 2. Read places | Each location's text is turned into place codes (section 5.2) |
-| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. |
+| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. Its `roles` are written, and the old `role_category` from them (the first category, when it is one of the five that column knows) |
 | 4. Places | Each job posting's place rows are brought in line |
 | 5. Close | Job postings no longer in the feed are marked closed; one that comes back reopens |
 
@@ -213,7 +225,8 @@ table. Scraped ones have no `company_id`.
 | `start_term` | As the job posting says it, like "Summer 2027" |
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
-| `role_category` | Section 3.1's five values (new in KAN-171) |
+| `role_category` | The first category when it is one of the five there were before KAN-172 (new in KAN-171). Kept while the deployed code still reads it; `roles` replaces it |
+| `roles` | A list of the job posting's role keys, its categories then its specialties: `["data_ai", "software", "data_ai/ml"]` (KAN-172). Empty for a company's own job |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
 | `embedding`, `fts` | For job matching (KAN-139), not used by the Jobs page yet |
 
@@ -260,6 +273,14 @@ runs `uv run alembic upgrade head`. The role categories' and location labels' mi
 (`aa41fdc1ba80`, `5c8d6ee05a0c`) went to `main` first (#94) and were applied
 on 2026-10-10.
 
+`roles` (`98ab19cfe840`, merged to `main` on its own in #97 and applied on
+2026-10-11) is added the
+safe way round, **expand then contract**: the migration adds `roles` beside
+`role_category`, copies each job posting's category into it, and drops
+nothing, because the code running when it is applied still reads
+`role_category`. KAN-172's import writes both, until a later migration drops
+`role_category` once nothing reads it.
+
 ---
 
 ## 6. The API
@@ -270,7 +291,7 @@ All public, no sign-in needed (they serve public job postings).
 |---|---|
 | `GET /jobs` | A page of published job postings, newest first, without descriptions |
 | `GET /jobs/count` | How many job postings match, for "Show 128 Jobs" and /search's count |
-| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed |
+| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both, and an internship counts under job type `internship` only) |
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
 
@@ -285,7 +306,7 @@ with **and**.
 | `work_style` | `remote` | That work style |
 | `experience` | `internship` | That level |
 | `job_type` | `full_time`, `internship` | That type. `internship` is every internship; the other types match only job postings that aren't internships, as the cards show them |
-| `role` | `quant` | That category |
+| `role` | `quant`, `engineering/civil` | A job posting whose `roles` hold it: a category matches every job posting in it, either of its two, and a specialty only those named for it |
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
 | `start_term` | `summer-2027` | That season; seasons that have ended aren't offered |
@@ -306,8 +327,8 @@ can't be shown as matching a fact it never stated.
 | Piece | How it works |
 |---|---|
 | **Filters live in the address** | `/jobs?work_style=remote&role=quant`. A reload or a shared link keeps them. A value the API would refuse is dropped, not shown as an error. |
-| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. |
-| **All Filters** | One panel with every option as chips. Changes are a draft until "Show N Jobs", whose number is counted live. |
+| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract, as the cards show it (section 3.2). |
+| **All Filters** | One panel with every option as chips, or a search picker for the long lists: Location, Start Date, and Role, whose specialties ("Mechanical Engineering", "Security & IT") sit indented under their category. Changes are a draft until "Show N Jobs", whose number is counted live. |
 | **Counts beside options** | From `/jobs/facets` and `/jobs/locations`, cached for 5 minutes (they only change when an import runs). |
 | **Applying a filter** | The list dims at once while the narrowed list loads. |
 | **Load More** | The first 50 job postings, then a button adding 50 more with the same filters, until "That's every role that matches." |
@@ -346,6 +367,8 @@ browser can't restore your place by itself. The app does it instead:
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |
+| No law, consulting, teaching, arts, policy or customer support job postings, and none whose title names no field ("Engineering Intern") | Held off in KAN-172; a bare title can't be told apart (a civil firm's "Engineering Intern" from a software company's) | Add a category in the scraper, the API and the Jobs page together (no migration: `roles` is plain text) |
+| Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
 | A company only arrives once a GitHub list names it | The lists are our only source of company job boards | Find company job boards ourselves too (Common Crawl, an archive of the web) |
 | A new job posting at a quiet company can be two days late | Quiet company job boards are read one day in three | `--full` runs, or reading more often |
@@ -358,7 +381,7 @@ browser can't restore your place by itself. The app does it instead:
 |---|---|
 | Which company job boards are read | `scraper/build_boards.py`, `scraper/boards.csv` |
 | How a hiring system's company job boards are read | `scraper/workit_scraper/providers.py` |
-| Which job postings are kept, and their category | `scraper/workit_scraper/shortlist.py` |
+| Which job postings are kept, and their categories and specialties | `scraper/workit_scraper/shortlist.py` |
 | How a fact is read from a description | `scraper/workit_scraper/details.py` |
 | What the import writes | `backend/app/scripts/import_jobs.py` |
 | How a location becomes a place | `backend/app/services/location_resolver.py` |

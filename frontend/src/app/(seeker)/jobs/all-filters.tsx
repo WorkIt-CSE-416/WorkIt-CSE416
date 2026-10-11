@@ -153,18 +153,20 @@ function PanelBody({
           />
         </Section>
 
-        {/* Full width, as Location: its five names are long, and the row
-            puts it second. */}
+        {/* Full width, as Location: its names are long, and the row puts it
+            second. Each category is followed by its specialties, indented
+            as a country's states are (KAN-172). */}
         <Section Icon={RoleIcon} label="Role">
           <SearchPicker
             key={`roles-${cleared}`}
             label="Roles"
-            placeholder="Search a role"
+            placeholder="Search a role or a specialty"
             empty="No role by that name."
             options={ROLE_OPTIONS.map((o) => ({
               value: o.value,
               label: o.label,
               count: countOf("role", o.value),
+              nested: "category" in o,
             }))}
             values={draft.roles}
             onChange={(next) =>
@@ -420,17 +422,18 @@ type PickOption = {
   value: string;
   label: string;
   count?: number;
-  /** Drawn indented under the option before it (a state under its country)
-   *  while nothing is typed. */
+  /** Drawn indented under the option before it (a state under its country, a
+   *  specialty under its category) while nothing is typed. */
   nested?: boolean;
 };
 
 /** A search field that opens a dropdown checklist, and what is ticked as
  *  pills under it, each with a cross to take it off: Location (every place,
- *  each country followed by its states), Role (the five disciplines) and
- *  Start Date (the seasons). The list opens only from the field (a click,
- *  typing or ArrowDown) and floats over the panel like any dropdown, so the
- *  sections below don't move; it stays open while options are ticked, and
+ *  each country followed by its states), Role (the twelve categories, each
+ *  followed by its specialties) and Start Date (the seasons). The list opens
+ *  only from the field (a click, typing or ArrowDown) and floats over the
+ *  panel like any dropdown, so the sections below don't move; it stays open
+ *  while options are ticked, and
  *  closes on Escape (which stops there, short of closing the panel), on a
  *  press outside, or when focus leaves it. Nothing is suggested before the
  *  seeker looks.

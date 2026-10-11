@@ -5,6 +5,7 @@ what it does."""
 import datetime
 
 import pytest
+from pydantic import ValidationError
 
 from app.models import dto
 from app.schemas.jobs import JobListing
@@ -45,6 +46,7 @@ def test_row_shape(resolver):
         "min_years_experience": None,
         "start_term": None,
         "sponsorship": None,
+        "roles": [],
         "role_category": None,
         # No pay stated: the NOT NULL columns keep their defaults, amounts empty.
         "salary": None,
@@ -75,16 +77,44 @@ def test_sponsorship_is_kept(resolver):
     assert prepared.rows[0]["sponsorship"] == dto.visa_sponsorship.citizens_only
 
 
-def test_role_category_is_kept(resolver):
-    # The scraper's reading of the title (shortlist.py): Jane Street's
-    # "Quantitative Trader Intern" is quant.
-    prepared = prepare([listing("https://x/1", role_category="quant")], resolver)
-    assert prepared.rows[0]["role_category"] == dto.role_category.quant
+def test_roles_are_kept_as_text(resolver):
+    # The scraper's reading of the title (shortlist.py): Cresta's "Machine
+    # Learning Engineering Intern" is data and software, ML its specialty.
+    prepared = prepare(
+        [listing("https://x/1", roles=["data_ai", "software", "data_ai/ml"])], resolver
+    )
+    row = prepared.rows[0]
+    assert row["roles"] == ["data_ai", "software", "data_ai/ml"]
+    assert all(type(key) is str for key in row["roles"])
 
 
-def test_a_feed_without_role_categories_still_imports(resolver):
-    # feed.json from before KAN-171 has no role_category key at all.
-    assert prepare([listing("https://x/1")], resolver).rows[0]["role_category"] is None
+def test_role_category_is_the_first_role_while_it_is_one_of_the_five(resolver):
+    # The column the API deployed before KAN-172 reads (expand, then contract).
+    prepared = prepare([
+        listing("https://x/1", roles=["quant", "software"]),
+        # Olsson's "Civil Engineering Internship - Roadway": no old category fits.
+        listing("https://x/2", roles=["engineering", "engineering/civil"]),
+    ], resolver)
+    assert [r["role_category"] for r in prepared.rows] == [dto.role_category.quant, None]
+
+
+def test_a_feed_from_before_kan_172_keeps_its_one_category(resolver):
+    # role_category and no roles: the category stands for them.
+    row = prepare([listing("https://x/1", role_category="hardware")], resolver).rows[0]
+    assert (row["roles"], row["role_category"]) == (["hardware"], dto.role_category.hardware)
+
+
+def test_a_feed_without_roles_still_imports(resolver):
+    # feed.json from before KAN-171 has neither key at all.
+    row = prepare([listing("https://x/1")], resolver).rows[0]
+    assert (row["roles"], row["role_category"]) == ([], None)
+
+
+def test_an_unknown_role_key_fails_the_feed():
+    # A key the scraper added and this side never learned is a contract break,
+    # caught before anything is written, never a role quietly dropped.
+    with pytest.raises(ValidationError):
+        listing("https://x/1", roles=["software", "legal"])
 
 
 def test_description_is_kept(resolver):

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.dialects import postgresql
 
 from app.db import get_session
 from app.main import app
@@ -20,6 +21,7 @@ from app.routers.jobs import (
     location_options,
     matching,
     offered_in,
+    role_counts,
     season_is_over,
     season_of,
     to_listing,
@@ -42,6 +44,7 @@ ROW = SimpleNamespace(
     start_term="Summer 2027",
     sponsorship=dto.visa_sponsorship.sponsors,
     role_category=dto.role_category.hardware,
+    roles=["hardware", "software"],
     salary=None,
     salary_min=40.0,
     salary_max=46.0,
@@ -81,6 +84,7 @@ def test_row_becomes_the_feed_shape():
         "min_years_experience": None,
         "start_term": "Summer 2027",
         "sponsorship": dto.visa_sponsorship.sponsors,
+        "roles": [dto.role_key.hardware, dto.role_key.software],
         "role_category": dto.role_category.hardware,
     }
 
@@ -372,9 +376,11 @@ def test_route_reads_internship_as_a_job_type(no_database, monkeypatch):
     assert list(seen[0]) == ["internship", "part_time"]
 
 
-def test_role_keeps_any_of_the_disciplines_asked_for():
-    (clause,) = matching(JobFilters(roles=[dto.role_category.quant, dto.role_category.product]))
-    assert _sql(clause) == "job_postings.role_category IN ('quant', 'product')"
+def test_role_keeps_jobs_holding_any_of_the_keys_asked_for():
+    # An array overlap, which job_postings_roles_idx (GIN) serves: a category and
+    # a specialty in one filter (KAN-172).
+    (clause,) = matching(JobFilters(roles=[dto.role_key.quant, dto.role_key.data_ai_ml]))
+    assert _sql(clause) == "job_postings.roles && ARRAY['quant', 'data_ai/ml']"
 
 
 def test_route_reads_roles(no_database, monkeypatch):
@@ -387,11 +393,27 @@ def test_route_reads_roles(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
     client = TestClient(app)
     assert client.get("/jobs?role=data_ai&role=hardware").status_code == 200
+    assert client.get("/jobs?role=engineering/civil&role=design").status_code == 200
     assert client.get("/jobs").status_code == 200
-    assert seen == [[dto.role_category.data_ai, dto.role_category.hardware], []]
+    assert seen == [
+        [dto.role_key.data_ai, dto.role_key.hardware],
+        [dto.role_key.engineering_civil, dto.role_key.design],
+        [],
+    ]
 
 
-@pytest.mark.parametrize("role", ["swe", "Software", "design", "mechanical"])
+def test_route_takes_every_role_key_at_once(no_database, monkeypatch):
+    async def fetch(db, limit, filters, offset=0):
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    params = [("role", key.value) for key in dto.role_key]
+    assert TestClient(app).get("/jobs", params=params).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "role", ["swe", "Software", "mechanical", "data_ai/robotics", "legal", "engineering/"]
+)
 def test_route_rejects_an_unknown_role(no_database, role):
     assert TestClient(app).get("/jobs", params={"role": role}).status_code == 422
     assert TestClient(app).get("/jobs/count", params={"role": role}).status_code == 422
@@ -406,7 +428,7 @@ def test_count_reads_roles(no_database, monkeypatch):
 
     monkeypatch.setattr("app.routers.jobs.fetch_count", count)
     assert TestClient(app).get("/jobs/count?role=product").json() == {"jobs": 3}
-    assert seen == [[dto.role_category.product]]
+    assert seen == [[dto.role_key.product]]
 
 
 def test_visa_sponsors_keeps_only_stated_sponsors():
@@ -512,10 +534,20 @@ def test_a_season_is_over_once_the_next_begins(key, day, over):
     assert season_is_over(key, datetime.date.fromisoformat(day)) is over
 
 
+def test_role_facets_count_every_key_a_job_holds():
+    # A job in data and software counts under both, and under its specialty:
+    # each key is one row of unnest(roles), grouped outside it (Postgres won't
+    # group by a set-returning function).
+    sql = str(role_counts().compile(dialect=postgresql.dialect()))
+    assert "unnest(job_postings.roles) AS key" in sql
+    assert sql.rstrip().endswith("GROUP BY anon_1.key")
+    assert "job_postings.company_id IS NULL" in sql
+
+
 def test_route_lists_facets(no_database, monkeypatch):
     facets = JobFacets(
         work_style=[FacetCount(value="remote", jobs=73)],
-        role=[FacetCount(value="quant", jobs=41)],
+        role=[FacetCount(value="quant", jobs=41), FacetCount(value="data_ai/ml", jobs=243)],
         experience=[], job_type=[], posted_within=[], visa=[], start_term=[],
     )
 
@@ -525,7 +557,10 @@ def test_route_lists_facets(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_facets", fetch)
     body = TestClient(app).get("/jobs/facets").json()
     assert body["work_style"] == [{"value": "remote", "jobs": 73}]
-    assert body["role"] == [{"value": "quant", "jobs": 41}]
+    assert body["role"] == [
+        {"value": "quant", "jobs": 41},
+        {"value": "data_ai/ml", "jobs": 243},
+    ]
 
 
 def test_count_reads_the_same_filters(no_database, monkeypatch):
