@@ -209,7 +209,10 @@ class JobFilters:
     # The disciplines asked for (KAN-171); none means every one.
     roles: Sequence[dto.role_category] = ()
     levels: Sequence[str] = ()
-    job_types: Sequence[dto.job_type] = ()
+    # "internship" is every internship, whatever its hours: the Jobs page shows
+    # that as an internship's job type, so full_time and the rest match only
+    # the roles that aren't internships (KAN-171).
+    job_types: Sequence[str] = ()
     posted_since: datetime.datetime | None = None
     # Yearly figures in US dollars: ?min_pay=45&pay_per=hour is 93,600. A
     # posting matches when its pay range overlaps this one.
@@ -228,6 +231,28 @@ class JobFilters:
     # case. On the server, so a search reaches every job and not only the
     # page of them the feed has loaded.
     query: str | None = None
+
+
+# ?job_type=: the column's three, plus "internship" (see JobFilters.job_types).
+JobTypeKey = Literal["full_time", "part_time", "contract", "internship"]
+
+_INTERNSHIP = Job_Post.experience_level == dto.experience_level.internship
+
+
+def job_type_matches(job_types: Sequence[str]) -> ColumnElement[bool]:
+    '''
+    a job of any of these types, as the Jobs page shows them: "internship" is
+    every internship, and full_time, part_time and contract are those types
+    among the jobs that aren't internships (an internship states its hours, if
+    at all, in a field the page doesn't show)
+    '''
+    either: list[ColumnElement[bool]] = []
+    if "internship" in job_types:
+        either.append(_INTERNSHIP)
+    kinds = [t for t in job_types if t != "internship"]
+    if kinds:
+        either.append(and_(~_INTERNSHIP, Job_Post.job_type.in_(kinds)))
+    return or_(*either)
 
 
 def yearly_pay(end: Literal["top", "bottom"] = "top") -> ColumnElement[float]:
@@ -262,7 +287,7 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.levels:
         clauses.append(Job_Post.experience_level.in_(filters.levels))
     if filters.job_types:
-        clauses.append(Job_Post.job_type.in_(filters.job_types))
+        clauses.append(job_type_matches(filters.job_types))
     if filters.posted_since is not None:
         clauses.append(Job_Post.posted_at >= filters.posted_since)
     if filters.min_yearly_pay is not None or filters.max_yearly_pay is not None:
@@ -391,7 +416,7 @@ async def read_filters(
     work_style: list[dto.work_style] = Query([], max_length=3),
     role: list[dto.role_category] = Query([], max_length=5),
     experience: list[Literal["internship", "new_grad"]] = Query([], max_length=2),
-    job_type: list[dto.job_type] = Query([], max_length=3),
+    job_type: list[JobTypeKey] = Query([], max_length=4),
     # Days back from now: 1, 7 or 30 from the board, any whole number here.
     posted_within: int | None = Query(None, ge=1, le=365),
     # A pay range in US dollars, per `pay_per`; either end may be left open.
@@ -558,9 +583,11 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
     feed (not narrowed by the other filters), so the filter row can show a
     count beside every option
     '''
-    async def by(column) -> list[FacetCount]:
+    async def by(column, *where: ColumnElement[bool]) -> list[FacetCount]:
         rows = await db.execute(
-            select(column, func.count()).where(_LISTED, column.is_not(None)).group_by(column)
+            select(column, func.count())
+            .where(_LISTED, column.is_not(None), *where)
+            .group_by(column)
         )
         return [FacetCount(value=str(value), jobs=n) for value, n in rows]
 
@@ -584,7 +611,11 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
         work_style=await by(Job_Post.work_style),
         role=await by(Job_Post.role_category),
         experience=await by(Job_Post.experience_level),
-        job_type=await by(Job_Post.job_type),
+        # As the page shows them: internships count under "internship" alone.
+        job_type=[
+            *await by(Job_Post.job_type, ~_INTERNSHIP),
+            *[f for f in await by(Job_Post.experience_level) if f.value == "internship"],
+        ],
         posted_within=[FacetCount(value=str(d), jobs=n) for d, n in zip((1, 7, 30), posted)],
         visa=[
             FacetCount(value="sponsors", jobs=sponsors),

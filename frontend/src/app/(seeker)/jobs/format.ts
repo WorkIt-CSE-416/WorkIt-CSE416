@@ -132,7 +132,8 @@ const PLACE_SEPARATOR = /\s*(?:;|\||•)\s*/;
 
 /** One place as a job board would print it: "Philadelphia, Pennsylvania,
  *  United States" is "Philadelphia, PA", "Mountain View, CA, USA" is
- *  "Mountain View, CA". A state after a city is shortened to its code, and
+ *  "Mountain View, CA". A state right after a city, ending the place, is
+ *  shortened to its code (in a list of cities, "New York" is a city), and
  *  the US dropped once a city or state comes before it. A remote place keeps
  *  its country, since "Remote, US" says who may apply. Anything else (a city
  *  abroad, "San Francisco" with no state) is printed as the posting wrote it:
@@ -146,7 +147,13 @@ function tidyPlace(place: string): string {
   const kept = parts.filter(
     (part, i) => remote || i === 0 || !US_NAMES.has(part.toLowerCase().replaceAll(".", "")),
   );
-  return kept.map((part, i) => (i > 0 ? (US_STATES[part.toLowerCase()] ?? part) : part)).join(", ");
+  // Only a "City, State" place: in a list of cities ("San Francisco,
+  // Seattle, New York") New York is a city, and it prints as written.
+  return kept
+    .map((part, i) =>
+      i === 1 && kept.length === 2 ? (US_STATES[part.toLowerCase()] ?? part) : part,
+    )
+    .join(", ");
 }
 
 /**

@@ -34,6 +34,13 @@ import {
  * nothing watches for a theme change.
  */
 
+/** The tallest the stage grows, in each view. The drawing scales to fit the
+ *  stage both ways, so past these it stops growing with the width and centres
+ *  instead. Activity shares a row with Waiting on the Dashboard, and an
+ *  uncapped skyline made that row over 500px tall. */
+const MAX_H2 = 170;
+const MAX_H3 = 260;
+
 export type StreakModel = {
   cells: Cell[];
   weeks: number;
@@ -48,7 +55,6 @@ export type SkylineState = {
   target: 0 | 1;
   /** The day under the pointer, the tap or the keyboard, or -1. */
   setActive: (index: number) => void;
-  setWidth: (width: number) => void;
   /** A keyboard move landed on this day; say it to a screen reader. */
   announce: (index: number) => void;
 };
@@ -280,17 +286,16 @@ export function mountSkyline(
     gutter = W < GUTTER_MIN ? 0 : labelW;
     dpr = Math.min(2, window.devicePixelRatio || 1);
     const b2 = extent(camera(0), 0, true);
-    H2 = 20 + 4 + ((b2.maxy - b2.miny) / (b2.maxx - b2.minx)) * (W - gutter - 4);
+    H2 = Math.min(20 + 4 + ((b2.maxy - b2.miny) / (b2.maxx - b2.minx)) * (W - gutter - 4), MAX_H2);
     const b3 = extent(camera(1), 1, true);
     const natural = ((b3.maxy - b3.miny) / (b3.maxx - b3.minx)) * (W - 40) + 40;
-    H3 = Math.max(Math.min(natural, W * 0.72, 620), Math.min(natural, 240));
+    H3 = Math.max(Math.min(natural, W * 0.72, MAX_H3), Math.min(natural, 240));
     Hmax = Math.ceil(Math.max(H2, H3));
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(Hmax * dpr);
     canvas.style.width = W + "px";
     canvas.style.height = Hmax + "px";
     lastH = -1;
-    state.current.setWidth(W);
     draw();
   };
 

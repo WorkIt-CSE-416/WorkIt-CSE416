@@ -80,7 +80,8 @@ import type { JobFacets, JobLocationOption } from "./listings";
  *
  * Location is a Popover rather than a Select, for its two panels
  * (LocationFacet says why). Job Type is how the job is set up and Experience the career
- * stage, kept apart on purpose: "Internship" is only ever the second.
+ * stage. Internship is both: the card shows it as an internship's job type
+ * (KAN-171), and the API matches the other types among non-internships.
  */
 
 /** The look every facet's button shares, Select or Popover: a small

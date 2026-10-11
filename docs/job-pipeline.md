@@ -4,11 +4,9 @@ How a job posting travels from a company job board to a card a student can
 filter, open and apply to. Each section stands on its own, so read the one you
 need.
 
-> **Status (2026-10-10).** This describes the code on `KAN-134-workday`
-> (Workday), which builds on `KAN-171-more-jobs` and so on PRs #91 (filters and
-> visa) and #92 (the job posting page).
-> The role categories need their database migration applied before they go
-> live (section 5.3).
+> **Status (2026-10-11).** This describes the code on `KAN-134-workday` (the
+> Workday reader), which builds on `main` through PR #97, KAN-171's batch
+> included. Its database columns were applied on 2026-10-10 (#94).
 
 ## Three words used throughout
 
@@ -159,14 +157,15 @@ The rule everywhere: **use the hiring system's own field first, then the
 description's text, and never guess.** A missing fact stays empty rather than
 filled with a likely value. The two exceptions are rules measured on the live
 feed to be nearly always right: work style falls back to "On site", and job type
-to full-time for new-grad roles and summer internships.
+to full-time for new-grad roles. An internship's job type is always shown as
+"Internship", whatever its hours.
 
 | Fact | Where it comes from | How often a job posting states it |
 |---|---|---|
 | Location | The company job board's location text | Almost always |
 | Work style (remote, hybrid, on-site) | The hiring system's field (Ashby, Lever, Workable, BambooHR, and Workday where the company fills it in); on Greenhouse, a location that says "Remote"; else the description | About 97% |
 | Experience level | The title (internship or new grad) | Always |
-| Job type (full-time, part-time, contract) | The hiring system's field, else the description; else full-time for a new-grad role or a summer internship (216 of 216 new-grad and 71 of 74 summer job postings that state one say full-time) | About 37% stated; about 65% with the full-time rule. Other internships stay empty |
+| Job type | Every internship: "Internship". Otherwise the hiring system's field, else the description, else full-time for a new-grad role (all 216 new-grad job postings that state one say full-time) | Always, for internships and new-grad roles |
 | Pay | The description ("$40-$50/hr"), never a funding amount | About 60% |
 | Start date | The description ("Summer 2027") | Most internships |
 | Years of experience | The description ("2+ years") | Some new-grad roles |
@@ -269,8 +268,9 @@ and get no rows.
 
 Alembic owns the schema. A new column is a migration, which must be **merged to
 `main` before anyone applies it** to the shared database, and only a person
-runs `uv run alembic upgrade head`. The role categories' migration
-(`aa41fdc1ba80`) is waiting on exactly that.
+runs `uv run alembic upgrade head`. The role categories' and location labels' migrations
+(`aa41fdc1ba80`, `5c8d6ee05a0c`) went to `main` first (#94) and were applied
+on 2026-10-10.
 
 ---
 
@@ -296,7 +296,7 @@ with **and**.
 | `location` | `US`, `US-CA` | A place row there, **or a remote job posting that names no place** (it can be done from anywhere) |
 | `work_style` | `remote` | That work style |
 | `experience` | `internship` | That level |
-| `job_type` | `full_time` | That type |
+| `job_type` | `full_time`, `internship` | That type. `internship` is every internship; the other types match only job postings that aren't internships, as the cards show them |
 | `role` | `quant` | That category |
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |

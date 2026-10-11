@@ -69,6 +69,9 @@ export function FeedList({
   }, [focusId]);
 
   function loadMore() {
+    // The list's own page, read before the request: the seeker may have left
+    // for a job posting by the time it answers (review, 2026-10-10).
+    const path = window.location.pathname;
     start(async () => {
       const page = await loadMoreJobs(query, offset);
       if (page.error != null) {
@@ -79,7 +82,7 @@ export function FeedList({
       const fresh = page.jobs.filter((job) => !shown.has(job.id));
       setError(null);
       keep({
-        path: window.location.pathname,
+        path,
         query,
         jobs: [...loaded, ...fresh],
         offset: offset + page.jobs.length,

@@ -301,7 +301,7 @@ def test_a_yearly_minimum_is_taken_as_given(no_database, monkeypatch):
     [
         "work_style=anywhere",
         "experience=experienced",  # the feed holds intern and new-grad roles only
-        "job_type=internship",  # a career stage, not how a job is set up
+        "job_type=freelance",
         "posted_within=0",
         "min_pay=-5",
         "min_pay=45&pay_per=month",
@@ -340,8 +340,36 @@ def test_each_filter_narrows_its_own_column():
     assert sql == [
         "job_postings.work_style IN ('onsite')",
         "job_postings.experience_level IN ('new_grad')",
-        "job_postings.job_type IN ('part_time', 'contract')",
+        (
+            "job_postings.experience_level != 'internship'"
+            " AND job_postings.job_type IN ('part_time', 'contract')"
+        ),
     ]
+
+
+def test_internship_is_a_job_type_of_its_own():
+    # The Jobs page shows "Internship" as every internship's job type, so the
+    # filter's Internship is every internship, and Full-Time is only the rest.
+    (clause,) = matching(JobFilters(job_types=["internship"]))
+    assert _sql(clause) == "job_postings.experience_level = 'internship'"
+    (clause,) = matching(JobFilters(job_types=["full_time", "internship"]))
+    assert _sql(clause) == (
+        "job_postings.experience_level = 'internship'"
+        " OR job_postings.experience_level != 'internship'"
+        " AND job_postings.job_type IN ('full_time')"
+    )
+
+
+def test_route_reads_internship_as_a_job_type(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters.job_types)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs?job_type=internship&job_type=part_time").status_code == 200
+    assert list(seen[0]) == ["internship", "part_time"]
 
 
 def test_role_keeps_any_of_the_disciplines_asked_for():
@@ -516,7 +544,7 @@ def test_count_reads_the_same_filters(no_database, monkeypatch):
 
 
 def test_count_rejects_what_the_list_rejects(no_database):
-    assert TestClient(app).get("/jobs/count?job_type=internship").status_code == 422
+    assert TestClient(app).get("/jobs/count?job_type=freelance").status_code == 422
 
 
 def test_a_pay_range_matches_postings_whose_range_overlaps_it():

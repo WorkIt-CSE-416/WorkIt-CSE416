@@ -1,19 +1,20 @@
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
 import { DayLink, When } from "../local-time";
 import { KIND_STAGE, STAGE_COLOR, STAGE_ICON } from "../stage-colors";
 import type { UpNextItem } from "./data";
 import { SectionHeader } from "./section-header";
+import { SectionCard } from "./section-card";
 
 /**
- * The rest of what needs the seeker next — the top item is the violet card
- * above (./next-up-hero.tsx). The seeker's version of the company dashboard's
+ * The rest of what needs the seeker next — the top item is the Next Up tile
+ * beside it (./next-up-hero.tsx). The seeker's version of the company dashboard's
  * "Needs your attention", and the same shape: the commitment first, whose it
  * is second, when last.
  *
- * Open on the page, not in a card: a short list of rows with round glyphs
- * reads as a list without a box around it, and the page has the hero to
- * carry its colour.
+ * A tile like every Dashboard section (./section-card.tsx), down the
+ * Dashboard's right-hand column.
  *
  * EACH ROW WEARS ITS STAGE, from ../stage-colors.ts: the same fill and the
  * same white glyph as that stage's board column header.
@@ -23,9 +24,9 @@ import { SectionHeader } from "./section-header";
  * violet briefcase. The detail panel's timeline uses the same map. Its own tones here once painted an interview
  * violet and a deadline in Interviewing's amber, contradicting the board. Not danger red for a deadline: red means rejected.
  */
-export function UpNext({ items }: { items: UpNextItem[] }) {
+export function UpNext({ items, className }: { items: UpNextItem[]; className?: string }) {
   return (
-    <section aria-labelledby="up-next" className="@container/upnext">
+    <SectionCard aria-labelledby="up-next" className={cn("@container/upnext", className)}>
       <SectionHeader
         id="up-next"
         title="Up Next"
@@ -60,7 +61,7 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
               </span>
               {/* The date sits at the row's end once the list itself is wide
                   enough (@md/upnext, 448px of list) and drops under the role
-                  below that. Keyed to the list, not the page: in the 2fr
+                  below that. Keyed to the list, not the page: in a narrow
                   column a page-wide breakpoint put the date beside a role and
                   company cut to "TechNova I…". */}
               <div className="min-w-0 flex-1 @md/upnext:flex @md/upnext:items-center @md/upnext:gap-3">
@@ -74,18 +75,24 @@ export function UpNext({ items }: { items: UpNextItem[] }) {
                   >
                     {item.title}
                   </DayLink>
-                  <p className="text-note text-ink-meta truncate">
+                  {/* Two lines in a narrow column rather than an ellipsis
+                      ("Design Systems Lead · Ve…"); one beside the date. */}
+                  <p className="text-note text-ink-meta line-clamp-2 @md/upnext:line-clamp-1">
                     {item.role} · {item.company}
                   </p>
                 </div>
-                <p className="text-note text-ink-muted mt-0.5 @md/upnext:mt-0 @md/upnext:shrink-0 @md/upnext:text-right">
-                  <When at={item.at} />
-                </p>
+                {/* The date in a pill: as plain grey text it was the
+                    faintest thing on the row and the one a seeker looks for. */}
+                <div className="mt-1.5 @md/upnext:mt-0 @md/upnext:shrink-0">
+                  <Badge variant="tag" pill>
+                    <When at={item.at} />
+                  </Badge>
+                </div>
               </div>
             </li>
           );
         })}
       </ul>
-    </section>
+    </SectionCard>
   );
 }

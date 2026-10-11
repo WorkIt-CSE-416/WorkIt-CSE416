@@ -30,7 +30,7 @@ export type FeedFilters = {
   /** None is every discipline. */
   roles: Role[];
   levels: Level[];
-  jobTypes: JobType[];
+  jobTypes: JobTypeKey[];
   /** 1, 7 or 30 from the row; null for any time. */
   postedWithin: number | null;
   /** A pay range in US dollars per `payPer`; null leaves that end open. A
@@ -60,8 +60,8 @@ export const NO_FILTERS: FeedFilters = {
 
 /* Each facet's options, in the words ./format prints on the cards, so a
  * filter never names a value no card can carry. Job type and experience offer
- * the API's own values: "Internship" is a level, never a job type, and the
- * feed holds no "Experienced" roles. Date posted and salary are thresholds,
+ * the API's own values, plus "internship" as a job type (every internship,
+ * KAN-171), and the feed holds no "Experienced" roles. Date posted and salary are thresholds,
  * so those facets take one pick (`multiple` in ./filters); no pick is "any",
  * which is why neither list spells it out. Industry has no data behind it
  * and is not offered. */
@@ -82,16 +82,24 @@ export const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "hardware", label: "Hardware Engineering" },
 ];
 
-/** The career stage. Never a job type: that is how the job is set up. */
+/** The career stage. Internship is also a job type (JOB_TYPE_OPTIONS): the
+ *  card shows it there, so both filters offer it. */
 export const EXPERIENCE_OPTIONS: { value: Level; label: string }[] = [
   { value: "internship", label: "Internship" },
   { value: "new_grad", label: "New Grad" },
 ];
 
-export const JOB_TYPE_OPTIONS: { value: JobType; label: string }[] = [
+/** A job type as the card shows it: how a job is set up, and "Internship" for
+ *  every internship whatever its hours (KAN-171, as Jobright does). The API
+ *  matches Full-Time and the rest among the jobs that aren't internships, so
+ *  a card never says "Internship" under a Full-Time filter. */
+export type JobTypeKey = JobType | "internship";
+
+export const JOB_TYPE_OPTIONS: { value: JobTypeKey; label: string }[] = [
   { value: "full_time", label: "Full-Time" },
   { value: "part_time", label: "Part-Time" },
   { value: "contract", label: "Contract" },
+  { value: "internship", label: "Internship" },
 ];
 
 export const DATE_POSTED_OPTIONS: { value: number; label: string }[] = [
