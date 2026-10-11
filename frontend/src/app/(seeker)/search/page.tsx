@@ -40,8 +40,8 @@ export const metadata: Metadata = {
  * /search, where the top bar's field lands with the query as ?q. It asks the
  * same live feed as /jobs (../jobs/listings) for what the query names: the
  * API reads it with the role resolver (KAN-155), so "swe intern stripe" is
- * software engineer jobs that mention Stripe or are at Stripe, a typo
- * corrected, the closest matches first (backend/app/routers/jobs.py). It draws them with the
+ * software engineer internships at Stripe or that mention it, a typo
+ * corrected, newest first (backend/app/routers/jobs.py). It draws them with the
  * feed's own list and card (../jobs/feed-list) under the feed's own filters,
  * so a role looks and acts the same whichever way it was found. The API does
  * the matching, across every job: it used to happen here, inside the 50 the

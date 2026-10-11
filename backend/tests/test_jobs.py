@@ -21,13 +21,13 @@ from app.routers.jobs import (
     location_options,
     matching,
     offered_in,
-    relevance,
+    query_facts,
     season_is_over,
     season_of,
     to_listing,
 )
 from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
-from app.services.role_resolver import RoleResolver
+from app.services.role_resolver import RoleResolver, raw_words
 from tests.test_role_resolver import ROLES
 
 ROW = SimpleNamespace(
@@ -138,7 +138,7 @@ def test_route_reads_the_search_words(no_database, monkeypatch):
     seen = []
 
     async def fetch(db, limit, filters, offset=0):
-        seen.append((list(filters.query_roles), filters.query_words))
+        seen.append((list(filters.query_roles), list(filters.query_words)))
         return []
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
@@ -146,29 +146,82 @@ def test_route_reads_the_search_words(no_database, monkeypatch):
     for q in ("  Stripe ", "   ", None):
         assert client.get("/jobs", params={"q": q} if q is not None else {}).status_code == 200
     # Read as words, folded; blank is no search at all.
-    assert seen == [([], "stripe"), ([], None), ([], None)]
+    assert seen == [([], ["stripe"]), ([], []), ([], [])]
     assert client.get("/jobs", params={"q": "x" * 201}).status_code == 422
 
 
-@pytest.mark.parametrize(("q", "roles", "words"), [
-    # the roles a search names, and the words left for its text and company
-    ("swe intern stripe", ["software_engineer"], "intern stripe"),
-    ("machine learning", ["ai_ml_engineer"], None),
+@pytest.mark.parametrize(("q", "roles", "levels", "styles", "words"), [
+    # a role, a fact, and a word left for the text or the company's name
+    ("swe intern stripe", ["software_engineer"], ["internship"], [], ["stripe"]),
+    ("stripe intern", [], ["internship"], [], ["stripe"]),
+    ("machine learning", ["ai_ml_engineer"], [], [], []),
     # a typo is corrected before it is read (read_query)
-    ("sofware engineer google", ["software_engineer"], "google"),
+    ("sofware engineer google", ["software_engineer"], [], [], ["google"]),
     # two roles: each narrows, so a job must be tagged with both
-    ("ml software engineer", ["ai_ml_engineer", "software_engineer"], None),
+    ("ml software engineer", ["ai_ml_engineer", "software_engineer"], [], [], []),
+    # a fact counts though a role's alias used its word: "marketing intern"
+    # is the marketing role and an internship both
+    ("marketing intern", ["marketing_specialist"], ["internship"], [], []),
+    ("software engineer new grad remote", ["software_engineer"], ["new_grad"], ["remote"], []),
+    ("data scientist co-op hybrid", ["data_scientist"], ["internship"], ["hybrid"], []),
 ])
-def test_a_search_is_read_by_the_role_resolver(no_database, monkeypatch, q, roles, words):
+def test_a_search_is_read_in_its_three_parts(no_database, monkeypatch, q, roles, levels, styles, words):
     seen = []
 
     async def fetch(db, limit, filters, offset=0):
-        seen.append((list(filters.query_roles), filters.query_words))
+        seen.append(filters)
         return []
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
     assert TestClient(app).get("/jobs", params={"q": q}).status_code == 200
-    assert seen == [(roles, words)]
+    (filters,) = seen
+    assert list(filters.query_roles) == roles
+    assert list(filters.query_levels) == levels
+    assert [style.value for style in filters.query_work_styles] == styles
+    assert list(filters.query_words) == words
+    assert filters.query_start_terms is None
+
+
+def test_a_search_s_year_is_a_start_term(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    async def terms_in(db, seasons):
+        # A bare year is every season of it, and the year alone.
+        assert list(seasons) == [
+            "winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027",
+        ]
+        return ["Summer 2027", "January 2027", "2027"]
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    monkeypatch.setattr("app.routers.jobs.terms_in", terms_in)
+    assert TestClient(app).get("/jobs", params={"q": "intern 2027"}).status_code == 200
+    (filters,) = seen
+    assert list(filters.query_start_terms) == ["Summer 2027", "January 2027", "2027"]
+    assert list(filters.query_levels) == ["internship"] and list(filters.query_words) == []
+
+
+@pytest.mark.parametrize(("q", "levels", "styles", "seasons", "left"), [
+    ("summer 2027", [], [], ["summer-2027"], []),
+    ("2027 summer", [], [], ["summer-2027"], []),          # either order
+    ("fall 2026 internship", ["internship"], [], ["fall-2026"], []),
+    ("co-op on-site", ["internship"], ["onsite"], [], []),  # punctuation is gone
+    ("new grads in person", ["new_grad"], ["onsite"], [], []),
+    ("entry level", ["new_grad"], [], [], []),
+    # a season with no year names no season, as season_of reads one
+    ("summer", [], [], [], ["summer"]),
+    ("stripe interns remote", ["internship"], ["remote"], [], ["stripe"]),
+])
+def test_query_facts(q, levels, styles, seasons, left):
+    words = raw_words(q)
+    facts = query_facts(words)
+    assert list(facts.levels) == levels
+    assert [style.value for style in facts.work_styles] == styles
+    assert list(facts.seasons) == seasons
+    assert [w for i, w in enumerate(words) if i not in facts.used] == left
 
 
 def test_a_search_s_roles_each_narrow_on_their_own():
@@ -178,19 +231,28 @@ def test_a_search_s_roles_each_narrow_on_their_own():
     assert "job_role_tags.role_slug IN ('software_engineer')" in _sql(clauses[1])
 
 
-def test_a_search_s_words_match_the_text_or_the_company_and_escape_wildcards():
-    (clause,) = matching(JobFilters(query_words="100%_on"))
-    sql = str(clause.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
-    assert "job_postings.fts @@ websearch_to_tsquery('english', '100%%_on')" in sql
-    # The company's name is matched as typed, % and _ as themselves.
+def test_a_search_s_facts_narrow_their_own_columns():
+    filters = JobFilters(
+        query_levels=["internship"],
+        query_work_styles=[dto.work_style.remote],
+        query_start_terms=["Summer 2027"],
+    )
+    assert [_sql(c) for c in matching(filters)] == [
+        "job_postings.experience_level IN ('internship')",
+        "job_postings.work_style IN ('remote')",
+        "job_postings.start_term IN ('Summer 2027')",
+    ]
+
+
+def test_each_search_word_matches_the_text_or_the_company_on_its_own():
+    clauses = matching(JobFilters(query_words=["stripe", "100%_on"]))
+    assert len(clauses) == 2
+    sql = str(clauses[1].compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    # A stop word's empty query passes; else the stemmed text, or the name as typed.
+    assert "numnode(plainto_tsquery('english', '100%%_on')) = 0" in sql
+    assert "job_postings.fts @@ plainto_tsquery('english', '100%%_on')" in sql
     assert "job_postings.company_name ILIKE" in sql
-    assert "100/%%/_on" in sql
-
-
-def test_a_search_with_words_puts_a_company_they_name_first():
-    company, rank = relevance("stripe")
-    assert "CASE WHEN" in _sql(company) and "company_name" in _sql(company)
-    assert "ts_rank(job_postings.fts" in _sql(rank)
+    assert "100/%%/_on" in sql   # % and _ as themselves in the name
 
 
 def test_route_passes_the_limit(no_database, monkeypatch):

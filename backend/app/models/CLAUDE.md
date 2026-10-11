@@ -593,7 +593,8 @@ searching company-posted jobs by employer needs a join or a copied name.
 - **`job_postings.embedding` and `resumes.embedding`** hold Gemini vectors,
   `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
 - **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
-  and description (weighted D), so a search ranks a title match first, with
+  and description (weighted D), so anything that ranks with `ts_rank` puts a
+  title match first (search itself doesn't rank: `@@` ignores weights), with
   the GIN index `job_postings_fts_idx` serving `GET /jobs?q=`; both from
   `a70c641b2f99`, which drops and adds the column (a generated column's
   expression can't be altered in place everywhere). Postgres computes it and

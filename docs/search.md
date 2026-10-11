@@ -289,11 +289,12 @@ workplace, experience and posted filters the same way: each one narrows.
   keeps jobs tagged with any of them: an `EXISTS` on `job_role_tags`, like
   `?location=`. Validated against the slug shape only; an unknown slug matches
   nothing.
-- **`?q=`**, free text, read in two parts:
+- **`?q=`**, free text, read in three parts (`read_search` in
+  `backend/app/routers/jobs.py`):
   1. **The roles it names.** The same resolver reads the query
      (`RoleResolver.read_query`), so "swe" finds `software_engineer`. Each
      role found narrows to jobs tagged with it. It also returns the words no
-     role used, as typed, which are part 2.
+     role used, as typed, which part 3 takes.
 
      Unlike a title, a query is **typo-corrected** first: a word of five or
      more letters that is in no alias becomes the nearest alias word
@@ -306,19 +307,36 @@ workplace, experience and posted filters the same way: each one narrows.
      still searches for Scale. Titles are never corrected: a guess there
      would be a stored tag. Checked on 2026-10-11 against 40 company,
      keyword and city names: none changed.
-  2. **Whatever is left** ("google", "react", "intern") must match either the
-     keyword column (`fts @@ websearch_to_tsquery('english', rest)`) or the
-     company name (trigram). Noise words like "intern" are **kept** in this
-     leftover, not stripped, so they still narrow by keyword.
+  2. **The facts it names that have columns** (`query_facts`): "intern",
+     "internship", "co-op" are the internship experience level; "new grad",
+     "early career", "entry level" are `new_grad`; "remote", "hybrid",
+     "onsite"/"on-site"/"in person" the work style; "summer 2027" (either
+     order, or a month: "january 2027" is Winter) a start season, and a bare
+     "2027" any start that year. They are read from **the whole query**, not
+     only what the roles left, so "marketing intern" is the marketing role
+     (whose alias used "intern") *and* internships. Each narrows its own
+     column beside the filter row's, so a search's "remote" with a ticked
+     Hybrid finds nothing. Like those filters, each hides a job that doesn't
+     state the fact: a start term hides the 311 of 780 internships (and most
+     new-grad jobs) that name none, on the 2026-10-11 snapshot. As keywords
+     they did worse: "intern" missed every "Internship" (the stemmer keeps them
+     apart), "2027" matched any description mentioning the year, and "remote"
+     matched 132 software jobs where the column holds 31.
+  3. **Every other word, one at a time**, must be in the job's text
+     (`fts @@ plainto_tsquery('english', word)`, stemmed) **or** its
+     company's name (`ILIKE`, as typed). Word by word, so "stripe intern"
+     finds Stripe by its name: matching the leftover as one phrase found no
+     company for any query with a second word. A stop word ("at", "the")
+     makes an empty query and is passed over (`numnode` = 0).
 
-  So "google swe" is software engineer jobs that mention Google or are at
-  Google, and "stripe" alone is every job at Stripe plus any whose text names
-  it.
+  So "swe intern stripe" is software engineer internships at Stripe or that
+  mention it, and "stripe" alone is every job at Stripe plus any whose text
+  names it.
 
-**Ranking.** Without `q`, the newest jobs come first, as today. With `q`:
-company-name matches first, then by `ts_rank` (where the title outweighs the
-description), then newest. The weights are a first guess until there is real
-traffic to tune them on.
+**No ranking.** A search filters; results are newest first, as the feed is.
+Ordering by relevance is the recommendations' job (`backend/app/services/
+matching`), not search's. The weighted `fts` (below) is there for that, and
+costs search nothing.
 
 ## Changes to `fts`
 
@@ -368,8 +386,9 @@ it (`backend/alembic/CLAUDE.md`).
   types, or two.
 - **Roles for company-posted jobs:** the company form picks them, or the
   resolver runs on the title at create.
-- **Query noise as filters:** whether "intern" or "new grad" in `q` should set
-  the experience filter rather than search by keyword.
+- **Company typos:** a misspelt company ("strpe") finds nothing, since only
+  role words are typo-corrected. The trigram index on `company_name` could
+  match it by similarity; not built.
 - **Symbols:** the `english` parser reads "C++" and "C#" as "c". Searching for
   them needs a title `ILIKE` fallback, or a different parser for those terms.
 - **Removing a role:** `job_role_tags` refuses it (RESTRICT) while any job is
