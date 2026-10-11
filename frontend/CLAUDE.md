@@ -76,7 +76,7 @@ src/react-canary.d.ts  Loads React's canary types (<ViewTransition>,
                   addTransitionType): the App Router runs React canary, and
                   @types/react's stable entry does not declare them
 src/app/          App Router routes, layouts, pages
-  layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
+  layout.tsx      Root layout — Plus Jakarta Sans (Geist Mono for mono), metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
   (seeker)/       Job-seeker shell, three white rounded panels (the section

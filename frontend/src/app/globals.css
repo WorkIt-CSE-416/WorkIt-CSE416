@@ -27,7 +27,7 @@
 
 @theme static {
   /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx. */
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-jakarta-sans);
   --font-mono: var(--font-geist-mono);
 
   /* Surfaces ------------------------------------------------------------
