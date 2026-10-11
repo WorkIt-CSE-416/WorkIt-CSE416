@@ -466,10 +466,14 @@ why; the rules for this folder:
   as `role_slug` is part of the primary key. Neither foreign key can ever
   delete a job: a cascade only runs from the table pointed at to the table
   pointing at it. Onboarding picks should take RESTRICT too.
-- **Their migration is `362182aaa4fd`** (tables only, RLS on both). It revises
-  `4485d7a7a712`, which must be applied first. Nothing reads or writes these
-  tables yet, so deploying the models ahead of the migration is harmless; once
-  the import tags jobs, the migration must be on the database first.
+- **Their migrations:** `362182aaa4fd` creates the tables (RLS on both) and
+  revises `4485d7a7a712`, which must be applied first; `ab07572bba38` seeds
+  the first 32 roles, flat, with `sort_order` in gaps of 10 so a role can be
+  inserted between two without renumbering. Nothing reads or writes these
+  tables yet, so deploying the models ahead of the migrations is harmless;
+  once the import tags jobs, both must be on the database first.
+- **A seed's downgrade deletes its roles' tags first**, since RESTRICT refuses
+  the role delete otherwise. The import writes the tags again.
 
 ## job_postings holds company-posted and scraped jobs
 
