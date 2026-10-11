@@ -50,8 +50,9 @@ DESCRIPTION_CHARS = 8000
 #: 8: work-model metadata, LinkedIn tags and the facts the 2026-10-08 audit found missed.
 #: 9: visa sponsorship (`details.sponsorship`). 10: the KAN-168 sponsorship fixes
 #: (plural "citizens", narrower negations and headings), so stored pages are re-read.
-#: 11: a Workday posting's requisition number (`Page.requisition`).
-PAGE_VERSION = 11
+#: 11: a Workday posting's requisition number (`Page.requisition`). 12: pay with
+#: cents ("$61,900.00 to $141,000.00") read as the whole range, not its low end.
+PAGE_VERSION = 12
 
 
 class BoardNotFound(Exception):

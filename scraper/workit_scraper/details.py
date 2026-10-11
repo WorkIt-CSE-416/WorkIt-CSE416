@@ -138,8 +138,11 @@ DOLLAR_PREFIX = {"CA": "CAD", "C": "CAD", "AU": "AUD", "A": "AUD", "S": "SGD", "
 CODES = ("USD", "EUR", "GBP", "CAD", "AUD", "SGD", "CHF")
 
 # Thousands grouped by "," or by "." ("34.000 EUR"); a "." before exactly two
-# digits is cents ("$40.00").
-_NUMBER = r"(\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d{3})+(?!\d)|\d+(?:\.\d+)?)\s*([kK])?"
+# digits is cents ("$40.00"), grouped thousands included: without it "$61,900.00
+# to $141,000.00" stopped at "61,900", and its ".00" hid the rest of the range.
+_NUMBER = (
+    r"(\d{1,3}(?:,\d{3})+(?:\.\d{2}(?!\d))?|\d{1,3}(?:\.\d{3})+(?!\d)|\d+(?:\.\d+)?)\s*([kK])?"
+)
 _CODE = r"(USD|EUR|GBP|CAD|AUD|SGD|CHF)"
 _RANGE_TO = r"\s*(?:-|–|—|to)\s*"
 _PAY = re.compile(

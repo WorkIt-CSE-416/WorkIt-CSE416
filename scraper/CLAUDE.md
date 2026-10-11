@@ -354,7 +354,7 @@ and only then is it cut to `DESCRIPTION_CHARS` for storage. Pay is often the las
 a posting says, under a long benefits section: reading the stored, cut copy missed it
 on a sixteenth of the feed. So `--offline` re-renders the facts a fetch found but finds
 no new ones; changing a pattern in `details.py` takes a live run (and, for Greenhouse,
-a `PAGE_VERSION` bump) to reach stored postings.
+Workable, BambooHR and Workday, a `PAGE_VERSION` bump) to reach stored postings.
 
 `details.py` is regex over prose, so it is fussy in the same way `shortlist.py` is, and
 every case in `tests/test_details.py` was seen in a real posting, except
@@ -423,6 +423,22 @@ Most gaps were honest -- 444 of 474 without pay, 267 of 311 internships without 
 - **A currency can be a code with no symbol** ("800 USD monthly", "34.000 - 38.000 EUR",
   "CAD $30-50/hour"), thousands can be "." ("$120.000"), and a range's low end can be
   short ("€55-65,000").
+- **Cents belong to the amount, thousands or not** (`_NUMBER`, 2026-10-10). "$61,900.00
+  to $141,000.00" (Booz Allen) read as $61,900 alone: the grouped-thousands pattern
+  took no cents, so it stopped at "61,900", and the ".00" left behind ended both the
+  range and the tail. On the cached store, re-read from every job posting's whole
+  text (and BambooHR's pay field), 96 of 2,392 changed, each read against its
+  sentence. 72 cards showing a range's low end now show the range (Booz Allen 42,
+  SpaceX 13, Blue Origin 9, BMO 4, Dark Wolf 2, Applied Materials, Carrier). 24 Cisco
+  internships that showed none now show $44,000 to $185,000 a year, Cisco's "full
+  salary ranges for this position" in New York and Washington and their only stated
+  pay. Those 24 pass the label check by accident: the tail runs onto the next line
+  ("* For quota-based sales roles") and `_PAID` finds "base" inside "quota-based",
+  just as it would in the same text without cents. Both are load-bearing elsewhere
+  (keeping the tail on its line loses The Aerospace Corporation's "$25.00 - $30.00",
+  proved by "Pay Basis: Hourly" below it; a word-bounded `_PAID` also moves Valon and
+  Toyota Research Institute), so they stay. `PAGE_VERSION` went to 12 so stored pages
+  are read again.
 - **A LinkedIn tag (`#LI-Hybrid`) is the employer's own work-style label** and wins;
   **Hybrid beside On site is Hybrid** (Lyft: "in-office on a hybrid schedule, 3 days
   per week"); naming weekdays onsite is hybrid. Greenhouse boards add a "Working
@@ -537,7 +553,8 @@ of sponsorship.
 
 **`TestConstructedGuards` is the one exception to "seen in a real posting":** KAN-168's
 review found bugs with sentences built to show them, and where no live posting said it
-that way the built sentence stays, in that class only, as a guard.
+that way the built sentence stays, in that class only, as a guard. The cents fix added
+one: "$50,000.00 - $70,000", cents on one end only, which no cached posting wrote.
 
 **The company name comes from `boards.csv`, not the provider.** Greenhouse's
 `company_name` carries internal labels ("LinkedIn Job Wrapping", "DRW - University
