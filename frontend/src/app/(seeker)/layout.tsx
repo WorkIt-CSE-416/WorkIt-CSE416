@@ -175,7 +175,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             href="/dashboard"
             className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97] md:hidden"
           >
-            <LogoLockup priority />
+            <LogoLockup />
           </Link>
 
           <Form

@@ -22,7 +22,7 @@ export default function ApplicantOnboardingPage() {
     <main className="flex flex-1 justify-center px-6 py-10">
       <div className="w-full max-w-2xl">
         <div className="flex flex-col items-center text-center">
-          <Logo size="card" priority />
+          <Logo size="card" />
           <h1 className="text-title text-ink mt-4">Tell us about yourself</h1>
           <p className="text-body text-ink-muted mt-1 max-w-md">
             A few details so we can point you toward the right roles. You can always change this

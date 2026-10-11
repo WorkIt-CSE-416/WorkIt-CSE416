@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <main className="bg-app flex flex-1 flex-col items-center justify-center gap-8 p-8 text-center">
-      <Logo size="card" priority />
+      <Logo size="card" />
 
       <div>
         <h1 className="text-title text-ink">Welcome to WorkIt</h1>
