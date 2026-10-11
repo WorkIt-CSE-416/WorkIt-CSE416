@@ -429,16 +429,26 @@ Most gaps were honest -- 444 of 474 without pay, 267 of 311 internships without 
   range and the tail. On the cached store, re-read from every job posting's whole
   text (and BambooHR's pay field), 96 of 2,392 changed, each read against its
   sentence. 72 cards showing a range's low end now show the range (Booz Allen 42,
-  SpaceX 13, Blue Origin 9, BMO 4, Dark Wolf 2, Applied Materials, Carrier). 24 Cisco
-  internships that showed none now show $44,000 to $185,000 a year, Cisco's "full
-  salary ranges for this position" in New York and Washington and their only stated
-  pay. Those 24 pass the label check by accident: the tail runs onto the next line
-  ("* For quota-based sales roles") and `_PAID` finds "base" inside "quota-based",
-  just as it would in the same text without cents. Both are load-bearing elsewhere
-  (keeping the tail on its line loses The Aerospace Corporation's "$25.00 - $30.00",
-  proved by "Pay Basis: Hourly" below it; a word-bounded `_PAID` also moves Valon and
-  Toyota Research Institute), so they stay. `PAGE_VERSION` went to 12 so stored pages
-  are read again.
+  SpaceX 13, Blue Origin 9, BMO 4, Dark Wolf 2, Applied Materials, Carrier). It also
+  let 24 Cisco internships misread a company-wide range (next bullet). The tail after
+  an amount runs onto the next line, and stays that way: The Aerospace Corporation's
+  "$25.00 - $30.00" is proved by "Pay Basis: Hourly" below it. `PAGE_VERSION` went to
+  12 so stored pages are read again.
+- **A pay word is a whole word, and an amount's own sentence is its label** (`_PAID`,
+  `pay`, 2026-10-11). The check used to match inside words: "base" in Cisco's "* For
+  quota-based sales roles", the line under its $44,000 to $185,000 range for New York
+  and Washington, and "rate" in Valon's "operate our own mortgage servicing business
+  managing $110+ billion in loans", read as $110 an hour. Whole words alone cost one
+  true read: Toyota Research Institute's "The pay range for this position at
+  commencement of employment is expected to be between $45 and $65/hour" names its
+  pay 85 characters before the amount, past the 60-character window, and had passed
+  only on "California-based". So the amount's own sentence counts too, for the pay
+  word only; the period still comes from the near label. On the cached store, 28 of
+  2,392 reads changed, each read: Cisco's 24 back to none, Valon's intern to its
+  stated $60 an hour (its new grad's card keeps Ashby's own pay field), and Cadence's
+  Montreal co-op (two copies, one role) from none to CA$30 an hour, the low end of
+  "The hourly range ... is from $30CAD to $45CAD". Neither "$45 and $65" nor
+  "$30CAD to $45CAD" reads as a range yet. `PAGE_VERSION` went to 13.
 - **A LinkedIn tag (`#LI-Hybrid`) is the employer's own work-style label** and wins;
   **Hybrid beside On site is Hybrid** (Lyft: "in-office on a hybrid schedule, 3 days
   per week"); naming weekdays onsite is hybrid. Greenhouse boards add a "Working

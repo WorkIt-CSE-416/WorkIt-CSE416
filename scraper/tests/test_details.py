@@ -91,6 +91,45 @@ class TestCents:
         assert details.pay("Salary Range\n$0.00 - $10,000,000.00") is None
 
 
+class TestPayWords:
+    """A word that calls an amount pay counts only as a whole word, and the amount's
+    own sentence counts as its label (2026-10-11). Every string is from the posting
+    named."""
+
+    def test_a_pay_word_inside_another_word_is_not_one(self) -> None:
+        # Cisco: a company-wide range, with "quota-based" on the line below it.
+        text = (
+            "New York City Metro Area:\n$44,000.00 - $185,000.00\n"
+            "Non-Metro New York state & Washington state:\n$44,000.00 - $185,000.00\n"
+            "* For quota-based sales roles on Cisco’s sales plan, the ranges provided"
+        )
+        assert details.pay(text) is None
+        # Valon: "operate" is not "rate", so its loan book is not an hourly rate.
+        text = (
+            "we built and operate our own mortgage servicing business managing $110+ "
+            "billion in loans.\n"
+            "Salary Expectations: The compensation for our interns is $60/hour USD + stipend."
+        )
+        assert details.pay(text) == Pay("USD", 60, 60, "hour")
+
+    def test_base_salary_still_reads(self) -> None:
+        # Color, with no space before the amount; 3RedPartners.
+        text = "Base Salary Range:$125,000-$140,000 annually"
+        assert details.pay(text) == Pay("USD", 125000, 140000, "year")
+        text = "The expected base salary range for this position is $125,000 to $200,000, depending"
+        assert details.pay(text) == Pay("USD", 125000, 200000, "year")
+
+    def test_the_amounts_sentence_is_its_label(self) -> None:
+        # Toyota Research Institute: "pay range" opens the sentence, 85 characters
+        # before the amount. ("$45 and $65" is not read as a range, so $45.)
+        text = (
+            "The pay range for this position at commencement of employment is expected to "
+            "be between $45 and $65/hour for California-based roles; however, base pay "
+            "offered may vary"
+        )
+        assert details.pay(text) == Pay("USD", 45, 45, "hour")
+
+
 class TestJobType:
     def test_full_time_internship(self) -> None:
         # Cloudflare, after "not considering remote or part-time".

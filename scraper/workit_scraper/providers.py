@@ -52,7 +52,8 @@ DESCRIPTION_CHARS = 8000
 #: (plural "citizens", narrower negations and headings), so stored pages are re-read.
 #: 11: a Workday posting's requisition number (`Page.requisition`). 12: pay with
 #: cents ("$61,900.00 to $141,000.00") read as the whole range, not its low end.
-PAGE_VERSION = 12
+#: 13: pay words as whole words ("quota-based" is not "base"), and a sentence's own.
+PAGE_VERSION = 13
 
 
 class BoardNotFound(Exception):
