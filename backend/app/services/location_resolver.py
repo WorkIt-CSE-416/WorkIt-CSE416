@@ -525,7 +525,11 @@ class LocationResolver:
             )
             if head.regions and not big_us_city:
                 return (*min(head.regions), None)
-            return self._pick_city(head.all_cities)
+            # Its own name first, as the gazetteer orders them: "Waterloo" is a
+            # Waterloo before it is Austin's old name, and "Frisco" is Frisco,
+            # TX before it is a nickname for San Francisco. Only a name that is
+            # no city's own ("SF", "NYC") falls back to its alternates.
+            return self._pick_city(head.cities[0] or head.cities[1])
 
         if head.all_cities:
             for tier in head.cities:

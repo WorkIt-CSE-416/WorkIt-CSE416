@@ -228,15 +228,15 @@ every case in `tests/test_details.py` was seen in a real posting, except
   specific hybrid wording counts as stated ("3 days a week in the office", "hybrid
   schedule"): a bare "hybrid" was wrong 38 times in 89 ("hybrid cloud").
 - **Job type is the other** (`shortlist._job_type`, KAN-171): what the posting states,
-  then "full_time" for a new-grad role or a summer internship (its title or start term
-  says Summer, and neither names fall, spring, winter, a semester, part-time or a
-  co-op). Measured on the live feed (2026-10-10): 216 of 216 new-grad roles that state
-  a type say full-time, and 71 of 74 summer internships (two part-time, one contract).
-  Every other internship stays empty: school-year terms and co-ops are often
-  part-time. A stated type always wins, so a part-time or contract posting is never
-  turned full-time. It runs in `pick`, not `details.read`, so `--offline` applies it to
-  stored postings with no re-read. On the cached feed it filled 467 of 1,635 roles
-  (empty job types went from 1,047 to 580).
+  then "full_time" for a new-grad role. Measured on the live feed (2026-10-10): 216 of
+  216 new-grad roles that state a type say full-time. A stated type always wins, so a
+  part-time or contract posting is never turned full-time. It runs in `pick`, not
+  `details.read`, so `--offline` applies it to stored postings with no re-read.
+  **An internship is never inferred:** the Jobs page shows "Internship" as every
+  internship's job type, whatever its hours (decided 2026-10-10: "Full-Time
+  Internship" beside "Part-Time Internship" read as two kinds of internship), so a
+  guessed full-time would show nowhere. Summer internships were filled for a day (71
+  of 74 that state a type say full-time) before that decision.
 - **A start term comes from the title first.** "Software Engineer Intern (2027)" is the
   employer's label for its cohort. The description can name the season ("our Summer
   2027 program") or a start month, but only of the title's year; a year alone in a

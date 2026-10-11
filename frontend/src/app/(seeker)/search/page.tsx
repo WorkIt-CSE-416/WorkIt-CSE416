@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
+import { formatCount } from "@/lib/format-count";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
@@ -69,7 +70,7 @@ async function ResultCount({ count }: { count: Promise<number | null> }) {
 
   return (
     <Badge variant="tag" pill>
-      {n} {n === 1 ? "Role" : "Roles"}
+      {formatCount(n)} {n === 1 ? "Role" : "Roles"}
     </Badge>
   );
 }
@@ -194,7 +195,8 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
                   the far edge whenever the heading wrapped, where it read as
                   belonging to nothing.
 
-                  The count's slot is a fixed width (72px holds "999 Roles"), held
+                  The count's slot is a fixed width (88px holds "9,999 Roles": it
+                  counts every match now, not the page shown), held
                   whether it shows the placeholder, a count or nothing at all, so a
                   long query wraps at the same word before and after the results land
                   and nothing below moves. It is centred on the heading's x-height
@@ -204,7 +206,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
                   many roles a search found once they land. */}
               <div className="text-heading break-words">
                 <h1 className="text-heading text-ink inline">Results for “{query}”</h1>
-                <span role="status" className="ml-3 inline-flex w-18 align-middle">
+                <span role="status" className="ml-3 inline-flex w-22 align-middle">
                   <Suspense key={key} fallback={<ResultCountSkeleton />}>
                     <ResultCount count={count} />
                   </Suspense>

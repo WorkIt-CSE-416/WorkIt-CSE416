@@ -4,10 +4,10 @@ How a job posting travels from a company job board to a card a student can
 filter, open and apply to. Each section stands on its own, so read the one you
 need.
 
-> **Status (2026-10-10).** This describes the code on `KAN-172-roles`, which
-> builds on `KAN-171-more-jobs` and PRs #91 (filters and visa) and #92 (the job
-> posting page). The twelve role categories need their database migration
-> (`98ab19cfe840`) applied before they go live (section 5.3).
+> **Status (2026-10-11).** This describes the code on `KAN-172-roles`, which
+> builds on `main` after the KAN-171 batch (#95). Its migration
+> (`98ab19cfe840`, the `roles` column) went to `main` first (#97) and must be
+> applied before this code goes live (section 5.3).
 
 ## Three words used throughout
 
@@ -157,14 +157,15 @@ The rule everywhere: **use the hiring system's own field first, then the
 description's text, and never guess.** A missing fact stays empty rather than
 filled with a likely value. The two exceptions are rules measured on the live
 feed to be nearly always right: work style falls back to "On site", and job type
-to full-time for new-grad roles and summer internships.
+to full-time for new-grad roles. An internship's job type is always shown as
+"Internship", whatever its hours.
 
 | Fact | Where it comes from | How often a job posting states it |
 |---|---|---|
 | Location | The company job board's location text | Almost always |
 | Work style (remote, hybrid, on-site) | The hiring system's field (Ashby, Lever, Workable, BambooHR); on Greenhouse, a location that says "Remote"; else the description | About 97% |
 | Experience level | The title (internship or new grad) | Always |
-| Job type (full-time, part-time, contract) | The hiring system's field, else the description; else full-time for a new-grad role or a summer internship (216 of 216 new-grad and 71 of 74 summer job postings that state one say full-time) | About 37% stated; about 65% with the full-time rule. Other internships stay empty |
+| Job type | Every internship: "Internship". Otherwise the hiring system's field, else the description, else full-time for a new-grad role (all 216 new-grad job postings that state one say full-time) | Always, for internships and new-grad roles |
 | Pay | The description ("$40-$50/hr"), never a funding amount | About 60% |
 | Start date | The description ("Summer 2027") | Most internships |
 | Years of experience | The description ("2+ years") | Some new-grad roles |
@@ -268,14 +269,16 @@ and get no rows.
 
 Alembic owns the schema. A new column is a migration, which must be **merged to
 `main` before anyone applies it** to the shared database, and only a person
-runs `uv run alembic upgrade head`. The role categories' migration
-(`aa41fdc1ba80`) is waiting on exactly that.
+runs `uv run alembic upgrade head`. The role categories' and location labels' migrations
+(`aa41fdc1ba80`, `5c8d6ee05a0c`) went to `main` first (#94) and were applied
+on 2026-10-10.
 
-`roles` (`98ab19cfe840`) is added the safe way round, **expand then
-contract**: the migration adds `roles` beside `role_category`, copies each job
-posting's category into it, and drops nothing, because the code running when it
-is applied still reads `role_category`. KAN-172's import writes both, until a
-later migration drops `role_category` once nothing reads it.
+`roles` (`98ab19cfe840`, merged to `main` on its own in #97) is added the
+safe way round, **expand then contract**: the migration adds `roles` beside
+`role_category`, copies each job posting's category into it, and drops
+nothing, because the code running when it is applied still reads
+`role_category`. KAN-172's import writes both, until a later migration drops
+`role_category` once nothing reads it.
 
 ---
 
@@ -287,7 +290,7 @@ All public, no sign-in needed (they serve public job postings).
 |---|---|
 | `GET /jobs` | A page of published job postings, newest first, without descriptions |
 | `GET /jobs/count` | How many job postings match, for "Show 128 Jobs" and /search's count |
-| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both) |
+| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both, and an internship counts under job type `internship` only) |
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
 
@@ -301,7 +304,7 @@ with **and**.
 | `location` | `US`, `US-CA` | A place row there, **or a remote job posting that names no place** (it can be done from anywhere) |
 | `work_style` | `remote` | That work style |
 | `experience` | `internship` | That level |
-| `job_type` | `full_time` | That type |
+| `job_type` | `full_time`, `internship` | That type. `internship` is every internship; the other types match only job postings that aren't internships, as the cards show them |
 | `role` | `quant`, `engineering/civil` | A job posting whose `roles` hold it: a category matches every job posting in it, either of its two, and a specialty only those named for it |
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
@@ -323,7 +326,7 @@ can't be shown as matching a fact it never stated.
 | Piece | How it works |
 |---|---|
 | **Filters live in the address** | `/jobs?work_style=remote&role=quant`. A reload or a shared link keeps them. A value the API would refuse is dropped, not shown as an error. |
-| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. |
+| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract, as the cards show it (section 3.2). |
 | **All Filters** | One panel with every option as chips, or a search picker for the long lists: Location, Start Date, and Role, whose specialties ("Mechanical Engineering", "Security & IT") sit indented under their category. Changes are a draft until "Show N Jobs", whose number is counted live. |
 | **Counts beside options** | From `/jobs/facets` and `/jobs/locations`, cached for 5 minutes (they only change when an import runs). |
 | **Applying a filter** | The list dims at once while the narrowed list loads. |
