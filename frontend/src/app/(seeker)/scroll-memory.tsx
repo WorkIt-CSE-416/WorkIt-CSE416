@@ -72,7 +72,7 @@ export function ScrollMemory() {
   const pathname = usePathname();
   const query = useSearchParams().toString();
   // Set by the browser's Back or Forward, read by the next arrival.
-  const popped = useRef(false);
+  const popped = useRef<string | null>(null);
   // While a restore is under way its own scrolling isn't the seeker's.
   const restoring = useRef(false);
 
@@ -96,7 +96,10 @@ export function ScrollMemory() {
       }
     };
     const onPop = () => {
-      popped.current = true;
+      // The address it went to, not just that it happened: a fragment link
+      // ("Skip to Content") fires popstate too, with no route change after
+      // it, and must not make the next unrelated arrival a return.
+      popped.current = here();
     };
     main.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("popstate", onPop);
@@ -118,8 +121,8 @@ export function ScrollMemory() {
     } catch {
       /* storage off */
     }
-    const back = popped.current || asked;
-    popped.current = false;
+    const back = popped.current === key || asked;
+    popped.current = null;
     if (!back) forgetFeedPages(window.location.pathname);
     const wanted = back ? positions()[key] : undefined;
     const main = document.getElementById("content");

@@ -175,7 +175,10 @@ export async function getJobFacets(): Promise<JobFacets> {
   await connection();
   try {
     const res = await apiGet("/jobs/facets", undefined, { revalidate: COUNTS_TTL });
-    return res.ok ? ((await res.json()) as JobFacets) : NO_FACETS;
+    // Over the empty groups, so an API that doesn't send a group yet (one
+    // deployed before Role existed) leaves that facet empty rather than
+    // crashing the filters.
+    return res.ok ? { ...NO_FACETS, ...((await res.json()) as Partial<JobFacets>) } : NO_FACETS;
   } catch {
     return NO_FACETS;
   }

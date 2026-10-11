@@ -60,8 +60,8 @@ export const NO_FILTERS: FeedFilters = {
 
 /* Each facet's options, in the words ./format prints on the cards, so a
  * filter never names a value no card can carry. Job type and experience offer
- * the API's own values: "Internship" is a level, never a job type, and the
- * feed holds no "Experienced" roles. Date posted and salary are thresholds,
+ * the API's own values, plus "internship" as a job type (every internship,
+ * KAN-171), and the feed holds no "Experienced" roles. Date posted and salary are thresholds,
  * so those facets take one pick (`multiple` in ./filters); no pick is "any",
  * which is why neither list spells it out. Industry has no data behind it
  * and is not offered. */

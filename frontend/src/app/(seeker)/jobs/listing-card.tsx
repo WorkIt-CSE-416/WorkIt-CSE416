@@ -127,11 +127,9 @@ export function listingFacts(job: JobListing) {
   };
 }
 
-/** How the job is set up, the same for an internship as for any role, so the
- *  slot agrees with the Job Type filter (KAN-170). It used to read
- *  "Internship" on every internship, as Jobright does, which put the career
- *  stage in two slots and had "Full-Time" filters return cards saying
- *  "Internship" where the type goes. */
+/** "Internship" for every internship (KAN-171, as Jobright does), else how
+ *  the job is set up. The Job Type filter matches the same way, so a
+ *  Full-Time filter never returns a card that says "Internship". */
 function jobType(job: JobListing) {
   // Every internship reads "Internship", whatever hours its posting states:
   // "Full-Time Internship" beside "Part-Time Internship" read as two kinds of

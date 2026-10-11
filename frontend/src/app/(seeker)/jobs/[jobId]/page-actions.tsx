@@ -56,7 +56,10 @@ export function BackToJobs({ className }: { className?: string }) {
   return (
     <ButtonLink
       href={href}
-      onClick={() => restoreScrollOn(href)}
+      onClick={(e) => {
+        // A modified click opens another tab; this one isn't going back.
+        if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) restoreScrollOn(href);
+      }}
       variant="secondary"
       size="sm"
       className={className ?? "group/back mb-3"}

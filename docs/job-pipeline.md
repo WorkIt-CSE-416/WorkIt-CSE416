@@ -6,8 +6,7 @@ need.
 
 > **Status (2026-10-10).** This describes the code on `KAN-171-more-jobs`,
 > which builds on PRs #91 (filters and visa) and #92 (the job posting page).
-> The role categories need their database migration applied before they go
-> live (section 5.3).
+> Its database columns were applied on 2026-10-10 (#94).
 
 ## Three words used throughout
 
@@ -257,8 +256,9 @@ and get no rows.
 
 Alembic owns the schema. A new column is a migration, which must be **merged to
 `main` before anyone applies it** to the shared database, and only a person
-runs `uv run alembic upgrade head`. The role categories' migration
-(`aa41fdc1ba80`) is waiting on exactly that.
+runs `uv run alembic upgrade head`. The role categories' and location labels' migrations
+(`aa41fdc1ba80`, `5c8d6ee05a0c`) went to `main` first (#94) and were applied
+on 2026-10-10.
 
 ---
 
