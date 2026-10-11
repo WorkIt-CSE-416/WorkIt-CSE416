@@ -1,14 +1,16 @@
 import { getApplications, getNow } from "../applications/data";
+import { countJobsPostedWithin } from "../jobs/listings";
 import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
-import type { RangeKey } from "./range";
+import { rangeDays, type RangeKey } from "./range";
 import type { AppliedDay } from "./streak-model";
 
 /**
  * The seeker Dashboard's fixtures: the headline numbers per window, the year
  * of applications behind Activity's streak, what is waiting, and Up Next. All
- * of it stands in for the application tracker, which has no backend yet;
- * New Matches and the profile strength card read the live API instead and
- * live beside the components that fetch them.
+ * of it stands in for the application tracker, which has no backend yet.
+ * New Roles (in `getHeadline`) reads the live job feed here; New Matches and
+ * the profile strength card read the live API too, beside the components
+ * that fetch them.
  *
  * UP NEXT IS DERIVED FROM THE TRACKER'S OWN FIXTURE (../applications/data.ts),
  * not written again here, so the Dashboard and the board name the same
@@ -20,37 +22,100 @@ import type { AppliedDay } from "./streak-model";
 
 /* Headline numbers ------------------------------------------------------- */
 
+export type StatKey = "applications" | "newRoles" | "interviews" | "saved";
+
 export type DashboardStat = {
+  key: StatKey;
   label: string;
-  value: number;
+  /** Null when its source couldn't be read: the tile shows a dash. */
+  value: number | null;
   /** The same figure over the previous window; null where there is none. */
   previous: number | null;
   suffix?: string;
+  /** Under the figure in place of a change, over the range's own note. */
+  note?: string;
+  /** Where the tile leads: only for a figure its destination agrees with. */
+  href?: string;
 };
 
-/** Applications sent, response rate, interviews and offers, per window. The
- *  rate is the share of applications that heard anything back at all, which
- *  is the number a student can most change (better targeting, referrals). */
-export const STATS: Record<RangeKey, DashboardStat[]> = {
-  week: [
-    { label: "Applications", value: 5, previous: 7 },
-    { label: "Response Rate", value: 40, previous: 29, suffix: "%" },
-    { label: "Interviews", value: 1, previous: 1 },
-    { label: "Offers", value: 0, previous: 0 },
-  ],
-  month: [
-    { label: "Applications", value: 18, previous: 12 },
-    { label: "Response Rate", value: 33, previous: 25, suffix: "%" },
-    { label: "Interviews", value: 3, previous: 1 },
-    { label: "Offers", value: 1, previous: 0 },
-  ],
-  season: [
-    { label: "Applications", value: 42, previous: null },
-    { label: "Response Rate", value: 29, previous: null, suffix: "%" },
-    { label: "Interviews", value: 5, previous: null },
-    { label: "Offers", value: 1, previous: null },
-  ],
+/** Applications sent and interviews held, per window, with the window before
+ *  it: the tracker's fixture until it has a backend. */
+const APPLICATIONS: Record<RangeKey, [number, number | null]> = {
+  week: [5, 7],
+  month: [18, 12],
+  season: [42, null],
 };
+const INTERVIEWS: Record<RangeKey, [number, number | null]> = {
+  week: [1, 1],
+  month: [3, 1],
+  season: [5, null],
+};
+
+/** Where the Jobs page shows what New Roles counts. Its Date Posted filter
+ *  offers a week and a month but no season, so Season opens the whole feed. */
+const NEW_ROLES_HREF: Record<RangeKey, string> = {
+  week: "/jobs?posted_within=7",
+  month: "/jobs?posted_within=30",
+  season: "/jobs",
+};
+
+/**
+ * The four headline numbers for every range, in tile order: Applications,
+ * New Roles, Interviews, Saved. New Roles and Saved replaced Response Rate and
+ * Offers, which for a student sit near zero all season and only discouraged;
+ * the two new ones are things a seeker can act on.
+ *
+ * New Roles is the live feed: what was posted in the range (GET /jobs/count),
+ * against the window before it (twice the range, less the range). Saved is the
+ * tracker's saved jobs not yet applied to, which is the same in every range.
+ * Applications and Interviews stay fixtures until the tracker has a backend.
+ */
+export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> {
+  const now = getNow();
+  const [week, twoWeeks, month, twoMonths, season] = await Promise.all(
+    [7, 14, 30, 60, rangeDays("season", now)].map(countJobsPostedWithin),
+  );
+  const before = (range: number | null, both: number | null) =>
+    range != null && both != null ? both - range : null;
+  const newRoles: Record<RangeKey, [number | null, number | null]> = {
+    week: [week, before(week, twoWeeks)],
+    month: [month, before(month, twoMonths)],
+    season: [season, null],
+  };
+  const saved = getApplications().filter((app) => app.stage === "saved").length;
+
+  const tiles = (range: RangeKey): DashboardStat[] => [
+    {
+      key: "applications",
+      label: "Applications",
+      value: APPLICATIONS[range][0],
+      previous: APPLICATIONS[range][1],
+    },
+    {
+      key: "newRoles",
+      label: "New Roles",
+      value: newRoles[range][0],
+      previous: newRoles[range][1],
+      href: NEW_ROLES_HREF[range],
+    },
+    {
+      key: "interviews",
+      label: "Interviews",
+      value: INTERVIEWS[range][0],
+      previous: INTERVIEWS[range][1],
+    },
+    {
+      key: "saved",
+      label: "Saved",
+      value: saved,
+      previous: null,
+      note: "Not applied to yet",
+      href: "/applications?stage=saved",
+    },
+  ];
+
+  return { week: tiles("week"), month: tiles("month"), season: tiles("season") };
+}
 
 /* Activity --------------------------------------------------------------- */
 
@@ -110,18 +175,21 @@ export function appliedDays(): AppliedDay[] {
   return days;
 }
 
-/* Waiting to Hear Back -------------------------------------------------- */
+/* Waiting --------------------------------------------------------------- */
 
 export type WaitBucket = { label: string; count: number; tone: "fresh" | "due" | "stale" };
 
 /** Applications with no reply yet, by how long they have waited, as of today
  *  rather than per window: they add up to the season's 42 sent less the 12
- *  that heard back. Past two weeks is when a follow-up is worth sending. */
+ *  that heard back. Past two weeks is when a follow-up is worth sending.
+ *
+ *  One bucket per verdict, three in all. It was four, with under a week and
+ *  one to two weeks as separate buckets, and the Dashboard drew them as two
+ *  green columns side by side that read as a mistake. */
 export const WAITING: WaitBucket[] = [
-  { label: "0–7 days", count: 6, tone: "fresh" },
-  { label: "8–14 days", count: 9, tone: "fresh" },
-  { label: "15–30 days", count: 11, tone: "due" },
-  { label: "30+ days", count: 4, tone: "stale" },
+  { label: "Under 2 weeks", count: 15, tone: "fresh" },
+  { label: "2–4 weeks", count: 11, tone: "due" },
+  { label: "Over a month", count: 4, tone: "stale" },
 ];
 
 /* Up Next ---------------------------------------------------------------- */
@@ -156,4 +224,10 @@ export function getUpNext(): UpNextItem[] {
     .flat()
     .slice(0, SHOWN)
     .sort((a, b) => upcoming.indexOf(a) - upcoming.indexOf(b));
+}
+
+/** The stand-in logo of the application an Up Next item belongs to: the glyph
+ *  the Applications board and detail panel draw in their company tile. */
+export function companyIconOf(item: UpNextItem) {
+  return getApplications().find((app) => app.id === item.applicationId)?.Icon;
 }

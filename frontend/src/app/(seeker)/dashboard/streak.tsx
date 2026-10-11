@@ -14,15 +14,17 @@ import {
   type AppliedDay,
   type Cell,
 } from "./streak-model";
+import { SectionCard } from "./section-card";
 
 /**
  * Activity — the seeker's year of applications as a streak heat map that folds
- * up into a 3D skyline and back, in the Dashboard's 3fr column beside Up Next.
+ * up into a 3D skyline and back, two columns wide at the foot of the
+ * Dashboard, beside Waiting.
  * It replaced a weekly pace chart there and kept its heading (page.tsx says
  * why).
  *
- * Open on the page under its heading, like every Dashboard section but the
- * hero: no card, no frame. The view switch sits where a section's one way
+ * In a white card under its heading, like every Dashboard section
+ * (./section-card.tsx). The view switch sits where a section's one way
  * onward does, at the top right, in the applications ViewSwitcher's segmented
  * style. Buttons rather than links, because the morph between the views is
  * the point and a navigation would cut it.
@@ -50,11 +52,6 @@ const VIEW_OPTIONS = [
   { value: "2d" as const, label: "2D" },
   { value: "3d" as const, label: "3D" },
 ];
-
-/** From this width the skyline's numbers float in its corners instead of
- *  sitting in a row under it: only in the one-column layout, since the 3fr
- *  column tops out near 530px. */
-const CORNERS_MIN = 560;
 
 const NUMBER = new Intl.NumberFormat("en-US");
 const DAY = new Intl.DateTimeFormat("en-US", {
@@ -98,17 +95,7 @@ const localToday = () => {
 };
 const utcToday = () => new Date().toISOString().slice(0, 10);
 
-const cornerStyle = (shown: boolean, offset: number, delay: number) => ({
-  opacity: shown ? 1 : 0,
-  transform: shown ? "translateY(0)" : `translateY(${offset}px)`,
-  transitionDuration: shown ? "300ms" : "150ms",
-  transitionDelay: shown ? `${Math.round(MORPH_MS * delay)}ms` : "0ms",
-  transitionTimingFunction: shown
-    ? "var(--ease-glide)"
-    : "var(--ease-exit)",
-});
-
-export function Streak({ days }: { days: AppliedDay[] }) {
+export function Streak({ days, className }: { days: AppliedDay[]; className?: string }) {
   const today = useSyncExternalStore(noSubscription, localToday, utcToday);
   const model = useMemo(() => {
     const grid = buildGrid(days, dayMs(today));
@@ -119,8 +106,9 @@ export function Streak({ days }: { days: AppliedDay[] }) {
     };
   }, [days, today]);
 
-  const [view, setView] = useState<View>("3d");
-  const [width, setWidth] = useState(0);
+  // The flat heat map first: it reads at a glance, and the skyline is the
+  // flourish a seeker opts into.
+  const [view, setView] = useState<View>("2d");
   const [active, setActive] = useState(-1);
   const [announcement, setAnnouncement] = useState("");
 
@@ -136,7 +124,6 @@ export function Streak({ days }: { days: AppliedDay[] }) {
     model,
     target: view === "3d" ? 1 : 0,
     setActive,
-    setWidth,
     announce: (i) => setAnnouncement(describe(model.cells[i])),
   };
   const live = useRef(snapshot);
@@ -174,9 +161,8 @@ export function Streak({ days }: { days: AppliedDay[] }) {
 
   const { stats } = model;
   const is3d = view === "3d";
-  const corners = width >= CORNERS_MIN;
-  const showRow = !(is3d && corners);
-  const bigSize = Math.round(Math.max(30, Math.min(56, width * 0.058)));
+  // The numbers belong to the heat map; the skyline stands alone.
+  const showRow = !is3d;
   const cell = active >= 0 ? model.cells[active] : undefined;
   const blocks: StatBlock[] = [
     {
@@ -208,9 +194,13 @@ export function Streak({ days }: { days: AppliedDay[] }) {
   ];
 
   return (
-    <section ref={rootRef} aria-labelledby="streak" className="@container/streak">
+    <SectionCard
+      ref={rootRef}
+      aria-labelledby="streak"
+      className={cn("@container/streak", className)}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="streak" className="text-title text-ink">
+        <h2 id="streak" className="text-subtitle text-ink font-medium">
           Activity
         </h2>
         <SegmentedToggle
@@ -235,27 +225,6 @@ export function Streak({ days }: { days: AppliedDay[] }) {
             className="absolute top-0 left-0 block max-w-none outline-none"
             style={{ touchAction: is3d ? "pan-y" : "auto" }}
           />
-
-          {corners && (
-            <>
-              <div
-                aria-hidden={!is3d}
-                className="pointer-events-none absolute top-1 right-1 flex flex-col items-end gap-5 transition-[opacity,transform]"
-                style={cornerStyle(is3d, -10, 0.55)}
-              >
-                <Stat {...blocks[0]} size={bigSize} align="end" />
-                <Stat {...blocks[1]} size={bigSize} align="end" />
-              </div>
-              <div
-                aria-hidden={!is3d}
-                className="pointer-events-none absolute bottom-1 left-1 flex flex-col items-start gap-5 transition-[opacity,transform]"
-                style={cornerStyle(is3d, 10, 0.65)}
-              >
-                <Stat {...blocks[2]} size={bigSize} align="start" />
-                <Stat {...blocks[3]} size={bigSize} align="start" />
-              </div>
-            </>
-          )}
         </div>
 
         <div
@@ -294,7 +263,7 @@ export function Streak({ days }: { days: AppliedDay[] }) {
         <div className="min-h-0 overflow-hidden">
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-5 @2xl/streak:grid-cols-4">
             {blocks.map((block) => (
-              <Stat key={block.label} {...block} align="stack" />
+              <Stat key={block.label} {...block} />
             ))}
           </div>
         </div>
@@ -303,54 +272,26 @@ export function Streak({ days }: { days: AppliedDay[] }) {
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
-    </section>
+    </SectionCard>
   );
 }
 
 type StatBlock = { label: string; value: string; unit: string; sub: string };
 
-/** One number: in the row under the chart (`stack`), or large in a corner of
- *  the skyline, its label over it and its unit and dates beside it. */
-function Stat({
-  label,
-  value,
-  unit,
-  sub,
-  size,
-  align,
-}: StatBlock & { size?: number; align: "stack" | "start" | "end" }) {
-  if (align === "stack") {
-    return (
-      <div className="min-w-0">
-        <p className="text-note text-ink-meta">{label}</p>
-        <p className="mt-1 flex items-baseline gap-1.5">
-          <span className="text-display text-ink">{value}</span>
-          <span className="text-body text-ink-muted">{unit}</span>
-        </p>
-        <p className="text-note text-ink-meta mt-0.5 truncate">{sub}</p>
-      </div>
-    );
-  }
+/** One number in the row under the heat map: its label over it, its unit
+ *  beside it, and its dates under it. */
+function Stat({ label, value, unit, sub }: StatBlock) {
   return (
-    <div className="grid grid-cols-[auto_auto] items-end gap-x-2" style={{ justifyContent: align }}>
-      <p
-        className={cn(
-          "text-note text-ink-meta",
-          align === "end" ? "col-start-1 text-right" : "col-span-2",
-        )}
-      >
-        {label}
+    <div className="min-w-0">
+      <p className="text-note text-ink-meta">{label}</p>
+      <p className="mt-1 flex items-baseline gap-1.5">
+        <span className="text-display text-ink">{value}</span>
+        <span className="text-body text-ink-muted">{unit}</span>
       </p>
-      <p
-        className="text-ink col-start-1 text-right font-bold"
-        style={{ fontSize: size, lineHeight: 0.95, letterSpacing: "-0.02em" }}
-      >
-        {value}
-      </p>
-      <div className="pb-[0.15em]">
-        <p className="text-body text-ink-muted">{unit}</p>
-        <p className="text-note text-ink-meta whitespace-nowrap">{sub}</p>
-      </div>
+      {/* Its dates in --color-ink-muted, not meta grey, which read too faint
+          under a 28px figure in Plus Jakarta Sans; two lines on a phone
+          rather than "Oct 5, 2025 – Oct 10, 20…". */}
+      <p className="text-note text-ink-muted mt-0.5 line-clamp-2">{sub}</p>
     </div>
   );
 }

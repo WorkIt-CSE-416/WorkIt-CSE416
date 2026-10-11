@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 
 import { TooltipProvider } from "@/components/shadcn/tooltip";
 
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/**
+ * Plus Jakarta Sans, not Geist, since KAN-173: rounder and warmer at the
+ * medium weight the Dashboard's headings and figures now use. Geist Mono
+ * stays for code-like figures; Jakarta has no mono.
+ */
+const jakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-jakarta-sans",
   subsets: ["latin"],
 });
 
@@ -28,7 +33,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${jakartaSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         {/* Here rather than in a shell: every icon-only button carries a
             tooltip, and those are in both shells and the design kit. One

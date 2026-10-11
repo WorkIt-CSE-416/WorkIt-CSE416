@@ -263,7 +263,12 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },
   { token: "--text-title", cls: "text-title", role: "Card and column headings" },
   { token: "--text-heading", cls: "text-heading", role: "Page name — My Applications" },
-  { token: "--text-display", cls: "text-display", role: "Dashboard headline figures" },
+  { token: "--text-display", cls: "text-display", role: "Company Dashboard headline figures" },
+  {
+    token: "--text-figure",
+    cls: "text-figure",
+    role: "Seeker Dashboard tile figures, 36px medium",
+  },
 ];
 
 /** The faces themselves come from next/font in app/layout.tsx. */
@@ -317,12 +322,22 @@ export const RADII: { token: string; cls: string; role: string }[] = [
 
 export const WIDTHS: { token: string; cls: string; role: string }[] = [
   { token: "--container-auth", cls: "max-w-auth", role: "The sign-in and sign-up card" },
-  { token: "--container-app", cls: "max-w-app", role: "Every page's content column" },
+  { token: "--container-app", cls: "max-w-app", role: "Every reading page's content column" },
+  {
+    token: "--container-dashboard",
+    cls: "max-w-dashboard",
+    role: "The seeker Dashboard's wider grid",
+  },
 ];
 
 export const SHADOWS: { token: string; cls: string; role: string }[] = [
   { token: "--shadow-card", cls: "shadow-card", role: "Login card — 20px falloff" },
   { token: "--shadow-panel", cls: "shadow-panel", role: "App cards — a 1px halo" },
+  {
+    token: "--shadow-tile",
+    cls: "shadow-tile",
+    role: "Seeker Dashboard tiles on white, no outline",
+  },
   {
     token: "--shadow-lift",
     cls: "shadow-lift",
