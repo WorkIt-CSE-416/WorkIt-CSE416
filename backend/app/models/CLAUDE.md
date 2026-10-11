@@ -474,6 +474,40 @@ why; the rules for this folder:
   once the import tags jobs, both must be on the database first.
 - **A seed's downgrade deletes its roles' tags first**, since RESTRICT refuses
   the role delete otherwise. The import writes the tags again.
+- **Adding a role is a seed migration plus its aliases** in
+  `../services/role_resolver.py`. The resolver is built from the slugs the
+  database holds and raises on an alias for one it doesn't, so aliases for a
+  role whose migration isn't applied fail the import loudly.
+
+### The resolver — `app/services/role_resolver.py`
+
+Title (or search query) → slugs, by whole-word alias lookup. The module
+docstring has the steps and `../../../docs/search.md` the measurements and
+why. Rules that a change here must keep:
+
+- **Add a case to `tests/test_role_resolver.py` before changing an alias.**
+  Aliases interact: a short one fires inside a longer title, and an outright
+  role drops the others. The tests read the roles from the seed migration,
+  check every role's name and every alias resolve to their own role, and hold
+  a 90% coverage floor on `data/feed.json` (95.8% on 2026-10-11).
+- **`WORD_FORMS` holds a person's forms, never a process.** `development` →
+  `developer` tagged "Graduate Development Program" as software.
+- **An `OUTRIGHT` role's aliases name the job, never only its field.** A lone
+  "sales" or "recruiting" would take "Software Engineer, Sales Platform" away
+  from software.
+- **One phrase, one owner.** Construction raises if two roles, or a role and
+  `NOT_ROLES`, claim the same phrase after word forms.
+- **Precision over recall.** A title that names no role gets no tag; it is
+  still found by keyword. Never add a catch-all alias to raise coverage.
+- **Typos are corrected in queries, never in titles.** `read_query` snaps a
+  word of `FUZZY_MIN_LENGTH` (5) letters or more that no alias holds to the
+  nearest one that does (`difflib`, cutoff `FUZZY_CUTOFF` 0.8): "sofware
+  enginer" finds `software_engineer`. `resolve` stays exact, since its result
+  is a stored tag. A corrected word leaves `rest` only if it completed an
+  alias, so a company that looks like an alias word ("scale" ~ "sales") is
+  still searched for. Raising the cutoff or lowering the length is a test
+  change first: `test_read_query_leaves_names_alone` holds the company and
+  keyword names that must pass through untouched.
 
 ## job_postings holds company-posted and scraped jobs
 

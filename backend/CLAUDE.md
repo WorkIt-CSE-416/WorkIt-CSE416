@@ -81,8 +81,9 @@ row written any other way never shows up in the location filter.
 
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
 extraction (`test_resume_extraction.py`), the location resolver
-(`test_location_resolver.py`, which reads the real `data/places.tsv`) and
-the database-free half of the feed import (`test_import_jobs.py`). The
+(`test_location_resolver.py`, which reads the real `data/places.tsv`), the
+role resolver (`test_role_resolver.py`, which reads the seed migration and
+`data/feed.json`) and the database-free half of the feed import (`test_import_jobs.py`). The
 import's database half needs Postgres, which CI doesn't have: test it on a
 throwaway local Postgres 15+ (`job_locations` uses `NULLS NOT DISTINCT`). A test that calls the resume routes
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
@@ -136,6 +137,12 @@ app/
     avatar.py     Validates and re-encodes an upload to a 512px WebP
     location_resolver.py  Free-text job location → ISO places, from
                   data/places.tsv (app/models/CLAUDE.md)
+    role_resolver.py  Job title (or search query) → job_roles slugs, from
+                  the aliases in the file; queries are typo-corrected,
+                  titles never (app/models/CLAUDE.md, Job roles)
+    try_role_resolver.py  Scratch tool: prints what titles or a --query
+                  resolve to, roles read from the seed migration. Not a test;
+                  real cases go in tests/test_role_resolver.py
     matching/     Job matching (KAN-139). embeddings.py turns postings and
                   resumes into Gemini vectors; its own CLAUDE.md has the
                   design and what is still unbuilt
@@ -159,8 +166,8 @@ alembic/
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
-tests/            pytest; resume parser, DOCX extraction, location resolver
-                  and feed-import tests, and fixtures
+tests/            pytest; resume parser, DOCX extraction, location and role
+                  resolver and feed-import tests, and fixtures
 data/
   feed.json       Committed snapshot of scraper/feed.json — the import's input
                   when no local scraper run has written one. See Deployment

@@ -26,10 +26,16 @@ How a title is read, start to finish (docs/search.md has the why):
 Words that start no alias ("intern", "summer", "2027") are passed over, so
 there is no list of them to strip.
 
+A search query (read_query) gets one more step before 2: a typed word that is
+in no alias is snapped to the nearest one that is ("sofware" is "software"),
+so a typo still finds its role. Titles never are: a job board's title is
+spelled as posted, and a guess there would be a stored tag.
+
 Growing the aliases: the import reports titles that resolved to nothing. Add
 the phrase to the role here, and a case to tests/test_role_resolver.py first,
 as with the location resolver: the aliases interact.
 '''
+import difflib
 import re
 import unicodedata
 from collections.abc import Iterable, Mapping
@@ -158,7 +164,7 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "sales_representative": (
         "sales rep", "sales associate", "sales intern", "sales manager", "sales specialist",
         "sales development", "sdr", "bdr", "inside sales", "account executive", "account manager",
-        "business developer", "business development", "software sales", "technical sales",
+        "business developer", "business development", "software sales", "technical sales", "sales"
     ),
     "recruiter": (
         "recruiting coordinator", "recruiting intern", "talent acquisition", "talent partner",
@@ -198,6 +204,14 @@ OUTRIGHT = frozenset({
     "product_manager", "product_designer", "marketing_specialist", "sales_representative",
     "recruiter", "teacher", "store_manager", "real_estate_agent",
 })
+
+# Typo correction in read_query. Words shorter than FUZZY_MIN_LENGTH are left
+# as typed: at that length nearly everything is close to something ("ml" and
+# "qa", "rn" and "rtl"), and the short ones that matter are abbreviations,
+# which WORD_FORMS and the aliases spell out exactly. FUZZY_CUTOFF is
+# difflib's ratio: 0.8 takes "engingger" to "engineer" (0.82).
+FUZZY_MIN_LENGTH = 5
+FUZZY_CUTOFF = 0.8
 
 _WORD = re.compile(r"[a-z0-9]+")
 
@@ -262,6 +276,10 @@ class RoleResolver:
                     f"and {slug or 'NOT_ROLES'}"
                 )
         self._longest = max(map(len, self._phrases), default=0)
+        # what a typed word may be corrected to: any word of a phrase, or a
+        # WORD_FORMS spelling, which the forms then normalize as usual
+        self._known = frozenset(w for key in self._phrases for w in key) | set(WORD_FORMS)
+        self._known_list = sorted(self._known)
 
     def _walk(self, ws: list[str]) -> tuple[set[str], set[int]]:
         '''
@@ -291,15 +309,29 @@ class RoleResolver:
         '''
         return frozenset(self._walk(words(title))[0])
 
+    def _correct(self, raw: str) -> str:
+        '''
+        a typed word in no alias, as the nearest word that is; unchanged when
+        it is known, short, or close to nothing
+        '''
+        if raw in self._known or len(raw) < FUZZY_MIN_LENGTH:
+            return raw
+        close = difflib.get_close_matches(raw, self._known_list, n=1, cutoff=FUZZY_CUTOFF)
+        return close[0] if close else raw
+
     def read_query(self, text: str) -> QueryRoles:
         '''
-        the roles a search names, and the words left for keyword search
+        the roles a search names, and the words left for keyword search. A
+        corrected word that ends up in no alias is left in rest as typed, so
+        a company or keyword that happens to look like an alias word
+        ("scale" is close to "sales") is still searched for
         '''
         raws = raw_words(text)
         ws: list[str] = []
         origin: list[int] = []   # ws index -> the raw word it came from
         for r, raw in enumerate(raws):
-            for w in WORD_FORMS.get(raw, raw).split():
+            known = self._correct(raw)
+            for w in WORD_FORMS.get(known, known).split():
                 ws.append(w)
                 origin.append(r)
         found, used = self._walk(ws)

@@ -1,14 +1,17 @@
 # Human TLDR 
 - each job is mapped to a specific job role that's hard-coded in a list. This supports future filtering, onboarding form and recommendation 
 - to match a job title to role: 
-  - first clean up the title, strip away puncutations and other info 
-  - 
+  - first clean up the title, strip away punctuations and other info 
+  - construct a look up dict that contains key words for each of the job role from hard coded list 
+  - resolve similar meaning titles such as "developer" vs. "engineer" and match all slugs 
 
 # Search and Role Resolution — Design
 
 Status: agreed 2026-10-10 (KAN-155). Built so far: the `job_roles` and
 `job_role_tags` tables (`backend/app/models/job_roles.py`, migration
-`362182aaa4fd`) and the first 32 roles (`ab07572bba38`). This is the rationale;
+`362182aaa4fd`), the first 32 roles (`ab07572bba38`), and the title resolver
+(`backend/app/services/role_resolver.py`, not yet called by the import). This
+is the rationale;
 once it is built, the migrations are the source of truth for the schema and
 the CLAUDE.md files nearest the code hold the rules.
 
@@ -137,21 +140,29 @@ developer` never contain the word `sales`. The same goes for "intern" in
    "Full-Stack Engineer (AI/ML) Intern - Summer 2027" becomes `full stack
    engineer ai ml intern summer 2027`. Punctuation and brackets disappear, so
    the order of the words is all that is left.
-2. **Normalize word forms** with one small table applied to every word:
-   `engineering`/`engineers` → `engineer`, `sw` → `software`, `dev` →
-   `developer`, `eng` → `engineer`, and so on. Aliases go through the same
-   table when the dictionary is built, so "Software Engineering Intern" meets
-   the alias `software engineer`. One entry here fixes every role at once
-   instead of each role listing every form.
+2. **Normalize word forms** with one small table (`WORD_FORMS`) applied to
+   every word: `engineering`/`engineers` → `engineer`, `sw` → `software`,
+   `dev` → `developer`, `fullstack` → `full stack`, and so on. Aliases go
+   through the same table when the dictionary is built, so "Software
+   Engineering Intern" meets the alias `software engineer`. One entry here
+   fixes every role at once instead of each role listing every form. **Only a
+   person's forms, never a process:** mapping `development` → `developer`
+   tagged "AI Engineer - Graduate Development Program" as software, so
+   "software development" and "business development" are aliases instead.
 3. **Look up phrases, longest first.** Walk the words left to right; at each
    word, try the longest alias that could start there, then shorter ones. Each
    try is one dict lookup on a tuple of words. A match records its slug and
    uses up its words; no match moves on one word.
-4. **Outright roles win.** If a role that is never engineering (recruiter,
-   sales representative, accountant) matched, the engineering tags are
-   dropped: "Technical Recruiter, Software Engineering" is a recruiter job.
+4. **Outright roles win.** Some roles are the job itself, with any field
+   words only saying which area it serves: product manager, product designer,
+   marketing, sales, recruiter, teacher, store manager, real estate agent
+   (`OUTRIGHT`). If one matched, the other roles are dropped: "Technical
+   Recruiter, Software Engineering" is a recruiter job, "Product Manager,
+   Machine Learning Platform" a product one. **Their aliases name the job,
+   never only its field**, or "Software Engineer, Sales Platform" would lose
+   its software tag to a lone "sales".
 5. **Tag every role left; no match means no tag.** `Software Engineer
-   (Machine Learning) Intern` is `software_engineer` and `ml_engineer`. A bare
+   (Machine Learning) Intern` is `software_engineer` and `ai_ml_engineer`. A bare
    generic word ("Engineer", "Analyst", "Intern") resolves to nothing, and
    nothing is forced into a nearest role.
 
@@ -167,14 +178,19 @@ Built once when the resolver is constructed, from `ALIASES`:
 ```python
 PHRASES = {
     ("software", "engineer"): "software_engineer",
-    ("engineer", "software"): "software_engineer",   # "New Graduate Engineer, Software"
     ("software",): "software_engineer",              # "Flight Software Intern"
     ("developer",): "software_engineer",             # "Junior Java Developer"
+    ("engineer", "data"): "data_engineer",           # "Engineer, Data"
     ("business", "developer"): "sales_representative",
-    ("machine", "learning"): "ml_engineer",
+    ("machine", "learning"): "ai_ml_engineer",
+    ("research", "park"): "",                        # NOT_ROLES: passed over
     ...
 }
 ```
+
+Each role's own `name` from `job_roles` is always one of its aliases, so a
+title that is exactly a role's name always resolves to it, and a long name
+("Embedded Software Engineer") beats the shorter aliases inside it.
 
 - **Every alias belongs to exactly one role.** Building the dict fails if two
   roles claim the same phrase (after normalizing), so a duplicate can't
@@ -182,8 +198,13 @@ PHRASES = {
 - **One-word aliases are safe because longer ones are tried first.**
   "Business Developer" meets the two-word sales alias before `developer` is
   ever looked up.
-- **Reordered titles get their own alias** (`engineer software`) rather than
-  matching words anywhere in the title. See "Measured" below for why.
+- **Reordered titles get their own alias** (`engineer data`) rather than
+  matching words anywhere in the title. See "Measured" below for why. A
+  one-word alias covers its reversed form already ("Engineer, Software" meets
+  `software`).
+- **Some phrases look like a role and aren't** ("UIUC Research Park",
+  "Hardware-In-The-Loop", "Embedded Science Team"). `NOT_ROLES` lists them:
+  they use up their words and tag nothing.
 - **Every slug must exist in `job_roles`.** The import checks this when it
   builds the resolver, so a typo fails the run instead of writing a tag the
   foreign key rejects.
@@ -218,6 +239,13 @@ A rough first alias list for the tech roles (about 80 phrases), run on the
   administrator titles, `business developer` (sales) and `talent partner`
   (recruiter). Some correctly match nothing ("AI Data Rater").
 
+**The built resolver** (first alias draft, about 300 phrases across the 32
+roles) tags **1,050 of 1,096 (95.8%)**. Reading every multi-tagged title for
+wrong tags is what found the word-form and `NOT_ROLES` rules above. The 46
+untagged are mostly generic AI internships that rightly match nothing ("AI
+Labs Intern", "AI Data Rater"). `tests/test_role_resolver.py` holds the cases
+and a 90% floor on this snapshot.
+
 **Precision over recall.** A wrong tag puts a job in a filter where it doesn't
 belong, which the user sees. A missing tag only means the job is found by
 keyword instead. When in doubt, leave the tag off.
@@ -248,8 +276,22 @@ workplace, experience and posted filters the same way: each one narrows.
   `?location=`. Validated against the slug shape only; an unknown slug matches
   nothing.
 - **`?q=`**, free text, read in two parts:
-  1. **The roles it names.** The same resolver reads the query, so "swe"
-     finds `software_engineer`. Each role found narrows to jobs tagged with it.
+  1. **The roles it names.** The same resolver reads the query
+     (`RoleResolver.read_query`), so "swe" finds `software_engineer`. Each
+     role found narrows to jobs tagged with it. It also returns the words no
+     role used, as typed, which are part 2.
+
+     Unlike a title, a query is **typo-corrected** first: a word of five or
+     more letters that is in no alias becomes the nearest alias word
+     (`difflib`, ratio ≥ 0.8), so "sofware enginer" and "machne lerning" find
+     their roles. Shorter words are left alone, since at that length nearly
+     everything is close to something ("ml"/"qa"), and the short words that
+     matter are abbreviations the aliases spell exactly. A corrected word
+     only counts as used if it completed an alias; otherwise it stays in the
+     leftover as typed, so "scale" (close to "sales", which alone is no alias)
+     still searches for Scale. Titles are never corrected: a guess there
+     would be a stored tag. Checked on 2026-10-11 against 40 company,
+     keyword and city names: none changed.
   2. **Whatever is left** ("google", "react", "intern") must match either the
      keyword column (`fts @@ websearch_to_tsquery('english', rest)`) or the
      company name (trigram). Noise words like "intern" are **kept** in this
@@ -308,8 +350,8 @@ it (`backend/alembic/CLAUDE.md`).
 
 ## Still open
 
-- **The aliases:** the first draft for `role_resolver.py`, written from the
-  current feed's titles. The roles themselves are seeded (`ab07572bba38`).
+- **Wiring the resolver into the import** (the step above), with its untagged
+  report.
 - **Typeahead:** one endpoint suggesting roles and companies as the user
   types, or two.
 - **Roles for company-posted jobs:** the company form picks them, or the
