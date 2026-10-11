@@ -29,7 +29,7 @@ export default async function NotFound() {
   return (
     <main className="flex flex-1 items-center justify-center p-6">
       <div className="max-w-auth rounded-card border-border bg-surface shadow-card w-full border p-6 text-center">
-        <Logo size="card" priority className="mx-auto" />
+        <Logo size="card" className="mx-auto" />
 
         <h1 className="text-title text-ink mt-2.5">Page Not Found</h1>
         <p className="text-body text-ink-meta mt-1">

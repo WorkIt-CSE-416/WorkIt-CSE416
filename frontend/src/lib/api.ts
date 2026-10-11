@@ -18,9 +18,16 @@ export function apiUpload(
   });
 }
 
-export function apiGet(path: string, accessToken?: string): Promise<Response> {
+/** `revalidate` (seconds) lets Next keep a public, slow-changing answer in its
+ *  data cache and reuse it until then; never pass it with a token. */
+export function apiGet(
+  path: string,
+  accessToken?: string,
+  { revalidate }: { revalidate?: number } = {},
+): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    ...(revalidate != null ? { next: { revalidate } } : {}),
   });
 }
 

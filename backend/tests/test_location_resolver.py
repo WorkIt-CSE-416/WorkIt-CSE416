@@ -32,6 +32,10 @@ def codes(resolver, text):
 
 
 CASES = [
+    # A city's own name before another city's alternate one: GeoNames lists
+    # "Waterloo" as Austin's old name and "Frisco" as San Francisco's nickname.
+    ("Waterloo", ["US-IA"]),
+    ("Frisco", ["US-TX"]),
     # city, state / city, state, country — in codes and in full
     ("San Francisco, CA", ["US-CA"]),
     ("Champaign, Illinois", ["US-IL"]),
@@ -158,3 +162,40 @@ def test_new_seed_needs_no_code_change():
 def test_without_catch_all_unseeded_places_are_dropped():
     resolver = LocationResolver({"US"}, US_STATES)
     assert resolver.resolve("London; Austin").places == (Place("US", "US-TX"),)
+
+
+@pytest.mark.parametrize(
+    "text, label",
+    [
+        # A US city gets its state, however the posting wrote it.
+        ("SF", "San Francisco, CA"),
+        ("San Francisco Office", "San Francisco, CA"),
+        ("Philadelphia, Pennsylvania, United States", "Philadelphia, PA"),
+        ("New York, NY", "New York, NY"),
+        ("Cambridge, MA, Arlington, VA", "Cambridge, MA; Arlington, VA"),
+        # A place it can't name as a US city keeps the posting's own words.
+        ("Seattle; London", "Seattle, WA; London"),
+        # An alternate name never puts another city on the card.
+        ("Waterloo / Ottawa / Ontario", "Waterloo, IA; Ottawa; Ontario"),
+    ],
+)
+def test_a_us_city_is_labelled_for_the_card(resolver, text, label):
+    assert resolver.resolve(text).label == label
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # A state or a country alone, abroad, unplaced, or remote: nothing to
+        # add, so no label and the card tidies the text itself.
+        "California",
+        "New York",
+        "Toronto, Ontario, Canada",
+        "Any SpaceX Site",
+        "Remote - San Francisco",
+        "Remote/Hybrid if local to Maryland",
+        None,
+    ],
+)
+def test_nothing_better_than_the_text_is_no_label(resolver, text):
+    assert resolver.resolve(text).label is None

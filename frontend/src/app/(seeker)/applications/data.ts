@@ -148,7 +148,10 @@ function build(now: Date): Application[] {
       match: 70,
       savedOn: d(-18),
       appliedOn: d(-14),
-      events: [{ kind: "follow-up", title: "Follow Up", at: d(2) }],
+      // Four days out, not two: from a Friday to a Sunday, CloudSync's
+      // interview tomorrow slides to Monday, and a follow-up due that Monday
+      // sorted ahead of it and took the Dashboard's Next Up from an interview.
+      events: [{ kind: "follow-up", title: "Follow Up", at: d(4) }],
     },
     {
       id: "cloudsync-lead-designer",

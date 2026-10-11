@@ -360,6 +360,16 @@ it (`backend/alembic/CLAUDE.md`).
 
 ## Still open
 
+- **Two role systems after merging main (2026-10-11).** KAN-172 landed on
+  `main` while this was built: the scraper classifies each title into its own
+  keys (`shortlist.py`, 12 categories plus specialties such as `data_ai/ml`),
+  the import writes them to `job_postings.roles` (text[], GIN index), and
+  `GET /jobs?role=` and the Jobs page's Role filter already read that. This
+  design's `job_roles` / `job_role_tags` (32 job titles, resolved in the
+  backend, meant for onboarding and recommendations too) now sits beside it;
+  the import writes both. The team needs to pick which one `?role=`,
+  onboarding and recommendations use, or how the two map onto each other,
+  before "The query" above is built.
 - **Typeahead:** one endpoint suggesting roles and companies as the user
   types, or two.
 - **Roles for company-posted jobs:** the company form picks them, or the

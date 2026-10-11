@@ -41,7 +41,7 @@ npm run lint         # eslint      (lint:fix to autofix)
 npm run typecheck    # next typegen + tsc --noEmit
 npm run format       # prettier    (format:check to verify only)
 npm run clean        # remove .next, out, coverage, tsbuildinfo
-npm run favicon      # rebuild src/app/favicon.ico from public/workit-icon.png
+npm run favicon      # rebuild src/app/favicon.ico from public/workit-icon.svg
 ```
 
 There is no test runner yet. When one is added, document it here.
@@ -76,36 +76,121 @@ src/react-canary.d.ts  Loads React's canary types (<ViewTransition>,
                   addTransitionType): the App Router runs React canary, and
                   @types/react's stable entry does not declare them
 src/app/          App Router routes, layouts, pages
-  layout.tsx      Root layout — Geist fonts, metadata, <html>/<body> shell
+  layout.tsx      Root layout — Plus Jakarta Sans (Geist Mono for mono), metadata, <html>/<body> shell
   page.tsx        Route "/"
   globals.css     Tailwind entry (`@import "tailwindcss"`) + @theme tokens
   (seeker)/       Job-seeker shell, three white rounded panels (the section
                   panel, the top bar, the page) floating on --color-frame,
                   and every screen behind it.
                   /dashboard is the seeker's home: sign-in lands there.
-                  /jobs and /search take ?location= (repeated ISO codes,
-                  US or US-CA), ?workplace=, ?experience= and ?posted=
-                  (option values from jobs/data.ts, never labels), passed
-                  straight on to GET /jobs. readFilters in
-                  jobs/listings.ts drops anything the API would 422 on
-                  (places past 60 too), so a bad link narrows less
-                  instead of reading as an outage whose Try Again repeats
-                  it; a new filter param goes through it. Location,
-                  Workplace, Experience and Date Posted filter; Job Type
-                  and Salary are still inert, and Industry was removed
-                  until jobs carry one. The Location facet in
-                  jobs/filters.tsx is fed by GET /jobs/locations.
-                  A Popover of two panels, not a Select: countries left,
+                  /jobs and /search filter on the server by the query:
+                  ?location= (repeated ISO codes, US or US-CA),
+                  ?work_style=, ?role=, ?experience=, ?job_type= (repeated),
+                  ?posted_within= (days), ?min_pay= and ?max_pay= with
+                  ?pay_per= (hour or year), ?start_term= (seasons) and
+                  ?visa=, GET /jobs' own names. jobs/filter-query.ts
+                  reads and writes them for the pages and the row alike,
+                  dropping any value the API would refuse, so a stale
+                  link narrows by what was valid instead of erroring.
+                  The heading and filter row stay at the top while the
+                  list scrolls under them (jobs/feed-header.tsx, on /jobs
+                  and /search alike), so the filters are in reach from
+                  anywhere in a long list. Below md only the filter row
+                  stays (the heading scrolls away; all three took about a
+                  third of a phone's page). A hairline fades in under it
+                  once the list is scrolling beneath. Its white spans the
+                  page's side gutters (SEEKER_BLEED in gutter.ts); as
+                  wide as the cards only, their shadow showed beside it as
+                  two thin vertical lines while they scrolled under.
+                  jobs/filters.tsx draws the row (KAN-170); every facet
+                  filters, and Industry is gone (no data). As the row
+                  narrows its facets step out one at a time, least used
+                  first, Visa is never in the row (All Filters only, asked
+                  for 2026-10-10), and All Filters stays a normal button; never
+                  stretch it across the row. Role (KAN-172: twelve
+                  categories, Software Engineering to Design, and nine
+                  specialties under three of them, ROLE_OPTIONS in
+                  jobs/filter-query.ts; a job posting has one category or
+                  two, so it counts under both) sits second, after
+                  Location, as the facet a seeker narrows by first; no
+                  pick shows every role. The row's Role lists the twelve
+                  categories only: with the specialties it ran to 21 rows,
+                  taller than a laptop's dropdown, while the panel's
+                  picker finds one by typing. A specialty picked there
+                  stays picked when the row ticks a category, and tints
+                  the row's button. All Filters opens one panel
+                  (jobs/all-filters.tsx) with every facet's options in view
+                  as chips, or a search picker for the long lists, and no
+                  facet popups inside it (they landed left or right of
+                  their button by the room). Its picks are a draft until
+                  "Show N Jobs", which counts the draft as it changes
+                  (GET /jobs/count via jobs/actions.ts). Applying a filter
+                  dims the feed at once (jobs/feed-transition.tsx: the row
+                  and the feed share one transition), since the narrowed
+                  page is a round trip plus the API's half second away;
+                  the row's places and counts are fetched once per visit
+                  and cached five minutes (COUNTS_TTL in jobs/listings.ts),
+                  not refetched per change. Each facet button wears the
+                  glyph the job card draws for its fact (Date Posted a
+                  clock, since the card's calendar is the start date), and
+                  inside a popup only Workplace's options carry glyphs,
+                  the card's own three. Salary is a
+                  range, "$ 30 /hr – $ 50 /hr", either end open, with
+                  presets (hourly for internships, yearly for new grads)
+                  that fill the minimum; a posting matches when its own
+                  range overlaps it, compared as yearly figures in USD.
+                  Location, Role and Start Date in the panel are one picker
+                  (SearchPicker in jobs/all-filters.tsx; Role's specialties
+                  indented under their category, as a country's states
+                  are, and named whole, "Mechanical Engineering", since a
+                  search lists them alone): a search field
+                  whose checklist opens only from the field and floats
+                  over the panel like a dropdown (it never pushes the
+                  sections down; it opens upward, and no taller than the
+                  room, when the panel's scroll area has less room below
+                  than above, as at Start Date), a keyboard combobox (Up, Down, Enter,
+                  Escape closing only the list), picks shown below as
+                  pills with a cross, and nothing pre-picked. Clear All
+                  remounts the pickers so typed text clears too. The row's
+                  Role stays a checklist dropdown, as Workplace is; only
+                  the panel's is a picker. A picked
+                  state narrows its country, in the panel as in the row. Start Date offers seasons
+                  (Summer 2027), grouped by the API from the terms
+                  postings use; Visa offers Sponsors Visas and Hide Jobs
+                  That Rule Me Out. Every option shows its job count from
+                  GET /jobs/facets, across the whole feed rather than the
+                  current results. Location, fed by GET
+                  /jobs/locations, is a Popover of two panels, not a
+                  Select: countries left,
                   the ticked country's states right. A country alone is
                   all of it, with states ticked just those
                   (ticksFrom/placesFrom there). Don't move it back into a
                   Select with rows that come and go: a multiple Select
                   whose item list shrinks (Base UI 1.7) re-applies the
-                  value from before the press, which undid the untick
+                  value from before the press, which undid the untick.
                   /search narrows the live /jobs feed to roles whose title
                   or company contains ?q, and draws them with
                   jobs/listing-card.tsx, the feed's own card, skeleton and
                   error state, so a role looks the same on both pages.
+                  The API matches ?q (GET /jobs?q=), across every job; it
+                  used to happen in the page, inside the 50 the feed had
+                  sent. Both pages draw the first 50 (PAGE_SIZE in
+                  jobs/filter-query.ts) and a Load More button under them
+                  (jobs/feed-list.tsx, KAN-171; a button, not page
+                  numbers, as the team chose) that adds the next 50 with
+                  the same filters through jobs/actions.ts. A fetch asks
+                  for one past the page, so the button shows only when
+                  there is more. Loaded pages are kept for a return
+                  (jobs/feed-pages.ts: 30 minutes, one list, its own
+                  query only), so Back finds the list as long as it was;
+                  a fresh arrival at the list's page (a sidebar link, a
+                  reload) drops them and starts at the first 50.
+                  Every seeker page goes back to where it was scrolled on
+                  a return: the browser's Back or Forward, or "Back to
+                  Jobs" (restoreScrollOn). (seeker)/scroll-memory.tsx keeps
+                  each address's position, since the shell scrolls its
+                  <main> and not the window, so the browser can't; a page
+                  reached any other way starts at the top.
                   /applications is the tracker: a board, grid and list over
                   the fixture in applications/data.ts, every choice in the
                   URL (applications/query.ts), ?app= opening one application
@@ -138,13 +223,15 @@ src/app/          App Router routes, layouts, pages
                   shell's provider or a server action
   <route>/data.ts The fixture a screen renders, kept out of its page.tsx
 src/components/   Shared components
-  logo.tsx        The WorkIt logo: <Logo> picks a lockup or half per size,
-                  <LogoLockup> is the seeker shell's mark-plus-word pair
+  logo.tsx        The WorkIt logo, drawn as SVG: a w-shaped figure with its
+                  arms up beside "workit" in outlined Figtree Bold. <Logo>
+                  picks the lockup or a half per size, <LogoLockup> is the
+                  seeker shell's mark-plus-word pair. No image files
   icons.tsx       Glyphs used by more than one route, as thin wrappers over
                   Lucide at its default stroke (the brand marks stay drawn).
                   Every per-route icons.tsx is the same kind of wrapper;
                   draw no new glyph by hand
-  hero-arcs.tsx   The corner arcs on both Dashboards' violet hero
+  hero-arcs.tsx   The corner arcs on the company Dashboard's violet hero
   avatar.tsx      Profile photo when given `src`, initials otherwise
   company-logo.tsx  A company's job-board logo via next/image, falling back
                   to <Avatar> initials. Its hosts are allow-listed in
@@ -225,14 +312,9 @@ src/lib/          Framework-free helpers
   supabase/cookies.ts  sessionCookieOptions(): httpOnly, 7-day sb-* cookies.
                   Both cookie writers (server.ts, src/proxy.ts) go through it
 public/           Static assets served from /
-  workit-logo.png Full lockup, 1256x448, violet — the auth card
-  workit-logo-ink.png  The same lockup in --color-ink, for the company top bar
-  workit-icon-ink.png  The ink mark alone, the lockup cut at x=481
-  workit-wordmark-ink.png  The ink "WorkIt" alone, cropped to its letters.
-                  The two make <LogoLockup> in logo.tsx, the seeker shell's
-                  logo, which sets the word at ~55% of the mark's height
-                  (the drawn lockup has it at 40%, which read as too small)
-  workit-icon.png Mark only, 481x448 — favicon source only
+  workit-icon.svg The app icon: the logo's figure in white on a violet
+                  rounded square. The favicon's source (npm run favicon);
+                  the logo itself is drawn in components/logo.tsx
 scripts/          Frontend maintenance scripts — plain Node, never shell
 docs/             Prose docs for the team
   shadcn.md       What shadcn is, how it is wired here, how to pull components
@@ -293,8 +375,8 @@ the two durations equal. A layout that splits into columns uses
 its own `@container`, and both see the same width whether the panel is open
 or not. On Applications and the Calendar the segmented control sits at the
 top right of the header wherever it fits beside the title, the title
-wrapping first; the Dashboard's range switch sits at the top right of its
-first column and wraps under the greeting where that column is narrow.
+wrapping first; the Dashboard's range switch sits at the top right of the page, beside the
+greeting, and wraps under it where the page is narrow.
 Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
@@ -322,19 +404,71 @@ header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.
 
 `components/stat-tile.tsx` is shared by both dashboards, and both use its
-`plain` variant; its card form has no caller today. The seeker Dashboard gives
-each kind of content its own surface instead of a white card each: the numbers
-open under the greeting, one violet Next Up hero (the only solid colour), open
-sections for Activity and the lists. There is no pipeline section: its
+`plain` variant; its card form has no caller today; the seeker Dashboard
+draws its own numbers (`dashboard/headline.tsx`).
+
+**The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
+reference the user picked: white tiles with no outline on the white page
+panel, set apart by a soft violet-tinted `--shadow-tile` alone,
+`rounded-shell`, `p-5`, 16px apart. An outline on every tile read as a grid
+of grey boxes, and a lavender ground under them read as muted beside the
+shell's white panels; keep both off. Headings and figures are medium weight, figures in
+`--text-figure` (36px), actions are pills (`<Button shape="pill">`). It
+alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
+From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
+gives the page about 1010px and fell back to two columns of oversized
+tiles) the four numbers run across the top in a grid of their own (the
+first filled violet, the only solid tile), and the tiles under them sit in
+thirds. Left to right is apply, then manage: New Matches two thirds wide
+beside Next Up (a white reminder tile, its title in violet over one filled
+pill) over Up Next, then Activity two thirds wide beside Waiting (three
+columns, one per verdict: on track, follow up, likely closed, each labelled
+under it, so no legend; it was a half-ring gauge, whose round-capped parts
+left grey slivers between them and past its ends, then four columns, whose
+two green ones side by side read as a mistake). Not four columns all the way down: that left Next
+Up, Up Next and Waiting 184px wide on a 13-inch laptop, Up Next cut off
+every row, and New Matches showed three jobs. `PLACE` in `page.tsx`
+positions the tiles; from `@3xl/main` they pair up two by two through
+`grid-flow-dense`; stacked, the numbers come first, then Next Up.
+Activity's canvas is capped in height (`MAX_H2`/`MAX_H3` in
+`streak-canvas.ts`) so its row stays short.
+Draw a new Dashboard section with `SectionCard`, never a one-off box.
+Dates and times sit in pills (`<Badge variant="tag" pill>`): Next Up's,
+which links to the Calendar, Up Next's and New Matches' posted time; as 12px
+meta grey in Plus Jakarta Sans they read too faint. A pill sits in its text's
+column, under the title beside a tile or disc, never under the tile itself. New Matches' Apply is a
+filled primary pill. A KPI tile centres its label on its 36px ring (the ring
+hides below 10.5rem of tile), keeps that header row 36px tall, pushes its
+figure to the foot, and gives the line under it a fixed `h-5`, hiding "vs
+last week" where it would wrap, so every figure in a row sits on one line.
+A scroll area inside a tile uses `scrollbar-quiet` (globals.css) and puts
+its edge on the tile's edge: New Matches reaches into the tile's right
+padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
+the tile's side instead of beside the Apply buttons. There is no
+pipeline section: its
 funnel only restated the headline numbers. Fixtures are in
 `(seeker)/dashboard/data.ts` until the tracker is real, except Next Up and Up
-Next, which take the tracker fixture's upcoming events (`getUpNext`). Next
-Up's arrow opens that application's detail panel and its date that week on
+Next, which take the tracker fixture's upcoming events (`getUpNext`); Next
+Up wears its application's company tile (`companyIconOf`, the outlined
+`CompanyTile` the Applications detail panel draws at the same size). The
+fixture keeps an interview first on any day of the week: its follow-up sits four days
+out, since a weekend slides tomorrow's interview to Monday. Next
+Up's View Details pill opens that application's detail panel and its date that week on
 the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
 All the Agenda; Waiting's Follow Up opens the Applications list filtered to
-Applied. The stat tiles do not link: their figures are a separate fixture
-from the tracker's twelve applications, so a tile would open a list that
-disagrees with its number. Its range is `?range=`, moved in place: the
+Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
+(still open) plans the real flow, a list of only what has waited two weeks,
+a Scout-drafted note, a recruiter search, then marking an application
+followed up or closed once the tracker has a backend. The headline numbers are Applications, New Roles, Interviews and Saved
+(`getHeadline` in `dashboard/data.ts`); New Roles and Saved replaced
+Response Rate and Offers, which for a student sit near zero all season. New
+Roles is the live feed, `GET /jobs/count?posted_within=` for the range and
+the window before it, cached five minutes; Saved counts the tracker's saved
+applications and ignores the range. Only those two tiles link (to the Jobs
+page filtered by date posted, and to the saved applications), since their
+figures are what their destinations show; Applications and Interviews are a
+separate fixture from the tracker's twelve applications, so a link would
+open a list that disagrees with its number. Its range is `?range=`, moved in place: the
 headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the
@@ -343,7 +477,9 @@ page again. The streak always shows the full year regardless of range.
 **Activity is a daily streak** (`(seeker)/dashboard/streak.tsx`), no longer
 a weekly pace chart: the past year of applications per day as a heat map that
 folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
-heading is Activity; its files and tokens say streak. `streak-model.ts`
+heading is Activity; its files and tokens say streak. It opens on the 2D heat
+map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
+there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
 every frame), `streak.tsx` the section. It stays beside the Dashboard rather
@@ -358,16 +494,17 @@ It ignores `?range=`, since a streak is every day. Its fixture is
 keeps its count; the tracker swaps in one `{ date: appliedOn, count: 1 }` per
 sent application.
 
-The company Dashboard and the seeker Profile follow the same surfaces. On
+The company Dashboard and the seeker Profile still use open sections, the
+seeker Dashboard's old surfaces (it moved to tiles in KAN-173). On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
 the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
 with no cards inside it, and one white card, the Recent Applicants table. On
 /profile: an open identity band, Resume as the only card, and open sections
-for Work Experience, Skills and Application Settings. Both heroes draw
-`components/hero-arcs.tsx`. An open section's one way onward sits at the top
-right of its heading: `ui/section-link.tsx` for a link, `<Button
-variant="section">` for an action. Keep it that way: a page of identical boxes
-has no first place to look. Each page's docblock says what goes where.
+for Work Experience, Skills and Application Settings. The company hero draws
+`components/hero-arcs.tsx`. A section's one way onward, open or carded, sits
+at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
+variant="section">` for an action. Whether those two pages should move to
+cards as well is still open. Each page's docblock says what goes where.
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
 the Dashboard's Up Next, the Applications board, grid, list and detail panel,
@@ -493,7 +630,8 @@ model, so a filtered list cannot select rows nobody can see.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
-`positive`) while painting the mockups' styling, so a component pasted from the
+`positive`) while painting the mockups' styling, plus `shape="pill"` for the
+seeker Dashboard's fully rounded actions, so a component pasted from the
 shadcn docs composes without edits and still looks like WorkIt.
 `shadcn/button.tsx` is a re-export pointing back at it, and an ESLint rule keeps
 app code on the canonical path — likewise for `badge` and `card`, which are not
@@ -518,22 +656,57 @@ component imports that `data.ts`. The server-only API helpers cannot go there
 without breaking the build, so the fetch gets its own sibling marked
 `import "server-only"`. The Jobs feed is the first case: `(seeker)/jobs/listings.ts`
 fetches `GET /jobs` for /jobs, /search and the Dashboard's New Matches, and
-its `data.ts` still holds the fixtures `filters.tsx` (client) and the
-`/jobs/[jobId]` detail view use. A live role cannot open at `/jobs/[jobId]`
-yet: its id is the employer's apply URL and the detail view reads fixtures
-only, so its card's Apply Now goes to the employer's posting instead.
+its `data.ts` still holds the fixtures the company side's job pages use.
+**A live role opens at `/jobs/[jobId]`** (KAN-73): a click anywhere on its
+card goes there (a hidden layer over the card; the title is the real link a
+keyboard and a screen reader reach, and the card's buttons sit above the
+layer). Under the pointer its edge tints, its shadow rises and its title
+turns brand, but it does not lift: a card just under the sticky heading and
+filters lifted into them and was cut off. The id is
+the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
+The page is the mock's `JobDetailHeader` with the card's own facts
+(`listingFacts` in `listing-card.tsx`) and the employer's logo, then one
+"About the Role": `[jobId]/description.tsx` reads the plain-text description's
+own shape (Title Case lines as subheadings, the short lines under one as a
+list), and a description the scraper cut at 8,000 characters (it ends " …")
+says so and links to the whole posting. Apply Now leaves for the employer's
+posting, Ask Scout asks about the role, Share copies the page's link, Save
+and Report stay inert. Back to Jobs returns to the feed the seeker came from,
+filters and all (`RememberFeed` on /jobs and /search keeps it in
+sessionStorage).
+A live card's location is the import's `location_label` where it has one
+("San Francisco, CA" for "SF": the resolver's city, backend
+models/CLAUDE.md), else the board's text tidied (`placesOf` and
+`formatPlaces` in `(seeker)/jobs/format.ts`, KAN-171): a state after a city
+becomes its code, a trailing US is dropped ("Philadelphia, Pennsylvania,
+United States" reads "Philadelphia, PA"). Several places read "Austin, TX +3
+more", with all of them on the job posting's page. The tidying never
+guesses: a city with no state, or one abroad, prints as written, and a
+remote place keeps its country. No city is filtered on, as the team decided
+(2026-10-09): the label is display text only.
 A live card still has the full shape of a fixture card: its facts are two
 fixed rows of three (location, job type, salary; then work style, level,
 and start or years), each value in ink beside a grey glyph, so each fact sits in the same column on every card
 (KAN-157). Every `job_postings` fact the posting does not state (the scraper
-fills job type, salary and years when it does) is passed as `NOT_LISTED`
+fills job type, salary and years when it does, plus job type Full-Time for a
+silent new-grad role, a measured rule in `scraper/CLAUDE.md`) is passed as `NOT_LISTED`
 from `components/job-posting-card.tsx` and leaves its slot empty; a screen
 reader still hears "Salary not listed". The slots used to print that in
 italic, and over half the feed's cards had at least one. Under 448px of card
-body the empty slots close up instead. The title stops at two lines and a
-fact at its column's edge, each whole on hover. An internship shows when it
+body the empty slots close up instead. The title is one line, trailing off
+with an ellipsis (a wrapped title made its card taller than the rest), and a
+fact stops at its column's edge. A title is whole on hover; a fact
+isn't, on a card that opens its job posting's page, since the card's click
+layer sits over the facts (the job posting's page shows every fact whole). An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
-2027"), and its job type always reads "Internship", as Jobright shows it. Scraped pay
+2027"). **An internship's job type is "Internship"**, whatever hours its
+posting states, as Jobright shows it (KAN-171, decided 2026-10-10: "Full-Time
+Internship" beside "Part-Time Internship" read as two kinds of internship).
+Any other role's is how the job is set up (Full-Time, Part-Time, Contract).
+The Job Type filter offers Internship too, and the API matches Full-Time and
+the rest only among roles that aren't internships, so a card never reads
+"Internship" under a Full-Time filter: that mismatch is why KAN-170 had
+taken "Internship" out of the slot. Scraped pay
 always arrives as a min/max range, and `formatSalary` prints one whose ends
 meet as a single amount. The match rail is its placeholder
 (`score={null}`: an empty ring and "Score Coming Soon") until matching

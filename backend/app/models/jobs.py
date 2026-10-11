@@ -20,7 +20,7 @@ from sqlalchemy import (
     desc,
     text,
 )
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -63,8 +63,23 @@ class Job_Post(BaseModel):
     work_style: Mapped[dto.work_style | None]
     # what the posting says about visa sponsorship; NULL when it says nothing
     sponsorship: Mapped[dto.visa_sponsorship | None]
+    # a scraped role's discipline (software, data_ai, ...); NULL for a company's job.
+    # Superseded by roles (KAN-172): kept, and still written by the import, until
+    # every deployed reader has moved to roles; a later migration drops it
+    role_category: Mapped[dto.role_category | None]
+    # A scraped role's category and specialty keys, first category first:
+    # ["data_ai", "software", "data_ai/ml"] (KAN-172, the scraper's shortlist.Tag).
+    # Empty for a company's own job. The database supplies the empty default, so
+    # an insert that names none leaves the column out
+    roles: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), server_default=text("'{}'::text[]")
+    )
     # the location text as given, for display. Filtering uses job_locations
     location_raw: Mapped[str | None] = mapped_column(Text)
+    # The card's location, "San Francisco, CA", written by the import from
+    # the city the location resolver picks (KAN-171). Display only: filtering
+    # reads job_locations. NULL leaves the card to tidy location_raw.
+    location_label: Mapped[str | None] = mapped_column(Text)
 
     salary: Mapped[float | None]
     salary_min: Mapped[float | None]
@@ -131,6 +146,14 @@ class Job_Post(BaseModel):
             "company_name",
             postgresql_using="gin",
             postgresql_ops={"company_name": "gin_trgm_ops"}
+        ),
+
+        # GET /jobs?role= keeps jobs whose roles overlap the keys asked for
+        # (roles && ARRAY[...]), which a GIN index looks up
+        Index(
+            "job_postings_roles_idx",
+            "roles",
+            postgresql_using="gin"
         )
     )
 

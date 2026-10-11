@@ -36,7 +36,7 @@ export default function SignUpPage() {
 
       <div className="flex flex-1 items-start justify-center p-6 lg:flex-[7] lg:pt-[12vh]">
         <div className="rounded-card border-border bg-surface shadow-card w-full max-w-xl border p-6">
-          <Logo size="card" priority className="mx-auto" />
+          <Logo size="card" className="mx-auto" />
 
           <h1 className="text-title text-ink mt-2.5 text-center">Create Your Account</h1>
           <p className="text-body text-ink-muted mt-1 text-center">

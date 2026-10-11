@@ -88,6 +88,14 @@ aliases name**, which is what it does before the role migrations
 from `main`, so those migrations must be on Supabase before the change that
 added role tagging merges, or every scheduled run fails until they are.
 
+It writes each job's `roles` (its categories and specialties, KAN-172) and
+derives `role_category` from them, the first category when it is one of that
+column's five, for the code that still reads it. A feed written before KAN-172
+has `role_category` and no `roles`; that one category stands for them. Twelve
+categories more than doubled the feed (3,507 job postings on 2026-10-10,
+against 1,723 under the old five) and its `feed.json` (19 MB with
+descriptions, against 9 MB).
+
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
 extraction (`test_resume_extraction.py`), the location resolver
 (`test_location_resolver.py`, which reads the real `data/places.tsv`), the
@@ -130,10 +138,13 @@ app/
     CLAUDE.md     Router conventions — read before adding a router
     auth.py       POST /auth/signup, GET /auth/me
     jobs.py       GET /jobs — published scraped jobs from job_postings, public,
-                  no descriptions, narrowed by ?location=, ?workplace=,
-                  ?experience= and ?posted=; GET /jobs/locations
-                  — the places that have jobs, named. `fetch_listing` is
-                  shared with scout.py
+                  no descriptions, narrowed by ?location= and the board's other
+                  filters (work style, role, level, job type, date, pay,
+                  start season, visa); GET /jobs/facets counts each option;
+                  GET /jobs/locations
+                  — the places that have jobs, named; GET /jobs/{job_id}
+                  — one open job with its description, for its own page
+                  (404 otherwise). `fetch_listing` serves that and scout.py
     company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
     resumes.py    CRUD /applicants/{id}/resumes — upload, list, get, replace,
                   delete, set default, signed file link; extracts text from
@@ -260,7 +271,8 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   command.
   Order matters when the feed gains a column: apply its migration first
   (`7c2e9a41d5b3` added `start_term` and the week/month pay periods,
-  `b81d4e2f6c09` the `sponsorship` column), then import, then deploy the API
+  `b81d4e2f6c09` the `sponsorship` column, `aa41fdc1ba80` `role_category`,
+  `98ab19cfe840` `roles`), then import, then deploy the API
   that reads it. An import against the older schema fails on the unknown column and,
   being one transaction, writes nothing.
 - **`/jobs` opens a connection per request** (`NullPool`, below), which costs

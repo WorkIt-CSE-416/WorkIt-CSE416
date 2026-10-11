@@ -28,39 +28,42 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 | `web.py` | the one HTTP GET: our User-Agent, no cross-origin redirects |
 | `polite.py` | robots.txt and per-origin pacing |
 | `providers.py` | `Board`, `Job`, and one function per ATS mapping its JSON onto `Job` |
-| `details.py` | pay, job type and years of experience read out of a description |
+| `details.py` | pay, job type, years of experience, start term and visa sponsorship read out of a description |
 | `store.py` | `jobs.json`, `first_seen_at`, and what "listed" and "new today" mean |
-| `shortlist.py` | which postings belong on the page, and collapsing duplicates |
+| `shortlist.py` | which postings belong on the page, each one's categories and specialties, and collapsing duplicates |
 | `report.py` | rendering the page |
 | `feed.py` | `feed.json`, the backend's copy of the same roles |
 | `logos.py` | each company's logo, read once off its job board's page |
 | `__main__.py` | the thread pool and the two commands |
 
-All three providers return a whole board in one request, so there is no pagination.
+Every provider returns a whole board in one request, so there is no pagination.
 
-## A Greenhouse posting's own page is read once, and only for kept postings
+## Some postings' own pages are read once, and only for kept postings
 
 What a posting's own text says is one value, `providers.Page`: the description
 (plain text, cut to `DESCRIPTION_CHARS` for Scout), the card's `details.Facts`,
-and on Greenhouse the posting's offices. Lever and Ashby send it with the board's
-list, so their `Job.page` is rebuilt on every read. Greenhouse does not: its
-`content=true` would send every posting's full HTML, hundreds of megabytes a run
-to describe the ~1% we keep. So a Greenhouse listing has `page=None`, and
-`__main__.with_page` reads each *kept* posting's own page once (with
-`pay_transparency=true`), through the same robots and pacing. A posting whose page
-fails or is disallowed simply has none.
+and on Greenhouse the posting's offices. Lever, Ashby and Recruitee send it with the
+board's list, so their `Job.page` is rebuilt on every read. Greenhouse, Workable and
+BambooHR do not (`providers.JOB_URL`). Greenhouse's `content=true` would send every
+posting's full HTML, hundreds of megabytes a run to describe the ~2% we keep;
+Workable's widget has no work model or pay; BambooHR's list has no description,
+date or pay at all. So their listings have `page=None`, and `__main__.with_page`
+reads each *kept* posting's own page once (`providers.describe`), through the same
+robots and pacing. A posting whose page fails or is disallowed simply has none.
 
 **The store carries a `Page` forward whole: `job.page or old.page`.** That one rule is
 the point of the model. It used to be nine flat fields carried one by one, and two
 bugs came of it: a Greenhouse listing's title-only "2027" overwrote the page's
 "Summer 2027", and Strada's internship stayed "full-time" after Ashby changed it.
-Ashby and Lever always bring a fresh page, so theirs always wins.
+Ashby, Lever and Recruitee always bring a fresh page, so theirs always wins.
+`posted_at` is carried the same way, for BambooHR, whose date is only on the page.
 
 `Page.version` is the `providers.PAGE_VERSION` it was read under, and `with_page`
 reads again any whose version is older. **Bump `PAGE_VERSION` whenever a `Page`
 starts holding something new**, or postings already stored never get it; the bump
-costs one read per kept Greenhouse posting, once. `with_page` only ever sees postings
-a board just listed, so one that has left its board is never asked for.
+costs one read per kept Greenhouse, Workable and BambooHR posting, once. `with_page`
+only ever sees postings a board just listed, so one that has left its board is never
+asked for.
 
 That carrying forward means **changing `DESCRIPTION_CHARS` does not re-cut
 Greenhouse descriptions already stored.** After changing it, clear them so the
@@ -92,9 +95,63 @@ still needs no install. `[tool.pytest.ini_options]` sets `pythonpath = ["."]` be
 3. Its name in `FETCHERS`.
 4. Its apply-URL pattern in `build_boards.PATTERNS`, or no board of it ever reaches
    `boards.csv`.
+5. If its list leaves out the description or a fact the posting's own page has: the
+   page's URL in `JOB_URL` and a `describe_<ats>` in `describe`'s table.
+6. If its board page has a square logo: `logos.PAGE` and `logos.PATTERN`, and the
+   image host in `frontend/next.config.ts` (see Logos below).
+7. If each company is its own subdomain: its domain in `polite.SHARED_PACE`.
 
 Read the provider's `robots.txt` before writing anything. SmartRecruiters is absent
 because it disallows us, and that is the whole reason.
+
+### Workable, Recruitee and BambooHR (KAN-171)
+
+Added 2026-10-10. All three allow us: `apply.workable.com` disallows nothing, each
+`{company}.recruitee.com` only `/v/` and each `{company}.bamboohr.com` only its embed
+scripts. Each reader's test (`tests/test_providers.py`) is built from that day's real
+responses.
+
+What they added that day, on a run with no store yet (so every board read): the
+curated lists named 178 Workable boards, 42 BambooHR and 2 Recruitee (1X has since
+left Recruitee), and all the rest answered. They held 4,858, 1,487 and 58 postings,
+and 34, 18 and 0 roles reached the feed (of 1,217). Recruitee is that small because
+nine of the lists' ~37,000 apply links point at it, at two companies; it stays
+because a board costs one request a run. The run took 3.4 minutes
+the second time, still Lever's pace; the 45 extra robots.txt reads add 7.5 seconds up
+front, read one after another.
+
+- **Workable** lists through the careers widget Workable documents for embedding
+  (`/api/v1/widget/accounts/{slug}`) and reads a kept posting's page from
+  `/api/v2/accounts/{slug}/jobs/{shortcode}`, what its own careers page reads. Only
+  the page says hybrid (`workplace`) and pay (`salary_from`, `salary_to`,
+  `salary_frequency`); the widget has just a `telecommuting` flag. The widget lists
+  a job once per location under one shortcode (Trexquant's C++ engineer: a Stamford
+  row and a New York row), so rows are merged on it. A location marked `hidden`
+  stays hidden, though the row's top-level city still names it (Hugging Face's
+  "EMEA Remote" roles hide Paris). `published_on` is the date, not `created_at`:
+  Flexcompute's CFD developer was created in 2024 and posted in 2026.
+- **Recruitee** sends everything in one list (`/api/offers/`). The location is the
+  place names the employer typed (`locations[].name`); the split city and state
+  beside each are a form's defaults (Hard Rock Digital's "United States" has the
+  city "United States" in Florida), and `location` is just "Remote job" on any
+  remote posting. Three work-style flags can be set together; remote wins, since a
+  job that may be done remotely is what a remote filter is for. Salary amounts are
+  strings. A company that left Recruitee (1X) still answers `/api/offers/` with a
+  404, but its robots.txt redirects to recruitee.com, which `polite` reads as
+  disallow, so such a board shows as "skipped, robots.txt disallows us", not "no
+  such board". Harmless (it has nothing to list) and left that way.
+- **BambooHR** lists `/careers/list` and reads a kept posting's
+  `/careers/{id}/detail` for its description, `datePosted`, `locationType` (`0` on
+  site, `1` remote, `2` hybrid: read off postings that say which) and
+  `compensation`, which is free text ("$90,000 to $115,000", "$25-$30/hour"): it is
+  given a "Compensation:" label and read by `details.pay`. A slug that is not a
+  board redirects to www.bamboohr.com instead of a 404, which `bamboohr()` turns
+  into `BoardNotFound`.
+
+Only Workable's logos are read (below). BambooHR's header logo is served as
+`application/octet-stream` from numbered hosts (`images7.bamboohr.com`), which
+next/image may refuse, and Recruitee's sits inside a 1 MB board page for the one
+board we read; their cards show initials until someone checks both.
 
 **A 404 means the board does not exist. A 200 carrying an empty list means a real board
 with nothing open right now.** Raise `BoardNotFound` for the first and return `[]` for
@@ -104,10 +161,12 @@ hiring", which nobody notices.
 **Providers disagree about types.** Lever sends `createdAt` as an `int` in some records
 and a numeric string in others; trusting one shape silently dropped every Lever board on
 the first live run. `_iso()` takes `object` and narrows on purpose — normalise through
-it rather than reading a provider field directly.
+it rather than reading a provider field directly. Workable and BambooHR send a bare
+date and Recruitee "2026-10-08 10:34:56 UTC"; a time with no zone is UTC, never the
+machine's own.
 
-**They also disagree about what they publish at all.** Ashby and Lever state a work
-model; Greenhouse has no field for one, so a Greenhouse posting states one only when
+**They also disagree about what they publish at all.** Ashby, Lever, Recruitee,
+BambooHR and Workable (on its page) state a work model; Greenhouse has no field for one, so a Greenhouse posting states one only when
 its location *is* a work model -- Cloudflare names every location "In-Office" -- or a
 sentence says so. What the card shows when nothing states it is decided in
 `shortlist`; see the card's facts below.
@@ -117,15 +176,17 @@ internships both read "Software Engineer Intern (2027) · In-Office" until `Job.
 took the city from the posting page's `offices`. Two cards that look identical are
 usually this, not a dedupe bug -- `pick` keys on the apply URL on purpose (below).
 
-## The card's facts: the provider's field, then the description, never a default
+## The card's facts: the provider's field, then the description, then only a measured rule
 
 The app's card shows six facts: location, job type, salary, work style, level and
 years of experience -- or, on an internship, when it starts ("Start in Summer 2027"),
 since nobody asks an intern for years. Each is filled from the provider's own field
 where it has one (Ashby `employmentType` and `compensation`, Lever `commitment` and
-`salaryRange`, Greenhouse `pay_input_ranges` and board metadata), and otherwise from
+`salaryRange`, Greenhouse `pay_input_ranges` and board metadata, Workable `type` and
+`salary_*`, Recruitee `employment_type_code` and `salary`, BambooHR
+`employmentStatusLabel` and `compensation`), and otherwise from
 the description by `details.py`. What neither states stays null, and the card says
-"not listed" -- except work style, below.
+"not listed" -- except work style and job type, each inferred by a measured rule below.
 
 **Facts are read from the whole description, when it is fetched** (`details.read`, from
 `providers._page`),
@@ -136,7 +197,8 @@ no new ones; changing a pattern in `details.py` takes a live run (and, for Green
 a `PAGE_VERSION` bump) to reach stored postings.
 
 `details.py` is regex over prose, so it is fussy in the same way `shortlist.py` is, and
-every case in `tests/test_details.py` was seen in a real posting:
+every case in `tests/test_details.py` was seen in a real posting, except
+`TestConstructedGuards` (see the visa section below):
 
 - **Statements about this role only.** "Not considering remote or part-time",
   "full-time or part-time internship", "post-internship opportunities (full-time)" and
@@ -165,6 +227,16 @@ every case in `tests/test_details.py` was seen in a real posting:
   right 87% of the time, "On site" alone 70% -- the misses are hybrid jobs. Only
   specific hybrid wording counts as stated ("3 days a week in the office", "hybrid
   schedule"): a bare "hybrid" was wrong 38 times in 89 ("hybrid cloud").
+- **Job type is the other** (`shortlist._job_type`, KAN-171): what the posting states,
+  then "full_time" for a new-grad role. Measured on the live feed (2026-10-10): 216 of
+  216 new-grad roles that state a type say full-time. A stated type always wins, so a
+  part-time or contract posting is never turned full-time. It runs in `pick`, not
+  `details.read`, so `--offline` applies it to stored postings with no re-read.
+  **An internship is never inferred:** the Jobs page shows "Internship" as every
+  internship's job type, whatever its hours (decided 2026-10-10: "Full-Time
+  Internship" beside "Part-Time Internship" read as two kinds of internship), so a
+  guessed full-time would show nowhere. Summer internships were filled for a day (71
+  of 74 that state a type say full-time) before that decision.
 - **A start term comes from the title first.** "Software Engineer Intern (2027)" is the
   employer's label for its cohort. The description can name the season ("our Summer
   2027 program") or a start month, but only of the title's year; a year alone in a
@@ -200,6 +272,111 @@ Most gaps were honest -- 444 of 474 without pay, 267 of 311 internships without 
   before and after, and read every *changed* value, not only the newly filled ones. That
   is how three regressions were caught here (a title range read from its end, a
   currency code before the symbol, "lease" matching inside "please").
+
+### Visa sponsorship (KAN-168)
+
+`Facts.sponsorship` is what the posting says about visas, read by `details.sponsorship`
+from the whole description like every other fact (visa lines sit near the end, past
+the cut on 635 of ~1,090 stored copies):
+
+| value | meaning |
+|---|---|
+| `citizens_only` | US citizenship, or a US security clearance (which needs it), is required |
+| `no_sponsorship` | the role will not sponsor a visa, or requires a US person (below) |
+| `sponsors` | the posting says it sponsors, including a benefits bullet "Visa Sponsorship" |
+| `None` | nothing usable, which is most postings |
+
+**It is in `feed.json`.** `feed.row()` writes it and the backend's import stores it in
+`job_postings.sponsorship`, so these four values are part of the feed's contract with
+`backend/app/schemas/jobs.py`: a new value is a change on both sides. `internships.html`
+does not show it. Like every fact, a pattern change reaches Lever and Ashby postings on
+the next live run and stored Greenhouse postings only when their page is read again,
+which is why `PAGE_VERSION` went to 9 when sponsorship was added and to 10 with the
+fixes below.
+
+The rules, each from a posting in `tests/test_details.py` (`TestSponsorship`):
+
+- **Read sentence by sentence; strongest wins.** Citizens only beats no, and no beats
+  yes, across the whole posting. "U.S." (and "U.S citizen", and the statute's
+  "U.S.C.") is rewritten first, or it would end the sentence. "Must be U.S. citizens"
+  counts in the plural (OpenAI).
+- **A "U.S. person" is not only a citizen.** ITAR's definition takes green card
+  holders, refugees and asylees, so "must be a U.S. citizen, lawful permanent resident
+  ... or protected individual" (Astranis, Anduril, Varda) is `no_sponsorship`, never
+  `citizens_only`: no visa holder qualifies, but a permanent resident does. When the
+  same posting offers an export licence instead ("or be eligible to obtain the
+  required authorizations": 58 postings at 17 companies, SpaceX, Rocket Lab and
+  Antares among them; Hermeus's "deemed export licensing") it says nothing, since a
+  visa holder can still be hired. This is the call that most changes the counts: read
+  the other way, those 58 would be `no_sponsorship`. The licence has to follow a
+  US-person requirement (in its sentence or the ~300 characters after it), and then it
+  answers every such requirement in the posting: SpaceX states one in its
+  qualifications and the licence in its ITAR paragraph at the very end. A licence that
+  follows none is some other licence ("Help our customers obtain export licenses").
+  "Open only to U.S. citizens and other U.S. Persons" (GovSignals) or "... or Green Card
+  holders" (Skydio, Proto Labs) is a US-person list too.
+- **A clearance counts only when it is US and required.** A US marker (US, Secret,
+  TS/SCI, DoD, DOE, Q, polygraph) is needed, because Palantir's UK and Australian
+  internships ask for their own countries' clearances. The abbreviations are matched
+  in capitals only ("join us"), and customs clearance is a shipment's. "A plus but not
+  required", "may be required", "not a requirement", Palantir's "For USG:" scoping,
+  and any list headed as optional ("What We Value", "Preferred", "Nice to Have",
+  `_under_preferred`) do not count; Palantir's verbless "Active US Security clearance,
+  or eligibility ..." does under "What We Require".
+- **Only the nearest heading decides.** `_under_preferred` walks back to the first
+  heading-like line: one ending in a colon, one naming a list ("Requirements", "What Is
+  Required", "Strongly Preferred"), or one in capitals (Valinor's "WHAT VALINOR
+  OFFERS"). A bulleted line, or one grading itself in lower case (CGS's "- Experience
+  with Salesforce preferred", ERG's "PE license is preferred"), is an item, never a
+  heading. "Values" is a company's values unless it ends in a colon.
+- **OPT and CPT are not sponsorship.** They are the student's own authorization, so
+  "OPT/CPT eligible" and Akuna's "including F-1 students using OPT" are `None`, and so
+  is a sponsorship that names only them or says "OPT/CPT only" (`_opt_only`). One that
+  names an employer's visa beside them stands: Ambrook's "(OPT/CPT, TN, J-1)", Jump
+  Trading's "we sponsor work visas". They are read as capitalised whole words, which
+  keeps "optimised" and "adoption" out.
+- **Statements about this role only.** "Sponsorship for an export license"
+  (Cloudflare), "company-sponsored events", "available for selected roles" (Maven),
+  "Certain roles may require U.S. Person status" (Rivet) and IMC's rule for
+  candidates from Russia, Belarus or Iran (IMC otherwise sponsors) say nothing. Jump
+  Trading's "we sponsor work visas for full-time positions" is `sponsors` on its
+  full-time postings and `None` on its internships, which is why the function takes
+  the title. An internship is "intern", "co-op" or a season in the title ("Summer
+  Analyst"); a year alone is not, since new-grad titles carry one too.
+- **Negations need their sponsor word, in the same clause.** "We are not able to
+  sponsor visas or take over sponsorship" (Enova) is a no that a loose "able to sponsor
+  visas" read as yes; Samaya's "aren't able to successfully sponsor visas for every
+  role" right after "We do sponsor visas!" is not a no. A negation stops at a comma
+  that starts a new clause (Corvus's "preferred but not required, can sponsor visas"
+  is a yes) but not at one around an aside ("We are not, at this time, able to sponsor
+  visas" is a no; stopping at every comma read it as a yes), and "whether or
+  not" and "without regard to sponsorship status" are not one. "Candidates who require
+  sponsorship will not be considered" is a no; "when sponsorship is unavailable"
+  (Xsolla, on gas fees) is nothing.
+- **A need is the candidate's only before the offer.** "Candidates who require
+  sponsorship" offers nothing, but Frontier Health's "we are able to sponsor visas if
+  required" and n8n's "We can sponsor visas to Germany; ... you need to have existing
+  right to work" do, and so does Wordware's "We require US work authorization, but are
+  open to O-1 or J-1 visa sponsorship" (the need is past a comma).
+
+Measured 2026-10-09 on a live `--full` run, from each posting's whole text: of 1,103
+roles on the feed, 62 `citizens_only`, 97 `no_sponsorship`, 37 `sponsors` and 907
+`None`, the same before and after the fixes above (every `sponsors` and
+`citizens_only` posting and 30 `no_sponsorship` ones were read against their sentence
+in the first pass). The fixes were measured on every description that run read, 38,732
+including the boards' senior and non-software roles: 140 changed, every one read, all
+judged right (53 to `sponsors`, mostly n8n and Wordware; 70 to `no_sponsorship`, Proto
+Labs, GovSignals and Skydio's US-person lists; 17 to `citizens_only`, CGS, ERG,
+Valinor and OpenAI). Two first drafts were caught this way: a 60-character limit on
+verbless items dropped dozens of real "U.S. Citizenship and ability to obtain ..." lines, and
+an export licence counted only beside its sentence lost SpaceX's and Revel's. Known
+misses, left as `None` on purpose: a requirement list with no heading and no verb that
+could be either list; "authorized to work in the US now and in the future" with no word
+of sponsorship.
+
+**`TestConstructedGuards` is the one exception to "seen in a real posting":** KAN-168's
+review found bugs with sentences built to show them, and where no live posting said it
+that way the built sentence stays, in that class only, as a guard.
 
 **The company name comes from `boards.csv`, not the provider.** Greenhouse's
 `company_name` carries internal labels ("LinkedIn Job Wrapping", "DRW - University
@@ -255,6 +432,11 @@ Every request goes through `web.get` and, before it, `polite.Robots` — includi
   asks for one second) and holds `DEFAULT_DELAY_S` against origins that publish none.
   Greenhouse publishes none, and across ~1,800 boards at eight in flight we would
   otherwise run at roughly 60 requests a second. Keep it in the path of every fetch.
+- **A provider is paced as one host even when each company is its own origin.**
+  Recruitee and BambooHR serve every board from `{company}.<provider>.com`, so
+  per-origin pacing alone would let a lane's eight workers hit one provider eight
+  boards at a time. `polite.SHARED_PACE` gives all of a provider's subdomains one
+  lock; each still has its own robots.txt, read up front like any other.
 - `web.get` refuses a redirect to another origin, since robots.txt was checked for
   the one we asked for.
 
@@ -311,19 +493,167 @@ in `tests/test_shortlist.py` was observed on a live board — add cases the same
 a title you actually saw, including the ones that must be rejected. Tag names are the
 `Tag` enum; the page's filter chips read from it too.
 
-**`engineer` on its own is not a software signal**, and reinstating it is the tempting
-mistake. Wade Trim posts "Engineer Summer Intern", Olsson posts "Entry-Level Roadway
-Engineer", Rocket Lab posts "Thermal Engineering Intern" -- all real early-career
-engineering, none of it software. `SWE` names the specialisms explicitly instead. The
-cost is accepted: a bare "Engineering Intern" at a software company is dropped too,
-because nothing in that title tells it apart from Wade Trim's.
+**`engineer` on its own is not a signal**, and reinstating it is the tempting
+mistake. Wade Trim posts "Engineer Summer Intern", a civil firm, and Decagon posts
+"Engineering Intern (Summer 2027)", a software one: nothing in either title tells them
+apart, so both are dropped. Each category names its disciplines instead (Olsson's
+"Entry-Level Roadway Engineer" is civil, Rocket Lab's "Thermal Engineering Intern"
+mechanical).
 
-Three more live examples of why the wording is fussy. `\bintern\b` must not fire on
-"Internal Applications". `NOT_SOFTWARE` excludes the phrase `hardware engineer` rather
-than the word `hardware`, so IMC's "Graduate Hardware Engineer" goes and its "Hardware
-Machine Learning PhD Research Internship" stays. `SENIOR` beats the stage, so Together
-AI's "Junior/Senior or Staff Software Engineer" -- one opening at any level -- is not a
-new-grad role. Firmware and embedded are software.
+Two more live examples of why the wording is fussy. `\bintern\b` must not fire on
+"Internal Applications". `SENIOR` beats the stage, so Together AI's "Junior/Senior or
+Staff Software Engineer" -- one opening at any level -- is not a new-grad role.
+
+## Twelve categories, their specialties, up to two a role (KAN-172)
+
+The page kept software and AI roles until KAN-171, then the SimplifyJobs lists' five.
+It now keeps twelve categories: `software`, `data_ai` (data science, AI and machine
+learning), `hardware`, `quant` (quantitative research, trading and development),
+`product` (product management), `engineering` (civil, mechanical, manufacturing,
+aerospace and every other degree outside software and hardware), `business`
+(operations, strategy, supply chain, program and project management), `finance`
+(accounting, banking, investing, insurance), `marketing` (and communications), `sales`
+(and business development), `hr` (and recruiting) and `design` (product, UX, UI and
+visual design, UX research). Still early-career only and never senior. **Held off, so
+dropped:** law and compliance, consulting, teaching, the arts, public policy and
+customer support; a title naming none of the twelve ("Engineering Intern", "Research
+Intern") is dropped too. `CATEGORY_TAGS` is their order on the page and in the app.
+
+**`feed.json` carries a role's `roles`:** its categories, first first, then its
+specialties (`["data_ai", "software", "data_ai/ml"]`; `Role.roles`). The backend stores
+them in `job_postings.roles`, plain text, so a new key is a change to `Tag`, to the
+backend's `dto.role_key` and to the Jobs page's `ROLE_OPTIONS`, but never a migration.
+The feed no longer sends the old one-category `role_category`; the import derives it.
+
+**The first discipline the title names is its category** (`CATEGORIES`, first match
+wins). The order is the decision:
+
+1. **Job names first**, whatever they are about: a recruiter (`HR`), law (held),
+   selling (`SALES`), a designer (`DESIGN`), program or project management and
+   business analysis (`PROJECTS`, business). Jane Street's "Campus Recruiter, Machine
+   Learning and Quantitative Research" recruits, "Sales Engineer Intern" sells, Waymo's
+   "Quantitative UX Researcher" studies users, Astera Labs' "Hardware Technical Program
+   Management Intern" manages a program.
+2. **The technical disciplines, most specific first:** `QUANT` (a quant word names the
+   job: "Quantitative Developer"), `PRODUCT`, data and AI (ML outranks what it runs on:
+   IMC's "Hardware Machine Learning PhD Research Internship" is data), `EMBEDDED`
+   (firmware and embedded are hardware, ahead of software), `SOFTWARE`'s own words,
+   consulting (held; after software, so Latitude's "Entry Level Software Consultant"
+   stays software), `SECURITY_IT` (software), `SUPPORT` (held; after IT, so a help desk
+   is IT, and ahead of hardware: RF-SMART's "Hardware Support Internship"), `SUPPLY`
+   (business; ahead of hardware: "Hardware Sourcing Intern"), `HARDWARE_JOB` (a
+   "hardware engineer" by name), `ENGINEERING`, then the rest of `HARDWARE`.
+   Engineering ranks ahead of hardware so Rivian's "Hardware Thermal Simulation
+   Engineering Intern" is thermal work and an electrical engineer for buildings and
+   utilities is a civil discipline (Burns & McDonnell's "Electrical Engineer-Power
+   Systems", Olsson's "Electrical Engineering Internship - Facilities (Healthcare)"),
+   and behind software so Valstad's "Software Engineering Intern, 3D & Manufacturing
+   Applications" writes software.
+3. **The business disciplines:** `PARTNERS` (partnerships and go-to-market, sales only
+   when no other job is named: Agoda's "Salesforce Developer, Strategic Partnerships"
+   develops), support roles and compliance (held), `FINANCE`, `MARKETING`, `BUSINESS`,
+   then the held arts, policy and teaching.
+4. **The modifiers, which only name a job nothing else does:** software's generic words
+   ("web", "platform", a programming language), robotics (hardware), "AI" (data),
+   "trading" (quant), engineering named by what it does ("Systems Engineer", "Test
+   Engineering Intern"), and business's "operations", "strategy" and "analyst", never on
+   an engineer's or a scientist's title (K2 Space's "Vehicle Operations Engineering
+   Intern", Ginkgo's "Automation Scientist Intern, RAC Operations").
+
+**A second category only for engineering jobs that are two at once** (`SECOND`): an
+ML, AI or data engineer is data and software (Cresta's "Machine Learning Engineering
+Intern", Figma's "Data Engineer Intern"), a firmware or embedded engineer hardware and
+software (Graphcore's "Graduate Firmware Engineer"), a quant developer quant and
+software. A research engineer researches, and a data scientist or an analyst analyses:
+one category. Weak words never add one: "Software Engineer Intern (AI Internal Tools)" is
+software only. Electrical plus mechanical was measured and left out: six titles, half
+of them building or trade work.
+
+**Specialties** (`SPECIALTIES`) are named in the title, within a category the role has;
+a role can have several (Rocket Lab's "Propulsion Manufacturing Intern" is manufacturing
+and aerospace) or none. Software has one, `software/security` (security and IT, a help
+desk included: Jobright files help desks under support, but IT is the job most students
+start in); data and AI four (`ml`, `data_science`, `analytics`, `data_engineering`);
+engineering four (`civil`, `mechanical`, `manufacturing`, `aerospace`). Measured and left
+plain `engineering`: power and building systems (about 40 job postings, BGE's
+power-systems engineers, Olsson's substations) and chemical, materials and nuclear
+(about 20).
+
+**The stage** (`stage`). Two additions, each from real titles: a bank's or a fund's
+"Summer Analyst" (both words: FT Partners' "2027 Equity Research Summer Analyst (US)",
+UVIMCO's "Investment Analyst - Summer 2027"; five job postings, none a summer camp's) and
+a working student ("Working Student", German "Werkstudent", "Student Worker": IMC,
+Axon, Clera, Zoox; 28 job postings), both internships. And three guards the new
+categories needed:
+
+- **A manager or a lead is senior** unless the title says the person is junior or a
+  student ("Junior Account Manager", "Sales Partner Manager Intern"): sales, marketing
+  and operations careers start with those titles. The old rule dropped every manager but
+  a product manager.
+- **Who a role recruits is not its stage** (`AUDIENCE`): Stripe's "University
+  Recruiter", Bridgewater's "Campus Talent Associate", Belvedere's "Early Career Talent
+  Partner - Trading". A recruiter is kept only when the title says the person is junior
+  or a student (`Stage.personal`): Path Robotics' "Early Career & University Relations
+  Recruiter" is not. A year after it makes campus recruitment a program's name (Artefact's
+  "Applied AI Engineer - China Campus Recruitment 2027").
+- **Where a role is, is not its stage** (`PLACE`): Brooks's "Retail Sales Associate,
+  University Village", SpaceX's "Bastrop Campus Planning Manager".
+
+Decisions, each checked against the 2026-10-10 scan:
+
+- **Firmware and embedded are hardware** (SimplifyJobs: 681 of 701), and their engineers
+  software too. **Data engineers and data analysts are data**, not software (665 of 666,
+  and 1,063 of 1,064). **Forward deployed engineers are software** (114 of 130). As in
+  KAN-171.
+- **Solutions engineers sell.** SimplifyJobs and Jobright split them; Astera Labs'
+  "Platform Solutions Engineer Intern" moved from software to sales.
+- **Product designers are design** and **"Trading Operations" is business**; both were
+  dropped before.
+- **A bare "Product Intern" is still dropped**, as is "Product Engineer": software at one
+  company, consumer goods at the next.
+
+**Measured** on a listings-only scan of every board on 2026-10-10 (101,100 job postings)
+and the live `--full` run the same evening (101,098): kept job postings went from 1,723
+to 3,507 (2,571 internships, 936 new-grad roles). By first category: software 957,
+engineering 703, data_ai 413, hardware 287, business 227, finance 198, quant 187,
+marketing 157, sales 156, hr 100, product 64, design 58; software in either category
+1,144. Specialties: civil 269, ml 243, mechanical 160, security 122, manufacturing 101,
+data science 75, analytics 68, aerospace 59, data engineering 43. Two categories: 187
+(data and software 131, hardware and software 39, quant and software 17). Of the 1,723
+the five kept, every change was read: 16 have another first category (MARGO's and three
+Astera Labs titles to sales; three to data and AI, still software second; two each to
+marketing, design, engineering and software; one to finance) and 4 are dropped (three
+data-and-AI consultants at Celonis, and AlphaHire's research liaison, who recruits).
+Against SimplifyJobs' labels on their own 21,458 titles, 86.4% of those we keep
+in their five land in the same one, as before; 1,235 more are kept in the new
+categories. Against Jobright's own lists (80,000 titles filed by field), of the titles
+we keep: Account 84% finance, Business-Analyst 71% business, Design 88% design, HR 68%
+hr (most of the rest are "Management Trainee" internships, business here), Management
+94% business, Marketing 88% marketing, Sales 91% sales; most of their Consultant,
+Legal, Art, Public Sector and Education titles are dropped. False positives found and
+guarded, each now a test, among them Palantir's "Privacy and Civil Liberties Software
+Engineer", DRW's "Software Developer Intern - Industrial Placement", TensorWave's
+"Developer Community Engagement Intern" (marketing), WPP's "Junior Video Buyer" (media,
+not purchasing), EQT's "Water Infrastructure Engineering Intern" (civil, not software)
+and Belmond's hotel kitchens. **Known misses, accepted:** Jump Trading's and PDT
+Partners' "Systems Engineer" are IT jobs read as engineering; an MEP firm's bare
+"Electrical Engineer Summer Intern" reads as hardware; Welo Global's "AI Data Rater"
+reads as data, as before.
+
+**What it costs a run.** The first live `--full` run after the change, on a store from
+earlier that day, took 412 seconds: 352 for the boards and the job postings' own pages
+(Greenhouse read 1,088 more, about 110 seconds at its pacing, in its own lane while
+Lever's one-second Crawl-delay was still going) and 48 for 242 newly listed boards'
+logos. (Workable's 173 and BambooHR's 78 page reads were all of theirs: that store
+predated both.) After that only the day's new job postings are read. The lasting cost is
+quiet boards: a board with any kept job posting is read every run, and 97 more have one
+(Lever 68 to 99, Greenhouse 233 to 316), which adds about 20 seconds of Lever's
+Crawl-delay to a scheduled run. `feed.json` is 19 MB, from 9.
+
+**Widening the net makes the newly kept roles "new today" once.** Only matching
+postings are stored, so the first run after this change counts every newly kept role on
+a board already read as new (the known limit under "New today", above). Expect a day of
+inflated "new" counts.
 
 ## The page
 
@@ -361,12 +691,16 @@ this package: `backend/CLAUDE.md` keeps anything outside `backend/` out of its b
 So `feed.row()` is the whole contract, and its fields must match
 `backend/app/schemas/jobs.py` — add a field in both or neither, and a new column needs
 its migration. Card facts land in `job_postings`' own columns (`job_type`, `salary*`,
-`min_years_experience`, `start_term`); descriptions ride along in the rows, and the
-list query simply never selects them.
+`min_years_experience`, `start_term`, `sponsorship`), and so do the role's categories
+and specialties (`roles`, above; the import derives the old `role_category` from
+them); descriptions ride along in the rows, and the list query simply never selects
+them.
 
 Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's labels
 ("On site"). `feed.WORK_STYLE` is indexed, not `.get`: a new label from
-`providers._work_style` should fail a run, not quietly become `null` in the app.
+`providers._work_style` should fail a run, not quietly become `null` in the app. A role
+key the backend's `dto.role_key` lacks fails the import the same way, before anything
+is written.
 
 The scraper still never touches the database.
 
@@ -383,7 +717,7 @@ must render with the network off.
 No uploaded logo -- or an Ashby one under 64px, which blurs in the 80px tile (Bedrock
 uploaded 50px) -- and the logo is the company website's favicon via Google's favicon
 service, which answers 404 (so the card's initials) for a site without one. The website
-must come from the board: Ashby's `publicWebsite`, a Greenhouse board's job descriptions
+must come from the board: Ashby's `publicWebsite`, a Workable account's `url`, a Greenhouse board's job descriptions
 (Scale AI, Vercel), or where the board redirects (Stripe). Descriptions and redirects
 only count when the domain's name is in the board token or company name
 (`logos.stated_site`) -- descriptions also link eeoc.gov and TikTok, and Accenture's
@@ -397,7 +731,13 @@ opened and confirmed is the same company.
 those hosts must match `frontend/next.config.ts`'s `images.remotePatterns` exactly.** `next/image` throws on
 any other host, which fails the whole Jobs page, not one card. Greenhouse is read from
 `job-boards.greenhouse.io` because `boards.` redirects there cross-origin; Lever's
-`og:image` is a 1200x630 banner, so its header `<img>` is used instead.
+`og:image` is a 1200x630 banner, so its header `<img>` is used instead. Workable's
+board page is a script shell, so its logo is read from the account JSON
+(`/api/v1/accounts/{slug}`): `logo` on `workablehr.s3.amazonaws.com` under
+`/uploads/account/logo/`, never its `open_graph_logo`. It is 120px tall, a square or
+a wordmark up to 720 wide (17 of the first 25), which the card letterboxes like any
+other wordmark. Recruitee and BambooHR
+are not in `logos.PAGE` at all (see the KAN-171 notes above).
 
 ## Committed data
 

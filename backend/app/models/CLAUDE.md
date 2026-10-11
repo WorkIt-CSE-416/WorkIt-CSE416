@@ -257,8 +257,17 @@ jobs list several. "Jobs in California" is an `EXISTS` on this table.
   on 15 or later. That constraint's index also serves lookups by `job_id`,
   which is why the column has no index of its own.
 - `ON DELETE CASCADE` from the job: deleting a job deletes its places.
-- **Display uses `job_postings.location_raw`**, never these rows. The codes are
-  for filtering and lose the city.
+- **Display uses `job_postings.location_label`, else `location_raw`**, never
+  these rows. The codes are for filtering and lose the city. The import
+  writes `location_label` ("San Francisco, CA") from the city the resolver
+  already picks (`Resolution.label`, KAN-171): a segment becomes "City, ST"
+  only when every place in it is a US city with a state and it names no
+  arrangement ("Remote - San Francisco" keeps its words), so the label never
+  says less than the posting. It is display text, not a city field: nothing
+  filters on it, and the Location filter stays at countries and states (a
+  city filter's options would run to thousands, which the team ruled out on
+  2026-10-09). GeoNames names a job listing wouldn't use are swapped in
+  `_DISPLAY_NAME` ("New York City" reads "New York").
 - **The company API keeps one place per job.** Its body and response still
   carry `locationCountry`/`locationState`; `routers/company_jobs.py` writes
   them as the job's single row and reads them back the same way, so the
@@ -282,8 +291,13 @@ Seeded by migrations, frozen inline from pycountry 26.2.16:
 
 **`ZZ` is a catch-all for places outside the seed**, not a real country. It is
 ISO's user-assigned "unknown" code, so it can never collide with one ISO
-assigns later. Never use it for Remote — that is `work_style` (above); a job
-remote from anywhere is `work_style = remote` with country `ZZ`.
+assigns later. Never use it for Remote — that is `work_style` (above). A job
+remote from anywhere ("Remote", "Work Remotely") has `work_style = remote`
+and no `job_locations` rows: the resolver reads those words as no place, and
+the job board's location filter keeps such a job under every place
+(`unplaced_remote` in `routers/jobs.py`). Filing it under `ZZ` instead, as
+this said before, would have put it beside the roles in Peru and Colombia,
+hidden from a seeker picking United States all the same.
 The state is `ZZ-ZZ`, not `ZZ`, because the API requires a state code to be
 `<country>-<sub>` and start with its country (`schemas/company_jobs.py`).
 Anything filed under it cannot be told apart later, so the resolver should
@@ -389,7 +403,10 @@ differently ("uk", "czech republic", "turkiye"), areas wholly outside the US
    can't qualify the one before (`Austin, New York`) starts a new place, so
    `Cambridge, MA, Arlington, VA` is two places and `Boston, MA, USA` one.
 5. Decide each place. A city must fit its qualifiers; one alone takes the
-   most populous match, or a US match at least half that size. A name alone
+   most populous match, or a US match at least half that size, by its own
+   name first: only a name that is no city's own ("SF", "NYC") goes by
+   alternates. "Waterloo" is a Waterloo, not Austin's old name (that put
+   "Austin, TX" on a Waterloo co-op's card, review 2026-10-10). A name alone
    prefers a US state, then a country, then a region abroad (unless it is
    also a US city of 250k+), then a city.
 
@@ -443,7 +460,12 @@ never downloads anything. Re-run the script to refresh it.
 ## Job roles — `job_roles.py`
 
 The short list of roles search filters by and onboarding will offer, and the
-roles each job is tagged with. `../../../docs/search.md` has the design and
+roles each job is tagged with. **Not the same thing as `job_postings.roles`**
+(KAN-172, below): that column holds the scraper's own category keys
+(`"data_ai/ml"`), read from the title in `scraper/workit_scraper/shortlist.py`
+and filtered by today's `GET /jobs?role=`. `job_role_tags` holds `job_roles`
+slugs from `services/role_resolver.py`. Both are written by the import; which
+one search and onboarding use is still open (`docs/search.md`). `../../../docs/search.md` has the design and
 why; the rules for this folder:
 
 - **`job_roles` is keyed by `slug`**, like `countries.code`: no surrogate id.
@@ -467,7 +489,9 @@ why; the rules for this folder:
   delete a job: a cascade only runs from the table pointed at to the table
   pointing at it. Onboarding picks should take RESTRICT too.
 - **Their migrations:** `362182aaa4fd` creates the tables (RLS on both) and
-  revises `4485d7a7a712`, which must be applied first; `ab07572bba38` seeds
+  revises `98ab19cfe840` (main's `roles` column; re-parented from
+  `4485d7a7a712` when KAN-155 merged main, before either was applied);
+  `ab07572bba38` seeds
   the first 32 roles, flat, with `sort_order` in gaps of 10 so a role can be
   inserted between two without renumbering. **The import reads `job_roles`
   and writes `job_role_tags`, so both migrations must be on the database
@@ -576,6 +600,32 @@ searching company-posted jobs by employer needs a join or a copied name.
   maps it", above).
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.
+
+**`job_postings.role_category` is a scraped role's discipline (KAN-171)**,
+the `role_category` enum: `software`, `data_ai`, `product`, `quant`,
+`hardware`, the SimplifyJobs lists' five. The scraper reads it from the
+title (`scraper/workit_scraper/shortlist.py`) and the import writes it; a
+company's own job leaves it NULL. Its migration is `aa41fdc1ba80`, which
+revises `4485d7a7a712`. Like any mapped column, apply it before deploying a
+branch that maps it (the section above).
+
+**`job_postings.roles` supersedes it (KAN-172): `text[]`, NOT NULL, default
+`{}`**, a scraped role's category and specialty keys, first category first
+(`["data_ai", "software", "data_ai/ml"]`): twelve categories, up to two a job,
+and their specialties. Plain text rather than an enum, so a new key is a
+scraper and API change and never a migration; the API checks keys against its
+own list. A company's own job stores `{}`, which no role filter matches. The
+GIN index `job_postings_roles_idx` serves `GET /jobs?role=`, an array overlap
+(`roles && ARRAY[...]`). Its migration is `98ab19cfe840`, which revises
+`5c8d6ee05a0c`, and seeds `roles` from `role_category` for the rows already
+there. **Expand, then contract:** `role_category` is not dropped, because the
+API deployed when the migration is applied still reads it; the import keeps
+writing it (the first category, when it is one of the enum's five) until a
+later migration drops it once nothing reads it. The model maps `roles` with
+the database's default only, so an insert naming no roles leaves the column to
+the database; the ORM still reads it back after an insert, so as with any
+mapped column, apply the migration right after its PR merges, before that
+deployment serves company job creation (the section above).
 
 ## Identity lives in auth.users
 

@@ -72,7 +72,7 @@ from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
-from app.services.location_resolver import LocationResolver, Place
+from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.role_resolver import RoleResolver
 
 _FEED = TypeAdapter(list[JobListing])
@@ -83,11 +83,12 @@ _tags = Job_Role_Tag.__table__
 # The columns the feed owns, compared to decide whether a known job changed.
 _FEED_COLUMNS = (
     "title", "company_name", "company_logo_url", "description",
-    "experience_level", "work_style", "location_raw", "posted_at",
-    "job_type", "min_years_experience", "start_term",
+    "experience_level", "work_style", "location_raw", "location_label", "posted_at",
+    "job_type", "min_years_experience", "start_term", "sponsorship",
+    "role_category", "roles",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 10.
+# asyncpg allows 32,767 parameters a statement; a row here binds 22.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
@@ -109,8 +110,9 @@ class Prepared:
     '''
     rows: list[dict]
     places: dict[str, tuple[Place, ...]]
-    # apply_url -> the slugs its title names
-    roles: dict[str, frozenset[str]] = field(default_factory=dict)
+    # apply_url -> the job_roles slugs its title names, for job_role_tags. Not
+    # the row's "roles": those are the scraper's keys (KAN-172)
+    role_tags: dict[str, frozenset[str]] = field(default_factory=dict)
     # location text -> the pieces of it that matched nothing
     unresolved: dict[str, tuple[str, ...]] = field(default_factory=dict)
     # title -> how many jobs carry it, for titles that named no role
@@ -157,8 +159,8 @@ def prepare(
     '''
     rows: list[dict] = []
     places: dict[str, tuple[Place, ...]] = {}
-    roles: dict[str, frozenset[str]] = {}
-    resolved: dict[str | None, tuple[Place, ...]] = {}
+    role_tags: dict[str, frozenset[str]] = {}
+    resolved: dict[str | None, Resolution] = {}
     resolved_titles: dict[str, frozenset[str]] = {}
     unresolved: dict[str, tuple[str, ...]] = {}
     untagged: dict[str, int] = {}
@@ -170,18 +172,21 @@ def prepare(
             continue
         if listing.location not in resolved:
             result = resolver.resolve(listing.location)
-            resolved[listing.location] = result.places
+            resolved[listing.location] = result
             if result.unresolved and not result.places:
                 unresolved[listing.location] = result.unresolved
-        found = resolved[listing.location]
+        found = resolved[listing.location].places
         if not found:
             no_place += 1
         places[listing.apply_url] = found
         if listing.title not in resolved_titles:
             resolved_titles[listing.title] = role_resolver.resolve(listing.title)
-        roles[listing.apply_url] = resolved_titles[listing.title]
-        if not roles[listing.apply_url]:
+        role_tags[listing.apply_url] = resolved_titles[listing.title]
+        if not role_tags[listing.apply_url]:
             untagged[listing.title] = untagged.get(listing.title, 0) + 1
+        # The scraper's own role keys (KAN-172), for the roles column; not the
+        # job_roles slugs above, which go to job_role_tags.
+        scraped_roles = _roles(listing)
         rows.append({
             "apply_url": listing.apply_url,
             "title": listing.title,
@@ -193,14 +198,45 @@ def prepare(
             "experience_level": dto.experience_level(listing.experience_level),
             "work_style": listing.work_style,
             "location_raw": listing.location,
+            # "San Francisco, CA" where the resolver placed a US city, for the
+            # card; None leaves the card to tidy location_raw itself.
+            "location_label": resolved[listing.location].label,
             "posted_at": parse_posted_at(listing.posted_at),
             "status": dto.job_post_status.published,
             "job_type": listing.job_type,
             "min_years_experience": listing.min_years_experience,
             "start_term": listing.start_term,
+            "sponsorship": listing.sponsorship,
+            "roles": scraped_roles,
+            "role_category": _role_category(scraped_roles),
             **_pay(listing),
         })
-    return Prepared(rows, places, roles, unresolved, untagged, no_place, duplicates)
+    return Prepared(rows, places, role_tags, unresolved, untagged, no_place, duplicates)
+
+
+def _roles(listing: JobListing) -> list[str]:
+    '''
+    the job's role keys, as plain text for the text[] column. A feed written
+    between KAN-171 and KAN-172 has a role_category and no roles: that one
+    category stands for them, rather than wiping the job's roles
+    '''
+    if listing.roles:
+        return [role.value for role in listing.roles]
+    return [listing.role_category.value] if listing.role_category else []
+
+
+# The old one-category column's values. It stays until a later migration drops it,
+# because the API deployed before KAN-172 reads it (expand, then contract).
+_CATEGORIES = {category.value for category in dto.role_category}
+
+
+def _role_category(roles: list[str]) -> dto.role_category | None:
+    '''
+    role_category for code that still reads it: the job's first category when
+    it is one of the column's five, else None (a business or engineering job)
+    '''
+    first = roles[0] if roles else None
+    return dto.role_category(first) if first in _CATEGORIES else None
 
 
 def _pay(listing: JobListing) -> dict:
@@ -300,7 +336,7 @@ async def _sync_locations(
 
 
 async def _sync_roles(
-    conn: AsyncConnection, roles: dict[str, frozenset[str]], ids: dict, report: Report
+    conn: AsyncConnection, role_tags: dict[str, frozenset[str]], ids: dict, report: Report
 ) -> None:
     '''
     each job's job_role_tags made equal to the slugs its title resolves to:
@@ -316,7 +352,7 @@ async def _sync_roles(
 
     stale: list[tuple] = []
     fresh: list[dict] = []
-    for url, wanted in roles.items():
+    for url, wanted in role_tags.items():
         job_id = ids.get(url)
         if job_id is None:
             continue
@@ -402,7 +438,7 @@ async def import_feed(
     await _upsert(conn, prepared.rows, report)
     ids = await _scraped_ids(conn, list(prepared.places))
     await _sync_locations(conn, prepared.places, ids, report)
-    await _sync_roles(conn, prepared.roles, ids, report)
+    await _sync_roles(conn, prepared.role_tags, ids, report)
     await _close_missing(conn, list(prepared.places), report, allow_mass_close=allow_mass_close)
     return report
 
@@ -412,7 +448,7 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"  inserted {report.inserted}, updated {report.updated}, unchanged {report.unchanged}")
     print(f"  closed (no longer in the feed) {report.closed}")
     print(f"  jobs whose locations changed {report.locations_changed}")
-    print(f"  jobs whose roles changed {report.roles_changed}")
+    print(f"  jobs whose job_role_tags changed {report.roles_changed}")
     if report.duplicates:
         print(f"  duplicate apply_urls skipped {report.duplicates}")
     print(f"  jobs naming no place {report.no_place}, of which unresolved strings:")

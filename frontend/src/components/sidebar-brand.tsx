@@ -97,7 +97,7 @@ function LogoLink({ href, hidden }: { href: string; hidden: boolean }) {
         hidden && "opacity-0",
       )}
     >
-      <Logo size="bar" priority />
+      <Logo size="bar" />
     </Link>
   );
 }

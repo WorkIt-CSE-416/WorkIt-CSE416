@@ -36,6 +36,10 @@ class JobListing(BaseModel):
     work_style: work_style | None
     # One place, or "N locations" for a role posted to several offices.
     location: str | None
+    # The card's version of it, "San Francisco, CA", from the import
+    # (job_postings.location_label). Never in the scraper's feed, so it
+    # defaults to None there.
+    location_label: str | None = None
     posted_at: str | None
     # The logo the company uploaded to its job board; None when it has none.
     logo_url: str | None
@@ -45,8 +49,10 @@ class JobListing(BaseModel):
     description: str | None = None
     # The rest of the card, named after job_postings' columns. Each is None when
     # the posting never states it: the scraper reads the job board's own fields
-    # first, then the whole description, and guesses nothing. Defaulted so an
-    # older feed.json still parses.
+    # first, then the whole description, and infers only by measured rules
+    # (job_type full_time for a silent new-grad role; scraper/CLAUDE.md).
+    # The Jobs page shows "Internship" as an internship's job type whatever
+    # this holds. Defaulted so an older feed.json still parses.
     job_type: dto.job_type | None = None
     # One amount, or a min and max when the posting gives a range.
     salary: float | None = None
@@ -59,6 +65,21 @@ class JobListing(BaseModel):
     min_years_experience: int | None = None
     # When an internship starts, as the posting names it: "Summer 2027", "2027".
     start_term: str | None = None
+    # What the posting says about visas, read from its whole text by the scraper:
+    # it sponsors, it doesn't, or US citizens only. None when it says nothing,
+    # which is most postings. Defaulted so an older feed.json still parses.
+    sponsorship: dto.visa_sponsorship | None = None
+    # The role's categories, first first, then their specialties, read from its
+    # title by the scraper: ["data_ai", "software", "data_ai/ml"] (KAN-172).
+    # GET /jobs?role= filters on these. Empty in a feed.json written before
+    # KAN-172, which is why it is defaulted.
+    roles: list[dto.role_key] = []
+    # The first of the five disciplines the role was in before KAN-172
+    # (software, data_ai, product, quant, hardware). Superseded by roles: the
+    # scraper no longer sends it, the import derives it from roles for the
+    # column the deployed code still reads, and GET /jobs keeps returning it
+    # until that column is dropped.
+    role_category: dto.role_category | None = None
 
 
 class JobLocationOption(BaseModel):
@@ -71,4 +92,37 @@ class JobLocationOption(BaseModel):
     # its name alone; the job board shows it under its country.
     label: str
     # Published scraped jobs offered there.
+    jobs: int
+
+
+class FacetCount(BaseModel):
+    """One filter option and how many published scraped jobs it holds."""
+
+    # The value GET /jobs takes for it: "remote", "full_time", "7", "summer-2027".
+    value: str
+    jobs: int
+
+
+class JobFacets(BaseModel):
+    """GET /jobs/facets: every filter option's count, across the whole feed.
+
+    start_term lists the seasons postings start in ("summer-2027", or a bare
+    year), in calendar order and only those not yet over; role lists every
+    category and specialty key a job holds ("software", "data_ai/ml"), a job in
+    two categories counting in both; the rest list the values that have a job.
+    A value with no jobs is absent, not zero.
+    """
+
+    work_style: list[FacetCount]
+    role: list[FacetCount]
+    experience: list[FacetCount]
+    job_type: list[FacetCount]
+    posted_within: list[FacetCount]
+    visa: list[FacetCount]
+    start_term: list[FacetCount]
+
+
+class JobCount(BaseModel):
+    """GET /jobs/count: how many jobs the filters keep, not capped by a limit."""
+
     jobs: int

@@ -24,9 +24,13 @@ scraper/          The job-board scraper (KAN-55). Standalone and stdlib-only:
                   no runtime dependencies, never touches the database. Runs
                   with plain `python3 -m workit_scraper`; tests run under
                   `uvx pytest`. See scraper/CLAUDE.md.
-docs/             Design docs and rationale that span more than one folder:
-                  the schema notes (job_posting, resume, avatar), search,
-                  and the architecture snapshot
+docs/             Design docs and prose for the team that span more than
+                  one folder: the schema notes (job_posting, resume,
+                  avatar), search, the architecture snapshot, and
+                  job-pipeline.md: how a job gets from a company's board
+                  to a card (scraper, import, tables, API, job board),
+                  in plain terms. Update it with any change to one of
+                  those stages.
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to
@@ -38,8 +42,9 @@ LICENSE           MIT license covering the whole repo
 
 Design docs live in the root `docs/`: the database design notes
 (`job_posting.md`, `resume.md`, `avatar.md`, moved there from `backend/db/`),
-`search.md`, and `architecture.md`. Frontend-only prose stays in
-`frontend/docs/`.
+`search.md`, `architecture.md`, and `job-pipeline.md`, the plain-language map
+of the job pipeline, which links into each half's CLAUDE.md for the rules.
+Frontend-only prose stays in `frontend/docs/`.
 
 `backend/` gets the same treatment as `frontend/` as it fills in:
 self-contained, its own dependency manifest, its own `backend/CLAUDE.md`. Do
@@ -229,9 +234,13 @@ at a time.
   was the point.
 - `frontend/docs/` — prose for the team that is too long for a CLAUDE.md, such
   as `shadcn.md`.
-- `docs/` — design docs that span folders: the schema notes (rationale only;
-  Alembic is the source of truth for what the schema actually is), `search.md`
-  and `architecture.md`.
+- `docs/` — design docs and team prose that span folders: the schema notes
+  (rationale only; Alembic is the source of truth for what the schema
+  actually is), `search.md`, `architecture.md`, and `job-pipeline.md`.
+  `docs/job-pipeline.md` explains the job pipeline end to end for a reader new
+  to it; a change to how jobs are scraped, imported, stored, served or
+  filtered updates it in the same change, alongside the CLAUDE.md beside the
+  code.
 
 When something is learned the hard way — a setting that breaks under load, a
 command that must never be re-run — write it into the nearest `CLAUDE.md` with
@@ -243,6 +252,12 @@ the failure it prevents. That is what these files are for.
 - Prettier owns formatting for code and runs from `frontend/`; it is configured
   to skip the markdown docs. The repo root's `CLAUDE.md` and `README.md` are
   outside its reach entirely.
+- **Job terms, in docs, tickets, PRs and messages for people:** a **hiring
+  system** (Greenhouse, Workable: an ATS) hosts **company job boards** (one
+  company's page of open jobs), which list **job postings**. Never call a
+  hiring system a "job board", and call WorkIt's own `/jobs` "the Jobs page".
+  The scraper's code keeps its older names (`board`, `provider`); don't rename
+  code for this.
 
 ## Project-local skill
 

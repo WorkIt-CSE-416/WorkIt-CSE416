@@ -1,7 +1,7 @@
 """job roles
 
 Revision ID: 362182aaa4fd
-Revises: 4485d7a7a712
+Revises: 98ab19cfe840
 Create Date: 2026-10-10 15:48:28.481902
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '362182aaa4fd'
-down_revision: Union[str, Sequence[str], None] = '4485d7a7a712'
+down_revision: Union[str, Sequence[str], None] = '98ab19cfe840'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
