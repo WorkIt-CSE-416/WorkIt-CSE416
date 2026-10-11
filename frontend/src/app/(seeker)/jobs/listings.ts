@@ -145,6 +145,23 @@ export async function getJobFacets(): Promise<JobFacets> {
   }
 }
 
+/**
+ * How many open jobs were posted in the last `days` days: the Dashboard's
+ * New Roles. Cached like the facets above, since the figure only moves when
+ * the scheduled import lands. Null when the API can't answer.
+ */
+export async function countJobsPostedWithin(days: number): Promise<number | null> {
+  try {
+    const res = await apiGet(`/jobs/count?posted_within=${days}`, undefined, {
+      revalidate: COUNTS_TTL,
+    });
+    if (!res.ok) return null;
+    return ((await res.json()) as { jobs: number }).jobs;
+  } catch {
+    return null;
+  }
+}
+
 /** One open scraped job with its description, for its own page, from
  *  `GET /jobs/{id}`. `null` when the API says it isn't open (closed, a
  *  company's own, or no such job): the page shows its not-found. */

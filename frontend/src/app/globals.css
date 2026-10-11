@@ -232,6 +232,22 @@
 
   /* App layout ----------------------------------------------------------- */
   --container-app: 64rem; /* 1024px — 928px content + 48px padding each side */
+  /* The seeker Dashboard's cap, wider than the rest: a grid of tiles, not
+   * lines of text to read, so it uses a laptop's width and goes three columns
+   * across (KAN-173). Reading pages keep --container-app. */
+  --container-dashboard: 90rem; /* 1440px */
+
+  /* The seeker Dashboard's tiles (KAN-173): white on the white page panel,
+   * with no outline, set apart by a soft violet-tinted shadow alone. An
+   * outline on every tile was the grey-box look it moved away from, and a
+   * tinted page under them read as muted beside the shell's white panels. */
+  --shadow-tile: 0 1px 3px rgb(30 20 70 / 0.05), 0 10px 30px -6px rgb(30 20 70 / 0.12);
+  /* A Dashboard tile's headline figure: bigger than --text-display and at
+   * medium weight, the way the tiles' reference draws its numbers. */
+  --text-figure: 2.25rem; /* 36px */
+  --text-figure--line-height: 2.5rem;
+  --text-figure--font-weight: 500;
+  --text-figure--letter-spacing: -0.02em;
 
   /* -------------------------------------------------------------------------
    * Applications board — added for the KAN-43 applications mockup
@@ -1085,4 +1101,16 @@ body:has([data-shell="seeker"]) {
       background-color 100ms ease-out,
       color 100ms ease-out;
   }
+}
+
+/* A scroll area's bar, thin and quiet (KAN-173): a thin --color-ink-faint
+ * thumb on no track. macOS already fades its overlay bar out between
+ * scrolls; this mostly tames the always-on 15px gutter on Windows and Linux.
+ * Pair it with the area's edge on its container's edge (the Dashboard's New
+ * Matches bleeds into its tile's right padding and pads its rows back in), so
+ * the bar runs down the tile's side rather than between the content and its
+ * padding, where it crowded the rows' buttons. */
+@utility scrollbar-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-faint) transparent;
 }
