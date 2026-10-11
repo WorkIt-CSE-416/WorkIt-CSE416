@@ -469,9 +469,10 @@ why; the rules for this folder:
 - **Their migrations:** `362182aaa4fd` creates the tables (RLS on both) and
   revises `4485d7a7a712`, which must be applied first; `ab07572bba38` seeds
   the first 32 roles, flat, with `sort_order` in gaps of 10 so a role can be
-  inserted between two without renumbering. Nothing reads or writes these
-  tables yet, so deploying the models ahead of the migrations is harmless;
-  once the import tags jobs, both must be on the database first.
+  inserted between two without renumbering. **The import reads `job_roles`
+  and writes `job_role_tags`, so both migrations must be on the database
+  before that code runs**; without them it refuses and writes nothing
+  (`../../CLAUDE.md`, Commands).
 - **A seed's downgrade deletes its roles' tags first**, since RESTRICT refuses
   the role delete otherwise. The import writes the tags again.
 - **Adding a role is a seed migration plus its aliases** in

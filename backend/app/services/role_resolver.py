@@ -164,7 +164,7 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "sales_representative": (
         "sales rep", "sales associate", "sales intern", "sales manager", "sales specialist",
         "sales development", "sdr", "bdr", "inside sales", "account executive", "account manager",
-        "business developer", "business development", "software sales", "technical sales", "sales"
+        "business developer", "business development", "software sales", "technical sales",
     ),
     "recruiter": (
         "recruiting coordinator", "recruiting intern", "talent acquisition", "talent partner",

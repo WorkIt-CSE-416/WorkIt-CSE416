@@ -10,7 +10,8 @@
 Status: agreed 2026-10-10 (KAN-155). Built so far: the `job_roles` and
 `job_role_tags` tables (`backend/app/models/job_roles.py`, migration
 `362182aaa4fd`), the first 32 roles (`ab07572bba38`), and the title resolver
-(`backend/app/services/role_resolver.py`, not yet called by the import). This
+(`backend/app/services/role_resolver.py`), which the import runs to tag every
+scraped job. This
 is the rationale;
 once it is built, the migrations are the source of truth for the schema and
 the CLAUDE.md files nearest the code hold the rules.
@@ -252,10 +253,19 @@ keyword instead. When in doubt, leave the tag off.
 
 ### In the import
 
-`backend/app/scripts/import_jobs.py` gains a step after the upsert, shaped like
-`_sync_locations`: resolve each distinct title once, then bring each job's
-`job_role_tags` in line with the result (insert the missing tags, delete the
-stale ones).
+`backend/app/scripts/import_jobs.py` resolves each distinct title once in
+`prepare()`, beside its location, then after the upsert `_sync_roles` brings
+each job's `job_role_tags` in line with the result (insert the missing tags,
+delete the stale ones, leave a job already right alone), shaped like
+`_sync_locations`.
+
+- **The resolver is built from `job_roles` as the database holds it.** An
+  alias for a slug that isn't there (the seed not applied, or a typo) makes
+  the import refuse before writing anything, instead of failing a foreign
+  key halfway.
+- **Measured on a local Postgres with the 1,096-job feed (2026-10-11):** 1,050
+  jobs tagged with 1,201 tags; a second run on the same feed changed nothing;
+  a missing tag, a stale tag and a retitled job were each put right.
 
 - **Every listed job is re-resolved on every run.** That's about 1,000 titles
   of pure Python, so an alias added today is applied on the next scheduled run
@@ -350,8 +360,6 @@ it (`backend/alembic/CLAUDE.md`).
 
 ## Still open
 
-- **Wiring the resolver into the import** (the step above), with its untagged
-  report.
 - **Typeahead:** one endpoint suggesting roles and companies as the user
   types, or two.
 - **Roles for company-posted jobs:** the company form picks them, or the

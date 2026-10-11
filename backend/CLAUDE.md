@@ -60,7 +60,8 @@ uv run alembic check                           fail if models lack a migration
 ```
 uv run pytest                                  run the tests in tests/
 uv run python -m app.scripts.import_jobs       load a scraper feed.json into
-                                               job_postings/job_locations
+                                               job_postings/job_locations/
+                                               job_role_tags
                                                (--dry-run rolls back)
 ```
 
@@ -75,9 +76,17 @@ until autovacuum clears them, so table sizes read straight after one are
 inflated.
 
 **It is the only way scraped jobs enter the database**, because it is the
-step that runs the location resolver and writes `job_locations`. A scraped
-row written any other way never shows up in the location filter.
-`app/models/CLAUDE.md` (the resolver section) has the rule.
+step that runs the location and role resolvers and writes `job_locations` and
+`job_role_tags`. A scraped row written any other way never shows up in the
+location or role filter. `app/models/CLAUDE.md` (the resolver sections) has
+the rule. Its report ends with the titles that named no role, most jobs
+first: that is the list to grow the aliases from.
+
+**It refuses (exit 2, nothing written) when `job_roles` lacks a slug the
+aliases name**, which is what it does before the role migrations
+(`362182aaa4fd`, `ab07572bba38`) are applied. The scheduled scrape runs this
+from `main`, so those migrations must be on Supabase before the change that
+added role tagging merges, or every scheduled run fails until they are.
 
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
 extraction (`test_resume_extraction.py`), the location resolver
@@ -147,7 +156,8 @@ app/
                   resumes into Gemini vectors; its own CLAUDE.md has the
                   design and what is still unbuilt
   scripts/        Commands run by hand, `uv run python -m app.scripts.<name>`
-    import_jobs.py  feed.json → job_postings + job_locations, in one transaction
+    import_jobs.py  feed.json → job_postings + job_locations + job_role_tags,
+                  in one transaction
   utils/
     resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/

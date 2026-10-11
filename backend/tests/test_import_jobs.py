@@ -1,7 +1,7 @@
 """Tests for the part of the feed import that needs no database: turning feed
-rows into job_postings rows and places. The database half (upsert, location
-sync, closing) needs Postgres; app/scripts/import_jobs.py's docstring says
-what it does."""
+rows into job_postings rows, places and roles. The database half (upsert,
+location and role sync, closing) needs Postgres; app/scripts/import_jobs.py's
+docstring says what it does."""
 import datetime
 
 import pytest
@@ -10,12 +10,19 @@ from app.models import dto
 from app.schemas.jobs import JobListing
 from app.scripts.import_jobs import parse_posted_at, prepare
 from app.services.location_resolver import LocationResolver, Place
+from app.services.role_resolver import RoleResolver
 from tests.test_location_resolver import US_STATES
+from tests.test_role_resolver import ROLES
 
 
 @pytest.fixture(scope="module")
 def resolver():
     return LocationResolver({"US", "ZZ"}, US_STATES)
+
+
+@pytest.fixture(scope="module")
+def roles():
+    return RoleResolver(ROLES)
 
 
 def listing(url, location="Austin, TX", **overrides):
@@ -27,8 +34,8 @@ def listing(url, location="Austin, TX", **overrides):
     return JobListing(**{**fields, **overrides})
 
 
-def test_row_shape(resolver):
-    prepared = prepare([listing("https://x/1")], resolver)
+def test_row_shape(resolver, roles):
+    prepared = prepare([listing("https://x/1")], resolver, roles)
     assert prepared.rows == [{
         "apply_url": "https://x/1",
         "title": "SWE Intern",
@@ -53,12 +60,12 @@ def test_row_shape(resolver):
     assert prepared.places == {"https://x/1": (Place("US", "US-TX"),)}
 
 
-def test_card_facts_are_kept(resolver):
+def test_card_facts_are_kept(resolver, roles):
     # Strada's internship: "$7.5K per month".
     prepared = prepare([listing(
         "https://x/1", job_type="full_time", start_term="Summer 2027", min_years_experience=1,
         salary=7500, salary_currency="USD", salary_period="month",
-    )], resolver)
+    )], resolver, roles)
     row = prepared.rows[0]
     assert (row["job_type"], row["start_term"], row["min_years_experience"]) == (
         dto.job_type.full_time, "Summer 2027", 1)
@@ -66,36 +73,67 @@ def test_card_facts_are_kept(resolver):
         7500, "USD", dto.salary_period.month)
 
 
-def test_description_is_kept(resolver):
-    prepared = prepare([listing("https://x/1", description="Build things.")], resolver)
+def test_description_is_kept(resolver, roles):
+    prepared = prepare([listing("https://x/1", description="Build things.")], resolver, roles)
     assert prepared.rows[0]["description"] == "Build things."
 
 
-def test_first_of_a_duplicate_url_wins(resolver):
-    prepared = prepare([listing("https://x/1", title="Newer"), listing("https://x/1", title="Older")], resolver)
+def test_first_of_a_duplicate_url_wins(resolver, roles):
+    prepared = prepare([listing("https://x/1", title="Newer"), listing("https://x/1", title="Older")], resolver, roles)
     assert [r["title"] for r in prepared.rows] == ["Newer"]
     assert prepared.duplicates == 1
 
 
-def test_places_and_misses(resolver):
+def test_places_and_misses(resolver, roles):
     prepared = prepare([
         listing("https://x/1", "San Francisco, CA • New York, NY"),
         listing("https://x/2", "Remote"),
         listing("https://x/3", "RWC HQ"),
         listing("https://x/4", None),
-    ], resolver)
+    ], resolver, roles)
     assert prepared.places["https://x/1"] == (Place("US", "US-CA"), Place("US", "US-NY"))
     assert prepared.no_place == 3
     # Only the string that named something unknown is worth logging.
     assert prepared.unresolved == {"RWC HQ": ("RWC HQ",)}
 
 
-def test_each_location_resolved_once(resolver, monkeypatch):
+def test_each_location_resolved_once(resolver, roles, monkeypatch):
     calls = []
     real = resolver.resolve
     monkeypatch.setattr(resolver, "resolve", lambda text: calls.append(text) or real(text))
-    prepare([listing(f"https://x/{i}", "Austin, TX") for i in range(5)], resolver)
+    prepare([listing(f"https://x/{i}", "Austin, TX") for i in range(5)], resolver, roles)
     assert calls == ["Austin, TX"]
+
+
+def test_roles_and_untagged_titles(resolver, roles):
+    prepared = prepare([
+        listing("https://x/1", title="Software Engineer (Machine Learning) Intern"),
+        listing("https://x/2", title="AI Labs Intern"),
+        listing("https://x/3", title="AI Labs Intern"),
+    ], resolver, roles)
+    assert prepared.roles == {
+        "https://x/1": {"software_engineer", "ai_ml_engineer"},
+        "https://x/2": set(),
+        "https://x/3": set(),
+    }
+    # Counted per title, so the report can put the commonest misses first.
+    assert prepared.untagged == {"AI Labs Intern": 2}
+
+
+def test_each_title_resolved_once(resolver, roles, monkeypatch):
+    calls = []
+    real = roles.resolve
+    monkeypatch.setattr(roles, "resolve", lambda title: calls.append(title) or real(title))
+    prepare([listing(f"https://x/{i}", title="SWE Intern") for i in range(5)], resolver, roles)
+    assert calls == ["SWE Intern"]
+
+
+def test_a_duplicate_url_takes_the_first_title_s_roles(resolver, roles):
+    prepared = prepare([
+        listing("https://x/1", title="Data Engineer Intern"),
+        listing("https://x/1", title="Recruiter"),
+    ], resolver, roles)
+    assert prepared.roles == {"https://x/1": {"data_engineer"}}
 
 
 @pytest.mark.parametrize(("value", "expected"), [
