@@ -474,6 +474,41 @@ class TestCardWorkStyle:
         assert self.card(silent) == {"Software Engineer Intern": None}
 
 
+class TestCardJobType:
+    """Stated first; then Full-time for a new grad, which every new-grad posting that
+    states a type is (`shortlist._job_type`). An internship is never inferred: the
+    Jobs page shows "Internship" as every internship's job type."""
+
+    def card(self, title: str, facts: Facts | None = None) -> str | None:
+        job = greenhouse_job(
+            title=title,
+            first_seen_at="2026-10-05T09:00:00+00:00",
+            page=read_page(facts=facts),
+        )
+        [role] = pick([job], is_new=lambda j: False)
+        return role.facts.job_type
+
+    def test_a_silent_new_grad_is_full_time(self) -> None:
+        assert self.card("Software Engineer, New Grad") == "full_time"
+
+    def test_a_silent_internship_stays_empty(self) -> None:
+        for title in (
+            "Software Engineer Intern (Summer 2027)",
+            "Software Engineer Intern (Fall 2026)",
+            "Machine Learning Intern/Co-op (Summer 2027)",
+            "Software Engineer Intern (2027)",
+        ):
+            assert self.card(title) is None, title
+        assert self.card("Software Engineer Intern", Facts(start_term="Summer 2027")) is None
+
+    def test_a_stated_type_wins(self) -> None:
+        # The Voleon Group's "Software Engineer Intern - (Summer 2027)" is a contract.
+        for stated in ("part_time", "contract"):
+            facts = Facts(job_type=stated)
+            assert self.card("Software Engineer Intern - (Summer 2027)", facts) == stated
+            assert self.card("Software Engineer, New Grad", facts) == stated
+
+
 class TestStatedInterval:
     """A period the provider states is trusted: size alone cannot tell a month from a week."""
 

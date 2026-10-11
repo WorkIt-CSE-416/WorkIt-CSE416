@@ -6,13 +6,14 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 
 import type { ExperienceLevel, JobType, WorkStyle } from "./data";
-import { filtersQuery, NO_FILTERS, type FeedFilters } from "./filter-query";
+import { feedQuery, NO_FILTERS, PAGE_SIZE, type FeedFilters, type Role } from "./filter-query";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
  * imported job_postings rows (backend/app/routers/jobs.py). Mirrors
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
- * narrows it to the query) and by the Dashboard's New Matches.
+ * sends its words as `q`), by their Load More (./actions) a page at a time, and
+ * by the Dashboard's New Matches.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
  * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
@@ -35,11 +36,16 @@ export type JobListing = {
   experience_level: Exclude<ExperienceLevel, "experienced">;
   work_style: WorkStyle | null;
   location: string | null;
+  /** The card's version, "San Francisco, CA", where the import placed a US
+   *  city (job_postings.location_label); null leaves `location` to be tidied. */
+  location_label: string | null;
   posted_at: string | null;
   logo_url: string | null;
   /** The rest of the card, named after `job_postings`' columns. Null when the
    *  posting never states it — the scraper reads the board's own fields, then
-   *  the description, and guesses nothing. */
+   *  the description, and infers only by measured rules (job type Full-Time
+   *  for a silent new-grad role). An internship's card shows "Internship" as
+   *  its job type whatever this says (listing-card.tsx). */
   job_type: JobType | null;
   /** One amount, or `salary_min`/`salary_max` for a range; all null when the
    *  posting states no pay. */
@@ -60,6 +66,8 @@ export type JobListing = {
   /** What the posting says about visas (KAN-168): it sponsors, it doesn't, or
    *  US citizens only. Null when it says nothing, which is most postings. */
   sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
+  /** The role's discipline, read from its title by the scraper (KAN-171). */
+  role_category: Role | null;
 };
 
 export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";
@@ -79,18 +87,45 @@ export type JobLocationOption = {
  *  its place — made-up postings shown silently would read as real ones.
  *  `filters` narrows it on the server, the filter row's picks as the URL
  *  holds them (./filter-query). */
-export async function getJobListings(
-  filters: FeedFilters = NO_FILTERS,
-): Promise<{ jobs: JobListing[]; error: null } | { jobs: null; error: string }> {
+export type FeedPage =
+  { jobs: JobListing[]; more: boolean; error: null } | { jobs: null; more: false; error: string };
+
+/** The first page of the feed under these filters and /search's words, for a
+ *  page to render. */
+export async function getJobListings(filters: FeedFilters = NO_FILTERS, q = ""): Promise<FeedPage> {
   // Request time, not build time: without this `next build` prerenders the
   // feed once — with no API running in CI, that bakes the error in for good.
   await connection();
+  return getFeedPage(feedQuery(filters, q), 0);
+}
+
+/** One page of the feed, `offset` roles in, for a query feedQuery wrote: the
+ *  first render's and each Load More's (./actions). It asks for one role past
+ *  the page, so `more` says whether a Load More would find anything, without
+ *  a count. */
+export async function getFeedPage(query: string, offset: number): Promise<FeedPage> {
+  const params = new URLSearchParams(query);
+  params.set("limit", String(PAGE_SIZE + 1));
+  if (offset > 0) params.set("offset", String(offset));
   try {
-    const res = await apiGet(`/jobs${filtersQuery(filters)}`);
-    if (!res.ok) return { jobs: null, error: await extractErrorMessage(res) };
-    return { jobs: (await res.json()) as JobListing[], error: null };
+    const res = await apiGet(`/jobs?${params}`);
+    if (!res.ok) return { jobs: null, more: false, error: await extractErrorMessage(res) };
+    const jobs = (await res.json()) as JobListing[];
+    return { jobs: jobs.slice(0, PAGE_SIZE), more: jobs.length > PAGE_SIZE, error: null };
   } catch {
-    return { jobs: null, error: "Could not reach the server." };
+    return { jobs: null, more: false, error: "Could not reach the server." };
+  }
+}
+
+/** How many roles these filters and words keep, every page together: /search's
+ *  "128 Roles". Null when the API can't say. */
+export async function getJobCount(filters: FeedFilters, q = ""): Promise<number | null> {
+  try {
+    const res = await apiGet(`/jobs/count${feedQuery(filters, q)}`);
+    if (!res.ok) return null;
+    return ((await res.json()) as { jobs: number }).jobs;
+  } catch {
+    return null;
   }
 }
 
@@ -119,12 +154,13 @@ export type FacetCount = { value: string; jobs: number };
 /** Every filter option's count across the whole feed (not narrowed by the
  *  other filters), and the start terms postings name, in calendar order. */
 export type JobFacets = Record<
-  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
+  "work_style" | "role" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
   FacetCount[]
 >;
 
 const NO_FACETS: JobFacets = {
   work_style: [],
+  role: [],
   experience: [],
   job_type: [],
   posted_within: [],
@@ -139,7 +175,10 @@ export async function getJobFacets(): Promise<JobFacets> {
   await connection();
   try {
     const res = await apiGet("/jobs/facets", undefined, { revalidate: COUNTS_TTL });
-    return res.ok ? ((await res.json()) as JobFacets) : NO_FACETS;
+    // Over the empty groups, so an API that doesn't send a group yet (one
+    // deployed before Role existed) leaves that facet empty rather than
+    // crashing the filters.
+    return res.ok ? { ...NO_FACETS, ...((await res.json()) as Partial<JobFacets>) } : NO_FACETS;
   } catch {
     return NO_FACETS;
   }

@@ -7,9 +7,10 @@ import { cn } from "@/lib/cn";
 
 import { RememberFeed } from "./[jobId]/page-actions";
 import { FeedHeader } from "./feed-header";
+import { FeedList } from "./feed-list";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
-import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
+import { ListingsError, ListingsSkeleton } from "./listing-card";
 import { filtersQuery, isFiltered, readFilters, type FeedFilters } from "./filter-query";
 import { getJobFacets, getJobListings, getJobLocations } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
  * cover /jobs/[jobId].
  */
 async function Feed({ filters }: { filters: FeedFilters }) {
-  const { jobs, error } = await getJobListings(filters);
+  const { jobs, more, error } = await getJobListings(filters);
 
   if (error != null)
     return <ListingsError error={error} retryHref={`/jobs${filtersQuery(filters)}`} />;
@@ -62,19 +63,8 @@ async function Feed({ filters }: { filters: FeedFilters }) {
           an h3 because the company preview nests it under headings of its
           own. */}
       <h2 className="sr-only">Recommended Jobs</h2>
-      <ul className="mt-4 flex flex-col gap-3">
-        {jobs.map((job, i) => (
-          // The cards rise in as the feed arrives, 50ms apart and capped at
-          // the sixth, about a screenful, so the list never makes anyone wait.
-          <li
-            key={job.id}
-            style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
-            className="animate-rise"
-          >
-            <ListingCard job={job} />
-          </li>
-        ))}
-      </ul>
+      {/* The first page, and a Load More for the rest (./feed-list). */}
+      <FeedList initial={jobs} more={more} query={filtersQuery(filters)} />
     </>
   );
 }

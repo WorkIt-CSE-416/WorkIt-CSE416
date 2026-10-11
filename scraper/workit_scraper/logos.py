@@ -2,7 +2,7 @@
 
 The listing APIs carry no logo, but every ATS shows the one the employer uploaded
 on the board's page. Without one -- or with a tiny one -- the company's website's
-favicon, when the board tells us the website: Ashby names it, a Greenhouse board's job
+favicon, when the board tells us the website: Ashby and Workable name it, a Greenhouse board's job
 descriptions link it, a board may redirect to it, or a person checked it by hand
 (`CHECKED_WEBSITES`). We never guess a website from a company name: "Workshop" is not
 workshop.com. Each board is read once, ever: a board already in
@@ -28,6 +28,13 @@ PAGE = {
     "greenhouse": "https://job-boards.greenhouse.io/{}",
     "ashby": "https://jobs.ashbyhq.com/{}",
     "lever": "https://jobs.lever.co/{}",
+    # The account behind the board, as JSON: what Workable's careers page draws
+    # its header from, and the company's website besides.
+    "workable": "https://apply.workable.com/api/v1/accounts/{}",
+    # No Recruitee or BambooHR yet. BambooHR's header logo (Alkira's: 180x36) is
+    # served as application/octet-stream from numbered hosts (images7.bamboohr.com),
+    # which next/image may refuse; Recruitee's sits inside a 1 MB board page, for
+    # the one board we read. Their cards show initials.
 }
 # Each pattern only accepts its ATS's own image host, and `favicon` only Google's.
 # frontend/next.config.ts allows exactly these hosts, and next/image throws -- failing
@@ -43,6 +50,11 @@ PATTERN = {
         r'class="main-header-logo"[^>]*>\s*<img[^>]*\ssrc="'
         r'(https://lever-client-logos\.s3(?:\.us-west-2)?\.amazonaws\.com/[^"]+)"'
     ),
+    # The account logo, not `open_graph_logo`. 120px tall: 8 of the first 25 read
+    # were squares, the rest wordmarks up to 720 wide, which the card letterboxes.
+    "workable": re.compile(
+        r'"logo":"(https://workablehr\.s3\.amazonaws\.com/uploads/account/logo/[^"]+)"'
+    ),
 }
 # Where Ashby serves uploaded logos -- read only to measure one (see `fetch`).
 ASHBY_IMAGES = "https://app.ashbyhq.com/api/images/"
@@ -50,6 +62,8 @@ ASHBY_IMAGES = "https://app.ashbyhq.com/api/images/"
 SMALL_PX = 64
 # Ashby names the company's own website even when no logo was uploaded.
 ASHBY_WEBSITE = re.compile(r'"publicWebsite":"(https?://[^"]+)"')
+# So does a Workable account, as its top-level `url`.
+WORKABLE_WEBSITE = re.compile(r'^\{[^{]*"url":"(https?://[^"]+)"')
 # Boards that state no logo and no website anywhere we read, with the site a person
 # checked by hand -- its homepage names the same company. Only ever consulted when the
 # board itself gives us nothing usable. Checked first, so it also replaces a board's
@@ -95,6 +109,8 @@ def extract(ats: str, page: str) -> str | None:
     if match := PATTERN[ats].search(page):
         return html.unescape(match.group(1))
     if ats == "ashby" and (site := ASHBY_WEBSITE.search(page)):
+        return favicon(urlsplit(site.group(1)).netloc)
+    if ats == "workable" and (site := WORKABLE_WEBSITE.search(page)):
         return favicon(urlsplit(site.group(1)).netloc)
     return None
 

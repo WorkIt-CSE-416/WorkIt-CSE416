@@ -157,12 +157,15 @@ def update(
 def carry(job: Job, before: dict[str, Job]) -> Job:
     """A freshly listed posting with the page its stored self already had.
 
-    A Greenhouse listing has no page; the one read before stands until a newer
-    PAGE_VERSION reads it again. Ashby and Lever bring a fresh page every read,
-    which always wins -- facts an employer changed must not linger.
+    A Greenhouse, Workable or BambooHR listing has no page; the one read before
+    stands until a newer PAGE_VERSION reads it again. Ashby, Lever and Recruitee
+    bring a fresh page every read, which always wins -- facts an employer changed
+    must not linger. A BambooHR listing has no date either: its page gave it one.
     """
     old = before.get(job.key)
-    return replace(job, page=job.page or old.page) if old else job
+    if not old:
+        return job
+    return replace(job, page=job.page or old.page, posted_at=job.posted_at or old.posted_at)
 
 
 def load(path: Path) -> Store | None:

@@ -15,6 +15,7 @@ import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../../gutter";
+import { placesOf } from "../format";
 import { ListingsError, listingFacts } from "../listing-card";
 import { getJobListing, type JobListing } from "../listings";
 import { JobDescription } from "./description";
@@ -62,6 +63,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
     );
   }
   if (job == null) notFound();
+  const places = placesOf(job.location_label ?? job.location);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -105,6 +107,10 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
       />
 
       <Section title="About the Role">
+        {/* The card names one place and how many more; here, all of them. */}
+        {places.length > 1 && (
+          <p className="text-body text-ink-muted mt-3">Open in {places.join(" · ")}.</p>
+        )}
         {job.description ? (
           <JobDescription text={job.description} company={job.company} applyUrl={job.apply_url} />
         ) : (

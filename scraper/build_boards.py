@@ -56,6 +56,13 @@ PATTERNS = {
     ),
     "lever": re.compile(r"jobs\.lever\.co/([a-z0-9_.-]+)", re.I),
     "ashby": re.compile(r"jobs\.ashbyhq\.com/([a-z0-9_.-]+)", re.I),
+    # apply.workable.com/{account}/j/{shortcode}/. A bare apply.workable.com/j/...
+    # names no account, so `j` (and the `api`) is never one.
+    "workable": re.compile(r"apply\.workable\.com/(?!(?:j|api)/)([a-z0-9_-]+)", re.I),
+    # One subdomain per company: {company}.recruitee.com/o/{offer},
+    # {company}.bamboohr.com/careers/{id}. `www` is the vendor's own site.
+    "recruitee": re.compile(r"//(?!www\.)([a-z0-9-]+)\.recruitee\.com", re.I),
+    "bamboohr": re.compile(r"//(?!www\.)([a-z0-9-]+)\.bamboohr\.com", re.I),
 }
 
 # Boards verified by hand to yield early-career software roles, kept because the

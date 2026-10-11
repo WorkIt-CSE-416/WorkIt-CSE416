@@ -3,10 +3,11 @@
 The scraper's densest logic, and the place a bug is quietest. Two steps:
 
 1. **Classify.** A posting is kept when its title names an early-career stage
-   (`intern` or `new-grad`) *and* a topic we care about (`swe` or `ai-ml`) *and*
-   does not name a discipline that is plainly not software. Without that last
+   (`intern` or `new-grad`) *and* one of five categories (software, data and AI,
+   product, quant, hardware) *and* no discipline outside them. Without that last
    check "Sales Engineer Intern" and "Mechanical Engineering Co-op" both pass on
-   the word "engineer" alone.
+   the words "engineer" and "engineering" alone. The first category that matches
+   is the role's one category (`CATEGORIES`).
 
 2. **Dedupe** on `apply_url`. Each URL is its own job: Stripe posting "Software
    Engineer, New Grad" once per office, each with its own application, is seven
@@ -32,12 +33,20 @@ from workit_scraper.providers import Job
 
 
 class Tag(StrEnum):
-    """What a role is. A stage (intern or new grad), then one or more topics."""
+    """What a role is: a stage (intern or new grad), then its one category.
+
+    The categories are the SimplifyJobs lists' five, which `boards.csv` is
+    built from (`build_boards.py`), and their values are `feed.json`'s
+    `role_category`: the backend's `role_category` enum, so a new one is a
+    change on both sides."""
 
     INTERN = "intern"
     NEW_GRAD = "new-grad"
-    SWE = "swe"
-    AI_ML = "ai-ml"
+    SOFTWARE = "software"
+    DATA_AI = "data_ai"
+    PRODUCT = "product"
+    QUANT = "quant"
+    HARDWARE = "hardware"
 
 
 INTERN = re.compile(r"\bintern(?:s|ship|ships)?\b|\bco-?op\b", re.I)
@@ -48,47 +57,115 @@ NEW_GRAD = re.compile(
 )
 # "Engineer" on its own is not a software signal. Wade Trim posts "Engineer Summer
 # Intern", Olsson posts "Entry-Level Roadway Engineer", Rocket Lab posts "Thermal
-# Engineering Intern" -- all real early-career engineering, none of it software. A page
-# titled "software internships" that lists a nuclear engineer has lied to the reader,
-# so the topic has to be named explicitly. The cost is real and accepted: a bare
-# "Engineering Intern" at a software company is dropped too, because nothing in that
-# title distinguishes it from Wade Trim's.
-SWE = re.compile(
+# Engineering Intern" -- all real early-career engineering, none of it in our five
+# categories. So each category names its specialisms explicitly. The cost is real
+# and accepted: a bare "Engineering Intern" at a software company is dropped too,
+# because nothing in that title distinguishes it from Wade Trim's.
+SOFTWARE = re.compile(
     r"\bsoftware\b|\bdeveloper\b|\bprogrammer\b|\bswe\b"
     r"|\bback[- ]?end\b|\bfront[- ]?end\b|\bfull[- ]?stack\b"
     r"|\bweb\b|\bmobile\b|\bios\b|\bandroid\b"
     r"|\binfrastructure\b|\bplatform\b|\bdistributed systems\b|\bsystems? software\b"
     r"|\bdev\s?ops\b|\bsre\b|\bsite reliability\b|\bcompiler\b|\bdatabase\b|\bcloud\b"
-    r"|\bapi\b|\bembedded\b|\bfirmware\b|\bsecurity engineer\w*\b|\bnetwork engineer\w*\b"
-    r"|\bdata engineer\w*\b|\bqa\b|\btest automation\b|\bcomputer science\b|\bcoding\b",
+    r"|\bapi\b|\bsecurity engineer\w*\b|\bnetwork engineer\w*\b"
+    r"|\bqa\b|\btest automation\b|\bcomputer science\b|\bcoding\b"
+    # SimplifyJobs files 114 of its 130 forward deployed roles under Software.
+    r"|\bforward deployed\b",
     re.I,
 )
-AI_ML = re.compile(
-    r"\bmachine learning\b|\bml\b|\bai\b|\bdeep learning\b|\bgen-?ai\b"
-    r"|\bgenerative ai\b|\bresearch (?:scientist|engineer)\b|\bdata scien\w*\b"
-    r"|\bnlp\b|\bcomputer vision\b|\bllms?\b|\bagentic\b",
+DATA_AI = re.compile(
+    r"\bmachine learning\b|\bml\b|\bdeep learning\b"
+    r"|\bresearch (?:scientist|engineer)\b|\bdata scien\w*\b"
+    # A robot's or a car's perception, not Brooks's "Run Perception Graduate
+    # Internship" (consumer research).
+    r"|\bnlp\b|\bcomputer vision\b|(?<!run )\bperception\b"
+    r"|\bapplied (?:ai|scien\w*|research\w*)\b|\breinforcement learning\b|\brobot learning\b"
+    # SimplifyJobs files data engineers (665 of 666) and analysts (1,063 of 1,064)
+    # here, not under Software.
+    r"|\bdata engineer\w*\b|\bdata analy\w*\b|\banalytics engineer\w*\b",
     re.I,
+)
+# "AI" as a modifier is weaker: "Software Engineer Intern (AI Internal Tools)" is a
+# software job, as SimplifyJobs files 281 of its 347 titles naming both. So it
+# claims a title only after hardware and software have passed (`CATEGORIES`).
+AI = re.compile(r"\bai\b|\bgen-?ai\b|\bgenerative ai\b|\bllms?\b|\bagentic\b", re.I)
+PRODUCT = re.compile(r"\bproduct manag\w*\b|\bproduct owner\b|\bproduct analyst\b|\bapm\b", re.I)
+# A quant word names the role whatever else the title says: "Quantitative
+# Developer" is a quant's job, not a software one.
+QUANT = re.compile(r"\bquant(?:s|itative)?\b|\btraders?\b", re.I)
+# "Trading" alone is weaker. "Software Engineer, Trading Systems" is a software
+# job at a trading firm, so it is quant only when nothing else claims the title
+# (`classify`); "Trading Operations" is back office.
+TRADING = re.compile(r"\btrading\b(?!\s+operations?\b)", re.I)
+# Electrical, computer and embedded engineering, chips, robotics: SimplifyJobs'
+# Hardware list. Mechanical, civil and the rest stay out (NOT_OURS). Firmware and
+# embedded are here, not in Software, as SimplifyJobs files them (681 of 701).
+HARDWARE = re.compile(
+    # Hermeus's "Flight Software Engineering Intern (Simulation/Hardware-In-The-Loop)"
+    # is a software job.
+    r"\bhardware\b(?![- ]in[- ]the[- ]loop)"
+    r"|\belectrical\b|\belectronics?\b|\belectromagnetics?\b|\bembedded\b"
+    r"|\bfirmware\b|\bfpga\b|\basic\b|\brtl\b|\bvlsi\b|\bsilicon\b|\bsemiconductors?\b"
+    r"|\bphysical design\b|\bdesign verification\b|\bdigital design\b|\bdv engineer\w*\b"
+    r"|\bdft\b|\bmixed[- ]signal\b|\banalog\b|\bsignal integrity\b|\bcircuits?\b|\bpcb\b"
+    r"|\brf\b|\bantennas?\b|\bphotonics?\b|\boptic(?:s|al)\b|\bavionics\b"
+    r"|\bmechatronics?\b",
+    re.I,
+)
+# Robotics is hardware only when no software word claims the title first:
+# Neuralink's "Software Engineer Intern, Robotics" writes software.
+ROBOTICS = re.compile(r"\brobotics?\b", re.I)
+# Which category a title is in, first match wins. Quant and product name the job
+# outright; machine learning outranks the software or hardware it is done on
+# (IMC's "Hardware Machine Learning PhD Research Internship" is research);
+# hardware outranks the generic software words ("platform", "infrastructure").
+CATEGORIES = (
+    (Tag.QUANT, QUANT),
+    (Tag.PRODUCT, PRODUCT),
+    (Tag.DATA_AI, DATA_AI),
+    (Tag.HARDWARE, HARDWARE),
+    (Tag.SOFTWARE, SOFTWARE),
+    (Tag.HARDWARE, ROBOTICS),
+    (Tag.DATA_AI, AI),
+    (Tag.QUANT, TRADING),
 )
 # A genuinely early-career posting never advertises a senior level. Together AI lists
 # "Junior/Senior or Staff Software Engineer, Inference" -- one opening at any level,
 # which matches `junior` and is not a new-grad role. Seniority wins over the stage.
+# A product manager is the job's name, not a level above it.
 SENIOR = re.compile(
-    r"\bsenior\b|\bstaff\b|\bprincipal\b|\bdirector\b|\bhead of\b|\bmanager\b", re.I
+    r"\bsenior\b|\bstaff\b|\bprincipal\b|\bdirector\b|\bhead of\b|(?<!product )\bmanager\b",
+    re.I,
 )
-# "Engineer" appears in jobs that have nothing to do with software. These words win.
-NOT_SOFTWARE = re.compile(
+# Disciplines outside the five. Each names a job that one of the categories'
+# words would otherwise claim ("Sales Engineer Intern", "Mechanical Engineering
+# Co-op", "Hardware Sourcing Intern"), and these words win.
+NOT_OURS = re.compile(
     r"\bsales\b|\baccount\b|\bmarketing\b|\brecruit\w*\b|\bpeople\b|\bhr\b"
-    r"|\bfinance\b|\blegal\b|\bmechanical\b|\belectrical\b|\bcivil\b|\bchemical\b"
+    r"|(?<!quantitative )\bfinance\b|\blegal\b|\bcivil\b|\bchemical\b"
     r"|\bindustrial\b|\bmanufactur\w*\b|\brefrigerat\w*\b|\bnurse\b|\bdentist\b"
     r"|\bphysician\b|\bteacher\b|\bcustomer\b|\bsupport\b"
     # "Structural Engineering Internship - Federal Infrastructure" otherwise qualifies
     # on the word `infrastructure`.
     r"|\bstructural\b"
-    # The phrase, not the bare word: IMC posts both "Graduate Hardware Engineer",
-    # which is not a software role, and "Hardware Machine Learning PhD Research
-    # Internship", which is -- and excluding `hardware` outright would drop it.
-    # Firmware and embedded stay in scope; they are software.
-    r"|\bhardware engineer(?:ing)?\b",
+    # Mechanical engineering is its own discipline, not hardware; nor is "Hardware
+    # Thermal Simulation Engineering Intern" (Rivian).
+    r"|\bmechanical\b|\bthermal\b"
+    # An electrical engineer for buildings and utilities is a civil discipline:
+    # Burns & McDonnell's "Electrical Engineer-Power Systems", "Electrical
+    # Engineering Internship - Facilities (Healthcare)", "Midstream Electrical
+    # Engineer Intern".
+    r"|\bpower systems?\b|\bfacilit(?:y|ies)\b|\bmidstream\b|\bsubstations?\b"
+    r"|\butilit(?:y|ies)\b|\bconstruction\b"
+    # A product designer designs; design is not one of the five.
+    r"|\bproduct design\w*\b"
+    # Waymo's "Quantitative UX Researcher" studies users, not markets.
+    r"|\bux research\w*\b"
+    r"|\bsourcing\b|\bprogram manag\w*\b|\btalent\b"
+    # Trades and operators, not engineers: InfraServices' "Electrical Apprentice",
+    # Silvus's "Electronics Test and Assembly Technician", Faraday Future's
+    # "Robotics Data Operator Intern", Nexus's "Electrical Drafter/Designer".
+    r"|\belectrical apprentice\b|\btechnicians?\b|\boperators?\b|\bdrafter\b",
     re.I,
 )
 
@@ -110,9 +187,14 @@ class Role:
     department: str | None
     locations: tuple[str, ...]
     description: str | None
-    #: The first copy's facts, whole, with `work_style` as the card shows it:
-    #: stated, or inferred (see `_work_style`).
+    #: The first copy's facts, whole, with `work_style` and `job_type` as the card
+    #: shows them: stated, or inferred (see `_work_style` and `_job_type`).
     facts: Facts = field(default_factory=Facts)
+
+    @property
+    def category(self) -> Tag:
+        """The role's one category; `classify` puts it after the stage."""
+        return self.tags[1]
 
     @property
     def location_label(self) -> str:
@@ -124,8 +206,8 @@ class Role:
 
 
 def classify(title: str) -> tuple[Tag, ...]:
-    """Tags for a title, or an empty tuple if it does not belong on the page."""
-    if not title or NOT_SOFTWARE.search(title) or SENIOR.search(title):
+    """(stage, category) for a title, or an empty tuple if it does not belong."""
+    if not title or NOT_OURS.search(title) or SENIOR.search(title):
         return ()
     if INTERN.search(title):
         stage = Tag.INTERN
@@ -133,10 +215,8 @@ def classify(title: str) -> tuple[Tag, ...]:
         stage = Tag.NEW_GRAD
     else:
         return ()
-    topics = [tag for tag, pattern in ((Tag.AI_ML, AI_ML), (Tag.SWE, SWE)) if pattern.search(title)]
-    if not topics:
-        return ()
-    return (stage, *topics)
+    category = next((tag for tag, pattern in CATEGORIES if pattern.search(title)), None)
+    return (stage, category) if category else ()
 
 
 def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
@@ -179,7 +259,9 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 locations=locations,
                 description=next((job.description for job in postings if job.description), None),
                 facts=replace(
-                    facts, work_style=_work_style(postings, styles.get(postings[0].company))
+                    facts,
+                    work_style=_work_style(postings, styles.get(postings[0].company)),
+                    job_type=_job_type(tags, facts),
                 ),
             )
         )
@@ -222,4 +304,26 @@ def _work_style(postings: list[Job], company: Counter[str] | None) -> str | None
     text = " ".join(f"{job.title} {job.location or ''} {job.description or ''}" for job in postings)
     if any(job.places for job in postings) and not FLEXIBLE.search(text):
         return "On site"
+    return None
+
+
+def _job_type(tags: tuple[Tag, ...], facts: Facts) -> str | None:
+    """The card's job type, first answer wins:
+
+    1. what the posting states -- its board's field or a sentence (`Facts`);
+    2. "full_time" for a new-grad role.
+
+    Measured on the live feed (2026-10-10): 216 of 216 new-grad roles that state a
+    job type say full-time. A stated type always wins, so this never turns a
+    part-time or contract posting into a full-time one.
+
+    An internship is not inferred: the Jobs page shows "Internship" as every
+    internship's job type, whatever its hours (decided 2026-10-10: a card saying
+    "Full-Time Internship" beside "Part-Time Internship" read as two kinds of
+    internship). What an internship's posting states is still kept here.
+    """
+    if facts.job_type:
+        return facts.job_type
+    if Tag.NEW_GRAD in tags:
+        return "full_time"
     return None

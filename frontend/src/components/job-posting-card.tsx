@@ -158,9 +158,11 @@ export type JobPostingCardData = {
    *  "Remote", and repeating it under the pin icon reads as two different
    *  facts agreeing by coincidence rather than as one fact. */
   location: string | null | NotListed;
-  /** NOT_LISTED for a scraped role whose board doesn't state it: a guessed
-   *  "Full-Time" would be a fact no employer stated, so the slot stays
-   *  empty instead. */
+  /** NOT_LISTED for a scraped role with no job type. An internship's is
+   *  "Internship" ((seeker)/jobs/listing-card.tsx); where any other posting
+   *  is silent, the scraper fills Full-Time only for a new-grad role, which
+   *  always is where it says (scraper/CLAUDE.md), and the rest stay empty
+   *  rather than guessed. */
   jobType: string | null | NotListed;
   salary: string | null | NotListed;
   workStyle: string | null | NotListed;

@@ -43,6 +43,8 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "start_term": role.facts.start_term,
         # "sponsors", "no_sponsorship", "citizens_only" or None (details.py).
         "sponsorship": role.facts.sponsorship,
+        # "software", "data_ai", "product", "quant" or "hardware" (shortlist.Tag).
+        "role_category": role.category.value,
     }
 
 

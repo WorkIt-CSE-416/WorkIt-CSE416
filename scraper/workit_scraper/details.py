@@ -32,7 +32,8 @@ class Pay:
     def from_interval(
         cls, currency: object, low: object, high: object, interval: object
     ) -> Pay | None:
-        """A provider's pay field with its stated period (Ashby, Lever).
+        """A provider's pay field with its stated period (Ashby, Lever, Workable,
+        Recruitee).
 
         The stated period is trusted, not re-derived from the amount: $7,500 could
         be a week or a month by size alone, and guessing that way dropped every
@@ -61,7 +62,12 @@ class Pay:
 
 
 #: How Ashby and Lever spell a pay period, and how many card periods it spans.
+#: Workable's `salary_frequency` and Recruitee's `salary.period` are the bare word.
 _INTERVAL = {
+    "hour": ("hour", 1),
+    "week": ("week", 1),
+    "month": ("month", 1),
+    "year": ("year", 1),
     "1 HOUR": ("hour", 1),
     "1 WEEK": ("week", 1),
     "2 WEEK": ("week", 2),
@@ -85,8 +91,8 @@ def _amounts(currency: object, low: object, high: object) -> tuple[str, float, f
 class Facts:
     """The card's facts about one posting, each None when nothing states it.
 
-    `work_style` is what the posting itself states; `shortlist` may still infer
-    one for the card when it is None.
+    `work_style` and `job_type` are what the posting itself states; `shortlist`
+    may still infer either for the card when it is None.
     """
 
     job_type: str | None = None

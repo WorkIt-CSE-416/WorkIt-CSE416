@@ -28,7 +28,8 @@ Without that, Remote + United States hid 15 of the feed's 82 remote roles.
 
 The job board's other filters narrow it the same way (JobFilters, KAN-170),
 each by a column every scraped row fills when the posting states it:
-?work_style= and ?job_type= and ?experience= (repeated, any of), ?posted_within=
+?work_style=, ?role= (the discipline: software, data_ai, product, quant or
+hardware), ?job_type= and ?experience= (repeated, any of), ?posted_within=
 (days), and ?min_pay= and ?max_pay= with ?pay_per= (hour or year), a range that
 matches any posting whose own pay range overlaps it. Pay is compared as a yearly
 figure, so an internship paid by the hour, week or month and a new-grad role
@@ -89,12 +90,14 @@ _COLUMNS = (
     Job_Post.experience_level,
     Job_Post.work_style,
     Job_Post.location_raw,
+    Job_Post.location_label,
     Job_Post.posted_at,
     Job_Post.company_logo_url,
     Job_Post.job_type,
     Job_Post.min_years_experience,
     Job_Post.start_term,
     Job_Post.sponsorship,
+    Job_Post.role_category,
     Job_Post.salary,
     Job_Post.salary_min,
     Job_Post.salary_max,
@@ -133,6 +136,7 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
         experience_level=row.experience_level.value,
         work_style=row.work_style,
         location=row.location_raw,
+        location_label=row.location_label,
         posted_at=row.posted_at.isoformat() if row.posted_at else None,
         logo_url=row.company_logo_url,
         description=description,
@@ -140,6 +144,7 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
         min_years_experience=row.min_years_experience,
         start_term=row.start_term,
         sponsorship=row.sponsorship,
+        role_category=row.role_category,
         salary=row.salary,
         salary_min=row.salary_min,
         salary_max=row.salary_max,
@@ -201,8 +206,13 @@ class JobFilters:
     '''
     places: Sequence[str] = ()
     work_styles: Sequence[dto.work_style] = ()
+    # The disciplines asked for (KAN-171); none means every one.
+    roles: Sequence[dto.role_category] = ()
     levels: Sequence[str] = ()
-    job_types: Sequence[dto.job_type] = ()
+    # "internship" is every internship, whatever its hours: the Jobs page shows
+    # that as an internship's job type, so full_time and the rest match only
+    # the roles that aren't internships (KAN-171).
+    job_types: Sequence[str] = ()
     posted_since: datetime.datetime | None = None
     # Yearly figures in US dollars: ?min_pay=45&pay_per=hour is 93,600. A
     # posting matches when its pay range overlaps this one.
@@ -217,6 +227,32 @@ class JobFilters:
     # posting that says it doesn't, or wants US citizens only, and keep the
     # ones that say nothing, which is most of them (KAN-168).
     visa: Literal["sponsors", "not_ruled_out"] | None = None
+    # /search's words, matched in the title or the company's name, ignoring
+    # case. On the server, so a search reaches every job and not only the
+    # page of them the feed has loaded.
+    query: str | None = None
+
+
+# ?job_type=: the column's three, plus "internship" (see JobFilters.job_types).
+JobTypeKey = Literal["full_time", "part_time", "contract", "internship"]
+
+_INTERNSHIP = Job_Post.experience_level == dto.experience_level.internship
+
+
+def job_type_matches(job_types: Sequence[str]) -> ColumnElement[bool]:
+    '''
+    a job of any of these types, as the Jobs page shows them: "internship" is
+    every internship, and full_time, part_time and contract are those types
+    among the jobs that aren't internships (an internship states its hours, if
+    at all, in a field the page doesn't show)
+    '''
+    either: list[ColumnElement[bool]] = []
+    if "internship" in job_types:
+        either.append(_INTERNSHIP)
+    kinds = [t for t in job_types if t != "internship"]
+    if kinds:
+        either.append(and_(~_INTERNSHIP, Job_Post.job_type.in_(kinds)))
+    return or_(*either)
 
 
 def yearly_pay(end: Literal["top", "bottom"] = "top") -> ColumnElement[float]:
@@ -246,10 +282,12 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         clauses.append(offered_in(filters.places))
     if filters.work_styles:
         clauses.append(Job_Post.work_style.in_(filters.work_styles))
+    if filters.roles:
+        clauses.append(Job_Post.role_category.in_(filters.roles))
     if filters.levels:
         clauses.append(Job_Post.experience_level.in_(filters.levels))
     if filters.job_types:
-        clauses.append(Job_Post.job_type.in_(filters.job_types))
+        clauses.append(job_type_matches(filters.job_types))
     if filters.posted_since is not None:
         clauses.append(Job_Post.posted_at >= filters.posted_since)
     if filters.min_yearly_pay is not None or filters.max_yearly_pay is not None:
@@ -263,6 +301,13 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.start_terms is not None:
         # An empty list renders as an always-false IN.
         clauses.append(Job_Post.start_term.in_(filters.start_terms))
+    if filters.query:
+        clauses.append(
+            or_(
+                Job_Post.title.icontains(filters.query, autoescape=True),
+                Job_Post.company_name.icontains(filters.query, autoescape=True),
+            )
+        )
     if filters.visa == "sponsors":
         clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
     elif filters.visa == "not_ruled_out":
@@ -276,16 +321,19 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
 
 
 async def fetch_listings(
-    db: AsyncSession, limit: int, filters: JobFilters = JobFilters()
+    db: AsyncSession, limit: int, filters: JobFilters = JobFilters(), offset: int = 0
 ) -> list[JobListing]:
     '''
     the newest published scraped jobs, by when their board says they went up,
-    narrowed by whatever `filters` asks for
+    narrowed by whatever `filters` asks for, `offset` of them in
     '''
     query = select(*_COLUMNS).where(_LISTED, *matching(filters))
     rows = await db.execute(
-        # id breaks ties, so the order is the same on every request.
-        query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id).limit(limit)
+        # id breaks ties, so the order is the same on every request and a
+        # page picks up exactly where the last one stopped.
+        query.order_by(Job_Post.posted_at.desc().nulls_last(), Job_Post.id)
+        .offset(offset)
+        .limit(limit)
     )
     return [to_listing(row) for row in rows]
 
@@ -366,8 +414,9 @@ async def read_filters(
     location: list[PlaceCode] = Query([], max_length=60),
     # The rest of the filter row; each repeated for several, any of them.
     work_style: list[dto.work_style] = Query([], max_length=3),
+    role: list[dto.role_category] = Query([], max_length=5),
     experience: list[Literal["internship", "new_grad"]] = Query([], max_length=2),
-    job_type: list[dto.job_type] = Query([], max_length=3),
+    job_type: list[JobTypeKey] = Query([], max_length=4),
     # Days back from now: 1, 7 or 30 from the board, any whole number here.
     posted_within: int | None = Query(None, ge=1, le=365),
     # A pay range in US dollars, per `pay_per`; either end may be left open.
@@ -378,6 +427,8 @@ async def read_filters(
     # Seasons as GET /jobs/facets lists them ("summer-2027", or "2027"); any.
     start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors", "not_ruled_out"] | None = None,
+    # /search's words. A % or _ in them is matched as itself.
+    q: str | None = Query(None, max_length=200),
     db: AsyncSession = Depends(get_session),
 ) -> JobFilters:
     '''
@@ -390,6 +441,7 @@ async def read_filters(
     return JobFilters(
         places=location,
         work_styles=work_style,
+        roles=role,
         levels=experience,
         job_types=job_type,
         posted_since=(
@@ -407,6 +459,7 @@ async def read_filters(
         # plain IN. A season no posting names matches nothing, as it should.
         start_terms=(await terms_in(db, start_term)) if start_term else None,
         visa=visa,
+        query=(q or "").strip() or None,
     )
 
 
@@ -417,11 +470,16 @@ async def read_filters(
 )
 async def list_jobs(
     limit: int = Query(50, ge=1, le=500),
+    # How many to skip: the job board's Load More asks for the next page
+    # from where its list ends. An offset rather than a cursor, since an
+    # import landing between pages can only repeat a job, which the board
+    # drops by id, or skip one it shows next visit.
+    offset: int = Query(0, ge=0, le=100_000),
     filters: JobFilters = Depends(read_filters),
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
     """Newest roles first. Empty until the first import has run."""
-    return await fetch_listings(db, limit, filters)
+    return await fetch_listings(db, limit, filters, offset)
 
 
 async def fetch_count(db: AsyncSession, filters: JobFilters) -> int:
@@ -525,9 +583,11 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
     feed (not narrowed by the other filters), so the filter row can show a
     count beside every option
     '''
-    async def by(column) -> list[FacetCount]:
+    async def by(column, *where: ColumnElement[bool]) -> list[FacetCount]:
         rows = await db.execute(
-            select(column, func.count()).where(_LISTED, column.is_not(None)).group_by(column)
+            select(column, func.count())
+            .where(_LISTED, column.is_not(None), *where)
+            .group_by(column)
         )
         return [FacetCount(value=str(value), jobs=n) for value, n in rows]
 
@@ -549,8 +609,13 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
     )).one()
     return JobFacets(
         work_style=await by(Job_Post.work_style),
+        role=await by(Job_Post.role_category),
         experience=await by(Job_Post.experience_level),
-        job_type=await by(Job_Post.job_type),
+        # As the page shows them: internships count under "internship" alone.
+        job_type=[
+            *await by(Job_Post.job_type, ~_INTERNSHIP),
+            *[f for f in await by(Job_Post.experience_level) if f.value == "internship"],
+        ],
         posted_within=[FacetCount(value=str(d), jobs=n) for d, n in zip((1, 7, 30), posted)],
         visa=[
             FacetCount(value="sponsors", jobs=sponsors),

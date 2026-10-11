@@ -61,7 +61,7 @@ from app.models import dto
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
-from app.services.location_resolver import LocationResolver, Place
+from app.services.location_resolver import LocationResolver, Place, Resolution
 
 _FEED = TypeAdapter(list[JobListing])
 _jobs = Job_Post.__table__
@@ -70,11 +70,12 @@ _locations = Job_Location.__table__
 # The columns the feed owns, compared to decide whether a known job changed.
 _FEED_COLUMNS = (
     "title", "company_name", "company_logo_url", "description",
-    "experience_level", "work_style", "location_raw", "posted_at",
+    "experience_level", "work_style", "location_raw", "location_label", "posted_at",
     "job_type", "min_years_experience", "start_term", "sponsorship",
+    "role_category",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 19.
+# asyncpg allows 32,767 parameters a statement; a row here binds 21.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
@@ -136,7 +137,7 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
     '''
     rows: list[dict] = []
     places: dict[str, tuple[Place, ...]] = {}
-    resolved: dict[str | None, tuple[Place, ...]] = {}
+    resolved: dict[str | None, Resolution] = {}
     unresolved: dict[str, tuple[str, ...]] = {}
     no_place = duplicates = 0
 
@@ -146,10 +147,10 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
             continue
         if listing.location not in resolved:
             result = resolver.resolve(listing.location)
-            resolved[listing.location] = result.places
+            resolved[listing.location] = result
             if result.unresolved and not result.places:
                 unresolved[listing.location] = result.unresolved
-        found = resolved[listing.location]
+        found = resolved[listing.location].places
         if not found:
             no_place += 1
         places[listing.apply_url] = found
@@ -164,12 +165,16 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
             "experience_level": dto.experience_level(listing.experience_level),
             "work_style": listing.work_style,
             "location_raw": listing.location,
+            # "San Francisco, CA" where the resolver placed a US city, for the
+            # card; None leaves the card to tidy location_raw itself.
+            "location_label": resolved[listing.location].label,
             "posted_at": parse_posted_at(listing.posted_at),
             "status": dto.job_post_status.published,
             "job_type": listing.job_type,
             "min_years_experience": listing.min_years_experience,
             "start_term": listing.start_term,
             "sponsorship": listing.sponsorship,
+            "role_category": listing.role_category,
             **_pay(listing),
         })
     return Prepared(rows, places, unresolved, no_place, duplicates)

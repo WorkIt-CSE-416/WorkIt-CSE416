@@ -23,7 +23,7 @@ def role(**changes: object) -> Role:
         "apply_url": "https://jobs.ashbyhq.com/terranova/a8e5a8d2/application",
         "ats": "ashby",
         "board_key": "ashby/terranova",
-        "tags": (Tag.INTERN, Tag.SWE),
+        "tags": (Tag.INTERN, Tag.SOFTWARE),
         "posted_at": "2026-09-26T02:53:16.063000+00:00",
         "new": False,
         "department": None,
@@ -53,10 +53,17 @@ class TestRow:
         assert row["experience_level"] == "internship"
         assert row["id"] == "https://jobs.ashbyhq.com/terranova/a8e5a8d2/application"
 
-    def test_new_grad_whatever_the_topic(self) -> None:
-        # Quora: "Software Engineer New Grad, Machine Learning Platform" -- two topics.
-        tags = (Tag.NEW_GRAD, Tag.AI_ML, Tag.SWE)
+    def test_new_grad_whatever_the_category(self) -> None:
+        # Quora: "Software Engineer New Grad, Machine Learning Platform".
+        tags = (Tag.NEW_GRAD, Tag.DATA_AI)
         assert feed_row(role(tags=tags))["experience_level"] == "new_grad"
+
+    def test_the_category_is_the_schemas_role_category(self) -> None:
+        # backend/app/models/dto.py's role_category takes exactly these values.
+        assert feed_row(role())["role_category"] == "software"
+        assert feed_row(role(tags=(Tag.INTERN, Tag.QUANT)))["role_category"] == "quant"
+        categories = {tag.value for tag in Tag} - {"intern", "new-grad"}
+        assert categories == {"software", "data_ai", "product", "quant", "hardware"}
 
     def test_description_is_passed_through(self) -> None:
         # Scout reads it; the backend's JobListing carries the same field.

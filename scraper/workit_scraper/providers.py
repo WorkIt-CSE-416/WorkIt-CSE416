@@ -1,16 +1,22 @@
 """Talk to one job board and return its postings.
 
 One function per applicant tracking system, registered in `FETCHERS`. Each one
-makes a single GET and maps the response onto `Job`. Three explicit functions
-rather than a shared field-map table: a teammate reading `lever()` should see
-Lever's actual field names, not a DSL that encodes them.
+makes a single GET and maps the response onto `Job`. Explicit functions rather
+than a shared field-map table: a teammate reading `lever()` should see Lever's
+actual field names, not a DSL that encodes them.
 
-All three APIs return a whole board in one response -- verified at Stripe (701
-postings), OpenAI (829) and Palantir (321) -- so there is no pagination here.
+Every API returns a whole board in one response -- verified at Stripe (701
+postings), OpenAI (829), Palantir (321), Genetec's Workable board (188) and
+Hard Rock Digital's Recruitee board (58) -- so there is no pagination here.
 
-All three also 404 on a slug that does not exist, which is what makes
-`BoardNotFound` meaningful: a 200 carrying an empty list is a real board that
-simply has nothing open right now, and must never be confused with a typo.
+A slug that does not exist is a 404 everywhere but BambooHR, which redirects it
+to its own homepage (`bamboohr` turns that into the same answer). That is what
+makes `BoardNotFound` meaningful: a 200 carrying an empty list is a real board
+that simply has nothing open right now, and must never be confused with a typo.
+
+Greenhouse, Workable and BambooHR list a board without its descriptions, so a
+kept posting's own page is read once more (`describe`); Ashby, Lever and
+Recruitee send the descriptions with the list.
 """
 
 from __future__ import annotations
@@ -20,7 +26,7 @@ import json
 import re
 import time
 import urllib.error
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, fields, replace
 from datetime import UTC, datetime
 from html.parser import HTMLParser
@@ -56,6 +62,14 @@ LISTING_URL = {
     # Pay is left out of Ashby's list unless asked for.
     "ashby": "https://api.ashbyhq.com/posting-api/job-board/{token}?includeCompensation=true",
     "lever": "https://api.lever.co/v0/postings/{token}?mode=json",
+    # The careers-page widget's feed, which Workable documents for embedding a
+    # board. Without `details=true`: the description comes from a kept posting's
+    # own page, which also has the work model and pay the widget leaves out.
+    "workable": "https://apply.workable.com/api/v1/widget/accounts/{token}",
+    # Recruitee and BambooHR give each company its own subdomain, so its own
+    # origin and robots.txt; `polite` still paces each provider as one host.
+    "recruitee": "https://{token}.recruitee.com/api/offers/",
+    "bamboohr": "https://{token}.bamboohr.com/careers/list",
 }
 
 
@@ -63,18 +77,29 @@ def listing_url(ats: str, token: str) -> str:
     return LISTING_URL[ats].format(token=token)
 
 
-# Greenhouse's list leaves descriptions out unless asked with `content=true`, which
-# sends every posting's full HTML -- hundreds of megabytes across all boards to
-# describe the ~1% we keep. So a kept Greenhouse posting is fetched on its own,
-# once: the store carries what it says forward after that. `pay_transparency` adds
-# the pay ranges a board entered in Greenhouse's own pay fields.
-GREENHOUSE_JOB_URL = (
-    "https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}?pay_transparency=true"
-)
+# A kept posting's own page, for the providers whose list leaves it out. Each is on
+# its list's origin, so the robots.txt read for the board covers it too.
+JOB_URL = {
+    # Greenhouse's list leaves descriptions out unless asked with `content=true`,
+    # which sends every posting's full HTML -- hundreds of megabytes across all
+    # boards to describe the ~1% we keep. So a kept Greenhouse posting is fetched
+    # on its own, once: the store carries what it says forward after that.
+    # `pay_transparency` adds the pay ranges a board entered in Greenhouse's own
+    # pay fields.
+    "greenhouse": (
+        "https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}?pay_transparency=true"
+    ),
+    # What Workable's own careers page reads: the description, requirements and
+    # benefits, plus `workplace` (hybrid included) and a salary, neither of which
+    # the widget carries. Six of 14 sampled postings had a salary (2026-10-10).
+    "workable": "https://apply.workable.com/api/v2/accounts/{token}/jobs/{job_id}",
+    # BambooHR's list has no description, no date and no pay.
+    "bamboohr": "https://{token}.bamboohr.com/careers/{job_id}/detail",
+}
 
 
-def greenhouse_job_url(token: str, job_id: str) -> str:
-    return GREENHOUSE_JOB_URL.format(token=token, job_id=job_id)
+def job_url(ats: str, token: str, job_id: str) -> str:
+    return JOB_URL[ats].format(token=token, job_id=job_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,9 +119,9 @@ class Board:
 class Page:
     """What a posting's own text says: its description and the card's facts.
 
-    Ashby and Lever send it with every listing; a Greenhouse posting has none
-    until its own page is read (`describe_greenhouse`), once, after which the
-    store carries it forward whole.
+    Ashby, Lever and Recruitee send it with every listing; a Greenhouse, Workable
+    or BambooHR posting has none until its own page is read (`describe`), once,
+    after which the store carries it forward whole.
     """
 
     #: The PAGE_VERSION it was read under; an older one is read again.
@@ -122,7 +147,8 @@ class Page:
 class Job:
     """One posting, normalised across providers.
 
-    `posted_at` is the provider's own claim about when it went up. `first_seen_at`
+    `posted_at` is the provider's own claim about when it went up (on BambooHR,
+    only its own page says, so it arrives with the page). `first_seen_at`
     is ours, written on the run that first saw the posting and never updated after
     -- an employer can re-stamp the former, but not the latter.
     """
@@ -136,7 +162,7 @@ class Job:
     location: str | None = None
     department: str | None = None
     posted_at: str | None = None
-    #: None only for a Greenhouse posting whose own page is not read yet.
+    #: None only for a posting whose own page is not read yet (`JOB_URL`).
     page: Page | None = None
     # None until `store.update` stamps them; every job read back from jobs.json has both.
     first_seen_at: str | None = None
@@ -205,6 +231,8 @@ def _iso(value: object) -> str | None:
     Greenhouse and Ashby send ISO strings. Lever sends epoch milliseconds, and sends
     them as an int in some records and a numeric string in others -- so this accepts
     `object` and narrows, rather than trusting either provider's type discipline.
+    Workable and BambooHR send a bare date ("2026-05-29") and Recruitee
+    "2026-10-08 10:34:56 UTC": a time with no zone is UTC, never this machine's.
     """
     if value is None or value == "":
         return None
@@ -217,9 +245,10 @@ def _iso(value: object) -> str | None:
     if value.isdigit():
         return datetime.fromtimestamp(int(value) / 1000, UTC).isoformat()
     try:
-        return datetime.fromisoformat(value).astimezone(UTC).isoformat()
+        parsed = datetime.fromisoformat(value.removesuffix(" UTC"))
     except ValueError:
         return None
+    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)).astimezone(UTC).isoformat()
 
 
 class _TextOnly(HTMLParser):
@@ -285,9 +314,9 @@ def _page(
 def _work_style(value: object, location: str | None) -> str | None:
     """Remote / Hybrid / On site, or None when the provider does not say.
 
-    Ashby sends `Remote|Hybrid|OnSite`, Lever sends the same words lowercased, and
-    Greenhouse sends nothing at all -- so on a Greenhouse board only a location that
-    says remote fills it in.
+    Ashby sends `Remote|Hybrid|OnSite`, Lever sends the same words lowercased,
+    Workable `remote|hybrid|on_site`, and Greenhouse sends nothing at all -- so on
+    a Greenhouse board only a location that says remote fills it in.
     Blank is the honest answer; guessing "On site" because a field is missing would
     put a fact on the page that no employer stated. A location that says remote is
     the one safe inference.
@@ -297,7 +326,7 @@ def _work_style(value: object, location: str | None) -> str | None:
         return "Remote"
     if text.startswith("hybrid"):
         return "Hybrid"
-    if text.replace("-", "").replace(" ", "") in {"onsite", "inoffice"}:
+    if re.sub(r"[-_ ]", "", text) in {"onsite", "inoffice"}:
         return "On site"
     if location and "remote" in location.lower():
         return "Remote"
@@ -436,10 +465,238 @@ def _lever_description(row: dict) -> str | None:
     return plain_text("<br>".join(section for section in sections if section))
 
 
+def _place(*parts: object) -> str:
+    """ "Munich, Bavaria, Germany" from a provider's split fields, each part once:
+    Workable writes Ely as "Ely, Ely, United Kingdom"."""
+    named = (str(part).strip() for part in parts if part)
+    return ", ".join(dict.fromkeys(part for part in named if part))
+
+
+def _places(places: Iterable[str | None]) -> str | None:
+    """Several places as one location, as Greenhouse boards write them
+    ("Stamford, CT; New York, NY"); the backend's resolver splits on ";"."""
+    return "; ".join(dict.fromkeys(place for place in places if place)) or None
+
+
+def workable(token: str, company: str) -> list[Job]:
+    # The widget lists a job once per location under one shortcode: Trexquant's
+    # "C++ Trading & Simulator Engineer (USA)" is a Stamford row and a New York
+    # row. One posting, so the rows are merged and their places joined.
+    payload = _get_json(listing_url("workable", token))
+    assert isinstance(payload, dict)
+    by_code: dict[str, list[dict]] = {}
+    for row in payload.get("jobs") or []:
+        by_code.setdefault(str(row["shortcode"]), []).append(row)
+    return [
+        Job(
+            ats="workable",
+            token=token,
+            company=company,
+            external_id=shortcode,
+            title=(rows[0].get("title") or "").strip(),
+            apply_url=rows[0].get("url") or rows[0].get("shortlink") or "",
+            location=_places(_workable_place(row) for row in rows),
+            department=rows[0].get("department") or None,
+            # The date the board shows. `created_at` is when the draft was
+            # opened: Flexcompute's CFD developer was created 2024-05-14 and
+            # published 2026-09-30.
+            posted_at=_iso(rows[0].get("published_on") or rows[0].get("created_at")),
+            # No page: its own page is read once (`describe_workable`).
+        )
+        for shortcode, rows in by_code.items()
+    ]
+
+
+def _workable_place(row: dict) -> str | None:
+    """The row's locations the employer shows. A hidden one stays hidden: Hugging
+    Face hides Paris on its "EMEA Remote" roles, where the top-level city still says
+    it."""
+    return _places(
+        _place(place.get("city"), place.get("region"), place.get("country"))
+        for place in row.get("locations") or []
+        if not place.get("hidden")
+    )
+
+
+def describe_workable(job: Job) -> Job:
+    """The same Workable posting with what only its own page says: the whole text,
+    the work model (hybrid included, which the widget cannot say) and the salary."""
+    payload = _get_json(job_url("workable", job.token, job.external_id))
+    assert isinstance(payload, dict)
+    # Three fields, shown on the posting under these headings. The headings stay,
+    # since `details` reads a visa line by the heading above it.
+    sections = [payload.get("description") or ""]
+    for heading, field in (("Requirements", "requirements"), ("Benefits", "benefits")):
+        if payload.get(field):
+            sections.append(f"<h3>{heading}</h3>{payload[field]}")
+    # `type` is the widget's employment type, abbreviated. On the 34 postings kept
+    # 2026-10-10: "full" (14), "temporary" (12), "other" (3), "part" (2), none (3).
+    # Temporary and other say nothing about hours, so the description decides.
+    kind = str(payload.get("type") or "")
+    return replace(
+        job,
+        page=_page(
+            job.title,
+            plain_text("".join(sections)),
+            stated_type=details.job_type_label(
+                {"full": "full_time", "part": "part_time"}.get(kind, kind)
+            ),
+            stated_style=_work_style(
+                payload.get("workplace") or ("remote" if payload.get("remote") else None),
+                job.location,
+            ),
+            stated_pay=details.Pay.from_interval(
+                payload.get("salary_currency_iso_code"),
+                payload.get("salary_from"),
+                payload.get("salary_to"),
+                payload.get("salary_frequency"),
+            ),
+        ),
+    )
+
+
+def recruitee(token: str, company: str) -> list[Job]:
+    payload = _get_json(listing_url("recruitee", token))
+    assert isinstance(payload, dict)
+    jobs = []
+    for row in payload.get("offers") or []:
+        title = (row.get("title") or "").strip()
+        jobs.append(
+            Job(
+                ats="recruitee",
+                token=token,
+                company=company,
+                external_id=str(row["id"]),
+                title=title,
+                apply_url=row.get("careers_url") or "",
+                location=_recruitee_location(row),
+                department=row.get("department") or None,
+                posted_at=_iso(row.get("published_at") or row.get("created_at")),
+                page=_page(
+                    title,
+                    plain_text(
+                        "<br>".join(
+                            row.get(field) or "" for field in ("description", "requirements")
+                        )
+                    ),
+                    stated_type=details.job_type_label(row.get("employment_type_code")),
+                    stated_style=_recruitee_work_style(row),
+                    stated_pay=_recruitee_pay(row),
+                ),
+            )
+        )
+    return jobs
+
+
+def _recruitee_location(row: dict) -> str | None:
+    """The place names the employer typed. The split fields beside each are a
+    form's defaults -- Hard Rock Digital's "United States" has the city "United
+    States" in Florida -- and `location` is only "Remote job" on a remote posting."""
+    named = _places(place.get("name") for place in row.get("locations") or [])
+    return named or ("Remote" if row.get("remote") else row.get("location") or None)
+
+
+def _recruitee_work_style(row: dict) -> str | None:
+    """Three flags, and a posting can set two: 5 of Hard Rock Digital's 58 are
+    remote and hybrid. One that can be done remotely is what someone filtering
+    for remote work wants, so remote wins."""
+    if row.get("remote"):
+        return "Remote"
+    if row.get("hybrid"):
+        return "Hybrid"
+    if row.get("on_site"):
+        return "On site"
+    return None
+
+
+def _recruitee_pay(row: dict) -> details.Pay | None:
+    # Amounts arrive as strings ("1000"), per Recruitee's API reference.
+    salary = row.get("salary") or {}
+    return details.Pay.from_interval(
+        salary.get("currency"),
+        _number(salary.get("min")),
+        _number(salary.get("max")),
+        salary.get("period"),
+    )
+
+
+def _number(value: object) -> float | None:
+    try:
+        return float(value) if isinstance(value, int | float | str) else None
+    except ValueError:
+        return None
+
+
+def bamboohr(token: str, company: str) -> list[Job]:
+    url = listing_url("bamboohr", token)
+    try:
+        payload = _get_json(url)
+    except urllib.error.HTTPError as error:
+        # No such company: BambooHR answers with a redirect to www.bamboohr.com,
+        # which `web.get` refuses as cross-origin. That is BambooHR's 404.
+        if 300 <= error.code < 400:
+            raise BoardNotFound(url) from error
+        raise
+    assert isinstance(payload, dict)
+    return [
+        Job(
+            ats="bamboohr",
+            token=token,
+            company=company,
+            external_id=str(row["id"]),
+            title=(row.get("jobOpeningName") or "").strip(),
+            apply_url=f"https://{token}.bamboohr.com/careers/{row['id']}",
+            location=_bamboohr_location(row),
+            department=row.get("departmentLabel") or None,
+            # No date and no page: both come from its own page (`describe_bamboohr`).
+        )
+        for row in payload.get("result") or []
+    ]
+
+
+def _bamboohr_location(row: dict) -> str | None:
+    """The office ("Santa Clara, California"), or for a remote job with none, the
+    area it is open to (Nexthop's "US East, United States")."""
+    office = row.get("location") or {}
+    area = row.get("atsLocation") or {}
+    return (
+        _place(office.get("city"), office.get("state"))
+        or _place(area.get("city"), area.get("state") or area.get("province"), area.get("country"))
+        or None
+    )
+
+
+#: BambooHR's `locationType`. Read off postings that say which they are: Picton
+#: Mahoney's "2"s are hybrid, Alkira's "1"s remote, Nexthop's Santa Clara "0"s on site.
+_BAMBOOHR_STYLE = {"0": "On site", "1": "Remote", "2": "Hybrid"}
+
+
+def describe_bamboohr(job: Job) -> Job:
+    """The same BambooHR posting with what only its own page says: the
+    description, the date it went up, the work model and the pay."""
+    payload = _get_json(job_url("bamboohr", job.token, job.external_id))
+    assert isinstance(payload, dict)
+    opening = (payload.get("result") or {}).get("jobOpening") or {}
+    compensation = str(opening.get("compensation") or "")
+    return replace(
+        job,
+        posted_at=_iso(opening.get("datePosted")) or job.posted_at,
+        page=_page(
+            job.title,
+            plain_text(opening.get("description")),
+            stated_type=details.job_type_label(opening.get("employmentStatusLabel")),
+            stated_style=_BAMBOOHR_STYLE.get(str(opening.get("locationType"))),
+            # Free text in a field that is only ever pay ("$90,000 to $115,000",
+            # "$25-$30/hour"), so it gets the label prose would need to give it.
+            stated_pay=details.pay(f"Compensation: {compensation}") if compensation else None,
+        ),
+    )
+
+
 def describe_greenhouse(job: Job) -> Job:
     """The same Greenhouse posting with what only its own page says: the
     description, the offices, pay ranges and any employment-type field."""
-    payload = _get_json(greenhouse_job_url(job.token, job.external_id))
+    payload = _get_json(job_url("greenhouse", job.token, job.external_id))
     assert isinstance(payload, dict)
     return replace(
         job,
@@ -501,4 +758,17 @@ FETCHERS: dict[str, Callable[[str, str], list[Job]]] = {
     "greenhouse": greenhouse,
     "ashby": ashby,
     "lever": lever,
+    "workable": workable,
+    "recruitee": recruitee,
+    "bamboohr": bamboohr,
 }
+
+
+def describe(job: Job) -> Job:
+    """`job` with its own page read; only for a provider in `JOB_URL`."""
+    # Looked up per call rather than kept in a table, so a test can swap one.
+    return {
+        "greenhouse": describe_greenhouse,
+        "workable": describe_workable,
+        "bamboohr": describe_bamboohr,
+    }[job.ats](job)
