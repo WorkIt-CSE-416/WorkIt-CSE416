@@ -72,7 +72,7 @@ function ApplicationCard({
       padding="sm"
       // Rises in on arrival, after the cards before it, and lifts 2px under
       // the pointer, since the whole card is one target; it settles back
-      // down on press. See "Motion" in frontend/CLAUDE.md.
+      // down on press. See frontend/docs/motion.md.
       className="hover:border-brand/40 hover:shadow-lift ease-glide animate-rise relative flex flex-col gap-2.5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
       style={{ animationDelay: `${delay}ms` }}
     >

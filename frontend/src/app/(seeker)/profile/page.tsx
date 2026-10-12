@@ -181,7 +181,17 @@ export default function ProfilePage() {
     if (loaded && !profileLoading && !avatarBusy && !loadFailed) {
       cache.write({ resumes: resumeList, shown: profile, avatarUrl, applicantProfile });
     }
-  }, [cache, loaded, profileLoading, avatarBusy, loadFailed, resumeList, profile, avatarUrl, applicantProfile]);
+  }, [
+    cache,
+    loaded,
+    profileLoading,
+    avatarBusy,
+    loadFailed,
+    resumeList,
+    profile,
+    avatarUrl,
+    applicantProfile,
+  ]);
 
   async function handleAvatarSelect(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -495,9 +505,7 @@ export default function ProfilePage() {
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <SectionHeading id="identity">
-              {applicantProfile?.full_name ?? "\u00A0"}
-            </SectionHeading>
+            <SectionHeading id="identity">{applicantProfile?.full_name ?? "\u00A0"}</SectionHeading>
             {avatarUrl && !avatarBusy && (
               <SectionAction onClick={handleAvatarRemove}>
                 <TrashIcon />
@@ -505,9 +513,7 @@ export default function ProfilePage() {
               </SectionAction>
             )}
           </div>
-          <p className="text-body text-ink-meta">
-            {applicantProfile?.headline ?? "\u00A0"}
-          </p>
+          <p className="text-body text-ink-meta">{applicantProfile?.headline ?? "\u00A0"}</p>
 
           <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
             {applicantProfile?.email && (
@@ -516,9 +522,7 @@ export default function ProfilePage() {
                   <MailIcon className="text-ink-meta size-4 shrink-0" />
                   <span className="sr-only">Email</span>
                 </dt>
-                <dd className="text-body text-ink-muted truncate">
-                  {applicantProfile.email}
-                </dd>
+                <dd className="text-body text-ink-muted truncate">{applicantProfile.email}</dd>
               </div>
             )}
             {applicantProfile?.phone_number && (
@@ -829,11 +833,7 @@ function EditProfileDialog({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label className={FIELD_LABEL}>Email</label>
-            <input
-              disabled
-              value={profile.email}
-              className={cn(FIELD_CONTROL, "px-3.5 py-2.5")}
-            />
+            <input disabled value={profile.email} className={cn(FIELD_CONTROL, "px-3.5 py-2.5")} />
           </div>
 
           {PROFILE_FIELDS.map(({ id, label, ...rest }) => (

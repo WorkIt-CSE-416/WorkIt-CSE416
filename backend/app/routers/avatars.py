@@ -1,5 +1,7 @@
-"""
-profile picture for applicants 
+"""An applicant's profile photo, under /applicants/{applicant_id}/avatar.
+
+GET, PUT and DELETE. An upload is re-encoded to WebP, stored in the private
+`Avatar` bucket and served as a signed URL. Design notes: db/avatar.md.
 """
 import asyncio
 import logging

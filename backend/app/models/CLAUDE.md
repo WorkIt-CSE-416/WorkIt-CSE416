@@ -616,7 +616,8 @@ These belong to later tickets and should not be added here:
 
 ## Pointers, not copies
 
-- Auth, the frontend contract, and why not PostgREST — `../../CLAUDE.md`.
+- Auth, why not PostgREST, and what each half may assume of the other (its
+  Conventions) — `../../CLAUDE.md`.
 - Migration rules, the schema filters, and what autogenerate does not emit —
   `../../alembic/CLAUDE.md`.
 - Models vs Pydantic schemas stay separate layers — `../../CLAUDE.md`.
