@@ -43,11 +43,9 @@ def generate_highlights(
             "met": False,
         })
 
-    if job_start_term and eligibility < 1.0:
-        candidates.append({
-            "text": f"Starts {job_start_term}",
-            "met": False,
-        })
+    # Start-term highlight omitted until eligibility() compares grad date
+    # vs start term (matching/CLAUDE.md "Still open"). Without that check,
+    # this would fire on years-of-experience mismatches and mislead.
 
     # Positive first, then negative, capped at 3
     positives = [c for c in candidates if c["met"]]

@@ -7,8 +7,11 @@ combined into a 0-100 integer.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
+
+logger = logging.getLogger(__name__)
 
 # --- weights (tunable) ---
 W_SEMANTIC = 0.45       # cosine similarity via pg_vector
@@ -43,7 +46,7 @@ def compute_score(
     else:
         # No embedding: redistribute semantic weight across the others
         # NOTE: For now keep this as fallback.
-        print("No semantic weight")
+        logger.debug("No semantic weight")
         total = W_SKILL + W_TITLE + W_ELIGIBILITY
         weighted = (
             (W_SKILL / total) * skill_overlap

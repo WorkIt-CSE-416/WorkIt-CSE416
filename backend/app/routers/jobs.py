@@ -96,6 +96,7 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
@@ -1025,6 +1026,7 @@ async def recommended_jobs(
 
     resume_row = (await db.execute(
         select(Resume).where(Resume.id == profile.default_resume_id)
+        .options(undefer(Resume.embedding))
     )).scalar_one_or_none()
     if resume_row is None or resume_row.parsed_json is None:
         raise HTTPException(404, "Resume not found or not parsed")
@@ -1041,7 +1043,10 @@ async def recommended_jobs(
             if vectors:
                 resume_row.embedding = vectors[0]
                 resume_embedding = vectors[0]
-                await db.commit()
+                try:
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
 
     # Build skills text for FTS
     skills_text = " ".join(s.skill_name for s in parsed.skills) if parsed.skills else ""
