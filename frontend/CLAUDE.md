@@ -19,7 +19,8 @@ that is deliberate.
 That is why the config files are here rather than at the repo root: Next.js
 resolves `src/app` from the directory it is invoked in, so the project root and
 the folder holding `next.config.ts` have to be the same place. `npm install`
-belongs here too.
+belongs here too, never at the repo root: an install there writes a second
+`node_modules` and a second lockfile that nothing builds from.
 
 ## Stack
 

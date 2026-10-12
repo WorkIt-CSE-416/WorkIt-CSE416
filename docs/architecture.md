@@ -22,7 +22,7 @@ the system changes, not when a screen gets a new field.
 ```
 
 Two self-contained projects, each with its own dependency tree, that talk
-over HTTP and share no code (`../CLAUDE.md`). The backend is the only thing
+over HTTP and share no code (`backend/CLAUDE.md`, "Where this folder sits"). The backend is the only thing
 that queries Postgres, directly over `asyncpg` — no PostgREST. **Supabase
 Auth** owns credentials and sessions: it stores users in `auth.users`,
 issues access/refresh tokens, and the API only verifies them

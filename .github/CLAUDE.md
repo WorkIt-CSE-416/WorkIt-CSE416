@@ -6,14 +6,12 @@ way and what bites.
 
 ## CI (`workflows/ci.yml`)
 
-Runs on every PR to `main`: a frontend job, a backend job and a scraper job.
 `scout/` has no job of its own: the backend installs it, so the backend job
-lints and tests it too. The scraper job runs through `uvx`, so the scraper
-still installs nothing.
+lints and tests it too.
 
 ## Scheduled scrape and import (KAN-160)
 
-`.github/workflows/scrape.yml` runs the scraper and then
+`workflows/scrape.yml` runs the scraper and then
 `app.scripts.import_jobs` into Supabase **every three hours at :17 UTC** (off the
 hour: GitHub delays, and under load drops, runs scheduled on it). Daily is what
 the big internship lists do and hourly the most any aggregator does; every few

@@ -8,8 +8,10 @@ pointer above rather than a copy.
 
 ## Layout
 
-Each half is self-contained: its own manifest, lockfile and toolchain. Python
-tooling stays inside its package; the repo root holds none.
+Each half is self-contained: its own manifest, lockfile and toolchain, so the
+halves keep separate dependency trees and each one's guidance loads only when
+you work there. Python tooling stays inside its package; the repo root holds
+none.
 
 - `frontend/` — the Next.js app and the whole JS build. `npm install` runs
   here, never at the root (`frontend/CLAUDE.md`, "Where this folder sits").
@@ -17,7 +19,7 @@ tooling stays inside its package; the repo root holds none.
   database. Driven by `uv run ...` from inside `backend/`.
 - `scout/` — Scout, the job assistant's brain (KAN-138): a plain package the
   API installs, with no database and no HTTP. Running it locally needs Ollama
-  and `ollama pull qwen3.5:4b`.
+  (`scout/CLAUDE.md`, "Which model, where").
 - `scraper/` — the job-board scraper (KAN-55). Standard library only, never
   touches the database; runs with `python3 -m workit_scraper`, tests under
   `uvx pytest`.
@@ -106,10 +108,10 @@ its `CLAUDE.md` describing the old behaviour is incomplete and does not merge.
 When something is learned the hard way, write it into the nearest `CLAUDE.md`
 with the failure it prevents.
 
-- `CLAUDE.md` — guidance for Claude: conventions, invariants, rationale, what
-  must not change and why, what is still open.
-- `README.md` — deliberately short. Explanation goes in a `CLAUDE.md` or the
-  docs folders, never back into a trimmed README.
+- `CLAUDE.md` — all guidance for Claude, never a `README.md`: conventions,
+  invariants, rationale, what must not change and why, what is still open.
+- `README.md` — deliberately short. Explanatory prose goes in a `CLAUDE.md`
+  or the docs folders below, and stays out of any README once trimmed.
 - `frontend/docs/` — frontend prose too long for a `CLAUDE.md`.
 - `backend/db/` — schema design rationale.
 - `docs/job-pipeline.md` — the job pipeline end to end, in plain terms. A
