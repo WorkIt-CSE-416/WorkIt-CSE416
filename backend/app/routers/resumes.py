@@ -127,6 +127,9 @@ def _is_docx(data: bytes) -> bool:
         return False
 
 
+# The profile keeps "up to 5" resumes (frontend's profile page). Built resumes
+# are held to it (routers/resume_builder.py); upload still isn't (the TODO below)
+MAX_RESUMES = 5
 MAX_SIZE = 5 * 1024 * 1024
 BUCKET = "Resume"
 # The preview link is opened the moment it is made; this only has to outlast
@@ -166,7 +169,7 @@ async def _extract(contents: bytes, ext: str) -> str | None:
     return await asyncio.to_thread(extract, contents)
 
 
-def _reject_oversized(parsed: ParsedResume) -> None:
+def reject_oversized(parsed: ParsedResume) -> None:
     if len(parsed.model_dump_json().encode()) > MAX_PARSED_JSON_BYTES:
         raise HTTPException(413, "Resume details are too long")
 
@@ -217,7 +220,7 @@ async def upload_resume(
             reviewed = ParsedResume.model_validate_json(parsed_json)
         except ValidationError as exc:
             raise HTTPException(422, "Invalid resume details") from exc
-        _reject_oversized(reviewed)
+        reject_oversized(reviewed)
 
     contents, ext, mime = await _read_upload(file)
 
@@ -314,6 +317,10 @@ async def list_resumes(
             "original_filename": r.original_filename,
             "storage_path": r.storage_path,
             "status": r.status,
+            # Set on a resume WorkIt built, which has no stored file: its PDF
+            # is GET .../download (routers/resume_builder.py)
+            "template_key": r.template_key,
+            "target_job_id": str(r.target_job_id) if r.target_job_id else None,
             "is_default": r.id == default_id,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
@@ -321,7 +328,7 @@ async def list_resumes(
     ]
 
 
-async def _get_owned_resume(
+async def get_owned_resume(
     session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
 ) -> Resume:
     resume = (
@@ -343,7 +350,7 @@ async def get_resume(
     session: AsyncSession = Depends(get_session),
 ):
     assert_applicant_owns(account, applicant_id)
-    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    resume = await get_owned_resume(session, applicant_id, resume_id)
     return {"id": str(resume.id), "parsed_json": resume.parsed_json}
 
 
@@ -358,8 +365,8 @@ async def update_resume(
     """Replace the parsed content with the applicant's edits from the profile.
     The whole ParsedResume is sent, so one entry's edit is a full replace."""
     assert_applicant_owns(account, applicant_id)
-    _reject_oversized(body)
-    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    reject_oversized(body)
+    resume = await get_owned_resume(session, applicant_id, resume_id)
     resume.parsed_json = body.model_dump(mode="json")
     resume.status = ResumeStatus.parsed
     try:
@@ -381,7 +388,7 @@ async def set_default_resume(
     """Make this the applicant's primary resume. It is a pointer on the profile
     (default_resume_id, ON DELETE SET NULL), so deleting the resume clears it."""
     assert_applicant_owns(account, applicant_id)
-    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    resume = await get_owned_resume(session, applicant_id, resume_id)
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise HTTPException(404, "Applicant not found")
@@ -406,7 +413,7 @@ async def get_resume_file_url(
     browser shows a PDF itself; it can't show a DOCX, so that link downloads
     the file under the name it was uploaded with."""
     assert_applicant_owns(account, applicant_id)
-    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    resume = await get_owned_resume(session, applicant_id, resume_id)
     if not resume.storage_path:
         raise HTTPException(404, "Resume file not found")
     options = (
@@ -435,7 +442,7 @@ async def delete_resume(
 ):
     assert_applicant_owns(account, applicant_id)
 
-    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    resume = await get_owned_resume(session, applicant_id, resume_id)
 
     # Delete DB row first (reversible via rollback), then Storage
     storage_path = resume.storage_path
@@ -445,6 +452,10 @@ async def delete_resume(
     except Exception:
         await session.rollback()
         raise HTTPException(500, "Failed to delete resume record")
+
+    # A resume WorkIt built has no stored file (routers/resume_builder.py)
+    if not storage_path:
+        return {"detail": "Resume deleted"}
 
     # DB succeeded — now remove the file from Storage
     # If this fails the file is orphaned, but no data is lost

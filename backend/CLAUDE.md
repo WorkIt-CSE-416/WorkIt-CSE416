@@ -27,7 +27,10 @@ all live on this side. The Next.js app holds no ORM and no credentials.
 FastAPI · Uvicorn · SQLAlchemy 2.0 (async, over asyncpg) · Alembic ·
 pydantic-settings · supabase-py (Storage, Auth admin) · PyJWT · Pillow
 (profile-photo re-encoding) · httpx (Gemini embeddings) · pgvector (the
-`vector` column type). Python 3.12,
+`vector` column type) · Tectonic (compiles resumes as Jake's own LaTeX; a
+binary, not a package, `app/services/resume_render/CLAUDE.md`) · fpdf2 (the
+PDF when TeX can't run) · python-docx (Word files, and reading uploads).
+Python 3.12,
 pinned by `requires-python = ">=3.12,<3.13"`.
 
 Dependencies are managed by **uv**. `uv add <pkg>` to add one, `uv sync` to
@@ -94,7 +97,10 @@ the database-free half of the feed import (`test_import_jobs.py`). The
 import's database half needs Postgres, which CI doesn't have: test it on a
 throwaway local Postgres 15+ (`job_locations` uses `NULLS NOT DISTINCT`). A test that calls the resume routes
 Tests cover the resume parser (`test_resume_parser.py`), DOCX text
-extraction (`test_resume_extraction.py`) and Scout's route (`test_scout.py`). A test that calls the resume routes
+extraction (`test_resume_extraction.py`), Scout's route (`test_scout.py`) and the
+resume builder's converters, rendering, tailoring and route guards
+(`test_experience.py`; its queries need Postgres, so they are checked on the
+throwaway local one, as the import's are). A test that calls the resume routes
 must monkeypatch `resumes.get_supabase`: the router calls it directly rather
 than through `Depends`, so a dependency override misses it and the test
 uploads to the real bucket. `tests/fixtures/*.txt` are extracted text
@@ -142,16 +148,28 @@ app/
     avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
     scout.py      POST /scout/chat — one Scout turn, streamed as NDJSON
     profiles.py   GET/PATCH /applicants/{id}/profile — identity fields
+    experience.py /applicants/{id}/experience — the Experience Bank: entries,
+                  skills, import from a resume, compose, AI bullets and intake
+    resume_builder.py  save a generated or tailored resume, download any
+                  resume drawn with a template, POST .../tailor
   services/       Logic with no HTTP or DB of its own. Never in models/,
                   whose __init__ imports every file as a model
     avatar.py     Validates and re-encodes an upload to a 512px WebP
+    experience.py The only mapping between the bank's rows and a resume:
+                  resume_to_entries, bank_to_resume, bullets_of
+    tailoring.py  Reorders a resume for one posting; picks lines to reword
+    resume_render/  ParsedResume -> PDF (Jake's LaTeX via Tectonic) or .docx
+                  through a template; its own CLAUDE.md
     location_resolver.py  Free-text job location → ISO places, from
                   data/places.tsv (app/models/CLAUDE.md)
     matching/     Job matching (KAN-139). embeddings.py turns postings and
-                  resumes into Gemini vectors; its own CLAUDE.md has the
-                  design and what is still unbuilt
+                  resumes into Gemini vectors, overlap.py scores text against
+                  a posting with ts_rank; its own CLAUDE.md has the design
+                  and what is still unbuilt
   scripts/        Commands run by hand, `uv run python -m app.scripts.<name>`
     import_jobs.py  feed.json → job_postings + job_locations, in one transaction
+    backfill_bank.py  fills each Experience Bank from its applicant's resume,
+                  once, after the KAN-176 migration (--dry-run first)
   utils/
     resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
   models/
@@ -162,14 +180,15 @@ app/
                   and job_locations: one row per place a job is offered
     locations.py  Country and state reference tables
     resume.py     Resume storage and parsed JSONB
+    experience.py The Experience Bank: experience_entries, applicant_skills
     dto.py        Enums and Pydantic schemas (ParsedResume, Education, etc.)
 alembic/
   CLAUDE.md       Alembic decisions — read before editing anything here
   env.py          Migration environment
   versions/       Migrations. Committed — they are the schema's history
   script.py.mako  Template for generated migrations
-tests/            pytest; resume parser, DOCX extraction, location resolver
-                  and feed-import tests, and fixtures
+tests/            pytest; resume parser, DOCX extraction, location resolver,
+                  feed-import, Scout and resume builder tests, and fixtures
 data/
   feed.json       Committed snapshot of scraper/feed.json — the import's input
                   when no local scraper run has written one. See Deployment
@@ -177,12 +196,18 @@ data/
                   CC BY 4.0; generated, never edited by hand
 scripts/
   build_geonames.py  Rebuilds data/places.tsv from GeoNames. Stdlib only
+  fetch_tectonic.py  Downloads the pinned Linux Tectonic and warms its package
+                  cache into vendor/tectonic/ (gitignored), so resumes compile
+                  offline. Stdlib only
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
   resume.md       Same, for resume storage and parsing
   avatar.md       Profile photo: formats, limits, storage, bucket setup
 pyproject.toml    Dependencies, the pinned Python series, and Vercel's entrypoint
+vercel.json       Vercel's build command: fetches Tectonic for resume PDFs
+                  (scripts/fetch_tectonic.py)
+vendor/           Built by that command, gitignored: Tectonic and its cache
 uv.lock           Exact resolved versions — committed
 ```
 
@@ -232,6 +257,10 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
 
 - **Entrypoint** is `[tool.vercel] entrypoint` in `pyproject.toml`; the whole
   app becomes one Vercel Function. Vercel installs from `uv.lock` itself.
+- **Build command** is `vercel.json`'s: it fetches Tectonic so resume PDFs
+  are Jake's own LaTeX (`app/services/resume_render/CLAUDE.md` says how it
+  was checked and what the first preview should show). A build that can't
+  reach GitHub fails rather than shipping without it.
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (values in
   `../scout/CLAUDE.md`, "Which model, where"). Without `SCOUT_*` the API
@@ -260,6 +289,11 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   `98ab19cfe840` `roles`), then import, then deploy the API
   that reads it. An import against the older schema fails on the unknown column and,
   being one transaction, writes nothing.
+- **Apply `81fe134e8719` (KAN-176) before deploying the API that maps it.**
+  It adds `resumes.template_key` and `target_job_id`, and the ORM names every
+  mapped column in an insert, so the new API on the old schema fails every
+  resume upload (`models/CLAUDE.md`, "A new column reaches the database…").
+  Then run `app.scripts.backfill_bank`, `--dry-run` first.
 - **`/jobs` opens a connection per request** (`NullPool`, below), which costs
   about half a second against Supabase where the file read cost
   milliseconds: measured 2026-10-07, ~0.8 s for the first request and ~0.5 s
@@ -275,6 +309,37 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
 - **`NullPool` is what makes this safe** (see The database): every
   invocation opens one connection through Supavisor's transaction pooler,
   which does the pooling, so serverless scale-out cannot exhaust Postgres.
+
+## The Experience Bank and built resumes (KAN-176)
+
+Two halves, stored differently on purpose:
+
+- **The Experience Bank is rows**: `experience_entries` (one per thing the
+  applicant has done, its `section` text with a CHECK, not an enum) and
+  `applicant_skills`. Private to the applicant; no company route reads it.
+  Rows, so an entry can be picked, edited and (later) matched to jobs alone.
+- **Every resume is one frozen `ParsedResume`** in `resumes.parsed_json`,
+  uploaded or built. Editing the bank never changes a resume already made.
+- **`services/experience.py` is the only code that maps between them.** Never
+  read a resume item's `description` or `bullets` alone: `bullets_of` reads
+  both, since uploads and older rows have only `description`.
+- **Built resumes count toward the profile's 5** (`MAX_RESUMES` in
+  `routers/resumes.py`): saving a sixth is a 409 that says to delete one.
+  Upload doesn't check it yet (its TODO).
+- **A built resume has `template_key` set and no stored file**
+  (`storage_path` NULL). Its PDF is drawn from `parsed_json` on every request
+  (`GET .../download`), so a profile edit shows in the next preview and
+  nothing in Storage goes stale. Delete skips Storage for it.
+- **Tailoring never claims a skill.** It reorders lines and offers rewordings
+  only; postings have no skill list to measure "missing" against.
+- **The model's writing lives in `../scout/workit_scout/builder.py`**, which
+  checks every line against the applicant's own words (numbers and names it
+  never gave are dropped). Only an entry's content reaches the model, never a
+  name, contact detail or link. Its calls have their own daily cap
+  (`SCOUT_BUILDER_DAILY_CALLS`, default 30), apart from chat's.
+- Still open: matching over
+  the bank (one embedding per entry, `app/services/matching/CLAUDE.md`); what
+  an application's sent copy looks like, once applications exist.
 
 ## The database
 
