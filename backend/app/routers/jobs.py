@@ -90,6 +90,7 @@ from sqlalchemy import (
     distinct,
     exists,
     func,
+    literal,
     literal_column,
     or_,
     select,
@@ -97,18 +98,31 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
+from app.deps import assert_applicant_owns, get_current_account
 from app.models import dto
-from app.models.dto import job_post_status
+from app.models.dto import ParsedResume, job_post_status
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
+from app.models.profiles import Applicant_Profile
+from app.models.resume import Resume
+from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import (
     FacetCount,
+    Highlight,
     JobCount,
     JobFacets,
     JobListing,
     JobLocationOption,
     JobRoleOption,
+    ScoredJob,
+)
+from app.services.matching.highlights import generate_highlights
+from app.services.matching.scoring import (
+    compute_score,
+    eligibility,
+    freshness,
+    title_fit,
 )
 from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import ALIASES, RoleResolver, raw_words
@@ -988,6 +1002,118 @@ def _season_counts(terms: list[FacetCount], today: datetime.date) -> list[FacetC
 async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
     """Each filter option's job count, for the job board's filter row."""
     return await fetch_facets(db)
+
+
+@router.get("/recommended/{applicant_id}", response_model=list[ScoredJob])
+async def recommended_jobs(
+    applicant_id: uuid.UUID,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=100_000),
+    filters: JobFilters = Depends(read_filters),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> list[ScoredJob]:
+    """Jobs scored against the applicant's default resume. Returns `match`
+    (0-100) and up to 3 `highlights`. Jobs without embeddings still appear,
+    scored on other components."""
+    assert_applicant_owns(account, applicant_id)
+
+    # Load the default resume
+    profile = await db.get(Applicant_Profile, applicant_id)
+    if profile is None or profile.default_resume_id is None:
+        raise HTTPException(404, "No default resume set")
+
+    resume_row = (await db.execute(
+        select(Resume).where(Resume.id == profile.default_resume_id)
+    )).scalar_one_or_none()
+    if resume_row is None or resume_row.parsed_json is None:
+        raise HTTPException(404, "Resume not found or not parsed")
+
+    parsed = ParsedResume.model_validate(resume_row.parsed_json)
+
+    # Embed resume on demand if missing
+    resume_embedding = resume_row.embedding
+    if resume_embedding is None:
+        from app.services.matching.embeddings import embed, resume_text
+        text = resume_text(parsed)
+        if text:
+            vectors = await embed([text])
+            if vectors:
+                resume_row.embedding = vectors[0]
+                resume_embedding = vectors[0]
+                await db.commit()
+
+    # Build skills text for FTS
+    skills_text = " ".join(s.skill_name for s in parsed.skills) if parsed.skills else ""
+
+    # Query with scoring columns
+    score_columns = list(_COLUMNS)
+
+    # Semantic similarity: 1 - cosine_distance
+    if resume_embedding is not None:
+        vec_literal = str(resume_embedding)
+        semantic_col = (
+            literal(1.0) - Job_Post.embedding.cosine_distance(vec_literal)
+        ).label("semantic")
+    else:
+        semantic_col = literal(None).label("semantic")
+    score_columns.append(semantic_col)
+
+    # FTS skill rank
+    if skills_text:
+        skill_rank_col = func.ts_rank(
+            Job_Post.fts, func.plainto_tsquery("english", skills_text)
+        ).label("skill_rank")
+    else:
+        skill_rank_col = literal(0.0).label("skill_rank")
+    score_columns.append(skill_rank_col)
+
+    # posted_at for freshness
+    score_columns.append(Job_Post.posted_at.label("_posted_at"))
+
+    query = select(*score_columns).where(_LISTED, *matching(filters))
+    rows = (await db.execute(query)).all()
+
+    now = datetime.datetime.now(datetime.UTC)
+    resume_titles = [e.title for e in parsed.experience]
+    field_of_study = next(
+        (e.field_of_study for e in parsed.education if e.field_of_study), None
+    )
+    # Rough years of experience from resume
+    years_exp = 0.0
+    for exp in parsed.experience:
+        if exp.start_date and exp.end_date:
+            years_exp += (exp.end_date - exp.start_date).days / 365.25
+
+    scored: list[ScoredJob] = []
+    # ponytail: normalize skill_rank by max across result set
+    max_skill_rank = max((r.skill_rank or 0 for r in rows), default=1.0) or 1.0
+
+    for row in rows:
+        semantic_val = row.semantic
+        skill_norm = min(1.0, (row.skill_rank or 0) / max_skill_rank) if max_skill_rank > 0 else 0.0
+        t_fit = title_fit(row.title, resume_titles, field_of_study)
+        days_old = (now - row._posted_at).total_seconds() / 86400 if row._posted_at else 30.0
+        fresh = freshness(days_old)
+        elig = eligibility(
+            None, row.start_term, row.min_years_experience, years_exp
+        )
+        score = compute_score(semantic_val, skill_norm, t_fit, elig, fresh)
+        highlights = generate_highlights(
+            row.title, row.min_years_experience, row.start_term,
+            parsed, semantic_val, skill_norm, t_fit, elig,
+        )
+
+        listing = to_listing(row)
+        scored.append(ScoredJob(
+            **listing.model_dump(),
+            match=score,
+            highlights=[Highlight(**h) for h in highlights],
+        ))
+
+    # Sort by score descending, then apply offset/limit
+    scored.sort(key=lambda s: s.match, reverse=True)
+    return scored[offset:offset + limit]
 
 
 # Last, so the paths above ("/count", "/facets", "/locations", "/roles") are matched as
