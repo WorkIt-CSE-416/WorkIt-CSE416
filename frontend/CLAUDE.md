@@ -204,6 +204,10 @@ src/app/          App Router routes, layouts, pages
   api/scout/      The one route handler: forwards a Scout turn to the API with
                   the session's token and pipes the NDJSON reply back. A route
                   handler, not an action, because the reply streams
+  api/resumes/[resumeId]/download/  A resume drawn with its template, as a
+                  PDF or .docx: the builder's preview and downloads, and My
+                  Profile's preview of a built resume. A route handler
+                  because the answer is a file
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -252,6 +256,10 @@ src/components/   Shared components
                   Motion, below
   resume-upload.tsx Dropzone + file preview, no upload logic. Used by
                   onboarding and profile.
+  resume-preview.tsx  A built resume's PDF in an iframe, Open Full Size (the
+                  panel's preview is too small to read), its PDF and Word
+                  downloads, and the one-page warning. Used by the Resume
+                  Builder and Tailor My Resume
   account-menu.tsx  Both bars' account dropdown: a name and email header,
                   the shell's rows, then Sign Out (Sign In without
                   onSignOut). The seeker bar passes its photo-name-email
@@ -294,6 +302,11 @@ src/lib/          Framework-free helpers
                   upload, list, delete, read and replace one's parsed
                   content, make one primary, and a signed file link. Used
                   by both onboarding and profile.
+  experience-actions.ts  Server actions for the Experience Bank and the
+                  builder: entries, skills, import, AI bullets and intake,
+                  generate, save, tailor. Each answers { data, error }
+  experience-queries.ts  Server-only first read of the bank, for its page
+  resume-files.ts builtResumeUrl(): where the browser fetches a drawn resume
   avatar-actions.ts  Server actions for the profile photo: get/upload/remove
   profile-actions.ts Server actions for the applicant's identity fields:
                   getProfile (GET) and updateProfile (PATCH). Used by the
@@ -838,6 +851,31 @@ makes it primary (`setPrimaryResume`). All of these actions live in
 `src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's.
 The `ResumeUpload` component (`src/components/resume-upload.tsx`) is a pure
 dropzone + file preview — it knows nothing about upload logic or limits.
+
+**The Resume Builder is `(seeker)/resume-builder`** (KAN-176), a row in the
+seeker panel after My Profile. The page reads the Experience Bank on the
+server; `builder.tsx` changes it through `lib/experience-actions.ts` and calls
+`router.refresh()`, so what shows is what is saved. Each entry's checkbox
+puts it on the next resume; what is unticked is kept as `excluded`, so an
+entry added later is on by default. Entries are edited in one dialog for
+every section (`entry-editor.tsx`, its fields from `sections.ts`, dates as
+months), whose bullets are checked as typed (`hints.ts`, no model, so the
+builder still coaches when the writing help is down) and whose "Write
+Bullets With AI" shows the model's lines to use or ignore, never replacing
+the applicant's unasked. Under each entry, in the bank and in a proposal, one
+grey line shows its details (`detailLine` in `sections.ts`: a project's tools,
+a degree's field and GPA), so what the model filled in is visible. Saving a
+sixth resume is refused with the API's message in the panel. "Describe Your Experience" (`intake-dialog.tsx`)
+turns a paragraph into proposed entries, each added only on a click. Skills
+are edited as the resume prints them, one "Category: a, b" line each.
+**Tailor My Resume is `/jobs/[jobId]/tailor`**, a button on the job
+posting's page: start from the bank or a resume, accept or reject each
+rewording, save a new resume that names the job. A built resume has no
+stored file, so My Profile previews it through the download route
+(`template_key` set) and its row says "Built", not "Uploaded"; the profile's
+resume editor carries a project's Technologies and a school's Location so
+an edit there doesn't drop them. The rules behind it are backend
+`CLAUDE.md`'s "The Experience Bank and built resumes".
 
 **The profile's Work Experience and Skills come from the primary resume's
 `parsed_json`** (`getParsedResume`), or the newest one's when none is primary —

@@ -23,14 +23,16 @@ const RESUME_STATUS: Record<string, { label: string; tone: BadgeTone } | undefin
 };
 
 /** Rows only exist after the client-side fetch, so this is the browser's own
- *  calendar day, never the server's UTC one. */
-function uploadedOn(createdAt: string | null) {
-  if (!createdAt) return "Uploaded";
+ *  calendar day, never the server's UTC one. A resume WorkIt built (its
+ *  template_key set, KAN-176) was never uploaded, so it says Built. */
+function madeOn(createdAt: string | null, built: boolean) {
+  const verb = built ? "Built" : "Uploaded";
+  if (!createdAt) return verb;
   const day = new Date(createdAt).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
   });
-  return `Uploaded ${day}`;
+  return `${verb} ${day}`;
 }
 
 const ROW_ACTION = "rounded-control hover:bg-hover size-8";
@@ -61,7 +63,9 @@ export function ResumeRow({
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
   // A browser shows a PDF itself; a DOCX it can only download.
-  const action = resume.storage_path.endsWith(".pdf") ? "Preview" : "Download";
+  // A built resume is always drawn as a PDF; an upload is whatever it was
+  const action =
+    resume.template_key || resume.storage_path?.endsWith(".pdf") ? "Preview" : "Download";
   const status = RESUME_STATUS[resume.status] ?? { label: resume.status, tone: "inert" };
 
   return (
@@ -69,7 +73,9 @@ export function ResumeRow({
       <PdfIcon className="size-5 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-label text-ink truncate">{name}</p>
-        <p className="text-note text-ink-meta">{uploadedOn(resume.created_at)}</p>
+        <p className="text-note text-ink-meta">
+          {madeOn(resume.created_at, Boolean(resume.template_key))}
+        </p>
       </div>
       <Badge tone={status.tone}>{status.label}</Badge>
       {/* No gap between the three: each is a 32px box already. */}

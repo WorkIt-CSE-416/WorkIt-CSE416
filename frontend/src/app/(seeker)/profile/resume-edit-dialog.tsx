@@ -48,6 +48,8 @@ export const EMPTY_RESUME: ParsedResume = {
   skills: [],
   projects: [],
   certifications: [],
+  activities: [],
+  awards: [],
 };
 
 const DATES: Field[] = [
@@ -80,6 +82,7 @@ export const SECTIONS: { key: SectionKey; title: string; noun: string; fields: F
       { key: "degree", label: "Degree" },
       { key: "field_of_study", label: "Field of Study" },
       { key: "gpa", label: "GPA", type: "number" },
+      { key: "location", label: "Location" },
       ...DATES,
       { key: "description", label: "Description", type: "textarea" },
     ],
@@ -91,6 +94,7 @@ export const SECTIONS: { key: SectionKey; title: string; noun: string; fields: F
     fields: [
       { key: "project_name", label: "Name", required: true },
       { key: "url", label: "URL" },
+      { key: "technologies", label: "Technologies" },
       ...DATES,
       { key: "description", label: "Description", type: "textarea" },
     ],

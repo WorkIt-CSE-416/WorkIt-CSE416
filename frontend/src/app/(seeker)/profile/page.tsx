@@ -38,6 +38,7 @@ import {
   type ResumeItem,
 } from "@/lib/resume-actions";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
+import { builtResumeUrl } from "@/lib/resume-files";
 import { EMPTY_RESUME, ResumeEditDialog, type SectionKey } from "./resume-edit-dialog";
 import { RESUME_ROW, ResumeRow } from "./resume-row";
 import { ExperienceSection, SkillsSection } from "./resume-sections";
@@ -367,10 +368,17 @@ export default function ProfilePage() {
 
   async function handlePreview(resume: ResumeItem) {
     setResumeError(null);
+    // A resume WorkIt built has no stored file: its PDF is drawn on request,
+    // so it always shows the details as they are now.
+    if (resume.template_key) {
+      window.open(builtResumeUrl(resume.id, "pdf", true), "_blank", "noopener");
+      return;
+    }
     // A PDF opens in a new tab, and that tab is opened here, inside the click:
     // one opened after the await below is a popup, which browsers block. A
     // DOCX link downloads, so it needs no tab and leaves this page in place.
-    const tab = resume.storage_path.endsWith(".pdf") ? window.open("", "_blank") : null;
+    const isPdf = resume.storage_path?.endsWith(".pdf") ?? false;
+    const tab = isPdf ? window.open("", "_blank") : null;
     let url: string | null = null;
     let error: string | null = null;
     try {
@@ -386,7 +394,7 @@ export default function ProfilePage() {
     if (tab) {
       tab.opener = null;
       tab.location.href = url;
-    } else if (resume.storage_path.endsWith(".pdf")) {
+    } else if (isPdf) {
       // The tab was blocked. Swapping the profile for the PDF would be worse.
       setResumeError(
         "Your browser blocked the preview tab. Allow pop-ups for this site, then try again.",
