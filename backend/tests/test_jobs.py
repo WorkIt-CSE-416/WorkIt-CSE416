@@ -282,6 +282,20 @@ def test_a_search_s_remote_and_season_reach_the_title_too(no_database, monkeypat
     # a season with no year names no season, as season_of reads one
     ("summer", [], [], [], ["summer"]),
     ("stripe interns remote", ["internship"], ["remote"], [], ["stripe"]),
+    # a misspelt month or season beside a year is the one it is close to
+    ("summe 2027", [], [], ["summer-2027"], []),
+    ("janury 2027", [], [], ["winter-2027"], []),
+    ("2027 sprng", [], [], ["spring-2027"], []),
+    ("autum 2026", [], [], ["fall-2026"], []),
+    # ...but never alone, and never an ordinary word: the year is read, the
+    # word stays
+    ("summe", [], [], [], ["summe"]),
+    ("summit 2027", [], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], ["summit"]),
+    ("junior 2027", [], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], ["junior"]),
+    # a search's own word is never a season's typo: "intern" and "writer"
+    # (a role alias's) are each 0.8 or more from "winter"
+    ("intern 2027", ["internship"], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], []),
+    ("writer 2027", [], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], ["writer"]),
 ])
 def test_query_facts(q, levels, styles, seasons, left):
     words = raw_words(q)
@@ -290,6 +304,11 @@ def test_query_facts(q, levels, styles, seasons, left):
     assert [style.value for style in facts.work_styles] == styles
     assert list(facts.seasons) == seasons
     assert [w for i, w in enumerate(words) if i not in facts.used] == left
+
+
+def test_a_misspelt_season_is_matched_in_titles_as_spelt():
+    # A title says "Summer 2027", so the title match takes the corrected words.
+    assert list(query_facts(raw_words("summe 2027")).season_phrases) == ["summer 2027"]
 
 
 def test_a_search_s_roles_each_narrow_on_their_own():

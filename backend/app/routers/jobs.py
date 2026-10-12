@@ -72,6 +72,7 @@ and for GET /jobs/{job_id}, the job's own page.
 """
 
 import datetime
+import difflib
 import re
 import time
 import uuid
@@ -110,7 +111,7 @@ from app.schemas.jobs import (
     JobRoleOption,
 )
 from app.services.company_resolver import CompanyResolver
-from app.services.role_resolver import RoleResolver, raw_words
+from app.services.role_resolver import ALIASES, RoleResolver, raw_words
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -531,6 +532,32 @@ _WORK_STYLE_WORDS = {
     ("in", "person"): dto.work_style.onsite, ("in", "office"): dto.work_style.onsite,
 }
 _YEAR = re.compile(r"^20[2-3][0-9]$")
+# A misspelt month or season beside a year ("summe 2027", "janury 2027") is
+# read as the one it is close to, by the rule role and company typos follow:
+# difflib, ratio 0.8 or more, five letters or more (at four and under, "fal"
+# and "jun" are close to too much).
+_SEASON_WORD_CUTOFF = 0.8
+_OWN_WORDS = frozenset(
+    {w for key in (*_LEVEL_WORDS, *_WORK_STYLE_WORDS) for w in key}
+    | {w for phrases in ALIASES.values() for phrase in phrases for w in raw_words(phrase)}
+)
+_SEASON_WORD_MIN_LENGTH = 5
+
+
+def season_word(word: str) -> str:
+    '''
+    the month or season a word is a typo of, or the word itself: only ever
+    used beside a year, so a lone "summe" or an ordinary word is never read
+    as a season (query_facts)
+    '''
+    names = (*_SEASONS, "autumn", *_MONTH)
+    # A search's own words (a fact's, a role alias's) are never a typo of a
+    # season: "intern" and "writer" are each 0.8 or more from "winter", and
+    # "intern 2027" is internships starting in 2027.
+    if word in names or word in _OWN_WORDS or len(word) < _SEASON_WORD_MIN_LENGTH:
+        return word
+    close = difflib.get_close_matches(word, names, n=1, cutoff=_SEASON_WORD_CUTOFF)
+    return close[0] if close else word
 
 
 @dataclass(frozen=True)
@@ -564,15 +591,18 @@ def query_facts(words: Sequence[str]) -> QueryFacts:
 
     def take(phrase: tuple[str, ...]) -> bool:
         typed = " ".join(phrase)
+        # A pair as its month or season would be spelt: "summe 2027" is
+        # "summer 2027". As corrected for the title match too.
+        spelled = " ".join(map(season_word, phrase))
         if phrase in _LEVEL_WORDS:
             levels.append(_LEVEL_WORDS[phrase])
         elif phrase in _WORK_STYLE_WORDS:
             styles.append(_WORK_STYLE_WORDS[phrase])
             if _WORK_STYLE_WORDS[phrase] == dto.work_style.remote:
                 remote_phrases.append(typed)
-        elif len(phrase) == 2 and "-" in (season_of(typed) or ""):
-            seasons.append(season_of(typed))
-            season_phrases.append(typed)
+        elif len(phrase) == 2 and "-" in (season_of(spelled) or ""):
+            seasons.append(season_of(spelled))
+            season_phrases.append(spelled)
         elif len(phrase) == 1 and _YEAR.match(phrase[0]):
             seasons.extend([*(f"{season}-{phrase[0]}" for season in _SEASONS), phrase[0]])
             season_phrases.append(typed)

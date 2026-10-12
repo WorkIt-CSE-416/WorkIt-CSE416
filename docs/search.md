@@ -351,7 +351,12 @@ workplace, experience and posted filters the same way: each one narrows.
      "early career", "entry level" are `new_grad`; "remote", "hybrid",
      "onsite"/"on-site"/"in person" the work style; "summer 2027" (either
      order, or a month: "january 2027" is Winter) a start season, and a bare
-     "2027" any start that year. They are read from **the whole query**, not
+     "2027" any start that year. A misspelt month or season beside a year is
+     read as the one it is close to (`season_word`: difflib, ratio ≥ 0.8,
+     five letters or more), so "summe 2027" and "janury 2027" work, and the
+     title match uses the corrected spelling. Only beside a year, so a lone
+     "summe" stays a word; and never a search's own word, since "intern" and
+     the alias word "writer" are both close to "winter" (`_OWN_WORDS`). They are read from **the whole query**, not
      only what the roles left, so "marketing intern" is the marketing role
      (whose alias used "intern") *and* internships. Each narrows its own
      column beside the filter row's, so a search's "remote" with a ticked
