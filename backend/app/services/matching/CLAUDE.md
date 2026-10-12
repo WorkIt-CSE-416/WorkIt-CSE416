@@ -102,5 +102,12 @@ and matching runs without its semantic part, the same way the app runs without
 - **Unchecked against the live API:** whether Gemini still accepts `taskType`
   and `outputDimensionality` at the top level of each request. Google's
   reference marks them deprecated in favour of `embedContentConfig`.
+- **Matching over the Experience Bank** (KAN-176): the bank's entries
+  (`experience_entries`) should replace a resume's `parsed_json` as what is
+  embedded, one vector per entry, so a club or volunteer role can bring up
+  jobs of its own. Not built; it waits on `GET /jobs/recommended`.
+- **Skill overlap's query is written**: `overlap.py`'s `rank_against_job`
+  (`ts_rank` over `job_postings.fts`, the text's words OR'd). Tailoring uses
+  it today; scoring should call the same function.
 - **Scoring weights and the freshness boost** are guesses until there is real
   data to tune them on.
