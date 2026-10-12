@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CircleUserRound,
+  FileText,
   LayoutDashboard,
   SquareKanban,
 } from "lucide-react";
@@ -39,6 +40,10 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * somewhere they visit once, and a click of depth is the wrong price for
  * that. "My" is what separates it from an employer's profile, which the
  * company shell also has to name.
+ *
+ * Resume Builder sits after My Profile (KAN-176): the profile holds the
+ * resumes, the builder makes them, and a seeker reaches for it all through
+ * a search, once per kind of job they apply to.
  */
 const GROUPS: SidebarNavGroup[] = [
   {
@@ -49,6 +54,7 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/applications", label: "Applications", Icon: SquareKanban },
       { href: "/calendar", label: "Calendar", Icon: CalendarDays },
       { href: "/profile", label: "My Profile", Icon: CircleUserRound },
+      { href: "/resume-builder", label: "Resume Builder", Icon: FileText },
     ],
   },
 ];

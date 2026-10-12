@@ -6,24 +6,43 @@ import { getApplicantSession } from "@/lib/session";
 
 // Mirrors ParsedResume in backend/app/models/dto.py. Dates are ISO
 // "YYYY-MM-DD"; a key the API does not declare is dropped silently.
+// `bullets` are an item's lines one by one; `description` is the same text as
+// one string, and is what older resumes and the parser have. Optional here
+// because the profile's editors write `description` only, which the API reads
+// when `bullets` is empty.
 type Dated = { start_date: string | null; end_date: string | null };
+type Lines = { description: string | null; bullets?: string[] };
 export type ParsedResume = {
   education: ({
     institution: string;
     degree: string | null;
     field_of_study: string | null;
     gpa: number | null;
-    description: string | null;
-  } & Dated)[];
+    location?: string | null;
+  } & Dated &
+    Lines)[];
   experience: ({
     company_name: string;
     title: string;
     location: string | null;
-    description: string | null;
-  } & Dated)[];
+  } & Dated &
+    Lines)[];
   skills: { skill_name: string; category: string | null }[];
-  projects: ({ project_name: string; url: string | null; description: string | null } & Dated)[];
-  certifications: { cert_name: string; issuer: string | null }[];
+  projects: ({
+    project_name: string;
+    url: string | null;
+    technologies?: string | null;
+  } & Dated &
+    Lines)[];
+  certifications: { cert_name: string; issuer: string | null; end_date?: string | null }[];
+  /** Clubs, teams, volunteering, leadership: experience that isn't a job. */
+  activities: ({ organization: string; role: string; location: string | null } & Dated & Lines)[];
+  awards: {
+    award_name: string;
+    issuer: string | null;
+    end_date: string | null;
+    description: string | null;
+  }[];
 };
 
 export type ResumeItem = {
@@ -31,8 +50,14 @@ export type ResumeItem = {
   original_filename: string | null;
   raw_text?: string | null;
   parsed_json?: ParsedResume | null;
-  storage_path: string;
+  /** Null for a resume WorkIt built: it has no stored file, and its PDF is
+   *  drawn on request (/api/resumes/[id]/download). */
+  storage_path: string | null;
   status: string;
+  /** The template a built resume is drawn with; null for an upload. */
+  template_key?: string | null;
+  /** The job posting a tailored resume was made for. */
+  target_job_id?: string | null;
   /** The applicant's primary resume — the one the profile shows. */
   is_default: boolean;
   created_at: string | null;
