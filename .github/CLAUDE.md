@@ -9,7 +9,7 @@ way and what bites.
 Runs on every PR to `main`: a frontend job, a backend job and a scraper job.
 `scout/` has no job of its own: the backend installs it, so the backend job
 lints and tests it too. The scraper job runs through `uvx`, so the scraper
-still installs nothing. Merge only on a green check.
+still installs nothing.
 
 ## Scheduled scrape and import (KAN-160)
 

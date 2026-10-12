@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-Repo-wide rules, always loaded. Each folder below has its own `CLAUDE.md` that
+Repo-wide rules, always loaded. Each code folder below (`frontend/`,
+`backend/`, `scout/`, `scraper/`, `.github/`) has its own `CLAUDE.md` that
 loads on top of this one when you touch a file in it; read it before writing
 code there. A rule lives at the deepest level that fully contains it, with a
 pointer above rather than a copy.
@@ -11,8 +12,7 @@ Each half is self-contained: its own manifest, lockfile and toolchain. Python
 tooling stays inside its package; the repo root holds none.
 
 - `frontend/` — the Next.js app and the whole JS build. `npm install` runs
-  here, never at the root, which would grow a second `node_modules` and
-  lockfile nothing builds from.
+  here, never at the root (`frontend/CLAUDE.md`, "Where this folder sits").
 - `backend/` — the Python API (FastAPI, SQLAlchemy, Alembic). Owns the
   database. Driven by `uv run ...` from inside `backend/`.
 - `scout/` — Scout, the job assistant's brain (KAN-138): a plain package the
@@ -31,8 +31,8 @@ Next.js app holds no ORM, connection string or schema: a query you want in a
 React component belongs in an endpoint.
 
 **Alembic is the single source of truth for schema.** Every schema change is a
-migration; the Supabase dashboard's schema editor bypasses Alembic silently,
-so it stays unused. `backend/db/*.md` hold design rationale only.
+migration. **Schema edits through the Supabase dashboard are banned**: they
+bypass Alembic silently. `backend/db/*.md` hold design rationale only.
 
 **Claude never runs `uv run alembic upgrade head`** — nor `downgrade`, `stamp`,
 or anything else that writes to the database. Write the migration, check it
@@ -56,7 +56,8 @@ in `app_metadata`) and the profile row with the same id.
   `backend/`.
 
 Before touching sign-in on either half, read `backend/CLAUDE.md`'s Auth
-section (the flow and its rules) and `frontend/CLAUDE.md`'s Next side.
+section (the flow and its rules) and, for the Next side, the paragraph in
+`frontend/CLAUDE.md` starting "Auth is Supabase Auth".
 
 ## Commands
 
@@ -66,13 +67,14 @@ from `frontend/`. A script added to `frontend/package.json` needs its
 forwarding line added at the root too. `frontend/CLAUDE.md` explains each
 script; first-time setup is `npm run install:frontend`.
 
-The root forwards frontend scripts only. The backend runs through `uv run`
-inside `backend/`, its commands listed in `backend/CLAUDE.md`.
+The root forwards frontend scripts only. Backend commands run through
+`uv run` inside `backend/` (listed in `backend/CLAUDE.md`); no npm script
+shells into it.
 
 ## CI and deployment
 
 CI runs on every PR to `main`; merge only on a green check. The jobs, the
-three-hourly scrape and its gotchas are in `.github/CLAUDE.md`.
+scheduled scrape and its gotchas are in `.github/CLAUDE.md`.
 
 Both halves deploy to **Vercel as two projects from this repo** (Root
 Directory `frontend` and `backend`, the API as one Vercel Function). Merging to
@@ -92,7 +94,8 @@ The team works on macOS and Windows.
   -rf`, `&&`, `$(...)`, `cd`) breaks on Windows.
 - Line endings are LF, normalized by `.gitattributes`; only
   `.bat`/`.cmd`/`.ps1` use CRLF.
-- Build paths with `node:path`.
+- Build paths with `node:path`, never by joining strings with `/`; scripts
+  carry no POSIX path separators.
 
 ## Documentation
 
@@ -112,17 +115,19 @@ with the failure it prevents.
 - `docs/job-pipeline.md` — the job pipeline end to end, in plain terms. A
   change to how jobs are scraped, imported, stored, served or filtered updates
   it alongside the `CLAUDE.md` beside the code.
-- `docs/agents/` — configuration for the `mattpocock-skills` plugin.
+- `docs/agents/` — configuration for the `mattpocock-skills` plugin; edit
+  these files directly to change how the skills behave.
 
 ## Conventions
 
-- Branches are `KAN-###-slug` off `main`; Jira links PRs through the key.
+- Work happens on Jira-style branches (`KAN-13-testing`) off `main`.
 - Prettier formats code and runs from `frontend/`. It skips the markdown docs
   and never reaches the root `CLAUDE.md` or `README.md`.
 - **Job terms, in anything written for people:** a **hiring system**
   (Greenhouse, Workable: an ATS) hosts **company job boards** (one company's
-  page of open jobs), which list **job postings**. WorkIt's own `/jobs` is "the
-  Jobs page". The scraper's code keeps its older names (`board`, `provider`).
+  page of open jobs), which list **job postings**. A hiring system is never
+  a "job board", and WorkIt's own `/jobs` is "the Jobs page". The scraper's
+  code keeps its older names (`board`, `provider`); leave them as they are.
 - Pre-PR review and bug hunts use the `pr-review` skill
   (`.claude/skills/pr-review/`).
 

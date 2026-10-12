@@ -40,8 +40,8 @@ access token out of the session and forwards it as `Authorization: Bearer`.
 own Vercel project from this repo — the Next app as a normal Next deployment,
 the FastAPI app as a single Vercel Function — and Next's `API_URL` names the
 API project's URL instead of `:8000`. Supabase is the same hosted project in
-both. Still no CORS: the hop is still server to server. Details in the root
-`CLAUDE.md`'s Deployment section.
+both. Still no CORS: the hop is still server to server. Details in each half's
+Deployment section (`frontend/CLAUDE.md`, `backend/CLAUDE.md`).
 
 ## Backend (`backend/`)
 
