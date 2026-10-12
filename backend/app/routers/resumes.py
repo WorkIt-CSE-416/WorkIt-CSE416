@@ -375,6 +375,7 @@ async def update_resume(
     _reject_oversized(body)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     resume.parsed_json = body.model_dump(mode="json")
+    resume.embedding = None  # re-embed on next scoring request
     resume.status = ResumeStatus.parsed
     try:
         await session.commit()
