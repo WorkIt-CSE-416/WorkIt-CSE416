@@ -1,8 +1,7 @@
 "use server";
 
-import { apiFetch, extractErrorMessage } from "@/lib/auth";
+import { call } from "@/lib/applicant-call";
 import type { ParsedResume } from "@/lib/resume-actions";
-import { getApplicantSession } from "@/lib/session";
 
 /**
  * Server actions for the Experience Bank and the resume builder (KAN-176):
@@ -47,21 +46,6 @@ export type Suggestion = {
   original: string;
   suggested: string;
 };
-
-type Result<T> = { data: T; error: null } | { data: null; error: string };
-
-const OFFLINE = "Could not reach the server. Is the backend running?";
-
-async function call<T>(path: string, init: RequestInit): Promise<Result<T>> {
-  try {
-    const { id, token } = await getApplicantSession();
-    const res = await apiFetch(`/applicants/${id}${path}`, init, token);
-    if (!res.ok) return { data: null, error: await extractErrorMessage(res) };
-    return { data: res.status === 204 ? (null as T) : ((await res.json()) as T), error: null };
-  } catch {
-    return { data: null, error: OFFLINE };
-  }
-}
 
 // Ids come from the page, and an action is an endpoint anything can call:
 // encoded, so a crafted one can't walk the request onto another route.

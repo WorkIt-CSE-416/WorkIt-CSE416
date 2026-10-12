@@ -3,7 +3,7 @@ import uuid as _uuid
 from pgvector.sqlalchemy import (
     VECTOR,  # for storing embeddings in Postgres (gives PG a vector type)
 )
-from sqlalchemy import ForeignKey, String, text
+from sqlalchemy import ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,3 +32,7 @@ class Resume(BaseModel):
     # the resume, which is still the applicant's
     target_job_id: Mapped[_uuid.UUID | None] = mapped_column(
         ForeignKey("job_postings.id", ondelete="SET NULL", name="resumes_target_job_id_fkey"))
+    # An applicant's own LaTeX (KAN-176, template_key "latex"): the source
+    # exactly as pasted and edited. Its PDF is this compiled on every
+    # request (services/latex_source); parsed_json is read back from it.
+    latex_source: Mapped[str | None] = mapped_column(Text)

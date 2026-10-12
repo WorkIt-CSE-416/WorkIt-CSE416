@@ -625,6 +625,12 @@ sections have, shaped by `schemas/experience.py`'s `EntryDetails`.
 `applicant_skills` is unique on `(applicant_id, lower(name))`. The rules for
 both halves are in `../../CLAUDE.md`, "The Experience Bank and built resumes".
 
+`resumes.latex_source` (`c23812df9bf8`) is an applicant's own LaTeX, set only
+when `template_key` is "latex": the source exactly as pasted and edited,
+compiled on every download (`../services/latex_source/CLAUDE.md`). Nullable,
+since no other resume has one; `parsed_json` is still filled, read back from
+the compiled PDF.
+
 ## Pointers, not copies
 
 - Auth, the frontend contract, and why not PostgREST — `../../CLAUDE.md`.

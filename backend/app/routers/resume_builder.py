@@ -9,6 +9,8 @@ star, edit and delete all work on it: its `parsed_json` is the frozen copy,
 (`target_job_id`). It has no stored file (`storage_path` NULL). Its PDF is
 drawn from `parsed_json` on every request (GET .../download), so an edit on
 the profile shows in the next preview and nothing in Storage can go stale.
+An applicant's own LaTeX resume (template_key "latex", latex_resumes.py) is
+the exception: its download is its source compiled, PDF only.
 The name and contact line come from the applicant's profile at render time
 and never reach a model.
 """
@@ -33,6 +35,7 @@ from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.routers.experience import load_bank, take_builder_call
 from app.routers.jobs import fetch_listing
+from app.routers.latex_resumes import LATEX, compiled
 from app.routers.resumes import MAX_RESUMES, get_owned_resume, reject_oversized
 from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
@@ -135,6 +138,16 @@ async def download(
     built resume's only file; an upload's original is GET .../file."""
     assert_applicant_owns(account, applicant_id)
     resume = await get_owned_resume(db, applicant_id, resume_id)
+    stem = (resume.original_filename or "Resume").rsplit(".", 1)[0]
+    disposition = "inline" if inline else "attachment"
+    if resume.template_key == LATEX and resume.latex_source:
+        # The applicant's own LaTeX, exactly as written: a PDF only, since
+        # nothing turns arbitrary LaTeX into an honest Word file
+        if format != "pdf" or template:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A LaTeX resume downloads as a PDF only")
+        pdf, _ = await compiled(account, resume.latex_source)
+        return Response(pdf, media_type=MIME["pdf"],
+                        headers={"Content-Disposition": f'{disposition}; filename="{_filename(stem, ".pdf")}"'})
     key = template or resume.template_key or "jakes"
     if key not in TEMPLATES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "No such template")
@@ -147,12 +160,11 @@ async def download(
 
     name, contacts = await _header(db, applicant_id)
     rendered = await asyncio.to_thread(render, parsed, name=name, contacts=contacts, template=key, fmt=format)
-    stem = (resume.original_filename or "Resume").rsplit(".", 1)[0]
     filename = _filename(stem, f".{format}")
     return Response(
         rendered.data,
         media_type=MIME[format],
-        headers={"Content-Disposition": f'{"inline" if inline else "attachment"}; filename="{filename}"'},
+        headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
     )
 
 

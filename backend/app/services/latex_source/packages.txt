@@ -1,0 +1,39 @@
+# What an applicant's own LaTeX may load (KAN-176). One name a line;
+# "class " names a document class. safety.py refuses anything else, and
+# scripts/fetch_tectonic.py compiles each into the deployed cache, which is
+# offline: a package missing there fails even where a laptop, online, would
+# fetch it. So add a name here and both follow.
+class article
+class extarticle
+amsmath
+amssymb
+array
+babel
+bookmark
+calc
+charter
+color
+enumitem
+fancyhdr
+fontawesome
+fontawesome5
+fontenc
+fullpage
+geometry
+graphicx
+hyperref
+ifthen
+inputenc
+latexsym
+lmodern
+marvosym
+multicol
+paracol
+parskip
+ragged2e
+setspace
+tabularx
+titlesec
+url
+verbatim
+xcolor

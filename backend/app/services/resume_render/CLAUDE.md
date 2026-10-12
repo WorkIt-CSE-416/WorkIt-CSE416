@@ -10,7 +10,9 @@ blocks.py     what a template is made of: Name, Contact, Heading, EntryHeader,
 jakes.py      Jake's Resume as blocks, and its date style ("Aug. 2018")
 jakes.tex     Jake's LaTeX exactly as published (jakegut/resume, MIT, Jake
               Gutierrez; the Overleaf template), body left as a %%BODY%% marker
-to_latex.py   blocks -> that LaTeX -> PDF with Tectonic. The PDF
+to_latex.py   blocks -> that LaTeX -> PDF with Tectonic. The PDF. compile_tex
+              compiles any whole document, and also serves an applicant's
+              own LaTeX (../latex_source)
 to_docx.py    blocks -> .docx with python-docx, Times New Roman
 to_pdf.py     blocks -> PDF with fpdf2 and CMU Serif: the fallback when TeX
               can't run. Measured to match the LaTeX closely, not exactly
@@ -28,13 +30,20 @@ has no `\pdfgentounicode`, so the two pdfTeX-only lines are skipped under it.
 They only map glyphs to Unicode, which XeTeX does by itself; the page is the same.
 Checked against Overleaf's render with Jake's own sample content.
 
-- **Everything typed is escaped** (`escape`, tested with `\input{/etc/passwd}`)
-  and Tectonic runs `--untrusted`. Never put applicant text into the LaTeX any
-  other way.
+- **Everything typed is escaped** (`escape`, tested with `\input{/etc/passwd}`).
+  Never put applicant text into the LaTeX any other way. **`--untrusted` is
+  not what keeps this safe:** it turns off shell escape, but Tectonic still
+  reads any file the process can (`\input{/etc/hosts}` compiles, 2026-10-12).
+  Escaping is the guard here; an applicant's own LaTeX goes through
+  `../latex_source/safety.py` instead.
+- **A compile never sees the API's environment.** `compile_tex` passes
+  Tectonic `_env()`: `PATH`, `HOME` and the cache locations only, never the
+  database URL or the service-role key.
 - **An empty itemize is a LaTeX error**, so `body()` opens a bullet list only
   when a bullet arrives. Keep that when adding a block type.
 - **Tectonic** is one binary that fetches the TeX packages a document needs into
-  a cache (~40 MB for this template). On a laptop: `brew install tectonic`; the
+  a cache (~40 MB for this template, ~50 MB with every package an applicant's
+  own LaTeX may load, warmed from `../latex_source/packages.txt`). On a laptop: `brew install tectonic`; the
   first compile downloads, later ones take about a second.
 - **Deployed:** `backend/vercel.json`'s `buildCommand` runs
   `scripts/fetch_tectonic.py` on every deploy. It downloads the pinned static

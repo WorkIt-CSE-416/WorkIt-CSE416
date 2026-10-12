@@ -100,7 +100,10 @@ Tests cover the resume parser (`test_resume_parser.py`), DOCX text
 extraction (`test_resume_extraction.py`), Scout's route (`test_scout.py`) and the
 resume builder's converters, rendering, tailoring and route guards
 (`test_experience.py`; its queries need Postgres, so they are checked on the
-throwaway local one, as the import's are). A test that calls the resume routes
+throwaway local one, as the import's are), and an applicant's own LaTeX
+(`test_latex_source.py`: fields, edits, the safety gate, compiling, the
+routes that need no database; `fixtures/latex/` holds Jake's template as
+published and one in no template). A test that calls the resume routes
 must monkeypatch `resumes.get_supabase`: the router calls it directly rather
 than through `Depends`, so a dependency override misses it and the test
 uploads to the real bucket. `tests/fixtures/*.txt` are extracted text
@@ -128,6 +131,7 @@ app/
     auth.py       Signup body, /auth/me response
     profile.py    ApplicantProfileResponse and ApplicantProfileUpdate
     jobs.py       JobListing — also the parser for scraper/feed.json
+    latex.py      An applicant's own LaTeX: fields, edit ops, tailoring
     company_jobs.py  JobPostingCreate and JobPosting, for /company/jobs
                   (pay period: year or hour only; db/job_posting.md)
   routers/
@@ -152,6 +156,8 @@ app/
                   skills, import from a resume, compose, AI bullets and intake
     resume_builder.py  save a generated or tailored resume, download any
                   resume drawn with a template, POST .../tailor
+    latex_resumes.py  an applicant's own LaTeX resume: import, fields and
+                  edits, live preview, save, tailor its bullets
   services/       Logic with no HTTP or DB of its own. Never in models/,
                   whose __init__ imports every file as a model
     avatar.py     Validates and re-encodes an upload to a 512px WebP
@@ -160,6 +166,8 @@ app/
     tailoring.py  Reorders a resume for one posting; picks lines to reword
     resume_render/  ParsedResume -> PDF (Jake's LaTeX via Tectonic) or .docx
                   through a template; its own CLAUDE.md
+    latex_source/ An applicant's own LaTeX: its words as fields, edits by
+                  field, and the safety gate before Tectonic; its own CLAUDE.md
     location_resolver.py  Free-text job location → ISO places, from
                   data/places.tsv (app/models/CLAUDE.md)
     matching/     Job matching (KAN-139). embeddings.py turns postings and
@@ -197,8 +205,9 @@ data/
 scripts/
   build_geonames.py  Rebuilds data/places.tsv from GeoNames. Stdlib only
   fetch_tectonic.py  Downloads the pinned Linux Tectonic and warms its package
-                  cache into vendor/tectonic/ (gitignored), so resumes compile
-                  offline. Stdlib only
+                  cache into vendor/tectonic/ (gitignored) with Jake's template
+                  and every package in latex_source/packages.txt, so resumes
+                  compile offline. Stdlib only
 alembic.ini       Alembic config. Deliberately holds no database URL
 db/
   job_posting.md  Schema design notes — rationale, NOT a source of truth
@@ -289,6 +298,9 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   `98ab19cfe840` `roles`), then import, then deploy the API
   that reads it. An import against the older schema fails on the unknown column and,
   being one transaction, writes nothing.
+- **Apply `c23812df9bf8` (KAN-176, `resumes.latex_source`) before deploying
+  the API that maps it**, for the same reason as the next item: the ORM names
+  the column in every resume insert and select.
 - **Apply `81fe134e8719` (KAN-176) before deploying the API that maps it.**
   It adds `resumes.template_key` and `target_job_id`, and the ORM names every
   mapped column in an insert, so the new API on the old schema fails every
@@ -337,6 +349,13 @@ Two halves, stored differently on purpose:
   never gave are dropped). Only an entry's content reaches the model, never a
   name, contact detail or link. Its calls have their own daily cap
   (`SCOUT_BUILDER_DAILY_CALLS`, default 30), apart from chat's.
+- **An applicant's own LaTeX resume** is a `resumes` row with `template_key`
+  "latex" and its source in `latex_source`: pasted in, edited by its words,
+  tailored by rewording its bullets, and compiled exactly as written, PDF
+  only. **Their LaTeX is never compiled without
+  `services/latex_source/safety.py`**: Tectonic's `--untrusted` still reads
+  files, and the API's environment holds its secrets. The rules are in
+  `services/latex_source/CLAUDE.md`.
 - Still open: matching over
   the bank (one embedding per entry, `app/services/matching/CLAUDE.md`); what
   an application's sent copy looks like, once applications exist.

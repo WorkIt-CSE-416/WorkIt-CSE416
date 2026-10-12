@@ -24,6 +24,9 @@ belongs here too.
 ## Stack
 
 Next.js 16 (App Router, Turbopack) · React 19 · TypeScript (strict) · Tailwind CSS v4 · ESLint 9 · Prettier.
+CodeMirror 6 (`@uiw/react-codemirror`, with `@codemirror/legacy-modes`' stex
+for TeX highlighting) is the LaTeX editor's Source tab only, loaded in the
+browser on first use (`next/dynamic`, `ssr: false`).
 
 Node.js 20.9+ is required; the repo targets 22 LTS (root `.nvmrc`).
 
@@ -208,6 +211,8 @@ src/app/          App Router routes, layouts, pages
                   PDF or .docx: the builder's preview and downloads, and My
                   Profile's preview of a built resume. A route handler
                   because the answer is a file
+  api/latex/preview/  An applicant's own LaTeX compiled without saving: the
+                  LaTeX editor's live preview, passed through with X-Pages
   company/        Company shell — a left panel plus a top bar, for the other
                   account type, under /company/* so the two audiences cannot
                   collide on a URL. /company is the hiring dashboard;
@@ -258,8 +263,9 @@ src/components/   Shared components
                   onboarding and profile.
   resume-preview.tsx  A built resume's PDF in an iframe, Open Full Size (the
                   panel's preview is too small to read), its PDF and Word
-                  downloads, and the one-page warning. Used by the Resume
-                  Builder and Tailor My Resume
+                  downloads (`word={false}` for a LaTeX resume, PDF only), and
+                  the one-page warning. Used by the Resume Builder and Tailor
+                  My Resume
   account-menu.tsx  Both bars' account dropdown: a name and email header,
                   the shell's rows, then Sign Out (Sign In without
                   onSignOut). The seeker bar passes its photo-name-email
@@ -306,6 +312,14 @@ src/lib/          Framework-free helpers
                   builder: entries, skills, import, AI bullets and intake,
                   generate, save, tailor. Each answers { data, error }
   experience-queries.ts  Server-only first read of the bank, for its page
+  applicant-call.ts  Server-only call<T>(): one /applicants/{id}/... request
+                  as the signed-in applicant, answered { data, error }. The
+                  action files share it; a "use server" file can export only
+                  actions
+  latex-actions.ts  Server actions for an applicant's own LaTeX: fields and
+                  edit ops, import, save, tailor. Each answers { data, error }
+  latex-queries.ts  Server-only first read of one LaTeX resume, for the
+                  editor's page
   resume-files.ts builtResumeUrl(): where the browser fetches a drawn resume
   avatar-actions.ts  Server actions for the profile photo: get/upload/remove
   profile-actions.ts Server actions for the applicant's identity fields:
@@ -876,6 +890,26 @@ stored file, so My Profile previews it through the download route
 resume editor carries a project's Technologies and a school's Location so
 an edit there doesn't drop them. The rules behind it are backend
 `CLAUDE.md`'s "The Experience Bank and built resumes".
+
+**An applicant's own LaTeX resume** (KAN-176) comes in through the Resume
+Builder's "Use My Own LaTeX" card (`latex-import-dialog.tsx`: paste, or pick a
+.tex file; the API compiles it before saving, so a bad one never lands) and
+is edited at `/resume-builder/latex/[resumeId]`. **This side never parses
+LaTeX**: the API returns the source's fields (backend
+`services/latex_source/CLAUDE.md`), and every edit goes back as ops by field
+id with the source it was made against. `latex-editor.tsx` has two tabs.
+Words, the default, lists every line in document order as plain fields
+(a section's header lines side by side, its bullets stacked with add and
+remove, `**bold**` and `*italic*` as typed marks, `hints.ts`'s coaching on
+bullets, a line it can't express read-only with "Edit in Source"). Source is
+the LaTeX in CodeMirror (`source-editor.tsx`). The PDF beside them compiles
+1.2 s after typing stops (`use-preview.ts`, aborting the request a newer one
+replaces) and keeps the last good PDF beside a compile error, whose "Line N"
+opens Source at that line. Save (or Cmd/Ctrl+S) writes it; leaving with
+unsaved changes asks first. Tailor My Resume lists LaTeX resumes too: their
+rewordings are accepted the same way and saved as a new LaTeX resume, layout
+untouched (`marked.tsx` shows the marks as bold and italic). My Profile's row
+says "LaTeX" and has an Edit button to the editor.
 
 **The profile's Work Experience and Skills come from the primary resume's
 `parsed_json`** (`getParsedResume`), or the newest one's when none is primary —

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -26,6 +27,7 @@ import type { ResumeItem } from "@/lib/resume-actions";
 
 import { EntryEditor } from "./entry-editor";
 import { IntakeDialog } from "./intake-dialog";
+import { LatexImportDialog } from "./latex-import-dialog";
 import { SECTION_INFO, detailLine, span } from "./sections";
 import { SkillsEditor } from "./skills-editor";
 
@@ -57,12 +59,15 @@ export function Builder({ bank, resumes }: { bank: Bank; resumes: ResumeItem[] }
   const [name, setName] = useState("Resume");
   const [building, setBuilding] = useState(false);
   const [built, setBuilt] = useState<Built | null>(null);
+  const [latexOpen, setLatexOpen] = useState(false);
 
   const refresh = () => startRefresh(() => router.refresh());
   const chosen = bank.entries.filter((e) => !excluded.has(e.id));
   // An upload with details is what can be imported; a built resume came from
   // the bank to begin with
   const importable = resumes.filter((r) => !r.template_key && r.status === "parsed");
+  // The applicant's own LaTeX resumes, each edited on its own page
+  const latex = resumes.filter((r) => r.template_key === "latex");
 
   function toggle(id: string) {
     setExcluded((s) => {
@@ -297,36 +302,70 @@ export function Builder({ bank, resumes }: { bank: Bank; resumes: ResumeItem[] }
           )}
         </div>
 
-        <Card
-          as="section"
-          aria-labelledby="build-heading"
-          padding="lg"
-          className="flex h-fit flex-col gap-4 @4xl/main:sticky @4xl/main:top-6"
-        >
-          <SectionHeading id="build-heading">Build a Resume</SectionHeading>
-          <SelectField
-            id="build-template"
-            label="Template"
-            value={template}
-            onValueChange={setTemplate}
-            options={TEMPLATES}
-          />
-          <TextField
-            id="build-name"
-            label="Resume Name"
-            value={name}
-            maxLength={80}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <p className="text-meta text-ink-meta">
-            {chosen.length} of {bank.entries.length} entries and every skill. Untick an entry to
-            leave it off this one.
-          </p>
-          <Button onClick={handleGenerate} disabled={building || chosen.length === 0} size="lg">
-            {building ? "Building…" : "Generate Resume"}
-          </Button>
-          {built && <ResumePreview key={built.id} {...built} />}
-        </Card>
+        <div className="flex h-fit flex-col gap-4 @4xl/main:sticky @4xl/main:top-6">
+          <Card
+            as="section"
+            aria-labelledby="build-heading"
+            padding="lg"
+            className="flex flex-col gap-4"
+          >
+            <SectionHeading id="build-heading">Build a Resume</SectionHeading>
+            <SelectField
+              id="build-template"
+              label="Template"
+              value={template}
+              onValueChange={setTemplate}
+              options={TEMPLATES}
+            />
+            <TextField
+              id="build-name"
+              label="Resume Name"
+              value={name}
+              maxLength={80}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <p className="text-meta text-ink-meta">
+              {chosen.length} of {bank.entries.length} entries and every skill. Untick an entry to
+              leave it off this one.
+            </p>
+            <Button onClick={handleGenerate} disabled={building || chosen.length === 0} size="lg">
+              {building ? "Building…" : "Generate Resume"}
+            </Button>
+            {built && <ResumePreview key={built.id} {...built} />}
+          </Card>
+
+          <Card
+            as="section"
+            aria-labelledby="latex-heading"
+            padding="lg"
+            className="flex flex-col gap-3"
+          >
+            <SectionHeading id="latex-heading">Use My Own LaTeX</SectionHeading>
+            <p className="text-meta text-ink-meta">
+              Already have a LaTeX resume? Paste it in and keep its exact look. Edit its words
+              without touching LaTeX, and tailor its bullets to each job.
+            </p>
+            {latex.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {latex.map((r) => (
+                  <li key={r.id}>
+                    <Link
+                      href={`/resume-builder/latex/${encodeURIComponent(r.id)}`}
+                      className="text-label text-brand inline-flex items-center gap-1.5 hover:underline"
+                    >
+                      <PencilIcon className="size-3.5" />
+                      {(r.original_filename ?? "Resume").replace(/\.pdf$/, "")}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button variant="secondary" onClick={() => setLatexOpen(true)} className="self-start">
+              <UploadIcon className="size-4" />
+              Paste LaTeX
+            </Button>
+          </Card>
+        </div>
       </div>
 
       {editing && (
@@ -341,6 +380,7 @@ export function Builder({ bank, resumes }: { bank: Bank; resumes: ResumeItem[] }
         />
       )}
       {intakeOpen && <IntakeDialog open onOpenChange={setIntakeOpen} onAdded={refresh} />}
+      {latexOpen && <LatexImportDialog open onOpenChange={setLatexOpen} />}
       {skillsOpen && (
         <SkillsEditor open onOpenChange={setSkillsOpen} skills={bank.skills} onSaved={refresh} />
       )}

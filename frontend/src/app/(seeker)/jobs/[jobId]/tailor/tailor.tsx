@@ -10,7 +10,10 @@ import { SelectField } from "@/components/ui/select-field";
 import { TextField } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 import { saveResume, tailorResume, type Suggestion } from "@/lib/experience-actions";
+import { importLatex, tailorLatex, type LatexSuggestion } from "@/lib/latex-actions";
 import type { ParsedResume, ResumeItem } from "@/lib/resume-actions";
+
+import { Marked } from "./marked";
 
 /**
  * Tailor My Resume (KAN-176): one job posting, one resume. The API reorders
@@ -23,6 +26,11 @@ import type { ParsedResume, ResumeItem } from "@/lib/resume-actions";
  *
  * It never says "you're missing X": a posting has no skill list to measure
  * against, so a gap would be a guess (backend/app/services/tailoring.py).
+ *
+ * An applicant's own LaTeX resume is tailored by its words alone: nothing is
+ * reordered, the accepted rewordings replace their bullets in the source,
+ * and the copy is saved as another LaTeX resume, its layout untouched
+ * (backend routers/latex_resumes.py).
  */
 
 const BANK = "bank";
@@ -49,11 +57,15 @@ export function Tailor({
   company: string;
   resumes: ResumeItem[];
 }) {
+  const latexIds = new Set(resumes.filter((r) => r.template_key === "latex").map((r) => r.id));
   const sources = [
     { value: BANK, label: "My Experience Bank (everything)" },
     ...resumes
-      .filter((r) => r.status === "parsed")
-      .map((r) => ({ value: r.id, label: r.original_filename ?? "Resume" })),
+      .filter((r) => r.status === "parsed" || latexIds.has(r.id))
+      .map((r) => ({
+        value: r.id,
+        label: `${(r.original_filename ?? "Resume").replace(/\.pdf$/, "")}${latexIds.has(r.id) ? " (LaTeX)" : ""}`,
+      })),
   ];
   const [source, setSource] = useState(BANK);
   const [working, setWorking] = useState(false);
@@ -63,21 +75,49 @@ export function Tailor({
     suggestions: Suggestion[];
     notice: string | null;
   } | null>(null);
+  const [latex, setLatex] = useState<{
+    source: string;
+    suggestions: LatexSuggestion[];
+    notice: string | null;
+  } | null>(null);
   const [accepted, setAccepted] = useState<Set<number>>(new Set());
   const [name, setName] = useState(`${company} Resume`);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<{ id: string; name: string; pages: number } | null>(null);
+  const [saved, setSaved] = useState<{
+    id: string;
+    name: string;
+    pages: number;
+    word: boolean;
+  } | null>(null);
+  // What the panel shows: a LaTeX resume's rewordings, or the rest's
+  const suggestions: { original: string; suggested: string }[] =
+    latex?.suggestions ?? result?.suggestions ?? [];
+  const notice = latex ? latex.notice : (result?.notice ?? null);
+  const tailored = latex != null || result != null;
 
   async function handleTailor() {
     setWorking(true);
     setError(null);
     setSaved(null);
+    if (latexIds.has(source)) {
+      const { data, error: err } = await tailorLatex(source, jobId);
+      setWorking(false);
+      if (err != null) {
+        setError(err);
+        return;
+      }
+      setResult(null);
+      setLatex(data);
+      setAccepted(new Set(data.suggestions.map((_, i) => i)));
+      return;
+    }
     const { data, error: err } = await tailorResume(jobId, source === BANK ? null : source);
     setWorking(false);
     if (err != null) {
       setError(err);
       return;
     }
+    setLatex(null);
     setResult(data);
     setAccepted(new Set(data.suggestions.map((_, i) => i)));
   }
@@ -92,18 +132,29 @@ export function Tailor({
   }
 
   async function handleSave() {
-    if (!result) return;
+    const resumeName = name.trim() || `${company} Resume`;
+    let request: ReturnType<typeof saveResume>;
+    if (latex) {
+      const ops = latex.suggestions
+        .filter((_, i) => accepted.has(i))
+        .map((s) => ({ edit: s.field_id, text: s.suggested }));
+      request = importLatex(latex.source, resumeName, { ops, targetJobId: jobId });
+    } else if (result) {
+      request = saveResume(
+        applied(result.resume, result.suggestions, accepted),
+        resumeName,
+        "jakes",
+        jobId,
+      );
+    } else {
+      return;
+    }
     setSaving(true);
     setError(null);
-    const { data, error: err } = await saveResume(
-      applied(result.resume, result.suggestions, accepted),
-      name.trim() || `${company} Resume`,
-      "jakes",
-      jobId,
-    );
+    const { data, error: err } = await request;
     setSaving(false);
     if (err != null) setError(err);
-    else setSaved({ id: data.id, name: data.original_filename, pages: data.pages });
+    else setSaved({ id: data.id, name: data.original_filename, pages: data.pages, word: !latex });
   }
 
   return (
@@ -120,7 +171,7 @@ export function Tailor({
           />
           <Button onClick={handleTailor} disabled={working}>
             <SparkleIcon className="size-4" />
-            {working ? "Tailoring…" : result ? "Tailor Again" : "Tailor to This Job"}
+            {working ? "Tailoring…" : tailored ? "Tailor Again" : "Tailor to This Job"}
           </Button>
         </div>
 
@@ -130,23 +181,31 @@ export function Tailor({
           </p>
         )}
 
-        {result && (
+        {tailored && (
           <>
-            {result.notice && (
+            {notice && (
               <p role="status" className="text-label text-ink-muted">
-                {result.notice}
+                {notice}
               </p>
             )}
-            <p className="text-body text-ink-muted">
-              Each entry&apos;s bullets now lead with what this posting asks about
-              {result.resume.skills.length > 0 &&
-                `, and your skills start with ${result.resume.skills
-                  .slice(0, 3)
-                  .map((s) => s.skill_name)
-                  .join(", ")}`}
-              .
-            </p>
-            {result.suggestions.length > 0 && (
+            {latex && (
+              <p className="text-body text-ink-muted">
+                Your LaTeX keeps its layout and order; only the words of the bullets you keep
+                change.
+              </p>
+            )}
+            {result && (
+              <p className="text-body text-ink-muted">
+                Each entry&apos;s bullets now lead with what this posting asks about
+                {result.resume.skills.length > 0 &&
+                  `, and your skills start with ${result.resume.skills
+                    .slice(0, 3)
+                    .map((s) => s.skill_name)
+                    .join(", ")}`}
+                .
+              </p>
+            )}
+            {suggestions.length > 0 && (
               <section aria-labelledby="suggestions">
                 <h2 id="suggestions" className="text-subtitle text-ink">
                   Suggested Rewordings
@@ -155,7 +214,7 @@ export function Tailor({
                   Same facts, in the posting&apos;s words. Keep the ones that still sound like you.
                 </p>
                 <ol className="mt-3 flex flex-col gap-2">
-                  {result.suggestions.map((s, i) => {
+                  {suggestions.map((s, i) => {
                     const on = accepted.has(i);
                     return (
                       <li
@@ -166,9 +225,11 @@ export function Tailor({
                         )}
                       >
                         <p className="text-note text-ink-meta line-through decoration-1">
-                          {s.original}
+                          <Marked text={s.original} />
                         </p>
-                        <p className="text-body text-ink">{s.suggested}</p>
+                        <p className="text-body text-ink">
+                          <Marked text={s.suggested} />
+                        </p>
                         <Button
                           size="sm"
                           variant={on ? "default" : "secondary"}
@@ -191,7 +252,7 @@ export function Tailor({
 
       <Card padding="lg" className="flex h-fit flex-col gap-4 @4xl/main:sticky @4xl/main:top-6">
         <h2 className="text-title text-ink">Save Tailored Resume</h2>
-        {result ? (
+        {tailored ? (
           <>
             <TextField
               id="tailor-name"
@@ -201,8 +262,8 @@ export function Tailor({
               onChange={(e) => setName(e.target.value)}
             />
             <p className="text-meta text-ink-meta">
-              {accepted.size} of {result.suggestions.length} rewordings kept, drawn as Jake&apos;s
-              Resume.
+              {accepted.size} of {suggestions.length} rewordings kept,{" "}
+              {latex ? "in your own LaTeX layout" : "drawn as Jake's Resume"}.
             </p>
             <Button onClick={handleSave} disabled={saving} size="lg">
               {saving ? "Saving…" : "Save Tailored Resume"}

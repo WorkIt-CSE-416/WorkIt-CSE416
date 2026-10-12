@@ -1,0 +1,35 @@
+% A resume in no particular template: plain \item bullets, a tabular
+% header row, FontAwesome icons and geometry, so the field reader is
+% checked on something other than Jake's macros (KAN-176).
+\documentclass[11pt]{article}
+\usepackage[margin=0.7in]{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{fontawesome5}
+\usepackage[hidelinks]{hyperref}
+\titleformat{\section}{\large\bfseries}{}{0em}{}[\titlerule]
+\pagestyle{empty}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE Alex Morgan} \\[2pt]
+  \faEnvelope\ \href{mailto:alex@example.com}{alex@example.com} \quad
+  \faGithub\ \href{https://github.com/alex}{github.com/alex}
+\end{center}
+
+\section*{Experience}
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+  \textbf{Data Engineer Intern}, Acme Corp & Jun 2025 -- Aug 2025 \\
+\end{tabular*}
+\begin{itemize}[leftmargin=*, itemsep=0pt]
+  \item Built Airflow pipelines in \textbf{Python} that moved 2M rows a day
+  \item Cut warehouse costs by 30\% by partitioning tables in BigQuery
+\end{itemize}
+
+\section*{Skills}
+\begin{itemize}[leftmargin=*]
+  \item Python, SQL, Airflow, BigQuery, dbt
+\end{itemize}
+
+\end{document}

@@ -4,9 +4,13 @@ the template exactly as Overleaf prints it: `jakes.tex` is the published
 preamble and commands, and each block becomes the command the original uses
 for it (\\resumeSubheading, \\resumeProjectHeading, \\resumeItem, …).
 
-Everything the applicant typed is escaped (`escape`), and Tectonic runs with
---untrusted (no shell escape, no reading outside its own files), so a resume
-can't run TeX of its own. A compile takes about a second with a warm cache.
+Everything the applicant typed is escaped (`escape`), so a resume can't run
+TeX of its own. Tectonic runs with --untrusted, which turns off shell escape
+but still reads any file the process can (\\input{/etc/hosts} compiles), so
+escaping is what keeps Jake's path safe, and an applicant's own LaTeX goes
+through latex_source/safety.py first. Every compile gets a scrubbed
+environment (`_env`), never the API's. `compile_tex` compiles any whole
+document; a warm cache takes about a second.
 
 Tectonic is a single binary that fetches the TeX packages it needs into a
 cache. `scripts/fetch_tectonic.py` puts the binary and a warm cache in
@@ -172,22 +176,47 @@ def _runnable(binary: Path) -> str:
     return str(copy)
 
 
+# All a compile's environment holds. Never the API's own: a document that
+# reads a file could print what it holds (latex_source/safety.py stops that,
+# and this is the second wall), and the API's environment is its secrets.
+_ENV_KEEP = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "XDG_CACHE_HOME", "SSL_CERT_FILE", "SSL_CERT_DIR")
+
+
+def _env(**extra: str) -> dict[str, str]:
+    return {**{k: os.environ[k] for k in _ENV_KEEP if k in os.environ}, **extra}
+
+
 def tectonic() -> tuple[str, dict[str, str], bool]:
     '''The binary, its environment, and whether to stay offline; or
     LatexUnavailable.'''
     vendored = VENDOR / "tectonic"
     if not os.environ.get("TECTONIC_BIN") and vendored.exists() and (VENDOR / "cache").exists():
-        return _runnable(vendored), {**os.environ, "TECTONIC_CACHE_DIR": _vendored_cache()}, True
+        return _runnable(vendored), _env(TECTONIC_CACHE_DIR=_vendored_cache()), True
     found = os.environ.get("TECTONIC_BIN") or shutil.which("tectonic")
     if not found or not Path(found).exists():
         raise LatexUnavailable("tectonic not found")
-    return found, dict(os.environ), False
+    cache = os.environ.get("TECTONIC_CACHE_DIR")
+    return found, _env(TECTONIC_CACHE_DIR=cache) if cache else _env(), False
 
 
-def write_latex_pdf(blocks: list[Block]) -> tuple[bytes, int]:
-    '''The file and how many pages it ran to.'''
+class LatexError(LatexUnavailable):
+    '''The document itself doesn't compile: TeX's first complaint, and the
+    line of the source it was on when it said so.'''
+
+    def __init__(self, message: str, line: int | None = None):
+        super().__init__(message)
+        self.message = message
+        self.line = line
+
+
+# Tectonic prints a TeX error as "error: resume.tex:12: Undefined control sequence"
+_TEX_ERROR = re.compile(r"^error: [^:\n]*\.tex:(\d+): (.+)$", re.MULTILINE)
+
+
+def compile_tex(source: str, *, timeout: int = TIMEOUT_SECONDS) -> tuple[bytes, int]:
+    '''A whole LaTeX document as a PDF and its page count. LatexError when the
+    document is at fault, LatexUnavailable when TeX can't run at all.'''
     binary, env, offline = tectonic()
-    source = TEMPLATE.read_text().replace("\n%%BODY%%\n", f"\n{body(blocks)}\n")
     with tempfile.TemporaryDirectory() as work:
         tex = Path(work) / "resume.tex"
         tex.write_text(source)
@@ -196,16 +225,25 @@ def write_latex_pdf(blocks: list[Block]) -> tuple[bytes, int]:
             command.insert(3, "--only-cached")
         try:
             done = subprocess.run(
-                command, capture_output=True, text=True, timeout=TIMEOUT_SECONDS, check=False,
-                env=env)
+                command, capture_output=True, text=True, timeout=timeout, check=False, env=env, cwd=work)
         except subprocess.TimeoutExpired as exc:
-            raise LatexUnavailable("tectonic timed out") from exc
+            raise LatexError("This took too long to compile. Look for a loop or a very long table.") from exc
         except OSError as exc:
             # Couldn't start at all (not executable, wrong platform): still
             # the fallback's case, never a 500
             raise LatexUnavailable(f"tectonic could not run: {exc}") from exc
         pdf = Path(work) / "resume.pdf"
         if done.returncode != 0 or not pdf.exists():
+            found = _TEX_ERROR.search(done.stderr)
+            if found:
+                raise LatexError(found.group(2).strip(), int(found.group(1)))
+            if "not found in bundle" in done.stderr or "not available in offline" in done.stderr:
+                raise LatexError("This uses a package or font WorkIt can't load.")
             raise LatexUnavailable(f"tectonic failed: {done.stderr[-2000:]}")
         data = pdf.read_bytes()
     return data, len(PdfReader(BytesIO(data)).pages)
+
+
+def write_latex_pdf(blocks: list[Block]) -> tuple[bytes, int]:
+    '''The file and how many pages it ran to.'''
+    return compile_tex(TEMPLATE.read_text().replace("\n%%BODY%%\n", f"\n{body(blocks)}\n"))

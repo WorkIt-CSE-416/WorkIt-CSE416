@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { Eye, Star } from "lucide-react";
 
-import { PdfIcon, TrashIcon } from "@/components/icons";
+import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
@@ -24,9 +26,10 @@ const RESUME_STATUS: Record<string, { label: string; tone: BadgeTone } | undefin
 
 /** Rows only exist after the client-side fetch, so this is the browser's own
  *  calendar day, never the server's UTC one. A resume WorkIt built (its
- *  template_key set, KAN-176) was never uploaded, so it says Built. */
-function madeOn(createdAt: string | null, built: boolean) {
-  const verb = built ? "Built" : "Uploaded";
+ *  template_key set, KAN-176) was never uploaded, so it says Built; the
+ *  applicant's own LaTeX says so. */
+function madeOn(createdAt: string | null, templateKey: string | null | undefined) {
+  const verb = templateKey === "latex" ? "LaTeX, added" : templateKey ? "Built" : "Uploaded";
   if (!createdAt) return verb;
   const day = new Date(createdAt).toLocaleDateString(undefined, {
     month: "short",
@@ -61,6 +64,7 @@ export function ResumeRow({
   onMakePrimary,
   onDelete,
 }: ResumeRowProps) {
+  const router = useRouter();
   const name = resume.original_filename ?? "Resume";
   // A browser shows a PDF itself; a DOCX it can only download.
   // A built resume is always drawn as a PDF; an upload is whatever it was
@@ -73,9 +77,7 @@ export function ResumeRow({
       <PdfIcon className="size-5 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-label text-ink truncate">{name}</p>
-        <p className="text-note text-ink-meta">
-          {madeOn(resume.created_at, Boolean(resume.template_key))}
-        </p>
+        <p className="text-note text-ink-meta">{madeOn(resume.created_at, resume.template_key)}</p>
       </div>
       <Badge tone={status.tone}>{status.label}</Badge>
       {/* No gap between the three: each is a 32px box already. */}
@@ -109,6 +111,17 @@ export function ResumeRow({
         >
           <Eye aria-hidden className="size-4" />
         </IconButton>
+        {/* The applicant's own LaTeX is edited in its own editor, by its words */}
+        {resume.template_key === "latex" && (
+          <IconButton
+            label={`Edit ${name}`}
+            tooltip="Edit"
+            className={ROW_ACTION}
+            onClick={() => router.push(`/resume-builder/latex/${encodeURIComponent(resume.id)}`)}
+          >
+            <PencilIcon className="size-4" />
+          </IconButton>
+        )}
         <IconButton
           label={`Delete ${name}`}
           tooltip="Delete"

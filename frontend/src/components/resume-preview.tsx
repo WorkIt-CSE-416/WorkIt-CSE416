@@ -9,9 +9,21 @@ import { builtResumeUrl } from "@/lib/resume-files";
  * what downloads, and its two downloads. Shared by the Resume Builder and
  * Tailor My Resume. `pages` past one gets a warning: Jake's Resume is a
  * one-page template, and early-career resumes are read as one page, so the
- * applicant should choose what to drop rather than find a second page.
+ * applicant should choose what to drop rather than find a second page. An
+ * applicant's own LaTeX resume has no Word file (`word={false}`).
  */
-export function ResumePreview({ id, name, pages }: { id: string; name: string; pages: number }) {
+export function ResumePreview({
+  id,
+  name,
+  pages,
+  word = true,
+}: {
+  id: string;
+  name: string;
+  pages: number;
+  /** False for the applicant's own LaTeX, which downloads as a PDF only */
+  word?: boolean;
+}) {
   return (
     <div className="flex flex-col gap-3">
       {pages > 1 && (
@@ -30,13 +42,15 @@ export function ResumePreview({ id, name, pages }: { id: string; name: string; p
         <a href={builtResumeUrl(id, "pdf")} download className={buttonClasses()}>
           Download PDF
         </a>
-        <a
-          href={builtResumeUrl(id, "docx")}
-          download
-          className={buttonClasses({ variant: "secondary" })}
-        >
-          Download Word
-        </a>
+        {word && (
+          <a
+            href={builtResumeUrl(id, "docx")}
+            download
+            className={buttonClasses({ variant: "secondary" })}
+          >
+            Download Word
+          </a>
+        )}
         {/* The panel's preview is too small to read; this is the page at full size */}
         <a
           href={builtResumeUrl(id, "pdf", true)}
