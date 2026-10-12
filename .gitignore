@@ -77,3 +77,7 @@ claudeskill_reports/
 # project documentation. frontend/docs/backend-integration.md and
 # frontend/docs/shadcn.md are the real docs.
 docs/superpowers/
+
+# Tectonic and its package cache (KAN-176), built by
+# backend/scripts/fetch_tectonic.py, never committed
+backend/vendor/
