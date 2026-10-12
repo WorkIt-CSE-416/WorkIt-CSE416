@@ -29,6 +29,8 @@ docs/             Prose for the team that spans the whole repo.
                   to a card (scraper, import, tables, API, job board),
                   in plain terms. Update it with any change to one of
                   those stages.
+                  agents/: how Matt Pocock's skills reach this repo's
+                  issue tracker (Jira), triage labels and domain docs.
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to
@@ -237,6 +239,8 @@ at a time.
   job pipeline end to end for a reader new to it; a change to how jobs are
   scraped, imported, stored, served or filtered updates it in the same change,
   alongside the CLAUDE.md beside the code.
+- `docs/agents/` — configuration for the `mattpocock-skills` plugin (see Agent
+  skills below). Edit these files directly to change how the skills behave.
 
 When something is learned the hard way — a setting that breaks under load, a
 command that must never be re-run — write it into the nearest `CLAUDE.md` with
@@ -265,3 +269,21 @@ this repo:
 - Reviews must first reconstruct *intended* behavior (from tests, callers, docstrings, schemas) before looking for defects — never review code against itself.
 - Findings are cut aggressively; a handful that survive scrutiny beat twenty speculative ones.
 - If the code cannot be run, trace its logic directly rather than skipping the path.
+
+## Agent skills
+
+These configure the `mattpocock-skills` plugin (`/grill-with-docs`, `/to-spec`,
+`/to-tickets`, `/implement`, `/triage`, `/wayfinder`...). Each person installs
+the plugin themselves; the files below are what it reads in this repo.
+
+### Issue tracker
+
+Jira, project KAN on workitsbu.atlassian.net, through the Atlassian MCP server. Ask before creating tickets. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default triage roles, applied as Jira labels under their own names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created when the first term or decision is settled. See `docs/agents/domain.md`.
