@@ -24,7 +24,7 @@ current when a route changes.
 - **Clean up on failure.** If the commit fails after a Storage upload, the
   endpoint deletes the orphaned file before returning the error.
 - **Storage buckets are made in the dashboard, not by migrations.** A new
-  bucket's name and settings go in its `../../db/*.md` note (`Resume` and
+  bucket's name and settings go in its `../../../docs/*.md` note (`Resume` and
   `Avatar` exist). A route pointing at a missing bucket fails with a 502 on the
   first upload.
 - **A catch-all path parameter route is registered last** (`GET /jobs/{job_id}`),

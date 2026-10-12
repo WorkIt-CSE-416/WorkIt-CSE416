@@ -36,7 +36,7 @@ uv run ruff check .                            lint (CI runs it)
 uv run alembic revision --autogenerate -m msg  write a migration
 uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
-uv run python -m app.scripts.import_jobs       feed.json → job_postings (--dry-run rolls back)
+uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
 ```
 
 Migrations: read `alembic/CLAUDE.md` before writing one; it has the offline
@@ -52,13 +52,26 @@ half the published scraped jobs at once unless given `--allow-mass-close`. The
 module docstring has the steps.
 
 - **It is the only way scraped jobs enter the database**, because it runs the
-  location resolver and writes `job_locations`. A scraped row written any other
-  way never shows up in the location filter (`app/models/CLAUDE.md`, the
-  resolver section).
-- It writes each job's `roles` (KAN-172) and derives the legacy
-  `role_category` from them: the first category, when it is one of that
-  column's five. A pre-KAN-172 feed has only `role_category`, which then stands
-  for `roles`.
+  location and role resolvers and writes `job_locations` and `job_role_tags`. A
+  scraped row written any other way never shows up in the location or role
+  filter (`app/models/CLAUDE.md`, the resolver sections). Its report ends with
+  the titles that named no role, most jobs first: the list to grow the aliases
+  from.
+- **It refuses (exit 2, nothing written) when `job_roles` lacks a slug the
+  aliases name**, which is what it does before the role migrations
+  (`362182aaa4fd`, `ab07572bba38`) are applied. The API reads those tables and
+  the weighted `fts` index (`a70c641b2f99`) too, so those migrations are
+  applied before the code that reads them deploys. Otherwise every scheduled
+  import fails, and the Jobs page's role filter and search answer 500.
+- **`824f0b2e3d84` goes on *after* the deploy, alone.** It drops KAN-172's
+  `roles` and `role_category` columns, which the code before KAN-155 selects
+  on every `GET /jobs` and writes on every import. The order is: apply up to
+  `a70c641b2f99`, merge and deploy, then `uv run alembic upgrade head`. A plain
+  `upgrade head` before the deploy takes the live Jobs page and the scheduled
+  import down.
+- The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
+  them, so a new scraper key never fails the import. A job's roles are its
+  `job_role_tags`, resolved from its title (KAN-155).
 - A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
   table sizes read right after one are inflated.
 
@@ -100,8 +113,9 @@ Find files with a directory listing; these are the rules for where code goes.
   has written one (`config.default_scraper_feed()`; `SCRAPER_FEED` overrides).
   It must validate against `app/schemas/jobs.py`: refresh it in the same
   commit as any change there.
-- **`db/*.md`** are design rationale (resume storage, avatars, job postings,
-  auth), never the source of truth for schema.
+- **The schema notes in `../docs/`** (`resume.md`, `avatar.md`,
+  `job_posting.md`, `auth.md`) are design rationale, never the source of truth
+  for schema.
 
 ## Conventions
 
@@ -192,7 +206,7 @@ free tier). Render with a Dockerfile is the fallback.
 
 Supabase Auth issues tokens; this API only verifies them and decides what the
 account may do. It never hashes a password or signs a token. Read
-`db/auth.md` before changing sign-up, sign-in, OAuth, token verification or a
+`../docs/auth.md` before changing sign-up, sign-in, OAuth, token verification or a
 Supabase Auth dashboard setting: it has the flow, the dashboard settings and
 why each rule exists.
 
@@ -217,7 +231,7 @@ why each rule exists.
 - **The Next proxy is not a security boundary.** This API is reachable without
   Next, so every endpoint checks for itself.
 - **"Allow new users to sign up" stays ON** in the Supabase dashboard, or
-  first-time OAuth sign-in fails with `signup_disabled` (`db/auth.md`).
+  first-time OAuth sign-in fails with `signup_disabled` (`../docs/auth.md`).
 
 Still open:
 

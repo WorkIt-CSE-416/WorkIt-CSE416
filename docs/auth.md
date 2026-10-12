@@ -1,9 +1,9 @@
 # Auth — design
 
 How sign-up, sign-in and token verification work, and why. The rules every
-change must keep are in `../CLAUDE.md`'s Auth section; this note is the flow
-and the reasoning behind it. Code is the source of truth: `app/routers/auth.py`,
-`app/security.py`, `app/deps.py`.
+change must keep are in `../backend/CLAUDE.md`'s Auth section; this note is the
+flow and the reasoning behind it. Code is the source of truth:
+`backend/app/routers/auth.py`, `backend/app/security.py`, `backend/app/deps.py`.
 
 ## Why Supabase Auth (decided 2026-09-24)
 

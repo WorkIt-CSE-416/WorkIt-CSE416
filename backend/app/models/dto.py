@@ -123,56 +123,6 @@ class visa_sponsorship(enum.StrEnum):
     # US citizenship or a US security clearance required
     citizens_only= "citizens_only"
 
-class role_key(enum.StrEnum):
-    '''
-    the keys job_postings.roles holds (KAN-172): a scraped role's categories,
-    then their specialties, as the scraper reads them from its title
-    (scraper/workit_scraper/shortlist.py, Tag). Not a Postgres enum: roles is
-    text[], so a new key is a change here and in the scraper, never a
-    migration, and member names need not match values ("/" is not allowed in a
-    name). GET /jobs?role= and the feed's roles are checked against it
-    '''
-    software= "software"
-    data_ai= "data_ai"
-    hardware= "hardware"
-    quant= "quant"
-    product= "product"
-    # civil, mechanical, manufacturing, aerospace and every other engineering
-    # degree outside software and hardware
-    engineering= "engineering"
-    business= "business"
-    finance= "finance"
-    marketing= "marketing"
-    sales= "sales"
-    hr= "hr"
-    design= "design"
-    # Specialties, each under one category
-    software_security= "software/security"
-    data_ai_ml= "data_ai/ml"
-    data_ai_data_science= "data_ai/data_science"
-    data_ai_analytics= "data_ai/analytics"
-    data_ai_data_engineering= "data_ai/data_engineering"
-    engineering_civil= "engineering/civil"
-    engineering_mechanical= "engineering/mechanical"
-    engineering_manufacturing= "engineering/manufacturing"
-    engineering_aerospace= "engineering/aerospace"
-
-class role_category(enum.StrEnum):
-    '''
-    which discipline a scraped role is in, read from its title by the scraper
-    (scraper/workit_scraper/shortlist.py): the SimplifyJobs lists' five. NULL
-    for a company's own job. Superseded by role_key and job_postings.roles
-    (KAN-172); the import still writes it, the first role when it is one of
-    these five, until a later migration drops the column
-    '''
-    software= "software"
-    # data science, AI and machine learning
-    data_ai= "data_ai"
-    product= "product"
-    # quantitative research, trading and development
-    quant= "quant"
-    hardware= "hardware"
-
 class job_post_status(enum.StrEnum):
     '''
     lifecycle status of a job posting

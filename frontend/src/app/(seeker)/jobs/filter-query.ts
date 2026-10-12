@@ -25,8 +25,9 @@ export type Visa = "sponsors" | "not_ruled_out";
 export type FeedFilters = {
   places: string[];
   workStyles: WorkStyle[];
-  /** Categories and specialties, any of them; none is every role. */
-  roles: Role[];
+  /** `job_roles` slugs ("software_engineer"), any of them; none is every
+   *  role. */
+  roles: string[];
   levels: Level[];
   jobTypes: JobTypeKey[];
   /** 1, 7 or 30 from the row; null for any time. */
@@ -70,54 +71,17 @@ export const WORKPLACE_OPTIONS: { value: WorkStyle; label: string }[] = [
   { value: "remote", label: "Remote" },
 ];
 
-/** A role's twelve categories (KAN-172), each followed by its specialties,
- *  as the scraper reads them from the title and GET /jobs?role= takes them
- *  (backend/app/models/dto.py role_key). A job posting holds one category
- *  or two, and any specialties; picking several keeps any of them, and no
- *  pick shows every role. A specialty's label names its field whole
- *  ("Mechanical Engineering"), since a search lists it without the category
- *  above it. */
-export const ROLE_OPTIONS = [
-  { value: "software", label: "Software Engineering" },
-  { value: "software/security", label: "Security & IT", category: "software" },
-  { value: "data_ai", label: "Data Science, AI & ML" },
-  { value: "data_ai/ml", label: "Machine Learning & AI", category: "data_ai" },
-  { value: "data_ai/data_science", label: "Data Science", category: "data_ai" },
-  { value: "data_ai/analytics", label: "Data Analytics", category: "data_ai" },
-  { value: "data_ai/data_engineering", label: "Data Engineering", category: "data_ai" },
-  { value: "hardware", label: "Hardware Engineering" },
-  { value: "quant", label: "Quantitative Finance" },
-  { value: "product", label: "Product Management" },
-  { value: "engineering", label: "Other Engineering" },
-  {
-    value: "engineering/civil",
-    label: "Civil & Structural Engineering",
-    category: "engineering",
-  },
-  { value: "engineering/mechanical", label: "Mechanical Engineering", category: "engineering" },
-  {
-    value: "engineering/manufacturing",
-    label: "Manufacturing & Industrial Engineering",
-    category: "engineering",
-  },
-  { value: "engineering/aerospace", label: "Aerospace Engineering", category: "engineering" },
-  { value: "business", label: "Business & Operations" },
-  { value: "finance", label: "Accounting & Finance" },
-  { value: "marketing", label: "Marketing & Communications" },
-  { value: "sales", label: "Sales & Business Development" },
-  { value: "hr", label: "HR & Recruiting" },
-  { value: "design", label: "Design" },
-] as const satisfies readonly { value: string; label: string; category?: string }[];
-
-/** A category or a specialty key: "software", "engineering/civil". */
-export type Role = (typeof ROLE_OPTIONS)[number]["value"];
-
-/** The categories alone, for the filter row's short Role list; the All
- *  Filters panel's picker offers the specialties too. */
-export const ROLE_CATEGORY_OPTIONS = ROLE_OPTIONS.filter((o) => !("category" in o));
-
-/** Whether a key is a specialty ("engineering/civil"), not a category. */
-export const isSpecialty = (role: Role) => role.includes("/");
+/** A role is a `job_roles` slug ("software_engineer", KAN-155), the way GET
+ *  /jobs?role= takes it. The options aren't listed here: the Role filter reads
+ *  them, with their names and counts, from GET /jobs/facets, since the list
+ *  lives in the database (backend/app/models/CLAUDE.md, Job roles). So a
+ *  role, like a place, is checked by its shape only, and one no job holds
+ *  matches nothing. KAN-172's keys ("data_ai/ml") don't fit it, so an old
+ *  link's role is dropped here rather than sent on to a 422. */
+export type Role = string;
+const ROLE = /^[a-z][a-z0-9_]{0,63}$/;
+/** As the API caps ?role=. */
+const MAX_ROLES = 60;
 
 /** The career stage. Internship is also a job type (JOB_TYPE_OPTIONS): the
  *  card shows it there, so both filters offer it. */
@@ -220,7 +184,7 @@ export function readFilters(params: Params): FeedFilters {
   return {
     places: [...new Set(all(params.location).filter((p) => PLACE.test(p)))].slice(0, MAX_PLACES),
     workStyles: pick(params.work_style, WORKPLACE_OPTIONS),
-    roles: pick(params.role, ROLE_OPTIONS),
+    roles: [...new Set(all(params.role).filter((r) => ROLE.test(r)))].slice(0, MAX_ROLES),
     levels: pick(params.experience, EXPERIENCE_OPTIONS),
     jobTypes: pick(params.job_type, JOB_TYPE_OPTIONS),
     postedWithin: DATE_POSTED_OPTIONS.some((o) => o.value === posted) ? posted : null,

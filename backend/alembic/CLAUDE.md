@@ -4,8 +4,9 @@ Decisions made in this folder and the failures each one prevents. Loaded on top
 of `../CLAUDE.md` (the Python API) and the repo root's. Read this before editing
 `env.py`, `alembic.ini`, or any migration.
 
-Alembic is the **single source of truth for the schema**. `../db/*.md` are
-design rationale; the database is whatever the migrations here say it is.
+Alembic is the **single source of truth for the schema**. The schema notes in
+`../../docs/` are design rationale; the database is whatever the migrations
+here say it is.
 
 ## Never run `alembic init` again
 

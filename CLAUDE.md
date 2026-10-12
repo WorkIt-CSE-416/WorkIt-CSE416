@@ -45,7 +45,7 @@ React component belongs in an endpoint.
 **Alembic is the single source of truth for schema.** Every schema change is a
 migration. **Schema edits through the Supabase dashboard are banned**: they
 bypass Alembic silently; revoke dashboard write access if the plan allows it.
-`backend/db/*.md` hold design rationale only.
+The schema notes in `docs/` hold design rationale only.
 
 **Claude never runs `uv run alembic upgrade head`** — nor `downgrade`, `stamp`,
 or anything else that writes to the database. Write the migration, check it
@@ -135,7 +135,10 @@ with the failure it prevents.
   or the docs folders below, and stays out of any README once trimmed.
 - `frontend/docs/`, `scraper/docs/` — each half's prose too long for its
   `CLAUDE.md`, reached through a pointer in it.
-- `backend/db/` — design rationale: the schema, and the auth flow (`auth.md`).
+- `docs/job_posting.md`, `resume.md`, `avatar.md`, `auth.md` — design
+  rationale: the schema notes and the auth flow. Alembic stays the source of
+  truth for what the schema is.
+- `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
 - `docs/job-pipeline.md` — the job pipeline end to end, in plain terms. A

@@ -22,7 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 # shared Profile mixin in app/models/profiles.py, so both change together.
 #
 # The column stores a path in the private Avatar Storage bucket, not a URL —
-# see backend/db/avatar.md.
+# see docs/avatar.md.
 TABLES = ('applicant_profiles', 'company_memberships')
 
 

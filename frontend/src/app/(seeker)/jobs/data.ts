@@ -3,7 +3,7 @@
  * are in ./filter-query). The feed itself is live now — see ./listings, and its header for
  * why the fetch is not in this file.
  *
- * Shaped after `backend/db/job_posting.md`'s `job_postings` table (plus
+ * Shaped after `docs/job_posting.md`'s `job_postings` table (plus
  * `job_role_tags`) rather than the original mockup-only fields. Two things the
  * schema has no column for, flagged rather than guessed at:
  *

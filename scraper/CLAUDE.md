@@ -146,9 +146,10 @@ rejected. Tag names are the `Tag` enum, which the page's filter chips read.
   wins), and that order is the decision. Read `docs/categories.md` before
   changing a category, specialty, the stage or their order: it has the order's
   reasoning, what is held off, and the measurements.
-- **A new role key is a change to `Tag`, the backend's `dto.role_key` and the
-  Jobs page's `ROLE_OPTIONS`**, never a migration (`roles` is plain text). A
-  key the backend lacks fails the import before anything is written.
+- **A new role key is a change to `Tag` alone.** Since KAN-155 the backend
+  ignores the feed's `roles`: it tags each job from its title with its own
+  `job_roles` list (`backend/app/services/role_resolver.py`). The categories
+  still decide what this scraper keeps.
 
 ## `first_seen_at` is written once
 

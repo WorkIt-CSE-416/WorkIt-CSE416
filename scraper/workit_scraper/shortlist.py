@@ -35,9 +35,9 @@ from workit_scraper.providers import Job
 class Tag(StrEnum):
     """What a role is: a stage, then one or two categories, then any specialties.
 
-    The category and specialty values are `feed.json`'s `roles` and the backend's
-    `role_key` (backend/app/models/dto.py), so a new one is a change on both
-    sides, though not a migration: `job_postings.roles` is plain text."""
+    The category and specialty values are `feed.json`'s `roles`, which the backend
+    ignores since KAN-155 (it tags jobs with its own job_roles list), so a new one
+    is a change here alone."""
 
     INTERN = "intern"
     NEW_GRAD = "new-grad"

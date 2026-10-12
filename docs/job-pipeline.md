@@ -7,7 +7,7 @@ need.
 > **Status (2026-10-11).** This describes the code on `KAN-172-roles`, which
 > builds on `main` after the KAN-171 batch (#95). Its migration
 > (`98ab19cfe840`, the `roles` column) went to `main` first (#97) and was
-> applied on 2026-10-11 (section 5.3).
+> applied on 2026-10-11 (section 5.4).
 
 ## Three words used throughout
 
@@ -193,9 +193,10 @@ transaction**: if any step fails, nothing changes.
 |---|---|
 | 1. Check | Every row is checked against the API's schema |
 | 2. Read places | Each location's text is turned into place codes (section 5.2) |
-| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. Its `roles` are written, and the old `role_category` from them (the first category, when it is one of the five that column knows) |
+| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. The feed's `roles` keys are ignored (KAN-155): roles come from step 5 |
 | 4. Places | Each job posting's place rows are brought in line |
-| 5. Close | Job postings no longer in the feed are marked closed; one that comes back reopens |
+| 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
+| 6. Close | Job postings no longer in the feed are marked closed; one that comes back reopens |
 
 **Safety net:** the import refuses to close more than half the job postings at
 once and rolls back. A broken scrape fails loudly instead of emptying the site.
@@ -225,8 +226,6 @@ table. Scraped ones have no `company_id`.
 | `start_term` | As the job posting says it, like "Summer 2027" |
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
-| `role_category` | The first category when it is one of the five there were before KAN-172 (new in KAN-171). Kept while the deployed code still reads it; `roles` replaces it |
-| `roles` | A list of the job posting's role keys, its categories then its specialties: `["data_ai", "software", "data_ai/ml"]` (KAN-172). Empty for a company's own job |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
 | `embedding`, `fts` | For job matching (KAN-139), not used by the Jobs page yet |
 
@@ -265,7 +264,18 @@ the reading. It knows city, state and country names and handles typos and
 abbreviations. A handful of locations name no real place ("Any SpaceX Site")
 and get no rows.
 
-### 5.3 Changing the schema
+### 5.3 `job_roles` and `job_role_tags`, WorkIt's own role list (KAN-155)
+
+`job_roles` is a short, fixed list of job titles (Software Engineer, Data
+Scientist, Financial Analyst, Nurse: 49 today), seeded by a migration, for
+onboarding and recommendations as well as search. It is what `?role=`, `?q=`
+and the Jobs page's Role filter read. `job_role_tags` links a job posting to
+each role its title names, zero or more. The import fills it from
+`backend/app/services/role_resolver.py`, which matches whole-word aliases in
+the title. This replaced KAN-172's `roles` column, since dropped; the scraper
+still uses its categories to decide what to keep. `docs/search.md` has the design.
+
+### 5.4 Changing the schema
 
 Alembic owns the schema. A new column is a migration, which must be **merged to
 `main` before anyone applies it** to the shared database, and only a person
@@ -274,12 +284,12 @@ runs `uv run alembic upgrade head`. The role categories' and location labels' mi
 on 2026-10-10.
 
 `roles` (`98ab19cfe840`, merged to `main` on its own in #97 and applied on
-2026-10-11) is added the
-safe way round, **expand then contract**: the migration adds `roles` beside
-`role_category`, copies each job posting's category into it, and drops
-nothing, because the code running when it is applied still reads
-`role_category`. KAN-172's import writes both, until a later migration drops
-`role_category` once nothing reads it.
+2026-10-11) was added the safe way round, **expand then contract**: the
+migration added `roles` beside `role_category` and dropped nothing, because
+the code running when it was applied still read `role_category`. KAN-155
+finished the contract: its code reads `job_role_tags` instead, and
+`824f0b2e3d84` drops both columns, applied only **after** that code is
+deployed (`backend/CLAUDE.md`, Commands).
 
 ---
 
@@ -306,12 +316,12 @@ with **and**.
 | `work_style` | `remote` | That work style |
 | `experience` | `internship` | That level |
 | `job_type` | `full_time`, `internship` | That type. `internship` is every internship; the other types match only job postings that aren't internships, as the cards show them |
-| `role` | `quant`, `engineering/civil` | A job posting whose `roles` hold it: a category matches every job posting in it, either of its two, and a specialty only those named for it |
+| `role` | `software_engineer`, `civil_engineer` | A job posting tagged with that `job_roles` role in `job_role_tags` (section 5.3, KAN-155). Before KAN-155 this read the scraper's `roles` keys |
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
 | `start_term` | `summer-2027` | That season; seasons that have ended aren't offered |
 | `visa` | `sponsors` | Says it sponsors. `not_ruled_out` keeps job postings that sponsor or don't say |
-| `q` | `stripe` | The title or company name contains the words |
+| `q` | `swe intern stripe` | A company it names by whole name (a typo corrected) narrows to that company's jobs; the roles it names (typos corrected) narrow to jobs tagged with them; "intern", "new grad", "remote", "summer 2027" and the like narrow their own columns (a start term and "remote" also match a title saying them); every other word must be in the job posting's text or its company's name. Newest first, like the rest of the feed |
 | `limit`, `offset` | `51`, `50` | Paging, for Load More |
 
 **A filter hides job postings that don't state that fact.** Picking a salary

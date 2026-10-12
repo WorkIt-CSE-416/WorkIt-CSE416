@@ -69,17 +69,10 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
-    # The role's categories, first first, then their specialties, read from its
-    # title by the scraper: ["data_ai", "software", "data_ai/ml"] (KAN-172).
-    # GET /jobs?role= filters on these. Empty in a feed.json written before
-    # KAN-172, which is why it is defaulted.
-    roles: list[dto.role_key] = []
-    # The first of the five disciplines the role was in before KAN-172
-    # (software, data_ai, product, quant, hardware). Superseded by roles: the
-    # scraper no longer sends it, the import derives it from roles for the
-    # column the deployed code still reads, and GET /jobs keeps returning it
-    # until that column is dropped.
-    role_category: dto.role_category | None = None
+    # No roles field: a job's roles are job_role_tags, which the import
+    # resolves from the title (KAN-155). The scraper's own "roles" keys in
+    # feed.json (KAN-172) are ignored, as any key this model doesn't declare
+    # is, so a new scraper key never fails the import.
 
 
 class JobLocationOption(BaseModel):
@@ -103,18 +96,29 @@ class FacetCount(BaseModel):
     jobs: int
 
 
+class JobRoleOption(BaseModel):
+    """One job_roles role, as the Role filter and onboarding offer it."""
+
+    # What GET /jobs?role= takes: the role's slug ("software_engineer").
+    value: str
+    # For people: "Software Engineer".
+    label: str
+    # Published scraped jobs tagged with it.
+    jobs: int
+
+
 class JobFacets(BaseModel):
     """GET /jobs/facets: every filter option's count, across the whole feed.
 
     start_term lists the seasons postings start in ("summer-2027", or a bare
-    year), in calendar order and only those not yet over; role lists every
-    category and specialty key a job holds ("software", "data_ai/ml"), a job in
-    two categories counting in both; the rest list the values that have a job.
-    A value with no jobs is absent, not zero.
+    year), in calendar order and only those not yet over; role lists the
+    job_roles that tag a job, in their sort_order, with their names (a job
+    tagged with two roles counts in both); the rest list the values that have
+    a job. A value with no jobs is absent, not zero.
     """
 
     work_style: list[FacetCount]
-    role: list[FacetCount]
+    role: list[JobRoleOption]
     experience: list[FacetCount]
     job_type: list[FacetCount]
     posted_within: list[FacetCount]

@@ -457,6 +457,86 @@ never downloads anything. Re-run the script to refresh it.
   next size up if that starts to matter.
 - It ships with the Vercel deploy although only the import reads it.
 
+## Job roles — `job_roles.py`
+
+The short list of roles search filters by and onboarding will offer, and the
+roles each job is tagged with. **This is what `GET /jobs?role=`, `?q=` and
+the Jobs page's Role filter read (KAN-155), not `job_postings.roles`**
+(KAN-172, below): that column holds the scraper's own category keys
+(`"data_ai/ml"`), which the import still writes until a later migration drops
+it (expand, then contract). The scraper still uses those keys itself, to
+decide which postings to keep; that is unchanged. `job_role_tags` holds
+`job_roles` slugs from `services/role_resolver.py`. `../../../docs/search.md` has the design and
+why; the rules for this folder:
+
+- **`job_roles` is keyed by `slug`**, like `countries.code`: no surrogate id.
+  The slug is copied into every tag, every onboarding pick and the resolver's
+  alias dict, so **it never changes once shipped**. Renaming what people see
+  changes `name`. The `job_roles_slug_shape` CHECK keeps it lowercase words
+  joined by underscores, so it reads cleanly in `?role=`.
+- **Only migrations change the list**, each a frozen copy of the rows it
+  inserts or updates, as the country and state seeds are. Never import a
+  Python constant into one: editing the constant later would change what an
+  old migration does. The frontend reads the list from the API, never a copy.
+- **`job_role_tags` is many-to-many on purpose.** A job has zero, one or
+  several roles, so there is no `role_slug` column on `job_postings`. The
+  primary key `(job_id, role_slug)` serves lookups by job, and
+  `job_role_tags_role_idx` the role filter. `job_id` is named as in
+  `job_locations`.
+- **Deleting a job drops its tags (CASCADE); deleting a role is refused
+  while any job is tagged with it (RESTRICT).** Removing a role is then
+  deliberate: its migration deletes the tags first. SET NULL isn't possible,
+  as `role_slug` is part of the primary key. Neither foreign key can ever
+  delete a job: a cascade only runs from the table pointed at to the table
+  pointing at it. Onboarding picks should take RESTRICT too.
+- **Their migrations:** `362182aaa4fd` creates the tables (RLS on both) and
+  revises `98ab19cfe840` (main's `roles` column; re-parented from
+  `4485d7a7a712` when KAN-155 merged main, before either was applied);
+  `ab07572bba38` seeds
+  the first 49 roles, flat, grouped to cover the twelve categories the
+  scraper keeps (so a job it keeps finds a role), with `sort_order` in gaps
+  of 10 so a role can be
+  inserted between two without renumbering. **The import reads `job_roles`
+  and writes `job_role_tags`, so both migrations must be on the database
+  before that code runs**; without them it refuses and writes nothing
+  (`../../CLAUDE.md`, Commands).
+- **A seed's downgrade deletes its roles' tags first**, since RESTRICT refuses
+  the role delete otherwise. The import writes the tags again.
+- **Adding a role is a seed migration plus its aliases** in
+  `../services/role_resolver.py`. The resolver is built from the slugs the
+  database holds and raises on an alias for one it doesn't, so aliases for a
+  role whose migration isn't applied fail the import loudly.
+
+### The resolver — `app/services/role_resolver.py`
+
+Title (or search query) → slugs, by whole-word alias lookup. The module
+docstring has the steps and `../../../docs/search.md` the measurements and
+why. Rules that a change here must keep:
+
+- **Add a case to `tests/test_role_resolver.py` before changing an alias.**
+  Aliases interact: a short one fires inside a longer title, and an outright
+  role drops the others. The tests read the roles from the seed migration,
+  check every role's name and every alias resolve to their own role, and hold
+  a 90% coverage floor on `data/feed.json` (95.8% on 2026-10-11).
+- **`WORD_FORMS` holds a person's forms, never a process.** `development` →
+  `developer` tagged "Graduate Development Program" as software.
+- **An `OUTRIGHT` role's aliases name the job, never only its field.** A lone
+  "sales" or "recruiting" would take "Software Engineer, Sales Platform" away
+  from software.
+- **One phrase, one owner.** Construction raises if two roles, or a role and
+  `NOT_ROLES`, claim the same phrase after word forms.
+- **Precision over recall.** A title that names no role gets no tag; it is
+  still found by keyword. Never add a catch-all alias to raise coverage.
+- **Typos are corrected in queries, never in titles.** `read_query` snaps a
+  word of `FUZZY_MIN_LENGTH` (5) letters or more that no alias holds to the
+  nearest one that does (`difflib`, cutoff `FUZZY_CUTOFF` 0.8): "sofware
+  enginer" finds `software_engineer`. `resolve` stays exact, since its result
+  is a stored tag. A corrected word leaves `rest` only if it completed an
+  alias, so a company that looks like an alias word ("scale" ~ "sales") is
+  still searched for. Raising the cutoff or lowering the length is a test
+  change first: `test_read_query_leaves_names_alone` holds the company and
+  keyword names that must pass through untouched.
+
 ## job_postings holds company-posted and scraped jobs
 
 One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
@@ -512,9 +592,15 @@ searching company-posted jobs by employer needs a join or a copied name.
 **Job matching adds three columns (KAN-139):**
 - **`job_postings.embedding` and `resumes.embedding`** hold Gemini vectors,
   `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
-- **`job_postings.fts`** is a generated `tsvector` of the title and
-  description. Postgres computes it and keeps it current, and `Computed` keeps
-  it out of every INSERT and UPDATE, so nothing in Python writes it.
+- **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
+  and description (weighted D), so anything that ranks with `ts_rank` puts a
+  title match first (search itself doesn't rank: `@@` ignores weights), with
+  the GIN index `job_postings_fts_idx` serving `GET /jobs?q=`; both from
+  `a70c641b2f99`, which drops and adds the column (a generated column's
+  expression can't be altered in place everywhere). Postgres computes it and
+  keeps it current, and `Computed` keeps it out of every INSERT and UPDATE, so
+  nothing in Python writes it. `@@` ignores weights, so matching's skill
+  overlap reads it unchanged.
 - **All three are `deferred`**, so the company-jobs and resume routes' ORM loads
   never pull 768 numbers, or a few KB of search terms, per row.
 - **Their migration is `4485d7a7a712`**, which revises `b81d4e2f6c09` (visa
@@ -524,31 +610,17 @@ searching company-posted jobs by employer needs a join or a copied name.
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.
 
-**`job_postings.role_category` is a scraped role's discipline (KAN-171)**,
-the `role_category` enum: `software`, `data_ai`, `product`, `quant`,
-`hardware`, the SimplifyJobs lists' five. The scraper reads it from the
-title (`scraper/workit_scraper/shortlist.py`) and the import writes it; a
-company's own job leaves it NULL. Its migration is `aa41fdc1ba80`, which
-revises `4485d7a7a712`. Like any mapped column, apply it before deploying a
-branch that maps it (the section above).
-
-**`job_postings.roles` supersedes it (KAN-172): `text[]`, NOT NULL, default
-`{}`**, a scraped role's category and specialty keys, first category first
-(`["data_ai", "software", "data_ai/ml"]`): twelve categories, up to two a job,
-and their specialties. Plain text rather than an enum, so a new key is a
-scraper and API change and never a migration; the API checks keys against its
-own list. A company's own job stores `{}`, which no role filter matches. The
-GIN index `job_postings_roles_idx` serves `GET /jobs?role=`, an array overlap
-(`roles && ARRAY[...]`). Its migration is `98ab19cfe840`, which revises
-`5c8d6ee05a0c`, and seeds `roles` from `role_category` for the rows already
-there. **Expand, then contract:** `role_category` is not dropped, because the
-API deployed when the migration is applied still reads it; the import keeps
-writing it (the first category, when it is one of the enum's five) until a
-later migration drops it once nothing reads it. The model maps `roles` with
-the database's default only, so an insert naming no roles leaves the column to
-the database; the ORM still reads it back after an insert, so as with any
-mapped column, apply the migration right after its PR merges, before that
-deployment serves company job creation (the section above).
+**`job_postings.role_category` and `job_postings.roles` are gone
+(`824f0b2e3d84`).** They held the scraper's role keys: `role_category` one of
+five disciplines (KAN-171, `aa41fdc1ba80`, with its `role_category` enum) and
+`roles` up to two of twelve categories plus specialties (KAN-172,
+`98ab19cfe840`, `text[]` with the GIN index `job_postings_roles_idx`), which
+`GET /jobs?role=` filtered on. KAN-155 replaced both with `job_roles` /
+`job_role_tags` (above), and the backend's `dto.role_key` and
+`dto.role_category` went with them. The drop is the contract half of an expand,
+then contract: it must be applied only **after** the code that stopped
+reading and writing the columns is deployed (`../../CLAUDE.md`, Commands).
+Its downgrade puts the columns back empty; the old import refills them.
 
 ## Identity lives in auth.users
 
@@ -575,7 +647,7 @@ What that means for the account tables:
   NULL until onboarding completes, and read on every `/auth/me`.
 - **`avatar_path`** is a path in the private `Avatar` Storage bucket, never a
   URL and never image bytes. Renamed from `avatar_url` in `4f1a9c2e7b30`;
-  `../../db/avatar.md` has why.
+  `../../../docs/avatar.md` has why.
 
 ## Known gaps
 
@@ -607,9 +679,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 These belong to later tickets and should not be added here:
 
 - Jobs, applications, pipeline stages, interviews, offers, resume scores. ATS
-  clones model all of them; `../../db/job_posting.md` starts that work.
+  clones model all of them; `../../../docs/job_posting.md` starts that work.
 - Resume storage and parsing — implemented in `resume.py` (model) and
-  `../utils/resume_parser.py` (heuristic parser). See `../../db/resume.md`
+  `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`
   for design rationale.
 - Browser-automation or session state for the autofiller. If autofill needs it
   later, that is a separate `autofill_runs` table, not a column here.

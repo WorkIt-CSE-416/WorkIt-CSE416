@@ -18,10 +18,11 @@ customer support; a title naming none of the twelve ("Engineering Intern", "Rese
 Intern") is dropped too. `CATEGORY_TAGS` is their order on the page and in the app.
 
 **`feed.json` carries a role's `roles`:** its categories, first first, then its
-specialties (`["data_ai", "software", "data_ai/ml"]`; `Role.roles`). The backend stores
-them in `job_postings.roles`, plain text, so a new key is a change to `Tag`, to the
-backend's `dto.role_key` and to the Jobs page's `ROLE_OPTIONS`, but never a migration.
-The feed no longer sends the old one-category `role_category`; the import derives it.
+specialties (`["data_ai", "software", "data_ai/ml"]`; `Role.roles`). **Since KAN-155 the
+backend ignores them:** it tags each job from its title with its own `job_roles` list
+(`backend/app/services/role_resolver.py`), and dropped the `roles` and `role_category`
+columns and `dto.role_key`. So a new key is a change to `Tag` alone. The categories still
+decide what this scraper keeps, which is what they are for now.
 
 **The first discipline the title names is its category** (`CATEGORIES`, first match
 wins). The order is the decision:
