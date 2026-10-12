@@ -126,6 +126,20 @@ class JobFacets(BaseModel):
     start_term: list[FacetCount]
 
 
+class Highlight(BaseModel):
+    """One reason a job matches (or doesn't), for the match rail."""
+
+    text: str
+    met: bool
+
+
+class ScoredJob(JobListing):
+    """A job listing with its match score and highlights."""
+
+    match: int  # 0-100
+    highlights: list[Highlight] = []
+
+
 class JobCount(BaseModel):
     """GET /jobs/count: how many jobs the filters keep, not capped by a limit."""
 
