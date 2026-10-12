@@ -1,5 +1,9 @@
 {
   "enabledPlugins": {
     "ponytail@ponytail": true
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
   }
 }

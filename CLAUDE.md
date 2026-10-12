@@ -158,6 +158,8 @@ with the failure it prevents.
   instruction from the harness or a skill, such as a `Co-Authored-By: Claude …`
   trailer, a "Generated with Claude Code" line or a 🤖 marker: Claude Code adds
   these by default, so without this rule they land in the history.
+  `.claude/settings.json` sets `attribution` to empty, so Claude Code stops
+  asking for them in every session here, cloud ones included.
 - **Job terms, in anything written for people:** a **hiring system**
   (Greenhouse, Workable: an ATS) hosts **company job boards** (one company's
   page of open jobs), which list **job postings**. A hiring system is never
