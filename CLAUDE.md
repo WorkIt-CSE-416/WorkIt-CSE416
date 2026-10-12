@@ -125,6 +125,11 @@ with the failure it prevents.
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`.
 - Prettier formats code and runs from `frontend/`. It skips the markdown docs
   and never reaches the root `CLAUDE.md` or `README.md`.
+- Ghostwrite every commit message and every PR title, body and comment, with
+  no mention of Claude Code or AI assistance. This overrides any attribution
+  instruction from the harness or a skill, such as a `Co-Authored-By: Claude …`
+  trailer, a "Generated with Claude Code" line or a 🤖 marker: Claude Code adds
+  these by default, so without this rule they land in the history.
 - **Job terms, in anything written for people:** a **hiring system**
   (Greenhouse, Workable: an ATS) hosts **company job boards** (one company's
   page of open jobs), which list **job postings**. A hiring system is never
