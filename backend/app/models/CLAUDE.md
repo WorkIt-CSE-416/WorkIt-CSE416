@@ -614,6 +614,17 @@ These belong to later tickets and should not be added here:
 - Browser-automation or session state for the autofiller. If autofill needs it
   later, that is a separate `autofill_runs` table, not a column here.
 
+## The Experience Bank — `experience.py`
+
+`experience_entries` and `applicant_skills` (KAN-176) are the applicant's own
+record of what they have done; a resume is a frozen copy made from them.
+`section` is text with a CHECK listing `dto.EntrySection`, deliberately not a
+Postgres enum (see "Enum changes are coordinated deploys"): adding one is a
+migration that swaps the CHECK. `details` is JSONB for what only some
+sections have, shaped by `schemas/experience.py`'s `EntryDetails`.
+`applicant_skills` is unique on `(applicant_id, lower(name))`. The rules for
+both halves are in `../../CLAUDE.md`, "The Experience Bank and built resumes".
+
 ## Pointers, not copies
 
 - Auth, the frontend contract, and why not PostgREST — `../../CLAUDE.md`.

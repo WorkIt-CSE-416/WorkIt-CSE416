@@ -3,7 +3,7 @@ import uuid as _uuid
 from pgvector.sqlalchemy import (
     VECTOR,  # for storing embeddings in Postgres (gives PG a vector type)
 )
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import ForeignKey, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,3 +24,11 @@ class Resume(BaseModel):
     parsed_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # The resume's meaning as a vector
     embedding: Mapped[list[float] | None] = mapped_column(VECTOR(EMBEDDING_DIMENSIONS), deferred=True)
+    # Set on a resume WorkIt built (KAN-176): the template its file was
+    # rendered with. NULL for an upload. Its parsed_json is a frozen copy;
+    # editing the Experience Bank never changes it.
+    template_key: Mapped[str | None] = mapped_column(String(40))
+    # A tailored resume's job posting. SET NULL: a posting that goes keeps
+    # the resume, which is still the applicant's
+    target_job_id: Mapped[_uuid.UUID | None] = mapped_column(
+        ForeignKey("job_postings.id", ondelete="SET NULL", name="resumes_target_job_id_fkey"))

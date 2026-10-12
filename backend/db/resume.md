@@ -1,5 +1,12 @@
 # Resume — Schema Design
 
+> **The content tables below were never built and are superseded.** Parsed
+> sections live in `resumes.parsed_json`, and KAN-176 keeps an applicant's
+> experience in an Experience Bank (`experience_entries`, `applicant_skills`)
+> with every resume a frozen `ParsedResume` copy: `../CLAUDE.md`, "The
+> Experience Bank and built resumes". The `resumes` table notes still describe
+> the file and parse columns.
+
 Defines the `resumes` table and its structured content tables. KAN-50
 explicitly deferred resume work (line 257: "Leave resume storage and parsing
 to Brian's separate work"), so this doc owns the full resume domain.

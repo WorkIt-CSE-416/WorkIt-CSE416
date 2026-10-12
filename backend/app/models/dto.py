@@ -21,15 +21,22 @@ class ResumeStatus(str, enum.Enum):
 
 
 # --- Pydantic schemas for parsed_json structure ---
+#
+# Every resume, uploaded or built, is stored as one of these (KAN-176). An
+# item's `bullets` are its lines one by one; `description` is the same text as
+# one string, which is what the parser writes and what older rows hold. Read
+# them through services.experience.bullets_of, never one field alone.
 
 class Education(PydanticBase):
     institution: str
     degree: str | None = None
     field_of_study: str | None = None
     gpa: float | None = None
+    location: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
+    bullets: list[str] = []
 
 class Experience(PydanticBase):
     company_name: str
@@ -38,6 +45,7 @@ class Experience(PydanticBase):
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
+    bullets: list[str] = []
 
 class Skill(PydanticBase):
     skill_name: str
@@ -46,13 +54,33 @@ class Skill(PydanticBase):
 class Project(PydanticBase):
     project_name: str
     url: str | None = None
+    # The tools it was built with, printed beside its name ("Python, Flask")
+    technologies: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
+    bullets: list[str] = []
 
 class Certification(PydanticBase):
     cert_name: str
     issuer: str | None = None
+    end_date: date | None = None
+
+class Activity(PydanticBase):
+    '''a club, team, volunteer or leadership role: experience that isn't a job'''
+    organization: str
+    role: str
+    location: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    description: str | None = None
+    bullets: list[str] = []
+
+class Award(PydanticBase):
+    award_name: str
+    issuer: str | None = None
+    end_date: date | None = None
+    description: str | None = None
 
 class ParsedResume(PydanticBase):
     education: list[Education] = []
@@ -60,6 +88,22 @@ class ParsedResume(PydanticBase):
     skills: list[Skill] = []
     projects: list[Project] = []
     certifications: list[Certification] = []
+    activities: list[Activity] = []
+    awards: list[Award] = []
+
+
+class EntrySection(enum.StrEnum):
+    '''
+    where an Experience Bank entry goes on a resume. Not a Postgres enum:
+    experience_entries.section is text with a CHECK listing these, so a new
+    one is a one-line migration with no coordinated deploy (KAN-176)
+    '''
+    education = "education"
+    experience = "experience"
+    project = "project"
+    activity = "activity"
+    award = "award"
+    certification = "certification"
 
 
 # size range for company
