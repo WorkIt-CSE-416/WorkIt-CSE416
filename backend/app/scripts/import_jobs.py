@@ -34,6 +34,7 @@ Company-posted jobs (company_id set) are never read or written here.
 import argparse
 import asyncio
 import datetime
+import logging
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -55,6 +56,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncConnection
+
+logger = logging.getLogger(__name__)
 
 from app.config import get_settings
 from app.db import get_engine
@@ -414,7 +417,10 @@ async def _run(path: Path, *, dry_run: bool, allow_mass_close: bool) -> Report:
                 await trans.rollback()
             else:
                 await trans.commit()
-                report.embedded = await _embed_jobs(conn)
+                try:
+                    report.embedded = await _embed_jobs(conn)
+                except Exception:
+                    logger.warning("Embedding failed after import committed", exc_info=True)
             return report
     finally:
         await engine.dispose()
