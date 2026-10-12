@@ -17,7 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "node scripts/clean.mjs",
-    "favicon": "node scripts/make-favicon.mjs"
+    "favicon": "node scripts/make-favicon.mjs",
+    "worktree": "node scripts/new-worktree.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

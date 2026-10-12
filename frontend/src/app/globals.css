@@ -475,8 +475,8 @@
   }
 
   /* Motion ---------------------------------------------------------------
-   * One language for everything that moves; frontend/CLAUDE.md, "Motion",
-   * says where each is used.
+   * One language for everything that moves; frontend/docs/motion.md says
+   * where each is used.
    *
    *   glide   what travels and settles: a thumb, a highlight, a panel, a
    *           page arriving. Quick off the mark, a long soft landing.
@@ -624,7 +624,7 @@
 
 /* View transitions -----------------------------------------------------
  * Pages and views change through React's <ViewTransition>, which Next 16
- * runs on every navigation (frontend/CLAUDE.md, "Motion"). Each one names a
+ * runs on every navigation (frontend/docs/motion.md). Each one names a
  * class below for its enter and exit.
  *
  * THE ROOT'S OWN CROSSFADE IS OFF. Everything not wrapped in a
