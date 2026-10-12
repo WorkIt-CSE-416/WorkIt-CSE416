@@ -39,7 +39,8 @@ install time.
 | `schemas.py` | the wire format (`ChatRequest`, `ScoutEvent`) and the facts types |
 | `facts.py` | a resume's `parsed_json` and a `feed.json` row as Scout's facts; the privacy boundary |
 | `quota.py` | the per-account daily cap |
-| `testing.py` | `ScriptedLLM`, the fake model both test suites use |
+| `builder.py` | the resume builder's writing (KAN-176): bullets for an entry, entries from free text, bullets reworded for a posting, each answer parsed and checked |
+| `testing.py` | `ScriptedLLM` and `RepliesLLM` (one whole reply per call), the fake models both test suites use |
 
 ## Scout is free for every user — that decides the design
 
@@ -130,10 +131,36 @@ model has nothing to fill in.
 - **New event types** go in `workit_scout/schemas.py` and
   `frontend/src/components/scout/stream.ts` together.
 
+## The resume builder — `builder.py`
+
+The same model and privacy rule as chat, three one-shot prompts, nothing
+saved (the applicant reviews every line). What small models get wrong,
+measured on Qwen 3.5 4B and Gemini Flash-Lite, and what this file does:
+
+- **It invents.** It added "TypeScript" from a posting to a bullet, dropped
+  "4s to 1.5s" from another, and gave "Stony Brook" a state. So `grounded()`
+  drops any line with a number or a proper term (a capitalised or symbol-led
+  word: React, AWS, C++) its source never said, a rewording must keep every
+  number and tool it started with, and intake keeps an organization or place
+  only if every word of it is the user's.
+- **It guesses dates.** A bare "2024" came back as January 2024, so intake
+  keeps a month only when the user named it.
+- **It repeats itself.** Intake listed one role twice, the second without its
+  club, so `_merged()` folds an entry into an earlier one of the same section
+  and title unless their organizations differ.
+- **It can't tell tense from the words.** "Pack meals" for a summer that had
+  ended, so `EntryFacts.current` tells it.
+- **It ignores formats.** Answers are a plain line format (`- ` bullets,
+  `## section` blocks, `1.` numbers), not JSON mode, which Ollama and Gemini
+  support differently; one that won't parse is asked for once more.
+- Its calls count against `builder_daily_calls`, not `daily_turns`.
+
 ## Tests
 
 `tests/test_scout.py` runs Scout against `ScriptedLLM`: fallback on 429 and on a
 dead endpoint, no fallback on misconfiguration or mid-reply, the reply cap, the
 grounding rules, the facts block (resume, job, and the wording when either is
-missing), the daily cap and the privacy mapping (`facts.py`). The API's
+missing), the daily cap and the privacy mapping (`facts.py`).
+`tests/test_builder.py` runs `builder.py` against `RepliesLLM`: what each
+parser keeps and drops, the retry, the tense, and that only the entry is sent. The API's
 side — the route and the feed — is `backend/tests/test_scout.py`. None need a network or Ollama.

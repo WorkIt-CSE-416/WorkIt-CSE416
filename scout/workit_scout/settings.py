@@ -33,3 +33,7 @@ class ScoutSettings(BaseSettings):
     # Messages one account may send per UTC day. The cap is what keeps a free
     # product free.
     daily_turns: int = 50
+    # Resume builder calls (write bullets, read free text, tailor) one account
+    # may make per UTC day, counted apart from chat so building a resume can't
+    # spend the day's Scout messages, or the other way round.
+    builder_daily_calls: int = 30
