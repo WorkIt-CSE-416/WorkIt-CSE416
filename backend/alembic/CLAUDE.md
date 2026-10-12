@@ -65,24 +65,17 @@ what exists, not the mechanism.
 
 ## Other context.configure settings
 
-- `include_schemas=False` — Alembic's default, set explicitly because on
-  Supabase it is the difference between a clean diff and a catastrophe.
-- `compare_type=True` — detect a column whose type changed. Cheap, and off by
-  default in older Alembic.
-- `compare_server_default=False` — deliberately off. Defaults like
-  `gen_random_uuid()` and `now()` round-trip as differently-spelled but
-  equivalent expressions, so enabling it reports phantom changes on every run.
-- `configure_context()` is shared by offline and online modes so the two cannot
-  drift apart. Add new settings there, not to one path.
+Each setting's reason is commented in `env.py` (`compare_server_default=False`
+on purpose: Postgres respells defaults, so it reports phantom changes).
+`configure_context()` is shared by offline and online modes so they cannot
+drift: add new settings there, not to one path.
 
-The async template (`alembic init -t async`) was used because the app is async
-over asyncpg. One driver, one URL format, no second sync dependency.
-
-## Import every new model in env.py
+## env.py imports app.models
 
 A model that no import reaches is absent from `Base.metadata`, and autogenerate
-will write a migration **dropping the table it cannot see**. When `app/models/`
-exists, the import goes at the marked spot in `env.py`:
+will write a migration **dropping the table it cannot see**. `env.py` imports
+the package, whose `__init__` imports every file in `app/models/`
+(`../app/models/CLAUDE.md`), so a model defined anywhere else is invisible:
 
 ```python
 from app import models  # noqa: F401
@@ -90,6 +83,24 @@ from app import models  # noqa: F401
 
 The `noqa` is load-bearing — linters remove "unused" imports, and removing this
 one is how the table gets dropped.
+
+## Check a migration offline, with no credentials
+
+Offline mode (`--sql`) prints the DDL and never connects, but `env.py` still
+reads `DIRECT_URL` through `app.config` and raises when it is unset. Any
+well-formed URL satisfies it:
+
+```sh
+DIRECT_URL=postgresql://x:y@localhost:5432/z uv run alembic upgrade <prev>:head --sql
+```
+
+`<prev>` is the revision your migration's `down_revision` names; `alembic
+heads` takes the same dummy URL. Read the output for every statement you
+expect, especially those autogenerate omits (below). This is the check Claude
+runs; applying the migration is the user's step (root `CLAUDE.md`).
+
+The offline check above needs no `.env`, so it runs in a fresh worktree as
+is (copying one in: the root `CLAUDE.md`'s Conventions).
 
 ## Autogenerate covers about two thirds of this schema
 
@@ -116,9 +127,8 @@ the end of `upgrade()` because of it. The matching `drop_constraint()` must be
 the *first* statement in `downgrade()`, or dropping `resumes` fails while
 `applicant_profiles` still references it.
 
-Catch this class of bug with `alembic upgrade head --sql`, which prints the DDL
-without touching the database. If a FK you expect is missing from the output,
-it will be missing from the database too.
+Catch this class of bug with the offline `--sql` check above. If a FK you
+expect is missing from the output, it will be missing from the database too.
 
 Hand-write those with `op.execute()`. The first migration in particular must
 create the extensions before any table that depends on them, so write it by
@@ -168,9 +178,8 @@ which is `postgres`, and locks the API out of its own data.
 One file per migration, `<revision>_<slug>.py`. Committed — they are the
 schema's history, and the `.gitignore` covers only `__pycache__` and `*.pyc`.
 
-`dee263a84adb_initial_schema.py` is the root of the chain: `down_revision` is
-`None` and it creates all seven tables. The revisions after it seed the
-location reference data; see `../CLAUDE.md`.
+`dee263a84adb_initial_schema.py` is the root of the chain (`down_revision` is
+`None`).
 
 `revision` and `down_revision` form a linked list. That chain is what defines
 order and what "head" means.
@@ -237,22 +246,18 @@ with `Can't locate revision identified by ...` for everyone, and the fix means
 hand-editing a table. To undo one: `alembic downgrade`, *then* delete the file,
 and only if nobody else has applied it.
 
-Squashing is safe only before the first real deployment — drop the migrations,
-drop `alembic_version`, regenerate one initial migration. After that it is not.
+Squashing is safe only before the first real deployment: drop the migrations,
+drop `alembic_version`, regenerate one initial migration. After that it is
+not, and the API is now deployed, so the shared database holds the chain.
 
 ## script.py.mako
 
-The Mako template rendered to produce each new migration. It is the skeleton,
-not documentation, and `alembic revision` fails without it.
-
-Edit it to add imports every migration needs rather than hand-adding them
-thirty times. This schema will want `from sqlalchemy.dialects import
-postgresql`, and the ltree type once it exists.
+The template for each new migration; `alembic revision` fails without it. Add
+imports every migration needs there rather than by hand in each one.
 
 ## Multi-team
 
-Two CI gates are worth adding before the first migration lands. Neither exists
-yet — there is no CI in this repo.
+Two CI gates are worth adding; CI (`../../.github/CLAUDE.md`) runs neither yet.
 
 - **`alembic heads` must return exactly one.** Two branches off one revision
   each adding a migration produces two heads, and `upgrade head` then fails for

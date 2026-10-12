@@ -9,6 +9,10 @@ way and what bites.
 `scout/` has no job of its own: the backend installs it, so the backend job
 lints and tests it too.
 
+The frontend job runs `format:check`, so an unformatted file fails the PR.
+Run `npm run format` before pushing. Markdown docs are in
+`frontend/.prettierignore`, so Prettier never rewrites prose.
+
 ## Scheduled scrape and import (KAN-160)
 
 `workflows/scrape.yml` runs the scraper and then

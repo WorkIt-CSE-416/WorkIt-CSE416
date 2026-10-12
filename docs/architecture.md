@@ -147,8 +147,8 @@ page.tsx  →  imports ./data.ts  →  hand-written TypeScript literals
 ```
 
 That's true for `(seeker)/jobs`, `/applications`, `/profile`, `/search`,
-`company/*`, `onboarding/applicant`, and `design-kit`. `frontend/CLAUDE.md`
-calls this "the seam" on purpose — a screen's `data.ts` is meant to become
+`company/*`, `onboarding/applicant`, and `design-kit`. That is on purpose
+(`frontend/CLAUDE.md`, Architecture): a screen's `data.ts` is meant to become
 the real fetch later without `page.tsx` itself changing shape.
 
 **The one exception is auth.** `/signup` and `/login` are wired to the real
