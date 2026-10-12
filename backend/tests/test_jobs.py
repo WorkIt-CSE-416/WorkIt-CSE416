@@ -27,6 +27,7 @@ from app.routers.jobs import (
     to_listing,
 )
 from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
+from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import RoleResolver, raw_words
 from tests.test_role_resolver import ROLES
 
@@ -64,6 +65,13 @@ def no_database(monkeypatch):
         return resolver
 
     monkeypatch.setattr("app.routers.jobs.role_resolver", role_resolver)
+    # The company names ?q= is read against; a fixed list, not the database's.
+    companies = CompanyResolver(["Stripe", "Jump Trading", "Bedrock Robotics", "SpaceX", "Palantir"])
+
+    async def company_resolver(db):
+        return companies
+
+    monkeypatch.setattr("app.routers.jobs.company_resolver", company_resolver)
     yield
     app.dependency_overrides.clear()
 
@@ -146,14 +154,15 @@ def test_route_reads_the_search_words(no_database, monkeypatch):
     for q in ("  Stripe ", "   ", None):
         assert client.get("/jobs", params={"q": q} if q is not None else {}).status_code == 200
     # Read as words, folded; blank is no search at all.
-    assert seen == [([], ["stripe"]), ([], []), ([], [])]
+    # "stripe" is a company now (company_resolver), not a word for the text.
+    assert seen == [([], []), ([], []), ([], [])]
     assert client.get("/jobs", params={"q": "x" * 201}).status_code == 422
 
 
 @pytest.mark.parametrize(("q", "roles", "levels", "styles", "words"), [
     # a role, a fact, and a word left for the text or the company's name
-    ("swe intern stripe", ["software_engineer"], ["internship"], [], ["stripe"]),
-    ("stripe intern", [], ["internship"], [], ["stripe"]),
+    ("swe intern stripe", ["software_engineer"], ["internship"], [], []),
+    ("stripe intern", [], ["internship"], [], []),
     ("machine learning", ["ai_ml_engineer"], [], [], []),
     # a typo is corrected before it is read (read_query)
     ("sofware engineer google", ["software_engineer"], [], [], ["google"]),
@@ -180,6 +189,42 @@ def test_a_search_is_read_in_its_three_parts(no_database, monkeypatch, q, roles,
     assert [style.value for style in filters.query_work_styles] == styles
     assert list(filters.query_words) == words
     assert filters.query_start_terms is None
+
+
+@pytest.mark.parametrize(("q", "companies", "roles", "levels", "words"), [
+    # a company by whole name, then the rest as before
+    ("jump trading quant intern", ["Jump Trading"], ["quantitative_analyst"], ["internship"], []),
+    # a name keeps its words: not the robotics role
+    ("bedrock robotics", ["Bedrock Robotics"], [], [], []),
+    ("robotics", [], ["robotics_engineer"], [], []),
+    # a typo in what the other parts left, corrected to the one name close to it
+    ("strpe intern", ["Stripe"], [], ["internship"], []),
+    ("palntir software engineer", ["Palantir"], ["software_engineer"], [], []),
+    ("jump tradng", ["Jump Trading"], [], [], []),
+    # two companies: either
+    ("stripe palantir", ["Palantir", "Stripe"], [], [], []),
+    # an ordinary word is no company: left for the text and company names
+    ("react intern", [], [], ["internship"], ["react"]),
+])
+def test_a_search_names_companies(no_database, monkeypatch, q, companies, roles, levels, words):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs", params={"q": q}).status_code == 200
+    (filters,) = seen
+    assert list(filters.query_companies) == companies
+    assert list(filters.query_roles) == roles
+    assert list(filters.query_levels) == levels
+    assert list(filters.query_words) == words
+
+
+def test_a_search_s_companies_keep_jobs_at_any_of_them():
+    (clause,) = matching(JobFilters(query_companies=["Palantir", "Stripe"]))
+    assert _sql(clause) == "job_postings.company_name IN ('Palantir', 'Stripe')"
 
 
 def test_a_search_s_year_is_a_start_term(no_database, monkeypatch):

@@ -10,6 +10,9 @@
   - change common words such as Intern, Internship into job categories, Remote to work_style, start_term etc. 
   - on top of these, search for titles that contain these. (go through description would help but adds too much noise and time)
 
+- Company Resolution: 
+  - each query, builds and stores a cached all company-names list. For the query, first scan through the company using the same kind of resolution as job_role, and search for posts under the company. Then returns everything with the remaining text for job search
+
 # Search and Role Resolution — Design
 
 Status: agreed 2026-10-10 (KAN-155). Built so far: the `job_roles` and
@@ -294,8 +297,39 @@ workplace, experience and posted filters the same way: each one narrows.
   keeps jobs tagged with any of them: an `EXISTS` on `job_role_tags`, like
   `?location=`. Validated against the slug shape only; an unknown slug matches
   nothing.
-- **`?q=`**, free text, read in three parts (`read_search` in
+- **`?q=`**, free text, read in parts (`read_search` in
   `backend/app/routers/jobs.py`):
+  0. **The companies it names** (`backend/app/services/company_resolver.py`),
+     first, so a name keeps its words: "Bedrock Robotics" is that company,
+     not the robotics role, while "robotics" alone is the role. Whole names,
+     longest first, as the role resolver reads a title; never a substring, so
+     "data engineer" is not Datadog. A job must be at one of them
+     (`company_name IN (...)`): "stripe" is Stripe's 20 jobs, not the 27 whose
+     text also says Stripe. After the roles and facts have taken their words,
+     a typo in what is left is corrected to the one name close to it
+     (`difflib` against whole names, ratio ≥ 0.8, five letters or more, and
+     only when exactly one name is close): "strpe" is Stripe, "spacx" SpaceX,
+     "jump tradng" Jump Trading, while "data", "cloud" and "react" are close
+     to no whole name and stay words.
+
+     **The list is the data, not a table.** The names are `SELECT DISTINCT
+     company_name` over the listed jobs, held in memory and read again every
+     five minutes (`COMPANY_TTL`), since each import adds and drops
+     companies; a job already has its company, so nothing is tagged or
+     stored. A one-word name that is a search's own word (a role's alias,
+     "intern", "remote") is skipped, so it keeps its meaning; on the
+     2026-10-11 feed that is one company, named "Internship". All the other
+     389 names resolve to themselves.
+
+     **No short forms.** Trigram similarity (`pg_trgm`) was measured and
+     dropped: "spacx" came out as six "… Space" companies and "strpe" tied
+     Strada with Stripe, and fuzzing every word against names floods a
+     search ("ai" is in 27 names, "capital" 10, "space" 9). Short forms made by
+     stripping generic words ("Squarepoint" for Squarepoint Capital) were
+     dropped too: "Chicago Trading Company" would become the key "chicago",
+     and a search naming the city a filter to that one company. A partial
+     name is still found in part 3, as the company's name containing the
+     word: "squarepoint" finds Squarepoint Capital's 15 jobs that way.
   1. **The roles it names.** The same resolver reads the query
      (`RoleResolver.read_query`), so "swe" finds `software_engineer`. Each
      role found narrows to jobs tagged with it. It also returns the words no
@@ -344,9 +378,9 @@ workplace, experience and posted filters the same way: each one narrows.
      company for any query with a second word. A stop word ("at", "the")
      makes an empty query and is passed over (`numnode` = 0).
 
-  So "swe intern stripe" is software engineer internships at Stripe or that
-  mention it, and "stripe" alone is every job at Stripe plus any whose text
-  names it.
+  So "swe intern stripe" is software engineer internships at Stripe, and
+  "jump tradng quant intern 2027" is Jump Trading's quant internships
+  starting in 2027.
 
 **No ranking.** A search filters; results are newest first, as the feed is.
 Ordering by relevance is the recommendations' job (`backend/app/services/
@@ -401,9 +435,9 @@ it (`backend/alembic/CLAUDE.md`).
   types, or two.
 - **Roles for company-posted jobs:** the company form picks them, or the
   resolver runs on the title at create.
-- **Company typos:** a misspelt company ("strpe") finds nothing, since only
-  role words are typo-corrected. The trigram index on `company_name` could
-  match it by similarity; not built.
+- **Company suggestions:** the company resolver's names could feed a search
+  box's suggestions (a companies endpoint), the "searching for companies"
+  half of KAN-155 beyond the search itself.
 - **Symbols:** the `english` parser reads "C++" and "C#" as "c". Searching for
   them needs a title `ILIKE` fallback, or a different parser for those terms.
 - **Removing a role:** `job_role_tags` refuses it (RESTRICT) while any job is

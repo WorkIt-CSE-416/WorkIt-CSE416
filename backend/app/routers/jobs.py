@@ -41,8 +41,12 @@ and the rest can't be weighed against a dollar threshold without exchange
 rates. A job that states no pay, or no value for a filtered column, is left out
 by that filter, as one with no location is by ?location=.
 
-?q= is a search, read in three parts (read_search; docs/search.md):
+?q= is a search, read in four parts (read_search; docs/search.md):
 
+0. the companies it names, by whole name ("jump trading"), before anything
+   else so a name keeps its words; a typo in what the other parts leave is
+   corrected to the one name close to it ("strpe" is Stripe). A job must be
+   at one of them (services/company_resolver.py);
 1. the roles it names, by the same role resolver the import tags jobs with
    (services/role_resolver.py, read_query, typos corrected); a job must be
    tagged with each of them;
@@ -69,6 +73,7 @@ and for GET /jobs/{job_id}, the job's own page.
 
 import datetime
 import re
+import time
 import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -104,6 +109,7 @@ from app.schemas.jobs import (
     JobLocationOption,
     JobRoleOption,
 )
+from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import RoleResolver, raw_words
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -263,6 +269,9 @@ class JobFilters:
     # and the other words, each of which must be in the job's text or its
     # company's name. On the server, so a search reaches every job and not
     # only the page of them the feed has loaded.
+    # The companies a search names, as job_postings holds them; a job at any
+    # of them matches (a job has one company, so two named means either).
+    query_companies: Sequence[str] = ()
     query_roles: Sequence[str] = ()
     query_levels: Sequence[str] = ()
     query_work_styles: Sequence[dto.work_style] = ()
@@ -387,6 +396,8 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.start_terms is not None:
         # An empty list renders as an always-false IN.
         clauses.append(Job_Post.start_term.in_(filters.start_terms))
+    if filters.query_companies:
+        clauses.append(Job_Post.company_name.in_(filters.query_companies))
     # Each role a search names narrows on its own: "ml software" is jobs
     # tagged with both, unlike the Role filter's any of.
     clauses.extend(tagged_with([slug]) for slug in filters.query_roles)
@@ -584,6 +595,7 @@ def query_facts(words: Sequence[str]) -> QueryFacts:
 @dataclass(frozen=True)
 class Search:
     '''?q= read: JobFilters' query_ fields, the start seasons still as keys'''
+    companies: tuple[str, ...] = ()
     roles: tuple[str, ...] = ()
     levels: tuple[str, ...] = ()
     work_styles: tuple[dto.work_style, ...] = ()
@@ -595,27 +607,61 @@ class Search:
 
 async def read_search(db: AsyncSession, q: str | None) -> Search:
     '''
-    a search in its three parts (the module docstring): the roles the role
-    resolver finds, the facts query_facts finds anywhere in the query (so a
-    word a role's alias used, "marketing intern"'s "intern", still counts),
-    and the words left once both have taken theirs
+    a search in its parts (the module docstring): the companies it names by
+    whole name, first, so a name keeps its words ("Bedrock Robotics" is not
+    the robotics role); the roles the role resolver finds in what is left;
+    the facts query_facts finds there, a word a role's alias used included
+    ("marketing intern"'s "intern"); then a typo in the words still left,
+    corrected to the one company close to it; and the words left after all
+    of that
     '''
     text = (q or "").strip()
     if not text:
         return Search()
-    read = (await role_resolver(db)).read_query(text)
-    facts = query_facts(raw_words(text))
-    # The words no role used, less the ones that named a fact.
+    companies = await company_resolver(db)
+    named = companies.read(raw_words(text))
+    read = (await role_resolver(db)).read_query(" ".join(named.rest))
+    facts = query_facts(named.rest)
+    # The words no role used, less the ones that named a fact, then less a
+    # company's name typed wrong.
     left = query_facts(read.rest).used
+    fixed = companies.correct(w for i, w in enumerate(read.rest) if i not in left)
     return Search(
+        companies=tuple(sorted(named.companies | fixed.companies)),
         roles=tuple(sorted(read.roles)),
         levels=facts.levels,
         work_styles=facts.work_styles,
         seasons=facts.seasons,
         season_phrases=facts.season_phrases,
         remote_phrases=facts.remote_phrases,
-        words=tuple(w for i, w in enumerate(read.rest) if i not in left),
+        words=fixed.rest,
     )
+
+
+# The company names ?q= is read against, from the listed jobs, kept for
+# COMPANY_TTL seconds: companies come and go with each import (every three
+# hours), so the list is refreshed rather than kept for the process's life.
+# Tests stand company_resolver in.
+COMPANY_TTL = 300
+_companies: tuple[float, CompanyResolver] | None = None
+
+
+async def company_resolver(db: AsyncSession) -> CompanyResolver:
+    '''
+    the company resolver for searches, over the names of the published
+    scraped jobs. A one-word name that is a search's own word (a role's
+    alias, "intern", "remote") is left out, so it keeps its meaning
+    '''
+    global _companies
+    now = time.monotonic()
+    if _companies is None or now - _companies[0] > COMPANY_TTL:
+        roles = await role_resolver(db)
+        names = (await db.execute(
+            select(distinct(Job_Post.company_name)).where(_LISTED, Job_Post.company_name.is_not(None))
+        )).scalars().all()
+        reserved = lambda key: bool(roles.resolve(" ".join(key)) or query_facts(key).used)
+        _companies = (now, CompanyResolver(names, reserved))
+    return _companies[1]
 
 
 # The resolver ?q= is read with, built from job_roles on first use and kept
@@ -689,6 +735,7 @@ async def read_filters(
         # plain IN. A season no posting names matches nothing, as it should.
         start_terms=(await terms_in(db, start_term)) if start_term else None,
         visa=visa,
+        query_companies=search.companies,
         query_roles=search.roles,
         query_levels=search.levels,
         query_work_styles=search.work_styles,
