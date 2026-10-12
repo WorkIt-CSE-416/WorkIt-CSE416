@@ -46,7 +46,8 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
  * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
- * about this role, Share copies the page's link. Save and Report are still
+ * about this role, Tailor My Resume (./tailor, KAN-176) rewords a resume for
+ * it, Share copies the page's link. Save and Report are still
  * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
  */
@@ -91,6 +92,14 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             </IconButton>
             <ShareButton title={job.title} />
             <AskScoutButton id={job.id} title={job.title} company={job.company} />
+            <ButtonLink
+              href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+              variant="secondary"
+              size="lg"
+              className="shrink-0"
+            >
+              Tailor My Resume
+            </ButtonLink>
             <ButtonLink
               href={job.apply_url}
               target="_blank"
