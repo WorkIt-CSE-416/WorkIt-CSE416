@@ -63,6 +63,8 @@ from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
 from app.services.location_resolver import LocationResolver, Place, Resolution
+from app.services.matching.embeddings import BATCH_SIZE as _EMBED_BATCH
+from app.services.matching.embeddings import embed, job_text
 
 _FEED = TypeAdapter(list[JobListing])
 _jobs = Job_Post.__table__
@@ -111,6 +113,7 @@ class Report:
     updated: int = 0
     unchanged: int = 0
     closed: int = 0
+    embedded: int = 0
     locations_changed: int = 0
     duplicates: int = 0
     no_place: int = 0
@@ -244,6 +247,8 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
                 # A job closed by an earlier run and back in the feed is open
                 # again, so the date it closed no longer applies.
                 "closes_at": None,
+                # A changed job's old vector is stale; re-embedded after commit.
+                "embedding": None,
                 "updated_at": func.now(),
             },
             # Never touch a company's job, and leave an unchanged one alone.
@@ -353,9 +358,38 @@ async def import_feed(
     return report
 
 
+async def _embed_jobs(conn: AsyncConnection) -> int:
+    '''
+    embed every scraped job whose vector is NULL — new, changed, or historical.
+    Each batch is committed independently so a partial failure keeps what worked.
+    '''
+    rows = (await conn.execute(
+        select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
+        .where(_jobs.c.company_id.is_(None), _jobs.c.embedding.is_(None))
+    )).all()
+    if not rows:
+        return 0
+
+    count = 0
+    for start in range(0, len(rows), _EMBED_BATCH):
+        batch = rows[start:start + _EMBED_BATCH]
+        texts = [job_text(r.title, r.description) for r in batch]
+        vectors = await embed(texts)
+        if vectors is None:
+            break  # Gemini down; next scheduled run picks up the rest
+        for row, vec in zip(batch, vectors):
+            await conn.execute(
+                update(_jobs).where(_jobs.c.id == row.id).values(embedding=vec)
+            )
+        await conn.commit()
+        count += len(batch)
+    return count
+
+
 def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"{'DRY RUN, rolled back — ' if dry_run else ''}{report.feed_rows} rows in the feed")
     print(f"  inserted {report.inserted}, updated {report.updated}, unchanged {report.unchanged}")
+    print(f"  embedded {report.embedded}")
     print(f"  closed (no longer in the feed) {report.closed}")
     print(f"  jobs whose locations changed {report.locations_changed}")
     if report.duplicates:
@@ -380,6 +414,7 @@ async def _run(path: Path, *, dry_run: bool, allow_mass_close: bool) -> Report:
                 await trans.rollback()
             else:
                 await trans.commit()
+                report.embedded = await _embed_jobs(conn)
             return report
     finally:
         await engine.dispose()

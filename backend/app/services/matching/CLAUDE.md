@@ -69,9 +69,12 @@ Nothing in this folder may assume what a software job is. Two consequences:
 ## When things are embedded
 
 - **Jobs: ahead of time, by the import.** Each scheduled run embeds only the
-  new or changed postings, never inside a user's request. Embedding on request
-  would make the first person after each import wait for hundreds of vectors,
-  and two people arriving together would both pay for them. *(Not written yet.)*
+  new or changed postings (embedding IS NULL), never inside a user's request.
+  Embedding runs **after** the import transaction commits, so the upsert stays
+  fast and a dry-run never calls Gemini. A changed job's embedding is cleared
+  in the upsert's `set_` dict, so it gets a fresh vector. Each batch of 100
+  is committed independently; if Gemini goes down mid-run, the next scheduled
+  run picks up the rest.
 - **Resumes: on demand.** `GET /jobs/recommended` embeds the chosen resume when
   its `embedding` is NULL, and stores the result. The resume `PUT` that replaces
   `parsed_json` clears `embedding`, and a new upload starts NULL, so the resume
@@ -97,7 +100,7 @@ and matching runs without its semantic part, the same way the app runs without
 - **Applying the migration that creates the columns.** It's `4485d7a7a712`,
   and it goes on the shared database right after its PR merges, before the
   deployment is live (`../../models/CLAUDE.md` says why).
-- **The rest of the pipeline:** the import's embedding step, the resume `PUT`
+- **The rest of the pipeline:** the resume `PUT`
   clearing `embedding`, scoring, and `GET /jobs/recommended`.
 - **Unchecked against the live API:** whether Gemini still accepts `taskType`
   and `outputDimensionality` at the top level of each request. Google's
