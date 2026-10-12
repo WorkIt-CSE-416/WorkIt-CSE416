@@ -1,7 +1,7 @@
 # CLAUDE.md — backend
 
 Guidance for Claude Code when working in `backend/`. Repo-wide rules — branch
-names, the documentation split, the review skill — live in the root
+names, the documentation split, the database guardrails — live in the root
 `../CLAUDE.md`, which is always loaded alongside this one. This file is the
 Python API.
 
@@ -251,7 +251,7 @@ tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
   has written one (`config.default_scraper_feed()`; `SCRAPER_FEED`
   overrides), so it must still validate against `schemas/jobs.py`: refresh it
   in the same commit as any change there. Scraper + import run on a schedule
-  (`.github/workflows/scrape.yml`, root `CLAUDE.md`'s CI section), importing
+  (`.github/workflows/scrape.yml`, `.github/CLAUDE.md`), importing
   the run's own `scraper/feed.json`, not this snapshot; a hand run is the same
   command.
   Order matters when the feed gains a column: apply its migration first

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working in
 `frontend/`. Repo-wide rules — branch names, the cross-platform script policy,
-the review skill — live in the root `../CLAUDE.md`, which is always loaded
+the documentation split — live in the root `../CLAUDE.md`, which is always loaded
 alongside this one. This file is the Next.js app.
 
 @AGENTS.md
