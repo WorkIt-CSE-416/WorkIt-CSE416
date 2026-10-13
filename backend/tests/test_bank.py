@@ -156,8 +156,8 @@ async def _mark_embedded(database, applicant_id: uuid.UUID) -> None:
 
 
 async def _is_embedded(database, applicant_id: uuid.UUID) -> bool:
-    # The bank embedding has no reader in the API until the recommender
-    # switches to the bank, so this reads the row the next request will.
+    # Reads the row the next recommendations request reads
+    # (test_recommended.py drives that request itself).
     async with database() as session:
         row = (
             await session.execute(

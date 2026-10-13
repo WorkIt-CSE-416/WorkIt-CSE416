@@ -1,5 +1,5 @@
 """
-Score a job against a resume. Pure functions, no DB access.
+Score a job against an applicant's experience bank. Pure functions, no DB access.
 
 Weights are guesses until tuned on real data. Each component is 0-1,
 combined into a 0-100 integer.
@@ -7,6 +7,7 @@ combined into a 0-100 integer.
 
 from __future__ import annotations
 
+import datetime
 import logging
 import re
 from collections.abc import Sequence
@@ -95,7 +96,7 @@ def freshness(days_old: float) -> float:
 
 
 def eligibility(
-    grad_end_date: str | None,
+    grad_end_date: datetime.date | None,
     start_term: str | None,
     min_years: int | None,
     years_experience: float,

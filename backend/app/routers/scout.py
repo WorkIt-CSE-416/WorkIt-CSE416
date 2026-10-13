@@ -9,10 +9,10 @@ so the panel has one place to show it; only problems with the request itself
 Applicants only: Scout is the seeker's assistant, and nothing it does yet
 means anything to a company account.
 
-Each turn hands Scout two sets of facts: the applicant's parsed resume (their
-default one, else their newest parsed one) and, when the panel names one, the
-job they asked about, as JSON data. workit_scout.facts decides what of each
-Scout may see.
+Each turn hands Scout two sets of facts: the applicant's experience bank (never
+an uploaded resume: for an empty bank Scout is told only whether an upload
+exists) and, when the panel names one, the job they asked about, as JSON
+data. workit_scout.facts decides what of each Scout may see.
 """
 
 from collections.abc import AsyncIterator
@@ -21,11 +21,10 @@ from functools import lru_cache
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import TypeAdapter
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.agent import run
-from workit_scout.facts import job_facts, resume_facts
-from workit_scout.identity import Identity
+from workit_scout.facts import bank_facts, job_facts
 from workit_scout.llm import LLM
 from workit_scout.schemas import (
     ChatRequest,
@@ -40,10 +39,11 @@ from workit_scout.settings import ScoutSettings
 from app.config import ENV_FILE
 from app.db import get_session, get_sessionmaker
 from app.deps import get_current_account
-from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.routers.jobs import fetch_listing
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.services.bank import bank_response, load_bank
+from app.services.identity import load_identity
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/scout", tags=["scout"])
@@ -66,39 +66,12 @@ def get_llm() -> LLM:
 async def get_resume_facts(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
-) -> ResumeFacts | None:
-    """The applicant's default resume if it parsed, else their newest that did."""
-    default_id = await db.scalar(
-        select(Applicant_Profile.default_resume_id).where(
-            Applicant_Profile.id == account.id
-        )
-    )
-    parsed = await db.scalar(
-        select(Resume.parsed_json)
-        .where(Resume.applicant_id == account.id, Resume.parsed_json.is_not(None))
-        .order_by((Resume.id == default_id).desc(), Resume.created_at.desc())
-        .limit(1)
-    )
-    return resume_facts(parsed) if parsed else None
-
-
-async def load_identity(db: AsyncSession, account: AuthenticatedAccount) -> Identity:
-    """The applicant's identity fields, which the model seam removes from
-    every message before a model sees it."""
-    profile = await db.get(Applicant_Profile, account.id)
-    if profile is None:
-        return Identity(name=account.full_name, email=account.email)
-    return Identity(
-        name=profile.full_name,
-        email=profile.email,
-        phone=profile.phone_number,
-        links=(
-            profile.linkedin_url,
-            profile.portfolio_url,
-            profile.github_url,
-            profile.other_url,
-        ),
-    )
+) -> ResumeFacts:
+    """The applicant's experience bank, and whether they have an upload to
+    import. An uploaded resume's own text never reaches Scout."""
+    bank = bank_response(await load_bank(db, account.id))
+    has_upload = await db.scalar(select(exists().where(Resume.applicant_id == account.id)))
+    return bank_facts(bank.model_dump(mode="json"), has_upload=bool(has_upload))
 
 
 async def find_job(db: AsyncSession, job_id: str) -> JobFacts | None:

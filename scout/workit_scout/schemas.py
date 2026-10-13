@@ -44,15 +44,21 @@ class JobFacts(BaseModel):
 
 class ResumeFacts(BaseModel):
     """
-    What Scout may say about the user, one line per item. Parsed sections only
-    — never a name, email, phone or link: the production model is a free tier
-    that may train on prompts, so contact details must never reach it.
+    What Scout may say about the user: their experience bank, one line per
+    entry, and their skills. Never a name, email, phone or link: the
+    production model is a free tier that may train on prompts, so identity
+    data must never reach it. `has_upload` says whether an uploaded resume
+    waits to be imported, for the empty-bank wording.
     """
 
     skills: list[str] = []
     experience: list[str] = []
     education: list[str] = []
     projects: list[str] = []
+    leadership: list[str] = []
+    awards: list[str] = []
+    certifications: list[str] = []
+    has_upload: bool = False
 
 
 class TextEvent(BaseModel):
