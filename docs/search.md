@@ -352,7 +352,12 @@ workplace, experience and posted filters the same way: each one narrows.
      against the tag alone on 2026-10-13: "software" 757 → 777, "developer"
      +15 (quant developers), "hardware" +3, "ml" +5; "swe", "machine
      learning", "data scientist", "recruiter", "qa" +0. The title only, as
-     `in_title`, and no index: it rides on the same scan.
+     `in_title`, and no index. Cost, measured 2026-10-13 on Supabase: a
+     count for "software" goes from 1.5 ms to 4.8 ms over 3,600 jobs, about
+     1.3 µs a title per one-word phrase and 2.2 µs for two words, the same
+     as an `ILIKE` (5.8 ms). At 108,000 titles that is 140 ms (one word) and
+     240 ms (two), for the list and the count each; past that, a trigram
+     index on `title` (which serves `~*`) is the next step.
 
      Unlike a title, a query is **typo-corrected** first: a word of five or
      more letters that is in no alias becomes the nearest alias word

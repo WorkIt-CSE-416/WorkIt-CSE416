@@ -377,7 +377,8 @@ def title_says(phrases: Sequence[Sequence[str]]) -> ColumnElement[bool]:
     words in any spelling WORD_FORMS gives them (role_resolver.title_pattern):
     "software engineer" finds "Embedded Software Engineering". The title
     only, as in_title: a description's "work with our software engineers" is
-    no software job. No index, like in_title: it rides on the same scan
+    no software job. No index, like in_title: about 1.3 µs a title per
+    one-word phrase (3 ms over 3,600 jobs, 140 ms over 108,000; 2026-10-13)
     '''
     return and_(*(Job_Post.title.regexp_match(title_pattern(p), flags="i") for p in phrases))
 
