@@ -118,6 +118,7 @@ from app.schemas.jobs import (
     JobRoleOption,
     ScoredJob,
 )
+from app.services.company_resolver import CompanyResolver
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
     compute_score,
@@ -125,7 +126,6 @@ from app.services.matching.scoring import (
     freshness,
     title_fit,
 )
-from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import ALIASES, RoleResolver, raw_words
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
