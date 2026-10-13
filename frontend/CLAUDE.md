@@ -174,7 +174,9 @@ are in `docs/auth.md`.
   download keeps a sent resume, and the API returns a Storage link that
   downloads the file. A download cancelled at the missing-character warning
   deletes the sent resume it just made (`created`), so the "Sent" list holds
-  only files the student took.
+  only files the student took. Apply on the posting detail goes through
+  `applyWithResume` (KAN-220) and keeps its sent resume: the student is
+  told it is in the Sent list, so it is never deleted behind their back.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
   (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also

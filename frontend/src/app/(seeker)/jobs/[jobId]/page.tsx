@@ -3,13 +3,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CompanyLogo } from "@/components/company-logo";
-import { ExternalLinkIcon } from "@/components/icons";
 import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { NOT_LISTED } from "@/components/job-posting-card";
 import { SaveButton } from "@/components/save-button";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
-import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
@@ -18,6 +16,7 @@ import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
 import { ListingsError, listingFacts } from "../listing-card";
 import { getJobListing, type JobListing } from "../listings";
+import { ApplyButton } from "./apply-button";
 import { JobDescription } from "./description";
 import { BackToJobs, ShareButton } from "./page-actions";
 
@@ -45,7 +44,9 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * paragraphs, lists and subheadings from the text itself rather than sorting
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
- * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
+ * Its actions: Apply Now asks which resume to send, keeps it as a sent
+ * resume linked to this posting, then leaves for the employer's posting
+ * (./apply-button, KAN-220). Ask Scout asks
  * about this role, Share copies the page's link. Save and Report are still
  * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
@@ -91,17 +92,12 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             </IconButton>
             <ShareButton title={job.title} />
             <AskScoutButton id={job.id} title={job.title} company={job.company} />
-            <ButtonLink
-              href={job.apply_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              size="lg"
+            <ApplyButton
+              jobId={job.id}
+              title={job.title}
+              applyUrl={job.apply_url}
               className="ml-auto shrink-0 @xl:ml-0"
-            >
-              Apply Now
-              <ExternalLinkIcon className="size-4" />
-              <span className="sr-only"> (opens in a new tab)</span>
-            </ButtonLink>
+            />
           </>
         }
       />
