@@ -59,11 +59,12 @@ function period(start: string | null, end: string | null) {
 
 /** A description's lines as resume bullets: one per line break, blank lines
  *  dropped, and any bullet the text already starts with (•, -, –, *) removed so
- *  it is not drawn twice. Display only; the stored text keeps its own form. */
+ *  it is not drawn twice. - and * count only with a space after them, so
+ *  "-20% churn" keeps its sign. Display only; the stored text is unchanged. */
 function descriptionBullets(description: string | null) {
   return (description ?? "")
     .split("\n")
-    .map((line) => line.replace(/^\s*[•\-*–]\s*/, "").trim())
+    .map((line) => line.replace(/^\s*(?:[•–]\s*|[-*]\s+)/, "").trim())
     .filter(Boolean);
 }
 
@@ -120,6 +121,8 @@ function RoleItem({
       )}
       {bullets.length > 0 && (
         <ul
+          // Tailwind's list-style: none drops the list role in Safari.
+          role="list"
           data-description
           className={cn(
             "text-body text-ink-muted mt-1.5 wrap-break-word",
