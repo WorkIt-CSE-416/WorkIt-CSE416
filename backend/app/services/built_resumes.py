@@ -29,6 +29,13 @@ from app.models.built_resume import (
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
+from app.schemas.built_resume import (
+    BulletChoiceResponse,
+    ChoicesResponse,
+    EntryChoiceResponse,
+    SkillChoiceResponse,
+    VariantResponse,
+)
 from app.services.bank import NotFound, get_entry, load_bank
 from app.services.postings import LISTED
 from app.services.resume_render import HeaderIdentity, Rendered, box_lines
@@ -411,3 +418,21 @@ def file_name(name: str, ext: str) -> str:
     and underscores only."""
     stem = re.sub(r"[^A-Za-z0-9 _-]+", "", name).strip() or "Resume"
     return f"{stem}.{ext}"
+
+
+async def choices_response(session: AsyncSession, resume_id: uuid.UUID) -> ChoicesResponse:
+    """The resume's choice rows and the variants its bullets can show, in
+    the API's shape (the choices GET and PATCH answer with it)."""
+    choices = await load_choices(session, resume_id)
+    variants = await list_variants(session, resume_id, list(choices.bullets))
+    return ChoicesResponse(
+        variants=[VariantResponse(id=v.id, bullet_id=v.bullet_id, text=v.text, job_posting_id=v.job_posting_id,
+                                  local=v.built_resume_id is not None) for v in variants],
+        entries=[EntryChoiceResponse(entry_id=i, shown=c.shown, position=c.position, show_gpa=c.show_gpa,
+                                     show_coursework=c.show_coursework) for i, c in choices.entries.items()],
+        bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position, variant_id=c.variant_id,
+                                      text=c.text)
+                 for i, c in choices.bullets.items()],
+        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position)
+                for i, c in choices.skills.items()],
+    )

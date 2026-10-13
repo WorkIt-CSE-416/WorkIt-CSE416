@@ -59,15 +59,11 @@ from app.routers.scout import get_llm
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeResponse,
-    BulletChoiceResponse,
     ChoicesResponse,
     ChoicesUpdate,
-    EntryChoiceResponse,
     FitResponse,
     RenderBox,
     RenderResponse,
-    SkillChoiceResponse,
-    VariantResponse,
 )
 from app.schemas.keywords import KeywordMatchResponse
 from app.services import built_resumes as service
@@ -222,22 +218,6 @@ async def fit(
     return FitResponse(hidden=hidden, render=_render_response(rendered))
 
 
-async def _choices(session: AsyncSession, resume_id: uuid.UUID) -> ChoicesResponse:
-    choices = await service.load_choices(session, resume_id)
-    variants = await service.list_variants(session, resume_id, list(choices.bullets))
-    return ChoicesResponse(
-        variants=[VariantResponse(id=v.id, bullet_id=v.bullet_id, text=v.text, job_posting_id=v.job_posting_id,
-                                  local=v.built_resume_id is not None) for v in variants],
-        entries=[EntryChoiceResponse(entry_id=i, shown=c.shown, position=c.position, show_gpa=c.show_gpa,
-                                     show_coursework=c.show_coursework) for i, c in choices.entries.items()],
-        bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position, variant_id=c.variant_id,
-                                      text=c.text)
-                 for i, c in choices.bullets.items()],
-        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position)
-                for i, c in choices.skills.items()],
-    )
-
-
 @router.get("/{resume_id}/choices", response_model=ChoicesResponse)
 async def get_choices(
     resume_id: uuid.UUID,
@@ -245,7 +225,7 @@ async def get_choices(
     session: AsyncSession = Depends(get_session),
 ) -> ChoicesResponse:
     await _owned(session, applicant_id, resume_id)
-    return await _choices(session, resume_id)
+    return await service.choices_response(session, resume_id)
 
 
 @router.patch("/{resume_id}/choices", response_model=ChoicesResponse)
@@ -265,7 +245,7 @@ async def update_choices(
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
     await _commit(session, "Failed to save the resume")
-    return await _choices(session, resume_id)
+    return await service.choices_response(session, resume_id)
 
 
 @router.get("/{resume_id}/docx")
