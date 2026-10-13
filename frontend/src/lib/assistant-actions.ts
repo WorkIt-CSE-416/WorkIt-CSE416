@@ -1,7 +1,6 @@
 "use server";
 
-import { apiFetch, extractErrorMessage } from "@/lib/auth";
-import { getApplicantSession } from "@/lib/session";
+import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
 
 /**
  * The editor assistant (backend/app/routers/assistant.py), as a server
@@ -29,18 +28,9 @@ export async function askAssistant(
   resumeId: string,
   message: string,
   line: AssistantLine,
-): Promise<{ data: AssistantReply | null; error: string | null }> {
-  try {
-    const session = await getApplicantSession();
-    const url = `/applicants/${encodeURIComponent(session.id)}/built-resumes/${encodeURIComponent(resumeId)}/assistant`;
-    const res = await apiFetch(
-      url,
-      { method: "POST", body: JSON.stringify({ message, ...line }) },
-      session.token,
-    );
-    if (!res.ok) return { data: null, error: await extractErrorMessage(res) };
-    return { data: (await res.json()) as AssistantReply, error: null };
-  } catch {
-    return { data: null, error: "Could not reach the server." };
-  }
+): Promise<Result<AssistantReply>> {
+  return applicantCall<AssistantReply>(`/built-resumes/${encodeId(resumeId)}/assistant`, {
+    method: "POST",
+    body: JSON.stringify({ message, ...line }),
+  });
 }

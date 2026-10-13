@@ -1,8 +1,8 @@
 "use server";
 
-import { apiDelete, apiGet } from "@/lib/api";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import { getApplicantSession } from "@/lib/session";
+import { applicantCall, encodeId, OFFLINE, type Result } from "@/lib/applicant-call";
 
 /**
  * The experience bank's API (backend/app/routers/bank.py), as server
@@ -44,28 +44,10 @@ export type Skill = { id: string; name: string; group: string | null; entry_ids:
 /** Entries in section order, ongoing first and then newest. */
 export type Bank = { entries: BankEntry[]; skills: Skill[] };
 
-type Result<T> = { data: T | null; error: string | null };
+const id = encodeId;
 
-const OFFLINE = "Could not reach the server.";
-
-// Ids are encoded: any browser script can call an action with any argument.
-const id = (value: string) => encodeURIComponent(value);
-
-async function call<T>(path: string, init?: RequestInit): Promise<Result<T>> {
-  try {
-    const session = await getApplicantSession();
-    const url = `/applicants/${id(session.id)}/bank${path}`;
-    const res =
-      init == null
-        ? await apiGet(url, session.token)
-        : init.method === "DELETE"
-          ? await apiDelete(url, session.token)
-          : await apiFetch(url, init, session.token);
-    if (!res.ok) return { data: null, error: await extractErrorMessage(res) };
-    return { data: res.status === 204 ? null : ((await res.json()) as T), error: null };
-  } catch {
-    return { data: null, error: OFFLINE };
-  }
+function call<T>(path: string, init?: RequestInit, read?: (res: Response) => Promise<T>) {
+  return applicantCall<T>(`/bank${path}`, init, read);
 }
 
 export async function getBank(): Promise<Result<Bank>> {
@@ -113,8 +95,8 @@ export async function updateEntry(
 
 /** How many built resumes show the entry, for the delete confirm (story 18). */
 export async function entryResumeCount(entryId: string): Promise<Result<number>> {
-  const { data, error } = await call<{ built_resumes: number }>(`/entries/${id(entryId)}/resumes`);
-  return { data: data?.built_resumes ?? null, error };
+  const res = await call<{ built_resumes: number }>(`/entries/${id(entryId)}/resumes`);
+  return { ...res, data: res.data?.built_resumes ?? null };
 }
 
 export async function deleteEntry(entryId: string): Promise<Result<null>> {

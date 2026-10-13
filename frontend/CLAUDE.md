@@ -169,9 +169,14 @@ are in `docs/auth.md`.
   the same facts drift apart, and built resumes read the bank.
   "Read It Again with AI" (KAN-222) shows only while the import response's
   `uses_left` is above 0, and a failed AI reading keeps the shown drafts.
-- **A built resume's PDF download goes through `sendBuiltResume`**
-  (`lib/sent-resume-actions.ts`, KAN-208), never `renderResumePdf`: every
-  download keeps a sent resume, and the API returns a Storage link that
+- **Applicant server actions call the API through `applicantCall`**
+  (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
+  GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
+  throws. A new action file under `/applicants/{id}` wraps it with its own
+  base path rather than copying the fetch.
+- **A built resume's download goes through `sendBuiltResume`**
+  (`lib/sent-resume-actions.ts`, KAN-208), PDF or Word (`"docx"`), never
+  `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
   downloads the file. A download cancelled at the missing-character warning
   deletes the sent resume it just made (`created`), so the "Sent" list holds
   only files the student took. Apply on the posting detail goes through
