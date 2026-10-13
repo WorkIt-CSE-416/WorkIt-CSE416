@@ -1,6 +1,7 @@
 "use client";
 
 import { FileDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ExternalLinkIcon } from "@/components/icons";
@@ -45,6 +46,7 @@ export function ApplyButton({
   applyUrl: string;
   className?: string;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [choices, setChoices] = useState<Choice[] | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -99,6 +101,8 @@ export function ApplyButton({
     setBusy(false);
     if (!data) return setError(error);
     setSent(data);
+    // The page's "You sent <name> on <date>" reads the new sent resume.
+    router.refresh();
   }
 
   const employerLink = (label: string, variant: "default" | "secondary") => (
