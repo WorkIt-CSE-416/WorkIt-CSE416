@@ -780,7 +780,7 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 These belong to later tickets and should not be added here:
 
-- Jobs, applications, pipeline stages, interviews, offers, resume scores. ATS
+- Jobs, applications, pipeline stages, interviews, offers, resume scores. Hiring-system
   clones model all of them; `../../../docs/job_posting.md` starts that work.
 - Resume storage and parsing — implemented in `resume.py` (model) and
   `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`

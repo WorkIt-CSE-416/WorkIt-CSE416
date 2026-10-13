@@ -422,7 +422,7 @@ CREATE INDEX resume_certifications_resume_idx ON resume_certifications (resume_i
   a UI section exists for them. Until then, they fit in
   `resume_education.description` or `resume_experience.description`.
 - **Embeddings / vector columns** for AI matching. Belongs to a future
-  matching/ATS ticket, not the base schema.
+  matching or hiring-system ticket, not the base schema.
 - **`resume_summary`** field. Already covered by `applicant_profiles.headline`
   and `resumes.raw_text`. Add if the UI needs an editable summary per resume.
 
