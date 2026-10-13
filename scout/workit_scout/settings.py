@@ -7,7 +7,21 @@ starts with nothing set; the defaults are a local Ollama. Production values,
 and why they differ: ../CLAUDE.md.
 """
 
+from dataclasses import dataclass
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+@dataclass(frozen=True)
+class Endpoint:
+    """One OpenAI-compatible model endpoint: where it is and which model to ask."""
+
+    base_url: str
+    model: str
+    # Ollama ignores the key but the SDK insists on one.
+    api_key: str | None = None
+    reasoning_effort: str | None = None
+
 
 
 class ScoutSettings(BaseSettings):
@@ -23,12 +37,15 @@ class ScoutSettings(BaseSettings):
     # GPT-5 reject "none" and want "minimal".
     reasoning_effort: str | None = "none"
 
-    # Tried once when the primary is rate-limited, down or unreachable. Unset
-    # means no fallback: the user sees Scout's error message instead.
-    fallback_base_url: str | None = None
-    fallback_model: str | None = None
-    fallback_api_key: str | None = None
-    fallback_reasoning_effort: str | None = None
+    # The endpoint chain, tried in order: a JSON list of objects with
+    # base_url, model and, optionally, api_key and reasoning_effort. Unset
+    # means one endpoint, the one the four fields above name.
+    endpoints: list[Endpoint] = []
+
+    def chain(self) -> list[Endpoint]:
+        return self.endpoints or [
+            Endpoint(self.base_url, self.model, self.api_key, self.reasoning_effort)
+        ]
 
     # Messages one account may send per UTC day. The cap is what keeps a free
     # product free.

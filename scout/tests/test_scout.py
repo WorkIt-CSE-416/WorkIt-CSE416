@@ -7,8 +7,12 @@ installs this package: `uv run pytest ../scout/tests`.
 import asyncio
 
 import httpx
-import pytest
-from openai import APIConnectionError, BadRequestError, RateLimitError
+from openai import (
+    APIConnectionError,
+    BadRequestError,
+    InternalServerError,
+    RateLimitError,
+)
 from workit_scout import llm as llm_module
 from workit_scout.agent import MAX_REPLY_CHARS, run
 from workit_scout.facts import job_facts, resume_facts
@@ -31,6 +35,12 @@ _REQUEST = httpx.Request("POST", "http://primary.test/v1/chat/completions")
 def rate_limited() -> RateLimitError:
     return RateLimitError(
         "quota", response=httpx.Response(429, request=_REQUEST), body=None
+    )
+
+
+def server_error() -> InternalServerError:
+    return InternalServerError(
+        "down", response=httpx.Response(503, request=_REQUEST), body=None
     )
 
 
@@ -60,13 +70,20 @@ def test_primary_answers():
 
 
 def test_rate_limit_falls_back_once():
-    events = collect(ScriptedLLM(rate_limited(), fallback=["from fallback"]), "hello")
+    events = collect(ScriptedLLM(rate_limited(), ["from fallback"]), "hello")
     assert reply(events) == "from fallback"
+
+
+def test_the_chain_moves_down_past_a_429_a_5xx_and_a_dead_endpoint():
+    down = APIConnectionError(request=_REQUEST)
+    fake = ScriptedLLM(rate_limited(), server_error(), down, ["fourth"])
+    assert reply(collect(fake, "hello")) == "fourth"
+    assert len(fake.prompts) == 4
 
 
 def test_unreachable_primary_falls_back():
     down = APIConnectionError(request=_REQUEST)
-    assert reply(collect(ScriptedLLM(down, fallback=["ok"]), "hello")) == "ok"
+    assert reply(collect(ScriptedLLM(down, ["ok"]), "hello")) == "ok"
 
 
 def test_no_fallback_reports_quota():
@@ -75,7 +92,7 @@ def test_no_fallback_reports_quota():
 
 
 def test_misconfiguration_does_not_fall_back():
-    fake = ScriptedLLM(bad_request(), fallback=["should not run"])
+    fake = ScriptedLLM(bad_request(), ["should not run"])
     assert collect(fake, "hello") == [ErrorEvent(message=llm_module.OFFLINE)]
     assert len(fake.prompts) == 1
 
@@ -83,7 +100,7 @@ def test_misconfiguration_does_not_fall_back():
 def test_failure_mid_reply_is_not_retried():
     # A retry would send the user the start of the reply twice.
     events = collect(
-        ScriptedLLM(["Half a", rate_limited()], fallback=["whole"]), "hello"
+        ScriptedLLM(["Half a", rate_limited()], ["whole"]), "hello"
     )
     assert reply(events) == "Half a"
     assert events[-1] == ErrorEvent(message=llm_module.CUT_OFF)
@@ -97,29 +114,28 @@ def test_long_reply_is_cut_at_the_cap():
 # --- configuration ----------------------------------------------------------------
 
 
-def test_fallback_is_off_unless_configured():
+def test_one_endpoint_unless_a_chain_is_configured():
     assert len(LLM.from_settings(ScoutSettings(_env_file=None))._endpoints) == 1
 
 
-def test_fallback_is_used_when_configured():
-    s = ScoutSettings(
-        _env_file=None, fallback_base_url="http://fallback/v1", fallback_model="nano"
+def test_the_chain_comes_from_env_in_order(monkeypatch):
+    monkeypatch.setenv(
+        "SCOUT_ENDPOINTS",
+        '[{"base_url": "http://groq/v1", "model": "gpt-oss-120b", "api_key": "k"},'
+        ' {"base_url": "http://cf/v1", "model": "gpt-oss-20b",'
+        ' "reasoning_effort": "low"}]',
     )
-    assert [e.model for e, _ in LLM.from_settings(s)._endpoints] == [s.model, "nano"]
-
-
-def test_half_a_fallback_is_an_error_not_silence():
-    with pytest.raises(ValueError, match="SCOUT_FALLBACK_MODEL"):
-        LLM.from_settings(
-            ScoutSettings(_env_file=None, fallback_base_url="http://fallback/v1")
-        )
+    endpoints = [e for e, _ in LLM.from_settings(ScoutSettings(_env_file=None))._endpoints]
+    assert [(e.model, e.api_key, e.reasoning_effort) for e in endpoints] == [
+        ("gpt-oss-120b", "k", None),
+        ("gpt-oss-20b", None, "low"),
+    ]
 
 
 def test_settings_read_the_scout_prefix(monkeypatch):
     monkeypatch.setenv("SCOUT_MODEL", "qwen3.5:9b")
-    monkeypatch.setenv("SCOUT_DAILY_TURNS", "7")
     s = ScoutSettings(_env_file=None)
-    assert (s.model, s.daily_turns) == ("qwen3.5:9b", 7)
+    assert s.model == "qwen3.5:9b"
 
 
 # --- the daily cap ------------------------------------------------------------------

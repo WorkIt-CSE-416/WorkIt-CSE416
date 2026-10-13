@@ -10,11 +10,10 @@ of this package.
 
 import logging
 from collections.abc import AsyncIterator, Sequence
-from dataclasses import dataclass
 
 from openai import APIConnectionError, APIStatusError, AsyncOpenAI, RateLimitError
 
-from workit_scout.settings import ScoutSettings
+from workit_scout.settings import Endpoint, ScoutSettings
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +26,6 @@ CUT_OFF = "Scout lost its connection mid-reply. Try asking again."
 
 class ScoutUnavailable(Exception):
     """No configured model could answer. The message is written for the user."""
-
-
-@dataclass(frozen=True)
-class Endpoint:
-    base_url: str
-    model: str
-    # Ollama ignores the key but the SDK insists on one.
-    api_key: str | None = None
-    reasoning_effort: str | None = None
 
 
 def _worth_another_try(exc: Exception) -> bool:
@@ -55,14 +45,16 @@ def _user_message(exc: Exception) -> str:
 
 class LLM:
     """
-    Streams one reply from the first endpoint that can give one: the primary,
-    then the fallback when the primary is down, unreachable or out of quota
+    Asks the endpoint chain, in order, for one reply. It moves to the next
+    endpoint when one is rate-limited (429), erroring (5xx) or unreachable
     *before it has said anything*. Once text has reached the user a retry would
     repeat it, so a failure mid-reply ends the reply instead.
     """
 
-    def __init__(self, primary: Endpoint, fallback: Endpoint | None = None):
-        # Building a client opens no connection, so both are made up front.
+    def __init__(self, endpoints: Sequence[Endpoint]):
+        if not endpoints:
+            raise ValueError("The endpoint chain is empty.")
+        # Building a client opens no connection, so all are made up front.
         # max_retries=0: a daily cap does not lift after a backoff, and a
         # laptop without Ollama will not start one. Fail over at once.
         self._endpoints = [
@@ -74,28 +66,12 @@ class LLM:
                     max_retries=0,
                 ),
             )
-            for endpoint in (primary, fallback)
-            if endpoint is not None
+            for endpoint in endpoints
         ]
 
     @classmethod
     def from_settings(cls, s: ScoutSettings) -> "LLM":
-        primary = Endpoint(s.base_url, s.model, s.api_key, s.reasoning_effort)
-        if not (s.fallback_base_url or s.fallback_model):
-            return cls(primary)
-        if not (s.fallback_base_url and s.fallback_model):
-            # Half a fallback is a typo, not a choice. Failing here surfaces it
-            # on the first Scout request instead of on the day it was needed.
-            raise ValueError(
-                "Set both SCOUT_FALLBACK_BASE_URL and SCOUT_FALLBACK_MODEL, or neither."
-            )
-        fallback = Endpoint(
-            s.fallback_base_url,
-            s.fallback_model,
-            s.fallback_api_key,
-            s.fallback_reasoning_effort,
-        )
-        return cls(primary, fallback)
+        return cls(s.chain())
 
     async def stream(self, messages: Sequence[Message]) -> AsyncIterator[str]:
         failure = OFFLINE
