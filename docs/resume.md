@@ -4,6 +4,43 @@ Defines the `resumes` table and its structured content tables. KAN-50
 explicitly deferred resume work (line 257: "Leave resume storage and parsing
 to Brian's separate work"), so this doc owns the full resume domain.
 
+## The experience bank replaces the content tables (KAN-206)
+
+The `resume_*` content tables below were never built; an uploaded resume
+keeps its parser output in `resumes.parsed_json`. Resume facts now live in
+the **experience bank** (terms: `GLOSSARY.md`), stored once per student and
+not per resume, so a built resume is a live view of it (ADR 0001):
+
+```
+applicant_profiles
+  ├── experience_banks   one row per student: the bank embedding and when it was made
+  ├── bank_entries       one per job, degree, project, club role, award or certification
+  │     └── bank_bullets the entry's lines, in order, in their original wording
+  └── bank_skills        a plain list, each with an optional group
+```
+
+- **Six entry sections, not seven.** Skills is the seventh section, but a
+  skill is its own row (`bank_skills`), so the `bank_section` enum has six
+  values.
+- **One entry shape for every section.** Title (required), organization,
+  location, start month, and an end that is a month, Present or expected.
+  The few fields one section needs are columns on the same row and stay null
+  elsewhere: Education's degree, field of study, GPA and scale, coursework
+  and honors; Projects' link; Certifications' issuer; Awards' one date.
+  `backend/app/schemas/bank.py` decides which section owns which field.
+- **Months are dates on the first of the month**, sent as `YYYY-MM`: a
+  resume shows a month, never a day.
+- **The embedding moves to the bank row.** A null embedding means "remake it
+  on the next recommendations request", so every change to an entry, bullet
+  or skill sets it back to null. `resumes.embedding` stays until the
+  recommender reads the bank (expand, then contract).
+- **The duplicate check matches section, title and organization, ignoring
+  case.** It warns and never blocks: two real roles may share a title.
+- Bullet variants, skill links and built resumes are later tables that point
+  at these. The rules live in `backend/app/services/bank.py`.
+
+The rest of this file is the original design for uploaded resumes.
+
 ## Relationship to KAN-50 tables
 
 ```

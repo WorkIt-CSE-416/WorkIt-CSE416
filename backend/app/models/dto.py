@@ -132,3 +132,27 @@ class job_post_status(enum.StrEnum):
     # added by 1ea834081a48; ALTER TYPE, not an edit here, is what changes the column
     paused= "paused"
     closed= "closed"
+
+
+# --- Experience bank enums (KAN-206) ---
+
+class bank_section(enum.StrEnum):
+    '''
+    the section an experience bank entry belongs to. Skills, the seventh
+    section, is its own table (bank_skills), so it has no member here.
+    '''
+    education= "education"
+    experience= "experience"
+    projects= "projects"
+    leadership= "leadership"
+    awards= "awards"
+    certifications= "certifications"
+
+class entry_end_kind(enum.StrEnum):
+    '''
+    how an entry ends: on a month, ongoing ("Present"), or on a month still
+    to come ("Expected May 2027"). Present has no end month; the others do.
+    '''
+    month= "month"
+    present= "present"
+    expected= "expected"
