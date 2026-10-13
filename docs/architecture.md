@@ -107,6 +107,7 @@ modeled at all (doesn't exist as code).
 | `resumes` | `app/models/resume.py` | Yes | No — no resume endpoint exists yet |
 | `job_postings` | `app/models/jobs.py` | **No** | No |
 | `countries` / `states` | `app/models/locations.py` | **No** | No |
+| `ai_usage_counters` | `app/models/ai_usage.py` | Yes | Indirectly — every model feature checks and counts daily uses (`app/services/usage.py`) |
 
 `app/models/__init__.py` auto-imports every module in the folder via
 `pkgutil`, so a new model file registers itself with `Base.metadata` without
