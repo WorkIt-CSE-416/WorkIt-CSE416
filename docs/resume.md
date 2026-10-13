@@ -56,6 +56,12 @@ only place to edit resume facts; `resumes.parsed_json` is now the parser's
 own output, never edited, and stays only until the recommender and Scout
 read the bank.
 
+**Model parsing** (KAN-222): when the parser finds no entries, the API reads
+the upload with AI instead, and "Read It Again with AI" on the drafts asks
+for that reading on purpose. The model gets the text with identity data
+removed, and each entry it returns is checked against the entry schema. It
+costs one AI reading a day (the parsing cap), counted only when it works.
+
 The rest of this file is the original design for uploaded resumes.
 
 ## Relationship to KAN-50 tables

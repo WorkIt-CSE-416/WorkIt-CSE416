@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -26,6 +26,11 @@ import { formatDates, sectionOf, type EntryDraft } from "./sections";
  * draft that matches a bank entry says "Already in Your Bank"; Save All skips
  * it, and its own button saves it as a new entry. Edit opens the shared entry
  * editor on the draft. Each save reads the bank again through `onSaved`.
+ *
+ * Model parsing (KAN-222): the API reads the resume with AI when the parser
+ * finds no entries, and "Read It Again with AI" asks for that reading on
+ * purpose while the student has an AI reading left today. The AI drafts
+ * replace the shown ones; a failed AI reading keeps them and shows why.
  */
 
 type Row = DraftEntry & { key: number; error?: string | null };
@@ -38,19 +43,23 @@ const toEditor = ({ bullets, key, error, duplicate_of, ...fields }: Row): EntryD
 
 export function ImportCard({ onSaved }: { onSaved: () => Promise<string | null> }) {
   const [filename, setFilename] = useState<string | null>(null);
+  const [readBy, setReadBy] = useState<"parser" | "model">("parser");
+  const [usesLeft, setUsesLeft] = useState(0);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [skills, setSkills] = useState<DraftSkill[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function runImport() {
+  async function runImport(readWithAi = false) {
     setBusy(true);
     setError(null);
-    const { data, error } = await importResume();
+    const { data, error } = await importResume({ readWithAi });
     setBusy(false);
     if (!data) return setError(error);
     setFilename(data.filename);
+    setReadBy(data.read_by);
+    setUsesLeft(data.uses_left);
     setRows(data.entries.map((entry, key) => ({ ...entry, key })));
     setSkills(data.skills);
     setEditing(null);
@@ -150,7 +159,7 @@ export function ImportCard({ onSaved }: { onSaved: () => Promise<string | null> 
               Upload one on My Profile.
             </Link>
           </p>
-          <Button className="mt-3" onClick={runImport} disabled={busy}>
+          <Button className="mt-3" onClick={() => runImport()} disabled={busy}>
             {busy ? "Reading…" : "Import"}
           </Button>
         </>
@@ -160,7 +169,7 @@ export function ImportCard({ onSaved }: { onSaved: () => Promise<string | null> 
         <p className="text-body text-ink-meta mt-1">
           {rows.length + skills.length === 0
             ? `We couldn't find any entries in ${filename ?? "your resume"}. Add them by hand below.`
-            : `From ${filename ?? "your resume"}. Check each draft, then save it.`}
+            : `From ${filename ?? "your resume"}${readBy === "model" ? ", read with AI" : ""}. Check each draft, then save it.`}
         </p>
       )}
 
@@ -220,10 +229,19 @@ export function ImportCard({ onSaved }: { onSaved: () => Promise<string | null> 
         </div>
       )}
 
-      {rows && savable > 0 && (
-        <Button className="mt-3" onClick={saveAll} disabled={busy}>
-          Save All
-        </Button>
+      {rows && (savable > 0 || usesLeft > 0) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {savable > 0 && (
+            <Button onClick={saveAll} disabled={busy}>
+              Save All
+            </Button>
+          )}
+          {usesLeft > 0 && (
+            <Button variant="secondary" onClick={() => runImport(true)} disabled={busy}>
+              <Sparkles /> {busy ? "Reading…" : "Read It Again with AI"}
+            </Button>
+          )}
+        </div>
       )}
 
       {error && (
