@@ -1,16 +1,16 @@
 "use client";
 
-import { ArrowUp, MessageCircle, Mic, SlidersHorizontal, Star } from "lucide-react";
+import { MessageCircle, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ArrowRightIcon, CloseIcon, SparkleIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
+import { Composer, Message, Typing } from "./chat";
 import { ReplyText } from "./reply-text";
 import { closeScout, sendToScout, useScout } from "./scout-store";
 import type { ScoutMessage } from "./stream";
-import { useSpeechInput } from "./use-speech-input";
 
 /**
  * Scout's panel, after JobRight's Orion: a header, a welcome, a card of what
@@ -254,129 +254,5 @@ function Suggestion({
       </span>
       <ArrowRightIcon className="text-ink-subtle group-hover/task:text-ink ease-glide size-4 shrink-0 transition-[color,translate] duration-200 group-hover/task:translate-x-0.5" />
     </button>
-  );
-}
-
-/** A bubble rises in as it arrives. The sender's corner is squared, the way
- *  a chat draws who spoke. */
-function Message({ role, children }: { role: ScoutMessage["role"]; children: ReactNode }) {
-  const mine = role === "user";
-  return (
-    <div
-      className={cn(
-        "text-body animate-rise max-w-[85%] rounded-2xl px-4 py-2.5",
-        // The user's own text keeps its line breaks; Scout's are ReplyText's paragraphs.
-        mine
-          ? "bg-brand text-on-brand self-end rounded-br-md whitespace-pre-wrap"
-          : "bg-surface text-ink self-start rounded-bl-md",
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** Three dots while Scout works out its first words. */
-function Typing() {
-  return (
-    <span role="status" className="flex h-6 items-center gap-1">
-      <span className="sr-only">Scout is thinking</span>
-      {[0, 1, 2].map((dot) => (
-        <span
-          key={dot}
-          aria-hidden="true"
-          className="bg-ink-subtle animate-typing size-1.5 rounded-full"
-          style={{ animationDelay: `${dot * 150}ms` }}
-        />
-      ))}
-    </span>
-  );
-}
-
-function Composer({
-  onSend,
-  answering,
-  input,
-}: {
-  onSend: (text: string) => void;
-  answering: boolean;
-  input: React.RefObject<HTMLTextAreaElement | null>;
-}) {
-  const [draft, setDraft] = useState("");
-  const speech = useSpeechInput((text) => setDraft((d) => (d ? `${d} ${text}` : text)));
-  const empty = !draft.trim();
-  const blocked = answering || empty;
-
-  function submit() {
-    if (blocked) return;
-    onSend(draft);
-    setDraft("");
-  }
-
-  return (
-    <form
-      className="shrink-0 px-3 pt-1 pb-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-    >
-      {/* A grey field like the bar's search, turning white with the brand
-          ring while it is being typed in. */}
-      <div className="bg-app hover:bg-hover focus-within:bg-panel focus-within:hover:bg-panel focus-within:ring-brand-ring rounded-2xl p-3 transition-[background-color,box-shadow] duration-150 focus-within:ring-2">
-        <textarea
-          ref={input}
-          aria-label="Message Scout"
-          placeholder="Ask me anything..."
-          rows={2}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            // Enter sends; Shift+Enter is a new line, as in every chat box.
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          className="text-body text-ink placeholder:text-ink-meta w-full resize-none bg-transparent outline-none"
-        />
-        <div className="flex items-center justify-end gap-2">
-          {speech.supported && (
-            <IconButton
-              label={speech.listening ? "Stop dictating" : "Dictate a message"}
-              className={cn(
-                "relative size-8 rounded-full after:hidden",
-                speech.listening
-                  ? "bg-brand text-on-brand hover:text-on-brand"
-                  : "hover:bg-panel text-ink-meta",
-              )}
-              onClick={speech.toggle}
-            >
-              {/* While it listens, a ring breathes around it, like a
-                  recording light. */}
-              {speech.listening && (
-                <span
-                  aria-hidden="true"
-                  className="ring-brand/40 absolute inset-0 animate-pulse rounded-full ring-4"
-                />
-              )}
-              <Mic className="size-4" />
-            </IconButton>
-          )}
-          <IconButton
-            label="Send"
-            tooltip={
-              answering ? "Scout is still answering" : empty ? "Type a message to send" : "Send"
-            }
-            type="submit"
-            variant="brand"
-            aria-disabled={blocked}
-            className="size-8 border-0 aria-disabled:cursor-default aria-disabled:opacity-40"
-          >
-            <ArrowUp className="size-4" />
-          </IconButton>
-        </div>
-      </div>
-    </form>
   );
 }

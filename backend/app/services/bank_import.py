@@ -1,6 +1,7 @@
 """
 Import (KAN-211): turn the heuristic parser's reading of an uploaded resume
-into draft entries and draft skills. Pure: no database, no HTTP. The router
+into draft entries and draft skills. Model parsing (KAN-222) does the same
+from the model's reading. No database, no HTTP. The router
 adds the "Already in your bank" flags and saves nothing; the student saves
 each draft through the bank's own routes.
 
@@ -13,9 +14,11 @@ import datetime
 import re
 
 from pydantic import ValidationError
+from workit_scout.identity import Identity
+from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
-from app.schemas.bank import DraftEntry, DraftSkill
+from app.schemas.bank import DraftEntry, DraftSkill, ModelReading
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
@@ -123,15 +126,94 @@ def draft_entries(parsed: ParsedResume, today: datetime.date | None = None) -> l
     return [d for d in (_valid(raw) for raw in _raw_drafts(parsed, today)) if d is not None]
 
 
-def draft_skills(parsed: ParsedResume, bank_names: set[str]) -> list[DraftSkill]:
-    """One draft per skill name, ignoring case; `bank_names` are the bank's
-    skill names, lowercased."""
+def parsed_skills(parsed: ParsedResume) -> list[tuple[str, str | None]]:
+    """The parser's skills as (name, group) pairs, for `draft_skills`."""
+    return [(s.skill_name, s.category) for s in parsed.skills]
+
+
+def draft_skills(skills: list[tuple[str, str | None]], bank_names: set[str]) -> list[DraftSkill]:
+    """One draft per skill name, ignoring case, from (name, group) pairs;
+    `bank_names` are the bank's skill names, lowercased."""
     seen: set[str] = set()
     out: list[DraftSkill] = []
-    for skill in parsed.skills:
-        name = _clip(skill.skill_name, _NAME)
+    for raw_name, group in skills:
+        name = _clip(raw_name, _NAME)
         if not name or name.lower() in seen:
             continue
         seen.add(name.lower())
-        out.append(DraftSkill(name=name, group=_clip(skill.category, _NAME), in_bank=name.lower() in bank_names))
+        out.append(DraftSkill(name=name, group=_clip(group, _NAME), in_bank=name.lower() in bank_names))
     return out
+
+
+# --- Model parsing (KAN-222) ---------------------------------------------------
+
+# One frozen string, so providers can cache it as a prefix; the resume text
+# goes in a message after it. Wording still open: tune it against a fixed
+# set of resumes before a provider switch.
+MODEL_PROMPT = """\
+You read a student's resume and copy it into resume entries. Answer with JSON \
+only: {"entries": [...], "skills": [{"name": ..., "group": ...}]}.
+
+The truth rule: copy only what the resume says, in its own words. Never \
+invent, reword or improve a title, organization, date, number, tool or \
+result. Leave a field null (or "" for the title) when the resume does not \
+say it.
+
+Entries, in the resume's order:
+- section is one of "education", "experience", "projects", "leadership" \
+(clubs, activities, volunteering), "awards", "certifications".
+- title: the role, school, project, award or certification name. \
+organization: the company or group. Education: the school is the title.
+- Months are "YYYY-MM". end_kind is "month" (ended), "present" (still going, \
+no end_month) or "expected" (an expected end, such as graduation).
+- bullets: the resume's bullet lines for that entry, one per item, unchanged.
+- Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
+Certifications only: issuer. Awards only: award_date, in place of start and \
+end. Leave other sections' fields empty.
+- skills: each skill the resume lists, with its group ("Languages", "Tools") \
+when the resume gives one.
+
+Text like [name], [email], [phone] or [link] stands for something removed for \
+privacy. Never copy it into an entry.
+"""
+
+# The model sees at most this much of the resume: two full pages and more.
+MAX_RESUME_CHARS = 20_000
+
+PLACEHOLDERS = ("[name]", "[email]", "[phone]", "[link]")
+
+
+def _withheld(value: object) -> bool:
+    return isinstance(value, str) and any(p in value for p in PLACEHOLDERS)
+
+
+async def read_with_model(raw_text: str, llm: LLM, *, identity: Identity) -> ModelReading:
+    """The model's reading of the resume text. The seam removes identity data
+    from every message first. Raises `ScoutUnavailable` (or its
+    `InvalidReply`) when no model answers or the answer fails the schema."""
+    prompt = [
+        {"role": "system", "content": MODEL_PROMPT},
+        {"role": "user", "content": raw_text[:MAX_RESUME_CHARS]},
+    ]
+    return await llm.complete_json(prompt, ModelReading, identity=identity)
+
+
+def model_drafts(reading: ModelReading) -> list[DraftEntry]:
+    """The model's entries as drafts, each checked against the entry schema:
+    a field holding a placeholder is emptied, text is clipped, an entry with
+    no title is dropped, and dates that do not fit together are dropped."""
+    drafts: list[DraftEntry] = []
+    for entry in reading.entries:
+        raw = {k: None if _withheld(v) else v for k, v in entry.model_dump().items()}
+        for field in ("title", "organization", "location", "degree", "field_of_study", "issuer"):
+            raw[field] = _clip(raw[field])
+        raw["honors"] = _clip(raw["honors"], _LONG)
+        raw["coursework"] = [c for c in (_clip(x) for x in raw["coursework"] if not _withheld(x)) if c][:40]
+        raw["bullets"] = [b for b in (_clip(x, _LONG) for x in raw["bullets"]) if b][:30]
+        if draft := _valid(raw):
+            drafts.append(draft)
+    return drafts
+
+
+def model_skills(reading: ModelReading) -> list[tuple[str, str | None]]:
+    return [(s.name, s.group) for s in reading.skills if not _withheld(s.name)]

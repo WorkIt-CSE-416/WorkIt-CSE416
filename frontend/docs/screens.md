@@ -306,7 +306,8 @@ link into the Calendar from anywhere else goes through `DayLink` in
 ## My Profile
 
 **Resume upload is wired.** The onboarding form (`onboarding/applicant`)
-uploads on Continue. The seeker profile (`(seeker)/profile`) supports up to
+uploads on Continue, then goes to intake, onboarding's next step (Experience
+Bank section). The seeker profile (`(seeker)/profile`) supports up to
 5 resumes, newest first: picking a file uploads it at once (`uploadResume`);
 the API reads it itself, and the client never sends parsed content. Each
 resume row (`resume-row.tsx`) has an eye — a short-lived signed link from
@@ -373,7 +374,7 @@ place they are edited: My Profile keeps the uploads and links here.
   Profile. **Still open:** the same card on the Jobs page (user story 22),
   and "Read it again with AI" (KAN-222).
 - **One entry editor** (`entry-editor.tsx`) for every section and for
-  import drafts (intake's later): it edits a draft and hands the whole draft
+  import and intake drafts: it edits a draft and hands the whole draft
   back, and the caller decides between create and edit. Only the title is
   required. Each section adds its own fields (`sections.ts` names the
   title and organization for each). Months use the browser's month picker,
@@ -385,7 +386,8 @@ place they are edited: My Profile keeps the uploads and links here.
 - **Editing an entry** sends its fields in one PATCH, then its bullets as the
   adds, edits and deletes that turn the saved list into the draft's.
 - **Delete asks once**, inline. **Still open:** saying how many built
-  resumes use the entry (user story 18) once built resumes exist (KAN-207).
+  resumes use the entry (user story 18); built resumes exist since KAN-207,
+  but the count is not shown yet.
 - **Skills are a plain list** with an optional group, shown one line per
   group. A name appears once, ignoring case; the API answers 409 otherwise.
 - **Skill links live in the entry editor** (KAN-216, `skill-links.tsx`):
@@ -395,6 +397,60 @@ place they are edited: My Profile keeps the uploads and links here.
   created). Once the entry has saved, a failed later step closes the editor
   and says "Some changes did not save", because a retry would repeat the
   steps that worked. Intake and import omit `skills`, so no links show.
+- **Intake** (`intake.tsx`, KAN-213) sits below Import Your Resume and
+  above the section cards, in the look of the intake prototype's variant
+  G: a lavender chat with WorkIt's gradient mark, a chapter line per section, the draft card sticky beside
+  the chat from `@4xl/main` and, below that, a one-line draft that opens as
+  a bottom sheet. The student picks a section from its chips; the opener
+  for it is fixed text, not a model turn. Each turn goes through
+  `app/api/intake/` to `POST /intake/turn` with this entry's chat and the
+  card, edits included; the reply streams back as the line, the whole
+  draft (the card remounts on it) and the messages left today. The card is
+  the shared entry editor (its `onChange` reports each edit), and saving is
+  the bank's own create with its duplicate warning, one entry at a time.
+  The bubbles, typing dots and composer with its mic are Scout's
+  (`components/scout/chat.tsx`). **The unsaved draft lives in localStorage**
+  (`lib/local-drafts.ts`), so a reload keeps it; Sign Out and the login
+  page clear every key under its prefix, so the next person in the browser
+  never sees it. The chat is never stored anywhere.
+- **Intake's step bar** (`intake-steps.tsx`, KAN-214), after variant G: one
+  segment per section in the order intake walks (Education, Projects,
+  Leadership & Activities, Experience, Awards, Certifications: user story
+  41, not the bank's order), Back on the left, Skip on the right. A segment
+  jumps to its section; the bar is disabled while WorkIt answers or a save
+  runs, so a late reply never lands on another section. It starts at 25%
+  and fills as sections are done; the current segment fills as its draft
+  grows (a title, each answer, full when WorkIt has no questions left).
+  **A skipped section counts toward the percentage** (settled in KAN-214,
+  as the prototype does): the bar measures sections dealt with, so a
+  student with no awards still reaches 100%. Its segment is striped, not
+  filled, and a later save in it marks it done. Skip and a jump drop the
+  unsaved draft, as in the prototype. Skipped sections persist beside the
+  draft in `lib/local-drafts.ts`.
+- **Walking.** With an empty bank the page walks: intake opens on the first
+  section neither filled nor skipped and moves to the next after each save
+  or Skip. With entries already in the bank the student picks from the
+  chips and returns to them after each save. Walking is decided when the
+  page opens.
+- **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
+  profile form's Continue leads there, then Finish leads to /dashboard. It
+  always walks, and its step bar shows the profile form as a done "Profile"
+  step before the sections. It imports `Intake` from the bank route rather
+  than promoting it to `src/components`: intake needs the bank's entry
+  editor and sections, which stay with the bank page.
+- **The page title stays "Experience Bank"** on the bank page and the
+  onboarding step (settled for now in KAN-214, per the spec's "kept for
+  now"); the glossary term stays either way. **Still open:** the name
+  students see.
+- **Base Resumes card** (`built-resumes.tsx`, KAN-207), above the sections.
+  Generate makes a base resume with every entry, bullet and skill in the
+  bank; each row downloads a PDF (Jake's Resume) or a Word file, can become
+  the default resume (star) and can be deleted. Files come back from server
+  actions as base64 and the browser saves them, so no route handler is
+  needed. A PDF whose text has characters the font lacks shows them and
+  waits for Download Anyway (user story 53). The 5-resume limit is the
+  API's; its 409 message shows as the card's error. The page needs both
+  the bank and the resume list: if either fails it shows the error state.
 
 ## Scout panel
 
@@ -405,7 +461,9 @@ over it, and opens only on a click. It stays mounted and opens in two moves: its
 room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
-the panel is open. `stream.ts` mirrors the API's NDJSON events, which
+the panel is open. `chat.tsx` holds the message bubble, typing dots and
+composer (with the mic, `use-speech-input`), shared with intake on the bank
+page; each takes who is talking as a prop. `stream.ts` mirrors the API's NDJSON events, which
 `app/api/scout/` (the one route handler, since the reply streams) forwards with
 the session's token. `reply-text` renders a reply's **bold** and "- " bullets,
 the prompt's whole formatting vocabulary, with no markdown library (a reply

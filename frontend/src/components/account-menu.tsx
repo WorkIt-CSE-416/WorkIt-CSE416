@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 
 import { Avatar } from "@/components/avatar";
 import { cn } from "@/lib/cn";
+import { clearLocalDrafts } from "@/lib/local-drafts";
 import { SignOutIcon, UserIcon } from "@/components/icons";
 import {
   DropdownMenu,
@@ -170,6 +171,8 @@ export function AccountMenu({
             {items.length > 0 && <DropdownMenuSeparator />}
             <DropdownMenuItem
               onClick={() => {
+                // Unsaved drafts belong to this student alone (lib/local-drafts.ts).
+                clearLocalDrafts();
                 void onSignOut();
               }}
             >
