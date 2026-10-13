@@ -133,6 +133,14 @@ async def test_the_prompt_is_frozen_and_the_turn_goes_after_it(applicant, client
     assert "Education" in second.prompts[0][1]["content"]
 
 
+async def test_the_turn_says_what_title_and_organization_hold_in_the_section(applicant, client):
+    model = use_model([reply()])
+    await client.post("/intake/turn", json={**TURN, "section": "education", "draft": None})
+    context = model.prompts[0][1]["content"]
+    assert "title is the school" in context
+    assert "organization is a college or department" in context
+
+
 async def test_a_draft_that_breaks_the_entry_schema_does_not_count(applicant, client, cap):
     # The first JSON route: an invalid reply is an error line and costs nothing.
     cap(1)
