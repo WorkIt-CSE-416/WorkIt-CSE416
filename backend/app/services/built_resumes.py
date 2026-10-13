@@ -12,6 +12,7 @@ resume answers `NotFound`), and flushes but never commits.
   setting one clears the other, and a check constraint backs it.
 """
 
+import re
 import uuid
 
 from sqlalchemy import func, select, update
@@ -26,6 +27,7 @@ from app.models.built_resume import (
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.services.bank import NotFound, load_bank
+from app.services.resume_render import Identity
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -162,3 +164,25 @@ async def load_view(
     bank = await load_bank(session, applicant_id)
     return resume, build_view(bank, await load_choices(session, resume.id))
 
+
+
+async def load_identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:
+    """The profile's identity fields a resume's header shows."""
+    profile = await session.get(Applicant_Profile, applicant_id)
+    if profile is None:
+        raise NotFound
+    return Identity(
+        name=profile.full_name,
+        email=profile.email,
+        phone=profile.phone_number,
+        links=tuple(
+            u for u in (profile.linkedin_url, profile.github_url, profile.portfolio_url, profile.other_url) if u
+        ),
+    )
+
+
+def file_name(name: str, ext: str) -> str:
+    """A download's file name, header-safe: letters, digits, spaces, dashes
+    and underscores only."""
+    stem = re.sub(r"[^A-Za-z0-9 _-]+", "", name).strip() or "Resume"
+    return f"{stem}.{ext}"
