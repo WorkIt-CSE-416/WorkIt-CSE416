@@ -48,8 +48,10 @@ by that filter, as one with no location is by ?location=.
    corrected to the one name close to it ("strpe" is Stripe). A job must be
    at one of them (services/company_resolver.py);
 1. the roles it names, by the same role resolver the import tags jobs with
-   (services/role_resolver.py, read_query, typos corrected); a job must be
-   tagged with each of them;
+   (services/role_resolver.py, read_query, typos corrected); a job must have
+   each of them, as a tag or as the phrases that named it in its title
+   (title_says, whole words): "software" finds "Embedded Software Engineer", tagged
+   embedded_engineer, as well as every software_engineer job;
 2. the facts it names that have columns (query_facts): "intern" is the
    internship experience level, "new grad" new_grad, "remote" / "hybrid" /
    "onsite" the work style, "summer 2027" or a bare "2027" the start term.
@@ -76,8 +78,8 @@ import difflib
 import re
 import time
 import uuid
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -126,7 +128,7 @@ from app.services.matching.scoring import (
     freshness,
     title_fit,
 )
-from app.services.role_resolver import ALIASES, RoleResolver, raw_words
+from app.services.role_resolver import ALIASES, RoleResolver, raw_words, title_pattern
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -289,6 +291,10 @@ class JobFilters:
     # of them matches (a job has one company, so two named means either).
     query_companies: Sequence[str] = ()
     query_roles: Sequence[str] = ()
+    # Each of query_roles, the phrases that named it (read_query's said): a
+    # title saying all of them matches beside the tag. A role absent here is
+    # the tag alone.
+    query_role_words: Mapping[str, Sequence[Sequence[str]]] = field(default_factory=dict)
     query_levels: Sequence[str] = ()
     query_work_styles: Sequence[dto.work_style] = ()
     # The start terms postings name for the season or year searched for, as
@@ -365,6 +371,17 @@ def in_title(phrases: Iterable[str]) -> list[ColumnElement[bool]]:
     return [Job_Post.title.icontains(phrase, autoescape=True) for phrase in phrases]
 
 
+def title_says(phrases: Sequence[Sequence[str]]) -> ColumnElement[bool]:
+    '''
+    true for a job whose title says each phrase, its words in order, as whole
+    words in any spelling WORD_FORMS gives them (role_resolver.title_pattern):
+    "software engineer" finds "Embedded Software Engineering". The title
+    only, as in_title: a description's "work with our software engineers" is
+    no software job. No index, like in_title: it rides on the same scan
+    '''
+    return and_(*(Job_Post.title.regexp_match(title_pattern(p), flags="i") for p in phrases))
+
+
 def word_matches(word: str) -> ColumnElement[bool]:
     '''
     true for a job whose text (title and description, fts, stemmed: "stripes"
@@ -415,8 +432,13 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.query_companies:
         clauses.append(Job_Post.company_name.in_(filters.query_companies))
     # Each role a search names narrows on its own: "ml software" is jobs
-    # tagged with both, unlike the Role filter's any of.
-    clauses.extend(tagged_with([slug]) for slug in filters.query_roles)
+    # with both, unlike the Role filter's any of. A role is its tag or its
+    # words in the title: the longest alias wins a title's words, so
+    # "Embedded Software Engineer" is tagged embedded_engineer only, and a
+    # search for "software" would miss it on the tag alone.
+    for slug in filters.query_roles:
+        said = filters.query_role_words.get(slug)
+        clauses.append(or_(tagged_with([slug]), title_says(said)) if said else tagged_with([slug]))
     if filters.query_levels:
         clauses.append(Job_Post.experience_level.in_(filters.query_levels))
     if filters.query_work_styles:
@@ -642,6 +664,7 @@ class Search:
     '''?q= read: JobFilters' query_ fields, the start seasons still as keys'''
     companies: tuple[str, ...] = ()
     roles: tuple[str, ...] = ()
+    role_words: Mapping[str, tuple[tuple[str, ...], ...]] = field(default_factory=dict)
     levels: tuple[str, ...] = ()
     work_styles: tuple[dto.work_style, ...] = ()
     seasons: tuple[str, ...] = ()
@@ -674,6 +697,7 @@ async def read_search(db: AsyncSession, q: str | None) -> Search:
     return Search(
         companies=tuple(sorted(named.companies | fixed.companies)),
         roles=tuple(sorted(read.roles)),
+        role_words=read.said,
         levels=facts.levels,
         work_styles=facts.work_styles,
         seasons=facts.seasons,
@@ -782,6 +806,7 @@ async def read_filters(
         visa=visa,
         query_companies=search.companies,
         query_roles=search.roles,
+        query_role_words=search.role_words,
         query_levels=search.levels,
         query_work_styles=search.work_styles,
         query_start_terms=(

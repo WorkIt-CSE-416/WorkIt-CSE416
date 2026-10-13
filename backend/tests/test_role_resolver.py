@@ -9,11 +9,18 @@ app/services/role_resolver.py.
 """
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
 
-from app.services.role_resolver import ALIASES, NOT_ROLES, OUTRIGHT, RoleResolver
+from app.services.role_resolver import (
+    ALIASES,
+    NOT_ROLES,
+    OUTRIGHT,
+    RoleResolver,
+    title_pattern,
+)
 
 # The roles the database holds, read from the migration that seeds them, so
 # these tests follow the seed rather than a copy of it.
@@ -264,6 +271,49 @@ def test_read_query_leaves_names_alone(resolver, name):
     result = resolver.read_query(name)
     assert result.roles == set()
     assert result.rest == (name,)
+
+
+# Search also finds a role by the words that named it in a title, since the
+# longest alias takes a title's words: "Embedded Software Engineer" is
+# embedded_engineer alone, and must still come up for "software".
+
+@pytest.mark.parametrize("query, said", [
+    ("software", {"software_engineer": (("software",),)}),
+    # corrected, then in their word forms
+    ("sofware enginering intern", {"software_engineer": (("software", "engineer"),)}),
+    ("fullstack", {"software_engineer": (("full", "stack"),)}),
+    ("ml software", {"ai_ml_engineer": (("ml",),), "software_engineer": (("software",),)}),
+    # one role named twice is two phrases, never one run of words
+    ("swe software", {"software_engineer": (("swe",), ("software",))}),
+    # a role dropped for an outright one says nothing
+    ("software recruiter", {"recruiter": (("recruiter",),)}),
+    ("stripe", {}),
+])
+def test_read_query_says_which_words_named_each_role(resolver, query, said):
+    assert resolver.read_query(query).said == said
+
+
+def _postgres_finds(pattern, title):
+    # Postgres' \m and \M (start and end of a word) are Python's \b; ~* ignores case.
+    return re.search(pattern.replace(r"\m", r"\b").replace(r"\M", r"\b"), title, re.IGNORECASE) is not None
+
+
+@pytest.mark.parametrize("said, title, found", [
+    (("software",), "Embedded Software Engineering Intern", True),
+    (("software", "engineer"), "Embedded Software Engineering Intern", True),
+    (("software", "engineer"), "SW-Engineers (New Grad)", True),
+    (("full", "stack"), "Fullstack Developer", True),
+    (("full", "stack"), "Full-Stack Developer", True),
+    # whole words, not stems or pieces of one
+    (("developer",), "Business Development Intern", False),
+    (("swe",), "Swedish Speaking Analyst", False),
+    (("ml",), "HTML Engineer", False),
+    # in order and side by side: not "Data Centers ... Civil Engineering"
+    (("data", "engineer"), "Civil Engineering Internship - Data Centers", False),
+    (("data", "engineer"), "Data Engineering Intern", True),
+])
+def test_title_pattern(said, title, found):
+    assert _postgres_finds(title_pattern(said), title) is found
 
 
 def test_short_words_are_never_corrected(resolver):

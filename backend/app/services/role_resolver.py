@@ -26,6 +26,11 @@ How a title is read, start to finish (docs/search.md has the why):
 Words that start no alias ("intern", "summer", "2027") are passed over, so
 there is no list of them to strip.
 
+A search finds a role by its tag or by the words that named it in a title
+(read_query's said, title_pattern): the longest alias takes a title's words,
+so "Embedded Software Engineer" is embedded_engineer alone, and a search for
+"software" finds it by its title.
+
 A search query (read_query) gets one more step before 2: a typed word that is
 in no alias is snapped to the nearest one that is ("sofware" is "software"),
 so a typo still finds its role. Titles never are: a job board's title is
@@ -39,7 +44,7 @@ import difflib
 import re
 import unicodedata
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # One word, its other spellings. Applied to titles, queries and the aliases
 # alike, so one entry here serves every role. A value with a space becomes
@@ -289,6 +294,22 @@ FUZZY_CUTOFF = 0.8
 _WORD = re.compile(r"[a-z0-9]+")
 
 
+def title_pattern(said: Iterable[str]) -> str:
+    '''
+    a Postgres regular expression (for ~*) finding these words, in this
+    order, as whole words in a title, each in any spelling WORD_FORMS gives
+    it: ("software", "engineer") finds "Embedded Software Engineering" and
+    "SW-Engineers". Words, not stems: the english stemmer makes "developer"
+    and "development" one lexeme, which WORD_FORMS keeps apart on purpose.
+    Nothing or punctuation may come between two words, so a run that is one
+    word in a title ("fullstack", "frontend") is found too. Words are letters
+    and digits only (raw_words), so none needs escaping
+    '''
+    def spellings(w: str) -> str:
+        return "|".join([w, *(raw for raw, form in WORD_FORMS.items() if form == w)])
+    return r"\m" + r"\W*".join(f"(?:{spellings(w)})" for w in said) + r"\M"
+
+
 def raw_words(text: str) -> list[str]:
     '''
     accents and case folded, then runs of letters and digits
@@ -311,6 +332,12 @@ class QueryRoles:
     # The words of the query no role used, as typed (folded): what keyword and
     # company search look for. "swe intern stripe" leaves ("intern", "stripe").
     rest: tuple[str, ...]
+    # Each role, the phrases that named it, corrected and in their word forms:
+    # "sofware enginer" gives {"software_engineer": (("software", "engineer"),)}.
+    # Search matches a title saying them (title_pattern) as well as the tag,
+    # so a job tagged with another role for the same words ("Embedded
+    # Software Engineer" is embedded_engineer) is still found.
+    said: Mapping[str, tuple[tuple[str, ...], ...]] = field(default_factory=dict)
 
 
 class RoleResolver:
@@ -354,9 +381,9 @@ class RoleResolver:
         self._known = frozenset(w for key in self._phrases for w in key) | set(WORD_FORMS)
         self._known_list = sorted(self._known)
 
-    def _walk(self, ws: list[str]) -> tuple[set[str], set[int]]:
+    def _walk(self, ws: list[str]) -> list[tuple[str, range]]:
         '''
-        the roles found, and the positions in ws their aliases used. A role
+        each alias found: its role, and the positions in ws it used. A role
         dropped for an OUTRIGHT one gives its words back, so a search for
         "software recruiter" still looks for "software"
         '''
@@ -374,13 +401,13 @@ class RoleResolver:
                 i += 1
         if any(slug in self._outright for slug, _ in matches):
             matches = [m for m in matches if m[0] in self._outright]
-        return {slug for slug, _ in matches}, {i for _, span in matches for i in span}
+        return matches
 
     def resolve(self, title: str) -> frozenset[str]:
         '''
         the roles a job title names; empty when it names none
         '''
-        return frozenset(self._walk(words(title))[0])
+        return frozenset(slug for slug, _ in self._walk(words(title)))
 
     def _correct(self, raw: str) -> str:
         '''
@@ -407,6 +434,14 @@ class RoleResolver:
             for w in WORD_FORMS.get(known, known).split():
                 ws.append(w)
                 origin.append(r)
-        found, used = self._walk(ws)
-        used_raw = {origin[i] for i in used}
-        return QueryRoles(frozenset(found), tuple(w for r, w in enumerate(raws) if r not in used_raw))
+        matches = self._walk(ws)
+        said: dict[str, tuple[tuple[str, ...], ...]] = {}
+        for slug, span in matches:
+            # a role named twice ("swe software") is two phrases, not one
+            said[slug] = (*said.get(slug, ()), tuple(ws[i] for i in span))
+        used_raw = {origin[i] for _, span in matches for i in span}
+        return QueryRoles(
+            frozenset(said),
+            tuple(w for r, w in enumerate(raws) if r not in used_raw),
+            said,
+        )

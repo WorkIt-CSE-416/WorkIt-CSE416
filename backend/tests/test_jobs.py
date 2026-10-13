@@ -318,6 +318,34 @@ def test_a_search_s_roles_each_narrow_on_their_own():
     assert "job_role_tags.role_slug IN ('software_engineer')" in _sql(clauses[1])
 
 
+def test_a_search_s_role_also_matches_its_words_in_the_title():
+    filters = JobFilters(
+        query_roles=["ai_ml_engineer", "software_engineer"],
+        query_role_words={"software_engineer": (("software",),)},
+    )
+    ml, software = (c.compile(dialect=postgresql.dialect()) for c in matching(filters))
+    # a role without its words is the tag alone
+    assert "~*" not in str(ml)
+    assert "job_role_tags.role_slug IN" in str(software)
+    assert ") OR job_postings.title ~* %(title_1)s" in str(software)
+    assert software.params["title_1"] == r"\m(?:software|sw)\M"
+    # the title only: never the description
+    assert "description" not in str(software) and "fts" not in str(software)
+
+
+def test_a_search_passes_each_role_s_words_on(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs", params={"q": "sofware enginer intern"}).status_code == 200
+    (filters,) = seen
+    assert dict(filters.query_role_words) == {"software_engineer": (("software", "engineer"),)}
+
+
 def test_a_search_s_start_term_and_remote_also_match_the_title():
     filters = JobFilters(
         query_work_styles=[dto.work_style.remote],
