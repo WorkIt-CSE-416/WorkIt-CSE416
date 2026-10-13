@@ -71,5 +71,6 @@ async def ask(
         raise HTTPException(503, _ai_message(exc)) from exc
     answer = assistant.answer(reading, line, [s.name for s in bank.skills])
     await count_use(session, applicant_id, Feature.ASSISTANT)
+    await session.commit()
     return AssistantReply(
         action=answer.action, reply=answer.reply, text=answer.text, original=answer.original, uses_left=left - 1)

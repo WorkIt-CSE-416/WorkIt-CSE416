@@ -76,6 +76,7 @@ async def take_turn(
         events: list[BaseModel] = [ErrorEvent(message=_message(exc))]
     else:
         await count_use(db, account.id, Feature.INTAKE)
+        await db.commit()
         left -= 1
         events = [
             TextEvent(delta=answer.reply),

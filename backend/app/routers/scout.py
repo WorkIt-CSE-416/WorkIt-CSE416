@@ -94,6 +94,7 @@ async def _counted(
         # Its own session: the request's may be closed once streaming starts.
         async with get_sessionmaker()() as db:
             await count_use(db, account_id, Feature.SCOUT)
+            await db.commit()
         left -= 1
     yield UsageEvent(uses_left=left)
 

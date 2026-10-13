@@ -327,6 +327,7 @@ async def import_resume(
                     raise HTTPException(503, _ai_message(exc)) from exc
             else:
                 await count_use(session, applicant_id, Feature.PARSING)
+                await session.commit()
                 left -= 1
                 entries, skills, read_by = model_drafts(reading), model_skills(reading), "model"
 
