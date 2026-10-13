@@ -17,6 +17,7 @@ applicant_profiles
   ├── bank_entries       one per job, degree, project, club role, award or certification
   │     └── bank_bullets the entry's lines, in order, in their original wording
   └── bank_skills        a plain list, each with an optional group
+        └── bank_skill_links  the entries that show the skill (none is fine)
 ```
 
 - **Six entry sections, not seven.** Skills is the seventh section, but a
@@ -36,8 +37,11 @@ applicant_profiles
   recommender reads the bank (expand, then contract).
 - **The duplicate check matches section, title and organization, ignoring
   case.** It warns and never blocks: two real roles may share a title.
-- Bullet variants, skill links and built resumes are later tables that point
-  at these. The rules live in `backend/app/services/bank.py`.
+- **A skill links to the entries that show it** (KAN-216), so Tailor can
+  show the skill with proof. A skill with no links is fine: one learned on
+  one's own. Links do not clear the embedding, whose text never pairs a
+  skill with an entry.
+- Bullet variants and built resumes are later tables that point at these. The rules live in `backend/app/services/bank.py`.
 
 The rest of this file is the original design for uploaded resumes.
 

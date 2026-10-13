@@ -12,6 +12,9 @@ place:
   the embedding.
 - The duplicate check (`find_duplicate`) matches section, title and
   organization, ignoring case. Import and intake use it to flag drafts.
+- A skill link (KAN-216) joins a skill to an entry of the same applicant.
+  Adding or removing one does not clear the embedding: the embedding text
+  holds skills and entries, never which skill goes with which entry.
 - Functions flush but never commit: the caller owns the transaction, so an
   import can save many entries in one.
 
@@ -21,13 +24,19 @@ The session is handed in by the caller; this module opens no connection.
 import datetime
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank import Bank_Bullet, Bank_Entry, Bank_Skill, Experience_Bank
+from app.models.bank import (
+    Bank_Bullet,
+    Bank_Entry,
+    Bank_Skill,
+    Bank_Skill_Link,
+    Experience_Bank,
+)
 from app.models.dto import bank_section, entry_end_kind
 from app.schemas.bank import EntryFields
 
@@ -60,10 +69,12 @@ class Entry:
 class Bank:
     """A whole bank, ordered the way every screen and resume reads it:
     entries in section order, ongoing first and then newest; skills by
-    group, then name."""
+    group, then name. `skill_links` maps a skill id to the ids of its
+    linked entries, in bank order; a skill with no links is absent."""
 
     entries: list[Entry]
     skills: list[Bank_Skill]
+    skill_links: dict[uuid.UUID, list[uuid.UUID]] = field(default_factory=dict)
 
 
 _SECTION_ORDER = {section: i for i, section in enumerate(bank_section)}
@@ -116,7 +127,17 @@ async def load_bank(session: AsyncSession, applicant_id: uuid.UUID) -> Bank:
         .where(Bank_Skill.applicant_id == applicant_id)
         .order_by(Bank_Skill.group.asc().nulls_last(), func.lower(Bank_Skill.name))
     )
-    return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills))
+    order = {r.id: i for i, r in enumerate(rows)}
+    links: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for link in await session.scalars(
+        select(Bank_Skill_Link)
+        .join(Bank_Skill, Bank_Skill.id == Bank_Skill_Link.skill_id)
+        .where(Bank_Skill.applicant_id == applicant_id)
+    ):
+        links.setdefault(link.skill_id, []).append(link.entry_id)
+    for entry_ids in links.values():
+        entry_ids.sort(key=order.__getitem__)
+    return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills), skill_links=links)
 
 
 async def _entry_row(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> Bank_Entry:
@@ -321,4 +342,37 @@ async def update_skill(
 async def delete_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID) -> None:
     await session.delete(await _owned_skill(session, applicant_id, skill_id))
     await clear_embedding(session, applicant_id)
+    await session.flush()
+
+
+async def linked_entry_ids(session: AsyncSession, skill_id: uuid.UUID) -> list[uuid.UUID]:
+    """The ids of the entries a skill (already checked as owned) links to."""
+    entries = list(
+        await session.scalars(
+            select(Bank_Entry).join(Bank_Skill_Link, Bank_Skill_Link.entry_id == Bank_Entry.id)
+            .where(Bank_Skill_Link.skill_id == skill_id)
+        )
+    )
+    entries.sort(key=_newest_first)
+    return [e.id for e in entries]
+
+
+async def link_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID, entry_id: uuid.UUID) -> None:
+    """Link a skill to an entry; linking twice is a no-op. Raises NotFound
+    unless both belong to this applicant."""
+    await _owned_skill(session, applicant_id, skill_id)
+    await _entry_row(session, applicant_id, entry_id)
+    await session.execute(
+        insert(Bank_Skill_Link).values(skill_id=skill_id, entry_id=entry_id).on_conflict_do_nothing()
+    )
+    await session.flush()
+
+
+async def unlink_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID, entry_id: uuid.UUID) -> None:
+    """Remove a link. Raises NotFound when this applicant has no such link."""
+    await _owned_skill(session, applicant_id, skill_id)
+    link = await session.get(Bank_Skill_Link, (skill_id, entry_id))
+    if link is None:
+        raise NotFound
+    await session.delete(link)
     await session.flush()
