@@ -33,8 +33,9 @@ applicant_profiles
   resume shows a month, never a day.
 - **The embedding moves to the bank row.** A null embedding means "remake it
   on the next recommendations request", so every change to an entry, bullet
-  or skill sets it back to null. `resumes.embedding` stays until the
-  recommender reads the bank (expand, then contract).
+  or skill sets it back to null. The recommender and Scout read the bank
+  (KAN-212); `resumes.embedding` is no longer mapped and is dropped once that
+  code is deployed (expand, then contract).
 - **The duplicate check matches section, title and organization, ignoring
   case.** It warns and never blocks: two real roles may share a title.
 - **A skill links to the entries that show it** (KAN-216), so Tailor can
