@@ -32,10 +32,9 @@ from typing import Any
 from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.jobs import Job_Post
 from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
-from app.services import built_resumes
+from app.services import built_resumes, postings
 from app.services.bank import NotFound
 from app.services.resume_render import Identity, render
 from app.services.resume_view import ResumeView
@@ -60,7 +59,7 @@ def content_hash(view: ResumeView, identity: Identity, template: str) -> str:
 
 
 async def _check_posting(session: AsyncSession, job_posting_id: uuid.UUID | None) -> None:
-    if job_posting_id is not None and await session.get(Job_Post, job_posting_id) is None:
+    if job_posting_id is not None and await postings.listed(session, job_posting_id) is None:
         raise NotFound
 
 

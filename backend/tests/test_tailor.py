@@ -325,6 +325,21 @@ async def test_an_unknown_posting_is_404(student, use_model):
     assert (await student.tailor(str(uuid.uuid4()))).status_code == 404
 
 
+@pytest.mark.parametrize("status", ["draft", "paused", "closed"])
+async def test_a_posting_the_jobs_page_does_not_list_is_404(student, database, use_model, status):
+    posting = await _seed_posting(database)
+    async with database() as session:
+        await session.execute(
+            text("UPDATE job_postings SET status = CAST(:s AS job_post_status) WHERE id = :id"),
+            {"s": status, "id": posting})
+        await session.commit()
+    fake = use_model(reply())
+
+    assert (await student.tailor(posting)).status_code == 404
+    assert (await student.done(posting, student.base, [])).status_code == 404
+    assert fake.prompts == []
+
+
 # --- The Tailor cap -------------------------------------------------------
 
 

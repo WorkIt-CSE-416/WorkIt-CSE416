@@ -103,7 +103,6 @@ from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models import dto
 from app.models.bank import Experience_Bank
-from app.models.dto import job_post_status
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
@@ -131,6 +130,7 @@ from app.services.matching.scoring import (
     freshness,
     title_fit,
 )
+from app.services.postings import LISTED
 from app.services.role_resolver import ALIASES, RoleResolver, raw_words
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -157,7 +157,7 @@ _COLUMNS = (
     Job_Post.salary_period,
 )
 
-_LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
+_LISTED = LISTED  # app/services/postings.py: one listing rule for every route
 
 # A Start Date option: "summer-2027", or a year, "2027".
 SeasonKey = Annotated[

@@ -15,7 +15,8 @@ POST   /applicants/{id}/sent-resumes            SentResumeCreate
        SentResumeDownload is the sent resume plus `url` (a 5-minute link that
        downloads the file) and `missing_characters` (the font lacks them; a
        repeat answers []). 422 unless exactly one source is given. 404 for a
-       resume that is not the student's or a posting that does not exist,
+       resume that is not the student's or a posting the Jobs page does not
+       list (unknown, draft, paused, closed),
        503 when the PDF cannot be made, 502 when Storage refuses the file.
 GET    /applicants/{id}/sent-resumes            -> [SentResumeResponse], newest first
 GET    /applicants/{id}/sent-resumes/{sid}/file -> {"url"}: a 5-minute download link

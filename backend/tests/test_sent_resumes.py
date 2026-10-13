@@ -200,6 +200,23 @@ async def test_deleting_a_sent_resume_keeps_a_file_its_uploaded_resume_still_has
     assert (await client.get(f"{me}/sent-resumes")).json() == []
 
 
+async def test_apply_to_a_posting_the_jobs_page_does_not_list_is_404(student, storage, database):
+    from sqlalchemy import text
+
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    for status in ("draft", "closed"):
+        posting = await _seed_posting(database)
+        async with database() as session:
+            await session.execute(
+                text("UPDATE job_postings SET status = CAST(:s AS job_post_status), apply_url = apply_url || :s WHERE id = :id"),
+                {"s": status, "id": posting})
+            await session.commit()
+        res = await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": uploaded["id"], "job_posting_id": posting})
+        assert res.status_code == 404
+    assert (await client.get(f"{me}/sent-resumes")).json() == []
+
+
 async def test_deleting_a_built_sent_resume_removes_its_file(student, storage, renders):
     client, me = student
     sent = (await client.post(f"{me}/sent-resumes", json={"built_resume_id": await _generate(client, me)})).json()

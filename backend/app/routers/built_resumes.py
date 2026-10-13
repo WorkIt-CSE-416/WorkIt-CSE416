@@ -34,7 +34,8 @@ GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
        posting's keywords are extracted once and cached
        (app/services/keywords.py); only an extraction spends a Tailor use:
        429 at the limit, 503 when the model fails or answers out of schema
-       (nothing counted). 404 for an unknown posting.
+       (nothing counted). 404 for a posting the Jobs page does not list,
+       unless it is the tailored resume's own.
 """
 
 import asyncio
@@ -69,7 +70,7 @@ from app.schemas.built_resume import (
 )
 from app.schemas.keywords import KeywordMatchResponse
 from app.services import built_resumes as service
-from app.services import keywords
+from app.services import keywords, postings
 from app.services.bank import NotFound
 from app.services.resume_render import Identity, Rendered, TectonicUnavailable, render
 from app.services.resume_render.word import render_docx
@@ -313,8 +314,12 @@ async def keyword_match(
     posting_id = job_posting_id or resume.job_posting_id
     if posting_id is None:
         raise HTTPException(422, "Choose a job posting to match against")
-    job = await session.get(
-        Job_Post, posting_id, options=[undefer(Job_Post.keywords), undefer(Job_Post.keywords_hash)])
+    if posting_id == resume.job_posting_id:
+        # A tailored resume keeps its own posting's match after it closes.
+        job = await session.get(
+            Job_Post, posting_id, options=[undefer(Job_Post.keywords), undefer(Job_Post.keywords_hash)])
+    else:
+        job = await postings.listed(session, posting_id, keywords=True)
     if job is None:
         raise HTTPException(404, "Job posting not found")
 
