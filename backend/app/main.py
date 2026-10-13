@@ -23,6 +23,7 @@ from app.routers.profiles import router as profile_router
 from app.routers.resumes import router as resume_router
 from app.routers.scout import router as scout_router
 from app.routers.sent_resumes import router as sent_resumes_router
+from app.routers.tailor import router as tailor_router
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ app.include_router(bank_router)
 app.include_router(intake_router)
 app.include_router(built_resumes_router)
 app.include_router(sent_resumes_router)
+app.include_router(tailor_router)
 
 
 @app.exception_handler(RequestValidationError)

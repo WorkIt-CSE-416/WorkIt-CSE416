@@ -459,12 +459,33 @@ place they are edited: My Profile keeps the uploads and links here.
   5-resume limit is the API's; its 409 message shows as the card's error.
   The page needs the bank, the resume list and the Sent list: if any fails
   it shows the error state. Each row's Open goes to the resume editor.
+  A tailored resume shows there too, with a Tailored tag and no star (only
+  a base resume can be the default).
 - **Sent card** (`sent-resumes.tsx`, KAN-208), below Base Resumes. Every
   PDF the student downloaded or applied with (KAN-220), newest first, with its name then and the date
   ("Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;
   none is edited. A repeat download of unchanged content adds no row. It
   sits on the bank page because base resumes do; "the resumes page" in the
   spec means this page until resumes get their own.
+
+### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
+
+- **Opened from "Tailor My Resume"** on the job posting page, which reads
+  "Your Tailored Resume" once the student has one for that posting.
+- **The run waits for a click.** Each run spends one of today's 2 Tailor
+  runs, so loading the page never starts one.
+- **The keyword match** shows "12 of 18" before, and again with what the
+  student has accepted, required keywords first. The second count adds
+  each accepted change's `keywords` and each Yes in the browser, with no
+  call; Done's response is the saved resume's own match. A posting with no
+  description shows the "weak match" notice.
+- **Every change has Accept and Reject**, plus Accept All; a new wording
+  shows beside the old one. Nothing saves until Done; Leave Without Saving
+  goes back to the posting.
+- **"Have you used X?"** lists missing keywords that are nowhere in the
+  bank. Yes adds the skill to the bank (it is saved at once, being true),
+  shows it on the tailored resume, and offers to link it to an entry.
+- An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resume editor
 
