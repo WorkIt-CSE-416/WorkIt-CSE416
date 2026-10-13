@@ -75,6 +75,7 @@ def test_embeds_all_batches_with_bounded_reads_and_bulk_updates(monkeypatch):
     for query, expected_vectors in zip(conn.writes, vectors, strict=True):
         sql = str(query)
         assert "FROM (VALUES" in sql and "RETURNING job_postings.id" in sql
+        assert "embedded.embedding::extensions.vector" in sql
         assert [v for v in query.params.values() if isinstance(v, list)] == expected_vectors
     assert embed.await_args_list[0].args == (["Job 1\n\nBuild things", "Job 2\n\nBuild things"],)
     assert not conn.active
@@ -122,3 +123,31 @@ def test_write_failure_rolls_back_batch(monkeypatch):
     assert conn.rolled_back == 1
     assert not conn.committed
     assert not conn.active
+
+
+@pytest.mark.parametrize(("limit", "sizes"), [(1, [1]), (2, [2]), (3, [2, 1])])
+def test_embedding_limit_caps_provider_calls_and_queries(monkeypatch, limit, sizes):
+    monkeypatch.setattr(import_jobs, "BATCH_SIZE", 2)
+    embed = AsyncMock(side_effect=[[[0.1] * 768] * size for size in sizes])
+    monkeypatch.setattr(import_jobs, "embed", embed)
+    conn = Connection([[row(n + 1) for n in range(size)] for size in sizes])
+
+    assert asyncio.run(import_jobs._embed_jobs(conn, limit=limit)) == limit
+    assert [len(call.args[0]) for call in embed.await_args_list] == sizes
+    assert [list(query.params.values())[-1] for query in conn.reads] == sizes
+    assert len(conn.writes) == len(sizes)
+
+
+@pytest.mark.parametrize("limit", ["0", "-1", "invalid"])
+def test_cli_rejects_invalid_embedding_limit(limit):
+    with pytest.raises(SystemExit) as exc:
+        import_jobs.main(["--embed-limit", limit])
+    assert exc.value.code == 2
+
+
+def test_cli_passes_embedding_limit(monkeypatch, tmp_path):
+    run = AsyncMock(return_value=import_jobs.Report())
+    monkeypatch.setattr(import_jobs, "_run", run)
+    feed = tmp_path / "feed.json"
+    assert import_jobs.main([str(feed), "--embed-limit", "100"]) == 0
+    run.assert_awaited_once_with(feed, dry_run=False, allow_mass_close=False, embed_limit=100)

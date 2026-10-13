@@ -2,18 +2,18 @@
 
 import asyncio
 import json
-from types import SimpleNamespace
 
 import httpx
 import pytest
 
+from app.config import Settings
 from app.services.matching import embeddings
 
 
 @pytest.fixture
 def provider(monkeypatch):
     monkeypatch.setattr(
-        embeddings, "get_settings", lambda: SimpleNamespace(gemini_api_key="test-key")
+        embeddings, "get_settings", lambda: Settings(_env_file=None, gemini_api_key="test-key", embedding_provider="gemini")
     )
     client_type = httpx.AsyncClient
     requests = []
@@ -98,7 +98,7 @@ def test_transport_failure_returns_none(provider, error):
 
 def test_no_key_skips_http(provider, monkeypatch):
     requests = provider()
-    monkeypatch.setattr(embeddings, "get_settings", lambda: SimpleNamespace(gemini_api_key=""))
+    monkeypatch.setattr(embeddings, "get_settings", lambda: Settings(_env_file=None, gemini_api_key="", embedding_provider="gemini"))
     assert asyncio.run(embeddings.embed(["job"])) is None
     assert requests == []
 
@@ -115,3 +115,68 @@ def test_oversized_batch_is_programmer_error_without_http(provider):
     with pytest.raises(ValueError, match="at most"):
         asyncio.run(embeddings.embed(["job"] * (embeddings.BATCH_SIZE + 1)))
     assert requests == []
+
+
+@pytest.fixture
+def ollama(provider, monkeypatch):
+    settings = Settings(
+        _env_file=None, embedding_provider="ollama", gemini_api_key="must-not-send",
+        ollama_embedding_url="http://localhost:11434/", ollama_embedding_model="nomic-embed-text:v1.5",
+    )
+    monkeypatch.setattr(embeddings, "get_settings", lambda: settings)
+    return provider
+
+
+def test_ollama_request_and_model_identity(ollama):
+    vectors = [[0.1] * embeddings.DIMENSIONS, [0.2] * embeddings.DIMENSIONS]
+    requests = ollama(httpx.Response(200, json={"embeddings": vectors}))
+    assert asyncio.run(embeddings.embed(["first", "second"])) == vectors
+    assert embeddings.model_key() == "ollama:nomic-embed-text:v1.5:768"
+    assert len(requests) == 1
+    assert str(requests[0].url) == "http://localhost:11434/api/embed"
+    assert "x-goog-api-key" not in requests[0].headers
+    assert json.loads(requests[0].content) == {
+        "model": "nomic-embed-text:v1.5", "input": ["first", "second"], "truncate": True,
+    }
+
+
+@pytest.mark.parametrize("payload", [
+    None, {}, {"embeddings": []}, {"embeddings": [[0.1] * 384]},
+    {"embeddings": [[0.1] * 768] * 2}, {"embeddings": [{"values": [0.1] * 768}]},
+    {"embeddings": [[True] * 768]}, {"embeddings": [[float("nan")] * 768]},
+])
+def test_ollama_invalid_vectors_are_rejected(ollama, payload):
+    requests = ollama(httpx.Response(200, content=json.dumps(payload)))
+    assert asyncio.run(embeddings.embed(["job"])) is None
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("status", [404, 429, 500])
+def test_ollama_failure_never_falls_back_to_gemini(ollama, status):
+    requests = ollama(httpx.Response(status))
+    assert asyncio.run(embeddings.embed(["job"])) is None
+    assert len(requests) == 1
+    assert requests[0].url.host == "localhost"
+
+
+def test_ollama_unavailable(ollama):
+    requests = ollama(error=httpx.ConnectError("offline"))
+    assert asyncio.run(embeddings.embed(["job"])) is None
+    assert len(requests) == 1
+
+
+def test_model_keys_differ_between_providers_and_models(monkeypatch):
+    settings = Settings(_env_file=None, embedding_provider="gemini")
+    monkeypatch.setattr(embeddings, "get_settings", lambda: settings)
+    assert embeddings.model_key() == "gemini:gemini-embedding-001:768"
+    settings.embedding_provider = "ollama"
+    first = embeddings.model_key()
+    settings.ollama_embedding_model = "another-model"
+    assert embeddings.model_key() != first
+
+
+def test_provider_is_validated():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, embedding_provider="typo")
