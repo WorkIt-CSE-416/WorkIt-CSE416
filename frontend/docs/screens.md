@@ -407,6 +407,23 @@ parsed-JSON editing goes later (KAN-211).
   resumes use the entry (user story 18) once built resumes exist (KAN-207).
 - **Skills are a plain list** with an optional group, shown one line per
   group. A name appears once, ignoring case; the API answers 409 otherwise.
+- **Intake** (`intake.tsx`, KAN-213) sits above the section cards in the
+  look of the intake prototype's variant G: a lavender chat with WorkIt's
+  gradient mark, a chapter line per section, the draft card sticky beside
+  the chat from `@4xl/main` and, below that, a one-line draft that opens as
+  a bottom sheet. The student picks a section from its chips; the opener
+  for it is fixed text, not a model turn. Each turn goes through
+  `app/api/intake/` to `POST /intake/turn` with this entry's chat and the
+  card, edits included; the reply streams back as the line, the whole
+  draft (the card remounts on it) and the messages left today. The card is
+  the shared entry editor (its `onChange` reports each edit), and saving is
+  the bank's own create with its duplicate warning, one entry at a time.
+  The bubbles, typing dots and composer with its mic are Scout's
+  (`components/scout/chat.tsx`). **The unsaved draft lives in localStorage**
+  (`lib/local-drafts.ts`), so a reload keeps it; Sign Out and the login
+  page clear every key under its prefix, so the next person in the browser
+  never sees it. The chat is never stored anywhere. The step bar, Skip and
+  jump, and intake in onboarding are KAN-214.
 
 ## Scout panel
 
@@ -417,7 +434,9 @@ over it, and opens only on a click. It stays mounted and opens in two moves: its
 room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
-the panel is open. `stream.ts` mirrors the API's NDJSON events, which
+the panel is open. `chat.tsx` holds the message bubble, typing dots and
+composer (with the mic, `use-speech-input`), shared with intake on the bank
+page; each takes who is talking as a prop. `stream.ts` mirrors the API's NDJSON events, which
 `app/api/scout/` (the one route handler, since the reply streams) forwards with
 the session's token. `reply-text` renders a reply's **bold** and "- " bullets,
 the prompt's whole formatting vocabulary, with no markdown library (a reply

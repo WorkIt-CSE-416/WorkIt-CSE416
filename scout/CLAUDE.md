@@ -186,7 +186,14 @@ address or a friend's link goes too. Rules:
   BFCL-V4, the 9B 66.1). When a task's data is known up front — "ask about this
   job" — load it into the prompt instead of making the model call a tool for it.
 - **New event types** go in `workit_scout/schemas.py` and
-  `frontend/src/components/scout/stream.ts` together.
+  `frontend/src/components/scout/stream.ts` together. Intake's extra
+  `draft` line is the backend's (`app/schemas/intake.py`) and the bank
+  page's (`(seeker)/bank/intake.tsx`), since its draft is the bank's entry
+  schema, which this package may not import.
+- **Intake reuses this package's model, not its prompt.** Its frozen prompt
+  and turn live in the backend (`app/services/intake.py`), for the same
+  reason. Its chat UI reuses the panel's bubble, typing dots and composer
+  (`components/scout/chat.tsx`): change them with both callers in mind.
 
 ## Tests
 
