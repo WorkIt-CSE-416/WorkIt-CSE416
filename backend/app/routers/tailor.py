@@ -119,8 +119,9 @@ async def run(
     changes, dropped = tailor.propose(bank, choices, reading, ranks, found)
     matched, missing = tailor.match(bank, choices, found)
     source_id = source.id
-    # count_use commits, saving a base resume generated for this run with it.
     await count_use(session, applicant_id, Feature.TAILOR)
+    # One commit: the count and a base resume generated for this run.
+    await session.commit()
     return TailorProposal(
         job_posting_id=job.id,
         source_resume_id=source_id,

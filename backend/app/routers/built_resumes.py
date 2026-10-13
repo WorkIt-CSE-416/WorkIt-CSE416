@@ -336,8 +336,9 @@ async def keyword_match(
         except ScoutUnavailable as exc:
             raise HTTPException(503, _ai_message(exc)) from exc
         keywords.store(job, found)
-        # count_use commits, saving the cache with the count.
         await count_use(session, applicant_id, Feature.TAILOR)
+        # One commit: the cache and the count.
+        await session.commit()
         left -= 1
     matched, missing = keywords.match(view, found)
     return KeywordMatchResponse(job_posting_id=job.id, matched=matched, missing=missing, uses_left=left)

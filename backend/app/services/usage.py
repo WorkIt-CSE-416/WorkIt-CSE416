@@ -2,7 +2,7 @@
 Daily AI uses: one way for every model feature to check and count them.
 
 A route calls `uses_left` before the model call and refuses with a 429 at 0,
-then calls `count_use` only once the call has succeeded, so a failed or
+then calls `count_use` only once the call has succeeded and commits, so a failed or
 rejected call costs the student nothing. Two limits apply, both env settings
 in app.config: the feature's cap for each student, and the feature's share of
 the daily pool across all students. Days are UTC.
@@ -61,7 +61,9 @@ async def uses_left(db: AsyncSession, account_id: uuid.UUID, feature: Feature) -
 
 
 async def count_use(db: AsyncSession, account_id: uuid.UUID, feature: Feature) -> None:
-    """One successful use: the account's row and the pool's row each go up by 1."""
+    """One successful use: the account's row and the pool's row each go up by
+    1. Flushes, never commits: the router commits it with the rest of the
+    request's writes (a Tailor run's generated base resume, a keyword cache)."""
     table = AI_Usage_Counter.__table__
     for owner in (account_id, None):
         await db.execute(
@@ -72,4 +74,4 @@ async def count_use(db: AsyncSession, account_id: uuid.UUID, feature: Feature) -
                 set_={"count": table.c.count + 1},
             )
         )
-    await db.commit()
+    await db.flush()
