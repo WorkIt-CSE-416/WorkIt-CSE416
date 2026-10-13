@@ -152,6 +152,10 @@ are in `docs/auth.md`.
   layout, never a module variable**: sign-out leaving the shell is what drops
   it, and a module variable would show one account's resumes to the next
   person in that tab.
+- **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
+  (intake's draft entry, KAN-213): one key prefix, cleared by Sign Out in
+  `account-menu.tsx` and on the login page, which an expired session also
+  reaches. A draft stored under any other key outlives sign-out.
 
 ## Screens, design and motion
 
