@@ -152,12 +152,12 @@ with the failure it prevents.
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`, one
   ticket per worktree. `npm run worktree -- KAN-13-testing` creates
   `../WorkIt-CSE416-KAN-13` from a fresh `origin/main` and copies the env files
-  from the primary checkout (`frontend/scripts/new-worktree.mjs`). A worktree
-  missing `.env` gets them with `npm run worktree -- --env-only`.
+  and the sample resumes (`frontend/CLAUDE.md`) from the primary checkout
+  (`frontend/scripts/new-worktree.mjs`). A worktree missing them gets them
+  with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
-  `--env-only` copy (the env files and the sample resumes in
-  `frontend/public/resumes/`), then `npm ci` in `frontend/` and `uv sync` in
-  `backend/`. The Run button (`.superset/run.sh`) starts the API on :8000 and the app on
+  `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`.
+  The Run button (`.superset/run.sh`) starts the API on :8000 and the app on
   :3000 together. The env files come from the git primary checkout, not
   `$SUPERSET_ROOT_PATH`, which can be a checkout with no `.env`.
 - Prettier formats code and runs from `frontend/`. It skips the markdown docs
