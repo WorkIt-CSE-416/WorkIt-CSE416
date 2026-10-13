@@ -65,10 +65,15 @@ Known ceilings:
 ### Bullet joining (`_bullets`)
 
 Handles two cases:
-- **Marked bullets** (`*`, `-`, etc.) -- strips the marker, joins PDF
-  continuation lines (lowercase start, no marker) back onto the previous bullet.
-- **No markers** (PDF drew bullets as shapes) -- a line starting a new sentence
-  after a period starts a new item.
+- **Marked bullets** (`•`, `-`, etc.) -- strips the marker, joins PDF
+  continuation lines (no marker) back onto the previous bullet. A line before
+  the first marker becomes its own item rather than being dropped.
+- **No markers** (PDF drew bullets as shapes) -- a line that does not start
+  lowercase, after a line ending in a period, starts a new item.
+
+A hyphen before a digit is a minus sign, not a marker. "-20% churn" read as a
+marker made the section look marked, and every unmarked line above it was
+dropped (KAN-224). A hyphen glued to a word ("-Built X") is still a marker.
 
 ### Date parsing
 

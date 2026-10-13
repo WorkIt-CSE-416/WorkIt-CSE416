@@ -115,3 +115,53 @@ def test_parses_fixture(fixture):
 def test_every_fixture_has_expectations():
     # A fixture dropped in without expectations would silently test nothing
     assert {p.name for p in FIXTURES.glob("*.txt")} == set(EXPECTED)
+
+
+def test_leading_minus_sign_is_not_a_bullet_marker():
+    # KAN-224: the four lines once parsed to one, "20% churn ..."
+    parsed = parse_resume(
+        "EXPERIENCE\n"
+        "Software Engineering Intern\n"
+        "Acme Corp, New York, NY\n"
+        "June 2025 - August 2025\n"
+        "Built a REST API in FastAPI that served 10,000 daily requests.\n"
+        "Cut page load time by 40% by caching job search results in Redis.\n"
+        "Wrote 120 unit tests and raised coverage from 55% to 85%.\n"
+        "-20% churn after redesigning the onboarding flow.\n"
+    )
+    assert parsed.experience[0].description.splitlines() == [
+        "Built a REST API in FastAPI that served 10,000 daily requests.",
+        "Cut page load time by 40% by caching job search results in Redis.",
+        "Wrote 120 unit tests and raised coverage from 55% to 85%.",
+        "-20% churn after redesigning the onboarding flow.",
+    ]
+
+
+def test_hyphen_glued_to_a_word_is_still_a_bullet_marker():
+    parsed = parse_resume(
+        "EXPERIENCE\n"
+        "Software Engineering Intern\n"
+        "Acme Corp, New York, NY\n"
+        "June 2025 - August 2025\n"
+        "-Built a REST API in FastAPI\n"
+        "-Wrote 120 unit tests\n"
+    )
+    assert parsed.experience[0].description.splitlines() == [
+        "Built a REST API in FastAPI",
+        "Wrote 120 unit tests",
+    ]
+
+
+def test_lines_before_the_first_marker_are_kept():
+    parsed = parse_resume(
+        "EXPERIENCE\n"
+        "Software Engineering Intern\n"
+        "Acme Corp, New York, NY\n"
+        "June 2025 - August 2025\n"
+        "Built a REST API in FastAPI.\n"
+        "- Wrote 120 unit tests.\n"
+    )
+    assert parsed.experience[0].description.splitlines() == [
+        "Built a REST API in FastAPI.",
+        "Wrote 120 unit tests.",
+    ]
