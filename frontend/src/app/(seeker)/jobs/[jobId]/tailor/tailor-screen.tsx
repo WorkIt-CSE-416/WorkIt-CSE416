@@ -146,7 +146,7 @@ export function TailorScreen({
             <MatchCount matched={proposal.matched} missing={proposal.missing} />
           </div>
           <div>
-            <p className="text-note text-ink-meta">With what you accept</p>
+            <p className="text-note text-ink-meta">With What You Accept</p>
             <MatchCount
               matched={[...proposal.matched, ...after]}
               missing={proposal.missing.filter((k) => !gained.has(k.keyword))}
@@ -402,13 +402,13 @@ function Question({
       </div>
       {answer === "yes" && entries.length > 0 && (
         <label className="text-note text-ink-muted mt-2 flex flex-wrap items-center gap-2">
-          Where did you use it?
+          Where Did You Use It?
           <select
             className="border-border-subtle bg-surface text-body rounded-control border px-2 py-1"
             value={linked ?? ""}
             onChange={(e) => link(e.target.value)}
           >
-            <option value="">Choose an entry (optional)</option>
+            <option value="">Choose an Entry (Optional)</option>
             {entries.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.title}
