@@ -41,7 +41,8 @@ applicant_profiles
   show the skill with proof. A skill with no links is fine: one learned on
   one's own. Links do not clear the embedding, whose text never pairs a
   skill with an entry.
-- Bullet variants and built resumes are later tables that point at these. The rules live in `backend/app/services/bank.py`.
+- Bullet variants are a later table that points at these. The rules live
+  in `backend/app/services/bank.py`.
 
 ### Import fills the bank from an upload (KAN-211)
 
@@ -61,6 +62,45 @@ the upload with AI instead, and "Read It Again with AI" on the drafts asks
 for that reading on purpose. The model gets the text with identity data
 removed, and each entry it returns is checked against the entry schema. It
 costs one AI reading a day (the parsing cap), counted only when it works.
+
+## Built resumes (KAN-207)
+
+A built resume is a choice over the bank, never a copy of it (ADR 0001):
+
+```
+applicant_profiles
+  └── built_resumes            name, template id, optional job posting
+        ├── built_resume_entries   entry: shown, position in its section, GPA and coursework toggles
+        ├── built_resume_bullets   bullet: shown, position in its entry
+        └── built_resume_skills    skill: shown, position
+```
+
+- **No text on a built resume.** The view (`backend/app/services/resume_view.py`)
+  joins the choices to the bank's current text, so a fix in the bank shows
+  everywhere. The chosen bullet variant joins `built_resume_bullets` when
+  variants exist (Tailor, the editor).
+- **No choice row, not on the resume.** Generate writes a row for everything
+  in the bank at that moment; what is added later waits in the editor's tray
+  instead of appearing on old resumes. Bullets and skills follow the same
+  rule as entries, so a bullet added to an entry already on a resume waits
+  too.
+- **Base or tailored by `job_posting_id`.** Null is a base resume. A posting
+  has at most one tailored resume per student (a unique key; NULLs distinct).
+  Deleting the posting deletes its tailored resume; sent resumes keep their
+  own file.
+- **The limit is 5 uploaded plus base resumes.** Tailored and sent resumes
+  do not count. The API checks before writing, on Generate and on upload.
+- **The default resume is one of two pointers.** It was
+  `applicant_profiles.default_resume_id`, a foreign key to `resumes`, and it
+  can now be a base resume too. A single id column could not keep a foreign
+  key to two tables, and a type column with no foreign key would leave a
+  dangling id when a resume is deleted. So a second nullable column,
+  `default_built_resume_id` → `built_resumes.id`, sits beside it, both
+  `ON DELETE SET NULL`, with a check that at most one is set. Setting one
+  clears the other. Deleting the default leaves no default, as before.
+- **The template id is stored, not the template.** `jakes` is the only one;
+  a second template is its own slice. The Word file is one plain layout with
+  no id.
 
 The rest of this file is the original design for uploaded resumes.
 

@@ -1,27 +1,31 @@
 '''
-The template text test (KAN-204, spec seam 3): render Jake's Resume with real
-Tectonic, read the PDF's text back with pdfminer, and check what an ATS would
-read. CI installs Tectonic, and where `CI` is set these tests fail rather than
+The renderer's tests (KAN-204, KAN-207, spec seam 3): render a fixed view of
+Jake's sample with real Tectonic, read the PDF's text back with pdfminer, and
+check what an ATS would read, the page count, and the missing-character
+warning. CI installs Tectonic, and where `CI` is set these tests fail rather than
 skip when it is missing.
 '''
 
 import hashlib
 import io
 import os
+import uuid
+from dataclasses import replace
 
 import pytest
-from fastapi.testclient import TestClient
 from pdfminer.high_level import extract_text
 from pdfminer.pdfpage import PDFPage
 
-from app.main import app
 from app.services.resume_render import (
     TEMPLATE,
     TectonicUnavailable,
     compile_pdf,
     escape,
     jakes_document,
+    render,
 )
+from app.services.resume_render.sample import IDENTITY, VIEW
+from app.services.resume_view import ResumeView, ViewBullet, ViewEntry, ViewSection
 
 # jakes.tex from the KAN-176 prototype, byte for byte. A change here is a
 # change to Jake's template itself: don't
@@ -52,16 +56,14 @@ def test_jakes_preamble_is_byte_for_byte() -> None:
     assert jakes_document(r"\section{X}").startswith(preamble)
 
 
-def test_endpoint_returns_jakes_resume_as_a_one_page_pdf() -> None:
+def test_jakes_sample_renders_as_one_page_with_its_text() -> None:
     _tectonic_or_skip()
-    response = TestClient(app).get("/render-proof/jakes.pdf")
+    rendered = render(VIEW, IDENTITY, "jakes")
 
-    assert response.status_code == 200
-    assert response.headers["content-type"] == "application/pdf"
-    assert response.headers["server-timing"].startswith("render;dur=")
-    pdf = response.content
-    assert _pages(pdf) == 1
-    text = _text(pdf)
+    assert rendered.page_count == 1
+    assert _pages(rendered.pdf) == 1
+    assert rendered.missing_characters == ()
+    text = _text(rendered.pdf)
     # pdfminer reads the right-hand column (places, dates) as its own block,
     # so each field is checked alone, not a whole row
     for expected in (
@@ -71,7 +73,9 @@ def test_endpoint_returns_jakes_resume_as_a_one_page_pdf() -> None:
         "Southwestern University",
         "Bachelor of Arts in Computer Science, Minor in Business",
         "Aug. 2018 – May 2021",
+        "GPA: 3.8/4.0",
         "Undergraduate Research Assistant",
+        "June 2020 – Present",
         "Texas A&M University",
         "College Station, TX",
         "Developed a REST API using FastAPI and PostgreSQL to store data from learning management systems",
@@ -84,6 +88,40 @@ def test_endpoint_returns_jakes_resume_as_a_one_page_pdf() -> None:
         assert expected in text
 
 
+def _with_entries(view: ResumeView, *entries: ViewEntry) -> ResumeView:
+    return replace(view, sections=(*view.sections, ViewSection("leadership", entries)))
+
+
+def test_a_resume_past_one_page_reports_its_page_count() -> None:
+    _tectonic_or_skip()
+    bullets = tuple(ViewBullet(uuid.uuid4(), f"Led weekly meeting number {i} for the robotics club") for i in range(30))
+    long = _with_entries(VIEW, ViewEntry(uuid.uuid4(), "leadership", "President", organization="Robotics Club",
+                                         bullets=bullets))
+
+    rendered = render(long, IDENTITY, "jakes")
+    assert rendered.page_count == 2
+    assert _pages(rendered.pdf) == 2
+    assert "Leadership & Activities" in _text(rendered.pdf)
+
+
+def test_characters_the_font_lacks_are_reported_once_each() -> None:
+    _tectonic_or_skip()
+    view = _with_entries(VIEW, ViewEntry(uuid.uuid4(), "leadership", "Президент клуба 中文", organization="José"))
+
+    rendered = render(view, replace(IDENTITY, name="Jake Ryan 中"), "jakes")
+    # In the order the page meets them: the name, then the entry
+    assert rendered.missing_characters == (
+        "中", "П", "р", "е", "з", "и", "д", "н", "т", "к", "л", "у", "б", "а", "文",
+    )
+    # Accented Latin is in the font
+    assert "é" not in rendered.missing_characters
+
+
+def test_an_unknown_template_is_refused() -> None:
+    with pytest.raises(ValueError):
+        render(VIEW, IDENTITY, "no-such-template")
+
+
 def test_escaped_text_prints_literally_and_runs_nothing() -> None:
     _tectonic_or_skip()
     hostile = "\\input{/etc/passwd}\n\nR&D 100% $5 #1 snake_case ~ ^ <b> a|b"
@@ -92,14 +130,3 @@ def test_escaped_text_prints_literally_and_runs_nothing() -> None:
     text = _text(pdf)
     assert "\\input{/etc/passwd} R&D 100% $5 #1 snake_case ~ ^ <b> a|b" in text
     assert "root:" not in text
-
-
-def test_endpoint_answers_503_when_tectonic_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    def missing(tex: str) -> bytes:
-        raise TectonicUnavailable("no tectonic binary")
-
-    monkeypatch.setattr("app.routers.render_proof.compile_pdf", missing)
-    response = TestClient(app).get("/render-proof/jakes.pdf")
-
-    assert response.status_code == 503
-    assert response.json() == {"detail": "The resume renderer is unavailable."}

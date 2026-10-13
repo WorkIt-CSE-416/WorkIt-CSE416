@@ -106,6 +106,7 @@ modeled at all (doesn't exist as code).
 | `auth.users` | `app/models/auth_users.py` (stub) | Owned by Supabase | Only as the account tables' FK target |
 | `resumes` | `app/models/resume.py` | Yes | No — no resume endpoint exists yet |
 | `experience_banks`, `bank_entries`, `bank_bullets`, `bank_skills`, `bank_skill_links` | `app/models/bank.py` | Yes | `/applicants/{id}/bank` (`app/routers/bank.py`); the experience bank, `docs/resume.md` |
+| `built_resumes`, `built_resume_entries`, `built_resume_bullets`, `built_resume_skills` | `app/models/built_resume.py` | Yes | `/applicants/{id}/built-resumes` (`app/routers/built_resumes.py`): Generate, PDF and Word; `docs/resume.md` |
 | `job_postings` | `app/models/jobs.py` | **No** | No |
 | `countries` / `states` | `app/models/locations.py` | **No** | No |
 | `ai_usage_counters` | `app/models/ai_usage.py` | Yes | Indirectly — every model feature checks and counts daily uses (`app/services/usage.py`) |
