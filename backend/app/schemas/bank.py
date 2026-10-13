@@ -175,6 +175,8 @@ class SkillResponse(BaseModel):
     id: UUID
     name: str
     group: str | None
+    entry_ids: list[UUID] = []
+    """The entries this skill is linked to, in bank order (KAN-216)."""
 
 
 class BankResponse(BaseModel):
