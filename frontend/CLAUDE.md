@@ -99,6 +99,17 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The company table (`app/company/table.tsx`) is TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
   `node_modules/@tanstack/react-table/skills`, not a blog post.
+- **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
+  page only** (KAN-209), through `import("pdfjs-dist")` inside an effect in
+  `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
+  290 KB worker, which every other page would otherwise pay for, and its
+  module touches browser globals, so a top-level import breaks the server
+  render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url)`, which Turbopack emits as a static file. After a build,
+  only the editor route's client manifest names the pdf.js chunk.
+  `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
+  lockfile when pdf.js was added; they were put back by hand. Check the
+  lockfile diff for removals after adding any dependency.
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
