@@ -167,6 +167,15 @@ Find files with a directory listing; these are the rules for where code goes.
   learned a section still imports it. A draft must already be a valid
   `POST /entries` body: the mapper clips text to the field limits and drops
   dates that do not fit together rather than send a draft that answers 422.
+- **Model parsing** (KAN-222) is import's `read_with_ai: true`, and its
+  fallback when the parser finds no entries. It counts a `PARSING` use only
+  when the reading succeeds; the response always carries `read_by` and
+  `uses_left`. An asked-for reading answers 429 at the limit and 503 when the
+  model fails; the fallback stays quiet and keeps the parser's reading. The
+  prompt and checks are in `services/bank_import.py`; the rules are in
+  `app/utils/CLAUDE.md`, "The model upgrade path". Tests:
+  `tests/test_bank_import.py` (checked drafts, no identity data in the
+  prompt, an invalid or failed reply counts nothing, the cap and the share).
 - **Every model feature counts its daily uses through `app/services/usage.py`**
   (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
   it succeeds, so a failed or rejected call costs the student nothing. Each

@@ -102,8 +102,29 @@ as `None` (null end date).
 - Single-column assumption. Multi-column PDFs may interleave columns.
 - No OCR. Scanned-image PDFs produce no text, so nothing to parse.
 
-Upgrade path for any of these: LLM structured output (send raw_text + the
-Pydantic schema to Claude/OpenAI).
+### The model upgrade path (KAN-222)
+
+The model is the parser's upgrade path, and it is built: import's model
+parsing (`app/services/bank_import.py`, `read_with_model`) sends the stored
+`raw_text` and the `ModelReading` schema through `LLM.complete_json`, the
+provider seam that removes identity data from every message first. It runs
+when the student asks ("Read It Again with AI", `read_with_ai: true`) and as
+the fallback when this parser finds no entries. Rules:
+
+- **This parser stays first and stays free.** The model costs a parsing use
+  (cap 1 a day, 10% of the pool), so it only runs on request or after this
+  parser finds nothing. A resume that parses wrong still becomes a fixture
+  here before the parser changes; the model is not a reason to stop fixing it.
+- **The model's reading is checked, never trusted.** `ModelReading` is loose so
+  one odd field does not throw away the whole reply; each entry then passes
+  the entry schema on its own (`model_drafts`), which clips text, drops an
+  entry with no title and drops dates that do not fit together. A reply that
+  is not JSON or misses the shape raises `InvalidReply` and counts no use.
+- **It never sees links.** URLs reach the model as `[link]`, so the model
+  schema has no `link` field and a field holding a placeholder is emptied.
+  Project links come only from this parser.
+- `parsed_json` on upload is still this parser alone; the model reads only
+  through import, which writes nothing.
 
 ## Text extraction (lives in `app/routers/resumes.py`, not here)
 

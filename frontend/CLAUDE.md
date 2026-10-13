@@ -156,6 +156,8 @@ are in `docs/auth.md`.
   screen edits an uploaded resume's `parsed_json`; an upload reaches the bank
   through import's drafts (`(seeker)/bank/import-card.tsx`). Two editors of
   the same facts drift apart, and built resumes read the bank.
+  "Read It Again with AI" (KAN-222) shows only while the import response's
+  `uses_left` is above 0, and a failed AI reading keeps the shown drafts.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
   (intake's draft entry, KAN-213): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
