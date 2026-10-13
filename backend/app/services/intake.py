@@ -18,7 +18,8 @@ from app.models.dto import bank_section
 from app.schemas.intake import IntakeDraft, IntakeReply
 
 # Follow-up questions for each entry (spec). Counted from the chat the browser
-# sends, which starts afresh with every entry.
+# sends, which starts afresh with every entry; the opening question is not
+# one (follow_ups).
 MAX_FOLLOW_UPS = 3
 
 # Said instead of a fourth question when the model asks one anyway.
@@ -95,6 +96,14 @@ def _keep_withheld(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
     return new.model_copy(update=fixes) if fixes else new
 
 
+def follow_ups(messages: Sequence[ChatMessage]) -> int:
+    """The questions asked since the student first spoke. An assistant line
+    before that is the opening question ("Tell me about a project"), which
+    is not one of the MAX_FOLLOW_UPS."""
+    first = next((i for i, m in enumerate(messages) if m.role == "user"), len(messages))
+    return sum(m.role == "assistant" for m in messages[first:])
+
+
 async def turn(
     section: bank_section,
     messages: Sequence[ChatMessage],
@@ -105,7 +114,7 @@ async def turn(
 ) -> IntakeReply:
     """One turn. Raises `ScoutUnavailable` (or its `InvalidReply`) when no
     model answers or the answer fails the schema; nothing then counts."""
-    asked = sum(m.role == "assistant" for m in messages)
+    asked = follow_ups(messages)
     prompt = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "system", "content": _context(section, draft, asked)},
