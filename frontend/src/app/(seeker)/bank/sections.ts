@@ -100,3 +100,20 @@ export function formatDates(entry: EntryFields): string | null {
   if (start && end) return `${start} – ${end}`;
   return start ?? end;
 }
+
+/** Sections whose entries a resume reads as "at" someone: a job, a club role. */
+const NEEDS_ORGANIZATION = new Set<Section>(["experience", "leadership"]);
+
+/**
+ * What a resume would miss from the entry (story 17): its dates, and for a
+ * job or club role its organization. The bank page warns before Generate;
+ * the entry still saves, since the student may not know them yet.
+ */
+export function missingFacts(entry: EntryFields): string[] {
+  const missing = [];
+  if (!formatDates(entry)) missing.push("dates");
+  if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
+    missing.push(sectionOf(entry.section).organization.toLowerCase());
+  }
+  return missing;
+}

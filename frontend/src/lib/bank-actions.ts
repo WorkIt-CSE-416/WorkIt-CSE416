@@ -111,6 +111,12 @@ export async function updateEntry(
   });
 }
 
+/** How many built resumes show the entry, for the delete confirm (story 18). */
+export async function entryResumeCount(entryId: string): Promise<Result<number>> {
+  const { data, error } = await call<{ built_resumes: number }>(`/entries/${id(entryId)}/resumes`);
+  return { data: data?.built_resumes ?? null, error };
+}
+
 export async function deleteEntry(entryId: string): Promise<Result<null>> {
   return call<null>(`/entries/${id(entryId)}`, { method: "DELETE" });
 }

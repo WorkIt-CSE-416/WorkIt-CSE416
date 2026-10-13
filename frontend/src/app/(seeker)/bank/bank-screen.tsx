@@ -14,6 +14,7 @@ import {
   deleteBullet,
   deleteEntry,
   deleteSkill,
+  entryResumeCount,
   getBank,
   linkSkill,
   unlinkSkill,
@@ -29,7 +30,15 @@ import {
 import { EntryEditor } from "./entry-editor";
 import { ImportCard } from "./import-card";
 import { Intake } from "./intake";
-import { changesOf, draftOf, emptyDraft, formatDates, SECTIONS, type EntryDraft } from "./sections";
+import {
+  changesOf,
+  draftOf,
+  emptyDraft,
+  formatDates,
+  missingFacts,
+  SECTIONS,
+  type EntryDraft,
+} from "./sections";
 import { linkChanges } from "./skill-links";
 
 /**
@@ -247,9 +256,11 @@ function EntryView({
   onEdit: () => void;
   onDeleted: () => Promise<string | null>;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  // The delete confirm, with how many built resumes show the entry (story 18).
+  const [confirming, setConfirming] = useState<{ resumes: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dates = formatDates(entry);
+  const missing = missingFacts(entry);
   const place = [entry.organization, entry.location].filter(Boolean).join(" · ");
   const degree = [entry.degree, entry.field_of_study].filter(Boolean).join(" in ");
   const gpa =
@@ -261,6 +272,13 @@ function EntryView({
     entry.issuer && `Issued by ${entry.issuer}`,
     entry.link,
   ].filter(Boolean);
+
+  async function confirm() {
+    setError(null);
+    const { data, error } = await entryResumeCount(entry.id);
+    if (data == null) return setError(error);
+    setConfirming({ resumes: data });
+  }
 
   async function remove() {
     const res = await deleteEntry(entry.id);
@@ -286,11 +304,7 @@ function EntryView({
           <IconButton label="Edit Entry" tooltip="Edit this entry" onClick={onEdit}>
             <Pencil className="size-4" />
           </IconButton>
-          <IconButton
-            label="Delete Entry"
-            tooltip="Delete this entry"
-            onClick={() => setConfirming(true)}
-          >
+          <IconButton label="Delete Entry" tooltip="Delete this entry" onClick={confirm}>
             <Trash2 className="size-4" />
           </IconButton>
         </div>
@@ -306,13 +320,25 @@ function EntryView({
         </ul>
       )}
 
+      {missing.length > 0 && (
+        <p className="text-note text-warning mt-1">
+          No {missing.join(" or ")} yet. Add {missing.length > 1 ? "them" : "it"} before you
+          Generate a resume.
+        </p>
+      )}
+
       {confirming && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-note text-ink-muted">Delete this entry and its bullets?</span>
+          <span className="text-note text-ink-muted">
+            Delete this entry and its bullets?{" "}
+            {confirming.resumes === 0
+              ? "No built resume shows it."
+              : `It comes off ${confirming.resumes === 1 ? "the 1 built resume" : `all ${confirming.resumes} built resumes`} that show it.`}
+          </span>
           <Button size="sm" variant="destructive" onClick={remove}>
             Delete Entry
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setConfirming(false)}>
+          <Button size="sm" variant="secondary" onClick={() => setConfirming(null)}>
             Keep It
           </Button>
         </div>

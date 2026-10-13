@@ -382,6 +382,13 @@ place they are edited: My Profile keeps the uploads and links here.
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
+- **An entry warns what a resume would miss** (`sections.ts`'s
+  `missingFacts`, story 17): no dates, and for Experience and Leadership
+  no organization. It still saves; the warning says to add them before
+  Generate.
+- **Deleting an entry confirms with how many built resumes show it**
+  (story 18): the trash button reads `GET .../entries/{id}/resumes` first,
+  then asks. A resume that hides the entry is not counted.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
@@ -393,8 +400,7 @@ place they are edited: My Profile keeps the uploads and links here.
   matches a bank entry shows "Already in Your Bank": Save All skips it and
   its own button reads Save as New. Skip drops a draft; Close drops them
   all. With no upload the API's 404 message shows, next to a link to My
-  Profile. **Still open:** the same card on the Jobs page (user story 22),
-  and "Read it again with AI" (KAN-222).
+  Profile. The Jobs page links here for an empty bank (story 22).
 - **One entry editor** (`entry-editor.tsx`) for every section and for
   import and intake drafts: it edits a draft and hands the whole draft
   back, and the caller decides between create and edit. Only the title is
