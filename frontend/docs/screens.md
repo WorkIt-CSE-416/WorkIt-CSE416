@@ -326,7 +326,9 @@ link into the Calendar from anywhere else goes through `DayLink` in
 **Resume upload is wired.** The onboarding form (`onboarding/applicant`)
 uploads on Continue, then goes to intake, onboarding's next step (Experience
 Bank section). The seeker profile (`(seeker)/profile`) supports up to
-5 resumes, newest first: picking a file uploads it at once (`uploadResume`);
+5 resumes, uploaded and base resumes together as the API counts them (its
+"n of 5" adds the bank page's base resumes; tailored ones are free),
+newest first: picking a file uploads it at once (`uploadResume`);
 the API reads it itself, and the client never sends parsed content. Each
 resume row (`resume-row.tsx`) has an eye — a short-lived signed link from
 `getResumeFileUrl`: a PDF opens in a new tab, opened inside the click so it
