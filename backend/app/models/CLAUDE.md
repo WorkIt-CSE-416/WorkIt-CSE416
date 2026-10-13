@@ -676,6 +676,16 @@ searching company-posted jobs by employer needs a join or a copied name.
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.
 
+**Tailor's keywords are cached on the posting (KAN-215).** `keywords` (JSONB,
+at most 20 `{"keyword", "kind"}`) and `keywords_hash` (the SHA-256 of the
+description they came from), both `deferred`, from `e1c4a7b9d215`. A hash
+that differs from the description's means stale, so a company's edit is
+caught with no extra code; the feed import also clears both when it changes
+a description, so a stale list never sits in the table. Only
+`services/keywords.py` reads or writes them. Apply the migration before the
+deploy: the model maps them, so company job creation fails on a database
+without them (above).
+
 **`job_postings.role_category` and `job_postings.roles` are gone
 (`824f0b2e3d84`).** They held the scraper's role keys: `role_category` one of
 five disciplines (KAN-171, `aa41fdc1ba80`, with its `role_category` enum) and
