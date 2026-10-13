@@ -257,3 +257,28 @@ async def test_nothing_said_is_stored(applicant, client, database):
         for table in tables:
             rows = (await session.execute(text(f'SELECT * FROM public."{table}"'))).all()
             assert SAID not in repr(rows) and "Robot Arm Controller" not in repr(rows)
+
+
+async def test_a_field_the_model_drops_keeps_the_cards_value(applicant, client):
+    use_model([reply(draft={"section": "projects", "title": "Robot Arm Controller", "bullets": ["Cut path time by 30%."]})])
+    res = await client.post("/intake/turn", json={**TURN, "draft": DRAFT})
+    draft = lines(res)[1]["draft"]
+    assert draft["organization"] == "Robotics Club"
+    assert (draft["start_month"], draft["end_month"]) == ("2025-01", "2025-05")
+    assert draft["bullets"] == ["Cut path time by 30%."]
+
+
+async def test_the_turn_lists_what_the_draft_has_and_what_is_missing(applicant, client):
+    model = use_model([reply()])
+    await client.post("/intake/turn", json={**TURN, "draft": {**DRAFT, "bullets": []}})
+    context = model.prompts[0][1]["content"]
+    assert "already has: title, dates. Never ask" in context
+    assert "Still missing: bullets." in context
+
+
+async def test_intake_stops_asking_once_the_resume_has_what_it_needs(applicant, client):
+    use_model([reply("What's the name of this project?")])
+    res = await client.post("/intake/turn", json={**TURN, "draft": DRAFT})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["done"] is True
+    assert "ready to save" in text_line["delta"]
