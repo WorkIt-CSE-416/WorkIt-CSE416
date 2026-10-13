@@ -16,6 +16,12 @@ GET    /applicants/{id}/built-resumes/{rid}/render -> RenderResponse
        the template's font cannot draw, for the warning before download, and
        a box per line for the editor's click targets (schemas: RenderBox).
        503 {detail} when Tectonic is missing or the compile fails.
+GET    /applicants/{id}/built-resumes/{rid}/choices -> ChoicesResponse
+       The resume's choice rows (KAN-218): what shows, in what order, the
+       GPA and coursework toggles. A bank item with no row is not on it.
+PATCH  /applicants/{id}/built-resumes/{rid}/choices ChoicesUpdate -> ChoicesResponse
+       The editor's hide, show, move and toggles, all saved together. An
+       item with no row gets one. 404 for an item outside the bank.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment
 GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
        -> KeywordMatchResponse {job_posting_id, matched, missing, uses_left}
@@ -47,8 +53,13 @@ from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeResponse,
+    BulletChoiceResponse,
+    ChoicesResponse,
+    ChoicesUpdate,
+    EntryChoiceResponse,
     RenderBox,
     RenderResponse,
+    SkillChoiceResponse,
 )
 from app.schemas.keywords import KeywordMatchResponse
 from app.services import built_resumes as service
@@ -174,6 +185,48 @@ async def render_pdf(
         missing_characters=list(rendered.missing_characters),
         boxes=[RenderBox(**vars(box)) for box in rendered.boxes],
     )
+
+
+async def _choices(session: AsyncSession, resume_id: uuid.UUID) -> ChoicesResponse:
+    choices = await service.load_choices(session, resume_id)
+    return ChoicesResponse(
+        entries=[EntryChoiceResponse(entry_id=i, shown=c.shown, position=c.position, show_gpa=c.show_gpa,
+                                     show_coursework=c.show_coursework) for i, c in choices.entries.items()],
+        bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position)
+                 for i, c in choices.bullets.items()],
+        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position)
+                for i, c in choices.skills.items()],
+    )
+
+
+@router.get("/{resume_id}/choices", response_model=ChoicesResponse)
+async def get_choices(
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> ChoicesResponse:
+    await _owned(session, applicant_id, resume_id)
+    return await _choices(session, resume_id)
+
+
+@router.patch("/{resume_id}/choices", response_model=ChoicesResponse)
+async def update_choices(
+    body: ChoicesUpdate,
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> ChoicesResponse:
+    try:
+        await service.update_choices(
+            session, applicant_id, resume_id,
+            entries=[c.model_dump(exclude_unset=True) for c in body.entries],
+            bullets=[c.model_dump(exclude_unset=True) for c in body.bullets],
+            skills=[c.model_dump(exclude_unset=True) for c in body.skills],
+        )
+    except NotFound:
+        raise HTTPException(404, "Resume or bank item not found")
+    await _commit(session, "Failed to save the resume")
+    return await _choices(session, resume_id)
 
 
 @router.get("/{resume_id}/docx")
