@@ -25,6 +25,7 @@ import {
 } from "@/lib/bank-actions";
 
 import { EntryEditor } from "./entry-editor";
+import { ImportCard } from "./import-card";
 import { changesOf, draftOf, emptyDraft, formatDates, SECTIONS, type EntryDraft } from "./sections";
 
 /**
@@ -125,6 +126,7 @@ export function BankScreen({ initial }: { initial: Bank }) {
           {pageError}
         </p>
       )}
+      <ImportCard onSaved={reload} />
       {SECTIONS.map((section) => {
         const entries = bank.entries.filter((e) => e.section === section.id);
         const adding = editing?.kind === "new" && editing.section === section.id;

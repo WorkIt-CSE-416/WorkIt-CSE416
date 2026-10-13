@@ -152,6 +152,10 @@ are in `docs/auth.md`.
   layout, never a module variable**: sign-out leaving the shell is what drops
   it, and a module variable would show one account's resumes to the next
   person in that tab.
+- **Resume facts are edited in the experience bank only** (KAN-211). No
+  screen edits an uploaded resume's `parsed_json`; an upload reaches the bank
+  through import's drafts (`(seeker)/bank/import-card.tsx`). Two editors of
+  the same facts drift apart, and built resumes read the bank.
 
 ## Screens, design and motion
 
