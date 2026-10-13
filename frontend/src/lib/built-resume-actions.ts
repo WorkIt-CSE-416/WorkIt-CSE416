@@ -134,13 +134,12 @@ export async function updateChoices(
   });
 }
 
-/** Fit to One Page: the bullets and whole entries it hid, `undo` (the
- *  PATCH body that shows them, and any coursework it hid, again) and the
+/** Fit to One Page: the bullets it hid, `undo` (the PATCH body that shows
+ *  everything it hid again, whole entries and coursework too) and the
  *  render after, which can still be 2 pages when nothing more could go. */
 export async function fitToOnePage(resumeId: string): Promise<
   Result<{
     hidden: string[];
-    hidden_entries: string[];
     undo: ChoicesUpdate;
     render: RenderedPdf;
   }>
