@@ -77,3 +77,7 @@ claudeskill_reports/
 # project documentation. frontend/docs/backend-integration.md and
 # frontend/docs/shadcn.md are the real docs.
 docs/superpowers/
+
+# Superset: the Run button's PID, read by teardown
+.superset/run.pid
+.superset/config.local.json
