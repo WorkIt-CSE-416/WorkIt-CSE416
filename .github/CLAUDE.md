@@ -9,6 +9,13 @@ way and what bites.
 `scout/` has no job of its own: the backend installs it, so the backend job
 lints and tests it too.
 
+The backend job runs `pgvector/pgvector:pg15` as a service on port 54330,
+the same image and port as the local test container, and sets
+`TEST_DATABASE_URL` to it. The tests migrate their own database to head on it
+(`backend/CLAUDE.md`, "Tests against real Postgres"). Because `CI` is set
+there, a test database that cannot be reached fails the job instead of
+skipping the tests.
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.

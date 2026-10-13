@@ -258,13 +258,15 @@ imports every migration needs there rather than by hand in each one.
 
 ## Multi-team
 
-Two CI gates are worth adding; CI (`../../.github/CLAUDE.md`) runs neither yet.
+Two CI gates matter. CI (`../../.github/CLAUDE.md`) has the first: the
+backend tests run `upgrade head` on an empty Postgres (`../CLAUDE.md`, "Tests
+against real Postgres"). The second is still open.
 
 - **`alembic heads` must return exactly one.** Two branches off one revision
   each adding a migration produces two heads, and `upgrade head` then fails for
-  everyone. The `down_revision` git conflict this causes is a feature: resolve
-  it by re-parenting one revision, never by picking a side.
-- **`alembic check`** fails when models contain changes no migration captures —
+  everyone, CI included. The `down_revision` git conflict this causes is a
+  feature: resolve it by re-parenting one revision, never by picking a side.
+- **`alembic check`** (not in CI yet) fails when models contain changes no migration captures —
   the defect that otherwise detonates in a teammate's environment rather than
   the author's.
 

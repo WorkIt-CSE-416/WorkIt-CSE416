@@ -31,7 +31,7 @@ it.
 ```
 uv sync                                        install deps from the lock
 uv run uvicorn app.main:app --reload           dev server on :8000
-uv run pytest                                  the tests in tests/
+uv run pytest                                  the tests in tests/ (database tests: Tests against real Postgres)
 uv run ruff check .                            lint (CI runs it)
 uv run alembic revision --autogenerate -m msg  write a migration
 uv run alembic check                           fail if models lack a migration
@@ -86,9 +86,50 @@ module docstring has the steps.
 - **A test that calls the resume routes monkeypatches `resumes.get_supabase`.**
   The router calls it directly rather than through `Depends`, so a dependency
   override misses it and the test uploads to the real bucket.
-- **The import's database half needs Postgres**, which CI lacks. Test it on a
-  throwaway local Postgres 15+ (`job_locations` uses `NULLS NOT DISTINCT`);
-  `alembic/CLAUDE.md` has the recipe.
+- **The import's database half has no tests yet.** It can now get them through
+  the `database` fixture below.
+
+### Tests against real Postgres
+
+A test that reads or writes tables asks for the `database` fixture
+(`tests/conftest.py`). It runs against a local Postgres with pgvector, never
+Supabase. Start the container once; it can stay up between runs:
+
+```
+docker run -d --name workit-test-db -e POSTGRES_PASSWORD=postgres -p 54330:5432 pgvector/pgvector:pg15
+uv run pytest
+```
+
+- **Each run makes its own database** (`workit_test_<random>`) on that
+  container, creates the `auth.users` stub, migrates it to head through
+  Alembic, and drops it at the end. Parallel runs from several worktrees share
+  the container but never a table. `TEST_DATABASE_URL` points at another server
+  (default `postgresql://postgres:postgres@localhost:54330/postgres`).
+- **Nothing reaches Supabase.** `conftest.py` sets `DATABASE_URL` and
+  `DIRECT_URL` to the test database before the app reads them (exported
+  variables beat the root `.env`), and refuses a `TEST_DATABASE_URL` whose host
+  is not localhost. The app's own `get_session` uses the test database, so do
+  not override it in these tests.
+- **Without the container, database tests skip** with a message saying how to
+  start it; the rest run. In CI (`CI` set) they fail instead, so a broken
+  service never passes as green. CI's backend job runs the same image as a
+  service (`../.github/CLAUDE.md`).
+- **Cleanup:** after each test, every table the migrations left empty is
+  truncated, `auth.users` included. Seeded tables (`job_roles`, `locations`)
+  keep their rows; a test that changes a seeded row must put it back.
+- **Write them `async def` with `pytestmark = pytest.mark.anyio`** (anyio's
+  pytest plugin comes with FastAPI; no pytest-asyncio). Call the API through
+  `httpx.AsyncClient(transport=httpx.ASGITransport(app=app))`, which shares the
+  test's event loop with the session. `database` yields an
+  `async_sessionmaker`: seed with `async with database() as s:`, and
+  `s.commit()` so the API's own session sees the rows.
+- **Override `get_current_account`, not the token.** It verifies against
+  Supabase's keys; return an `AuthenticatedAccount` for a seeded row. A
+  profile row needs its `auth.users` row first. `tests/test_database_smoke.py`
+  is the pattern.
+- **A failed migration fails every database test.** The chain runs from
+  scratch on each run, so a migration that only works on top of the shared
+  database's history shows up here first.
 
 ## Code layout
 
@@ -167,9 +208,10 @@ Find files with a directory listing; these are the rules for where code goes.
   the next, and queries fail intermittently under load, never in development.
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
   they raise `TypeError: Invalid argument(s)`.
-- **Still open: CI has no migration gates.** `alembic heads` returning more
-  than one, and `alembic check` failing on model drift, would each have caught
-  the 2026-09-21 breakage (`alembic/CLAUDE.md`).
+- **CI runs the whole migration chain** on an empty Postgres before the
+  database tests, so two heads or a broken migration fail the PR. **Still
+  open:** `alembic check` (model drift) is not a CI gate yet
+  (`alembic/CLAUDE.md`).
 
 ## Deployment
 
