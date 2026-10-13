@@ -219,10 +219,14 @@ Find files with a directory listing; these are the rules for where code goes.
   `resume_view.fit_order`), which renders between rounds, so it is slow
   (two or three renders) and its tests need Tectonic. Tests:
   `tests/test_resume_editor.py`.
-- **Every PDF download is a sent resume** (KAN-208): `POST
+- **Every download is a sent resume** (KAN-208): `POST
   /applicants/{id}/sent-resumes` renders through `services/sent_resumes.py`,
   which hashes the view, template and header text first and returns the last
-  sent resume on a repeat for the same built resume. The service takes the
+  sent resume on a repeat for the same built resume. `format: "docx"`
+  keeps the Word file the same way (its hash adds the format, so a PDF and
+  a Word file of one resume are two sent resumes; a built resume only).
+  `GET .../render` and `.../docx` return the file unkept: the editor's
+  preview and the tests read them, and no download button calls them. The service takes the
   Storage client from the router and flushes, never commits; when a new row's
   commit fails, the router removes the uploaded file. **Apply** (KAN-220) is
   the same POST with `job_posting_id` and exactly one of `built_resume_id`

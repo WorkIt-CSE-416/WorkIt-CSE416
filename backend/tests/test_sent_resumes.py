@@ -98,6 +98,37 @@ async def test_a_download_keeps_a_sent_resume_the_sent_list_shows(student, stora
     assert [(s["id"], s["name"]) for s in listed] == [(sent["id"], "General SWE")]
 
 
+async def test_a_word_download_keeps_a_sent_resume_too(student, storage, renders):
+    from tests.test_built_resumes import _docx_lines
+
+    client, me = student
+    await _fill_bank(client, me)
+    built = await _generate(client, me, "General SWE")
+
+    res = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built, "format": "docx"})
+
+    assert res.status_code == 201
+    sent = res.json()
+    assert "download=General SWE.docx" in sent["url"]
+    [(path, content)] = storage.files.items()
+    assert path.endswith(".docx")
+    assert sent["format"] == "docx"
+    assert "Sam Seeker" in _docx_lines(content)
+    assert renders == []  # no PDF made
+    # A repeat is the same sent resume; the PDF of the same content is its own.
+    again = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built, "format": "docx"})
+    assert (again.status_code, again.json()["id"]) == (200, sent["id"])
+    assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).status_code == 201
+    assert len((await client.get(f"{me}/sent-resumes")).json()) == 2
+
+
+async def test_an_uploaded_resume_has_no_word_download(student, storage):
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    body = {"uploaded_resume_id": uploaded["id"], "format": "docx"}
+    assert (await client.post(f"{me}/sent-resumes", json=body)).status_code == 422
+
+
 async def test_a_repeat_download_of_the_same_content_returns_the_last_sent_resume(student, storage, renders):
     client, me = student
     await _fill_bank(client, me)
