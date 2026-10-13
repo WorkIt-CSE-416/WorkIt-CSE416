@@ -37,6 +37,7 @@ uv run alembic revision --autogenerate -m msg  write a migration
 uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
+python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
 Migrations: read `alembic/CLAUDE.md` before writing one; it has the offline
@@ -103,7 +104,8 @@ Find files with a directory listing; these are the rules for where code goes.
   `app/models/CLAUDE.md` before adding or editing a model.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
-  matching: `app/services/matching/CLAUDE.md`.
+  matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
+  Tectonic): `app/services/resume_render/CLAUDE.md`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -192,6 +194,10 @@ free tier). Render with a Dockerfile is the fallback.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
+  checked) and warms its cache into `vendor/`, which the function bundles.
+  A build that cannot fetch it fails rather than shipping without TeX
+  (`app/services/resume_render/CLAUDE.md`).
 - **`../scout` is bundled as a non-editable path source.** uv copies it into
   site-packages at build time; an editable install would point at a folder the
   function lacks.
