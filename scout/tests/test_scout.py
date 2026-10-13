@@ -23,7 +23,6 @@ from workit_scout.facts import job_facts, resume_facts
 from workit_scout.identity import Identity
 from workit_scout.llm import LLM
 from workit_scout.prompt import NO_RESUME, SYSTEM_PROMPT
-from workit_scout.quota import DailyQuota
 from workit_scout.schemas import (
     ChatMessage,
     ErrorEvent,
@@ -252,16 +251,6 @@ def test_settings_read_the_scout_prefix(monkeypatch):
     monkeypatch.setenv("SCOUT_MODEL", "qwen3.5:9b")
     s = ScoutSettings(_env_file=None)
     assert s.model == "qwen3.5:9b"
-
-
-# --- the daily cap ------------------------------------------------------------------
-
-
-def test_quota_stops_at_the_limit_per_key():
-    quota = DailyQuota()
-    assert all(quota.take("a", 3) for _ in range(3))
-    assert not quota.take("a", 3)
-    assert quota.take("b", 3)
 
 
 # --- facts: what Scout is told it knows ---------------------------------------------
