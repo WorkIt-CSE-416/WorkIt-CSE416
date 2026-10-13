@@ -16,6 +16,11 @@ the same image and port as the local test container, and sets
 there, a test database that cannot be reached fails the job instead of
 skipping the tests.
 
+The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
+(kept in the Actions cache) before pytest. Because `CI` is set, the resume
+template text test fails, never skips, when Tectonic is missing
+(`backend/app/services/resume_render/CLAUDE.md`).
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.

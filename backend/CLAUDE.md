@@ -37,6 +37,7 @@ uv run alembic revision --autogenerate -m msg  write a migration
 uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
+python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
 Migrations: read `alembic/CLAUDE.md` before writing one; it has the offline
@@ -144,15 +145,27 @@ Find files with a directory listing; these are the rules for where code goes.
   `app/models/CLAUDE.md` before adding or editing a model.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
-  matching: `app/services/matching/CLAUDE.md`. A service that reads or writes
-  rows (the experience bank, `services/bank.py`) takes the caller's session,
-  flushes and never commits, so the router owns the transaction and one
-  request can make many changes atomically (an import saving many entries).
+  matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
+  Tectonic): `app/services/resume_render/CLAUDE.md`. A service that reads or
+  writes rows (the experience bank, `services/bank.py`) takes the caller's
+  session, flushes and never commits, so the router owns the transaction and
+  one request can make many changes atomically (an import saving many
+  entries).
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
   bank embedding on every entry, bullet or skill change; a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+- **Every model feature counts its daily uses through `app/services/usage.py`**
+  (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
+  it succeeds, so a failed or rejected call costs the student nothing. Each
+  route returns the uses left (Scout: a final `usage` NDJSON line). The limits
+  are `AI_*` settings in `app/config.py`: a cap per student and a share of
+  `AI_DAILY_POOL` per feature, per UTC day, defaults from the spec. The counts
+  live in `ai_usage_counters` (one row per account, or the pool with a NULL
+  account, per feature and day). Never count in memory: a restart or a second
+  Vercel instance resets it. Check-then-count can overshoot by one under
+  concurrent requests, on purpose; it errs toward the student.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -231,7 +244,8 @@ free tier). Render with a Dockerfile is the fallback.
 
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
-  model, where"); without `SCOUT_*` every Scout reply is "offline". **Never
+  model, where"); without `SCOUT_*` every Scout reply is "offline". The
+  `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. `GEMINI_API_KEY` is read but unused until
   matching embeds (`app/services/matching/CLAUDE.md`); set it here and as an
@@ -242,6 +256,10 @@ free tier). Render with a Dockerfile is the fallback.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
+  checked) and warms its cache into `vendor/`, which the function bundles.
+  A build that cannot fetch it fails rather than shipping without TeX
+  (`app/services/resume_render/CLAUDE.md`).
 - **`../scout` is bundled as a non-editable path source.** uv copies it into
   site-packages at build time; an editable install would point at a folder the
   function lacks.

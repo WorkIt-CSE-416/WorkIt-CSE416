@@ -9,7 +9,11 @@
 
 export type ScoutMessage = { role: "user" | "assistant"; content: string };
 
-export type ScoutEvent = { type: "text"; delta: string } | { type: "error"; message: string };
+export type ScoutEvent =
+  | { type: "text"; delta: string }
+  | { type: "error"; message: string }
+  // The turn's last line: Scout uses left today, after this turn counted (or not).
+  | { type: "usage"; uses_left: number };
 
 export async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<ScoutEvent> {
   const reader = body.getReader();

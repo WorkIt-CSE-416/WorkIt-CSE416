@@ -5,16 +5,24 @@ installs this package: `uv run pytest ../scout/tests`.
 """
 
 import asyncio
+import json
 
 import httpx
 import pytest
-from openai import APIConnectionError, BadRequestError, RateLimitError
+from openai import (
+    APIConnectionError,
+    AsyncOpenAI,
+    BadRequestError,
+    InternalServerError,
+    RateLimitError,
+)
+from pydantic import BaseModel
 from workit_scout import llm as llm_module
 from workit_scout.agent import MAX_REPLY_CHARS, run
 from workit_scout.facts import job_facts, resume_facts
+from workit_scout.identity import Identity
 from workit_scout.llm import LLM
 from workit_scout.prompt import NO_RESUME, SYSTEM_PROMPT
-from workit_scout.quota import DailyQuota
 from workit_scout.schemas import (
     ChatMessage,
     ErrorEvent,
@@ -22,7 +30,7 @@ from workit_scout.schemas import (
     ResumeFacts,
     TextEvent,
 )
-from workit_scout.settings import ScoutSettings
+from workit_scout.settings import Endpoint, ScoutSettings
 from workit_scout.testing import ScriptedLLM
 
 _REQUEST = httpx.Request("POST", "http://primary.test/v1/chat/completions")
@@ -34,16 +42,22 @@ def rate_limited() -> RateLimitError:
     )
 
 
+def server_error() -> InternalServerError:
+    return InternalServerError(
+        "down", response=httpx.Response(503, request=_REQUEST), body=None
+    )
+
+
 def bad_request() -> BadRequestError:
     return BadRequestError(
         "bad model", response=httpx.Response(400, request=_REQUEST), body=None
     )
 
 
-def collect(llm: LLM, *texts: str, **facts) -> list:
+def collect(llm: LLM, *texts: str, identity=Identity(), **facts) -> list:
     async def go():
         messages = [ChatMessage(role="user", content=t) for t in texts]
-        return [event async for event in run(messages, llm, **facts)]
+        return [event async for event in run(messages, llm, identity=identity, **facts)]
 
     return asyncio.run(go())
 
@@ -60,13 +74,20 @@ def test_primary_answers():
 
 
 def test_rate_limit_falls_back_once():
-    events = collect(ScriptedLLM(rate_limited(), fallback=["from fallback"]), "hello")
+    events = collect(ScriptedLLM(rate_limited(), ["from fallback"]), "hello")
     assert reply(events) == "from fallback"
+
+
+def test_the_chain_moves_down_past_a_429_a_5xx_and_a_dead_endpoint():
+    down = APIConnectionError(request=_REQUEST)
+    fake = ScriptedLLM(rate_limited(), server_error(), down, ["fourth"])
+    assert reply(collect(fake, "hello")) == "fourth"
+    assert len(fake.prompts) == 4
 
 
 def test_unreachable_primary_falls_back():
     down = APIConnectionError(request=_REQUEST)
-    assert reply(collect(ScriptedLLM(down, fallback=["ok"]), "hello")) == "ok"
+    assert reply(collect(ScriptedLLM(down, ["ok"]), "hello")) == "ok"
 
 
 def test_no_fallback_reports_quota():
@@ -75,18 +96,36 @@ def test_no_fallback_reports_quota():
 
 
 def test_misconfiguration_does_not_fall_back():
-    fake = ScriptedLLM(bad_request(), fallback=["should not run"])
+    fake = ScriptedLLM(bad_request(), ["should not run"])
     assert collect(fake, "hello") == [ErrorEvent(message=llm_module.OFFLINE)]
     assert len(fake.prompts) == 1
 
 
 def test_failure_mid_reply_is_not_retried():
     # A retry would send the user the start of the reply twice.
-    events = collect(
-        ScriptedLLM(["Half a", rate_limited()], fallback=["whole"]), "hello"
-    )
+    events = collect(ScriptedLLM(["Half a", rate_limited()], ["whole"]), "hello")
     assert reply(events) == "Half a"
     assert events[-1] == ErrorEvent(message=llm_module.CUT_OFF)
+
+
+def test_the_prompt_sent_holds_no_identity_data():
+    fake = ScriptedLLM(["ok"])
+    me = Identity(
+        name="Sam Seeker",
+        email="sam@example.com",
+        phone="631-555-0100",
+        links=["https://github.com/samseeker"],
+    )
+    collect(
+        fake,
+        "I'm Sam Seeker, sam@example.com, (631) 555-0100, github.com/samseeker",
+        identity=me,
+        resume=ResumeFacts(projects=["Robot arm, by Sam Seeker"]),
+    )
+    sent = str(fake.prompts)
+    for value in ("Sam", "Seeker", "sam@example.com", "555", "samseeker"):
+        assert value not in sent
+    assert "[name]" in sent and "[email]" in sent and "[phone]" in sent
 
 
 def test_long_reply_is_cut_at_the_cap():
@@ -94,42 +133,124 @@ def test_long_reply_is_cut_at_the_cap():
     assert len(reply(events)) == MAX_REPLY_CHARS
 
 
+# --- the structured call -----------------------------------------------------------
+
+
+class Entry(BaseModel):
+    title: str
+    bullets: list[str]
+
+
+def ask_json(llm: LLM, identity=Identity()) -> Entry:
+    messages = [{"role": "user", "content": "draft it"}]
+    return asyncio.run(llm.complete_json(messages, Entry, identity=identity))
+
+
+def test_a_structured_call_returns_the_checked_object():
+    fake = ScriptedLLM(['{"title": "Intern", ', '"bullets": ["Built a robot"]}'])
+    assert ask_json(fake) == Entry(title="Intern", bullets=["Built a robot"])
+
+
+def test_a_structured_call_falls_down_the_chain():
+    fake = ScriptedLLM(
+        rate_limited(), server_error(), ['{"title": "T", "bullets": []}']
+    )
+    assert ask_json(fake).title == "T"
+
+
+@pytest.mark.parametrize("bad", ['{"title": "T"}', "Sure! Here it is: {", ""])
+def test_a_reply_that_fails_the_check_is_rejected(bad):
+    with pytest.raises(llm_module.InvalidReply):
+        ask_json(ScriptedLLM([bad], ['{"title": "T", "bullets": []}']))
+
+
+def test_a_structured_call_sends_no_identity_data():
+    fake = ScriptedLLM(['{"title": "T", "bullets": []}'])
+    asyncio.run(
+        fake.complete_json(
+            [{"role": "user", "content": "Sam Seeker at sam@example.com"}],
+            Entry,
+            identity=Identity(name="Sam Seeker"),
+        )
+    )
+    assert fake.prompts == [[{"role": "user", "content": "[name] at [email]"}]]
+
+
+def test_requests_carry_a_json_schema_and_never_tool_choice():
+    sent = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        sent.append(body)
+        content = '{"title": "T", "bullets": []}'
+        if body.get("stream"):
+            chunk = {"choices": [{"index": 0, "delta": {"content": "hi"}}]}
+            text = f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n"
+            return httpx.Response(
+                200, text=text, headers={"content-type": "text/event-stream"}
+            )
+        message = {"role": "assistant", "content": content}
+        return httpx.Response(
+            200,
+            json={
+                "id": "1",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "m",
+                "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+            },
+        )
+
+    model = LLM([Endpoint("http://only.test/v1", "m")])
+    model._endpoints = [
+        (
+            endpoint,
+            AsyncOpenAI(
+                base_url=endpoint.base_url,
+                api_key="k",
+                http_client=httpx.AsyncClient(transport=httpx.MockTransport(answer)),
+            ),
+        )
+        for endpoint, _ in model._endpoints
+    ]
+    assert ask_json(model).title == "T"
+    assert reply(collect(model, "hello")) == "hi"
+
+    structured, streamed = sent
+    assert structured["response_format"]["type"] == "json_schema"
+    assert structured["response_format"]["json_schema"]["schema"] == (
+        Entry.model_json_schema()
+    )
+    assert "tool_choice" not in structured and "tool_choice" not in streamed
+
+
 # --- configuration ----------------------------------------------------------------
 
 
-def test_fallback_is_off_unless_configured():
+def test_one_endpoint_unless_a_chain_is_configured():
     assert len(LLM.from_settings(ScoutSettings(_env_file=None))._endpoints) == 1
 
 
-def test_fallback_is_used_when_configured():
-    s = ScoutSettings(
-        _env_file=None, fallback_base_url="http://fallback/v1", fallback_model="nano"
+def test_the_chain_comes_from_env_in_order(monkeypatch):
+    monkeypatch.setenv(
+        "SCOUT_ENDPOINTS",
+        '[{"base_url": "http://groq/v1", "model": "gpt-oss-120b", "api_key": "k"},'
+        ' {"base_url": "http://cf/v1", "model": "gpt-oss-20b",'
+        ' "reasoning_effort": "low"}]',
     )
-    assert [e.model for e, _ in LLM.from_settings(s)._endpoints] == [s.model, "nano"]
-
-
-def test_half_a_fallback_is_an_error_not_silence():
-    with pytest.raises(ValueError, match="SCOUT_FALLBACK_MODEL"):
-        LLM.from_settings(
-            ScoutSettings(_env_file=None, fallback_base_url="http://fallback/v1")
-        )
+    endpoints = [
+        e for e, _ in LLM.from_settings(ScoutSettings(_env_file=None))._endpoints
+    ]
+    assert [(e.model, e.api_key, e.reasoning_effort) for e in endpoints] == [
+        ("gpt-oss-120b", "k", None),
+        ("gpt-oss-20b", None, "low"),
+    ]
 
 
 def test_settings_read_the_scout_prefix(monkeypatch):
     monkeypatch.setenv("SCOUT_MODEL", "qwen3.5:9b")
-    monkeypatch.setenv("SCOUT_DAILY_TURNS", "7")
     s = ScoutSettings(_env_file=None)
-    assert (s.model, s.daily_turns) == ("qwen3.5:9b", 7)
-
-
-# --- the daily cap ------------------------------------------------------------------
-
-
-def test_quota_stops_at_the_limit_per_key():
-    quota = DailyQuota()
-    assert all(quota.take("a", 3) for _ in range(3))
-    assert not quota.take("a", 3)
-    assert quota.take("b", 3)
+    assert s.model == "qwen3.5:9b"
 
 
 # --- facts: what Scout is told it knows ---------------------------------------------

@@ -1,7 +1,7 @@
 """experience bank: bank row, entries, bullets and skills
 
 Revision ID: b7e2a4c91d06
-Revises: 824f0b2e3d84
+Revises: c804ee165f66
 Create Date: 2026-10-13 12:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'b7e2a4c91d06'
-down_revision: Union[str, Sequence[str], None] = '824f0b2e3d84'
+down_revision: Union[str, Sequence[str], None] = 'c804ee165f66'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -5,7 +5,8 @@ reaches a model".
 """
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 # A path after a host, ending before any trailing punctuation.
@@ -89,3 +90,23 @@ def remove_identity(
                 rf"(?<!\w)(?:{words})(?!\w)", "[name]", text, flags=re.IGNORECASE
             )
     return text
+
+
+@dataclass(frozen=True)
+class Identity:
+    """
+    One student's identity fields, as the model seam needs them: `LLM` takes
+    one on every call and runs every message through `remove`, so no caller
+    can send a model text that skipped removal. An empty Identity still
+    removes any email, URL or phone by pattern.
+    """
+
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    links: Sequence[str | None] = ()
+
+    def remove(self, text: str) -> str:
+        return remove_identity(
+            text, name=self.name, email=self.email, phone=self.phone, links=self.links
+        )
