@@ -26,6 +26,23 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # The real-Postgres tests (backend/tests/conftest.py) create their own
+    # database here and migrate it to head before the first one runs. The
+    # image ships pgvector, which the migrations install.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54330:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:54330/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
