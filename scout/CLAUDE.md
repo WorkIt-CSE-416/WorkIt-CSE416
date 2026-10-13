@@ -106,8 +106,8 @@ reject `none` and want `minimal`. It is sent only when set. Never send
 ## Structured output
 
 `LLM.complete_json(messages, Schema, identity=...)` is the non-streaming call
-every model feature that needs data (Intake, Tailor, model parsing) uses. It
-sends `response_format` with the Pydantic schema's JSON schema, not strict
+every model feature that needs data (Intake, Tailor, model parsing, the
+editor assistant) uses. It sends `response_format` with the Pydantic schema's JSON schema, not strict
 (providers disagree on which schemas strict mode accepts), and checks the
 reply with `Schema.model_validate_json`. A reply that fails the check raises
 `InvalidReply` and is not repaired or retried down the chain: the caller

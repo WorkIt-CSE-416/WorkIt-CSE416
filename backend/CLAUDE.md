@@ -286,6 +286,21 @@ Find files with a directory listing; these are the rules for where code goes.
     the proposals are built; a keyword extraction inside the run is not a
     second use. A run with no base resume generates one first (saved with
     the count; the 5-resume limit applies).
+- **The editor assistant** (KAN-221) is `routers/assistant.py` (`POST
+  .../built-resumes/{rid}/assistant`) over `services/assistant.py`. The
+  model only **reads** the student's message into one action (fit, hide,
+  move_up, move_down, shorter, none); the editor applies it through the
+  choices PATCH or Fit, so the route saves nothing but the count. **Every
+  line the student reads is the service's fixed text**, never the model's,
+  so the assistant cannot reword by talking. The only model text that
+  reaches the student is a "Make it shorter" wording, and only when it is
+  shorter than what the resume shows and `truth_rule.invented` finds
+  nothing against that wording, the bank's original and the skills; else
+  the answer is `none`. It saves only when the student uses it (as typed
+  wording). One `ASSISTANT` use per answered message (cap 10, share 10%:
+  on top of the spec's four shares, which already fill the pool, so a busy
+  day can overshoot the pool by that much). Tests:
+  `tests/test_editor_assistant.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
