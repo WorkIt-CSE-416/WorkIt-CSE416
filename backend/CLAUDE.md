@@ -203,8 +203,11 @@ Find files with a directory listing; these are the rules for where code goes.
   which hashes the view, template and header text first and returns the last
   sent resume on a repeat for the same built resume. The service takes the
   Storage client from the router and flushes, never commits; when a new row's
-  commit fails, the router removes the uploaded file. Apply (KAN-220) builds
-  on `send_built(..., job_posting_id=)` and `send_uploaded`. **A stored file
+  commit fails, the router removes the uploaded file. **Apply** (KAN-220) is
+  the same POST with `job_posting_id` and exactly one of `built_resume_id`
+  or `uploaded_resume_id` (422 otherwise; 404 for a posting that does not
+  exist). An uploaded resume makes no new file, so a failed commit must not
+  remove its file: the router removes only a built sent resume's. **A stored file
   is removed only when `file_in_use` says no row needs it**: the uploaded
   resume delete and the sent resume delete both check it, because a sent
   resume can point at an uploaded resume's file.
@@ -246,6 +249,30 @@ Find files with a directory listing; these are the rules for where code goes.
   run once, not once more for the extraction. Tests:
   `tests/test_keyword_match.py` (the cache, its clearing by the import and
   by the hash, an invalid or failed reply counts nothing, the cap).
+- **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
+  A run (`POST .../tailor`) proposes changes and saves nothing but the
+  count; Done (`POST .../tailor/done`) saves the accepted ones on the
+  posting's one tailored resume, approved wordings as bullet variants for
+  the posting. Rules, each with a test in `tests/test_tailor.py`:
+  - **The truth rule is one pure function**, `services/truth_rule.py`'s
+    `invented` (tested directly, `tests/test_truth_rule.py`): a wording
+    with a number or tool in neither its original bullet nor the bank's
+    skills is dropped from the proposals and refused (422) at Done, since
+    the browser can send any text. Change what counts as a tool there and
+    nowhere else.
+  - **A missing keyword that is nowhere in the bank is a question**
+    ("Have you used X?"), never words. Yes adds the skill through the
+    bank's own routes and shows it, with no AI call.
+  - **The model sees handles (b1, e1), never ids**, and no links: an
+    entry's link field is left out and the seam removes identity data.
+    Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
+    bullets: the best 40 go to the model, and the rank proposes each
+    entry's bullet order. A posting with no description is read by its
+    title, with `weak_match`.
+  - **One run is one `TAILOR` use**, counted after the model answers and
+    the proposals are built; a keyword extraction inside the run is not a
+    second use. A run with no base resume generates one first (saved with
+    the count; the 5-resume limit applies).
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -336,6 +363,9 @@ free tier). Render with a Dockerfile is the fallback.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **Apply `f2b8d6c4a913` before deploying KAN-217.** It adds
+  `bank_bullet_variants` and `built_resume_bullets.variant_id`, which the
+  model maps, so Generate's inserts fail on a database without it.
 - **Apply `e1c4a7b9d215` before deploying KAN-215.** It adds
   `job_postings.keywords` and `keywords_hash`, which the model maps, so
   company job creation and the feed import fail on a database without them.

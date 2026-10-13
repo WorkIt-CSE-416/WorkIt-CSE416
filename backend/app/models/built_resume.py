@@ -49,8 +49,9 @@ class Built_Resume_Entry(BaseModel):
 
 class Built_Resume_Bullet(BaseModel):
     '''
-    Whether a bullet shows and its place in its entry. The chosen variant
-    (null: the original) joins when bullet variants exist (Tailor, editor).
+    Whether a bullet shows, its place in its entry, and the variant that
+    shows (null: the original). Deleting the variant brings the original
+    back.
     '''
     __tablename__ = "built_resume_bullets"
 
@@ -60,6 +61,8 @@ class Built_Resume_Bullet(BaseModel):
         ForeignKey("bank_bullets.id", ondelete="CASCADE"), primary_key=True, index=True)
     shown: Mapped[bool] = mapped_column(server_default=text("true"))
     position: Mapped[int]
+    variant_id: Mapped[_uuid.UUID | None] = mapped_column(
+        ForeignKey("bank_bullet_variants.id", ondelete="SET NULL"))
 
 
 class Built_Resume_Skill(BaseModel):
