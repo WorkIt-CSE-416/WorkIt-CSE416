@@ -184,6 +184,18 @@ def escape(text: str) -> str:
     return text.replace("\r\n", " ").translate(_TABLE)
 
 
+# In a link target hyperref turns \textasciitilde{} into "~{}", which breaks
+# the link; \string~ is the plain character. The other escapes ("\_", "\%",
+# "\#") already reach the PDF as the bare character.
+_URL_TABLE = str.maketrans({**_SPECIAL, "~": r"\string~", "^": r"\string^", "\n": "", "\r": ""})
+
+
+def escape_url(url: str) -> str:
+    '''A URL as an \\href target that links to exactly that URL. Never
+    the printed text: that goes through escape().'''
+    return url.translate(_URL_TABLE)
+
+
 def jakes_document(body: str) -> str:
     '''Jake's template with `body` (already LaTeX) after \\begin{document}.'''
     template = TEMPLATE.read_text(encoding="utf-8")

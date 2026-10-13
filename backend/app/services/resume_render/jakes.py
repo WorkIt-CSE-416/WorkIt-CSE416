@@ -1,14 +1,15 @@
 '''
 Jake's Resume body from a built resume view: the LaTeX after
 \\begin{document}, written with the template's own commands. Every string
-from the view or the identity goes through escape().
+from the view or the identity goes through escape(), and a link target
+through escape_url().
 
 With `marks` (the default) each bullet, entry field and skill is wrapped in
 position markers (`MARKS` in __init__), which give the editor its click
 targets and leave the page itself unchanged.
 '''
 
-from app.services.resume_render import MARKS, Identity, escape, mark
+from app.services.resume_render import MARKS, Identity, escape, escape_url, mark
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
@@ -28,8 +29,8 @@ def _header(identity: Identity) -> list[str]:
     if identity.phone:
         contact.append(escape(identity.phone))
     if identity.email:
-        contact.append(rf"\href{{mailto:{escape(identity.email)}}}{{\underline{{{escape(identity.email)}}}}}")
-    contact += [rf"\href{{{escape(u)}}}{{\underline{{{escape(link_text(u))}}}}}" for u in identity.links]
+        contact.append(rf"\href{{mailto:{escape_url(identity.email)}}}{{\underline{{{escape(identity.email)}}}}}")
+    contact += [rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}" for u in identity.links]
     lines = [r"\begin{center}", rf"\textbf{{\Huge \scshape {escape(identity.name)}}} \\ \vspace{{1pt}}"]
     if contact:
         lines.append(r"\small " + " $|$ ".join(contact))

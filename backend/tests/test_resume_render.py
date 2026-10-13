@@ -117,6 +117,25 @@ def test_characters_the_font_lacks_are_reported_once_each() -> None:
     assert "é" not in rendered.missing_characters
 
 
+def _link_targets(pdf: bytes) -> list[str]:
+    from pypdf import PdfReader
+
+    page = PdfReader(io.BytesIO(pdf)).pages[0]
+    return [a.get_object()["/A"]["/URI"] for a in page.get("/Annots", []) if "/A" in a.get_object()]
+
+
+def test_header_links_with_underscores_and_tildes_stay_clickable() -> None:
+    _tectonic_or_skip()
+    links = ("https://github.com/john_doe", "https://cs.example.edu/~jdoe/a%20b#top")
+    identity = replace(IDENTITY, email="john_doe@example.com", links=links)
+
+    pdf = render(VIEW, identity, "jakes").pdf
+
+    assert set(_link_targets(pdf)) >= {"mailto:john_doe@example.com", *links}
+    assert "github.com/john_doe" in _text(pdf)
+    assert "cs.example.edu/~jdoe" in _text(pdf)
+
+
 def test_an_unknown_template_is_refused() -> None:
     with pytest.raises(ValueError):
         render(VIEW, IDENTITY, "no-such-template")
