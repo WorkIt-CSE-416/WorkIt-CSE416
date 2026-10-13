@@ -208,6 +208,7 @@ async def update_choices(
     await get_resume(session, applicant_id, resume_id)
     bank = await load_bank(session, applicant_id)
     entry_of = {b.id: e.row.id for e in bank.entries for b in e.bullets}
+    original = {b.id: b.text for e in bank.entries for b in e.bullets}
     section_of = {e.row.id: str(e.row.section) for e in bank.entries}
     bullets_of = {e.row.id: [b.id for b in e.bullets] for e in bank.entries}
     skill_ids = {s.id for s in bank.skills}
@@ -249,8 +250,16 @@ async def update_choices(
         for bullet_id in bullets_of[entry_id]:
             row(Built_Resume_Bullet, "bullet_id", bullet_id, set(bullets_of[entry_id]))
     for change in bullets:
-        siblings = set(bullets_of[entry_of[change["bullet_id"]]])
-        apply(row(Built_Resume_Bullet, "bullet_id", change["bullet_id"], siblings), change, "bullet_id")
+        bullet_id = change["bullet_id"]
+        target = row(Built_Resume_Bullet, "bullet_id", bullet_id, set(bullets_of[entry_of[bullet_id]]))
+        wording, switch = change.pop("text", None), change.pop("variant_id", _UNSET)
+        apply(target, change, "bullet_id")
+        if wording is not None:
+            target.variant_id = await _type_wording(session, resume_id, bullet_id, original[bullet_id], wording)
+        elif switch is not _UNSET:
+            if switch is not None and switch not in await _offered(session, resume_id, bullet_id):
+                raise NotFound
+            target.variant_id = switch
     for change in skills:
         apply(row(Built_Resume_Skill, "skill_id", change["skill_id"], skill_ids), change, "skill_id")
     await session.flush()
@@ -263,6 +272,48 @@ async def load_view(
     bank = await load_bank(session, applicant_id)
     return resume, build_view(bank, await load_choices(session, resume.id))
 
+
+
+_UNSET = object()
+
+
+async def _type_wording(
+    session: AsyncSession, resume_id: uuid.UUID, bullet_id: uuid.UUID, original: str, wording: str
+) -> uuid.UUID | None:
+    """Save typed wording as the resume's one local variant of the bullet and
+    return its id; the original typed back deletes it and returns None."""
+    local = await session.scalar(select(Bank_Bullet_Variant).where(
+        Bank_Bullet_Variant.built_resume_id == resume_id, Bank_Bullet_Variant.bullet_id == bullet_id))
+    if wording == original.strip():
+        if local is not None:
+            await session.delete(local)
+        return None
+    if local is None:
+        local = Bank_Bullet_Variant(id=uuid.uuid4(), bullet_id=bullet_id, built_resume_id=resume_id, text=wording)
+        session.add(local)
+        await session.flush()
+    else:
+        local.text = wording
+    return local.id
+
+
+async def _offered(session: AsyncSession, resume_id: uuid.UUID, bullet_id: uuid.UUID) -> set[uuid.UUID]:
+    return {v.id for v in await list_variants(session, resume_id, [bullet_id])}
+
+
+async def list_variants(
+    session: AsyncSession, resume_id: uuid.UUID, bullet_ids: list[uuid.UUID]
+) -> list[Bank_Bullet_Variant]:
+    """The wordings a resume can show for these bullets: every Tailor
+    variant, and this resume's own local ones, never another resume's."""
+    if not bullet_ids:
+        return []
+    rows = await session.scalars(
+        select(Bank_Bullet_Variant)
+        .where(Bank_Bullet_Variant.bullet_id.in_(bullet_ids),
+               (Bank_Bullet_Variant.built_resume_id.is_(None)) | (Bank_Bullet_Variant.built_resume_id == resume_id))
+        .order_by(Bank_Bullet_Variant.created_at, Bank_Bullet_Variant.id))
+    return list(rows)
 
 
 FIT_ROUNDS = 6

@@ -64,9 +64,25 @@ class EntryChoiceResponse(BaseModel):
 
 
 class BulletChoiceResponse(BaseModel):
+    """`variant_id` and `text` name the wording that shows when it is not the
+    bank's original (both null: the original)."""
+
     bullet_id: UUID
     shown: bool
     position: int
+    variant_id: UUID | None
+    text: str | None
+
+
+class VariantResponse(BaseModel):
+    """A wording the editor can switch a bullet to: Tailor's (with its
+    `job_posting_id`) or this resume's own (`local`)."""
+
+    id: UUID
+    bullet_id: UUID
+    text: str
+    job_posting_id: UUID | None
+    local: bool
 
 
 class SkillChoiceResponse(BaseModel):
@@ -83,6 +99,7 @@ class ChoicesResponse(BaseModel):
     entries: list[EntryChoiceResponse]
     bullets: list[BulletChoiceResponse]
     skills: list[SkillChoiceResponse]
+    variants: list[VariantResponse]
 
 
 class EntryChoiceUpdate(BaseModel):
@@ -98,9 +115,16 @@ class EntryChoiceUpdate(BaseModel):
 
 
 class BulletChoiceUpdate(BaseModel):
+    """`text` is wording typed on the page: it becomes this resume's local
+    variant (one per bullet, updated in place), and typing the original back
+    drops it. `variant_id` switches to one of the bullet's variants, or to
+    the original with null. The bank's bullet never changes here."""
+
     bullet_id: UUID
     shown: bool | None = None
     position: int | None = None
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None = None
+    variant_id: UUID | None = None
 
 
 class SkillChoiceUpdate(BaseModel):
