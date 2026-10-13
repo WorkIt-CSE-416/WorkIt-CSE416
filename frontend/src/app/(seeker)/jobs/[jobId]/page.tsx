@@ -1,4 +1,4 @@
-import { Flag } from "lucide-react";
+import { Flag, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -12,6 +12,7 @@ import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Section } from "@/components/ui/section";
+import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../../gutter";
@@ -46,13 +47,16 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
  * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
- * about this role, Share copies the page's link. Save and Report are still
+ * about this role, Share copies the page's link, and Tailor My Resume opens
+ * Tailor (./tailor, KAN-217); it reads "Your Tailored Resume" once the
+ * student has one for this posting (at most one each). Save and Report are still
  * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const { job, error } = await getJobListing(jobId);
+  const [{ job, error }, resumes] = await Promise.all([getJobListing(jobId), listBuiltResumes()]);
+  const tailored = resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false;
 
   if (error != null) {
     return (
@@ -91,6 +95,15 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             </IconButton>
             <ShareButton title={job.title} />
             <AskScoutButton id={job.id} title={job.title} company={job.company} />
+            <ButtonLink
+              href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+              variant="secondary"
+              size="sm"
+              className="shrink-0"
+            >
+              <Sparkles className="size-4" />
+              {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
+            </ButtonLink>
             <ButtonLink
               href={job.apply_url}
               target="_blank"

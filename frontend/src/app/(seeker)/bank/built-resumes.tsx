@@ -129,6 +129,7 @@ function ResumeRow({ resume, reload }: { resume: BuiltResume; reload: () => Prom
         <div className="flex min-w-0 items-center gap-2">
           <p className="text-body text-ink font-medium break-words">{resume.name}</p>
           {resume.is_default && <Badge>Default</Badge>}
+          {resume.job_posting_id && <Badge variant="tag">Tailored</Badge>}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Button variant="secondary" size="sm" onClick={pdf} disabled={busy !== null}>
@@ -137,7 +138,8 @@ function ResumeRow({ resume, reload }: { resume: BuiltResume; reload: () => Prom
           <Button variant="secondary" size="sm" onClick={docx} disabled={busy !== null}>
             <FileDown /> {busy === "docx" ? "Making Word…" : "Word"}
           </Button>
-          {!resume.is_default && (
+          {/* Only a base resume can be the default (the API refuses a tailored one). */}
+          {!resume.is_default && !resume.job_posting_id && (
             <IconButton
               label={`Make ${resume.name} the Default Resume`}
               tooltip="Make this the default resume"
