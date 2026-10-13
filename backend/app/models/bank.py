@@ -1,7 +1,8 @@
 '''
 The experience bank (KAN-206): one bank row per applicant, its entries, the
-entries' bullets, and the applicant's skills. Bullet variants, skill links
-and built resumes are later tables that point at these.
+entries' bullets, the applicant's skills, and the skill links (KAN-216)
+between skills and entries. Bullet variants and built resumes are later
+tables that point at these.
 '''
 import datetime
 import uuid as _uuid
@@ -93,3 +94,18 @@ class Bank_Skill(BaseModel):
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"))
     name: Mapped[str]
     group: Mapped[str | None]
+
+
+class Bank_Skill_Link(BaseModel):
+    '''
+    Says a skill was used in an entry (KAN-216), so Tailor can show the skill
+    with proof. A skill with no links is fine: learned on one's own. Both
+    sides belong to the same applicant; services/bank.py checks that, since
+    the table cannot. Deleting either side deletes the link.
+    '''
+    __tablename__ = "bank_skill_links"
+
+    skill_id: Mapped[_uuid.UUID] = mapped_column(
+        ForeignKey("bank_skills.id", ondelete="CASCADE"), primary_key=True)
+    entry_id: Mapped[_uuid.UUID] = mapped_column(
+        ForeignKey("bank_entries.id", ondelete="CASCADE"), primary_key=True, index=True)
