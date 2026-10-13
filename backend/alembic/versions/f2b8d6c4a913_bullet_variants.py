@@ -1,7 +1,7 @@
 """bullet variants, and the variant a built resume's bullet shows
 
 Revision ID: f2b8d6c4a913
-Revises: e1c4a7b9d215
+Revises: e1f4a7c20b58
 Create Date: 2026-10-13 18:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'f2b8d6c4a913'
-down_revision: Union[str, Sequence[str], None] = 'e1c4a7b9d215'
+down_revision: Union[str, Sequence[str], None] = 'e1f4a7c20b58'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

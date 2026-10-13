@@ -13,6 +13,8 @@ student already has 5 resumes, uploaded and base resumes together
 (`app/services/built_resumes.py`).
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
 download under the original filename for a DOCX.
+`DELETE .../{resume_id}` removes the row, and its stored file unless a sent
+resume still uses it (`app/services/sent_resumes.py`, KAN-208).
 """
 import asyncio
 import logging
@@ -33,7 +35,7 @@ from app.models.dto import ParsedResume, ResumeStatus
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
-from app.services import built_resumes
+from app.services import built_resumes, sent_resumes
 from app.utils.resume_parser import count_sections, parse_resume
 
 router = APIRouter()
@@ -404,6 +406,11 @@ async def delete_resume(
     except Exception:
         await session.rollback()
         raise HTTPException(500, "Failed to delete resume record")
+
+    # A sent resume that points at this file keeps it (KAN-208); deleting
+    # that sent resume later removes the file once nothing uses it.
+    if await sent_resumes.file_in_use(session, storage_path):
+        return {"detail": "Resume deleted"}
 
     # DB succeeded — now remove the file from Storage
     # If this fails the file is orphaned, but no data is lost

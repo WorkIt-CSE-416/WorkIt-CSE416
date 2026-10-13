@@ -107,8 +107,13 @@ The page is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. Apply Now leaves for the employer's
-posting, Ask Scout asks about the role, Share copies the page's link, Save
+says so and links to the whole posting. Apply Now (`[jobId]/apply-button.tsx`,
+KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
+to this posting and the uploaded resumes, with the tailored one, else the
+default, picked first. Apply keeps a sent resume linked to the posting, then
+shows Download Resume and Open the Posting (a link, so no popup blocker
+stops it). Apply Without a Resume leaves for the employer's posting at once.
+Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in
 sessionStorage).
@@ -445,14 +450,23 @@ place they are edited: My Profile keeps the uploads and links here.
 - **Base Resumes card** (`built-resumes.tsx`, KAN-207), above the sections.
   Generate makes a base resume with every entry, bullet and skill in the
   bank; each row downloads a PDF (Jake's Resume) or a Word file, can become
-  the default resume (star) and can be deleted. Files come back from server
-  actions as base64 and the browser saves them, so no route handler is
-  needed. A PDF whose text has characters the font lacks shows them and
-  waits for Download Anyway (user story 53). The 5-resume limit is the
-  API's; its 409 message shows as the card's error. The page needs both
-  the bank and the resume list: if either fails it shows the error state.
+  the default resume (star) and can be deleted. The Word file comes back
+  from a server action as base64 and the browser saves it. A PDF download
+  keeps a sent resume (KAN-208) and comes back as a 5-minute Storage link
+  that downloads the file, so no route handler is needed. A PDF whose text
+  has characters the font lacks shows them and waits for Download Anyway
+  (user story 53); Cancel deletes the sent resume it just made. The
+  5-resume limit is the API's; its 409 message shows as the card's error.
+  The page needs the bank, the resume list and the Sent list: if any fails
+  it shows the error state. Each row's Open goes to the resume editor.
   A tailored resume shows there too, with a Tailored tag and no star (only
   a base resume can be the default).
+- **Sent card** (`sent-resumes.tsx`, KAN-208), below Base Resumes. Every
+  PDF the student downloaded or applied with (KAN-220), newest first, with its name then and the date
+  ("Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;
+  none is edited. A repeat download of unchanged content adds no row. It
+  sits on the bank page because base resumes do; "the resumes page" in the
+  spec means this page until resumes get their own.
 
 ### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
 
@@ -472,6 +486,24 @@ place they are edited: My Profile keeps the uploads and links here.
   bank. Yes adds the skill to the bank (it is saved at once, being true),
   shows it on the tailored resume, and offers to link it to an entry.
 - An empty bank (409) shows a link to the bank page, where intake starts.
+
+## Resume editor
+
+`(seeker)/resumes/[resumeId]`, opened from a base resume's Open on the bank
+page. KAN-209 is the overlay proof; typing in place is KAN-218, the phone
+layout KAN-219.
+
+- **The page is the PDF itself** (ADR 0002): the render response's PDF,
+  drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
+  response's boxes is a button laid over its line in percent of the page,
+  so the targets follow the canvas at any width without a redraw.
+- **A click selects a line**; a second click or Escape clears it. The line
+  above the page names the selected kind and page. Nothing edits yet.
+- **Render Again** fetches a new render and shows the round trip, from the
+  request to the new PDF painted, in ms: the cost each saved edit will pay.
+  A response older than the latest request is dropped.
+- A failed render shows "This Resume Isn't Loading Right Now" with the API's
+  message and a Try Again link.
 
 ## Scout panel
 
