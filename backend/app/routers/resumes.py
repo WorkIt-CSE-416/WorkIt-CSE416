@@ -1,13 +1,11 @@
-"""Resumes under /applicants/{applicant_id}/resumes: upload, list, edit, delete.
+"""Resumes under /applicants/{applicant_id}/resumes: upload, list, delete.
 
 Upload (POST) extracts text from a PDF or DOCX and parses it into structured
-JSON. `POST .../parse` returns the parse with no Storage or database write, for
-the profile's review dialog; upload then takes the reviewed copy as a
-`parsed_json` form field instead of parsing again. `GET .../{resume_id}`
-returns one resume's `parsed_json` (the list omits it). `PUT .../{resume_id}`
-replaces it with a full `ParsedResume`: a section left out comes back empty,
-which is why it is a PUT and not a PATCH. That body and upload's `parsed_json`
-are client-supplied, so both are capped at `MAX_PARSED_JSON_BYTES` (413).
+JSON (`parsed_json`), always from the file: the client never sends parsed
+content, and nothing edits it afterwards (KAN-211 retired the profile's
+parsed-JSON editor; resume facts are edited in the experience bank, which
+import fills from `raw_text`). `GET .../{resume_id}` returns one resume's
+`parsed_json` (the list omits it).
 `PUT .../{resume_id}/default` makes it the primary resume
 (`applicant_profiles.default_resume_id`; the list reports it as `is_default`).
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
@@ -22,8 +20,7 @@ import zipfile
 from datetime import UTC, datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
-from pydantic import ValidationError
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,16 +143,12 @@ BUCKET = "Resume"
 # The preview link is opened the moment it is made; this only has to outlast
 # the browser's PDF viewer loading a 5 MB file.
 FILE_URL_TTL_SECONDS = 5 * 60
-# Reviewed and edited resume content comes from the client, so its size is
-# capped where it is accepted; a long real resume is a few KB of JSON. Checked
-# on the whole document rather than per field, so parser output is unaffected.
-MAX_PARSED_JSON_BYTES = 256 * 1024
 PDF_MAGIC = b"%PDF"
 DOCX_MAGIC = b"PK\x03\x04"
 
 
 async def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
-    """Size and type checks shared by parse and upload. Returns the bytes,
+    """Size and type checks for an upload. Returns the bytes,
     extension and MIME type."""
     # check size metadata
     if file.size is not None and file.size > MAX_SIZE:
@@ -180,11 +173,6 @@ async def _extract(contents: bytes, ext: str) -> str | None:
     return await asyncio.to_thread(extract, contents)
 
 
-def _reject_oversized(parsed: ParsedResume) -> None:
-    if len(parsed.model_dump_json().encode()) > MAX_PARSED_JSON_BYTES:
-        raise HTTPException(413, "Resume details are too long")
-
-
 def _safe_parse(raw_text: str | None) -> ParsedResume | None:
     if not raw_text:
         return None
@@ -195,20 +183,6 @@ def _safe_parse(raw_text: str | None) -> ParsedResume | None:
         return None
 
 
-@router.post("/applicants/{applicant_id}/resumes/parse")
-async def parse_resume_preview(
-    applicant_id: uuid.UUID,
-    file: UploadFile,
-    account: AuthenticatedAccount = Depends(get_current_account),
-):
-    """Parse without saving, so the applicant can review and edit the result
-    before it is stored. Touches neither Storage nor the database."""
-    assert_applicant_owns(account, applicant_id)
-    contents, ext, _ = await _read_upload(file)
-    parsed = _safe_parse(await _extract(contents, ext))
-    return {"parsed_json": parsed.model_dump(mode="json") if parsed else None}
-
-
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
 
@@ -217,21 +191,10 @@ async def parse_resume_preview(
 async def upload_resume(
     applicant_id: uuid.UUID,
     file: UploadFile,
-    # The applicant's reviewed copy of the /parse result. When present it is
-    # stored instead of re-parsing; onboarding omits it and gets the parser's.
-    parsed_json: str | None = Form(None),
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session)
 ):
     assert_applicant_owns(account, applicant_id)
-
-    reviewed = None
-    if parsed_json is not None:
-        try:
-            reviewed = ParsedResume.model_validate_json(parsed_json)
-        except ValidationError as exc:
-            raise HTTPException(422, "Invalid resume details") from exc
-        _reject_oversized(reviewed)
 
     contents, ext, mime = await _read_upload(file)
 
@@ -256,7 +219,7 @@ async def upload_resume(
 
     # raw_text always comes from the file, never from the client
     raw_text = await _extract(contents, ext)
-    parsed = reviewed if reviewed is not None else _safe_parse(raw_text)
+    parsed = _safe_parse(raw_text)
 
     # Resume ORM object
     resume = Resume(
@@ -358,31 +321,6 @@ async def get_resume(
 ):
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
-    return {"id": str(resume.id), "parsed_json": resume.parsed_json}
-
-
-@router.put("/applicants/{applicant_id}/resumes/{resume_id}")
-async def update_resume(
-    applicant_id: uuid.UUID,
-    resume_id: uuid.UUID,
-    body: ParsedResume,
-    account: AuthenticatedAccount = Depends(get_current_account),
-    session: AsyncSession = Depends(get_session),
-):
-    """Replace the parsed content with the applicant's edits from the profile.
-    The whole ParsedResume is sent, so one entry's edit is a full replace."""
-    assert_applicant_owns(account, applicant_id)
-    _reject_oversized(body)
-    resume = await _get_owned_resume(session, applicant_id, resume_id)
-    resume.parsed_json = body.model_dump(mode="json")
-    resume.embedding = None  # re-embed on next scoring request
-    resume.status = ResumeStatus.parsed
-    try:
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        logger.exception("Failed to update resume", extra={"resume_id": str(resume_id)})
-        raise HTTPException(500, "Failed to save resume changes")
     return {"id": str(resume.id), "parsed_json": resume.parsed_json}
 
 
