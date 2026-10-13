@@ -493,8 +493,8 @@ place they are edited: My Profile keeps the uploads and links here.
 ## Resume editor
 
 `(seeker)/resumes/[resumeId]`, opened from a base resume's Open on the bank
-page. KAN-209 proved the overlay; KAN-218 edits on it; the phone layout is
-KAN-219. The page loads the render, the bank and the resume's choices, and
+page. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
+phone layout. The page loads the render, the bank and the resume's choices, and
 shows the error state if any fails.
 
 - **The page is the PDF itself** (ADR 0002): the render response's PDF,
@@ -536,6 +536,27 @@ shows the error state if any fails.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
   message and a Try Again link; a failed save shows the API's message above
   the page and keeps the last PDF.
+- **On a phone** (`phone.tsx`, the KAN-201 prototype's variant A), below
+  40rem of window width, the editor's same state and saves take a different
+  layout; `editor.tsx` only hands them over, so the two layouts never save
+  differently. The page fills the width and stays the editor. A tap on a
+  line opens a bottom sheet with **no scrim** (the page above still scrolls
+  and takes taps) holding the line in a **16 px field** (smaller, and iOS
+  Safari zooms the page on focus), the sticky bar's actions at **44 pt**
+  (Apple's smallest touch target), and **previous and next arrows** that
+  step through the boxes in page order (page, then top, then left), so a
+  mis-tap on a 7 px line costs one press. **Zoom** draws the page at two
+  times the width, scrolled sideways; Fit Width undoes it. The selected line
+  scrolls to the middle of the page area. The tray opens from a bottom
+  button in its own sheet (with a scrim). The layout is a fixed layer over
+  the seeker shell, **sized to `window.visualViewport`** (height, moved down
+  by its offset): the iOS keyboard covers the layout viewport instead of
+  shrinking it, so a layout sized to the window would put the sheet behind
+  the keyboard. A back arrow goes to the Experience Bank. The first paint
+  is the desktop layout (the server cannot know the width), then a phone
+  switches. Manual checks on a real iPhone: the sheet stays above the
+  keyboard, and the field does not zoom; and the render time on cellular
+  data, read from "Saved, N ms".
 
 ## Scout panel
 
