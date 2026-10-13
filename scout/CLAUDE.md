@@ -38,6 +38,7 @@ install time.
 | `agent.py` | one turn: prompt + conversation in, events out |
 | `schemas.py` | the wire format (`ChatRequest`, `ScoutEvent`) and the facts types |
 | `facts.py` | a resume's `parsed_json` and a `feed.json` row as Scout's facts; the privacy boundary |
+| `identity.py` | identity-data removal: `remove_identity`, run on all text bound for a model |
 | `quota.py` | the per-account daily cap |
 | `testing.py` | `ScriptedLLM`, the fake model both test suites use |
 
@@ -113,6 +114,28 @@ resume does not state, none about the job that the posting does not state. A
 missing resume or description is said in the block, not left blank, so the
 model has nothing to fill in.
 
+## Identity data never reaches a model
+
+Identity data (`GLOSSARY.md`: name, email, phone, street address, links) is
+removed by one function, `identity.remove_identity`, and only there (KAN-205).
+It takes text and the profile's identity fields (`name`, `email`, `phone`,
+`links`) and returns the text with `[name]`, `[email]`, `[phone]` and `[link]`
+placeholders. It also catches any email, URL or phone by pattern, so a former
+address or a friend's link goes too. Rules:
+
+- **Every model call's text passes through it before the provider seam**
+  (`llm.py`), Intake, Tailor, model parsing and Scout alike. Never add a second
+  copy of these patterns elsewhere; widen this function and its tests.
+- **Placeholders are never swapped back.** The function returns only text;
+  nothing keeps a map from placeholder to value. A reply that needs the
+  student's name shows the placeholder or is filled by the page, not the model.
+- **Patterns err toward removing.** A phone is any run of 10 to 15 digits in
+  groups, so years, date ranges and counts survive; a bare host counts as a
+  link only with a path (`github.com/jd`), so `Node.js` and `ASP.NET` survive.
+  Each part of the name is removed in any case, even when it is also a word.
+- **Street address has no placeholder yet.** The spec names four placeholders
+  only; an address typed into free text is not caught. Still open.
+
 ## Rules for changing Scout
 
 - **Grounding.** The prompt forbids claiming anything about the user or the job
@@ -135,5 +158,7 @@ model has nothing to fill in.
 `tests/test_scout.py` runs Scout against `ScriptedLLM`: fallback on 429 and on a
 dead endpoint, no fallback on misconfiguration or mid-reply, the reply cap, the
 grounding rules, the facts block (resume, job, and the wording when either is
-missing), the daily cap and the privacy mapping (`facts.py`). The API's
+missing), the daily cap and the privacy mapping (`facts.py`). `tests/test_identity.py`
+tests `remove_identity` directly: each profile field, each pattern, and text
+with no identity data, which must come back unchanged. The API's
 side — the route and the feed — is `backend/tests/test_scout.py`. None need a network or Ollama.
