@@ -50,3 +50,66 @@ class RenderResponse(BaseModel):
     page_count: int
     missing_characters: list[str]
     boxes: list[RenderBox]
+
+
+class EntryChoiceResponse(BaseModel):
+    entry_id: UUID
+    shown: bool
+    position: int
+    show_gpa: bool
+    show_coursework: bool
+
+
+class BulletChoiceResponse(BaseModel):
+    bullet_id: UUID
+    shown: bool
+    position: int
+
+
+class SkillChoiceResponse(BaseModel):
+    skill_id: UUID
+    shown: bool
+    position: int
+
+
+class ChoicesResponse(BaseModel):
+    """A built resume's choice rows (KAN-218). A bank item with no row here
+    is not on the resume: the editor's "Not on This Resume" tray lists it
+    with the shown=False rows."""
+
+    entries: list[EntryChoiceResponse]
+    bullets: list[BulletChoiceResponse]
+    skills: list[SkillChoiceResponse]
+
+
+class EntryChoiceUpdate(BaseModel):
+    """A field left out keeps its value. A bank entry with no row gets one,
+    shown, at the end of its section, with a row for each of its bullets
+    that has none."""
+
+    entry_id: UUID
+    shown: bool | None = None
+    position: int | None = None
+    show_gpa: bool | None = None
+    show_coursework: bool | None = None
+
+
+class BulletChoiceUpdate(BaseModel):
+    bullet_id: UUID
+    shown: bool | None = None
+    position: int | None = None
+
+
+class SkillChoiceUpdate(BaseModel):
+    skill_id: UUID
+    shown: bool | None = None
+    position: int | None = None
+
+
+class ChoicesUpdate(BaseModel):
+    """PATCH body: every change in one request, saved together, so a move
+    (a renumbered section or entry) or Fit's Undo never half-applies."""
+
+    entries: list[EntryChoiceUpdate] = []
+    bullets: list[BulletChoiceUpdate] = []
+    skills: list[SkillChoiceUpdate] = []

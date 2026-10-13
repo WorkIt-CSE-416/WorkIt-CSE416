@@ -157,6 +157,72 @@ async def load_choices(session: AsyncSession, resume_id: uuid.UUID) -> Choices:
     )
 
 
+async def update_choices(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    entries: list[dict] = (),
+    bullets: list[dict] = (),
+    skills: list[dict] = (),
+) -> None:
+    """The editor's changes to one resume's choice rows (KAN-218), each a dict
+    with the bank item's id (`entry_id`, `bullet_id`, `skill_id`) and only
+    the fields that change. An item outside the applicant's bank raises
+    NotFound and nothing is written. An item with no row (one in the tray
+    because it joined the bank after Generate) gets one, shown, after its
+    siblings; an entry brought onto the resume brings its row-less bullets
+    with it, or it would show with none."""
+    await get_resume(session, applicant_id, resume_id)
+    bank = await load_bank(session, applicant_id)
+    entry_of = {b.id: e.row.id for e in bank.entries for b in e.bullets}
+    section_of = {e.row.id: str(e.row.section) for e in bank.entries}
+    bullets_of = {e.row.id: [b.id for b in e.bullets] for e in bank.entries}
+    skill_ids = {s.id for s in bank.skills}
+    if (any(c["entry_id"] not in section_of for c in entries)
+            or any(c["bullet_id"] not in entry_of for c in bullets)
+            or any(c["skill_id"] not in skill_ids for c in skills)):
+        raise NotFound
+
+    rows = {
+        Built_Resume_Entry: {r.entry_id: r for r in await session.scalars(
+            select(Built_Resume_Entry).where(Built_Resume_Entry.built_resume_id == resume_id))},
+        Built_Resume_Bullet: {r.bullet_id: r for r in await session.scalars(
+            select(Built_Resume_Bullet).where(Built_Resume_Bullet.built_resume_id == resume_id))},
+        Built_Resume_Skill: {r.skill_id: r for r in await session.scalars(
+            select(Built_Resume_Skill).where(Built_Resume_Skill.built_resume_id == resume_id))},
+    }
+
+    def row(model, key: str, item_id: uuid.UUID, siblings) -> object:
+        found = rows[model].get(item_id)
+        if found is None:
+            used = [r.position for i, r in rows[model].items() if i in siblings]
+            found = model(built_resume_id=resume_id, **{key: item_id}, shown=True,
+                          position=max(used, default=-1) + 1)
+            if model is Built_Resume_Entry:
+                found.show_gpa = found.show_coursework = True
+            session.add(found)
+            rows[model][item_id] = found
+        return found
+
+    def apply(target: object, change: dict, key: str) -> None:
+        for name, value in change.items():
+            if name != key and value is not None:
+                setattr(target, name, value)
+
+    for change in entries:
+        entry_id = change["entry_id"]
+        siblings = {i for i, s in section_of.items() if s == section_of[entry_id]}
+        apply(row(Built_Resume_Entry, "entry_id", entry_id, siblings), change, "entry_id")
+        for bullet_id in bullets_of[entry_id]:
+            row(Built_Resume_Bullet, "bullet_id", bullet_id, set(bullets_of[entry_id]))
+    for change in bullets:
+        siblings = set(bullets_of[entry_of[change["bullet_id"]]])
+        apply(row(Built_Resume_Bullet, "bullet_id", change["bullet_id"], siblings), change, "bullet_id")
+    for change in skills:
+        apply(row(Built_Resume_Skill, "skill_id", change["skill_id"], skill_ids), change, "skill_id")
+    await session.flush()
+
+
 async def load_view(
     session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
 ) -> tuple[Built_Resume, ResumeView]:
