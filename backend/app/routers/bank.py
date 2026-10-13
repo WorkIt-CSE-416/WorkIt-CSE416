@@ -100,6 +100,14 @@ def skill_response(skill, entry_ids: list[uuid.UUID]) -> SkillResponse:
     return SkillResponse(id=skill.id, name=skill.name, group=skill.group, entry_ids=entry_ids)
 
 
+def bank_response(bank: service.Bank) -> BankResponse:
+    """The whole bank as the API sends it; Scout's facts read this shape too."""
+    return BankResponse(
+        entries=[entry_response(e) for e in bank.entries],
+        skills=[skill_response(s, bank.skill_links.get(s.id, [])) for s in bank.skills],
+    )
+
+
 @asynccontextmanager
 async def _writing(session: AsyncSession) -> AsyncIterator[None]:
     """Commit on success; turn the service's errors into HTTP answers."""
@@ -125,11 +133,7 @@ async def get_bank(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> BankResponse:
-    bank = await service.load_bank(session, applicant_id)
-    return BankResponse(
-        entries=[entry_response(e) for e in bank.entries],
-        skills=[skill_response(s, bank.skill_links.get(s.id, [])) for s in bank.skills],
-    )
+    return bank_response(await service.load_bank(session, applicant_id))
 
 
 @router.post(
