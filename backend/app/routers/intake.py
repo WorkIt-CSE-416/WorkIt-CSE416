@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from workit_scout.llm import LLM, OUT_OF_QUOTA, InvalidReply, ScoutUnavailable
+from workit_scout.llm import LLM, ScoutUnavailable
 from workit_scout.schemas import ErrorEvent, TextEvent, UsageEvent
 
 from app.db import get_session
@@ -29,20 +29,19 @@ from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.intake import DraftEvent, IntakeTurnRequest
 from app.services import intake
+from app.services.ai_messages import AIMessages
 from app.services.identity import load_identity
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/intake", tags=["intake"])
 
-OFFLINE = "WorkIt can't answer right now. Try again in a minute."
-BUSY = "WorkIt has hit today's AI limit. Fill in the card yourself, or try again tomorrow."
-LOST = "WorkIt lost track of that answer. Try sending it again."
-
-
-def _message(exc: ScoutUnavailable) -> str:
-    if isinstance(exc, InvalidReply):
-        return LOST
-    return BUSY if str(exc) == OUT_OF_QUOTA else OFFLINE
+AI = AIMessages(
+    spent="You've used all of today's intake messages. Fill in the card yourself, "
+    "or come back after midnight UTC.",
+    offline="WorkIt can't answer right now. Try again in a minute.",
+    lost="WorkIt lost track of that answer. Try sending it again.",
+    busy="WorkIt has hit today's AI limit. Fill in the card yourself, or try again tomorrow.",
+)
 
 
 async def _ndjson(events: list[BaseModel]) -> AsyncIterator[bytes]:
@@ -61,11 +60,7 @@ async def take_turn(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Intake is for job seekers.")
     left = await uses_left(db, account.id, Feature.INTAKE)
     if left <= 0:
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS,
-            "You've used all of today's intake messages. Fill in the card yourself, "
-            "or come back after midnight UTC.",
-        )
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, AI.spent)
 
     identity = await load_identity(db, account)
     try:
@@ -73,7 +68,7 @@ async def take_turn(
             body.section, body.messages, body.draft, llm, identity=identity
         )
     except ScoutUnavailable as exc:
-        events: list[BaseModel] = [ErrorEvent(message=_message(exc))]
+        events: list[BaseModel] = [ErrorEvent(message=AI.failure(exc))]
     else:
         await count_use(db, account.id, Feature.INTAKE)
         await db.commit()

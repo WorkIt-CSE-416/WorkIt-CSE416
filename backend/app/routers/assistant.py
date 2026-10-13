@@ -17,7 +17,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from workit_scout.llm import LLM, OUT_OF_QUOTA, InvalidReply, ScoutUnavailable
+from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
@@ -25,22 +25,18 @@ from app.routers.scout import get_llm
 from app.schemas.assistant import AssistantReading, AssistantReply, AssistantTurn
 from app.schemas.auth import AuthenticatedAccount
 from app.services import assistant, built_resumes
+from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/applicants/{applicant_id}/built-resumes/{resume_id}/assistant", tags=["assistant"])
 
-AI_SPENT = "You've used today's assistant messages. They reset at midnight UTC. The bar above the page still works."
-AI_BUSY = "WorkIt has hit today's AI limit. Try again tomorrow."
-AI_OFFLINE = "The assistant can't reach WorkIt's AI right now. Try again in a minute."
-AI_LOST = "The assistant couldn't make sense of the AI's answer. Try again."
-
-
-def _ai_message(exc: ScoutUnavailable) -> str:
-    if isinstance(exc, InvalidReply):
-        return AI_LOST
-    return AI_BUSY if str(exc) == OUT_OF_QUOTA else AI_OFFLINE
+AI = AIMessages(
+    spent="You've used today's assistant messages. They reset at midnight UTC. The bar above the page still works.",
+    offline="The assistant can't reach WorkIt's AI right now. Try again in a minute.",
+    lost="The assistant couldn't make sense of the AI's answer. Try again.",
+)
 
 
 @router.post("", response_model=AssistantReply)
@@ -62,13 +58,13 @@ async def ask(
         raise HTTPException(404, "Resume or line not found")
     left = await uses_left(session, applicant_id, Feature.ASSISTANT)
     if left <= 0:
-        raise HTTPException(429, AI_SPENT)
+        raise HTTPException(429, AI.spent)
 
     identity = await load_identity(session, account)
     try:
         reading = await llm.complete_json(assistant.prompt(body.message, line), AssistantReading, identity=identity)
     except ScoutUnavailable as exc:
-        raise HTTPException(503, _ai_message(exc)) from exc
+        raise HTTPException(503, AI.failure(exc)) from exc
     answer = assistant.answer(reading, line, [s.name for s in bank.skills])
     await count_use(session, applicant_id, Feature.ASSISTANT)
     await session.commit()

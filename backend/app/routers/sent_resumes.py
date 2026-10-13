@@ -38,9 +38,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
-from app.deps import assert_applicant_owns, get_current_account
+from app.deps import owned_applicant
 from app.models.sent_resume import Sent_Resume
-from app.schemas.auth import AuthenticatedAccount
 from app.schemas.sent_resume import (
     SentResumeCreate,
     SentResumeDownload,
@@ -55,14 +54,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/applicants/{applicant_id}/sent-resumes", tags=["sent-resumes"])
 
 FILE_URL_TTL_SECONDS = 5 * 60
-
-
-async def owned_applicant(
-    applicant_id: uuid.UUID,
-    account: AuthenticatedAccount = Depends(get_current_account),
-) -> uuid.UUID:
-    assert_applicant_owns(account, applicant_id)
-    return applicant_id
 
 
 def _response(row: Sent_Resume) -> SentResumeResponse:

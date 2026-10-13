@@ -60,10 +60,10 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from workit_scout.llm import LLM, OUT_OF_QUOTA, InvalidReply, ScoutUnavailable
+from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
-from app.deps import assert_applicant_owns, get_current_account
+from app.deps import get_current_account, owned_applicant
 from app.models.dto import ParsedResume
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
@@ -86,6 +86,7 @@ from app.schemas.bank import (
 )
 from app.services import bank as service
 from app.services import built_resumes
+from app.services.ai_messages import AIMessages
 from app.services.bank import bank_response, entry_response, skill_response
 from app.services.bank_import import (
     draft_entries,
@@ -101,14 +102,6 @@ from app.utils.resume_parser import parse_resume
 
 router = APIRouter(prefix="/applicants/{applicant_id}/bank", tags=["bank"])
 logger = logging.getLogger(__name__)
-
-
-async def owned_applicant(
-    applicant_id: uuid.UUID,
-    account: AuthenticatedAccount = Depends(get_current_account),
-) -> uuid.UUID:
-    assert_applicant_owns(account, applicant_id)
-    return applicant_id
 
 
 @asynccontextmanager
@@ -300,16 +293,13 @@ def _parse(raw_text: str | None) -> ParsedResume:
     return ParsedResume()
 
 
-AI_BUSY = "WorkIt has hit today's AI limit. Use these drafts, or try again tomorrow."
-AI_OFFLINE = "WorkIt can't read it with AI right now. Try again in a minute."
-AI_LOST = "WorkIt couldn't make sense of that reading. Try again."
-AI_SPENT = "You've used today's AI reading. It resets at midnight UTC."
-
-
-def _ai_message(exc: ScoutUnavailable) -> str:
-    if isinstance(exc, InvalidReply):
-        return AI_LOST
-    return AI_BUSY if str(exc) == OUT_OF_QUOTA else AI_OFFLINE
+AI = AIMessages(
+    spent="You've used today's AI reading. It resets at midnight UTC.",
+    offline="WorkIt can't read it with AI right now. Try again in a minute.",
+    lost="WorkIt couldn't make sense of that reading. Try again.",
+    # The parser's drafts are still on screen.
+    busy="WorkIt has hit today's AI limit. Use these drafts, or try again tomorrow.",
+)
 
 
 @router.post("/import", response_model=ImportResponse)
@@ -333,14 +323,14 @@ async def import_resume(
     if resume.raw_text and (body.read_with_ai or not entries):
         if left <= 0:
             if body.read_with_ai:
-                raise HTTPException(429, AI_SPENT)
+                raise HTTPException(429, AI.spent)
         else:
             identity = await load_identity(session, account)
             try:
                 reading = await read_with_model(resume.raw_text, llm, identity=identity)
             except ScoutUnavailable as exc:
                 if body.read_with_ai:
-                    raise HTTPException(503, _ai_message(exc)) from exc
+                    raise HTTPException(503, AI.failure(exc)) from exc
             else:
                 await count_use(session, applicant_id, Feature.PARSING)
                 await session.commit()

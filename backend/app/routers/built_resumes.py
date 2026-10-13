@@ -49,14 +49,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
-from workit_scout.llm import LLM, OUT_OF_QUOTA, InvalidReply, ScoutUnavailable
+from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
-from app.deps import assert_applicant_owns, get_current_account
+from app.deps import owned_applicant
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
 from app.routers.scout import get_llm
-from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeResponse,
@@ -73,6 +72,7 @@ from app.schemas.built_resume import (
 from app.schemas.keywords import KeywordMatchResponse
 from app.services import built_resumes as service
 from app.services import keywords, postings
+from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound
 from app.services.resume_render import (
     HeaderIdentity,
@@ -88,14 +88,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/applicants/{applicant_id}/built-resumes", tags=["built-resumes"])
 
 DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-
-
-async def owned_applicant(
-    applicant_id: uuid.UUID,
-    account: AuthenticatedAccount = Depends(get_current_account),
-) -> uuid.UUID:
-    assert_applicant_owns(account, applicant_id)
-    return applicant_id
 
 
 def _response(row: Built_Resume, default_id: uuid.UUID | None, closed: bool = False) -> BuiltResumeResponse:
@@ -295,16 +287,11 @@ async def download_docx(
     )
 
 
-AI_SPENT = "You've used today's Tailor runs. They reset at midnight UTC."
-AI_BUSY = "WorkIt has hit today's AI limit. Try again tomorrow."
-AI_OFFLINE = "WorkIt can't read this posting's keywords right now. Try again in a minute."
-AI_LOST = "WorkIt couldn't make sense of this posting's keywords. Try again."
-
-
-def _ai_message(exc: ScoutUnavailable) -> str:
-    if isinstance(exc, InvalidReply):
-        return AI_LOST
-    return AI_BUSY if str(exc) == OUT_OF_QUOTA else AI_OFFLINE
+AI = AIMessages(
+    spent="You've used today's Tailor runs. They reset at midnight UTC.",
+    offline="WorkIt can't read this posting's keywords right now. Try again in a minute.",
+    lost="WorkIt couldn't make sense of this posting's keywords. Try again.",
+)
 
 
 @router.get("/{resume_id}/keyword-match", response_model=KeywordMatchResponse)
@@ -335,11 +322,11 @@ async def keyword_match(
     found = keywords.cached(job)
     if found is None:
         if left <= 0:
-            raise HTTPException(429, AI_SPENT)
+            raise HTTPException(429, AI.spent)
         try:
             found = await keywords.extract(job, llm)
         except ScoutUnavailable as exc:
-            raise HTTPException(503, _ai_message(exc)) from exc
+            raise HTTPException(503, AI.failure(exc)) from exc
         keywords.store(job, found)
         await count_use(session, applicant_id, Feature.TAILOR)
         # One commit: the cache and the count.
