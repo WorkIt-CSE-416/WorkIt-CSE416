@@ -12,6 +12,9 @@ in by the router (its `get_supabase()`), so tests patch it there.
   in the Resume bucket and write the row.
 - **From an uploaded resume** (`send_uploaded`, for Apply, KAN-220): no new
   file; the row points at the uploaded resume's stored file.
+- **Apply** (KAN-220) is either one with a `job_posting_id`; a posting that
+  does not exist answers `NotFound`. A repeat is matched within the same
+  posting, so a plain download and an Apply are separate sent resumes.
 - **A file stays while a row uses it** (`file_in_use`). Deleting an uploaded
   resume keeps its file while a sent resume points at it; deleting a sent
   resume removes its file only when no other sent resume or uploaded resume
@@ -29,6 +32,7 @@ from typing import Any
 from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.jobs import Job_Post
 from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
 from app.services import built_resumes
@@ -53,6 +57,11 @@ def content_hash(view: ResumeView, identity: Identity, template: str) -> str:
     serialize field by field in a fixed order; dates and decimals by str."""
     payload = {"template": template, "identity": dataclasses.asdict(identity), "view": dataclasses.asdict(view)}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+
+
+async def _check_posting(session: AsyncSession, job_posting_id: uuid.UUID | None) -> None:
+    if job_posting_id is not None and await session.get(Job_Post, job_posting_id) is None:
+        raise NotFound
 
 
 async def _last_match(
@@ -82,6 +91,7 @@ async def send_built(
     resume_render.TectonicUnavailable when the PDF cannot be made. When this
     returns `created`, the file is uploaded: if the commit then fails, the
     caller removes `row.storage_path`."""
+    await _check_posting(session, job_posting_id)
     resume, view = await built_resumes.load_view(session, applicant_id, built_resume_id)
     identity = await built_resumes.load_identity(session, applicant_id)
     digest = content_hash(view, identity, resume.template)
@@ -115,6 +125,7 @@ async def send_uploaded(
 ) -> Sent:
     """A sent resume that points at an uploaded resume's own file. The file
     never changes, so a repeat (same resume, same posting) returns the last."""
+    await _check_posting(session, job_posting_id)
     resume = await session.scalar(
         select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
     )
