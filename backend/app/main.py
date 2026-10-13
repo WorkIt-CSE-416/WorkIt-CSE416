@@ -15,6 +15,7 @@ from app.db import get_sessionmaker
 from app.routers.auth import router as auth_router
 from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
+from app.routers.intake import router as intake_router
 from app.routers.company_jobs import router as company_jobs_router
 from app.routers.jobs import router as jobs_router
 from app.routers.profiles import router as profile_router
@@ -37,6 +38,8 @@ app.include_router(scout_router)
 app.include_router(profile_router)
 app.include_router(render_proof_router)
 app.include_router(bank_router)
+app.include_router(intake_router)
+app.include_router(intake_router)
 
 
 @app.exception_handler(RequestValidationError)
