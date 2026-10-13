@@ -17,22 +17,32 @@ GET    /applicants/{id}/built-resumes/{rid}/render -> RenderResponse
        a box per line for the editor's click targets (schemas: RenderBox).
        503 {detail} when Tectonic is missing or the compile fails.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment
+GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
+       -> KeywordMatchResponse {job_posting_id, matched, missing, uses_left}
+       The keyword match ("12 of 18") against a posting; with no
+       job_posting_id, a tailored resume's own posting (else 422). The
+       posting's keywords are extracted once and cached
+       (app/services/keywords.py); only an extraction spends a Tailor use:
+       429 at the limit, 503 when the model fails or answers out of schema
+       (nothing counted). 404 for an unknown posting.
 """
 
 import asyncio
 import base64
 import logging
-import re
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
+from workit_scout.llm import LLM, OUT_OF_QUOTA, InvalidReply, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
-from app.models.profiles import Applicant_Profile
+from app.models.jobs import Job_Post
+from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import (
     BuiltResumeCreate,
@@ -40,10 +50,13 @@ from app.schemas.built_resume import (
     RenderBox,
     RenderResponse,
 )
+from app.schemas.keywords import KeywordMatchResponse
 from app.services import built_resumes as service
+from app.services import keywords
 from app.services.bank import NotFound
 from app.services.resume_render import Identity, TectonicUnavailable, render
 from app.services.resume_render.word import render_docx
+from app.services.usage import Feature, count_use, uses_left
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +87,13 @@ async def _commit(session: AsyncSession, failure: str) -> None:
         await session.rollback()
         logger.exception(failure)
         raise HTTPException(500, failure)
+
+
+async def _identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:
+    try:
+        return await service.load_identity(session, applicant_id)
+    except NotFound:
+        raise HTTPException(404, "Applicant not found")
 
 
 async def _owned(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID) -> Built_Resume:
@@ -132,26 +152,6 @@ async def set_default(
     return {"default_built_resume_id": str(resume_id)}
 
 
-async def _identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:
-    profile = await session.get(Applicant_Profile, applicant_id)
-    if profile is None:
-        raise HTTPException(404, "Applicant not found")
-    return Identity(
-        name=profile.full_name,
-        email=profile.email,
-        phone=profile.phone_number,
-        links=tuple(
-            u for u in (profile.linkedin_url, profile.github_url, profile.portfolio_url, profile.other_url) if u
-        ),
-    )
-
-
-def _filename(name: str, ext: str) -> str:
-    # Header-safe: letters, digits, spaces, dashes and underscores only
-    stem = re.sub(r"[^A-Za-z0-9 _-]+", "", name).strip() or "Resume"
-    return f"{stem}.{ext}"
-
-
 @router.get("/{resume_id}/render", response_model=RenderResponse)
 async def render_pdf(
     resume_id: uuid.UUID,
@@ -191,5 +191,54 @@ async def download_docx(
     return Response(
         data,
         media_type=DOCX_TYPE,
-        headers={"Content-Disposition": f'attachment; filename="{_filename(resume.name, "docx")}"'},
+        headers={"Content-Disposition": f'attachment; filename="{service.file_name(resume.name, "docx")}"'},
     )
+
+
+AI_SPENT = "You've used today's Tailor runs. They reset at midnight UTC."
+AI_BUSY = "WorkIt has hit today's AI limit. Try again tomorrow."
+AI_OFFLINE = "WorkIt can't read this posting's keywords right now. Try again in a minute."
+AI_LOST = "WorkIt couldn't make sense of this posting's keywords. Try again."
+
+
+def _ai_message(exc: ScoutUnavailable) -> str:
+    if isinstance(exc, InvalidReply):
+        return AI_LOST
+    return AI_BUSY if str(exc) == OUT_OF_QUOTA else AI_OFFLINE
+
+
+@router.get("/{resume_id}/keyword-match", response_model=KeywordMatchResponse)
+async def keyword_match(
+    resume_id: uuid.UUID,
+    job_posting_id: uuid.UUID | None = Query(None),
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    llm: LLM = Depends(get_llm),
+    session: AsyncSession = Depends(get_session),
+) -> KeywordMatchResponse:
+    try:
+        resume, view = await service.load_view(session, applicant_id, resume_id)
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    posting_id = job_posting_id or resume.job_posting_id
+    if posting_id is None:
+        raise HTTPException(422, "Choose a job posting to match against")
+    job = await session.get(
+        Job_Post, posting_id, options=[undefer(Job_Post.keywords), undefer(Job_Post.keywords_hash)])
+    if job is None:
+        raise HTTPException(404, "Job posting not found")
+
+    left = await uses_left(session, applicant_id, Feature.TAILOR)
+    found = keywords.cached(job)
+    if found is None:
+        if left <= 0:
+            raise HTTPException(429, AI_SPENT)
+        try:
+            found = await keywords.extract(job, llm)
+        except ScoutUnavailable as exc:
+            raise HTTPException(503, _ai_message(exc)) from exc
+        keywords.store(job, found)
+        # count_use commits, saving the cache with the count.
+        await count_use(session, applicant_id, Feature.TAILOR)
+        left -= 1
+    matched, missing = keywords.match(view, found)
+    return KeywordMatchResponse(job_posting_id=job.id, matched=matched, missing=missing, uses_left=left)
