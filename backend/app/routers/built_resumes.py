@@ -12,8 +12,9 @@ DELETE /applicants/{id}/built-resumes/{rid}        -> 204
 PUT    /applicants/{id}/built-resumes/{rid}/default -> {"default_built_resume_id"}
        Makes a base resume the default resume, clearing an uploaded default.
 GET    /applicants/{id}/built-resumes/{rid}/render -> RenderResponse
-       {pdf (base64), page_count, missing_characters}: the characters the
-       template's font cannot draw, for the warning before download.
+       {pdf (base64), page_count, missing_characters, boxes}: the characters
+       the template's font cannot draw, for the warning before download, and
+       a box per line for the editor's click targets (schemas: RenderBox).
        503 {detail} when Tectonic is missing or the compile fails.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment
 GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
@@ -46,6 +47,7 @@ from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeResponse,
+    RenderBox,
     RenderResponse,
 )
 from app.schemas.keywords import KeywordMatchResponse
@@ -170,6 +172,7 @@ async def render_pdf(
         pdf=base64.b64encode(rendered.pdf).decode("ascii"),
         page_count=rendered.page_count,
         missing_characters=list(rendered.missing_characters),
+        boxes=[RenderBox(**vars(box)) for box in rendered.boxes],
     )
 
 
