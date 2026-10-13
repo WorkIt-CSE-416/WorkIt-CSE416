@@ -179,6 +179,19 @@ async def test_intake_asks_at_most_three_follow_ups(applicant, client):
     assert "may still ask for this entry: 0" in model.prompts[0][1]["content"]
 
 
+async def test_the_opening_question_is_not_a_follow_up(applicant, client):
+    opener = {"role": "assistant", "content": "Tell me about a project you built."}
+    chat = [opener, {"role": "user", "content": SAID}]
+    for question in ("What did the arm do?", "Who was on the team?"):
+        chat += [{"role": "assistant", "content": question}, {"role": "user", "content": "ok"}]
+    model = use_model([reply("What was the result?", done=False)])
+    res = await client.post("/intake/turn", json={**TURN, "messages": chat})
+    text_line, draft_line, _ = lines(res)
+    assert text_line["delta"] == "What was the result?"
+    assert draft_line["done"] is False
+    assert "may still ask for this entry: 1" in model.prompts[0][1]["content"]
+
+
 async def test_each_turn_counts_against_the_intake_cap(applicant, client, cap):
     cap(2)
     use_model([reply()])

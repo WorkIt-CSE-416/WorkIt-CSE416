@@ -261,7 +261,9 @@ Find files with a directory listing; these are the rules for where code goes.
   optional title), and stores nothing said: the browser sends this entry's
   chat and the card, edits included, every turn. Rules, each with a test in
   `tests/test_intake.py`: at most `MAX_FOLLOW_UPS` (3) questions per entry,
-  counted from the assistant lines the browser sends, and a fourth question
+  counted from the assistant lines the browser sends after the student
+  first speaks (an opening question before that is not a follow-up;
+  the bank page keeps its opener out of the chat it sends anyway), and a fourth question
   is replaced by a fixed wrap-up line; a reply that fails the schema, or
   drafts another section, is an `error` line and does not count; a field
   the model echoes as an identity placeholder (`[link]`) keeps the card's
