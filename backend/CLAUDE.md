@@ -106,6 +106,10 @@ uv run pytest
   Alembic, and drops it at the end. Parallel runs from several worktrees share
   the container but never a table. `TEST_DATABASE_URL` points at another server
   (default `postgresql://postgres:postgres@localhost:54330/postgres`).
+- **The test database gets Supabase's search path** (`"$user", public,
+  extensions`). pgvector lives in `extensions`, so without it a cosine
+  query (`<=>`) fails with "operator does not exist", which production never
+  sees (KAN-212).
 - **Nothing reaches Supabase.** `conftest.py` sets `DATABASE_URL` and
   `DIRECT_URL` to the test database before the app reads them (exported
   variables beat the root `.env`), and refuses a `TEST_DATABASE_URL` whose host
@@ -158,6 +162,13 @@ Find files with a directory listing; these are the rules for where code goes.
   entry); a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+- **The recommender and Scout read the bank, never an uploaded resume**
+  (KAN-212). `GET /jobs/recommended` scores against the bank and its
+  embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
+  the bank's API shape (`routers/bank.py`'s `bank_response`) through
+  `workit_scout.facts`. An uploaded resume only feeds import.
+- **Identity fields load through `app/services/identity.py`**
+  (`load_identity`), for Scout's model seam and the bank embedding alike.
 - **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
   re-reads an uploaded resume's stored `raw_text` with the heuristic parser
   and returns draft entries and skills (`services/bank_import.py` maps them,

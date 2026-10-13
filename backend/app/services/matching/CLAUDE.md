@@ -1,6 +1,7 @@
 # CLAUDE.md — job matching
 
-How a listed job is scored against one applicant's resume (KAN-139). Loaded on
+How a listed job is scored against one applicant's experience bank (KAN-139;
+the bank replaced the default resume in KAN-212). Loaded on
 top of `../../../CLAUDE.md` (the Python API) and the repo root's. Read it before
 changing anything in this folder or the columns it reads.
 
@@ -19,9 +20,9 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 
 | Component | How | Status |
 |---|---|---|
-| Semantic similarity | Gemini embeddings of the posting and of the resume's parsed sections, compared in Postgres (`1 - (job.embedding <=> resume.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Semantic similarity | Gemini embeddings of the posting and of the experience bank, compared in Postgres (`1 - (job.embedding <=> bank.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
 | Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `routers/jobs.py` |
-| Title fit | Word overlap between the job title and the applicant's titles and field of study, stop words removed | Built — `scoring.py` `title_fit()` |
+| Title fit | Word overlap between the job title and the bank's Experience titles and first field of study, stop words removed | Built — `scoring.py` `title_fit()` |
 | Eligibility | Years of experience check; a multiplier (1.0 / 0.5 / 0.0) | Built — `scoring.py` `eligibility()` |
 | Freshness | `max(0.7, 1.0 - days_old / 300)` — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |
 
@@ -46,8 +47,9 @@ Nothing in this folder may assume what a software job is. Two consequences:
   - A new model at the same size needs a migration setting both columns to NULL.
   - A wrong size fails loudly: Postgres refuses the vector. A new model next to
     old vectors fails **silently**: the scores are wrong and nothing errors.
-  - After either, the import re-embeds every job, and each resume is
-    re-embedded on its next request.
+  - After either, the import re-embeds every job, and the migration also
+    sets every `experience_banks.embedding` to NULL, so each bank is
+    re-embedded on its next recommendations request.
 - **Gemini's native REST API (`batchEmbedContents`), called through httpx.** The
   OpenAI-compatible endpoint documents neither the vector size nor batching.
   This also keeps `workit_scout/llm.py` the only module that imports `openai`.
@@ -58,10 +60,10 @@ Nothing in this folder may assume what a software job is. Two consequences:
   unreachable Gemini all return `None`. The caller stores nothing and tries
   again later, and a job or resume without a vector scores neutral on meaning.
   An upload or an import must never fail because Gemini is down.
-- **Only parsed resume sections and public postings are sent**, never the raw
-  resume text with its name, email, phone and links. That is Scout's rule
+- **Only the bank's text and public postings are sent**, never identity data
+  (name, email, phone, address, links). That is Scout's rule
   (`../../../../scout/CLAUDE.md`), because Gemini's free tier may train on what
-  it receives. `resume_text()` is where that boundary lives.
+  it receives. `bank_input.bank_text()` is where that boundary lives (below).
 - **Texts are cut to 6,000 characters**, since the model reads about 2,048
   tokens. A posting loses its tail, which is mostly benefits and legal
   boilerplate.
@@ -72,16 +74,40 @@ Nothing in this folder may assume what a software job is. Two consequences:
   new or changed postings, never inside a user's request. Embedding on request
   would make the first person after each import wait for hundreds of vectors,
   and two people arriving together would both pay for them. *(Not written yet.)*
-- **Resumes: on demand.** `GET /jobs/recommended/{applicant_id}` embeds the
-  chosen resume when its `embedding` is NULL, and stores the result. A new
-  upload starts NULL and nothing edits `parsed_json` afterwards (KAN-211
-  removed the resume `PUT`), so the resume routes never call Gemini
-  themselves. Applicants who never
-  open recommendations never cost a call.
+- **Banks: on demand.** `GET /jobs/recommended/{applicant_id}` embeds the
+  bank when `experience_banks.embedding` is NULL, and stores it with
+  `embedded_at`. Every entry, bullet or skill change sets it back to NULL
+  (`services/bank.py`), so the bank routes never call Gemini themselves, and
+  applicants who never open recommendations never cost a call.
+- **A stale vector is never stored.** The write is conditional on the bank
+  row's `updated_at` being the one read: a change that landed while Gemini
+  answered already cleared the embedding, and the next request remakes it.
+- **An empty bank (no entries, no skills) answers 404** and costs no call.
+
+## What the recommender reads from the bank — `bank_input.py`
+
+Pure functions over a loaded `services.bank.Bank` (KAN-212). Only the data
+the recommender reads changed; the scoring did not.
+
+- **`bank_text()`, the embedding input**, in order: skills; each degree and
+  field of study; each entry's section, title and organization with its
+  original bullets, newest first across sections (Present first, then by end
+  month). Never a bullet variant, a link, a location, a grade or a date. The
+  text then passes through `workit_scout.identity` with the profile's
+  identity fields, and is cut at 6,000 characters, so the oldest entries go
+  first. One embedding per bank; per-entry embeddings are out of scope until
+  matches prove poor.
+- **Years of experience** sum Experience entries only (Leadership, Projects
+  and the rest never count), both end months included (Jun to Aug is three
+  months). Present counts up to this month, an end still to come is cut at
+  this month, and an entry with no start month adds nothing.
+- **The expected graduation date** is the latest end month on any Education
+  entry, past or expected. It is computed and passed to `eligibility()`,
+  which does not compare it yet (Still open).
 
 ## The columns
 
-`job_postings.embedding` and `resumes.embedding` are `vector(768)`, and
+`job_postings.embedding` and `experience_banks.embedding` are `vector(768)`, and
 `job_postings.fts` is a generated `tsvector`. `../../models/CLAUDE.md` has the
 details, including why their migration must reach the database **before** the
 code that maps them is deployed.
@@ -102,7 +128,8 @@ weight is redistributed across the others. Final score is
 
 ## Highlights — `highlights.py`
 
-Picks up to 3 reasons from a priority list: skills matched, title alignment,
+Takes the bank's skill names and field of study. Picks up to 3 reasons from a
+priority list: skills matched, title alignment,
 strong semantic fit (positive), then years mismatch and start term mismatch
 (negative). Positives sort before negatives.
 
@@ -119,5 +146,9 @@ strong semantic fit (positive), then years mismatch and start term mismatch
   reference marks them deprecated in favour of `embedContentConfig`.
 - **Scoring weights and the freshness boost** are guesses until there is real
   data to tune them on.
-- **Grad date vs start term** is not compared yet (eligibility only checks
-  years of experience).
+- **Grad date vs start term** is not compared yet. The bank's expected
+  graduation date reaches `eligibility()`, which only checks years of
+  experience; comparing it is a scoring change, out of KAN-212's scope.
+- **Dropping `resumes.embedding`** (the contract half of KAN-212's move). The
+  model stopped mapping it; the drop migration is written and applied only
+  after this code is deployed (`../../models/CLAUDE.md`).
