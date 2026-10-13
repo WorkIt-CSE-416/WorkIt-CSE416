@@ -10,9 +10,9 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **`render(view, identity, template)` is the one way to a PDF.** It takes a
   built resume view (`../resume_view.py`, the shape every resume feature
   reads), the profile's `Identity` and a template id, and returns
-  `Rendered(pdf, page_count, missing_characters)`. An unknown template id is
-  a `ValueError`. The editor overlay (KAN-209) adds the boxes to `Rendered`;
-  add fields there, never a second render function.
+  `Rendered(pdf, page_count, missing_characters, boxes)`. An unknown template
+  id is a `ValueError`. Add fields to `Rendered`, never a second render
+  function.
 - **A template is a function from the view and identity to a LaTeX body**
   (`jakes.py`), registered by its stable id in `render()`. The id is stored
   on `built_resumes.template`, so never rename one.
@@ -21,6 +21,16 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   Change wording there, not in a layout.
 - **The Word file is `word.py`'s one plain layout**, Letter only. It is not a
   copy of Jake's look and has no template id.
+- **Boxes place the editor's click targets** (KAN-209): one `Box(item_id,
+  kind, page, x0, y0, x1, y1)` per bullet, skill and shown entry field, in
+  PDF points from the page's top left, y growing down. `item_id` is the
+  bank id (the entry's for its fields), and `kind` is `bullet`, `skill` or
+  the field: `title`, `organization`, `location`, `dates`, `degree`
+  (Education's subtitle, which also names the school), `gpa`, `coursework`,
+  `honors`. `fields.heading_fields()` says which field each heading slot
+  shows. The header (name, contacts) has no boxes: it comes from the
+  profile. The render route sends them as `RenderResponse.boxes`
+  (`schemas/built_resume.py`).
 - **Page count and missing characters come from Tectonic itself**: the page
   count from XeTeX's "Output written on ... (N pages" log line
   (`--keep-logs`), the missing characters from its "Missing character: There
@@ -52,6 +62,21 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   service-role key.
 - **An empty itemize is a LaTeX error**, so a bullet list opens only around
   bullets.
+- **Position markers never move the page.** `MARKS` (in `__init__`) goes at
+  the start of the body, after `\begin{document}`, so the preamble stays
+  byte for byte; `mark(id, kind, latex)` wraps each line. `\pdfsavepos`
+  writes each start and end point to `resume.pos` at shipout, and
+  `_boxes()` turns them into boxes: a wrapped line runs to the text's right
+  edge, a line split across pages gives a box on each, and a box reaches
+  `ASCENT`/`DESCENT` around its baselines. Three things learned the hard
+  way (research branch `research/KAN-181-pdf-click-targets`, and here):
+  `\leavevmode` first, or a marker records the margin; `\/` before each end
+  marker, or an italic field loses its italic correction (dates moved
+  0.4 to 0.8 pt); and **no marker between two characters**, which drops
+  their kerning ("NumPy," moved when a marker sat before the comma, so each
+  skill's comma is inside its markers). `body(..., marks=False)` exists for
+  the test that compares each page's content stream with and without
+  markers; every new template must pass it.
 - **Everything the build script imports stays stdlib**: this package's
   `__init__`, `fields.py`, `jakes.py`, `sample.py` and `../resume_view.py`.
   `scripts/fetch_tectonic.py` imports them before Vercel installs anything;
@@ -91,16 +116,22 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   a template change that adds a size or shape must show up in `sample.py`'s
   render too (GPA and coursework lines are there for that reason).
 - **Tests:** `tests/test_resume_render.py` (seam 3: text, page count,
-  missing characters) and the render route's tests in
+  missing characters, the unchanged content stream, and boxes checked
+  against where pdfminer finds each line) and the render route's tests in
   `tests/test_built_resumes.py` skip their Tectonic tests when the cache is
   missing, unless `CI` is set (GitHub sets it; the job runs the
   script first), so in CI they fail instead.
 - **Measured:** about 0.3 to 0.5 s a render on an M-series Mac, warm. The
   prototype measured 0.7 s in AWS Lambda's Python image, read-only and
-  offline, in a 236 MB bundle (limit 500 MB). The proof endpoint's
-  `Server-Timing` header went with it; KAN-209 measures the real round trip.
+  offline, in a 236 MB bundle (limit 500 MB). The editor's Render Again
+  shows the round trip from the browser (KAN-209).
 
 ## Still open
+
+- **The edit-to-PDF round trip on a Vercel preview, warm and cold** (KAN-209):
+  read it from the editor's Render Again. If it feels broken, the fallback
+  is an HTML copy of the page for typing (research option 4), which ADR
+  0002 would have to revisit.
 
 - **The first Vercel preview:** confirm the build log ends "tectonic and its
   cache ready" and that Generate then PDF downloads a resume from the bank

@@ -21,8 +21,30 @@ export type BuiltResume = {
   created_at: string;
 };
 
-/** The PDF, base64, and what the student is warned about before saving it. */
-export type RenderedPdf = { pdf: string; page_count: number; missing_characters: string[] };
+/**
+ * Where one line sits on the PDF (schemas `RenderBox`): the bank id of the
+ * bullet, skill or entry it shows, which part (`kind`: "bullet", "skill", or
+ * an entry field such as "title" or "dates"), its page from 1, and its
+ * rectangle in PDF points from the page's top left, y growing down.
+ */
+export type RenderBox = {
+  item_id: string;
+  kind: string;
+  page: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+};
+
+/** The PDF, base64, what the student is warned about before saving it, and
+ *  the editor's click targets. */
+export type RenderedPdf = {
+  pdf: string;
+  page_count: number;
+  missing_characters: string[];
+  boxes: RenderBox[];
+};
 
 type Result<T> = { data: T | null; error: string | null };
 
