@@ -147,6 +147,16 @@ Find files with a directory listing; these are the rules for where code goes.
   Never in `models/`, whose `__init__` imports every file as a model. Job
   matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
   Tectonic): `app/services/resume_render/CLAUDE.md`.
+- **Every model feature counts its daily uses through `app/services/usage.py`**
+  (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
+  it succeeds, so a failed or rejected call costs the student nothing. Each
+  route returns the uses left (Scout: a final `usage` NDJSON line). The limits
+  are `AI_*` settings in `app/config.py`: a cap per student and a share of
+  `AI_DAILY_POOL` per feature, per UTC day, defaults from the spec. The counts
+  live in `ai_usage_counters` (one row per account, or the pool with a NULL
+  account, per feature and day). Never count in memory: a restart or a second
+  Vercel instance resets it. Check-then-count can overshoot by one under
+  concurrent requests, on purpose; it errs toward the student.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -225,7 +235,8 @@ free tier). Render with a Dockerfile is the fallback.
 
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
-  model, where"); without `SCOUT_*` every Scout reply is "offline". **Never
+  model, where"); without `SCOUT_*` every Scout reply is "offline". The
+  `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. `GEMINI_API_KEY` is read but unused until
   matching embeds (`app/services/matching/CLAUDE.md`); set it here and as an

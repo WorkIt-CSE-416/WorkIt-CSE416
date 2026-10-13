@@ -100,7 +100,7 @@ export async function sendToScout(text: string) {
       for await (const event of readEvents(res.body)) {
         if (event.type === "error") {
           error = event.message;
-        } else {
+        } else if (event.type === "text") {
           reply += event.delta;
           update({ reply });
         }

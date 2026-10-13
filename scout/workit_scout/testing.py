@@ -7,24 +7,27 @@ same one: the API's route tests need a model as much as Scout's do.
 
 from collections.abc import AsyncIterator, Sequence
 
-from workit_scout.llm import LLM, Endpoint, Message
-
-PRIMARY = Endpoint("http://primary.test/v1", "primary-model")
-FALLBACK = Endpoint("http://fallback.test/v1", "fallback-model")
+from workit_scout.llm import LLM, Message
+from workit_scout.settings import Endpoint
 
 Script = list[str | Exception] | Exception
 
 
+def endpoint(n: int) -> Endpoint:
+    """The nth fake endpoint in a ScriptedLLM's chain, counting from 0."""
+    return Endpoint(f"http://endpoint{n}.test/v1", f"model-{n}")
+
+
 class ScriptedLLM(LLM):
     """
-    Each endpoint yields its scripted pieces of reply in order, raising any
-    exception it reaches — so a script can fail before a reply or halfway
-    through one. No fallback script means no fallback endpoint.
+    One script for each endpoint in the chain, in order. Each endpoint yields
+    its scripted pieces of reply in order, raising any exception it reaches —
+    so a script can fail before a reply or halfway through one.
     """
 
-    def __init__(self, primary: Script, fallback: Script | None = None):
-        super().__init__(PRIMARY, FALLBACK if fallback is not None else None)
-        self._scripts = {PRIMARY: primary, FALLBACK: fallback}
+    def __init__(self, *scripts: Script):
+        super().__init__([endpoint(n) for n in range(len(scripts))])
+        self._scripts = {endpoint(n): script for n, script in enumerate(scripts)}
         #: Every prompt sent, in order, as the model would have received it.
         self.prompts: list[list[Message]] = []
 
@@ -41,3 +44,9 @@ class ScriptedLLM(LLM):
             if isinstance(item, Exception):
                 raise item
             yield item
+
+    async def _complete_json(self, client, endpoint, messages, schema) -> str:
+        # A structured reply is the script's pieces joined, as one answer.
+        return "".join(
+            [piece async for piece in self._complete(client, endpoint, messages)]
+        )
