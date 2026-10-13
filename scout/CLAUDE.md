@@ -167,6 +167,9 @@ address or a friend's link goes too. Rules:
   `Identity()`, which still removes any email, URL or phone by pattern. The
   API's Scout route builds it from the applicant's profile. Never add a second
   copy of these patterns elsewhere; widen this function and its tests.
+- **A bare host's last label starts with a letter** (".com", ".io"). Without
+  that, "GPA: 3.81/4.00" matched as a host with a path, and the model read
+  every GPA as `[link]`.
 - **Placeholders are never swapped back.** The function returns only text;
   nothing keeps a map from placeholder to value. A reply that needs the
   student's name shows the placeholder or is filled by the page, not the model.

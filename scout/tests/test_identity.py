@@ -60,6 +60,13 @@ def test_tool_names_with_dots_are_not_links():
     assert remove_identity(text) == text
 
 
+def test_numbers_with_a_slash_are_not_links():
+    # "3.81/4.00" once matched the bare-host pattern and the GPA reached
+    # the model as [link]
+    text = "GPA: 3.81/4.00, ran 1.5/2 days, version 2.0/beta."
+    assert remove_identity(text) == text
+
+
 def test_text_with_no_identity_data_is_unchanged():
     text = (
         "Software Engineer Intern, Acme Corp, New York, NY, May 2024 - Aug 2024.\n"

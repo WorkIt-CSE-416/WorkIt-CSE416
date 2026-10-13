@@ -12,7 +12,9 @@ _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 # A path after a host, ending before any trailing punctuation.
 _TAIL = r"""(?:\S*[^\s.,;:!?)\]'"])?"""
 _PATH = rf"(?:/{_TAIL})?"
-_HOST = r"[\w-]+(?:\.[\w-]+)+"
+# The last label starts with a letter (".com", ".io"), so a number with a
+# slash ("GPA: 3.81/4.00", "1.5/2 days") is never a host.
+_HOST = r"[\w-]+(?:\.[\w-]+)*\.[A-Za-z][\w-]*"
 # A scheme or "www." marks a link; a bare host counts only with a path
 # ("github.com/jd"), so tool names such as Node.js and ASP.NET survive.
 _URL = re.compile(
