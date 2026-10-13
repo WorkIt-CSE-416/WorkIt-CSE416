@@ -407,6 +407,13 @@ parsed-JSON editing goes later (KAN-211).
   resumes use the entry (user story 18) once built resumes exist (KAN-207).
 - **Skills are a plain list** with an optional group, shown one line per
   group. A name appears once, ignoring case; the API answers 409 otherwise.
+- **Skill links live in the entry editor** (KAN-216, `skill-links.tsx`):
+  "Skills Used Here" shows one toggle per bank skill, pressed when linked.
+  The editor only edits the list; on save the screen sends the link and
+  unlink calls after the entry's own save (for a new entry, after it is
+  created). Once the entry has saved, a failed later step closes the editor
+  and says "Some changes did not save", because a retry would repeat the
+  steps that worked. Intake and import omit `skills`, so no links show.
 
 ## Scout panel
 
