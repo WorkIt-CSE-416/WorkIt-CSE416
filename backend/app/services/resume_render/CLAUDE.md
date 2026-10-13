@@ -57,8 +57,8 @@ bank.
   drawn: in the prototype a `\LARGE` name the warm-up missed failed offline.
   When KAN-207 adds text sizes or shapes, warm them in the build script.
 - **Tests:** `tests/test_resume_render.py` skips its Tectonic tests when the
-  cache is missing, unless `REQUIRE_TECTONIC=1` (CI sets it, after running the
-  script, so there they fail instead).
+  cache is missing, unless `CI` is set (GitHub sets it; the job runs the
+  script first), so in CI they fail instead.
 - **Measured:** about 0.3 to 0.5 s a render on an M-series Mac, warm. The
   prototype measured 0.7 s in AWS Lambda's Python image, read-only and
   offline, in a 236 MB bundle (limit 500 MB). The endpoint reports each

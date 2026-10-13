@@ -1,8 +1,8 @@
 '''
 The template text test (KAN-204, spec seam 3): render Jake's Resume with real
 Tectonic, read the PDF's text back with pdfminer, and check what an ATS would
-read. CI installs Tectonic and sets REQUIRE_TECTONIC=1, so there these tests
-fail rather than skip when it is missing.
+read. CI installs Tectonic, and where `CI` is set these tests fail rather than
+skip when it is missing.
 '''
 
 import hashlib
@@ -32,7 +32,7 @@ def _tectonic_or_skip() -> None:
     try:
         compile_pdf(jakes_document("x"))
     except TectonicUnavailable as exc:
-        if os.environ.get("REQUIRE_TECTONIC"):
+        if os.environ.get("CI"):
             raise
         pytest.skip(f"tectonic not set up ({exc}); run python3 scripts/fetch_tectonic.py")
 
