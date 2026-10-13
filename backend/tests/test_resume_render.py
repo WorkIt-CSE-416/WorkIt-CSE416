@@ -1,7 +1,7 @@
 '''
 The renderer's tests (KAN-204, KAN-207, spec seam 3): render a fixed view of
 Jake's sample with real Tectonic, read the PDF's text back with pdfminer, and
-check what an ATS would read, the page count, and the missing-character
+check what a hiring system would read, the page count, and the missing-character
 warning. CI installs Tectonic, and where `CI` is set these tests fail rather than
 skip when it is missing.
 '''

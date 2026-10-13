@@ -34,7 +34,7 @@ import { APPLICATIONS_BY_DAY, type DayCount } from "./data";
  *
  * There is a third category this app cannot serve yet. A stock metric CAN be
  * scoped by COHORT — "where are the applications RECEIVED in this window
- * sitting today" is meaningful, and it is what a real ATS does. It needs each
+ * sitting today" is meaningful, and it is what a real hiring system does. It needs each
  * application to carry both a received date and a current stage; STATUS_BY_ROLE
  * is aggregate counts with no dates behind them, so there is nothing to filter.
  * See the note in ./page.tsx for what that would take.
