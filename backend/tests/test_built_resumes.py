@@ -245,6 +245,36 @@ async def test_a_tailored_resume_does_not_count_toward_the_five(student, databas
     assert (await client.post(f"{me}/built-resumes", json={})).status_code == 409
 
 
+async def test_a_tailored_resume_says_when_its_posting_has_closed(student, database):
+    client, me = student
+    applicant_id = uuid.UUID(me.split("/")[2])
+    base = await _generate(client, me)
+    async with database() as session:
+        posting = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
+                " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
+            )
+        )
+        tailored = await session.scalar(
+            text(
+                "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
+                " VALUES (:a, 'Acme – Intern', 'jakes', :p) RETURNING id"
+            ),
+            {"a": applicant_id, "p": posting},
+        )
+        await session.commit()
+
+    async def closed() -> dict[str, bool]:
+        return {r["id"]: r["posting_closed"] for r in (await client.get(f"{me}/built-resumes")).json()}
+
+    assert await closed() == {base: False, str(tailored): False}
+    async with database() as session:
+        await session.execute(text("UPDATE job_postings SET status = 'closed' WHERE id = :p"), {"p": posting})
+        await session.commit()
+    assert await closed() == {base: False, str(tailored): True}
+
+
 async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monkeypatch):
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
     monkeypatch.setattr("app.routers.resumes._extract", _no_text)

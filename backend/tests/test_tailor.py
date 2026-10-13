@@ -485,3 +485,45 @@ async def test_done_refuses_another_students_bullet(student, database, use_model
     res = await mine.done(posting, source, [{"kind": "reword", "bullet_id": bullet, "text": "Wrote billing"}])
 
     assert res.status_code == 404
+
+
+# --- When a posting row goes ----------------------------------------------
+
+
+async def _tailor_and_done(student, use_model, posting: str) -> dict:
+    use_model(reply(rewords=[("b2", "Built Python billing services")]))
+    run = (await student.tailor(posting)).json()
+    change = next(c for c in run["changes"] if c["kind"] == "reword")
+    res = await student.done(posting, run["source_resume_id"], [change])
+    assert res.status_code == 200, res.text
+    return res.json()["resume"]
+
+
+async def test_a_posting_with_a_tailored_resume_cannot_be_deleted(student, database, use_model):
+    """Postings close, never go: a hard delete must not take a student's
+    tailored resume with it."""
+    from sqlalchemy.exc import IntegrityError
+
+    posting = await _seed_posting(database)
+    tailored = await _tailor_and_done(student, use_model, posting)
+
+    async with database() as session:
+        with pytest.raises(IntegrityError):
+            await session.execute(text("DELETE FROM job_postings WHERE id = :id"), {"id": posting})
+            await session.commit()
+
+    assert tailored["id"] in {r["id"] for r in await student.resumes()}
+
+
+async def test_another_resume_keeps_a_shared_wording_when_its_first_posting_goes(student, database, use_model):
+    first = await _seed_posting(database)
+    second = await _seed_posting(database)
+    made_first = await _tailor_and_done(student, use_model, first)
+    kept = await _tailor_and_done(student, use_model, second)
+    assert (await student.client.delete(f"{student.me}/built-resumes/{made_first['id']}")).status_code == 204
+
+    async with database() as session:
+        await session.execute(text("DELETE FROM job_postings WHERE id = :id"), {"id": first})
+        await session.commit()
+
+    assert "Built Python billing services" in await student.words(kept["id"])

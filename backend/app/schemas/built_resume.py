@@ -22,6 +22,8 @@ class BuiltResumeResponse(BaseModel):
     job_posting_id: UUID | None
     is_default: bool
     created_at: datetime.datetime
+    # A tailored resume whose posting the Jobs page no longer lists.
+    posting_closed: bool = False
 
 
 class RenderBox(BaseModel):

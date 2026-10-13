@@ -109,8 +109,10 @@ class Bank_Bullet_Variant(BaseModel):
     bullet_id: Mapped[_uuid.UUID] = mapped_column(
         ForeignKey("bank_bullets.id", ondelete="CASCADE"), index=True)
     text: Mapped[str]
+    # SET NULL: a variant outlives its posting, so another resume that
+    # shows it keeps its wording.
     job_posting_id: Mapped[_uuid.UUID | None] = mapped_column(
-        ForeignKey("job_postings.id", ondelete="CASCADE"))
+        ForeignKey("job_postings.id", ondelete="SET NULL"))
     built_resume_id: Mapped[_uuid.UUID | None] = mapped_column(
         ForeignKey("built_resumes.id", ondelete="CASCADE"))
 

@@ -8,6 +8,8 @@ POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 Buil
        Generate: a base resume with every bank entry, bullet and skill.
        409 {detail} when the student already has 5 resumes (uploaded plus base).
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
+       `posting_closed` is true for a tailored resume whose posting the Jobs
+       page no longer lists (story 90's "Posting closed").
 DELETE /applicants/{id}/built-resumes/{rid}        -> 204
 PUT    /applicants/{id}/built-resumes/{rid}/default -> {"default_built_resume_id"}
        Makes a base resume the default resume, clearing an uploaded default.
@@ -91,10 +93,10 @@ async def owned_applicant(
     return applicant_id
 
 
-def _response(row: Built_Resume, default_id: uuid.UUID | None) -> BuiltResumeResponse:
+def _response(row: Built_Resume, default_id: uuid.UUID | None, closed: bool = False) -> BuiltResumeResponse:
     return BuiltResumeResponse(
         id=row.id, name=row.name, template=row.template, job_posting_id=row.job_posting_id,
-        is_default=row.id == default_id, created_at=row.created_at,
+        is_default=row.id == default_id, created_at=row.created_at, posting_closed=closed,
     )
 
 
@@ -141,7 +143,8 @@ async def list_built_resumes(
     session: AsyncSession = Depends(get_session),
 ) -> list[BuiltResumeResponse]:
     default_id = await service.default_built_id(session, applicant_id)
-    return [_response(r, default_id) for r in await service.list_resumes(session, applicant_id)]
+    closed = await service.closed_postings(session, applicant_id)
+    return [_response(r, default_id, r.id in closed) for r in await service.list_resumes(session, applicant_id)]
 
 
 @router.delete("/{resume_id}", status_code=204)
