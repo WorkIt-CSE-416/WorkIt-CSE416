@@ -165,7 +165,7 @@ are in `docs/auth.md`.
   deletes the sent resume it just made (`created`), so the "Sent" list holds
   only files the student took.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
-  (intake's draft entry, KAN-213): one key prefix, cleared by Sign Out in
+  (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
   reaches. A draft stored under any other key outlives sign-out.
 

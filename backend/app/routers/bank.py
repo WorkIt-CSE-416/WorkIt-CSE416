@@ -65,7 +65,7 @@ from app.deps import assert_applicant_owns, get_current_account
 from app.models.dto import ParsedResume
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
-from app.routers.scout import get_llm, load_identity
+from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import (
     BankResponse,
@@ -74,7 +74,6 @@ from app.schemas.bank import (
     BulletUpdate,
     DuplicateEntry,
     EntryCreate,
-    EntryFields,
     EntryResponse,
     EntryUpdate,
     ImportRequest,
@@ -84,6 +83,7 @@ from app.schemas.bank import (
     SkillUpdate,
 )
 from app.services import bank as service
+from app.services.bank import bank_response, entry_response, skill_response
 from app.services.bank_import import (
     draft_entries,
     draft_skills,
@@ -92,6 +92,7 @@ from app.services.bank_import import (
     parsed_skills,
     read_with_model,
 )
+from app.services.identity import load_identity
 from app.services.usage import Feature, count_use, uses_left
 from app.utils.resume_parser import parse_resume
 
@@ -105,17 +106,6 @@ async def owned_applicant(
 ) -> uuid.UUID:
     assert_applicant_owns(account, applicant_id)
     return applicant_id
-
-
-def entry_response(entry: service.Entry) -> EntryResponse:
-    fields = {name: getattr(entry.row, name) for name in EntryFields.model_fields}
-    return EntryResponse.model_validate(
-        {**fields, "id": entry.row.id, "bullets": [BulletResponse.model_validate(b) for b in entry.bullets]}
-    )
-
-
-def skill_response(skill, entry_ids: list[uuid.UUID]) -> SkillResponse:
-    return SkillResponse(id=skill.id, name=skill.name, group=skill.group, entry_ids=entry_ids)
 
 
 @asynccontextmanager
@@ -143,11 +133,7 @@ async def get_bank(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> BankResponse:
-    bank = await service.load_bank(session, applicant_id)
-    return BankResponse(
-        entries=[entry_response(e) for e in bank.entries],
-        skills=[skill_response(s, bank.skill_links.get(s.id, [])) for s in bank.skills],
-    )
+    return bank_response(await service.load_bank(session, applicant_id))
 
 
 @router.post(

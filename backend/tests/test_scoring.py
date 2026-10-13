@@ -1,6 +1,11 @@
-"""Tests for scoring and highlights — pure functions, no DB."""
+"""Tests for scoring, highlights and what they read from a bank — pure functions, no DB."""
 
-from app.models.dto import Education, ParsedResume, Skill
+import datetime
+
+from app.models.bank import Bank_Entry
+from app.models.dto import bank_section, entry_end_kind
+from app.services.bank import Bank, Entry
+from app.services.matching.bank_input import expected_graduation, years_of_experience
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
     compute_score,
@@ -103,32 +108,17 @@ def test_meets_years():
 
 # --- highlights ---
 
-def _resume(**kw) -> ParsedResume:
-    return ParsedResume(
-        skills=kw.get("skills", []),
-        experience=kw.get("experience", []),
-        education=kw.get("education", []),
-    )
-
-
 def test_highlights_max_three():
-    resume = _resume(
-        skills=[Skill(skill_name="Python"), Skill(skill_name="SQL"), Skill(skill_name="Go")],
-        education=[Education(institution="MIT", field_of_study="CS")],
-    )
     hl = generate_highlights(
-        "Software Engineer", None, None, resume,
+        "Software Engineer", None, None, ["Python", "SQL", "Go"], "CS",
         semantic=0.9, skill_overlap=0.5, title_fit=0.5, eligibility=1.0,
     )
     assert len(hl) <= 3
 
 
 def test_highlights_positive_before_negative():
-    resume = _resume(
-        skills=[Skill(skill_name="Python")],
-    )
     hl = generate_highlights(
-        "Senior Engineer", 5, "Summer 2027", resume,
+        "Senior Engineer", 5, "Summer 2027", ["Python"], None,
         semantic=0.7, skill_overlap=0.5, title_fit=0.1, eligibility=0.5,
     )
     # First highlight should be positive (met=True)
@@ -142,11 +132,56 @@ def test_highlights_positive_before_negative():
             assert max(pos_indices) < min(neg_indices)
 
 
-def test_highlights_empty_resume():
-    resume = _resume()
+def test_highlights_empty_bank():
     hl = generate_highlights(
-        "Analyst", None, None, resume,
+        "Analyst", None, None, [], None,
         semantic=None, skill_overlap=0.0, title_fit=0.0, eligibility=1.0,
     )
     assert isinstance(hl, list)
     assert len(hl) <= 3
+
+
+# --- what the recommender reads from a bank ---
+
+TODAY = datetime.date(2026, 10, 13)
+
+
+def _bank(*rows: dict) -> Bank:
+    return Bank(entries=[Entry(Bank_Entry(title="x", **row), []) for row in rows], skills=[])
+
+
+def _month(text: str) -> datetime.date:
+    return datetime.date.fromisoformat(text + "-01")
+
+
+def test_the_expected_graduation_is_the_latest_education_end():
+    bank = _bank(
+        {"section": bank_section.education, "end_month": _month("2022-05"), "end_kind": entry_end_kind.month},
+        {"section": bank_section.education, "end_month": _month("2027-05"), "end_kind": entry_end_kind.expected},
+        # A later end outside Education does not count.
+        {"section": bank_section.experience, "end_month": _month("2028-01"), "end_kind": entry_end_kind.expected},
+    )
+    assert expected_graduation(bank) == _month("2027-05")
+
+
+def test_no_education_end_means_no_graduation_date():
+    assert expected_graduation(_bank({"section": bank_section.education})) is None
+
+
+def test_an_ongoing_experience_counts_up_to_this_month():
+    bank = _bank(
+        {"section": bank_section.experience, "start_month": _month("2025-11"), "end_kind": entry_end_kind.present},
+    )
+    assert years_of_experience(bank, TODAY) == 1.0
+
+
+def test_years_count_experience_entries_only_and_both_end_months():
+    bank = _bank(
+        {"section": bank_section.experience, "start_month": _month("2025-06"),
+         "end_month": _month("2025-08"), "end_kind": entry_end_kind.month},
+        {"section": bank_section.leadership, "start_month": _month("2020-01"),
+         "end_month": _month("2024-12"), "end_kind": entry_end_kind.month},
+        # No start month: nothing to count from.
+        {"section": bank_section.experience, "end_month": _month("2024-12"), "end_kind": entry_end_kind.month},
+    )
+    assert years_of_experience(bank, TODAY) == 0.25

@@ -53,6 +53,7 @@ from sqlalchemy import (
     all_,
     and_,
     any_,
+    case,
     delete,
     func,
     literal,
@@ -235,6 +236,7 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
             _jobs.c.status != dto.job_post_status.published,
             *(_jobs.c[col].is_distinct_from(stmt.excluded[col]) for col in _FEED_COLUMNS),
         )
+        description_changed = _jobs.c.description.is_distinct_from(stmt.excluded.description)
         stmt = stmt.on_conflict_do_update(
             index_elements=[_jobs.c.apply_url],
             set_={
@@ -243,6 +245,12 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
                 # A job closed by an earlier run and back in the feed is open
                 # again, so the date it closed no longer applies.
                 "closes_at": None,
+                # Tailor's cached keywords (KAN-215) came from the old
+                # description; a new one clears them.
+                **{
+                    col: case((description_changed, None), else_=_jobs.c[col])
+                    for col in ("keywords", "keywords_hash")
+                },
                 "updated_at": func.now(),
             },
             # Never touch a company's job, and leave an unchanged one alone.
