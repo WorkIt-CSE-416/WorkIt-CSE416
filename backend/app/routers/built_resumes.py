@@ -12,8 +12,9 @@ DELETE /applicants/{id}/built-resumes/{rid}        -> 204
 PUT    /applicants/{id}/built-resumes/{rid}/default -> {"default_built_resume_id"}
        Makes a base resume the default resume, clearing an uploaded default.
 GET    /applicants/{id}/built-resumes/{rid}/render -> RenderResponse
-       {pdf (base64), page_count, missing_characters}: the characters the
-       template's font cannot draw, for the warning before download.
+       {pdf (base64), page_count, missing_characters, boxes}: the characters
+       the template's font cannot draw, for the warning before download, and
+       a box per line for the editor's click targets (schemas: RenderBox).
        503 {detail} when Tectonic is missing or the compile fails.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment
 GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
@@ -29,7 +30,6 @@ GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
 import asyncio
 import base64
 import logging
-import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -42,12 +42,12 @@ from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
-from app.models.profiles import Applicant_Profile
 from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeResponse,
+    RenderBox,
     RenderResponse,
 )
 from app.schemas.keywords import KeywordMatchResponse
@@ -87,6 +87,13 @@ async def _commit(session: AsyncSession, failure: str) -> None:
         await session.rollback()
         logger.exception(failure)
         raise HTTPException(500, failure)
+
+
+async def _identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:
+    try:
+        return await service.load_identity(session, applicant_id)
+    except NotFound:
+        raise HTTPException(404, "Applicant not found")
 
 
 async def _owned(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID) -> Built_Resume:
@@ -145,26 +152,6 @@ async def set_default(
     return {"default_built_resume_id": str(resume_id)}
 
 
-async def _identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:
-    profile = await session.get(Applicant_Profile, applicant_id)
-    if profile is None:
-        raise HTTPException(404, "Applicant not found")
-    return Identity(
-        name=profile.full_name,
-        email=profile.email,
-        phone=profile.phone_number,
-        links=tuple(
-            u for u in (profile.linkedin_url, profile.github_url, profile.portfolio_url, profile.other_url) if u
-        ),
-    )
-
-
-def _filename(name: str, ext: str) -> str:
-    # Header-safe: letters, digits, spaces, dashes and underscores only
-    stem = re.sub(r"[^A-Za-z0-9 _-]+", "", name).strip() or "Resume"
-    return f"{stem}.{ext}"
-
-
 @router.get("/{resume_id}/render", response_model=RenderResponse)
 async def render_pdf(
     resume_id: uuid.UUID,
@@ -185,6 +172,7 @@ async def render_pdf(
         pdf=base64.b64encode(rendered.pdf).decode("ascii"),
         page_count=rendered.page_count,
         missing_characters=list(rendered.missing_characters),
+        boxes=[RenderBox(**vars(box)) for box in rendered.boxes],
     )
 
 
@@ -203,7 +191,7 @@ async def download_docx(
     return Response(
         data,
         media_type=DOCX_TYPE,
-        headers={"Content-Disposition": f'attachment; filename="{_filename(resume.name, "docx")}"'},
+        headers={"Content-Disposition": f'attachment; filename="{service.file_name(resume.name, "docx")}"'},
     )
 
 

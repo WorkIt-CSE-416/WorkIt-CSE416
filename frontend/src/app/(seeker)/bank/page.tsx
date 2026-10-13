@@ -6,6 +6,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getBank } from "@/lib/bank-actions";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
+import { listSentResumes } from "@/lib/sent-resume-actions";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
@@ -23,11 +24,16 @@ export const metadata: Metadata = {
  * on My Profile, with no feature flag. Live from the API's
  * `GET /applicants/{id}/bank`; when that fails the page says so and offers a
  * retry, never fixture rows. Base resumes (KAN-207) are Generated and
- * downloaded from the card above the sections.
+ * downloaded from the card above the sections; the "Sent" card (KAN-208)
+ * lists every PDF downloaded.
  */
 export default async function BankPage() {
   await connection();
-  const [{ data, error }, resumes] = await Promise.all([getBank(), listBuiltResumes()]);
+  const [{ data, error }, resumes, sent] = await Promise.all([
+    getBank(),
+    listBuiltResumes(),
+    listSentResumes(),
+  ]);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -36,9 +42,9 @@ export default async function BankPage() {
         Add each thing you did once. Every resume you make draws from here.
       </p>
 
-      {data && resumes.data ? (
+      {data && resumes.data && sent.data ? (
         <>
-          <BuiltResumes initial={resumes.data} />
+          <BuiltResumes initial={resumes.data} initialSent={sent.data} />
           <BankScreen initial={data} />
         </>
       ) : (
@@ -52,7 +58,11 @@ export default async function BankPage() {
               Try Again
             </a>
           }
-          detail={process.env.NODE_ENV === "development" ? (error ?? resumes.error) : undefined}
+          detail={
+            process.env.NODE_ENV === "development"
+              ? (error ?? resumes.error ?? sent.error)
+              : undefined
+          }
         >
           We couldn&apos;t reach your experience bank. Try again in a few minutes.
         </EmptyState>

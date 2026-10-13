@@ -1,10 +1,10 @@
 "use client";
 
-import { FileDown, FileText, Star, Trash2 } from "lucide-react";
+import { FileDown, FilePen, FileText, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import {
@@ -12,18 +12,29 @@ import {
   downloadResumeDocx,
   generateResume,
   listBuiltResumes,
-  renderResumePdf,
   setDefaultBuiltResume,
   type BuiltResume,
-  type RenderedPdf,
 } from "@/lib/built-resume-actions";
+import {
+  deleteSentResume,
+  listSentResumes,
+  sendBuiltResume,
+  type SentDownload,
+  type SentResume,
+} from "@/lib/sent-resume-actions";
+
+import { openDownload, SentResumes } from "./sent-resumes";
 
 /**
  * The bank page's base resumes (KAN-207): Generate makes one from the whole
  * bank in Jake's Resume, and each downloads as a PDF or a Word file. A PDF
  * whose text has characters the font cannot draw shows a warning first; the
  * student downloads anyway or fixes the bank. The 5-resume limit is the
- * API's: its refusal shows as the error.
+ * API's: its refusal shows as the error. Open goes to the resume editor.
+ *
+ * Every PDF download keeps a sent resume (KAN-208), shown in the "Sent" card
+ * below; a repeat of the same content returns the one already kept. A
+ * download cancelled at the warning deletes the sent resume it just made.
  */
 
 const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -41,14 +52,27 @@ function save(base64: string, type: string, filename: string) {
 const fileName = (resume: BuiltResume, ext: string) =>
   `${resume.name.replace(/[^\w -]+/g, "").trim() || "Resume"}.${ext}`;
 
-export function BuiltResumes({ initial }: { initial: BuiltResume[] }) {
+export function BuiltResumes({
+  initial,
+  initialSent,
+}: {
+  initial: BuiltResume[];
+  initialSent: SentResume[];
+}) {
   const [resumes, setResumes] = useState(initial);
+  const [sent, setSent] = useState(initialSent);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function reload() {
     const { data, error } = await listBuiltResumes();
     if (data) setResumes(data);
+    if (error) setError(error);
+  }
+
+  async function reloadSent() {
+    const { data, error } = await listSentResumes();
+    if (data) setSent(data);
     if (error) setError(error);
   }
 
@@ -62,49 +86,69 @@ export function BuiltResumes({ initial }: { initial: BuiltResume[] }) {
   }
 
   return (
-    <Card as="section" aria-labelledby="bank-resumes" className="mt-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="bank-resumes" className="text-subtitle text-ink">
-          Base Resumes
-        </h2>
-        <Button size="sm" onClick={generate} disabled={generating}>
-          <FileText /> {generating ? "Generating…" : "Generate"}
-        </Button>
-      </div>
-      <p className="text-note text-ink-meta mt-1">
-        A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
-        every resume.
-      </p>
-      {error && (
-        <p role="alert" className="text-note text-danger mt-2">
-          {error}
+    <>
+      <Card as="section" aria-labelledby="bank-resumes" className="mt-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="bank-resumes" className="text-subtitle text-ink">
+            Base Resumes
+          </h2>
+          <Button size="sm" onClick={generate} disabled={generating}>
+            <FileText /> {generating ? "Generating…" : "Generate"}
+          </Button>
+        </div>
+        <p className="text-note text-ink-meta mt-1">
+          A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
+          every resume.
         </p>
-      )}
-      {resumes.length > 0 && (
-        <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-          {resumes.map((resume) => (
-            <ResumeRow key={resume.id} resume={resume} reload={reload} />
-          ))}
-        </ul>
-      )}
-    </Card>
+        {error && (
+          <p role="alert" className="text-note text-danger mt-2">
+            {error}
+          </p>
+        )}
+        {resumes.length > 0 && (
+          <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
+            {resumes.map((resume) => (
+              <ResumeRow key={resume.id} resume={resume} reload={reload} reloadSent={reloadSent} />
+            ))}
+          </ul>
+        )}
+      </Card>
+      <SentResumes sent={sent} reload={reloadSent} />
+    </>
   );
 }
 
-function ResumeRow({ resume, reload }: { resume: BuiltResume; reload: () => Promise<void> }) {
+function ResumeRow({
+  resume,
+  reload,
+  reloadSent,
+}: {
+  resume: BuiltResume;
+  reload: () => Promise<void>;
+  reloadSent: () => Promise<void>;
+}) {
   const [busy, setBusy] = useState<"pdf" | "docx" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // A rendered PDF held back by the missing-character warning
-  const [held, setHeld] = useState<RenderedPdf | null>(null);
+  // A sent resume held back by the missing-character warning
+  const [held, setHeld] = useState<SentDownload | null>(null);
 
   async function pdf() {
     setBusy("pdf");
     setError(null);
-    const { data, error } = await renderResumePdf(resume.id);
+    const { data, error } = await sendBuiltResume(resume.id);
     setBusy(null);
     if (!data) return setError(error);
     if (data.missing_characters.length) return setHeld(data);
-    save(data.pdf, "application/pdf", fileName(resume, "pdf"));
+    openDownload(data.url);
+    await reloadSent();
+  }
+
+  // The student did not take the file: it was not sent.
+  async function cancel(held: SentDownload) {
+    setHeld(null);
+    if (!held.created) return;
+    const { error } = await deleteSentResume(held.id);
+    if (error) setError(error);
   }
 
   async function docx() {
@@ -132,6 +176,13 @@ function ResumeRow({ resume, reload }: { resume: BuiltResume; reload: () => Prom
           {resume.job_posting_id && <Badge variant="tag">Tailored</Badge>}
         </div>
         <div className="flex shrink-0 items-center gap-3">
+          <ButtonLink
+            variant="secondary"
+            size="sm"
+            href={`/resumes/${encodeURIComponent(resume.id)}`}
+          >
+            <FilePen /> Open
+          </ButtonLink>
           <Button variant="secondary" size="sm" onClick={pdf} disabled={busy !== null}>
             <FileDown /> {busy === "pdf" ? "Making PDF…" : "PDF"}
           </Button>
@@ -167,14 +218,15 @@ function ResumeRow({ resume, reload }: { resume: BuiltResume; reload: () => Prom
             <Button
               variant="ghost"
               size="inline"
-              onClick={() => {
-                save(held.pdf, "application/pdf", fileName(resume, "pdf"));
+              onClick={async () => {
+                openDownload(held.url);
                 setHeld(null);
+                await reloadSent();
               }}
             >
               Download Anyway
             </Button>
-            <Button variant="ghost" size="inline" onClick={() => setHeld(null)}>
+            <Button variant="ghost" size="inline" onClick={() => cancel(held)}>
               Cancel
             </Button>
           </div>
