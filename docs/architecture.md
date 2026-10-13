@@ -108,6 +108,7 @@ modeled at all (doesn't exist as code).
 | `experience_banks`, `bank_entries`, `bank_bullets`, `bank_skills` | `app/models/bank.py` | Yes | `/applicants/{id}/bank` (`app/routers/bank.py`); the experience bank, `docs/resume.md` |
 | `job_postings` | `app/models/jobs.py` | **No** | No |
 | `countries` / `states` | `app/models/locations.py` | **No** | No |
+| `ai_usage_counters` | `app/models/ai_usage.py` | Yes | Indirectly — every model feature checks and counts daily uses (`app/services/usage.py`) |
 
 `app/models/__init__.py` auto-imports every module in the folder via
 `pkgutil`, so a new model file registers itself with `Base.metadata` without

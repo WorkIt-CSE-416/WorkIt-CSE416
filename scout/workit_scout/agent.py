@@ -7,6 +7,7 @@ loads the user's resume and the job, and hands them over with the model.
 
 from collections.abc import AsyncIterator, Sequence
 
+from workit_scout.identity import Identity
 from workit_scout.llm import LLM, ScoutUnavailable
 from workit_scout.prompt import SYSTEM_PROMPT, facts
 from workit_scout.schemas import (
@@ -28,6 +29,7 @@ async def run(
     messages: Sequence[ChatMessage],
     llm: LLM,
     *,
+    identity: Identity,
     resume: ResumeFacts | None = None,
     job: JobFacts | None = None,
 ) -> AsyncIterator[ScoutEvent]:
@@ -39,7 +41,7 @@ async def run(
     ]
     sent = 0
     try:
-        async for delta in llm.stream(prompt):
+        async for delta in llm.stream(prompt, identity=identity):
             yield TextEvent(delta=delta)
             sent += len(delta)
             if sent >= MAX_REPLY_CHARS:
