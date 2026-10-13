@@ -104,6 +104,23 @@ const fromWire = ({ bullets, ...fields }: DraftWire): EntryDraft => ({
   bullets: bullets.map((text) => ({ text })),
 });
 
+/**
+ * The model's draft laid over the card. A field the student changed while
+ * the reply was on its way (it differs from what was sent) keeps the
+ * student's value; every other field takes the model's. So a reply never
+ * overwrites what the student is typing into the card.
+ */
+function mergeReply(current: EntryDraft, sent: EntryDraft, reply: EntryDraft): EntryDraft {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const merged = { ...reply } as Record<string, unknown>;
+  const now = current as Record<string, unknown>;
+  const then = sent as Record<string, unknown>;
+  for (const key of Object.keys(now)) {
+    if (!same(now[key], then[key])) merged[key] = now[key];
+  }
+  return merged as EntryDraft;
+}
+
 export function Intake({
   filled,
   onSaved,
@@ -226,6 +243,7 @@ export function Intake({
     const content = text.trim();
     if (!content || !draft || answering) return;
     const sent: ScoutMessage[] = [...messages, { role: "user", content }];
+    const sentDraft = draft;
     setMessages(sent);
     setLines((l) => [...l, { kind: "text", role: "user", content }]);
     setAnswering(true);
@@ -248,7 +266,13 @@ export function Intake({
             setMessages((m) => [...m, { role: "assistant", content: event.delta }]);
             setLines((l) => [...l, { kind: "text", role: "assistant", content: event.delta }]);
           } else if (event.type === "draft") {
-            setKept({ draft: fromWire(event.draft), done: event.done });
+            const reply = fromWire(event.draft);
+            // A card discarded or moved to another section meanwhile stays so.
+            setKept((k) =>
+              k && k.draft.section === reply.section
+                ? { draft: mergeReply(k.draft, sentDraft, reply), done: event.done }
+                : k,
+            );
             setVersion((v) => v + 1);
           } else if (event.type === "error") {
             failure = event.message;
