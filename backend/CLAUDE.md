@@ -173,6 +173,14 @@ Find files with a directory listing; these are the rules for where code goes.
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
   the bank's API shape (`routers/bank.py`'s `bank_response`) through
   `workit_scout.facts`. An uploaded resume only feeds import.
+- **A student reaches only the postings the Jobs page lists**
+  (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
+  and Done), the keyword match and Apply load a posting through
+  `postings.listed`, so a company's draft or a closed posting answers 404
+  and its text never reaches a model. The one exception: a tailored
+  resume's keyword match against its own posting, which still works after
+  the posting closes. A route that loads a `Job_Post` by id alone skips
+  this check.
 - **Identity fields load through `app/services/identity.py`**
   (`load_identity`), for Scout's model seam and the bank embedding alike.
 - **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
@@ -218,8 +226,8 @@ Find files with a directory listing; these are the rules for where code goes.
   Storage client from the router and flushes, never commits; when a new row's
   commit fails, the router removes the uploaded file. **Apply** (KAN-220) is
   the same POST with `job_posting_id` and exactly one of `built_resume_id`
-  or `uploaded_resume_id` (422 otherwise; 404 for a posting that does not
-  exist). An uploaded resume makes no new file, so a failed commit must not
+  or `uploaded_resume_id` (422 otherwise; 404 for a posting the Jobs page
+  does not list). An uploaded resume makes no new file, so a failed commit must not
   remove its file: the router removes only a built sent resume's. **A stored file
   is removed only when `file_in_use` says no row needs it**: the uploaded
   resume delete and the sent resume delete both check it, because a sent

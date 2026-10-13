@@ -8,14 +8,15 @@ POST /applicants/{id}/tailor       TailorRun {job_posting_id} -> TailorProposal
      base resume generated first. Saves nothing else (nothing until Done).
      Spends one Tailor use, counted only when the run succeeds; a keyword
      extraction inside the run is part of it, not a second use.
-     404 unknown posting; 409 {detail} empty bank (send the student to
+     404 a posting the Jobs page does not list (unknown, draft, paused,
+     closed); 409 {detail} empty bank (send the student to
      intake) or, when a base resume must be generated, the 5-resume limit;
      429 at the Tailor limit; 503 when the model fails or answers out of
      schema (nothing counted).
 POST /applicants/{id}/tailor/done  TailorDone -> TailorResult {resume, matched, missing}
      Saves the accepted changes on the posting's one tailored resume
      (made on the first Done, updated after), approved wordings as bullet
-     variants for the posting. Free: no model call. 404 unknown posting,
+     variants for the posting. Free: no model call. 404 a posting the Jobs page does not list,
      resume or a bank id not the applicant's; 422 {detail} a wording that
      breaks the truth rule (nothing saved).
 """
@@ -26,7 +27,6 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import undefer
 from workit_scout.llm import LLM, OUT_OF_QUOTA, InvalidReply, ScoutUnavailable
 
 from app.db import get_session
@@ -43,7 +43,7 @@ from app.schemas.tailor import (
     TailorResult,
     TailorRun,
 )
-from app.services import built_resumes, keywords, tailor
+from app.services import built_resumes, keywords, postings, tailor
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
 from app.services.usage import Feature, count_use, uses_left
@@ -66,8 +66,7 @@ def _ai_message(exc: ScoutUnavailable) -> str:
 
 
 async def _posting(session: AsyncSession, posting_id: uuid.UUID) -> Job_Post:
-    job = await session.get(
-        Job_Post, posting_id, options=[undefer(Job_Post.keywords), undefer(Job_Post.keywords_hash)])
+    job = await postings.listed(session, posting_id, keywords=True)
     if job is None:
         raise HTTPException(404, "Job posting not found")
     return job

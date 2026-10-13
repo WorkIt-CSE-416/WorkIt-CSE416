@@ -328,6 +328,46 @@ async def test_a_tailored_resume_matches_its_own_posting(student, database, use_
     assert (await client.get(f"{resume}/keyword-match")).status_code == 422
 
 
+async def _set_status(database, posting: str, status: str) -> None:
+    async with database() as session:
+        await session.execute(
+            text("UPDATE job_postings SET status = CAST(:s AS job_post_status) WHERE id = :id"),
+            {"s": status, "id": posting})
+        await session.commit()
+
+
+@pytest.mark.parametrize("status", ["draft", "paused", "closed"])
+async def test_a_posting_the_jobs_page_does_not_list_is_404(student, database, use_model, status):
+    client, resume = student
+    posting = await _seed_posting(database)
+    await _set_status(database, posting, status)
+    fake = use_model(reading(KEYWORDS))
+
+    assert (await _match(client, resume, posting)).status_code == 404
+    assert fake.prompts == []
+
+
+async def test_a_tailored_resume_still_matches_its_own_closed_posting(student, database, use_model):
+    client, resume = student
+    posting = await _seed_posting(database)
+    applicant_id = resume.split("/")[2]
+    use_model(reading(KEYWORDS))
+    assert (await _match(client, resume, posting)).status_code == 200
+    async with database() as session:
+        tailored = await session.scalar(
+            text(
+                "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
+                " VALUES (:a, 'Tailored', 'jakes', :p) RETURNING id"
+            ),
+            {"a": applicant_id, "p": posting},
+        )
+        await session.commit()
+    await _set_status(database, posting, "closed")
+
+    res = await client.get(f"/applicants/{applicant_id}/built-resumes/{tailored}/keyword-match")
+    assert (res.status_code, res.json()["job_posting_id"]) == (200, posting)
+
+
 async def test_unknown_posting_and_another_students_resume_are_404(student, database, use_model):
     client, resume = student
     use_model(reading(KEYWORDS))
