@@ -15,10 +15,10 @@ from app.db import get_sessionmaker
 from app.routers.auth import router as auth_router
 from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
+from app.routers.built_resumes import router as built_resumes_router
 from app.routers.company_jobs import router as company_jobs_router
 from app.routers.jobs import router as jobs_router
 from app.routers.profiles import router as profile_router
-from app.routers.render_proof import router as render_proof_router
 from app.routers.resumes import router as resume_router
 from app.routers.scout import router as scout_router
 
@@ -35,8 +35,8 @@ app.include_router(avatar_router)
 app.include_router(company_jobs_router)
 app.include_router(scout_router)
 app.include_router(profile_router)
-app.include_router(render_proof_router)
 app.include_router(bank_router)
+app.include_router(built_resumes_router)
 
 
 @app.exception_handler(RequestValidationError)
