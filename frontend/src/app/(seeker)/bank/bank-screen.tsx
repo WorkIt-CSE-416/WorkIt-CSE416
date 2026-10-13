@@ -28,6 +28,7 @@ import {
 
 import { EntryEditor } from "./entry-editor";
 import { ImportCard } from "./import-card";
+import { Intake } from "./intake";
 import { changesOf, draftOf, emptyDraft, formatDates, SECTIONS, type EntryDraft } from "./sections";
 import { linkChanges } from "./skill-links";
 
@@ -150,12 +151,13 @@ export function BankScreen({ initial }: { initial: Bank }) {
 
   return (
     <div className="mt-4 flex flex-col gap-4">
+      <ImportCard onSaved={reload} />
+      <Intake onSaved={reload} />
       {pageError && (
         <p role="alert" className="text-note text-danger">
           {pageError}
         </p>
       )}
-      <ImportCard onSaved={reload} />
       {SECTIONS.map((section) => {
         const entries = bank.entries.filter((e) => e.section === section.id);
         const adding = editing?.kind === "new" && editing.section === section.id;

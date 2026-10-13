@@ -50,6 +50,8 @@ export function EntryEditor({
   onSaveAsNew,
   skills,
   linkedSkillIds = [],
+  onChange,
+  cancelLabel = "Cancel",
 }: {
   initial: EntryDraft;
   onSave: (draft: EntryDraft, skillIds: string[]) => void;
@@ -66,12 +68,20 @@ export function EntryEditor({
   skills?: Skill[];
   /** The skills linked to this entry when the editor opens. */
   linkedSkillIds?: string[];
+  /** Every edit, as the whole draft: intake sends the card's edits back to
+   *  the model with each turn. */
+  onChange?: (draft: EntryDraft) => void;
+  cancelLabel?: string;
 }) {
   const [draft, setDraft] = useState(initial);
   const [skillIds, setSkillIds] = useState(linkedSkillIds);
   const uid = useId();
   const section = sectionOf(draft.section);
-  const set = (changes: Partial<EntryDraft>) => setDraft((d) => ({ ...d, ...changes }));
+  const set = (changes: Partial<EntryDraft>) => {
+    const next = { ...draft, ...changes };
+    setDraft(next);
+    onChange?.(next);
+  };
   const field = (name: string) => `${uid}-${name}`;
 
   function cleaned(): EntryDraft {
@@ -280,7 +290,7 @@ export function EntryEditor({
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
-          Cancel
+          {cancelLabel}
         </Button>
         {duplicate && onSaveAsNew ? (
           <Button type="button" disabled={saving} onClick={() => onSaveAsNew(cleaned(), skillIds)}>
