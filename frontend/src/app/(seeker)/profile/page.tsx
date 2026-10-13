@@ -34,6 +34,7 @@ import {
   type ResumeItem,
 } from "@/lib/resume-actions";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
+import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { RESUME_ROW, ResumeRow } from "./resume-row";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
@@ -80,6 +81,8 @@ import { useProfileCache } from "../profile-cache";
  * failed resume list holds the first row's place in grey rather than red, so
  * a list that did not load is not mistaken for one with nothing in it.
  */
+// The API's limit: uploaded plus base resumes, together (tailored ones are
+// free). The count below adds the base resumes, so it matches the API's 409.
 const MAX_RESUMES = 5;
 
 export default function ProfilePage() {
@@ -97,6 +100,9 @@ export default function ProfilePage() {
 
   // Resume items. `uploading` is the name of the file in flight, or null.
   const [resumeList, setResumeList] = useState<ResumeItem[]>(cached?.resumes ?? []);
+  // Base resumes made on the bank page count toward the same 5.
+  const [baseCount, setBaseCount] = useState(0);
+  const resumeCount = resumeList.length + baseCount;
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -210,10 +216,11 @@ export default function ProfilePage() {
       setLoadFailed(true);
       setListFailed(true);
     }
-    listResumes()
-      .then(({ resumes, error }) => {
-        if (error) return fail();
+    Promise.all([listResumes(), listBuiltResumes()])
+      .then(([{ resumes, error }, built]) => {
+        if (error || built.error) return fail();
         setResumeList(resumes);
+        setBaseCount((built.data ?? []).filter((r) => r.job_posting_id == null).length);
       })
       .catch(fail)
       .finally(() => setLoaded(true));
@@ -223,8 +230,10 @@ export default function ProfilePage() {
   // it read by importing it into the experience bank, not here.
   async function handleResumeFileAdd(file: File) {
     if (!loaded || uploading !== null) return;
-    if (resumeList.length >= MAX_RESUMES) {
-      setResumeError(`You can keep up to ${MAX_RESUMES} resumes. Remove one to add another.`);
+    if (resumeCount >= MAX_RESUMES) {
+      setResumeError(
+        `You can keep up to ${MAX_RESUMES} resumes, uploaded and base resumes together. Remove one to add another.`,
+      );
       return;
     }
     setResumeError(null);
@@ -448,7 +457,7 @@ export default function ProfilePage() {
             action={
               loaded && !listFailed ? (
                 <Badge variant="tag" pill>
-                  {resumeList.length} of {MAX_RESUMES}
+                  {resumeCount} of {MAX_RESUMES}
                 </Badge>
               ) : undefined
             }
@@ -456,7 +465,8 @@ export default function ProfilePage() {
             Resume
           </SectionHeading>
           <p className="text-body text-ink-meta mt-1">
-            Keep a version for each kind of role you apply to, up to {MAX_RESUMES}.
+            Keep a version for each kind of role you apply to, up to {MAX_RESUMES}, counting the
+            base resumes you make in your experience bank.
           </p>
         </div>
 
