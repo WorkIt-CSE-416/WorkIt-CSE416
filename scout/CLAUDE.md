@@ -38,7 +38,7 @@ install time.
 | `prompt.py` | the frozen system prompt and the facts block after it |
 | `agent.py` | one turn: prompt + conversation in, events out |
 | `schemas.py` | the wire format (`ChatRequest`, `ScoutEvent`) and the facts types |
-| `facts.py` | a resume's `parsed_json` and a `feed.json` row as Scout's facts; the privacy boundary |
+| `facts.py` | the experience bank and a `feed.json` row as Scout's facts; the privacy boundary |
 | `identity.py` | identity-data removal: `remove_identity`, run on all text bound for a model |
 | `testing.py` | `ScriptedLLM`, the fake model both test suites use |
 
@@ -67,9 +67,10 @@ the KAN-138 plan; the rules that follow from it are these:
 - **Formatting is `**bold**` and `- ` bullets, nothing else.** The panel's
   `reply-text.tsx` renders exactly those, so widen the prompt's list and that
   component together or the panel shows raw markdown again.
-- **Only parsed resume fields ever reach a model** — never a name, email,
-  phone, link or the raw resume text. The production model is a free tier that
-  may train on prompts. `facts.py` enforces it.
+- **Only the experience bank's sections and skills ever reach a model as
+  facts** — never a name, email, phone, link or an uploaded resume's text.
+  The production model is a free tier that may train on prompts. `facts.py`
+  enforces it.
 
 ## Which model, where
 
@@ -129,20 +130,25 @@ server log says which endpoint failed. Every failure reaches the panel as one
 Each turn the API hands `agent.run` two sets of facts, rendered by
 `prompt.facts()` into a "What you know" block after the frozen system prompt:
 
-- **The resume** — the applicant's default resume if it parsed, else their
-  newest parsed one, its stored `parsed_json` mapped by `facts.resume_facts`.
-  It takes JSON data, not the API's `ParsedResume`, so this package still
-  never imports the backend. That mapping is the privacy boundary: skills,
-  experience, education and projects cross it; names, contact details, links
-  and raw text never do.
+- **The experience bank** (KAN-212) — the bank as `GET
+  /applicants/{id}/bank` returns it, mapped by `facts.bank_facts` to one short
+  line per entry (title, organization or school, years, original bullets,
+  cut at 300 characters) in all six entry sections, plus the skills. It takes
+  JSON data, not the API's classes, so this package still never imports the
+  backend. That mapping is the privacy boundary: links (a project's
+  included), locations and bullet variants never cross it, and there is
+  **no fallback to an uploaded resume**. For an empty bank the block says so
+  and says whether an upload exists (`ResumeFacts.has_upload`), so Scout can
+  point at import instead of guessing. The block keeps the heading "The
+  user's resume" because the frozen prompt's grounding rules name it so.
 - **The job** — when the panel sends a `job_id` (an "Ask Scout" click, and every
   message after it), the feed's row for it, description included. Descriptions
   come from the scraper (`scraper/CLAUDE.md`, "A posting's own page is read once").
 
 The prompt makes that block the only truth: no claim about the user that their
-resume does not state, none about the job that the posting does not state. A
-missing resume or description is said in the block, not left blank, so the
-model has nothing to fill in.
+resume does not state, none about the job that the posting does not state. An
+empty bank or a missing description is said in the block, not left blank, so
+the model has nothing to fill in.
 
 ## Identity data never reaches a model
 

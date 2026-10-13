@@ -91,8 +91,10 @@ module docstring has the steps.
   and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
-- **The import's database half has no tests yet.** It can now get them through
-  the `database` fixture below.
+- **The import's database half is barely tested.** Only its clearing of
+  cached keywords is (`tests/test_keyword_match.py`, which runs
+  `import_feed` on `get_engine()`, the pattern for more); the rest can get
+  tests the same way through the `database` fixture below.
 
 ### Tests against real Postgres
 
@@ -110,6 +112,10 @@ uv run pytest
   Alembic, and drops it at the end. Parallel runs from several worktrees share
   the container but never a table. `TEST_DATABASE_URL` points at another server
   (default `postgresql://postgres:postgres@localhost:54330/postgres`).
+- **The test database gets Supabase's search path** (`"$user", public,
+  extensions`). pgvector lives in `extensions`, so without it a cosine
+  query (`<=>`) fails with "operator does not exist", which production never
+  sees (KAN-212).
 - **Nothing reaches Supabase.** `conftest.py` sets `DATABASE_URL` and
   `DIRECT_URL` to the test database before the app reads them (exported
   variables beat the root `.env`), and refuses a `TEST_DATABASE_URL` whose host
@@ -162,6 +168,13 @@ Find files with a directory listing; these are the rules for where code goes.
   entry); a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+- **The recommender and Scout read the bank, never an uploaded resume**
+  (KAN-212). `GET /jobs/recommended` scores against the bank and its
+  embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
+  the bank's API shape (`routers/bank.py`'s `bank_response`) through
+  `workit_scout.facts`. An uploaded resume only feeds import.
+- **Identity fields load through `app/services/identity.py`**
+  (`load_identity`), for Scout's model seam and the bank embedding alike.
 - **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
   re-reads an uploaded resume's stored `raw_text` with the heuristic parser
   and returns draft entries and skills (`services/bank_import.py` maps them,
@@ -223,6 +236,16 @@ Find files with a directory listing; these are the rules for where code goes.
   value. **The prompt wording is still open**: tune it with
   `app.scripts.intake_test_set` against a live model, and re-run that
   script before a new endpoint joins the chain.
+- **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
+  over `services/keywords.py`: a job posting's keywords, extracted once by
+  the model and cached on the posting with a hash of its description, and
+  the pure count of those the built resume view shows (text and skills,
+  whole words, ignoring case). **Only an extraction spends a use, and it
+  counts under `TAILOR`**; a cached match is free, for every student. Tailor
+  (KAN-217) calls `keywords.cached`/`extract`/`store` itself and counts its
+  run once, not once more for the extraction. Tests:
+  `tests/test_keyword_match.py` (the cache, its clearing by the import and
+  by the hash, an invalid or failed reply counts nothing, the cap).
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -313,6 +336,9 @@ free tier). Render with a Dockerfile is the fallback.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **Apply `e1c4a7b9d215` before deploying KAN-215.** It adds
+  `job_postings.keywords` and `keywords_hash`, which the model maps, so
+  company job creation and the feed import fail on a database without them.
 - **Apply `5753545063f3` before deploying KAN-207.** It adds
   `applicant_profiles.default_built_resume_id`, which the model maps, so the
   new code's signup INSERT fails on a database without it

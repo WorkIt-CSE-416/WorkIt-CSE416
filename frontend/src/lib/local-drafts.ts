@@ -1,6 +1,7 @@
 /**
  * Unsaved work the browser keeps for the signed-in student, in localStorage,
- * so a reload does not lose it: today, intake's draft entry (KAN-213). Every
+ * so a reload does not lose it: today, intake's draft entry (KAN-213) and
+ * the sections skipped in its step bar (KAN-214). Every
  * key starts with PREFIX, and `clearLocalDrafts` removes them all. Sign Out
  * calls it, and so does the login page, which also catches a session that
  * ran out: the next person in this browser never sees the last one's draft.
@@ -12,6 +13,8 @@
 const PREFIX = "workit.draft.";
 
 export const INTAKE_DRAFT_KEY = `${PREFIX}intake`;
+/** The sections the student skipped in intake's step bar (KAN-214). */
+export const INTAKE_SKIPPED_KEY = `${PREFIX}intake-skipped`;
 
 export function readLocalDraft<T>(key: string): T | null {
   try {

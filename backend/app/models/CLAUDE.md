@@ -225,7 +225,8 @@ change here must keep:
   VALUE` and a coordinated deploy (above).
 - **`experience_banks` has one row per applicant, made by the first bank
   change** (an upsert in `clear_embedding`), not at signup. A missing row
-  reads as "no embedding yet".
+  reads as "no embedding yet". Its `embedding` is the only applicant vector
+  the recommender reads (KAN-212).
 - **Section fields are plain nullable columns on `bank_entries`**, not a
   JSONB blob, so later queries (graduation date, Tailor's text search) read
   them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section
@@ -265,8 +266,8 @@ change here must keep:
   the check `applicant_profiles_one_default_resume`. One column could not
   carry a foreign key to two tables; setting one clears the other
   (`set_default`). Code that reads "the default" checks both: a base default
-  leaves `default_resume_id` null (`/jobs/recommended` then falls back to the
-  newest parsed upload until KAN-212).
+  leaves `default_resume_id` null. The recommender and Scout read neither:
+  they read the experience bank (KAN-212).
 - **`default_built_resume_id` is a mapped column on `applicant_profiles`**,
   so every signup INSERT names it: migration `5753545063f3` is applied
   before the code deploys (above, "A new column reaches the database...").
@@ -665,6 +666,13 @@ searching company-posted jobs by employer needs a join or a copied name.
 **Job matching adds three columns (KAN-139):**
 - **`job_postings.embedding` and `resumes.embedding`** hold Gemini vectors,
   `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
+  **`resumes.embedding` is no longer mapped** (KAN-212 moved the embedding to
+  `experience_banks`): the column stays in the database until a contract
+  migration drops it, written and applied only after the code that stopped
+  mapping it is deployed, as with `824f0b2e3d84` below. Until then
+  `alembic revision --autogenerate` proposes `drop_column('resumes',
+  'embedding')`: delete that line from any migration that is not the drop
+  itself, or the drop ships before the deploy and old code's inserts fail.
 - **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
   and description (weighted D), so anything that ranks with `ts_rank` puts a
   title match first (search itself doesn't rank: `@@` ignores weights), with
@@ -682,6 +690,16 @@ searching company-posted jobs by employer needs a join or a copied name.
   maps it", above).
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.
+
+**Tailor's keywords are cached on the posting (KAN-215).** `keywords` (JSONB,
+at most 20 `{"keyword", "kind"}`) and `keywords_hash` (the SHA-256 of the
+description they came from), both `deferred`, from `e1c4a7b9d215`. A hash
+that differs from the description's means stale, so a company's edit is
+caught with no extra code; the feed import also clears both when it changes
+a description, so a stale list never sits in the table. Only
+`services/keywords.py` reads or writes them. Apply the migration before the
+deploy: the model maps them, so company job creation fails on a database
+without them (above).
 
 **`job_postings.role_category` and `job_postings.roles` are gone
 (`824f0b2e3d84`).** They held the scraper's role keys: `role_category` one of

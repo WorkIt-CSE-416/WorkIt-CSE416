@@ -19,10 +19,10 @@ from openai import (
 from pydantic import BaseModel
 from workit_scout import llm as llm_module
 from workit_scout.agent import MAX_REPLY_CHARS, run
-from workit_scout.facts import job_facts, resume_facts
+from workit_scout.facts import bank_facts, job_facts
 from workit_scout.identity import Identity
 from workit_scout.llm import LLM
-from workit_scout.prompt import NO_RESUME, SYSTEM_PROMPT
+from workit_scout.prompt import EMPTY_BANK, SYSTEM_PROMPT
 from workit_scout.schemas import (
     ChatMessage,
     ErrorEvent,
@@ -288,11 +288,20 @@ def test_resume_and_job_reach_the_model_after_the_frozen_prompt():
         assert fact in fake.system_prompt
 
 
-def test_no_resume_is_said_plainly_instead_of_left_blank():
+def test_an_empty_bank_is_said_plainly_instead_of_left_blank():
     fake = ScriptedLLM(["ok"])
-    collect(fake, "Am I a fit?")
-    assert NO_RESUME in fake.system_prompt
+    collect(fake, "Am I a fit?", resume=bank_facts({"entries": [], "skills": []}, has_upload=False))
+    assert EMPTY_BANK in fake.system_prompt
+    assert "have not uploaded a resume" in fake.system_prompt
     assert "The job they are asking about" not in fake.system_prompt
+
+
+def test_an_empty_bank_says_when_an_upload_is_waiting_to_be_imported():
+    fake = ScriptedLLM(["ok"])
+    collect(fake, "Am I a fit?", resume=bank_facts({"entries": [], "skills": []}, has_upload=True))
+    assert EMPTY_BANK in fake.system_prompt
+    assert "have uploaded a resume" in fake.system_prompt
+    assert "import" in fake.system_prompt
 
 
 def test_a_job_without_a_description_says_so():
@@ -309,42 +318,52 @@ def test_grounding_rules_cover_both_resume_and_posting():
 # --- what Scout is allowed to know -------------------------------------------------
 
 
-def test_resume_facts_carry_sections_only():
-    parsed_json = {
-        "skills": [{"skill_name": "Python", "category": "Languages"}],
-        "experience": [
-            {
-                "company_name": "Acme",
-                "title": "Robotics Intern",
-                "start_date": "2025-06-01",
-                "description": "Wrote   ROS nodes\nfor arms.",
-            }
-        ],
-        "education": [
-            {
-                "institution": "Stony Brook",
-                "degree": "BS",
-                "field_of_study": "CS",
-                "gpa": 3.7,
-            }
-        ],
-        "projects": [
-            {
-                "project_name": "WorkIt",
-                "url": "https://github.com/x/y",
-                "description": "Job board.",
-            }
+def _entry(section, title, **fields):
+    return {"section": section, "title": title, "bullets": [], **fields}
+
+
+def test_bank_facts_carry_every_section_and_the_original_bullets():
+    bank = {
+        "skills": [{"name": "Python", "group": "Languages", "entry_ids": []}],
+        "entries": [
+            _entry(
+                "education", "Stony Brook University", degree="BS", field_of_study="CS",
+                gpa=3.7, start_month="2023-09", end_month="2027-05", end_kind="expected",
+                coursework=["Algorithms"], location="Stony Brook, NY",
+            ),
+            _entry(
+                "experience", "Robotics Intern", organization="Acme", start_month="2025-06",
+                end_kind="present", location="Austin, TX",
+                bullets=[{"id": "b1", "position": 0, "text": "Wrote   ROS nodes\nfor arms."},
+                         {"id": "b2", "position": 1, "text": "Cut latency 40%."}],
+            ),
+            _entry("projects", "WorkIt", link="https://github.com/x/y",
+                   bullets=[{"id": "b3", "position": 0, "text": "Job board."}]),
+            _entry("leadership", "President", organization="Robotics Club",
+                   start_month="2024-09", end_month="2025-05", end_kind="month"),
+            _entry("awards", "Dean's List", organization="Stony Brook", award_date="2024-12"),
+            _entry("certifications", "AWS Cloud Practitioner", issuer="Amazon", end_month="2025-03"),
         ],
     }
-    facts = resume_facts(parsed_json)
+    facts = bank_facts(bank, has_upload=True)
     assert facts.skills == ["Python"]
+    assert facts.education == ["BS in CS at Stony Brook University (2023–expected 2027), GPA 3.7"]
     assert facts.experience == [
-        "Robotics Intern at Acme (2025–present): Wrote ROS nodes for arms."
+        "Robotics Intern at Acme (2025–present): Wrote ROS nodes for arms. Cut latency 40%."
     ]
-    assert facts.education == ["BS in CS at Stony Brook, GPA 3.7"]
-    # A project's link is contact-adjacent and useless to Scout: it never crosses.
+    # A project's link is identity data: it never crosses.
     assert facts.projects == ["WorkIt: Job board."]
+    assert facts.leadership == ["President at Robotics Club (2024–2025)"]
+    assert facts.awards == ["Dean's List at Stony Brook (2024)"]
+    assert facts.certifications == ["AWS Cloud Practitioner from Amazon (2025)"]
     assert "github.com" not in facts.model_dump_json()
+
+
+def test_a_long_entry_is_one_short_line():
+    bullets = [{"id": str(i), "position": i, "text": "Shipped a feature " * 10} for i in range(5)]
+    facts = bank_facts({"entries": [_entry("projects", "Big", bullets=bullets)], "skills": []}, has_upload=False)
+    (line,) = facts.projects
+    assert len(line) <= 302 and line.endswith("…")
 
 
 def test_job_facts_use_readable_labels():

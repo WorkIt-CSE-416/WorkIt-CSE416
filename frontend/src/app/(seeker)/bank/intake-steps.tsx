@@ -1,0 +1,198 @@
+"use client";
+
+import { ChevronLeft } from "lucide-react";
+
+import type { Section } from "@/lib/bank-actions";
+import { cn } from "@/lib/cn";
+
+import { sectionOf } from "./sections";
+
+/**
+ * Intake's step bar (KAN-214), after the intake prototype's variant G: one
+ * segment per section, in the order intake leads a student through them
+ * (user story 41), with Back on the left and Skip on the right. A segment
+ * jumps to its section on a click. The bar starts at HEAD_START and fills
+ * as sections are done; the current segment fills as its draft grows.
+ *
+ * A skipped section counts toward the percentage, as in the prototype: the
+ * bar measures the sections the student has dealt with, and a student with
+ * no awards should still reach 100%. Its segment stays striped, not filled.
+ */
+
+/** The order intake walks: not the bank's, which puts Experience second. */
+export const WALK: readonly Section[] = [
+  "education",
+  "projects",
+  "leadership",
+  "experience",
+  "awards",
+  "certifications",
+];
+
+const HEAD_START = 25;
+
+type State = "done" | "skipped" | "current" | "todo";
+
+const SHORT: Partial<Record<Section, string>> = { leadership: "Leadership" };
+
+export function StepBar({
+  current,
+  currentFill,
+  filled,
+  skipped,
+  lead,
+  busy = false,
+  onJump,
+  onSkip,
+}: {
+  current: Section | null;
+  /** How full the current segment is, 0 to 100. */
+  currentFill: number;
+  /** Sections with at least one entry in the bank. */
+  filled: readonly Section[];
+  skipped: readonly Section[];
+  /** A step before the sections, shown done: onboarding's profile form. */
+  lead?: string;
+  /** While WorkIt answers: a late reply must not land on another section. */
+  busy?: boolean;
+  onJump: (section: Section) => void;
+  onSkip: () => void;
+}) {
+  const stateOf = (s: Section): State =>
+    s === current
+      ? "current"
+      : filled.includes(s)
+        ? "done"
+        : skipped.includes(s)
+          ? "skipped"
+          : "todo";
+  const states = WALK.map(stateOf);
+  const finished = states.filter((s) => s === "done" || s === "skipped").length;
+  const percent = Math.round(HEAD_START + ((100 - HEAD_START) * finished) / WALK.length);
+
+  const index = current ? WALK.indexOf(current) : -1;
+  const previous = index > 0 ? WALK[index - 1] : null;
+  const offset = lead ? 1 : 0;
+  const steps = WALK.length + offset;
+
+  const cheer =
+    percent === 100
+      ? "Your experience bank is complete!"
+      : finished === 0
+        ? "You're off to a great start!"
+        : finished >= WALK.length / 2
+          ? "Over halfway there. Keep it up!"
+          : "Nice work. Keep going!";
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          aria-label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}
+          disabled={!previous || busy}
+          onClick={() => previous && onJump(previous)}
+          className="text-brand hover:bg-brand-tint disabled:text-brand-pale focus-visible:ring-brand-ring flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:hover:bg-transparent"
+        >
+          <ChevronLeft aria-hidden className="size-5" strokeWidth={2.5} />
+        </button>
+
+        <ol aria-label="Intake steps" className="flex flex-1 items-start gap-1.5">
+          {lead && <Segment label={lead} state="done" fill={100} />}
+          {WALK.map((s, i) => (
+            <Segment
+              key={s}
+              label={sectionOf(s).label}
+              short={SHORT[s]}
+              state={states[i]}
+              fill={states[i] === "done" ? 100 : states[i] === "current" ? currentFill : 0}
+              onClick={states[i] === "current" || busy ? undefined : () => onJump(s)}
+            />
+          ))}
+        </ol>
+
+        {current ? (
+          <button
+            type="button"
+            onClick={onSkip}
+            disabled={busy}
+            className="text-label text-ink-meta hover:bg-brand-tint hover:text-brand focus-visible:ring-brand-ring shrink-0 rounded-full px-3 py-1.5 font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            Skip
+          </button>
+        ) : (
+          <span className="w-9 shrink-0" />
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 px-11">
+        <p className="text-note text-ink-meta @3xl/main:hidden">
+          {current ? (
+            <>
+              Step {index + 1 + offset} of {steps} ·{" "}
+              <span className="text-brand font-semibold">{sectionOf(current).label}</span>
+            </>
+          ) : (
+            `${finished + offset} of ${steps} steps done`
+          )}
+        </p>
+        <p className="text-note text-ink-meta ml-auto hidden @xl/main:block">
+          {cheer} <span className="text-brand font-semibold tabular-nums">{percent}%</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Segment({
+  label,
+  short,
+  state,
+  fill,
+  onClick,
+}: {
+  label: string;
+  short?: string;
+  state: State;
+  fill: number;
+  onClick?: () => void;
+}) {
+  const note = state === "todo" ? "" : ` (${state})`;
+  return (
+    <li className="group relative flex-1">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!onClick}
+        aria-label={`${onClick ? "Go to " : ""}${label}${note}`}
+        aria-current={state === "current" ? "step" : undefined}
+        className="focus-visible:ring-brand-ring block w-full rounded-full py-2 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-default"
+      >
+        <span
+          className={cn(
+            "ease-glide block h-3 overflow-hidden rounded-full transition-transform duration-200",
+            onClick && "group-hover:scale-y-125",
+            state === "skipped"
+              ? "bg-[repeating-linear-gradient(135deg,var(--color-brand-tint)_0_5px,var(--color-panel)_5px_10px)]"
+              : "bg-brand-tint",
+          )}
+        >
+          <span
+            className="from-brand to-brand-pale ease-glide relative block h-full rounded-full bg-linear-to-r transition-[width] duration-300"
+            style={{ width: `${fill}%` }}
+          />
+        </span>
+      </button>
+      <span
+        aria-hidden
+        className={cn(
+          "text-meta hidden truncate text-center @3xl/main:block",
+          state === "current" ? "text-brand font-semibold" : "text-ink-meta",
+        )}
+      >
+        {state === "done" && "✓ "}
+        {short ?? label}
+      </span>
+    </li>
+  );
+}

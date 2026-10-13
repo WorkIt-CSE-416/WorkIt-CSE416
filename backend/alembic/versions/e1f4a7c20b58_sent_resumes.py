@@ -1,7 +1,7 @@
 """sent resumes: the exact file a student downloaded or applied with
 
 Revision ID: e1f4a7c20b58
-Revises: 5753545063f3
+Revises: e1c4a7b9d215
 Create Date: 2026-10-13 20:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'e1f4a7c20b58'
-down_revision: Union[str, Sequence[str], None] = '5753545063f3'
+down_revision: Union[str, Sequence[str], None] = 'e1c4a7b9d215'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
