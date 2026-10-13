@@ -58,7 +58,8 @@ export function OnboardingForm() {
         return;
       }
     }
-    router.push("/dashboard");
+    // Intake is the next step (KAN-214), then the Dashboard.
+    router.push("/onboarding/applicant/bank");
   }
 
   return (
