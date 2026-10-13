@@ -267,7 +267,13 @@ Find files with a directory listing; these are the rules for where code goes.
   is replaced by a fixed wrap-up line; a reply that fails the schema, or
   drafts another section, is an `error` line and does not count; a field
   the model echoes as an identity placeholder (`[link]`) keeps the card's
-  value. **The prompt wording is still open**: tune it with
+  value. **The reply is NDJSON like Scout's, but not streamed token by
+  token, on purpose**: the draft is one JSON object that must pass the
+  schema and the section check, and a fourth question is swapped for the
+  wrap-up line, all before the student reads a word. Streaming the reply
+  first would show text that a rejected answer then contradicts, and lose
+  the chain's failover once text has gone out. The reply is one short
+  sentence, so the wait is the model's, not the stream's. **The prompt wording is still open**: tune it with
   `app.scripts.intake_test_set` against a live model, and re-run that
   script before a new endpoint joins the chain.
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`

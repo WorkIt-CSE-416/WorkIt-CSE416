@@ -434,8 +434,11 @@ place they are edited: My Profile keeps the uploads and links here.
   a bottom sheet. The student picks a section from its chips; the opener
   for it is fixed text, not a model turn. Each turn goes through
   `app/api/intake/` to `POST /intake/turn` with this entry's chat and the
-  card, edits included; the reply streams back as the line, the whole
-  draft (the card remounts on it) and the messages left today. The card is
+  card, edits included; the reply comes back as NDJSON lines: the line, the
+  whole draft (the card remounts on it) and the messages left today. A
+  field the student changed while the reply was on its way keeps the
+  student's value (`mergeReply`), and a card discarded or moved to another
+  section meanwhile ignores the reply. The card is
   the shared entry editor (its `onChange` reports each edit), and saving is
   the bank's own create with its duplicate warning, one entry at a time.
   The bubbles, typing dots and composer with its mic are Scout's
