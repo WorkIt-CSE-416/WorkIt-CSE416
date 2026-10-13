@@ -38,10 +38,18 @@ from app.schemas.built_resume import (
 )
 from app.services.bank import NotFound, get_entry, load_bank
 from app.services.postings import LISTED
-from app.services.resume_render import HeaderIdentity, Rendered, box_lines
+from app.services.resume_render import (
+    ASCENT,
+    WRAPPED_LINE,
+    Box,
+    HeaderIdentity,
+    Rendered,
+    box_lines,
+)
 from app.services.resume_view import (
     BulletChoice,
     Choices,
+    Cut,
     EntryChoice,
     ResumeView,
     SkillChoice,
@@ -355,7 +363,45 @@ async def list_variants(
     return list(rows)
 
 
-FIT_ROUNDS = 6
+FIT_ROUNDS = 8
+# After the page fits, the last round's cuts it can show again, most useful
+# first, one render each (about 0.3 s): `lines_over` misses headings and the
+# blocks that move whole between pages, so a round can hide several too many
+FIT_PUT_BACK = 4
+
+
+def fit_changes(cuts: list[Cut], hide: bool) -> dict[str, list[dict]]:
+    """Cuts as update_choices arguments: hidden with hide=True, shown again
+    with hide=False (Fit's Undo sends that as its PATCH body)."""
+    entries: list[dict] = []
+    bullets: list[dict] = []
+    for cut in cuts:
+        if cut.kind == "bullet":
+            bullets.append({"bullet_id": cut.id, "shown": not hide})
+        elif cut.kind == "entry":
+            entries.append({"entry_id": cut.id, "shown": not hide})
+        else:
+            entries.append({"entry_id": cut.id, "show_coursework": not hide})
+    return {"entries": entries, "bullets": bullets}
+
+
+def _lines(boxes: list[Box]) -> int:
+    """The distinct lines these boxes sit on: a heading's title and dates
+    share one, a wrapped bullet counts each of its lines."""
+    return len({(b.page, round(b.y0 + ASCENT + i * WRAPPED_LINE)) for b in boxes for i in range(box_lines(b))})
+
+
+def _cut_lines(cut: Cut, view: ResumeView, rendered: Rendered) -> int:
+    """About how many lines hiding `cut` saves, read from the last render."""
+    if cut.kind == "bullet":
+        ids = {str(cut.id)}
+        kinds = None
+    elif cut.kind == "coursework":
+        ids, kinds = {str(cut.id)}, {"coursework"}
+    else:
+        entry = next(e for s in view.sections for e in s.entries if e.id == cut.id)
+        ids, kinds = {str(cut.id), *(str(b.id) for b in entry.bullets)}, None
+    return max(1, _lines([b for b in rendered.boxes if b.item_id in ids and (kinds is None or b.kind in kinds)]))
 
 
 async def fit_to_one_page(
@@ -363,13 +409,16 @@ async def fit_to_one_page(
     applicant_id: uuid.UUID,
     resume_id: uuid.UUID,
     render: Callable[[ResumeView], Awaitable[Rendered]],
-) -> tuple[list[uuid.UUID], Rendered]:
-    """Hide bullets in `fit_order` until the resume renders on one page, or
-    none is left to hide. Each round hides about as many lines as the render
-    says run over, by each bullet's own box, then renders again, so a
-    resume a few lines over costs two renders, not one per bullet. Returns
-    the hidden bullet ids (Undo shows them again) and the last render."""
-    hidden: list[uuid.UUID] = []
+) -> tuple[list[Cut], Rendered]:
+    """Hide what `fit_order` names, least useful first, until the resume
+    renders on one page or nothing is left to cut. Each round hides about as
+    many lines as the render says run over, by each cut's own boxes, then
+    renders again, so a resume a few lines over costs two renders, not one
+    per bullet. Once it fits, the last round's cuts go back one at a time
+    while it still fits (FIT_PUT_BACK). Returns the cuts (Undo shows them
+    again) and the last render."""
+    hidden: list[Cut] = []
+    batch: list[Cut] = []
     _, view = await load_view(session, applicant_id, resume_id)
     rendered = await render(view)
     for _ in range(FIT_ROUNDS):
@@ -378,21 +427,26 @@ async def fit_to_one_page(
         candidates = fit_order(view)
         if not candidates:
             break
-        lines: dict[str, int] = {}
-        for box in rendered.boxes:
-            if box.kind == "bullet":
-                lines[box.item_id] = lines.get(box.item_id, 0) + box_lines(box)
         need, batch = max(1, rendered.lines_over), []
-        for bullet_id in candidates:
-            batch.append(bullet_id)
-            need -= lines.get(str(bullet_id), 1)
+        for cut in candidates:
+            batch.append(cut)
+            need -= _cut_lines(cut, view, rendered)
             if need <= 0:
                 break
-        await update_choices(session, applicant_id, resume_id,
-                             bullets=[{"bullet_id": b, "shown": False} for b in batch])
+        await update_choices(session, applicant_id, resume_id, **fit_changes(batch, hide=True))
         hidden.extend(batch)
         _, view = await load_view(session, applicant_id, resume_id)
         rendered = await render(view)
+    if rendered.page_count <= 1:
+        for cut in list(reversed(batch[1:]))[:FIT_PUT_BACK]:
+            await update_choices(session, applicant_id, resume_id, **fit_changes([cut], hide=False))
+            _, trial = await load_view(session, applicant_id, resume_id)
+            tried = await render(trial)
+            if tried.page_count > 1:
+                await update_choices(session, applicant_id, resume_id, **fit_changes([cut], hide=True))
+                break
+            hidden.remove(cut)
+            rendered = tried
     return hidden, rendered
 
 

@@ -220,7 +220,16 @@ Find files with a directory listing; these are the rules for where code goes.
   deletes it; another resume's local variant is never offered. Fit to One
   Page is `POST .../fit` (`fit_to_one_page`, order from
   `resume_view.fit_order`), which renders between rounds, so it is slow
-  (two or three renders) and its tests need Tectonic. Tests:
+  (two to six renders, about 0.3 s each) and its tests need Tectonic. It cuts in steps
+  (`FIT_STEPS`): coursework, then bullets past a cap per entry, then the
+  bottom entries of a section, each step across every section before the
+  next goes deeper. Never cut one section to one-line entries before the
+  others give anything: the first rule did, and a long resume came back a
+  list of one-line entries. Once it fits, it shows the last round's cuts
+  again one at a time while the page still fits (`FIT_PUT_BACK`):
+  `lines_over` runs short (a resume 7 lines over was still 6 over after
+  about 8 lines were hidden), and without it a test resume lost 3 items
+  it had room for. Undo sends the response's `undo` body. Tests:
   `tests/test_resume_editor.py`.
 - **Every download is a sent resume** (KAN-208): `POST
   /applicants/{id}/sent-resumes` renders through `services/sent_resumes.py`,
