@@ -7,7 +7,7 @@ from datetime import date
 from pydantic import BaseModel as PydanticBase
 
 # The size of every stored embedding: job_postings.embedding and
-# resumes.embedding are vector(768), and embedding.py asks Gemini for this
+# experience_banks.embedding are vector(768), and embeddings.py asks Gemini for this
 # size. Changing it takes a migration and re-embedding everything.
 EMBEDDING_DIMENSIONS = 768
 
