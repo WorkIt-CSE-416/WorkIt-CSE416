@@ -152,7 +152,11 @@ export function BankScreen({ initial }: { initial: Bank }) {
   return (
     <div className="mt-4 flex flex-col gap-4">
       <ImportCard onSaved={reload} />
-      <Intake onSaved={reload} />
+      <Intake
+        filled={bank.entries.map((e) => e.section)}
+        walk={initial.entries.length === 0}
+        onSaved={reload}
+      />
       {pageError && (
         <p role="alert" className="text-note text-danger">
           {pageError}

@@ -169,8 +169,14 @@ are in `docs/auth.md`.
   the same facts drift apart, and built resumes read the bank.
   "Read It Again with AI" (KAN-222) shows only while the import response's
   `uses_left` is above 0, and a failed AI reading keeps the shown drafts.
+- **A built resume's PDF download goes through `sendBuiltResume`**
+  (`lib/sent-resume-actions.ts`, KAN-208), never `renderResumePdf`: every
+  download keeps a sent resume, and the API returns a Storage link that
+  downloads the file. A download cancelled at the missing-character warning
+  deletes the sent resume it just made (`created`), so the "Sent" list holds
+  only files the student took.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
-  (intake's draft entry, KAN-213): one key prefix, cleared by Sign Out in
+  (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
   reaches. A draft stored under any other key outlives sign-out.
 

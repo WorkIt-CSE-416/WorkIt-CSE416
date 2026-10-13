@@ -25,10 +25,11 @@ from workit_scout.schemas import ErrorEvent, TextEvent, UsageEvent
 
 from app.db import get_session
 from app.deps import get_current_account
-from app.routers.scout import get_llm, load_identity
+from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.intake import DraftEvent, IntakeTurnRequest
 from app.services import intake
+from app.services.identity import load_identity
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/intake", tags=["intake"])

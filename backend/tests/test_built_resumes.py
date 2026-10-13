@@ -370,25 +370,16 @@ async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch)
     assert res.json() == {"detail": "The PDF could not be made. Try again, or download the Word file."}
 
 
-async def test_recommendations_still_work_when_the_default_is_a_base_resume(student, database, monkeypatch):
+async def test_recommendations_work_when_the_default_is_a_base_resume(student, monkeypatch):
     async def no_embedding(texts):
         return None
 
-    monkeypatch.setattr("app.services.matching.embeddings.embed", no_embedding)
+    monkeypatch.setattr("app.routers.jobs.embed", no_embedding)
     client, me = student
     applicant_id = uuid.UUID(me.split("/")[2])
-    async with database() as session:
-        await session.execute(
-            text(
-                "INSERT INTO resumes (id, applicant_id, original_filename, storage_path, status, parsed_json)"
-                " VALUES (gen_random_uuid(), :a, 'r.pdf', 'x/r.pdf', 'parsed', :p)"
-            ),
-            {"a": applicant_id, "p": '{"education": [], "experience": [], "skills": [], "projects": [], "certifications": []}'},
-        )
-        await session.commit()
+    await _fill_bank(client, me)
     built = await _generate(client, me)
     await client.put(f"{me}/built-resumes/{built}/default")
 
-    # Until the recommender reads the bank (KAN-212), it scores against the
-    # newest parsed upload, as Scout does.
+    # The recommender reads the bank (KAN-212), whichever resume is the default.
     assert (await client.get(f"/jobs/recommended/{applicant_id}")).status_code == 200

@@ -33,8 +33,9 @@ applicant_profiles
   resume shows a month, never a day.
 - **The embedding moves to the bank row.** A null embedding means "remake it
   on the next recommendations request", so every change to an entry, bullet
-  or skill sets it back to null. `resumes.embedding` stays until the
-  recommender reads the bank (expand, then contract).
+  or skill sets it back to null. The recommender and Scout read the bank
+  (KAN-212); `resumes.embedding` is no longer mapped and is dropped once that
+  code is deployed (expand, then contract).
 - **The duplicate check matches section, title and organization, ignoring
   case.** It warns and never blocks: two real roles may share a title.
 - **A skill links to the entries that show it** (KAN-216), so Tailor can
@@ -101,6 +102,36 @@ applicant_profiles
 - **The template id is stored, not the template.** `jakes` is the only one;
   a second template is its own slice. The Word file is one plain layout with
   no id.
+
+## Sent resumes (KAN-208)
+
+A sent resume is the exact file a student downloaded or applied with, kept
+unchanged. Built resumes are live views, so without it there would be no
+record of what an employer actually received.
+
+```
+applicant_profiles
+  └── sent_resumes   storage path, name then, time, optional job posting, content hash
+        ├─ built_resume_id     → built_resumes  (ON DELETE SET NULL)
+        └─ uploaded_resume_id  → resumes        (ON DELETE SET NULL)
+```
+
+- **The file is stored, not re-rendered.** A PDF download renders once and
+  puts the PDF in the `Resume` bucket at `{applicant}/sent/{id}.pdf`. A bank
+  fix, a template change or a renderer upgrade never changes it.
+- **Repeats merge by a hash taken before rendering**: the view, the template
+  id and the header's identity text (sha256). The same hash for the same
+  built resume (and the same job posting, null for a download) returns the
+  last sent resume, with no render and no upload, so the Sent list stays
+  short. The name is not in the hash: it is not printed on the page.
+- **The sources are a record, not an owner.** Deleting the built or uploaded
+  resume nulls the link and keeps the sent resume, with the name it had.
+  At most one source is set (`sent_resumes_one_source`).
+- **An uploaded resume's file can outlive it.** Applying with an uploaded
+  resume (KAN-220) writes a row that points at that resume's own file, with
+  no hash. Deleting the uploaded resume keeps the file while a sent resume
+  uses it; deleting the last such sent resume removes it.
+- **Only the PDF is kept.** The Word download is not a sent resume yet.
 
 The rest of this file is the original design for uploaded resumes.
 
