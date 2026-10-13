@@ -16,6 +16,8 @@ POST   /applicants/{id}/bank/entries             EntryCreate -> 201 EntryRespons
        saves it anyway ("Save as new").
 PATCH  /applicants/{id}/bank/entries/{entry_id}  EntryUpdate -> EntryResponse
 DELETE /applicants/{id}/bank/entries/{entry_id}  -> 204 (its bullets too)
+GET    /applicants/{id}/bank/entries/{entry_id}/resumes -> {"built_resumes": n}
+       how many built resumes show the entry, for the delete confirm (story 18)
 POST   /applicants/{id}/bank/entries/{entry_id}/bullets  BulletCreate -> 201 BulletResponse (appended)
 PATCH  /applicants/{id}/bank/bullets/{bullet_id} BulletUpdate -> BulletResponse
 DELETE /applicants/{id}/bank/bullets/{bullet_id} -> 204
@@ -83,6 +85,7 @@ from app.schemas.bank import (
     SkillUpdate,
 )
 from app.services import bank as service
+from app.services import built_resumes
 from app.services.bank import bank_response, entry_response, skill_response
 from app.services.bank_import import (
     draft_entries,
@@ -184,6 +187,19 @@ async def delete_entry(
     async with _writing(session):
         await service.delete_entry(session, applicant_id, entry_id)
     return Response(status_code=204)
+
+
+@router.get("/entries/{entry_id}/resumes")
+async def entry_resumes(
+    entry_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, int]:
+    try:
+        count = await built_resumes.count_showing_entry(session, applicant_id, entry_id)
+    except service.NotFound:
+        raise HTTPException(404, "Not found in your experience bank")
+    return {"built_resumes": count}
 
 
 @router.post("/entries/{entry_id}/bullets", status_code=201, response_model=BulletResponse)

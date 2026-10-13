@@ -297,6 +297,28 @@ async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monke
     assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [False]
 
 
+async def test_an_entry_says_how_many_built_resumes_show_it(student, database):
+    """Story 18: the delete confirm names the resumes an entry is on."""
+    client, me = student
+    await _fill_bank(client, me)
+    entry = next(e for e in (await client.get(f"{me}/bank")).json()["entries"] if e["title"] == "Tutor")
+    url = f"{me}/bank/entries/{entry['id']}/resumes"
+    assert (await client.get(url)).json() == {"built_resumes": 0}
+
+    first = await _generate(client, me)
+    await _generate(client, me)
+    assert (await client.get(url)).json() == {"built_resumes": 2}
+
+    hide = {"entries": [{"entry_id": entry["id"], "shown": False}]}
+    assert (await client.patch(f"{me}/built-resumes/{first}/choices", json=hide)).status_code == 200
+    assert (await client.get(url)).json() == {"built_resumes": 1}
+
+    async with database() as session:
+        other = await _seed_applicant(session)
+    assert (await client.get(f"/applicants/{other}/bank/entries/{entry['id']}/resumes")).status_code == 403
+    assert (await client.get(f"{me}/bank/entries/{uuid.uuid4()}/resumes")).status_code == 404
+
+
 async def test_another_students_built_resumes_are_out_of_reach(student, database):
     client, me = student
     async with database() as session:

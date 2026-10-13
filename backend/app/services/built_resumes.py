@@ -29,7 +29,7 @@ from app.models.built_resume import (
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
-from app.services.bank import NotFound, load_bank
+from app.services.bank import NotFound, get_entry, load_bank
 from app.services.postings import LISTED
 from app.services.resume_render import Identity, Rendered, box_lines
 from app.services.resume_view import (
@@ -113,6 +113,24 @@ async def list_resumes(session: AsyncSession, applicant_id: uuid.UUID) -> list[B
         .order_by(Built_Resume.created_at.desc(), Built_Resume.id)
     )
     return list(rows)
+
+
+async def count_showing_entry(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> int:
+    """How many of the applicant's built resumes show the entry: what the
+    delete confirm names (story 18). A resume that hides it is not counted:
+    deleting the entry changes nothing there. NotFound for an entry that is
+    not the applicant's."""
+    await get_entry(session, applicant_id, entry_id)
+    return await session.scalar(
+        select(func.count())
+        .select_from(Built_Resume_Entry)
+        .join(Built_Resume, Built_Resume.id == Built_Resume_Entry.built_resume_id)
+        .where(
+            Built_Resume.applicant_id == applicant_id,
+            Built_Resume_Entry.entry_id == entry_id,
+            Built_Resume_Entry.shown,
+        )
+    ) or 0
 
 
 async def closed_postings(session: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
