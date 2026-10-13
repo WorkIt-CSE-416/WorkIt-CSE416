@@ -453,13 +453,31 @@ place they are edited: My Profile keeps the uploads and links here.
   (user story 53); Cancel deletes the sent resume it just made. The
   5-resume limit is the API's; its 409 message shows as the card's error.
   The page needs the bank, the resume list and the Sent list: if any fails
-  it shows the error state.
+  it shows the error state. Each row's Open goes to the resume editor.
 - **Sent card** (`sent-resumes.tsx`, KAN-208), below Base Resumes. Every
   PDF the student downloaded, newest first, with its name then and the date
   ("Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;
   none is edited. A repeat download of unchanged content adds no row. It
   sits on the bank page because base resumes do; "the resumes page" in the
   spec means this page until resumes get their own.
+
+## Resume editor
+
+`(seeker)/resumes/[resumeId]`, opened from a base resume's Open on the bank
+page. KAN-209 is the overlay proof; typing in place is KAN-218, the phone
+layout KAN-219.
+
+- **The page is the PDF itself** (ADR 0002): the render response's PDF,
+  drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
+  response's boxes is a button laid over its line in percent of the page,
+  so the targets follow the canvas at any width without a redraw.
+- **A click selects a line**; a second click or Escape clears it. The line
+  above the page names the selected kind and page. Nothing edits yet.
+- **Render Again** fetches a new render and shows the round trip, from the
+  request to the new PDF painted, in ms: the cost each saved edit will pay.
+  A response older than the latest request is dropped.
+- A failed render shows "This Resume Isn't Loading Right Now" with the API's
+  message and a Try Again link.
 
 ## Scout panel
 

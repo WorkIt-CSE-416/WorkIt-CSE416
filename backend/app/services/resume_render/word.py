@@ -81,7 +81,7 @@ def _entry(doc, entry: ViewEntry) -> None:
             _row(doc, h.subtitle, h.subright, italic=True)
     else:
         _row(doc, h.title, h.right, bold=True, tag=h.tag)
-    for text in details(entry) + [b.text for b in entry.bullets]:
+    for text in [line for _, line in details(entry)] + [b.text for b in entry.bullets]:
         p = doc.add_paragraph(text, style="List Bullet")
         p.paragraph_format.space_after = Pt(0)
     doc.paragraphs[-1].paragraph_format.space_after = Pt(4)
@@ -110,11 +110,11 @@ def render_docx(view: ResumeView, identity: Identity) -> bytes:
             _entry(doc, entry)
     if view.skills:
         _section_heading(doc, SKILLS_LABEL)
-        for label, names in skill_lines(view.skills):
+        for label, skills in skill_lines(view.skills):
             p = _paragraph(doc)
             if label:
                 p.add_run(f"{label}: ").bold = True
-            p.add_run(names)
+            p.add_run(", ".join(s.name for s in skills))
 
     out = io.BytesIO()
     doc.save(out)

@@ -85,28 +85,40 @@ def heading(entry: ViewEntry) -> Heading:
     return Heading(entry.title, when, tag=tag)
 
 
-def details(entry: ViewEntry) -> list[str]:
-    '''Lines shown above an entry's bullets: Education's GPA, coursework
-    and honors.'''
+def heading_fields(section: str) -> dict[str, str]:
+    '''Which entry field each of heading()'s slots shows, by slot name: the
+    `kind` of the slot's click target in the editor (KAN-209). Education's
+    subtitle is the degree line, which also names the school.'''
+    if section == "education":
+        return {"title": "title", "right": "location", "subtitle": "degree", "subright": "dates"}
+    if section in TWO_ROW:
+        return {"title": "title", "right": "dates", "subtitle": "organization", "subright": "location"}
+    return {"title": "title", "tag": "organization", "right": "dates"}
+
+
+def details(entry: ViewEntry) -> list[tuple[str, str]]:
+    '''(kind, line) for each line shown above an entry's bullets:
+    Education's GPA, coursework and honors.'''
     lines = []
     if score := gpa(entry):
-        lines.append(score)
+        lines.append(("gpa", score))
     if entry.coursework:
-        lines.append("Relevant Coursework: " + ", ".join(entry.coursework))
+        lines.append(("coursework", "Relevant Coursework: " + ", ".join(entry.coursework)))
     if entry.honors:
-        lines.append("Honors: " + entry.honors)
+        lines.append(("honors", "Honors: " + entry.honors))
     return lines
 
 
-def skill_lines(skills) -> list[tuple[str, str]]:
-    '''(label, "a, b, c") per group, in the order groups first appear.
-    Ungrouped skills are "Other" beside groups, or unlabeled ("") alone.'''
-    groups: dict[str | None, list[str]] = {}
+def skill_lines(skills) -> list[tuple[str, tuple]]:
+    '''(label, skills) per group, in the order groups first appear; a layout
+    joins the names with ", ". Ungrouped skills are "Other" beside groups,
+    or unlabeled ("") alone.'''
+    groups: dict[str | None, list] = {}
     for skill in skills:
-        groups.setdefault(skill.group, []).append(skill.name)
+        groups.setdefault(skill.group, []).append(skill)
     if list(groups) == [None]:
-        return [("", ", ".join(groups[None]))]
-    return [(group or "Other", ", ".join(names)) for group, names in groups.items()]
+        return [("", tuple(groups[None]))]
+    return [(group or "Other", tuple(members)) for group, members in groups.items()]
 
 
 def link_text(url: str) -> str:
