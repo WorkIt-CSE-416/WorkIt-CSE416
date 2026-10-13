@@ -31,6 +31,11 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   shows. The header (name, contacts) has no boxes: it comes from the
   profile. The render route sends them as `RenderResponse.boxes`
   (`schemas/built_resume.py`).
+- **`Rendered.lines_over` is read from the boxes** (KAN-218): the distinct
+  baselines past page 1, a wrapped box counting each line
+  (`box_lines`, `WRAPPED_LINE`). Section headings have no box, so it can
+  run a line or two short: the editor's chip shows it, and Fit to One Page
+  re-renders rather than trust it.
 - **Page count and missing characters come from Tectonic itself**: the page
   count from XeTeX's "Output written on ... (N pages" log line
   (`--keep-logs`), the missing characters from its "Missing character: There
@@ -109,6 +114,13 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   execute bit runs from a copy there. No binary or cache raises
   `TectonicUnavailable`, and the endpoint answers 503. There is no fallback
   renderer.
+- **Warming also compiles `sample.fonts()`**: a word in every size, shape
+  and weight of Jake's preamble. The sample alone missed `\large` upright
+  (`lmroman12-regular`), which a section heading selects only at some page
+  breaks: Fit to One Page moved "Technical Skills" across one and every
+  render of that resume answered 503 offline (KAN-218). After pulling this
+  change, run `python3 scripts/fetch_tectonic.py` again (without
+  `--check`) so a local cache gets the missing files.
 - **Warming covers only what `sample.py` draws.** Latin Modern keeps each
   optical size in its own file, and a package fetches no font until a glyph is
   drawn: in the prototype a `\LARGE` name the warm-up missed failed offline.
@@ -129,7 +141,7 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 ## Still open
 
 - **The edit-to-PDF round trip on a Vercel preview, warm and cold** (KAN-209):
-  read it from the editor's Render Again. If it feels broken, the fallback
+  read it from the editor's bar after a save ("Saved, 412 ms", KAN-218). If it feels broken, the fallback
   is an HTML copy of the page for typing (research option 4), which ADR
   0002 would have to revisit.
 

@@ -48,6 +48,17 @@ applicant_profiles
   editor), never both. The same wording for the same bullet is stored
   once and reused. Variants never reach the embedding. The rules live in
   `backend/app/services/bank.py` and `tailor.py`.
+- **Typing on a bullet in the editor makes a local variant** (KAN-218):
+  at most one per bullet and built resume, updated in place as the student
+  types, and deleted when they type the original back. The bank's bullet
+  never changes there; an entry's title, organization and location typed
+  in the editor do change the bank, so those facts match on every resume.
+  Rules: `backend/app/services/built_resumes.py`'s `update_choices`.
+- **The bank page shows the original wording only** (settled in KAN-218,
+  the spec's open question for slice 7). Local wording stays on its
+  resume: the bank lists what the student did, once, and a resume's
+  wording is a choice of that resume. Making a local wording the original
+  is still edited by hand in the bank's own bullet field.
 
 ### Import fills the bank from an upload (KAN-211)
 
