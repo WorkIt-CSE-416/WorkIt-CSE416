@@ -18,8 +18,12 @@ raw_text -> _clean_text -> _split_sections -> per-section parser -> ParsedResume
 1. **`_clean_text`** -- `ftfy.fix_text`, normalize bullet chars to `*`, collapse
    blank lines.
 2. **`_split_sections`** -- `SECTION_RE` matches standalone header lines
-   (Education, Experience, Skills, Projects, Certifications, etc.). Text
-   between consecutive headers becomes one section. Returns `{}` when no
+   (Education, Experience, Skills, Projects, Certifications, Leadership &
+   Activities, Awards, etc.). Text between consecutive headers becomes one
+   section. `_normalize_header` checks the leadership words (Leadership,
+   Activities, Extracurricular, Involvement) and the award words (Award,
+   Honor) before "experience", so "Leadership Experience" never lands in the
+   job section. Returns `{}` when no
    headers are found, which makes `parse_resume` return `None`.
 3. **Per-section parsers** -- each returns a list of the matching Pydantic model
    or `[]` on empty input.
@@ -69,6 +73,15 @@ Handles two cases:
   continuation lines (lowercase start, no marker) back onto the previous bullet.
 - **No markers** (PDF drew bullets as shapes) -- a line starting a new sentence
   after a period starts a new item.
+
+### Leadership & Activities and Awards (KAN-211)
+
+Leadership & Activities reuses `_parse_experience`: a club role has the same
+organization, role, dates and bullets as a job, so `ParsedResume.leadership`
+holds `Experience` objects. Awards are one per line (`_parse_awards`):
+"Award – Issuer  Date" or "Award | Issuer | Date", issuer and date optional. A
+year alone at the end of the line ("Merit Scholarship  2024") becomes January
+of that year.
 
 ### Date parsing
 

@@ -1,0 +1,19 @@
+EDUCATION
+Northfield University  Expected Dec 2027
+Bachelor of Science in Computer Science
+PROJECTS
+Budget Buddy (React, Firebase)  Jan 2026 – Mar 2026
+• Built a shared expense tracker used by 40 students in two dorms
+LEADERSHIP EXPERIENCE
+President | Coding Club
+Chicago, IL | Aug 2025 – Present
+• Ran weekly study sessions on data structures for 25 members
+• Raised $2,000 from local sponsors for a spring hackathon
+Peer Tutor | Northfield University Learning Center
+Chicago, IL | Jan 2025 – May 2025
+• Tutored 15 students a week in intro programming
+HONORS & AWARDS
+• Hackathon Winner, Best Use of Data | HackNorth | Oct 2025
+• President's Scholarship | Northfield University | Aug 2025
+TECHNICAL SKILLS
+Languages: Java, Python, JavaScript
