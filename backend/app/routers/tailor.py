@@ -85,15 +85,13 @@ async def run(
     if left <= 0:
         raise HTTPException(429, AI.spent)
 
-    found = keywords.cached(job)
-    if found is None:
-        try:
-            found = await keywords.extract(job, llm)
-        except ScoutUnavailable as exc:
-            raise HTTPException(503, AI.failure(exc)) from exc
+    try:
+        found, extracted = await keywords.ensure(job, llm)
+    except ScoutUnavailable as exc:
+        raise HTTPException(503, AI.failure(exc)) from exc
+    if extracted:
         # The cache is the posting's, not this run's: keep it even if the
-        # run fails below.
-        keywords.store(job, found)
+        # run fails below. The run's one use counts the extraction too.
         await session.commit()
 
     tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
