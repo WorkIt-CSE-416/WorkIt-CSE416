@@ -113,6 +113,9 @@ to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
 shows Download Resume and Open the Posting (a link, so no popup blocker
 stops it). Apply Without a Resume leaves for the employer's posting at once.
+Once a resume is sent, the page reads "You sent <name> on <date>" under
+the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
+linked to this posting, its day in the viewer's zone.
 Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in

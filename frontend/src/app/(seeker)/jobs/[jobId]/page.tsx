@@ -13,6 +13,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Section } from "@/components/ui/section";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
+import { listSentResumes } from "@/lib/sent-resume-actions";
 
 import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
@@ -21,6 +22,7 @@ import { getJobListing, type JobListing } from "../listings";
 import { ApplyButton } from "./apply-button";
 import { JobDescription } from "./description";
 import { BackToJobs, ShareButton } from "./page-actions";
+import { SentNote } from "./sent-note";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
@@ -48,7 +50,8 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  *
  * Its actions: Apply Now asks which resume to send, keeps it as a sent
  * resume linked to this posting, then leaves for the employer's posting
- * (./apply-button, KAN-220). Ask Scout asks
+ * (./apply-button, KAN-220); once one is sent, the page says "You sent
+ * <name> on <date>" (./sent-note, story 98). Ask Scout asks
  * about this role, Share copies the page's link, and Tailor My Resume opens
  * Tailor (./tailor, KAN-217); it reads "Your Tailored Resume" once the
  * student has one for this posting (at most one each). Save and Report are still
@@ -57,8 +60,14 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const [{ job, error }, resumes] = await Promise.all([getJobListing(jobId), listBuiltResumes()]);
+  const [{ job, error }, resumes, sent] = await Promise.all([
+    getJobListing(jobId),
+    listBuiltResumes(),
+    listSentResumes(),
+  ]);
   const tailored = resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false;
+  // Newest first, so the first match is the last one sent to this posting.
+  const lastSent = sent.data?.find((s) => s.job_posting_id === job?.id) ?? null;
 
   if (error != null) {
     return (
@@ -115,6 +124,8 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
           </>
         }
       />
+
+      {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
 
       <Section title="About the Role">
         {/* The card names one place and how many more; here, all of them. */}
