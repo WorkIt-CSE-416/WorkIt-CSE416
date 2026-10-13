@@ -2,9 +2,11 @@
 Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
 
     render(view, identity, template)  a built resume view -> Rendered
-                        (PDF bytes, page count, characters the font lacks)
+                        (PDF bytes, page count, characters the font lacks,
+                        a box for each marked line)
     escape(text)        the one way applicant text enters the LaTeX
     jakes_document(b)   Jake's preamble, byte for byte, around body b
+    MARKS, mark(id, kind, latex)  position markers a template's body uses
     compile_document(tex)  a whole document -> Rendered, offline and untrusted
     compile_pdf(tex)    the same, PDF bytes only
 
@@ -52,6 +54,42 @@ _SPECIAL = {
 }
 _TABLE = str.maketrans({**_SPECIAL, "\n": " ", "\r": " "})
 
+# Position markers (KAN-209, research/KAN-181-pdf-click-targets). A body
+# starts with MARKS, defined after \begin{document} so Jake's preamble stays
+# byte for byte, and wraps each line the editor can select with mark().
+# \pdfsavepos records where a marker lands when its page ships out, and the
+# \write puts "id s|e x y page" (scaled points, from the page's bottom left)
+# in resume.pos. \leavevmode makes a first marker record the text's start,
+# not the margin. The \/ before each end marker puts back the italic
+# correction the marker would otherwise take from an italic field (dates
+# moved 0.4 to 0.8 pt without it). The first line records the text's right
+# edge, where a wrapped line ends. tests/test_resume_render.py checks the page
+# is the same with and without markers.
+MARKS = "\n".join((
+    r"\newwrite\wipos\immediate\openout\wipos=\jobname.pos",
+    r"\immediate\write\wipos{right \the\dimexpr1in+\hoffset+\oddsidemargin+\textwidth\relax}",
+    r"\def\wimark#1#2{\leavevmode\pdfsavepos"
+    r"\write\wipos{#1 #2 \the\pdflastxpos\space\the\pdflastypos\space\thepage}}",
+    r"\def\wiend#1{\/\wimark{#1}{e}}",
+))
+# Letter only (the spec), in PDF points; a box's y counts down from the top
+PAGE_HEIGHT = 792.0
+# A box reaches this far above and below a line's baseline: about the
+# ascent and descent of Jake's 10 to 11 pt text, less than the 11.9 pt
+# between two bullet lines, so neighbouring boxes do not overlap
+ASCENT, DESCENT = 8.0, 3.0
+_SP_PER_POINT = 65536 * 72.27 / 72  # scaled points in one PDF point
+
+
+def mark(item_id, kind: str, latex: str) -> str:
+    '''`latex` (already escaped) between position markers for the bank item
+    `item_id` (an entry, bullet or skill id, never applicant text) and its
+    `kind`. Empty text gets no markers: it would make a box of no width.'''
+    if not latex:
+        return latex
+    name = f"{item_id}.{kind}"
+    return rf"\wimark{{{name}}}{{s}}{latex}\wiend{{{name}}}"
+
 
 class TectonicUnavailable(RuntimeError):
     '''No binary, no warm cache, or a compile that failed or timed out.'''
@@ -69,12 +107,32 @@ class Identity:
 
 
 @dataclass(frozen=True)
+class Box:
+    '''Where one line sits on the page: the bank item it shows (an entry,
+    bullet or skill id), which part of it (`kind`: bullet, skill, or an entry
+    field such as title or dates), its page (from 1), and its rectangle in
+    PDF points from the page's top left, y growing down. A wrapped line runs
+    from its start to the text's right edge; a line split across pages gives
+    one box on each.'''
+
+    item_id: str
+    kind: str
+    page: int
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
+@dataclass(frozen=True)
 class Rendered:
     pdf: bytes
     page_count: int
     # Each character the template's font cannot draw, once, in the order the
     # compile met them. The PDF shows nothing in their place.
     missing_characters: tuple[str, ...] = ()
+    # One box per marked line, in page order; empty for an unmarked body
+    boxes: tuple[Box, ...] = ()
 
 
 def render(view, identity: Identity, template: str) -> Rendered:
@@ -142,7 +200,47 @@ def compile_document(tex: str, *, cache: Path | None = None, offline: bool = Tru
             raise TectonicUnavailable("tectonic wrote no page count")
         # TeX can run twice (a changed .aux), warning twice: keep each once
         missing = dict.fromkeys(chr(int(code, 16)) for code in _MISSING_RE.findall(result.stderr))
-        return Rendered(pdf.read_bytes(), int(pages[1]), tuple(missing))
+        positions = Path(work) / "resume.pos"
+        boxes = _boxes(positions.read_text(encoding="utf-8")) if positions.exists() else ()
+        return Rendered(pdf.read_bytes(), int(pages[1]), tuple(missing), boxes)
+
+
+def _boxes(positions: str) -> tuple[Box, ...]:
+    '''resume.pos's start and end points as boxes (see MARKS).'''
+    right = None
+    starts: dict[str, tuple[float, float, int]] = {}
+    boxes = []
+
+    def box(name: str, page: int, x0: float, x1: float, top: float, bottom: float) -> Box:
+        item_id, kind = name.rsplit(".", 1)
+        y0, y1 = PAGE_HEIGHT - top - ASCENT, PAGE_HEIGHT - bottom + DESCENT
+        return Box(item_id, kind, page, round(x0, 2), round(y0, 2), round(x1, 2), round(y1, 2))
+
+    for line in positions.splitlines():
+        parts = line.split()
+        if parts[:1] == ["right"]:
+            # TeX points, "542.025pt"
+            right = float(parts[1].removesuffix("pt")) * 72 / 72.27
+            continue
+        if len(parts) != 5:
+            continue
+        name, end, x, y, page = parts[0], parts[1] == "e", int(parts[2]) / _SP_PER_POINT, \
+            int(parts[3]) / _SP_PER_POINT, int(parts[4])
+        if not end:
+            starts[name] = (x, y, page)
+            continue
+        if name not in starts:
+            continue
+        sx, sy, spage = starts.pop(name)
+        edge = max(right or x, x, sx)
+        if spage != page:
+            boxes.append(box(name, spage, sx, edge, sy, sy))
+            boxes.append(box(name, page, sx, x, y, y))
+        elif abs(sy - y) < 1:
+            boxes.append(box(name, page, sx, x, sy, y))
+        else:
+            boxes.append(box(name, page, sx, edge, sy, y))
+    return tuple(boxes)
 
 
 def _env(cache: Path, work: str) -> dict[str, str]:

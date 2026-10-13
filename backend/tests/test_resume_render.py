@@ -130,3 +130,120 @@ def test_escaped_text_prints_literally_and_runs_nothing() -> None:
     text = _text(pdf)
     assert "\\input{/etc/passwd} R&D 100% $5 #1 snake_case ~ ^ <b> a|b" in text
     assert "root:" not in text
+
+
+def _content_streams(pdf: bytes) -> list[bytes]:
+    from pypdf import PdfReader
+
+    return [page.get_contents().get_data() for page in PdfReader(io.BytesIO(pdf)).pages]
+
+
+def _long_view() -> ResumeView:
+    bullets = tuple(ViewBullet(uuid.uuid4(), f"Led weekly meeting number {i} for the robotics club") for i in range(30))
+    return _with_entries(VIEW, ViewEntry(uuid.uuid4(), "leadership", "President", organization="Robotics Club",
+                                         location="Georgetown, TX", bullets=bullets))
+
+
+@pytest.mark.parametrize("view", [VIEW, _long_view()], ids=["one page", "two pages"])
+def test_position_markers_leave_the_page_unchanged(view) -> None:
+    # The preview must be the file that downloads (ADR 0002): the markers
+    # that place the editor's click targets may not move one glyph
+    from app.services.resume_render import compile_document, jakes
+
+    _tectonic_or_skip()
+    marked = compile_document(jakes_document(jakes.body(view, IDENTITY)))
+    plain = compile_document(jakes_document(jakes.body(view, IDENTITY, marks=False)))
+
+    assert marked.boxes and not plain.boxes
+    assert _content_streams(marked.pdf) == _content_streams(plain.pdf)
+
+
+def _text_lines(pdf: bytes) -> list[tuple[str, int, tuple[float, float, float, float]]]:
+    '''Each text line pdfminer finds: (text, page, (x0, top, x1, bottom)) in
+    PDF points from the page's top left, like a box.'''
+    from pdfminer.high_level import extract_pages
+    from pdfminer.layout import LTChar, LTTextContainer, LTTextLine
+
+    lines = []
+    for number, page in enumerate(extract_pages(io.BytesIO(pdf)), start=1):
+        for element in page:
+            if isinstance(element, LTTextContainer):
+                for line in element:
+                    # The list's bullet glyph is the template's, not the line's
+                    chars = [c for c in line if isinstance(c, LTChar) and c.get_text() not in "• "] \
+                        if isinstance(line, LTTextLine) else []
+                    if chars:
+                        x0, x1 = min(c.x0 for c in chars), max(c.x1 for c in chars)
+                        y0, y1 = min(c.y0 for c in chars), max(c.y1 for c in chars)
+                        text = line.get_text().strip().removeprefix("• ")
+                        lines.append((text, number, (x0, page.height - y1, x1, page.height - y0)))
+    return lines
+
+
+def _inside(inner, box, slack=1.5) -> bool:
+    x0, top, x1, bottom = inner
+    return (box.x0 - slack <= x0 and x1 <= box.x1 + slack
+            and box.y0 - slack <= top and bottom <= box.y1 + slack)
+
+
+def _line(lines, text):
+    return next((page, bbox) for t, page, bbox in lines if t.startswith(text))
+
+
+def test_render_gives_a_box_for_each_line_the_editor_can_select() -> None:
+    _tectonic_or_skip()
+    rendered = render(VIEW, IDENTITY, "jakes")
+    boxes = {(b.item_id, b.kind): b for b in rendered.boxes}
+    assert len(boxes) == len(rendered.boxes)  # one box for each
+
+    school = VIEW.sections[0].entries[0]
+    assert {kind for item, kind in boxes if item == str(school.id)} == {"title", "location", "degree", "dates", "gpa"}
+    job = VIEW.sections[1].entries[0]
+    assert {kind for item, kind in boxes if item == str(job.id)} == {"title", "organization", "location", "dates"}
+    project = VIEW.sections[2].entries[0]
+    assert {kind for item, kind in boxes if item == str(project.id)} == {"title", "organization", "dates"}
+    every_bullet = {str(b.id) for s in VIEW.sections for e in s.entries for b in e.bullets}
+    assert {item for item, kind in boxes if kind == "bullet"} == every_bullet
+    assert {item for item, kind in boxes if kind == "skill"} == {str(s.id) for s in VIEW.skills}
+    assert all(b.page == 1 and 0 <= b.x0 < b.x1 <= 612 and 0 <= b.y0 < b.y1 <= 792 for b in rendered.boxes)
+
+    # Each box covers its text where pdfminer, reading the PDF on its own,
+    # finds it. Places and dates are pdfminer's own lines
+    lines = _text_lines(rendered.pdf)
+    page, bbox = _line(lines, "Southwestern University")
+    assert _inside(bbox, boxes[(str(school.id), "title")])
+    page, bbox = _line(lines, "Georgetown, TX")
+    assert _inside(bbox, boxes[(str(school.id), "location")])
+    page, bbox = _line(lines, "June 2020 – Present")
+    assert _inside(bbox, boxes[(str(job.id), "dates")])
+    first = job.bullets[0]
+    page, bbox = _line(lines, first.text[:30])
+    assert _inside(bbox, boxes[(str(first.id), "bullet")])
+
+
+def test_a_wrapped_bullet_box_covers_both_lines() -> None:
+    _tectonic_or_skip()
+    long = ViewBullet(uuid.uuid4(), "Mentored twelve first-year students in data structures and algorithms each "
+                                    "week, and wrote practice problems that the course staff later adopted for exams")
+    view = _with_entries(VIEW, ViewEntry(uuid.uuid4(), "leadership", "Tutor", organization="Learning Center",
+                                         bullets=(long,)))
+    rendered = render(view, IDENTITY, "jakes")
+    (box,) = [b for b in rendered.boxes if b.item_id == str(long.id)]
+
+    lines = _text_lines(rendered.pdf)
+    _, first = _line(lines, "Mentored twelve")
+    second = next(bbox for text, _, bbox in lines if "course staff" in text or "for exams" in text)
+    assert second[1] > first[1]  # it did wrap
+    assert _inside(first, box) and _inside(second, box)
+
+
+def test_boxes_on_the_second_page_say_so() -> None:
+    _tectonic_or_skip()
+    view = _long_view()
+    rendered = render(view, IDENTITY, "jakes")
+
+    last = view.sections[-1].entries[0].bullets[-1]
+    (box,) = [b for b in rendered.boxes if b.item_id == str(last.id)]
+    assert box.page == 2
+    _, bbox = next((p, bbox) for t, p, bbox in _text_lines(rendered.pdf) if t == last.text and p == 2)
+    assert _inside(bbox, box)
