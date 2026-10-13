@@ -74,10 +74,14 @@ class Settings(BaseSettings):
     ai_intake_cap: int = 15
     ai_tailor_cap: int = 2
     ai_parsing_cap: int = 1
+    # The editor assistant (KAN-221): its share is on top of the spec's four,
+    # which already sum to the pool, so a busy day can overshoot it by 10%.
+    ai_assistant_cap: int = 10
     ai_tailor_share: float = 0.4
     ai_intake_share: float = 0.3
     ai_scout_share: float = 0.2
     ai_parsing_share: float = 0.1
+    ai_assistant_share: float = 0.1
 
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it
