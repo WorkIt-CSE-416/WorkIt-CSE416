@@ -182,6 +182,7 @@ async def render_pdf(
     return RenderResponse(
         pdf=base64.b64encode(rendered.pdf).decode("ascii"),
         page_count=rendered.page_count,
+        lines_over=rendered.lines_over,
         missing_characters=list(rendered.missing_characters),
         boxes=[RenderBox(**vars(box)) for box in rendered.boxes],
     )

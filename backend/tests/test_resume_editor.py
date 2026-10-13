@@ -17,6 +17,7 @@ from tests.test_built_resumes import (
     _generate,
     _seed_applicant,
     _sign_in,
+    _tectonic_or_skip,
 )
 
 pytestmark = pytest.mark.anyio
@@ -157,3 +158,32 @@ async def test_another_students_items_and_resumes_are_out_of_reach(student, data
     res = await client.patch(f"{me}/built-resumes/{mine}/choices", json={"entries": [{"entry_id": theirs_entry}]})
     assert res.status_code == 404
     assert "Secret" not in " ".join(await _lines(client, me, mine))
+
+
+async def _long_bank(client, me) -> dict[str, list[str]]:
+    """Four entries with four bullets each: a little over one page. Returns
+    each entry's title and its bullet ids, in bank order."""
+    bullet = "Led a team of five students to build and ship a web application used by three hundred people"
+    made = {}
+    for section, title, start in (("experience", "Newer Job", "2025-06"), ("experience", "Older Job", "2023-06"),
+                                  ("projects", "Big Project", "2024-01"), ("leadership", "Club Lead", "2022-09")):
+        res = await client.post(f"{me}/bank/entries", json={
+            "section": section, "title": title, "organization": "Somewhere", "start_month": start,
+            "end_month": "2025-12" if start < "2025" else None, "end_kind": "month" if start < "2025" else "present",
+            "bullets": [f"{bullet} ({title} {i})" for i in range(9)]})
+        assert res.status_code == 201, res.text
+        made[title] = [b["id"] for b in res.json()["bullets"]]
+    return made
+
+
+async def test_render_says_how_many_lines_run_past_one_page(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    short = await _generate(client, me)
+    assert (await client.get(f"{me}/built-resumes/{short}/render")).json()["lines_over"] == 0
+
+    await _long_bank(client, me)
+    body = (await client.get(f"{me}/built-resumes/{await _generate(client, me)}/render")).json()
+    assert body["page_count"] == 2
+    assert body["lines_over"] > 0

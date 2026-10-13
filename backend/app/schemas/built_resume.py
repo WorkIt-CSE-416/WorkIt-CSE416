@@ -48,6 +48,9 @@ class RenderResponse(BaseModel):
 
     pdf: str
     page_count: int
+    # Lines of text past page 1 (0 on a one-page resume), for the page-count
+    # chip; an estimate that can run a line or two short (Rendered.lines_over)
+    lines_over: int
     missing_characters: list[str]
     boxes: list[RenderBox]
 
