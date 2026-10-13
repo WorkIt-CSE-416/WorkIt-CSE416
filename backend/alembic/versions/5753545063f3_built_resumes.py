@@ -1,7 +1,7 @@
 """built resumes, their choices, and a default that can be a base resume
 
 Revision ID: 5753545063f3
-Revises: b7e2a4c91d06
+Revises: d3a8f61c2b47
 Create Date: 2026-10-13 18:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '5753545063f3'
-down_revision: Union[str, Sequence[str], None] = 'b7e2a4c91d06'
+down_revision: Union[str, Sequence[str], None] = 'd3a8f61c2b47'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

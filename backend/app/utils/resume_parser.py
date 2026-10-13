@@ -4,6 +4,7 @@ from datetime import date
 import ftfy  # fix broken unicode
 
 from app.models.dto import (
+    Award,
     Certification,
     Education,
     Experience,
@@ -35,12 +36,14 @@ SECTION_RE = re.compile(
     r'^\s*('
     r'Education|'
     r'(?:Work\s+|Professional\s+)?Experience|'
+    r'(?:Leadership(?:\s+Experience)?|Extracurricular\s+Activities|Extracurriculars|'
+    r'(?:Campus\s+)?Involvement)(?:\s+(?:&|and)\s+\w+)?|'
     r'(?:Personal\s+|Academic\s+)?Projects?|'
     r'(?:Technical\s+)?Skills(?:\s+(?:&|and)\s+\w+)?|Technologies|'
     r'Activities(?:\s+(?:&|and)\s+\w+)?|Interests|'
     r'Certifications?\s*(?:&\s*Licenses)?|Licenses|'
     r'Summary|(?:Career\s+)?Objective|Profile|'
-    r'Awards?|Honors?'
+    r'(?:Awards?|Honors?)(?:\s+(?:&|and)\s+(?:Awards?|Honors?))?'
     r')\s*$',
     re.MULTILINE | re.IGNORECASE,
 )
@@ -98,6 +101,9 @@ def parse_resume(raw_text: str) -> ParsedResume | None:
         skills=_parse_skills(sections.get("skills", "")),
         projects=_parse_projects(sections.get("projects", "")),
         certifications=_parse_certifications(sections.get("certifications", "")),
+        # club roles read like jobs: organization, role, dates, bullets
+        leadership=_parse_experience(sections.get("leadership", "")),
+        awards=_parse_awards(sections.get("awards", "")),
     )
 
 def count_sections(text: str) -> int:
@@ -130,6 +136,11 @@ def _split_sections(text: str) -> dict[str, str]:
 
 def _normalize_header(header: str) -> str:
     h = header.strip().lower()
+    # before "experience": "Leadership Experience" is not a job section
+    if any(w in h for w in ("leadership", "activit", "extracurricular", "involvement")):
+        return "leadership"
+    if "award" in h or "honor" in h:
+        return "awards"
     if "experience" in h:
         return "experience"
     if "education" in h:
@@ -533,4 +544,29 @@ def _parse_certifications(text: str) -> list[Certification]:
         issuer = parts[1].strip() if len(parts) > 1 else None
         if cert_name:
             results.append(Certification(cert_name=cert_name, issuer=issuer))
+    return results
+
+
+# A year alone ends an award line ("Merit Scholarship  2024")
+YEAR_ONLY_RE = re.compile(r'(?<![\d–\-])\b(\d{4})\s*$')
+
+
+def _parse_awards(text: str) -> list[Award]:
+    """One award per line: "Award – Issuer  Date" or "Award | Issuer | Date";
+    the issuer and the date are optional."""
+    results: list[Award] = []
+    for line in text.splitlines():
+        line = BULLET_RE.sub("", line.strip()).strip()
+        if not line:
+            continue
+        _, when = _parse_date_range(line)
+        rest = _strip_dates(line)
+        year = YEAR_ONLY_RE.search(rest)
+        if when is None and year:
+            when = date(int(year.group(1)), 1, 1)
+        if year:
+            rest = rest[:year.start()].strip().rstrip(",|–—-").strip()
+        parts = [p.strip() for p in re.split(r'\s*[|–—]\s*|\s+-\s+', rest, maxsplit=1)]
+        if parts[0]:
+            results.append(Award(title=parts[0], issuer=parts[1] if len(parts) > 1 and parts[1] else None, date=when))
     return results

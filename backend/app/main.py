@@ -17,6 +17,7 @@ from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
 from app.routers.built_resumes import router as built_resumes_router
 from app.routers.company_jobs import router as company_jobs_router
+from app.routers.intake import router as intake_router
 from app.routers.jobs import router as jobs_router
 from app.routers.profiles import router as profile_router
 from app.routers.resumes import router as resume_router
@@ -36,6 +37,7 @@ app.include_router(company_jobs_router)
 app.include_router(scout_router)
 app.include_router(profile_router)
 app.include_router(bank_router)
+app.include_router(intake_router)
 app.include_router(built_resumes_router)
 
 

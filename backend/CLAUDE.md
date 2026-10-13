@@ -37,6 +37,7 @@ uv run alembic revision --autogenerate -m msg  write a migration
 uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
+uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -154,9 +155,19 @@ Find files with a directory listing; these are the rules for where code goes.
   entries).
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
-  bank embedding on every entry, bullet or skill change; a route or script
+  bank embedding on every entry, bullet or skill change (a skill link is
+  not one: the embedding text never says which skill goes with which
+  entry); a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+- **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
+  re-reads an uploaded resume's stored `raw_text` with the heuristic parser
+  and returns draft entries and skills (`services/bank_import.py` maps them,
+  pure); the student saves each through the bank's own routes. It re-parses
+  rather than reading `parsed_json`, so a resume uploaded before the parser
+  learned a section still imports it. A draft must already be a valid
+  `POST /entries` body: the mapper clips text to the field limits and drops
+  dates that do not fit together rather than send a draft that answers 422.
 - **Every resume feature reads the built resume view**
   (`app/services/resume_view.py`, KAN-207): one pure function from the bank
   and a built resume's choices to what the resume shows. The PDF, the Word
@@ -177,6 +188,20 @@ Find files with a directory listing; these are the rules for where code goes.
   account, per feature and day). Never count in memory: a restart or a second
   Vercel instance resets it. Check-then-count can overshoot by one under
   concurrent requests, on purpose; it errs toward the student.
+- **Intake** (KAN-213) is `routers/intake.py` (`POST /intake/turn`) over
+  `services/intake.py`, which holds its frozen system prompt. It uses
+  Scout's model chain (`get_llm`) and `LLM.complete_json` with the bank's
+  entry schema (`schemas/intake.py`'s `IntakeDraft` is `EntryCreate` with an
+  optional title), and stores nothing said: the browser sends this entry's
+  chat and the card, edits included, every turn. Rules, each with a test in
+  `tests/test_intake.py`: at most `MAX_FOLLOW_UPS` (3) questions per entry,
+  counted from the assistant lines the browser sends, and a fourth question
+  is replaced by a fixed wrap-up line; a reply that fails the schema, or
+  drafts another section, is an `error` line and does not count; a field
+  the model echoes as an identity placeholder (`[link]`) keeps the card's
+  value. **The prompt wording is still open**: tune it with
+  `app.scripts.intake_test_set` against a live model, and re-run that
+  script before a new endpoint joins the chain.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.

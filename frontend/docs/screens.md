@@ -306,56 +306,29 @@ link into the Calendar from anywhere else goes through `DayLink` in
 ## My Profile
 
 **Resume upload is wired.** The onboarding form (`onboarding/applicant`)
-uploads on Continue, unreviewed. The seeker profile (`(seeker)/profile`)
-supports up to 5 resumes, newest first: on file select it calls
-`parseResume` (nothing saved), opens `resume-edit-dialog.tsx` on every
-section of the result, and only Save calls `uploadResume` with the file plus
-the edited `parsed_json`; Cancel discards it. When nothing was read and
-nothing typed, Save leaves `parsed_json` out, so the API parses the file
-itself and marks it `parse_failed` rather than "parsed". That dialog is a
-panel sliding in from the right over a darkened page, built from the
-vendored dialog's parts because the vendored Sheet's 10% overlay cannot be
-darkened from outside. A click on the darkened page does not close it — that
-would throw away every unsaved edit — but › and Escape do. Each resume row (`resume-row.tsx`) has an eye — a short-lived signed
-link from `getResumeFileUrl`: a PDF opens in a new tab, opened inside the
-click so it is not blocked as a popup (if it is blocked anyway, the page says
-so rather than leaving the profile); a DOCX downloads — and a star that
-makes it primary (`setPrimaryResume`). All of these actions live in
-`src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's.
-The `ResumeUpload` component (`src/components/resume-upload.tsx`) is a pure
-dropzone + file preview — it knows nothing about upload logic or limits.
+uploads on Continue. The seeker profile (`(seeker)/profile`) supports up to
+5 resumes, newest first: picking a file uploads it at once (`uploadResume`);
+the API reads it itself, and the client never sends parsed content. Each
+resume row (`resume-row.tsx`) has an eye — a short-lived signed link from
+`getResumeFileUrl`: a PDF opens in a new tab, opened inside the click so it
+is not blocked as a popup (if it is blocked anyway, the page says so rather
+than leaving the profile); a DOCX downloads — and a star that makes it
+primary (`setPrimaryResume`). All of these actions live in
+`src/lib/resume-actions.ts`. The `ResumeUpload` component
+(`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
+knows nothing about upload logic or limits.
 
-**The profile's Work Experience and Skills come from the primary resume's
-`parsed_json`** (`getParsedResume`), or the newest one's when none is primary —
-`shownResume` in `page.tsx`. Work Experience's Edit opens
-`resume-edit-dialog.tsx` on that one section, so all roles are edited in one
-modal; each skill opens `entry-dialog.tsx`, which reuses the same field
-table. Every save PUTs the whole `ParsedResume` back (`updateParsedResume`).
-Collapsed, Work Experience previews the first two roles with descriptions cut
-to two lines, and one chevron in its heading expands the whole section. The
-chevron appears only when the preview hides something; whether a description
-overflows depends on the column's width, so `resume-sections.tsx` measures it
-with a ResizeObserver. The one-section edit modal numbers its entries
-("Experience 1", …) since it has no section headings to go by.
-Deleting the resume the sections show switches them to whichever `shownResume`
-picks next.
-
-**The sections' editors stay shut while the shown resume switches.** Every
-editor saves onto whichever resume is shown, so from a star or delete click
-until the sections have moved to the next resume (`switching` and
-`profileLoading` in `page.tsx`), Edit, Add and the skill chips are disabled.
-An editor left open across a switch saved one resume's roles over another's.
-A switch the page did not start — a background refresh, after another tab
-changed the primary — can still land under an editor already open, so both
-sections are keyed by the shown resume's id: the switch remounts them, which
-closes that editor. If a switch's content fails to load, the sections are
-cleared rather than left on the outgoing resume, which after a delete no
-longer exists; with resumes still listed they say the content didn't load,
-not "Upload a resume".
+**Resume facts are not edited on My Profile** (KAN-211). The parsed-JSON
+editor (a review dialog after upload, and Work Experience and Skills cards
+editing the primary resume's `parsed_json`) is gone, so the experience bank
+is the only place to edit resume facts. In its place an "Experience Bank"
+section links to `/bank`, where import turns an upload into drafts. Do not
+bring back an editor of `parsed_json`: two places to edit the same facts
+drift apart, and the bank is what built resumes read.
 
 **My Profile is cached for the life of the seeker shell.**
-`(seeker)/profile-cache.tsx` keeps the page's last state (resumes, the shown
-resume's content, the photo URL, the applicant profile fields) in a provider
+`(seeker)/profile-cache.tsx` keeps the page's last state (resumes, the
+photo URL, the applicant profile fields) in a provider
 in `(seeker)/layout.tsx`. A
 return visit renders it at once and refetches in the background. Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
@@ -377,9 +350,8 @@ shows initials.
 ## Experience Bank
 
 `(seeker)/bank` (KAN-206), a sidebar row above My Profile. The experience
-bank is where resume facts are kept, once (`GLOSSARY.md`); it sits beside
-the resume upload on My Profile with no feature flag, and the profile's
-parsed-JSON editing goes later (KAN-211).
+bank is where resume facts are kept, once (`GLOSSARY.md`), and the only
+place they are edited: My Profile keeps the uploads and links here.
 
 - **Live, with an error state.** `page.tsx` reads `GET
   /applicants/{id}/bank` through `src/lib/bank-actions.ts` on the server; if
@@ -391,8 +363,17 @@ parsed-JSON editing goes later (KAN-211).
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
-- **One entry editor** (`entry-editor.tsx`) for every section and, later,
-  for intake and import drafts: it edits a draft and hands the whole draft
+- **Import Your Resume** (`import-card.tsx`, KAN-211), the first card. One
+  click reads the default upload, else the newest, into draft entries and
+  skills (`importResume`); nothing is saved until the student saves a
+  draft (Save, or Edit in the entry editor) or uses Save All. A draft that
+  matches a bank entry shows "Already in Your Bank": Save All skips it and
+  its own button reads Save as New. Skip drops a draft; Close drops them
+  all. With no upload the API's 404 message shows, next to a link to My
+  Profile. **Still open:** the same card on the Jobs page (user story 22),
+  and "Read it again with AI" (KAN-222).
+- **One entry editor** (`entry-editor.tsx`) for every section and for
+  import and intake drafts: it edits a draft and hands the whole draft
   back, and the caller decides between create and edit. Only the title is
   required. Each section adds its own fields (`sections.ts` names the
   title and organization for each). Months use the browser's month picker,
@@ -408,6 +389,30 @@ parsed-JSON editing goes later (KAN-211).
   but the count is not shown yet.
 - **Skills are a plain list** with an optional group, shown one line per
   group. A name appears once, ignoring case; the API answers 409 otherwise.
+- **Skill links live in the entry editor** (KAN-216, `skill-links.tsx`):
+  "Skills Used Here" shows one toggle per bank skill, pressed when linked.
+  The editor only edits the list; on save the screen sends the link and
+  unlink calls after the entry's own save (for a new entry, after it is
+  created). Once the entry has saved, a failed later step closes the editor
+  and says "Some changes did not save", because a retry would repeat the
+  steps that worked. Intake and import omit `skills`, so no links show.
+- **Intake** (`intake.tsx`, KAN-213) sits below Import Your Resume and
+  above the section cards, in the look of the intake prototype's variant
+  G: a lavender chat with WorkIt's gradient mark, a chapter line per section, the draft card sticky beside
+  the chat from `@4xl/main` and, below that, a one-line draft that opens as
+  a bottom sheet. The student picks a section from its chips; the opener
+  for it is fixed text, not a model turn. Each turn goes through
+  `app/api/intake/` to `POST /intake/turn` with this entry's chat and the
+  card, edits included; the reply streams back as the line, the whole
+  draft (the card remounts on it) and the messages left today. The card is
+  the shared entry editor (its `onChange` reports each edit), and saving is
+  the bank's own create with its duplicate warning, one entry at a time.
+  The bubbles, typing dots and composer with its mic are Scout's
+  (`components/scout/chat.tsx`). **The unsaved draft lives in localStorage**
+  (`lib/local-drafts.ts`), so a reload keeps it; Sign Out and the login
+  page clear every key under its prefix, so the next person in the browser
+  never sees it. The chat is never stored anywhere. The step bar, Skip and
+  jump, and intake in onboarding are KAN-214.
 - **Base Resumes card** (`built-resumes.tsx`, KAN-207), above the sections.
   Generate makes a base resume with every entry, bullet and skill in the
   bank; each row downloads a PDF (Jake's Resume) or a Word file, can become
@@ -427,7 +432,9 @@ over it, and opens only on a click. It stays mounted and opens in two moves: its
 room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
-the panel is open. `stream.ts` mirrors the API's NDJSON events, which
+the panel is open. `chat.tsx` holds the message bubble, typing dots and
+composer (with the mic, `use-speech-input`), shared with intake on the bank
+page; each takes who is talking as a prop. `stream.ts` mirrors the API's NDJSON events, which
 `app/api/scout/` (the one route handler, since the reply streams) forwards with
 the session's token. `reply-text` renders a reply's **bold** and "- " bullets,
 the prompt's whole formatting vocabulary, with no markdown library (a reply

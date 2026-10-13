@@ -39,7 +39,8 @@ export type EntryFields = {
 
 export type Bullet = { id: string; position: number; text: string };
 export type BankEntry = EntryFields & { id: string; bullets: Bullet[] };
-export type Skill = { id: string; name: string; group: string | null };
+/** `entry_ids`: the entries the skill is linked to, in bank order (KAN-216). */
+export type Skill = { id: string; name: string; group: string | null; entry_ids: string[] };
 /** Entries in section order, ongoing first and then newest. */
 export type Bank = { entries: BankEntry[]; skills: Skill[] };
 
@@ -152,4 +153,34 @@ export async function updateSkill(
 
 export async function deleteSkill(skillId: string): Promise<Result<null>> {
   return call<null>(`/skills/${id(skillId)}`, { method: "DELETE" });
+}
+
+/** A draft entry from import: a `createEntry` body, plus the id of the bank
+ *  entry it matches ("Already in your bank"), or null. */
+export type DraftEntry = EntryFields & { bullets: string[]; duplicate_of: string | null };
+export type DraftSkill = { name: string; group: string | null; in_bank: boolean };
+export type ImportResult = {
+  resume_id: string;
+  filename: string | null;
+  entries: DraftEntry[];
+  skills: DraftSkill[];
+};
+
+/** Reads an uploaded resume (the default one, else the newest) into draft
+ *  entries and skills. Saves nothing: each draft goes through `createEntry`
+ *  and `addSkill`. With no uploaded resume, `error` says so. */
+export async function importResume(resumeId?: string): Promise<Result<ImportResult>> {
+  return call<ImportResult>("/import", {
+    method: "POST",
+    body: JSON.stringify(resumeId ? { resume_id: resumeId } : {}),
+  });
+}
+
+/** Links a skill to an entry that shows it; linking twice is a no-op. */
+export async function linkSkill(skillId: string, entryId: string): Promise<Result<null>> {
+  return call<null>(`/skills/${id(skillId)}/entries/${id(entryId)}`, { method: "PUT" });
+}
+
+export async function unlinkSkill(skillId: string, entryId: string): Promise<Result<null>> {
+  return call<null>(`/skills/${id(skillId)}/entries/${id(entryId)}`, { method: "DELETE" });
 }
