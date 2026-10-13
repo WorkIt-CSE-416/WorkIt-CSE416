@@ -89,8 +89,10 @@ module docstring has the steps.
   The router calls it directly rather than through `Depends`, so a dependency
   override misses it and the test uploads to the real bucket.
   `tests/test_built_resumes.py`'s `_FakeSupabase` is the pattern.
-- **The import's database half has no tests yet.** It can now get them through
-  the `database` fixture below.
+- **The import's database half is barely tested.** Only its clearing of
+  cached keywords is (`tests/test_keyword_match.py`, which runs
+  `import_feed` on `get_engine()`, the pattern for more); the rest can get
+  tests the same way through the `database` fixture below.
 
 ### Tests against real Postgres
 
@@ -211,6 +213,16 @@ Find files with a directory listing; these are the rules for where code goes.
   value. **The prompt wording is still open**: tune it with
   `app.scripts.intake_test_set` against a live model, and re-run that
   script before a new endpoint joins the chain.
+- **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
+  over `services/keywords.py`: a job posting's keywords, extracted once by
+  the model and cached on the posting with a hash of its description, and
+  the pure count of those the built resume view shows (text and skills,
+  whole words, ignoring case). **Only an extraction spends a use, and it
+  counts under `TAILOR`**; a cached match is free, for every student. Tailor
+  (KAN-217) calls `keywords.cached`/`extract`/`store` itself and counts its
+  run once, not once more for the extraction. Tests:
+  `tests/test_keyword_match.py` (the cache, its clearing by the import and
+  by the hash, an invalid or failed reply counts nothing, the cap).
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -301,6 +313,9 @@ free tier). Render with a Dockerfile is the fallback.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **Apply `e1c4a7b9d215` before deploying KAN-215.** It adds
+  `job_postings.keywords` and `keywords_hash`, which the model maps, so
+  company job creation and the feed import fail on a database without them.
 - **Apply `5753545063f3` before deploying KAN-207.** It adds
   `applicant_profiles.default_built_resume_id`, which the model maps, so the
   new code's signup INSERT fails on a database without it
