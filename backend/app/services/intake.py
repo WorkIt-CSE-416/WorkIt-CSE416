@@ -34,6 +34,17 @@ SECTION_NAMES = {
     bank_section.certifications: "Certifications",
 }
 
+# What "title" and "organization" hold in each section, as the card labels
+# them. Without it a model puts the school in the organization.
+FIELD_MEANINGS = {
+    bank_section.education: ("the school, such as a university", "a college or department in it"),
+    bank_section.experience: ("the job title", "the company"),
+    bank_section.projects: ("the project name", "the team or course"),
+    bank_section.leadership: ("the role", "the club or organization"),
+    bank_section.awards: ("the award", "who gave it"),
+    bank_section.certifications: ("the certification", "the organization"),
+}
+
 # One frozen string, so providers can cache it as a prefix. What varies per
 # turn (the section, the card, the questions left) goes in a message after it.
 # Wording still open: tune it against scripts/intake_test_set.py.
@@ -76,8 +87,10 @@ no questions are left, say the entry looks ready to save and set done to true.
 def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> str:
     left = max(0, MAX_FOLLOW_UPS - asked)
     current = draft.model_dump(mode="json") if draft else {"section": section.value}
+    title, organization = FIELD_MEANINGS[section]
     return (
         f"Section: {SECTION_NAMES[section]} (section value \"{section.value}\").\n"
+        f"In this section, title is {title} and organization is {organization}.\n"
         f"Questions you may still ask for this entry: {left}."
         + (" Ask none: set done to true." if left == 0 else "")
         + f"\nCurrent draft:\n{json.dumps(current)}"
