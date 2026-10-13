@@ -117,3 +117,28 @@ export function missingFacts(entry: EntryFields): string[] {
   }
   return missing;
 }
+
+/** Sections whose entries read as things the student did, so want bullets. */
+const NEEDS_BULLETS = new Set<Section>(["experience", "projects", "leadership"]);
+
+/**
+ * Intake's questions about an entry already in the bank, an imported one
+ * most often: one for each fact a resume would miss, plus what they did when
+ * a job, project or role has no bullets. Empty when the entry is complete,
+ * and then intake does not visit it.
+ */
+export function gapQuestions(entry: BankEntry): string[] {
+  const questions = [];
+  if (!formatDates(entry)) {
+    questions.push(
+      entry.section === "awards" ? "When did you win it?" : "When did it start and end?",
+    );
+  }
+  if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
+    questions.push(`What was the ${sectionOf(entry.section).organization.toLowerCase()}?`);
+  }
+  if (NEEDS_BULLETS.has(entry.section) && entry.bullets.length === 0) {
+    questions.push("What did you do there, and what came of it?");
+  }
+  return questions;
+}
