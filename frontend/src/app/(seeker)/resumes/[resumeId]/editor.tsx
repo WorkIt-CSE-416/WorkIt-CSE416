@@ -74,7 +74,7 @@ export function Editor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
-  const [fitHidden, setFitHidden] = useState<string[] | null>(null);
+  const [fitUndo, setFitUndo] = useState<ChoicesUpdate | null>(null);
   const latest = useRef(0);
   const started = useRef<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -196,7 +196,7 @@ export function Editor({
       return setError(error);
     }
     setRendered(data.render);
-    setFitHidden(data.hidden.length ? data.hidden : null);
+    setFitUndo(data.undo.bullets?.length || data.undo.entries?.length ? data.undo : null);
     const fresh = await getChoices(resumeId);
     if (!current()) return;
     setSaving(false);
@@ -204,9 +204,9 @@ export function Editor({
   }
 
   function undoFit() {
-    if (!fitHidden) return;
-    void apply({ bullets: fitHidden.map((bullet_id) => ({ bullet_id, shown: true })) });
-    setFitHidden(null);
+    if (!fitUndo) return;
+    void apply(fitUndo);
+    setFitUndo(null);
   }
 
   const box = rendered.boxes.find((b) => boxKey(b) === selected);
@@ -293,7 +293,7 @@ export function Editor({
         saving={saving}
         elapsed={elapsed}
         error={error}
-        fitHidden={fitHidden}
+        fitUndo={fitUndo}
         actions={
           line && (
             <LineActions
@@ -334,7 +334,7 @@ export function Editor({
           rendered={rendered}
           saving={saving}
           elapsed={elapsed}
-          fitHidden={fitHidden}
+          fitUndo={fitUndo}
           onApply={apply}
           onClose={() => select(null)}
           onFit={fit}
@@ -380,7 +380,7 @@ function Bar({
   rendered,
   saving,
   elapsed,
-  fitHidden,
+  fitUndo,
   onApply,
   onClose,
   onFit,
@@ -394,7 +394,7 @@ function Bar({
   rendered: RenderedPdf;
   saving: boolean;
   elapsed: number | null;
-  fitHidden: string[] | null;
+  fitUndo: ChoicesUpdate | null;
   onApply: (changes: ChoicesUpdate) => void;
   onClose: () => void;
   onFit: () => void;
@@ -439,7 +439,7 @@ function Bar({
               <Scissors /> Fit to One Page
             </Button>
           )}
-          {fitHidden && (
+          {fitUndo && (
             <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
               <Undo2 /> Undo
             </Button>

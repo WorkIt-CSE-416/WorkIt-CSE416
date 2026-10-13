@@ -97,7 +97,7 @@ export function PhoneEditor({
   saving,
   elapsed,
   error,
-  fitHidden,
+  fitUndo,
   actions,
   assistant,
   onSelect,
@@ -119,7 +119,7 @@ export function PhoneEditor({
   saving: boolean;
   elapsed: number | null;
   error: string | null;
-  fitHidden: string[] | null;
+  fitUndo: ChoicesUpdate | null;
   /** The selected line's actions, the same as the desktop sticky bar's. */
   actions: ReactNode;
   /** The editor assistant (KAN-221), shown in a sheet when asked for. */
@@ -179,7 +179,7 @@ export function PhoneEditor({
               <Scissors /> Fit to One Page
             </Button>
           )}
-          {fitHidden && (
+          {fitUndo && (
             <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
               <Undo2 /> Undo
             </Button>
