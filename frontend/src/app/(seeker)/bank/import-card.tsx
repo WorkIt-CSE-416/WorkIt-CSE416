@@ -49,10 +49,13 @@ export function ImportCard({
   onSaved,
   autoStart = false,
   onClose,
+  resumeId,
 }: {
   onSaved: () => Promise<string | null>;
   /** Hands the space back to intake's chat. */
   onClose?: () => void;
+  /** Read this upload, not the default one: the file just uploaded. */
+  resumeId?: string;
   /** Start the import on mount: the Jobs page's one-click "Import Your Resume". */
   autoStart?: boolean;
 }) {
@@ -70,7 +73,7 @@ export function ImportCard({
   async function runImport(readWithAi = false) {
     setBusy(true);
     setError(null);
-    const { data, error } = await importResume({ readWithAi });
+    const { data, error } = await importResume({ resumeId, readWithAi });
     setBusy(false);
     if (!data) return setError(error);
     setFilename(data.filename);
