@@ -33,9 +33,11 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   (`schemas/built_resume.py`).
 - **`Rendered.lines_over` is read from the boxes** (KAN-218): the distinct
   baselines past page 1, a wrapped box counting each line
-  (`box_lines`, `WRAPPED_LINE`). Section headings have no box, so it can
-  run a line or two short: the editor's chip shows it, and Fit to One Page
-  re-renders rather than trust it.
+  (`box_lines`, `WRAPPED_LINE`). Section headings and the space
+  between entries have no box, and blocks move whole across the page
+  break, so it can run several lines short (`line_count` is the shared
+  count): the editor's chip shows it, and Fit to One Page re-renders and
+  puts back what it did not need rather than trust it.
 - **Page count and missing characters come from Tectonic itself**: the page
   count from XeTeX's "Output written on ... (N pages" log line
   (`--keep-logs`), the missing characters from its "Missing character: There

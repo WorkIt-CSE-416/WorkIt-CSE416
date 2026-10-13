@@ -60,3 +60,7 @@ def test_a_weak_entry_goes_whole_before_the_newest_job_drops_below_three():
     assert order.index("entry:projects3") < order.index("bullet:experience0.b2")
     # The bottom entry before the one above it
     assert order.index("entry:leadership2") < order.index("entry:leadership1")
+
+
+def test_coursework_stays_when_there_is_no_experience():
+    assert "coursework:education0" not in _order(education=[0], projects=[4, 4], leadership=[3])

@@ -38,14 +38,7 @@ from app.schemas.built_resume import (
 )
 from app.services.bank import NotFound, get_entry, load_bank
 from app.services.postings import LISTED
-from app.services.resume_render import (
-    ASCENT,
-    WRAPPED_LINE,
-    Box,
-    HeaderIdentity,
-    Rendered,
-    box_lines,
-)
+from app.services.resume_render import HeaderIdentity, Rendered, line_count
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -385,23 +378,16 @@ def fit_changes(cuts: list[Cut], hide: bool) -> dict[str, list[dict]]:
     return {"entries": entries, "bullets": bullets}
 
 
-def _lines(boxes: list[Box]) -> int:
-    """The distinct lines these boxes sit on: a heading's title and dates
-    share one, a wrapped bullet counts each of its lines."""
-    return len({(b.page, round(b.y0 + ASCENT + i * WRAPPED_LINE)) for b in boxes for i in range(box_lines(b))})
-
-
 def _cut_lines(cut: Cut, view: ResumeView, rendered: Rendered) -> int:
     """About how many lines hiding `cut` saves, read from the last render."""
-    if cut.kind == "bullet":
-        ids = {str(cut.id)}
-        kinds = None
-    elif cut.kind == "coursework":
-        ids, kinds = {str(cut.id)}, {"coursework"}
-    else:
+    if cut.kind == "entry":
         entry = next(e for s in view.sections for e in s.entries if e.id == cut.id)
-        ids, kinds = {str(cut.id), *(str(b.id) for b in entry.bullets)}, None
-    return max(1, _lines([b for b in rendered.boxes if b.item_id in ids and (kinds is None or b.kind in kinds)]))
+        ids = {str(cut.id), *(str(b.id) for b in entry.bullets)}
+    else:
+        ids = {str(cut.id)}
+    boxes = [b for b in rendered.boxes
+             if b.item_id in ids and (cut.kind != "coursework" or b.kind == "coursework")]
+    return max(1, line_count(boxes))
 
 
 async def fit_to_one_page(
@@ -414,9 +400,9 @@ async def fit_to_one_page(
     renders on one page or nothing is left to cut. Each round hides about as
     many lines as the render says run over, by each cut's own boxes, then
     renders again, so a resume a few lines over costs two renders, not one
-    per bullet. Once it fits, the last round's cuts go back one at a time
-    while it still fits (FIT_PUT_BACK). Returns the cuts (Undo shows them
-    again) and the last render."""
+    per bullet. Once it fits, the last round's cuts after its first go back
+    one at a time, most useful first, while it still fits (FIT_PUT_BACK).
+    Returns the cuts (Undo shows them again) and the last render."""
     hidden: list[Cut] = []
     batch: list[Cut] = []
     _, view = await load_view(session, applicant_id, resume_id)
@@ -438,7 +424,12 @@ async def fit_to_one_page(
         _, view = await load_view(session, applicant_id, resume_id)
         rendered = await render(view)
     if rendered.page_count <= 1:
-        for cut in list(reversed(batch[1:]))[:FIT_PUT_BACK]:
+        # Never the round's first cut (the page needed at least one), nor a
+        # bullet whose entry stays hidden: showing it changes nothing
+        hidden_entries = {c.id for c in hidden if c.kind == "entry"}
+        entry_of = {b.id: e.row.id for e in (await load_bank(session, applicant_id)).entries for b in e.bullets}
+        tries = [c for c in reversed(batch[1:]) if entry_of.get(c.id) not in hidden_entries]
+        for cut in tries[:FIT_PUT_BACK]:
             await update_choices(session, applicant_id, resume_id, **fit_changes([cut], hide=False))
             _, trial = await load_view(session, applicant_id, resume_id)
             tried = await render(trial)

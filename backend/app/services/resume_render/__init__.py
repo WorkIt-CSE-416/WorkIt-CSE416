@@ -7,6 +7,7 @@ Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
     escape(text)        the one way applicant text enters the LaTeX
     jakes_document(b)   Jake's preamble, byte for byte, around body b
     MARKS, mark(id, kind, latex)  position markers a template's body uses
+    line_count(boxes)   the distinct lines of text some boxes sit on
     compile_document(tex)  a whole document -> Rendered, offline and untrusted
     compile_pdf(tex)    the same, PDF bytes only
 
@@ -135,6 +136,16 @@ def box_lines(box: Box) -> int:
     return 1 + max(0, round((box.y1 - box.y0 - ASCENT - DESCENT) / WRAPPED_LINE))
 
 
+def line_count(boxes) -> int:
+    '''The distinct lines of text these boxes sit on: a heading's title and
+    dates share one, a wrapped box counts each of its lines.'''
+    baselines = set()
+    for box in boxes:
+        top = box.y0 + ASCENT
+        baselines.update((box.page, round(top + i * WRAPPED_LINE)) for i in range(box_lines(box)))
+    return len(baselines)
+
+
 @dataclass(frozen=True)
 class Rendered:
     pdf: bytes
@@ -150,15 +161,10 @@ class Rendered:
         '''How many lines of text sit past page 1, for the editor's
         page-count chip ("3 lines over 1 page", KAN-218): the distinct
         baselines of the boxes on later pages, a wrapped box counting each of
-        its lines. Section headings have no box, so it can run a line or two
-        short; Fit to One Page re-renders rather than trust it.'''
-        baselines = set()
-        for box in self.boxes:
-            if box.page < 2:
-                continue
-            top = box.y0 + ASCENT
-            baselines.update((box.page, round(top + i * WRAPPED_LINE)) for i in range(box_lines(box)))
-        return len(baselines)
+        its lines. Section headings have no box and blocks move whole across the
+        page break, so it can run several lines short; Fit to One Page
+        re-renders rather than trust it.'''
+        return line_count(box for box in self.boxes if box.page >= 2)
 
 
 def render(view, identity: HeaderIdentity, template: str) -> Rendered:

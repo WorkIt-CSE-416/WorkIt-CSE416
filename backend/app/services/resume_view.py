@@ -34,7 +34,7 @@ import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 # The bank's sections in resume order: models/dto.py's bank_section, whose
 # members compare equal to these strings. Skills come last, as their own list.
@@ -199,27 +199,24 @@ LOW_SECTIONS = ("leadership", "awards", "certifications")
 FIT_SECTIONS = (*LOW_SECTIONS, "projects", "experience")
 
 
-def _caps(experience: tuple[int, int], projects: tuple[int, int], low: tuple[int, int]) -> dict:
+def _per_section(experience: Any, projects: Any, low: Any) -> dict[str, Any]:
     return {"experience": experience, "projects": projects, **dict.fromkeys(LOW_SECTIONS, low)}
 
 
-def _keep(experience: int, projects: int, low: int) -> dict:
-    return {"experience": experience, "projects": projects, **dict.fromkeys(LOW_SECTIONS, low)}
-
-
-# Each step, in order: hide coursework, cap each entry's bullets (the top
+# Each step, in order: hide coursework (only beside Experience: with none,
+# it is a student's best evidence), cap each entry's bullets (the top
 # entry's cap, then every other entry's), or keep only the top entries of
 # each section. A step runs only past what the steps before it cut.
 FIT_STEPS = (
     ("coursework", None),
-    ("bullets", _caps((5, 4), (3, 3), (2, 2))),
-    ("bullets", _caps((4, 3), (3, 2), (1, 1))),
-    ("entries", _keep(4, 3, 2)),
-    ("bullets", _caps((3, 2), (2, 2), (1, 1))),
-    ("entries", _keep(3, 2, 1)),
-    ("bullets", _caps((3, 2), (2, 1), (1, 1))),
-    ("entries", _keep(2, 1, 0)),
-    ("bullets", _caps((2, 1), (1, 1), (1, 1))),
+    ("bullets", _per_section((5, 4), (3, 3), (2, 2))),
+    ("bullets", _per_section((4, 3), (3, 2), (1, 1))),
+    ("entries", _per_section(4, 3, 2)),
+    ("bullets", _per_section((3, 2), (2, 2), (1, 1))),
+    ("entries", _per_section(3, 2, 1)),
+    ("bullets", _per_section((3, 2), (2, 1), (1, 1))),
+    ("entries", _per_section(2, 1, 0)),
+    ("bullets", _per_section((2, 1), (1, 1), (1, 1))),
 )
 
 
@@ -228,7 +225,7 @@ class Cut:
     '''One thing Fit to One Page hides: a bullet, a whole entry, or an
     entry's coursework line (`kind` "bullet", "entry" or "coursework").'''
 
-    kind: str
+    kind: Literal["bullet", "entry", "coursework"]
     id: uuid.UUID
 
 
@@ -242,6 +239,8 @@ def fit_order(view: ResumeView) -> list[Cut]:
     order: list[Cut] = []
     for kind, limits in FIT_STEPS:
         if kind == "coursework":
+            if not by_section.get("experience"):
+                continue
             order.extend(Cut(kind, e.id) for e in reversed(by_section.get("education", ())) if e.coursework)
             continue
         for section in FIT_SECTIONS:

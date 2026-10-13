@@ -202,7 +202,6 @@ async def test_fit_to_one_page_trims_every_entry_before_gutting_one_and_undo_bri
     body = res.json()
     assert body["render"]["page_count"] == 1
     hidden = body["hidden"]
-    assert body["hidden_entries"] == []
     # Coursework goes first, then each entry's last bullets; every entry
     # keeps its first bullets, and more of them the more useful it is.
     assert body["undo"]["entries"][0]["show_coursework"] is True

@@ -24,10 +24,11 @@ GET    /applicants/{id}/built-resumes/{rid}/choices -> ChoicesResponse
 PATCH  /applicants/{id}/built-resumes/{rid}/choices ChoicesUpdate -> ChoicesResponse
        The editor's hide, show, move and toggles, all saved together. An
        item with no row gets one. 404 for an item outside the bank.
-POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, hidden_entries, undo, render}
+POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo, render}
        Fit to One Page: hides coursework, bullets and whole entries, least
        useful first (resume_view.fit_order), and renders again until the
-       resume is one page or nothing is left to cut. `undo` is the PATCH
+       resume is one page or nothing is left to cut, then shows again the
+       last round's cuts it turns out not to need. `undo` is the PATCH
        .../choices body that shows them all again.
        503 like render; a failed render saves nothing.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment
@@ -219,7 +220,6 @@ async def fit(
     await _commit(session, "Failed to save the resume")
     return FitResponse(
         hidden=[c.id for c in cuts if c.kind == "bullet"],
-        hidden_entries=[c.id for c in cuts if c.kind == "entry"],
         undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
         render=_render_response(rendered),
     )
