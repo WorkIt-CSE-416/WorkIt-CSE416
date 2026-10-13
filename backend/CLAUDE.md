@@ -158,6 +158,14 @@ Find files with a directory listing; these are the rules for where code goes.
   entry); a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+- **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
+  re-reads an uploaded resume's stored `raw_text` with the heuristic parser
+  and returns draft entries and skills (`services/bank_import.py` maps them,
+  pure); the student saves each through the bank's own routes. It re-parses
+  rather than reading `parsed_json`, so a resume uploaded before the parser
+  learned a section still imports it. A draft must already be a valid
+  `POST /entries` body: the mapper clips text to the field limits and drops
+  dates that do not fit together rather than send a draft that answers 422.
 - **Every model feature counts its daily uses through `app/services/usage.py`**
   (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
   it succeeds, so a failed or rejected call costs the student nothing. Each

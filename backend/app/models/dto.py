@@ -54,12 +54,22 @@ class Certification(PydanticBase):
     cert_name: str
     issuer: str | None = None
 
+_Date = date  # the field below is named "date", which hides the type
+
+class Award(PydanticBase):
+    title: str
+    issuer: str | None = None
+    date: _Date | None = None
+
 class ParsedResume(PydanticBase):
     education: list[Education] = []
     experience: list[Experience] = []
     skills: list[Skill] = []
     projects: list[Project] = []
     certifications: list[Certification] = []
+    # Leadership & Activities: the same shape as a job (KAN-211)
+    leadership: list[Experience] = []
+    awards: list[Award] = []
 
 
 # size range for company

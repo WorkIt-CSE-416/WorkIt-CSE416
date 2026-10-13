@@ -16,7 +16,9 @@ from app.utils.resume_parser import parse_resume
 FIXTURES = Path(__file__).parent / "fixtures"
 
 # education: (institution, degree, field_of_study, gpa, end_date)
-# experience: (company, title, location, start_date, end_date, bullet_count)
+# experience and leadership: (organization, title, location, start_date, end_date, bullet_count)
+# awards: (title, issuer, date)
+# A fixture without "leadership" or "awards" keys expects those sections empty.
 EXPECTED = {
     # Google Docs export: pipes in the school line, a second role with no company line
     "google_docs_single_column.txt": {
@@ -83,6 +85,45 @@ EXPECTED = {
         "projects": ["WorkIt | Full Stack Recruiting Platform", "Stony Brook Academic Advising Bot"],
         "skill_count": 18,
     },
+    # Leadership & Activities in the Company+Dates / Title+Location layout;
+    # Awards one per line as "Award – Issuer  Date", one with a year only
+    "leadership_and_awards_single_column.txt": {
+        "education": [
+            ("Riverside State University", "B.S", "Mechanical Engineering", 3.62, "2027-05-01"),
+        ],
+        "experience": [
+            ("Harbor Robotics", "Mechanical Engineering Intern", "Portland, OR", "2026-06-01", "2026-08-01", 2),
+        ],
+        "leadership": [
+            ("Society of Women Engineers", "Vice President", "Riverside, CA", "2025-09-01", None, 2),
+            ("Formula SAE Racing Team", "Suspension Lead", "Riverside, CA", "2024-09-01", "2025-05-01", 1),
+        ],
+        "awards": [
+            ("Dean's List", "Riverside State University", "2025-12-01"),
+            ("First Place, Regional Design Competition", "ASME", "2025-04-01"),
+            ("Merit Scholarship", None, "2024-01-01"),
+        ],
+        "projects": [],
+        "skill_count": 6,
+    },
+    # "LEADERSHIP EXPERIENCE" is not Experience; "HONORS & AWARDS" as bullets
+    # split by "|"
+    "pipe_layout_leadership_honors.txt": {
+        "education": [
+            ("Northfield University", "Bachelor", "Computer Science", None, "2027-12-01"),
+        ],
+        "experience": [],
+        "leadership": [
+            ("Coding Club", "President", "Chicago, IL", "2025-08-01", None, 2),
+            ("Northfield University Learning Center", "Peer Tutor", "Chicago, IL", "2025-01-01", "2025-05-01", 1),
+        ],
+        "awards": [
+            ("Hackathon Winner, Best Use of Data", "HackNorth", "2025-10-01"),
+            ("President's Scholarship", "Northfield University", "2025-08-01"),
+        ],
+        "projects": ["Budget Buddy"],
+        "skill_count": 3,
+    },
 }
 
 
@@ -108,6 +149,12 @@ def test_parses_fixture(fixture):
          _bullet_count(e.description))
         for e in parsed.experience
     ] == expected["experience"]
+    assert [
+        (e.company_name, e.title, e.location, _iso(e.start_date), _iso(e.end_date),
+         _bullet_count(e.description))
+        for e in parsed.leadership
+    ] == expected.get("leadership", [])
+    assert [(a.title, a.issuer, _iso(a.date)) for a in parsed.awards] == expected.get("awards", [])
     assert [p.project_name for p in parsed.projects] == expected["projects"]
     assert len(parsed.skills) == expected["skill_count"]
 
