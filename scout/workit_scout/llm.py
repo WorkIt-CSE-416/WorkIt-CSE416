@@ -13,6 +13,7 @@ from collections.abc import AsyncIterator, Sequence
 
 from openai import APIConnectionError, APIStatusError, AsyncOpenAI, RateLimitError
 
+from workit_scout.identity import Identity
 from workit_scout.settings import Endpoint, ScoutSettings
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,12 @@ def _worth_another_try(exc: Exception) -> bool:
 
 def _user_message(exc: Exception) -> str:
     return OUT_OF_QUOTA if isinstance(exc, RateLimitError) else OFFLINE
+
+
+def _deidentified(messages: Sequence[Message], identity: Identity) -> list[Message]:
+    # The seam's own guarantee: every message, system prompt included, loses
+    # its identity data here, whatever the caller already removed.
+    return [{**m, "content": identity.remove(m["content"])} for m in messages]
 
 
 class LLM:
@@ -73,7 +80,10 @@ class LLM:
     def from_settings(cls, s: ScoutSettings) -> "LLM":
         return cls(s.chain())
 
-    async def stream(self, messages: Sequence[Message]) -> AsyncIterator[str]:
+    async def stream(
+        self, messages: Sequence[Message], *, identity: Identity
+    ) -> AsyncIterator[str]:
+        messages = _deidentified(messages, identity)
         failure = OFFLINE
         for endpoint, client in self._endpoints:
             started = False

@@ -16,6 +16,7 @@ from openai import (
 from workit_scout import llm as llm_module
 from workit_scout.agent import MAX_REPLY_CHARS, run
 from workit_scout.facts import job_facts, resume_facts
+from workit_scout.identity import Identity
 from workit_scout.llm import LLM
 from workit_scout.prompt import NO_RESUME, SYSTEM_PROMPT
 from workit_scout.quota import DailyQuota
@@ -50,10 +51,12 @@ def bad_request() -> BadRequestError:
     )
 
 
-def collect(llm: LLM, *texts: str, **facts) -> list:
+def collect(llm: LLM, *texts: str, identity=Identity(), **facts) -> list:
     async def go():
         messages = [ChatMessage(role="user", content=t) for t in texts]
-        return [event async for event in run(messages, llm, **facts)]
+        return [
+            event async for event in run(messages, llm, identity=identity, **facts)
+        ]
 
     return asyncio.run(go())
 
@@ -104,6 +107,26 @@ def test_failure_mid_reply_is_not_retried():
     )
     assert reply(events) == "Half a"
     assert events[-1] == ErrorEvent(message=llm_module.CUT_OFF)
+
+
+def test_the_prompt_sent_holds_no_identity_data():
+    fake = ScriptedLLM(["ok"])
+    me = Identity(
+        name="Sam Seeker",
+        email="sam@example.com",
+        phone="631-555-0100",
+        links=["https://github.com/samseeker"],
+    )
+    collect(
+        fake,
+        "I'm Sam Seeker, sam@example.com, (631) 555-0100, github.com/samseeker",
+        identity=me,
+        resume=ResumeFacts(projects=["Robot arm, by Sam Seeker"]),
+    )
+    sent = str(fake.prompts)
+    for value in ("Sam", "Seeker", "sam@example.com", "555", "samseeker"):
+        assert value not in sent
+    assert "[name]" in sent and "[email]" in sent and "[phone]" in sent
 
 
 def test_long_reply_is_cut_at_the_cap():

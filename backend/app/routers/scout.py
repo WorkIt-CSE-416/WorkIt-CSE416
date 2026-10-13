@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.agent import run
 from workit_scout.facts import job_facts, resume_facts
+from workit_scout.identity import Identity
 from workit_scout.llm import LLM
 from workit_scout.quota import DailyQuota
 from workit_scout.schemas import ChatRequest, JobFacts, ResumeFacts, ScoutEvent
@@ -104,5 +105,6 @@ async def chat(
         )
 
     job = await find_job(db, body.job_id) if body.job_id else None
-    events = run(body.messages, llm, resume=resume, job=job)
+    identity = Identity(name=account.full_name, email=account.email)
+    events = run(body.messages, llm, identity=identity, resume=resume, job=job)
     return StreamingResponse(_ndjson(events), media_type="application/x-ndjson")
