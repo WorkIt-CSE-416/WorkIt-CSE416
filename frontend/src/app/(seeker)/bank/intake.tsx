@@ -12,11 +12,13 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scout/chat";
+import { Button } from "@/components/ui/button";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
 import { createEntry, type BankEntry, type EntryFields, type Section } from "@/lib/bank-actions";
+import { uploadResume } from "@/lib/resume-actions";
 import { cn } from "@/lib/cn";
 import {
   INTAKE_DRAFT_KEY,
@@ -67,9 +69,11 @@ import {
  * prototype. Skipped sections are kept beside the draft, so a reload does
  * not walk back into them.
  *
- * Import inside the chat: with `importable`, WorkIt's first line offers
- * Import My Resume, and the import review (`import-card.tsx`) takes the
- * chat's place until it closes. The walk then starts again on the bank as
+ * Upload first: with `importable`, a slim strip above the step bar offers
+ * Upload Resume (PDF or DOCX, the API's `uploadResume`) with a note on what
+ * it is for, and a link to read an upload the student already has. Either
+ * opens the import review (`import-card.tsx`) in the chat's place, on the
+ * file just uploaded or else the default one, until it closes. The walk then starts again on the bank as
  * it is now. It skips a section that has entries, but visits each entry in
  * `entries` that has gaps (`gapQuestions`: no dates, no organization for a
  * job or role, no bullets for a job, project or role): the card opens on
@@ -193,6 +197,11 @@ export function Intake({
   const [sheet, setSheet] = useState(false);
   const [skipped, setSkipped] = useState<Section[]>([]);
   const [importing, setImporting] = useState(autoImport);
+  // The upload to import; unset reads the default one.
+  const [importFrom, setImportFrom] = useState<string | undefined>();
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [imported, setImported] = useState(false);
   // Bumped when the import closes, so the walk restarts on the fresh bank.
   const [rewalk, setRewalk] = useState(0);
@@ -433,6 +442,21 @@ export function Intake({
     if (reloadError) setError(reloadError);
   }
 
+  async function upload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // The same file can be picked again after a failure.
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const { resume, error } = await uploadResume(fd);
+    setUploading(false);
+    if (!resume) return setUploadError(error ?? "Could not upload the resume. Try again.");
+    setImportFrom(resume.id);
+    setImporting(true);
+  }
+
   /** Saves a visit to a bank entry as an edit of it. */
   async function saveVisit(entryId: string, edited: EntryDraft) {
     const saved = entries.find((e) => e.id === entryId);
@@ -485,6 +509,36 @@ export function Intake({
 
   return (
     <section aria-labelledby="intake-title" className="flex flex-col gap-3">
+      {offerImport && !importing && (
+        <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
+          <FileUp aria-hidden className="text-brand size-5 shrink-0" />
+          <p className="text-note text-ink-muted min-w-0 flex-1">
+            Want to pre-fill your entries? Upload your resume. WorkIt fills in what it can, then
+            asks only about the rest.{" "}
+            <button
+              type="button"
+              onClick={() => setImporting(true)}
+              className="text-brand hover:text-brand-hover underline"
+            >
+              Use one you already uploaded
+            </button>
+          </p>
+          <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
+          <Button
+            size="sm"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading || answering || saving}
+          >
+            <FileUp /> {uploading ? "Uploading…" : "Upload Resume"}
+          </Button>
+          {uploadError && (
+            <p role="alert" className="text-note text-danger basis-full">
+              {uploadError}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <Mark />
         <div className="min-w-0">
@@ -511,6 +565,7 @@ export function Intake({
       {importing ? (
         <ImportCard
           autoStart
+          resumeId={importFrom}
           onSaved={onSaved}
           onClose={() => {
             setImporting(false);
@@ -526,25 +581,10 @@ export function Intake({
               className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4"
             >
               <WorkItLine>
-                {offerImport
-                  ? "Hi! I'll help you fill your experience bank, one thing at a time. Have a resume? Import it first, and I'll only ask about what it's missing."
-                  : walk
-                    ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
-                    : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
+                {walk
+                  ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
+                  : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
               </WorkItLine>
-
-              {offerImport && (
-                <div className="animate-fade -mt-1 pl-10.5">
-                  <button
-                    type="button"
-                    onClick={() => setImporting(true)}
-                    disabled={answering || saving}
-                    className="text-label bg-brand text-on-brand hover:bg-brand-hover focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                  >
-                    <FileUp aria-hidden className="size-3.5" /> Import My Resume
-                  </button>
-                </div>
-              )}
 
               {lines.map((line, i) => (
                 <ChatLine key={i} line={line} follows={continues(lines, i)} />

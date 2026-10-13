@@ -375,8 +375,10 @@ bank is where resume facts are kept, once (`GLOSSARY.md`), and the only
 place they are edited: My Profile keeps the uploads and links here.
 
 **Layout, top to bottom** (settled 2026-10-13): the title with a "Your
-Resumes" button that jumps to the bottom card; intake, the page's main
-part, with Import inside its chat; the section cards and Skills; then one
+Resumes" button that jumps to the bottom card; a slim upload strip
+("Want to pre-fill your entries? Upload your resume…", Upload Resume, and
+"Use one you already uploaded"); intake, the page's main part, with the
+import review opening in its chat's place; the section cards and Skills; then one
 "Your Resumes" card holding Base Resumes and Sent. Import, Base Resumes and
 Sent used to be three cards above intake, which pulled the eye from the
 chat the page is built around.
@@ -401,10 +403,13 @@ chat the page is built around.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
-- **Import Your Resume** (`import-card.tsx`, KAN-211) opens inside intake:
-  WorkIt's first line offers Import My Resume until the student imports
-  once, and the review takes the chat's place until Close, or a Save All
-  that leaves nothing to check. `?import=1` (the Jobs page's prompt) opens
+- **Import Your Resume** (`import-card.tsx`, KAN-211) opens inside intake,
+  from the upload strip above it, shown until the student imports once.
+  Upload Resume (PDF or DOCX) uploads through `uploadResume`, as My Profile
+  does, then imports that file (`resumeId`); the link imports the default
+  upload, else the newest. The review takes the chat's place until Close,
+  or a Save All that leaves nothing to check. The API's 5-resume limit
+  shows as the strip's error. `?import=1` (the Jobs page's prompt) opens
   it on arrival. One
   click reads the default upload, else the newest, into draft entries and
   skills (`importResume`); nothing is saved until the student saves a
