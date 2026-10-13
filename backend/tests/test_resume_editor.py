@@ -226,3 +226,99 @@ async def test_fit_on_a_one_page_resume_hides_nothing(student):
     body = (await client.post(f"{me}/built-resumes/{resume_id}/fit")).json()
     assert body["hidden"] == []
     assert body["render"]["page_count"] == 1
+
+
+async def _bullet_choice(client, me, resume_id, bullet_id):
+    choices = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
+    return next(c for c in choices["bullets"] if c["bullet_id"] == bullet_id)
+
+
+async def test_typing_on_a_bullet_changes_this_resume_only_and_the_bank_keeps_the_original(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    other = await _generate(client, me)
+    bullet = _entry(await _bank(client, me), "Software Intern")["bullets"][0]["id"]
+
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                             json={"bullets": [{"bullet_id": bullet, "text": "Cut page load time by 35%"}]})
+    assert res.status_code == 200
+    assert "Cut page load time by 35%" in await _lines(client, me, resume_id)
+    assert "Cut page load time by 30%" in await _lines(client, me, other)
+    assert _entry(await _bank(client, me), "Software Intern")["bullets"][0]["text"] == "Cut page load time by 30%"
+    choice = await _bullet_choice(client, me, resume_id, bullet)
+    assert choice["text"] == "Cut page load time by 35%"
+    assert choice["variant_id"] is not None
+
+    # Typing again updates the same local variant: at most one per bullet
+    await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                       json={"bullets": [{"bullet_id": bullet, "text": "Cut page load time by 40%"}]})
+    again = await _bullet_choice(client, me, resume_id, bullet)
+    assert (again["variant_id"], again["text"]) == (choice["variant_id"], "Cut page load time by 40%")
+    variants = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()["variants"]
+    assert [(v["bullet_id"], v["text"], v["local"]) for v in variants] == [
+        (bullet, "Cut page load time by 40%", True)]
+
+
+async def test_typing_the_original_back_drops_the_local_variant(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    bullet = _entry(await _bank(client, me), "Software Intern")["bullets"][0]["id"]
+    await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                       json={"bullets": [{"bullet_id": bullet, "text": "Cut load time by 30%"}]})
+
+    await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                       json={"bullets": [{"bullet_id": bullet, "text": " Cut page load time by 30% "}]})
+    choice = await _bullet_choice(client, me, resume_id, bullet)
+    assert (choice["variant_id"], choice["text"]) == (None, None)
+    assert (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()["variants"] == []
+    # A fix in the bank shows again, since the resume shows the original
+    await client.patch(f"{me}/bank/bullets/{bullet}", json={"text": "Cut page load time by 31%"})
+    assert "Cut page load time by 31%" in await _lines(client, me, resume_id)
+
+
+async def test_switching_wording_picks_a_variant_of_that_bullet_or_the_original(student, database):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    intern = _entry(await _bank(client, me), "Software Intern")
+    bullet, sibling = (b["id"] for b in intern["bullets"])
+    async with database() as session:
+        from sqlalchemy import text as sql
+
+        tailored = await session.scalar(sql(
+            "INSERT INTO bank_bullet_variants (bullet_id, text) VALUES (:b, 'Made pages load 30% faster')"
+            " RETURNING id"), {"b": bullet})
+        await session.commit()
+    tailored = str(tailored)
+
+    listed = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()["variants"]
+    assert [(v["id"], v["local"]) for v in listed] == [(tailored, False)]
+    await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                       json={"bullets": [{"bullet_id": bullet, "variant_id": tailored}]})
+    assert "Made pages load 30% faster" in await _lines(client, me, resume_id)
+
+    # Another bullet's variant is refused
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                             json={"bullets": [{"bullet_id": sibling, "variant_id": tailored}]})
+    assert res.status_code == 404
+
+    await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                       json={"bullets": [{"bullet_id": bullet, "variant_id": None}]})
+    assert "Cut page load time by 30%" in await _lines(client, me, resume_id)
+
+
+async def test_another_resumes_local_wording_is_not_offered(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    other = await _generate(client, me)
+    bullet = _entry(await _bank(client, me), "Software Intern")["bullets"][0]["id"]
+    await client.patch(f"{me}/built-resumes/{other}/choices",
+                       json={"bullets": [{"bullet_id": bullet, "text": "Other resume's words"}]})
+    assert (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()["variants"] == []
+    local = (await client.get(f"{me}/built-resumes/{other}/choices")).json()["variants"][0]["id"]
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                             json={"bullets": [{"bullet_id": bullet, "variant_id": local}]})
+    assert res.status_code == 404

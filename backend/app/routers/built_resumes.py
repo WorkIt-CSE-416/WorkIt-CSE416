@@ -65,6 +65,7 @@ from app.schemas.built_resume import (
     RenderBox,
     RenderResponse,
     SkillChoiceResponse,
+    VariantResponse,
 )
 from app.schemas.keywords import KeywordMatchResponse
 from app.services import built_resumes as service
@@ -222,10 +223,14 @@ async def fit(
 
 async def _choices(session: AsyncSession, resume_id: uuid.UUID) -> ChoicesResponse:
     choices = await service.load_choices(session, resume_id)
+    variants = await service.list_variants(session, resume_id, list(choices.bullets))
     return ChoicesResponse(
+        variants=[VariantResponse(id=v.id, bullet_id=v.bullet_id, text=v.text, job_posting_id=v.job_posting_id,
+                                  local=v.built_resume_id is not None) for v in variants],
         entries=[EntryChoiceResponse(entry_id=i, shown=c.shown, position=c.position, show_gpa=c.show_gpa,
                                      show_coursework=c.show_coursework) for i, c in choices.entries.items()],
-        bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position)
+        bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position, variant_id=c.variant_id,
+                                      text=c.text)
                  for i, c in choices.bullets.items()],
         skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position)
                 for i, c in choices.skills.items()],
