@@ -182,3 +182,22 @@ def all_chosen(bank: Any) -> Choices:
             bullets[bullet.id] = BulletChoice(position=i)
     skills = {skill.id: SkillChoice(position=i) for i, skill in enumerate(bank.skills)}
     return Choices(entries, bullets, skills)
+
+
+# Fit to One Page's sections, the first to give up bullets first (KAN-218).
+# Education, Awards, Certifications and Skills are never cut.
+FIT_SECTIONS = ("leadership", "projects", "experience")
+
+
+def fit_order(view: ResumeView) -> list[uuid.UUID]:
+    '''The shown bullets in the order Fit to One Page hides them: the last
+    bullet of the bottom entry of Leadership & Activities, then Projects,
+    then Experience, one at a time, never an entry's first bullet. A base
+    resume has no job posting to rank against, so the oldest-and-last line is
+    the stand-in for the least useful (the KAN-195 prototype's rule).'''
+    by_section = {s.section: s.entries for s in view.sections}
+    order: list[uuid.UUID] = []
+    for section in FIT_SECTIONS:
+        for entry in reversed(by_section.get(section, ())):
+            order.extend(b.id for b in reversed(entry.bullets[1:]))
+    return order

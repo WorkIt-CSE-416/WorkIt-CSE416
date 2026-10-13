@@ -1,7 +1,7 @@
 "use client";
 
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
@@ -12,6 +12,9 @@ import { cn } from "@/lib/cn";
  * imported inside an effect, so it never runs on the server and loads only
  * where this component mounts: the editor page. Targets are placed in
  * percent of the page, so they need no redraw to follow the canvas's size.
+ * `field` draws the selected line's text field over its first box (KAN-218);
+ * each page is a size container, so the field's type can be set in `cqw` to
+ * match the PDF's at any width.
  */
 
 /** A box's identity across renders: its bank item and which part of it. */
@@ -39,6 +42,7 @@ export function PdfPages({
   selected,
   onSelect,
   onDrawn,
+  field,
 }: {
   /** base64, as the render response sends it */
   pdf: string;
@@ -47,7 +51,11 @@ export function PdfPages({
   onSelect: (key: string) => void;
   /** Called once every page of this `pdf` has painted. */
   onDrawn?: () => void;
+  /** The text field for the selected line, laid over its first box. */
+  field?: (box: RenderBox) => ReactNode;
 }) {
+  const first = boxes.find((b) => boxKey(b) === selected);
+  const typing = first && field?.(first);
   const [doc, setDoc] = useState<{ pdf: PDFDocumentProxy; sizes: Size[] } | null>(null);
   const [failed, setFailed] = useState(false);
   const painted = useRef(new Set<number>());
@@ -100,7 +108,7 @@ export function PdfPages({
       {doc.sizes.map((size, i) => (
         <div
           key={i}
-          className="bg-panel border-border-subtle relative w-full border shadow-sm"
+          className="bg-panel border-border-subtle @container relative w-full border shadow-sm"
           style={{ aspectRatio: `${size.width} / ${size.height}` }}
         >
           <PageCanvas
@@ -137,6 +145,18 @@ export function PdfPages({
                 />
               );
             })}
+          {first?.page === i + 1 && typing && (
+            <div
+              className="absolute z-10"
+              style={{
+                left: `${(first.x0 / size.width) * 100}%`,
+                top: `${(first.y0 / size.height) * 100}%`,
+                minWidth: `${((first.x1 - first.x0) / size.width) * 100}%`,
+              }}
+            >
+              {typing}
+            </div>
+          )}
         </div>
       ))}
     </div>

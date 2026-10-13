@@ -14,6 +14,7 @@ resume answers `NotFound`), and flushes but never commits.
 
 import re
 import uuid
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,7 +29,7 @@ from app.models.built_resume import (
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.services.bank import NotFound, load_bank
-from app.services.resume_render import Identity
+from app.services.resume_render import Identity, Rendered, box_lines
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -37,6 +38,7 @@ from app.services.resume_view import (
     SkillChoice,
     all_chosen,
     build_view,
+    fit_order,
 )
 
 MAX_RESUMES = 5
@@ -188,6 +190,81 @@ async def load_choices(session: AsyncSession, resume_id: uuid.UUID) -> Choices:
     )
 
 
+async def update_choices(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    entries: list[dict] = (),
+    bullets: list[dict] = (),
+    skills: list[dict] = (),
+) -> None:
+    """The editor's changes to one resume's choice rows (KAN-218), each a dict
+    with the bank item's id (`entry_id`, `bullet_id`, `skill_id`) and only
+    the fields that change. An item outside the applicant's bank raises
+    NotFound and nothing is written. An item with no row (one in the tray
+    because it joined the bank after Generate) gets one, shown, after its
+    siblings; an entry brought onto the resume brings its row-less bullets
+    with it, or it would show with none."""
+    await get_resume(session, applicant_id, resume_id)
+    bank = await load_bank(session, applicant_id)
+    entry_of = {b.id: e.row.id for e in bank.entries for b in e.bullets}
+    original = {b.id: b.text for e in bank.entries for b in e.bullets}
+    section_of = {e.row.id: str(e.row.section) for e in bank.entries}
+    bullets_of = {e.row.id: [b.id for b in e.bullets] for e in bank.entries}
+    skill_ids = {s.id for s in bank.skills}
+    if (any(c["entry_id"] not in section_of for c in entries)
+            or any(c["bullet_id"] not in entry_of for c in bullets)
+            or any(c["skill_id"] not in skill_ids for c in skills)):
+        raise NotFound
+
+    rows = {
+        Built_Resume_Entry: {r.entry_id: r for r in await session.scalars(
+            select(Built_Resume_Entry).where(Built_Resume_Entry.built_resume_id == resume_id))},
+        Built_Resume_Bullet: {r.bullet_id: r for r in await session.scalars(
+            select(Built_Resume_Bullet).where(Built_Resume_Bullet.built_resume_id == resume_id))},
+        Built_Resume_Skill: {r.skill_id: r for r in await session.scalars(
+            select(Built_Resume_Skill).where(Built_Resume_Skill.built_resume_id == resume_id))},
+    }
+
+    def row(model, key: str, item_id: uuid.UUID, siblings) -> object:
+        found = rows[model].get(item_id)
+        if found is None:
+            used = [r.position for i, r in rows[model].items() if i in siblings]
+            found = model(built_resume_id=resume_id, **{key: item_id}, shown=True,
+                          position=max(used, default=-1) + 1)
+            if model is Built_Resume_Entry:
+                found.show_gpa = found.show_coursework = True
+            session.add(found)
+            rows[model][item_id] = found
+        return found
+
+    def apply(target: object, change: dict, key: str) -> None:
+        for name, value in change.items():
+            if name != key and value is not None:
+                setattr(target, name, value)
+
+    for change in entries:
+        entry_id = change["entry_id"]
+        siblings = {i for i, s in section_of.items() if s == section_of[entry_id]}
+        apply(row(Built_Resume_Entry, "entry_id", entry_id, siblings), change, "entry_id")
+        for bullet_id in bullets_of[entry_id]:
+            row(Built_Resume_Bullet, "bullet_id", bullet_id, set(bullets_of[entry_id]))
+    for change in bullets:
+        bullet_id = change["bullet_id"]
+        target = row(Built_Resume_Bullet, "bullet_id", bullet_id, set(bullets_of[entry_of[bullet_id]]))
+        wording, switch = change.pop("text", None), change.pop("variant_id", _UNSET)
+        apply(target, change, "bullet_id")
+        if wording is not None:
+            target.variant_id = await _type_wording(session, resume_id, bullet_id, original[bullet_id], wording)
+        elif switch is not _UNSET:
+            if switch is not None and switch not in await _offered(session, resume_id, bullet_id):
+                raise NotFound
+            target.variant_id = switch
+    for change in skills:
+        apply(row(Built_Resume_Skill, "skill_id", change["skill_id"], skill_ids), change, "skill_id")
+    await session.flush()
+
+
 async def load_view(
     session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
 ) -> tuple[Built_Resume, ResumeView]:
@@ -195,6 +272,89 @@ async def load_view(
     bank = await load_bank(session, applicant_id)
     return resume, build_view(bank, await load_choices(session, resume.id))
 
+
+
+_UNSET = object()
+
+
+async def _type_wording(
+    session: AsyncSession, resume_id: uuid.UUID, bullet_id: uuid.UUID, original: str, wording: str
+) -> uuid.UUID | None:
+    """Save typed wording as the resume's one local variant of the bullet and
+    return its id; the original typed back deletes it and returns None."""
+    local = await session.scalar(select(Bank_Bullet_Variant).where(
+        Bank_Bullet_Variant.built_resume_id == resume_id, Bank_Bullet_Variant.bullet_id == bullet_id))
+    if wording == original.strip():
+        if local is not None:
+            await session.delete(local)
+        return None
+    if local is None:
+        local = Bank_Bullet_Variant(id=uuid.uuid4(), bullet_id=bullet_id, built_resume_id=resume_id, text=wording)
+        session.add(local)
+        await session.flush()
+    else:
+        local.text = wording
+    return local.id
+
+
+async def _offered(session: AsyncSession, resume_id: uuid.UUID, bullet_id: uuid.UUID) -> set[uuid.UUID]:
+    return {v.id for v in await list_variants(session, resume_id, [bullet_id])}
+
+
+async def list_variants(
+    session: AsyncSession, resume_id: uuid.UUID, bullet_ids: list[uuid.UUID]
+) -> list[Bank_Bullet_Variant]:
+    """The wordings a resume can show for these bullets: every Tailor
+    variant, and this resume's own local ones, never another resume's."""
+    if not bullet_ids:
+        return []
+    rows = await session.scalars(
+        select(Bank_Bullet_Variant)
+        .where(Bank_Bullet_Variant.bullet_id.in_(bullet_ids),
+               (Bank_Bullet_Variant.built_resume_id.is_(None)) | (Bank_Bullet_Variant.built_resume_id == resume_id))
+        .order_by(Bank_Bullet_Variant.created_at, Bank_Bullet_Variant.id))
+    return list(rows)
+
+
+FIT_ROUNDS = 6
+
+
+async def fit_to_one_page(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    render: Callable[[ResumeView], Awaitable[Rendered]],
+) -> tuple[list[uuid.UUID], Rendered]:
+    """Hide bullets in `fit_order` until the resume renders on one page, or
+    none is left to hide. Each round hides about as many lines as the render
+    says run over, by each bullet's own box, then renders again, so a
+    resume a few lines over costs two renders, not one per bullet. Returns
+    the hidden bullet ids (Undo shows them again) and the last render."""
+    hidden: list[uuid.UUID] = []
+    _, view = await load_view(session, applicant_id, resume_id)
+    rendered = await render(view)
+    for _ in range(FIT_ROUNDS):
+        if rendered.page_count <= 1:
+            break
+        candidates = fit_order(view)
+        if not candidates:
+            break
+        lines: dict[str, int] = {}
+        for box in rendered.boxes:
+            if box.kind == "bullet":
+                lines[box.item_id] = lines.get(box.item_id, 0) + box_lines(box)
+        need, batch = max(1, rendered.lines_over), []
+        for bullet_id in candidates:
+            batch.append(bullet_id)
+            need -= lines.get(str(bullet_id), 1)
+            if need <= 0:
+                break
+        await update_choices(session, applicant_id, resume_id,
+                             bullets=[{"bullet_id": b, "shown": False} for b in batch])
+        hidden.extend(batch)
+        _, view = await load_view(session, applicant_id, resume_id)
+        rendered = await render(view)
+    return hidden, rendered
 
 
 async def load_identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:

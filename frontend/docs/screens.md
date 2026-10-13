@@ -369,6 +369,9 @@ place they are edited: My Profile keeps the uploads and links here.
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
+- **Bullets show their original wording only** (KAN-218). Wording typed on
+  a resume in the editor is that resume's local variant and never shows
+  here (`docs/resume.md`).
 - **Import Your Resume** (`import-card.tsx`, KAN-211), the first card. One
   click reads the default upload, else the newest, into draft entries and
   skills (`importResume`); nothing is saved until the student saves a
@@ -490,20 +493,49 @@ place they are edited: My Profile keeps the uploads and links here.
 ## Resume editor
 
 `(seeker)/resumes/[resumeId]`, opened from a base resume's Open on the bank
-page. KAN-209 is the overlay proof; typing in place is KAN-218, the phone
-layout KAN-219.
+page. KAN-209 proved the overlay; KAN-218 edits on it; the phone layout is
+KAN-219. The page loads the render, the bank and the resume's choices, and
+shows the error state if any fails.
 
 - **The page is the PDF itself** (ADR 0002): the render response's PDF,
   drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
   response's boxes is a button laid over its line in percent of the page,
   so the targets follow the canvas at any width without a redraw.
-- **A click selects a line**; a second click or Escape clears it. The line
-  above the page names the selected kind and page. Nothing edits yet.
-- **Render Again** fetches a new render and shows the round trip, from the
-  request to the new PDF painted, in ms: the cost each saved edit will pay.
-  A response older than the latest request is dropped.
+- **Click a line and type** (`editor.tsx`). A text field opens over the
+  line's first box, in type sized in `cqw` of the page (each page is a size
+  container), so the typed text shows at once. It saves after a 700 ms
+  pause, on blur, on Enter, or when another line is selected; then the PDF
+  renders again. Every save bumps one request counter and a response older
+  than the latest is dropped, so a slow render never paints over a newer
+  edit. A bullet's text becomes this resume's local variant; an entry's
+  title, organization and location change the bank (user story 61). Dates,
+  degree, GPA, coursework and honors are not typed here: the bar links to
+  the Experience Bank. Escape or Done clears the selection.
+- **The sticky bar** sits above the page, so a line's actions never cover
+  nearby lines. With a line selected: Hide (Hide Entry), Move Up and Move
+  Down (entries within their section, bullets within their entry, one PATCH
+  that renumbers the siblings), the bullet's wordings (Original, each
+  Tailored version, This Resume's Wording) and, on Education, Show/Hide GPA
+  and Coursework. A press on a bar button keeps focus in the field. With no
+  line selected: the page-count chip ("1 page", "2 pages · 3 lines over
+  1 page", from the render's `lines_over`, an estimate) and, over one page,
+  Fit to One Page, then Undo, which shows the bullets Fit hid. The bar also
+  says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
+  the Vercel preview check.
+- **Fit to One Page is the API's** (`POST .../fit`): it hides the last
+  bullet of the bottom entry of Leadership & Activities, then Projects,
+  then Experience, never an entry's first bullet, re-rendering until the
+  page fits (the KAN-195 prototype's rule; a base resume has no posting to
+  rank against).
+- **"Not on This Resume"** (`tray.tsx`) under the page: entries the resume
+  does not show (hidden, or added to the bank after Generate), hidden
+  bullets of shown entries, and hidden skills. One click puts one back; an
+  entry joins the end of its section with its bullets.
+- Skills can be hidden but not moved: they print grouped, and a move
+  inside a group is still open.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
-  message and a Try Again link.
+  message and a Try Again link; a failed save shows the API's message above
+  the page and keeps the last PDF.
 
 ## Scout panel
 
