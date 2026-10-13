@@ -268,6 +268,17 @@ change here must keep:
   (`set_default`). Code that reads "the default" checks both: a base default
   leaves `default_resume_id` null. The recommender and Scout read neither:
   they read the experience bank (KAN-212).
+- **A bullet choice may name a variant** (`variant_id`, KAN-217), whose
+  text the view shows in place of the original; `ON DELETE SET NULL`
+  brings the original back. The table cannot check that the variant
+  belongs to the choice's bullet: Tailor's Done makes or reuses the
+  variant for that bullet itself, and whatever writes `variant_id` next
+  (the editor) must do the same.
+- **`bank_bullet_variants` has two owners, at most one set**: a job posting
+  (Tailor) or a built resume (a local variant, at most one per bullet and
+  resume, `bank_bullet_variants_local_key`), with the check
+  `bank_bullet_variants_one_owner_check`. Neither set is allowed and reads
+  as a variant of the bank's own.
 - **`default_built_resume_id` is a mapped column on `applicant_profiles`**,
   so every signup INSERT names it: migration `5753545063f3` is applied
   before the code deploys (above, "A new column reaches the database...").
