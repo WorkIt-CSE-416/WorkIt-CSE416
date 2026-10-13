@@ -9,7 +9,7 @@ the merged entry through it, so a partial edit cannot leave a bad row.
 import datetime
 import re
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -196,9 +196,11 @@ class DuplicateEntry(BaseModel):
 
 class ImportRequest(BaseModel):
     """POST body for import. Without a resume id, import reads the default
-    resume, else the newest upload."""
+    resume, else the newest upload. `read_with_ai` skips the heuristic parser
+    and reads the resume with the model ("Read it again with AI")."""
 
     resume_id: UUID | None = None
+    read_with_ai: bool = False
 
 
 class DraftEntry(EntryCreate):
@@ -224,3 +226,43 @@ class ImportResponse(BaseModel):
     filename: str | None
     entries: list[DraftEntry]
     skills: list[DraftSkill]
+    # Who read the resume: the heuristic parser, or the model (KAN-222).
+    read_by: Literal["parser", "model"] = "parser"
+    # Model parsing uses the student has left today.
+    uses_left: int
+
+
+class ModelEntry(BaseModel):
+    """One entry as the model reads it (KAN-222). Loose on purpose: one odd
+    field must not throw away the whole reading. Each entry is then checked
+    against the entry schema (`DraftEntry`) on its own, and dropped or
+    trimmed there. No link: the model sees every URL as [link]."""
+
+    section: bank_section
+    title: str = ""
+    organization: str | None = None
+    location: str | None = None
+    start_month: str | None = Field(None, description="YYYY-MM")
+    end_month: str | None = Field(None, description="YYYY-MM")
+    end_kind: entry_end_kind | None = None
+    degree: str | None = None
+    field_of_study: str | None = None
+    gpa: float | None = None
+    gpa_scale: float | None = None
+    coursework: list[str] = Field(default_factory=list)
+    honors: str | None = None
+    issuer: str | None = None
+    award_date: str | None = Field(None, description="YYYY-MM")
+    bullets: list[str] = Field(default_factory=list)
+
+
+class ModelSkill(BaseModel):
+    name: str
+    group: str | None = None
+
+
+class ModelReading(BaseModel):
+    """What the model must answer for model parsing, checked whole."""
+
+    entries: list[ModelEntry]
+    skills: list[ModelSkill] = Field(default_factory=list)
