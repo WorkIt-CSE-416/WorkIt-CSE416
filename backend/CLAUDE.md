@@ -153,7 +153,9 @@ Find files with a directory listing; these are the rules for where code goes.
   entries).
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
-  bank embedding on every entry, bullet or skill change; a route or script
+  bank embedding on every entry, bullet or skill change (a skill link is
+  not one: the embedding text never says which skill goes with which
+  entry); a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
 - **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
