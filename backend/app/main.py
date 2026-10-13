@@ -15,8 +15,8 @@ from app.db import get_sessionmaker
 from app.routers.auth import router as auth_router
 from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
-from app.routers.intake import router as intake_router
 from app.routers.company_jobs import router as company_jobs_router
+from app.routers.intake import router as intake_router
 from app.routers.jobs import router as jobs_router
 from app.routers.profiles import router as profile_router
 from app.routers.render_proof import router as render_proof_router

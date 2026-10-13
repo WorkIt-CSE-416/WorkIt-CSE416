@@ -10,7 +10,13 @@ entry schema rejects). GPA travels as a number, as in `EntryResponse`.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, WithJsonSchema, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    WithJsonSchema,
+    model_validator,
+)
 from workit_scout.schemas import MAX_MESSAGES, ChatMessage
 
 from app.models.dto import bank_section

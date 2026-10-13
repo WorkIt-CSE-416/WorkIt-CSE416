@@ -9,6 +9,7 @@ import uuid
 
 import httpx
 import pytest
+from openai import RateLimitError
 from sqlalchemy import text
 from workit_scout.testing import ScriptedLLM
 
@@ -30,6 +31,13 @@ DRAFT = {
     "end_month": "2025-05",
     "bullets": ["Wrote the arm's controller in Python."],
 }
+
+
+_REQUEST = httpx.Request("POST", "http://endpoint.test/v1/chat/completions")
+
+
+def rate_limited() -> RateLimitError:
+    return RateLimitError("quota", response=httpx.Response(429, request=_REQUEST), body=None)
 
 
 def reply(text: str = "What did the arm do?", draft: dict | None = None, done: bool = False) -> str:
@@ -104,3 +112,127 @@ async def test_a_turn_streams_the_reply_the_full_draft_and_the_uses_left(applica
     assert draft_line["draft"]["bullets"] == ["Wrote the arm's controller in Python."]
     assert draft_line["draft"]["gpa"] is None
     assert usage_line == {"type": "usage", "uses_left": 14}
+
+
+async def test_the_cards_edits_reach_the_model_with_each_turn(applicant, client):
+    model = use_model([reply()])
+    edited = {**DRAFT, "title": "Arm Controller v2"}
+    body = {**TURN, "draft": edited}
+    assert (await client.post("/intake/turn", json=body)).status_code == 200
+    sent = json.dumps(model.prompts[0])
+    assert "Arm Controller v2" in sent
+    assert model.prompts[0][-1] == {"role": "user", "content": SAID}
+
+
+async def test_the_prompt_is_frozen_and_the_turn_goes_after_it(applicant, client):
+    first = use_model([reply()])
+    await client.post("/intake/turn", json=TURN)
+    second = use_model([reply()])
+    await client.post("/intake/turn", json={**TURN, "section": "education", "draft": None})
+    assert first.system_prompt == second.system_prompt
+    assert "Education" in second.prompts[0][1]["content"]
+
+
+async def test_a_draft_that_breaks_the_entry_schema_does_not_count(applicant, client, cap):
+    # The first JSON route: an invalid reply is an error line and costs nothing.
+    cap(1)
+    bad = {**DRAFT, "gpa": 3.9}  # a GPA on a project entry
+    use_model([reply(draft=bad)])
+    res = await client.post("/intake/turn", json=TURN)
+    assert res.status_code == 200
+    assert [line["type"] for line in lines(res)] == ["error", "usage"]
+    assert lines(res)[-1] == {"type": "usage", "uses_left": 1}
+
+    use_model(["not json at all"])
+    assert lines(await client.post("/intake/turn", json=TURN))[-1]["uses_left"] == 1
+
+    use_model([reply()])
+    assert (await client.post("/intake/turn", json=TURN)).status_code == 200
+    assert (await client.post("/intake/turn", json=TURN)).status_code == 429
+
+
+async def test_a_draft_for_another_section_is_rejected(applicant, client):
+    use_model([reply(draft={**DRAFT, "section": "experience"})])
+    res = await client.post("/intake/turn", json=TURN)
+    assert [line["type"] for line in lines(res)] == ["error", "usage"]
+
+
+async def test_a_model_that_is_down_does_not_count(applicant, client, cap):
+    cap(1)
+    use_model(rate_limited())
+    res = await client.post("/intake/turn", json=TURN)
+    assert lines(res) == [
+        {"type": "error", "message": lines(res)[0]["message"]},
+        {"type": "usage", "uses_left": 1},
+    ]
+
+
+async def test_intake_asks_at_most_three_follow_ups(applicant, client):
+    chat = [{"role": "user", "content": SAID}]
+    for question in ("What did the arm do?", "Who was on the team?", "What was the result?"):
+        chat += [{"role": "assistant", "content": question}, {"role": "user", "content": "ok"}]
+    model = use_model([reply("How long did it take?", done=False)])
+    res = await client.post("/intake/turn", json={**TURN, "messages": chat})
+    text_line, draft_line, _ = lines(res)
+    assert "?" not in text_line["delta"]
+    assert draft_line["done"] is True
+    assert "may still ask for this entry: 0" in model.prompts[0][1]["content"]
+
+
+async def test_each_turn_counts_against_the_intake_cap(applicant, client, cap):
+    cap(2)
+    use_model([reply()])
+    codes = [(await client.post("/intake/turn", json=TURN)).status_code for _ in range(3)]
+    assert codes == [200, 200, 429]
+
+
+async def test_intake_stops_when_its_share_of_the_pool_is_spent(applicant, client, cap, monkeypatch):
+    # A pool of 10 a day gives intake its 30%: three turns across all students.
+    cap(15)
+    monkeypatch.setattr(get_settings(), "ai_daily_pool", 10)
+    use_model([reply()])
+    codes = [(await client.post("/intake/turn", json=TURN)).status_code for _ in range(4)]
+    assert codes == [200, 200, 200, 429]
+
+
+async def test_intake_is_for_applicants_only(applicant, client):
+    use_model([reply()])
+    app.dependency_overrides[get_current_account] = lambda: _account(AccountType.COMPANY)
+    assert (await client.post("/intake/turn", json=TURN)).status_code == 403
+
+
+async def test_a_card_from_another_section_is_refused(applicant, client):
+    use_model([reply()])
+    body = {**TURN, "draft": {**DRAFT, "section": "awards"}}
+    assert (await client.post("/intake/turn", json=body)).status_code == 422
+
+
+async def test_the_prompt_sent_holds_no_identity_data(applicant, client):
+    model = use_model([reply()])
+    said = "I'm Sam Seeker, code at github.com/samseeker/arm, mail sam@example.com"
+    body = {**TURN, "messages": [{"role": "user", "content": said}]}
+    assert (await client.post("/intake/turn", json=body)).status_code == 200
+    sent = json.dumps(model.prompts)
+    for value in ("Sam", "Seeker", "sam@example.com", "samseeker"):
+        assert value not in sent
+
+
+async def test_a_link_the_model_saw_as_a_placeholder_keeps_the_cards_value(applicant, client):
+    use_model([reply(draft={**DRAFT, "link": "[link]"})])
+    card = {**DRAFT, "link": "github.com/samseeker/arm"}
+    res = await client.post("/intake/turn", json={**TURN, "draft": card})
+    assert lines(res)[1]["draft"]["link"] == "github.com/samseeker/arm"
+
+
+async def test_nothing_said_is_stored(applicant, client, database):
+    use_model([reply()])
+    await client.post("/intake/turn", json=TURN)
+    async with database() as session:
+        tables = (
+            await session.execute(
+                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+            )
+        ).scalars()
+        for table in tables:
+            rows = (await session.execute(text(f'SELECT * FROM public."{table}"'))).all()
+            assert SAID not in repr(rows) and "Robot Arm Controller" not in repr(rows)
