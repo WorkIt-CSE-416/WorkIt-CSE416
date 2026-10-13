@@ -5,8 +5,19 @@ reaches a model".
 """
 
 import re
+from collections.abc import Iterable
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# A path after a host, ending before any trailing punctuation.
+_TAIL = r"""(?:\S*[^\s.,;:!?)\]'"])?"""
+_PATH = rf"(?:/{_TAIL})?"
+_HOST = r"[\w-]+(?:\.[\w-]+)+"
+# A scheme or "www." marks a link; a bare host counts only with a path
+# ("github.com/jd"), so tool names such as Node.js and ASP.NET survive.
+_URL = re.compile(
+    rf"""https?://\S*[^\s.,;:!?)\]'"]|(?<![\w@.])www\.{_HOST}{_PATH}"""
+    rf"|(?<![\w@./-]){_HOST}/{_TAIL}"
+)
 # Digit groups joined by at most one space, dot or dash, with an optional
 # country code; only a run of 10 to 15 digits counts, so dates, years,
 # percentages and counts in a bullet survive.
@@ -20,6 +31,15 @@ def _literal(text: str, value: str | None, placeholder: str) -> str:
     if not value or not value.strip():
         return text
     return re.sub(re.escape(value.strip()), placeholder, text, flags=re.IGNORECASE)
+
+
+def _profile_link(text: str, link: str) -> str:
+    core = re.sub(r"^(?:https?://)?(?:www\.)?", "", link.strip(), flags=re.IGNORECASE)
+    core = core.rstrip("/")
+    if not core:
+        return text
+    found = rf"(?:https?://)?(?:www\.)?{re.escape(core)}{_PATH}(?![\w-])"
+    return re.sub(found, "[link]", text, flags=re.IGNORECASE)
 
 
 def _phone(match: re.Match[str]) -> str:
@@ -44,10 +64,21 @@ def remove_identity(
     name: str | None = None,
     email: str | None = None,
     phone: str | None = None,
+    links: Iterable[str | None] = (),
 ) -> str:
-    """Return `text` with the student's identity data replaced by placeholders."""
+    """
+    Return `text` with identity data replaced by `[name]`, `[email]`, `[phone]`
+    and `[link]`. The profile's own fields are matched first, then any email,
+    URL or phone by pattern, the name last so a name inside an email or a link
+    cannot break that match. Each part of the name is replaced on its own, in
+    any case, even where it is also a common word: privacy wins over wording.
+    Nothing maps a placeholder back to its value, by design.
+    """
     text = _literal(text, email, "[email]")
     text = _EMAIL.sub("[email]", text)
+    for link in links:
+        text = _profile_link(text, link or "")
+    text = _URL.sub("[link]", text)
     text = _profile_phone(text, phone)
     text = _PHONE.sub(_phone, text)
     if name:
