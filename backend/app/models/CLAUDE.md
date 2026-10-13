@@ -213,6 +213,30 @@ Run `alembic upgrade head` right after merging, before the new deployment is
 live. A column whose value the database supplies (`Computed`, a
 `server_default`) is left out of inserts and is not affected.
 
+## The experience bank
+
+`bank.py` holds the bank row, entries, bullets and skills (KAN-206). The
+design rationale is in `../../../docs/resume.md`, "The experience bank";
+the rules every write follows are in `../services/bank.py`. Invariants a
+change here must keep:
+
+- **`bank_section` has six values, not seven.** Skills is a section to the
+  student but its own table. Adding a section is an `ALTER TYPE ... ADD
+  VALUE` and a coordinated deploy (above).
+- **`experience_banks` has one row per applicant, made by the first bank
+  change** (an upsert in `clear_embedding`), not at signup. A missing row
+  reads as "no embedding yet".
+- **Section fields are plain nullable columns on `bank_entries`**, not a
+  JSONB blob, so later queries (graduation date, Tailor's text search) read
+  them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section
+  owns which; the database only checks the end (`bank_entries_end_check`).
+- **A skill name appears once per applicant, ignoring case**
+  (`bank_skills_applicant_name_key` on `lower(name)`), so Tailor's "Have you
+  used X?" and import can look a skill up by name.
+- **Bullet positions are 0..n-1 within an entry.** The service renumbers on
+  every move and delete; there is no unique constraint on them, because a
+  reorder would then have to dodge its own rows mid-update.
+
 ## Locations — countries, states, and the resolver
 
 ### The tables
