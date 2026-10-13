@@ -56,7 +56,13 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **All applicant text goes through `escape()`**, the one escape function,
   tested directly with `\input{/etc/passwd}` and newlines. It also turns every
   newline into a space: a blank line ends a command's argument early. Never
-  put applicant text into the LaTeX any other way, URLs included.
+  put applicant text into the LaTeX any other way. **A `\href` target is the
+  one exception, and goes through `escape_url()`**: the same table, except
+  `~` and `^` become `\string~` and `\string^`, because hyperref turns
+  `\textasciitilde{}` into `~{}` and the link breaks
+  (`cs.example.edu/~jdoe`). `\_`, `\%` and `\#` already reach the link as
+  the bare character. `tests/test_resume_render.py` reads the PDF's link
+  targets back.
   **`--untrusted` is not what keeps this safe:** it turns off shell escape,
   but Tectonic still reads any file the process can (`\input{/etc/hosts}`
   compiled in the prototype, 2026-10-12). Escaping is the guard.
