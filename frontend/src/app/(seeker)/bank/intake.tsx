@@ -7,14 +7,13 @@ import {
   Lightbulb,
   PartyPopper,
   SkipForward,
-  Sparkles,
   Trophy,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { Composer, Message, Typing } from "@/components/scout/chat";
+import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scout/chat";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
 import { createEntry, type BankEntry, type EntryFields, type Section } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
@@ -466,18 +465,6 @@ function continues(lines: Line[], i: number): boolean {
 function lastText(lines: Line[]): string {
   const last = lines.at(-1);
   return last?.kind === "text" && last.role === "assistant" ? last.content : "";
-}
-
-/** WorkIt's mark: the brand gradient with a sparkle, beside its lines. */
-function Mark() {
-  return (
-    <span
-      aria-hidden
-      className="from-brand to-brand-pale text-on-brand flex size-8 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br shadow-[0_4px_12px_rgb(109_63_216/0.35)]"
-    >
-      <Sparkles className="size-4" />
-    </span>
-  );
 }
 
 function WorkItLine({ follows = false, children }: { follows?: boolean; children: ReactNode }) {

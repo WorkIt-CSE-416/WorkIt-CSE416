@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.db import get_sessionmaker
+from app.routers.assistant import router as assistant_router
 from app.routers.auth import router as auth_router
 from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
@@ -43,6 +44,7 @@ app.include_router(intake_router)
 app.include_router(built_resumes_router)
 app.include_router(sent_resumes_router)
 app.include_router(tailor_router)
+app.include_router(assistant_router)
 
 
 @app.exception_handler(RequestValidationError)
