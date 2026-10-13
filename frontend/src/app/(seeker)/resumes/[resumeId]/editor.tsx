@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 
 import { lineOf, move, pageLabel, TYPED_FIELDS, wording, type Line } from "./model";
 import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
+import { PhoneEditor, usePhone } from "./phone";
 import { Tray } from "./tray";
 
 /**
@@ -32,6 +33,8 @@ import { Tray } from "./tray";
  * selected line's actions, or the page-count chip and Fit to One Page. Every
  * save bumps one request counter, and a response older than the latest
  * request is dropped, so a slow render never paints over a newer edit.
+ * On a phone-width screen the same state is laid out by `PhoneEditor`
+ * (KAN-219, ./phone.tsx).
  */
 
 const SAVE_AFTER_MS = 700;
@@ -73,6 +76,7 @@ export function Editor({
   const started = useRef<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Draft | null>(null);
+  const phone = usePhone();
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -246,6 +250,53 @@ export function Editor({
     );
   }
 
+  const drawn = () => {
+    if (started.current == null) return;
+    setElapsed(Math.round(performance.now() - started.current));
+    started.current = null;
+  };
+
+  if (phone) {
+    const start = line && startText(line);
+    return (
+      <PhoneEditor
+        rendered={rendered}
+        bank={bank}
+        choices={choices}
+        selected={selected}
+        line={line}
+        box={box}
+        text={start == null ? null : draft?.key === selected ? draft.text : start}
+        saving={saving}
+        elapsed={elapsed}
+        error={error}
+        fitHidden={fitHidden}
+        actions={
+          line && (
+            <LineActions
+              line={line}
+              choices={choices}
+              onApply={apply}
+              onHide={(changes) => {
+                apply(changes);
+                select(null);
+              }}
+              up={move(bank, choices, line, -1)}
+              down={move(bank, choices, line, 1)}
+            />
+          )
+        }
+        onSelect={select}
+        onType={(text) => selected && type(selected, text)}
+        onFlush={flush}
+        onApply={apply}
+        onFit={fit}
+        onUndoFit={undoFit}
+        onDrawn={drawn}
+      />
+    );
+  }
+
   return (
     <div className="mt-4 flex flex-col gap-4">
       <Bar
@@ -273,11 +324,7 @@ export function Editor({
         selected={selected}
         onSelect={(key) => select(selected === key ? null : key)}
         field={field}
-        onDrawn={() => {
-          if (started.current == null) return;
-          setElapsed(Math.round(performance.now() - started.current));
-          started.current = null;
-        }}
+        onDrawn={drawn}
       />
       <Tray bank={bank} choices={choices} onPutBack={apply} />
     </div>

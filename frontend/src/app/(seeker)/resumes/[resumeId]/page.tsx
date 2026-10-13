@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: "Resume Editor" };
  * pdf.js (loaded on this page only), with a click target from each of the
  * render's boxes (KAN-209), edited in place (KAN-218). It needs the render,
  * the bank and the resume's choices; if any fails it shows the error state.
- * The phone layout comes in KAN-219.
+ * On a phone it takes the layout in ./phone.tsx (KAN-219).
  */
 export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[resumeId]">) {
   await connection();
