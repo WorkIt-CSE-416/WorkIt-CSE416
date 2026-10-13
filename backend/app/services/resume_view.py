@@ -13,8 +13,9 @@ and nowhere else:
   added to the bank after Generate never appears on an older resume by
   itself. A row with `shown=False` is left out too.
 - **Text is always the bank's** (ADR 0001): a fix in the bank shows on every
-  built resume. A bullet's chosen variant will replace its text here, once
-  variants exist.
+  built resume. A bullet whose choice names a variant (Tailor's wording, or
+  the resume's own) shows that variant's text instead; `BulletChoice.text`
+  carries it, loaded with the choice.
 - **Order:** sections in `SECTIONS` order, each entry by its choice's
   position within its section, each bullet by its position within its
   entry, skills by position. Ties keep the bank's order. An empty section is
@@ -52,6 +53,8 @@ class EntryChoice:
 class BulletChoice:
     shown: bool = True
     position: int = 0
+    variant_id: uuid.UUID | None = None
+    text: str | None = None  # the variant's wording; None shows the original
 
 
 @dataclass(frozen=True)
@@ -157,7 +160,7 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
                 link=row.link,
                 issuer=row.issuer,
                 award_date=row.award_date,
-                bullets=tuple(ViewBullet(b.id, b.text) for b in bullets),
+                bullets=tuple(ViewBullet(b.id, choices.bullets[b.id].text or b.text) for b in bullets),
             ))
         if entries:
             sections.append(ViewSection(section, tuple(entries)))
