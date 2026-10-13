@@ -316,6 +316,30 @@ async def test_generate_then_render_gives_a_one_page_pdf_with_the_bank(student):
         assert expected in text
 
 
+async def test_render_gives_the_editor_a_box_for_each_line_with_bank_ids(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    bank = (await client.get(f"{me}/bank")).json()
+
+    boxes = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["boxes"]
+    assert boxes and all(set(b) == {"item_id", "kind", "page", "x0", "y0", "x1", "y1"} for b in boxes)
+    by_item = {}
+    for b in boxes:
+        by_item.setdefault(b["item_id"], set()).add(b["kind"])
+    intern = next(e for e in bank["entries"] if e["title"] == "Software Intern")
+    assert by_item[intern["id"]] == {"title", "organization", "location", "dates"}
+    for bullet in intern["bullets"]:
+        assert by_item[bullet["id"]] == {"bullet"}
+    school = next(e for e in bank["entries"] if e["section"] == "education")
+    assert by_item[school["id"]] == {"title", "location", "degree", "dates", "gpa", "coursework"}
+    for skill in bank["skills"]:
+        assert by_item[skill["id"]] == {"skill"}
+    # PDF points from the top left of a Letter page
+    assert all(b["page"] == 1 and 0 <= b["x0"] < b["x1"] <= 612 and 0 <= b["y0"] < b["y1"] <= 792 for b in boxes)
+
+
 async def test_render_reports_a_long_resume_and_the_characters_the_font_lacks(student):
     _tectonic_or_skip()
     client, me = student
