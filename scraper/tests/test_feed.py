@@ -59,14 +59,14 @@ class TestRow:
         assert feed_row(role(tags=tags))["experience_level"] == "new_grad"
 
     def test_roles_are_its_categories_then_its_specialties(self) -> None:
-        # backend/app/models/dto.py's role_key takes exactly these values.
+        # shortlist.Tag's values, as feed.json has always carried them.
         assert feed_row(role())["roles"] == ["software"]
         # Cresta's "Machine Learning Engineering Intern".
         tags = (Tag.INTERN, Tag.DATA_AI, Tag.SOFTWARE, Tag.ML)
         assert feed_row(role(tags=tags))["roles"] == ["data_ai", "software", "data_ai/ml"]
 
     def test_role_category_is_left_to_the_import(self) -> None:
-        # The import derives the old one-category column from `roles` (KAN-172).
+        # The backend dropped the old one-category column (KAN-155).
         assert "role_category" not in feed_row(role())
 
     def test_description_is_passed_through(self) -> None:

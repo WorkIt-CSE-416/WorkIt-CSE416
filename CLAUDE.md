@@ -1,289 +1,185 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working in this
-repository. It covers what is true repo-wide. Each half has its own file loaded
-on top of this one whenever you touch a file in there — `frontend/CLAUDE.md`
-for the Next.js app, `backend/CLAUDE.md` for the Python API. Read the relevant
-one before writing code.
+Repo-wide rules, always loaded. Each code folder below (`frontend/`,
+`backend/`, `scout/`, `scraper/`, `.github/`) has its own `CLAUDE.md` that
+loads on top of this one when you touch a file in it; read it before writing
+code there. A rule lives at the deepest level that fully contains it, with a
+pointer above rather than a copy.
 
-## Repo layout
+## Replies
 
-```
-frontend/         The Next.js app, and the whole JS build. Self-contained:
-                  package.json, node_modules, lockfile and every toolchain
-                  config live in here. See frontend/CLAUDE.md.
-backend/          The Python API (FastAPI, SQLAlchemy, Alembic). It owns the
-                  database — connection strings, schema and migrations all live
-                  on this side. Self-contained: its own pyproject.toml, .venv
-                  and lockfile. See backend/CLAUDE.md.
-scout/            Scout, the job assistant's brain (KAN-138): prompt, model
-                  seam, agent loop. A plain Python package the API installs;
-                  no database, no HTTP. Running it locally needs Ollama and
-                  `ollama pull qwen3.5:4b`. See scout/CLAUDE.md.
-scraper/          The job-board scraper (KAN-55). Standalone and stdlib-only:
-                  no runtime dependencies, never touches the database. Runs
-                  with plain `python3 -m workit_scraper`; tests run under
-                  `uvx pytest`. See scraper/CLAUDE.md.
-docs/             Prose for the team that spans the whole repo.
-                  job-pipeline.md: how a job gets from a company's board
-                  to a card (scraper, import, tables, API, job board),
-                  in plain terms. Update it with any change to one of
-                  those stages.
-                  agents/: how Matt Pocock's skills reach this repo's
-                  issue tracker (Jira), triage labels and domain docs.
-.claude/          Skills and settings for Claude Code, repo-wide
-.vscode/          Shared editor settings and extension recommendations
-package.json      No dependencies. Scripts only, each one forwarding to
-                  frontend (see Commands)
-.nvmrc            Node version for the whole team
-.gitattributes    LF normalization
-LICENSE           MIT license covering the whole repo
-```
+Write every reply to the user in ASD-STE100 Simplified Technical English:
+short sentences, one idea per sentence, active voice, common words. Lead with
+the answer or the result, then give only the context the user needs to act on
+it. Name things with the ubiquitous language: the terms in `GLOSSARY.md` when
+it exists, and the job terms under Conventions. Define any other jargon in one
+clause the first time it appears. When you offer options, give each one's
+consequence in one plain line.
 
-Frontend prose docs live in `frontend/docs/`; database design notes live in
-`backend/db/`. The root `docs/` holds what genuinely spans the repo: today
-`docs/job-pipeline.md`, the plain-language map of the job pipeline, which
-links into each half's CLAUDE.md for the rules.
+## Layout
 
-`backend/` gets the same treatment as `frontend/` as it fills in:
-self-contained, its own dependency manifest, its own `backend/CLAUDE.md`. Do
-not add Python tooling to the repo root.
+Each half is self-contained: its own manifest, lockfile and toolchain, so the
+halves keep separate dependency trees and each one's guidance loads only when
+you work there. Python tooling stays inside its package; the repo root holds
+none.
+
+- `frontend/` — the Next.js app and the whole JS build. `npm install` runs
+  here, never at the root (`frontend/CLAUDE.md`, Commands).
+- `backend/` — the Python API (FastAPI, SQLAlchemy, Alembic). Owns the
+  database. Driven by `uv run ...` from inside `backend/`.
+- `scout/` — Scout, the job assistant's brain (KAN-138): a plain package the
+  API installs, with no database and no HTTP. Running it locally needs Ollama
+  (`scout/CLAUDE.md`, "Which model, where").
+- `scraper/` — the job-board scraper (KAN-55). Standard library only, never
+  touches the database; runs with `python3 -m workit_scraper`, tests under
+  `uvx pytest`.
+- `.github/` — CI and the scheduled scrape-and-import (KAN-160).
+- `docs/` — team prose that spans the repo (below).
 
 ## The database
 
-Postgres, hosted on Supabase, reached by FastAPI through SQLAlchemy, with
-Alembic owning migrations. **Only the backend talks to it.** The Next.js app
-holds no ORM, no connection string and no schema; Drizzle used to sit in
-`frontend/src/db/` and was removed when the API moved to Python. A query you
-are tempted to write in a React component belongs in an endpoint instead.
+Postgres on Supabase, reached only by the backend through SQLAlchemy. The
+Next.js app holds no ORM, connection string or schema: a query you want in a
+React component belongs in an endpoint.
 
-Alembic is the single source of truth for schema. `backend/db/*.md` are design
-rationale, and schema edits through the Supabase dashboard are banned — they
-bypass Alembic silently.
+**Alembic is the single source of truth for schema.** Every schema change is a
+migration. **Schema edits through the Supabase dashboard are banned**: they
+bypass Alembic silently; revoke dashboard write access if the plan allows it.
+The schema notes in `docs/` hold design rationale only.
 
-**Claude never runs `uv run alembic upgrade head` itself** — nor `downgrade`,
-`stamp`, or anything else that writes to the database. Write the migration,
-check it offline with `--sql`, then tell the user to run the command. Applying
-a migration changes a shared database, and applying one whose file isn't
-committed broke every teammate's Alembic on 2026-09-21
-(`backend/alembic/CLAUDE.md`).
+**Claude never runs `uv run alembic upgrade head`** — nor `downgrade`, `stamp`,
+or anything else that writes to the database. Write the migration, check it
+offline with `--sql`, then tell the user to run the command. Applying one
+changes a shared database, and applying one whose file wasn't committed broke
+every teammate's Alembic on 2026-09-21 (`backend/alembic/CLAUDE.md`).
 
-**Auth is decided: Supabase Auth issues the session, the Python API
-authorizes.** Supabase Auth stores credentials in `auth.users` and issues and
-refreshes tokens; the Next server holds the session in Supabase's cookies and
-forwards the access token to FastAPI as a Bearer header; FastAPI verifies it
-and decides what the account may do. Signup still goes through FastAPI, which
-creates the auth user with the account type in `app_metadata` and the profile
-row with the same id. Authorization lives in Python: SQLAlchemy connects as
-one privileged role that bypasses row-level security. RLS is enabled on every
-table with no policies anyway, as a deny-all backstop against the public anon
-key — every new table's migration must enable it too.
+## Auth
 
-`backend/CLAUDE.md`'s Auth section holds the flow, the decision and its
-rules; `frontend/CLAUDE.md` holds the Next side. Read both before touching
-sign-in on either half. The Supabase **anon** key goes to `frontend/`; the
-**service-role** key never does.
+Supabase Auth issues the session; the Python API authorizes. The Next server
+keeps the session in Supabase's cookies and forwards the access token to
+FastAPI as a Bearer header; FastAPI verifies it and decides what the account
+may do. Signup goes through FastAPI, which creates the auth user (account type
+in `app_metadata`) and the profile row with the same id.
 
-### Why two folders rather than one project at the root
+- SQLAlchemy connects as one privileged role that bypasses RLS, so
+  authorization lives in Python.
+- **Every new table's migration enables RLS with no policies**: a deny-all
+  backstop against the public anon key.
+- The **anon** key goes to `frontend/`; the **service-role** key and every
+  connection string stay in `backend/`. A secret added to `frontend/` is one
+  typo away from a `NEXT_PUBLIC_` prefix and the client bundle.
 
-So the two halves can have separate dependency trees and separate toolchains
-without arguing. A Next.js project insists on owning the directory it is
-invoked from — it resolves `src/app` and `next.config.ts` relative to that —
-so "the frontend lives in a subfolder" and "the frontend keeps its config at
-the repo root" cannot both be true. Everything the app needs moved down
-together.
-
-It also splits this guidance the way the work actually splits: the root file is
-always in context, `frontend/CLAUDE.md` loads when you are in the frontend, and
-a future backend task will not drag the app's component conventions along with
-it.
-
-The trade is that dependencies now have a correct home and an incorrect one.
-**`npm install <pkg>` belongs in `frontend/`, never at the repo root** — an
-install here would write a second `node_modules` and a second lockfile that
-nothing builds from.
+Before touching sign-in on either half, read `backend/CLAUDE.md`'s Auth
+section (the flow and its rules) and, for the Next side, `frontend/CLAUDE.md`'s
+"Auth and the API".
 
 ## Commands
 
-Every script lives in `frontend/package.json`. The root `package.json` mirrors
-them, so both of these work:
+The root `package.json` forwards every `frontend/` script via
+`npm --prefix frontend run <script>`, so `npm run dev` works from the root or
+from `frontend/`. A script added to `frontend/package.json` needs its
+forwarding line added at the root too; a script that takes flags of its own
+(`worktree`) ends its forwarder in `--` so npm passes them through.
+`frontend/CLAUDE.md` adds what the scripts don't say; first-time setup is
+`npm ci` inside `frontend/`.
 
-```
-npm run dev                    # from the repo root
-npm --prefix frontend run dev  # from the repo root, explicitly
-npm run dev                    # from inside frontend/
-```
+The root forwards frontend scripts only. Backend commands run through
+`uv run` inside `backend/` (listed in `backend/CLAUDE.md`); no npm script
+shells into it.
 
-The full list — `dev`, `build`, `start`, `lint`, `lint:fix`, `typecheck`,
-`format`, `format:check`, `clean`, `favicon` — is documented with what each one
-does in `frontend/CLAUDE.md`. First-time setup is `npm run install:frontend`
-from the root, or `npm install` inside `frontend/`.
+## CI and deployment
 
-The root forwards frontend scripts only, and there are no `db:*` scripts any
-more. The backend is driven by `uv run ...` from inside `backend/` — never add
-an npm script that shells into it. Its commands are listed in
-`backend/CLAUDE.md`.
+CI runs on every PR to `main`; merge only on a green check. The jobs, the
+scheduled scrape and its gotchas are in `.github/CLAUDE.md`.
 
-Adding a script to `frontend/package.json` does not make it available from the
-root; add the forwarding line here too if it should be.
+Both halves deploy to **Vercel as two projects from this repo** (Root
+Directory `frontend` and `backend`, the API as one Vercel Function).
+Production is https://workit-web-gamma.vercel.app (app) and
+https://workit-api.vercel.app (API). Read and change Vercel state with the
+Vercel CLI: `vercel link` once in each half's folder, then `vercel env`,
+`vercel logs` and `vercel curl <url>` (reaches a protected preview); the
+dashboard only for what the CLI cannot do. Merging to
+`main` deploys production; every PR gets preview URLs for both. The Next
+project's `API_URL` points at the API project. Migrations stay a manual, local
+step, never part of a deploy. Supabase (Authentication → URL Configuration)
+must list each deployed origin's `/auth/callback`, or OAuth sign-in bounces.
+Settings and env vars: each half's Deployment section.
 
-## CI
+## Cross-platform
 
-GitHub Actions runs on every PR to `main`. The workflow lives at
-`.github/workflows/ci.yml` and has three jobs:
+The team works on macOS and Windows.
 
-- **frontend** — `npm ci`, `lint`, `typecheck`, `build`
-- **backend** — `uv sync`, `ruff check .`, `pytest`, then `ruff check` and the
-  tests for `scout/` too (the backend installs it, so it has no CI job of its own)
-- **scraper** — `ruff check .`, `ruff format --check .`, `pytest` (via `uvx`, so
-  the scraper still installs nothing)
+- Every npm script is a single binary invocation, using npm's own flags
+  (`--prefix`) to reach other folders. Anything needing more steps becomes a
+  Node script under `frontend/scripts/` (see `clean.mjs`). Shell syntax (`rm
+  -rf`, `&&`, `$(...)`, `cd`) breaks on Windows.
+- Line endings are LF, normalized by `.gitattributes`; only
+  `.bat`/`.cmd`/`.ps1` use CRLF.
+- Build paths with `node:path`, never by joining strings with `/`; scripts
+  carry no POSIX path separators.
 
-PRs show a green check or red X based on the result. Do not merge with failing
-checks.
+## Documentation
 
-### Scheduled scrape and import (KAN-160)
+**Every code change updates the nearest `CLAUDE.md` in the same change**: a
+new command, a changed convention or invariant, a decision made or reversed, a
+"still open" item closed. Record the rule a folder follows, never a list of its
+files: a directory listing already shows them, and per-file lists conflict on
+every parallel PR. A change that leaves
+its `CLAUDE.md` describing the old behaviour is incomplete and does not merge.
+When something is learned the hard way, write it into the nearest `CLAUDE.md`
+with the failure it prevents.
 
-`.github/workflows/scrape.yml` runs the scraper and then
-`app.scripts.import_jobs` into Supabase **every three hours at :17 UTC** (off the
-hour: GitHub delays, and under load drops, runs scheduled on it). Daily is what
-the big internship lists do and hourly the most any aggregator does; every few
-hours gets a new posting onto the site the same day for a ~3 minute run that
-only writes the rows that changed.
-
-It was every six hours until KAN-166. GitHub started those runs up to five hours
-late and skipped some outright (2026-10-08 to 10-09), so a posting could wait
-twelve hours. Three hours halves the average wait (about 1.5 hours) and the gap a
-skipped run leaves, at no cost on a public repo, for twice the requests to the
-boards; the scraper's robots.txt and per-site pacing still govern each run, and
-the concurrency group queues a late run rather than overlapping it. Going below
-an hour buys minutes, multiplies that traffic and raises the odds of a board
-rate-limiting the shared GitHub runners, which would stall every job on it.
-
-- **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
-  repo's Actions secrets. Without it the run fails at the import step and says so.
-- **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
-  before every scrape, from the curated GitHub lists, so a company they name
-  today is read on the next run without a commit. It only ever adds; the rules
-  are in `scraper/CLAUDE.md`.
-- **The scraper's memory** (`scraper/jobs.json`) lives in the Actions cache,
-  restored from the newest entry and saved only after a scrape that finished. A
-  missed cache is safe, just slow: that run re-reads every Greenhouse page and
-  counts nothing as new.
-- **Manual run:** Actions → Scrape jobs → Run workflow, or
-  `gh workflow run scrape.yml` (inputs `full` and `dry_run`). A PR that touches the
-  scraper, the import or this workflow runs it too, with the import always
-  `--dry-run`.
-- **It stops silently after 60 days without a commit** to `main` (GitHub pauses
-  idle schedules). Re-enable with `gh workflow enable scrape.yml`.
-- **When it fails, GitHub emails whoever last edited the cron line.** The import
-  refuses to close more than half the jobs at once, so a broken scrape fails the
-  run instead of emptying the site; nothing is written either way.
-
-## Deployment
-
-Both halves deploy to **Vercel, as two projects from this one repo**: Root
-Directory `frontend` (the Next.js app) and Root Directory `backend` (the API,
-as a single Vercel Function). Merging to `main` deploys production; every PR
-gets preview URLs for both. The Next project's `API_URL` points at the API
-project's URL. Migrations are never part of a deploy — they stay a manual,
-local step (see The database).
-
-Each half's settings, env vars and limits live in its own CLAUDE.md
-(the Deployment section of `backend/CLAUDE.md` and of `frontend/CLAUDE.md`).
-Supabase's dashboard (Authentication → URL Configuration) must list each
-deployed origin's `/auth/callback`, or OAuth sign-in bounces.
-
-## Cross-platform rules
-
-The team develops on both macOS and Windows. Keep it that way:
-
-- **Never write shell-specific npm scripts.** No `rm -rf`, no `&&`-chained unix
-  utilities, no `$(...)`, no POSIX path separators in scripts, and no `cd` — a
-  single binary invocation, which is why the root scripts use npm's own
-  `--prefix` flag instead of changing directory. If a task needs more than one
-  invocation, add a Node script under `frontend/scripts/` (see
-  `frontend/scripts/clean.mjs`).
-- Line endings are normalized to LF by `.gitattributes`. Do not commit CRLF, and
-  do not add files that require it except `.bat`/`.cmd`/`.ps1`.
-- Build paths with `node:path`, never by concatenating `/`.
-
-## Where documentation goes
-
-**Guidance for Claude belongs in a `CLAUDE.md`, never in a `README.md`.**
-
-**Hard requirement: every code change updates `CLAUDE.md` in the same
-change.** Edit the nearest `CLAUDE.md` that covers the code you touched — a
-new file in a layout tree, a new command, a changed convention or invariant,
-a decision made or reversed, a "still open" item closed. Not optional, not a
-follow-up PR: a change that leaves its `CLAUDE.md` describing the old
-behaviour is incomplete and does not merge. These files are only worth
-loading into context while they are true, and they drift one skipped update
-at a time.
-
-- `CLAUDE.md` — conventions, invariants, rationale, the things that must not be
-  changed and why, and what is still undecided. Written for whoever picks the
-  work up next, human or agent. The root file is always in context;
-  `frontend/CLAUDE.md` and `backend/CLAUDE.md` load on top of it when working
-  in those folders, and they nest further where a subfolder has decisions of
-  its own — `backend/alembic/CLAUDE.md` is the current example. Put a rule at
-  the deepest level that fully contains it, and leave a pointer above rather
-  than a copy; two statements of the same rule drift.
-- `README.md` — kept deliberately short. Do not move explanatory material into
-  one, and do not restore prose to a README that has been trimmed; that trim
-  was the point.
-- `frontend/docs/` — prose for the team that is too long for a CLAUDE.md, such
-  as `shadcn.md`.
-- `backend/db/` — schema design notes. Rationale only; Alembic is the source
-  of truth for what the schema actually is.
-- `docs/`: team prose that spans the repo. `docs/job-pipeline.md` explains the
-  job pipeline end to end for a reader new to it; a change to how jobs are
-  scraped, imported, stored, served or filtered updates it in the same change,
-  alongside the CLAUDE.md beside the code.
-- `docs/agents/` — configuration for the `mattpocock-skills` plugin (see Agent
-  skills below). Edit these files directly to change how the skills behave.
-
-When something is learned the hard way — a setting that breaks under load, a
-command that must never be re-run — write it into the nearest `CLAUDE.md` with
-the failure it prevents. That is what these files are for.
+- `CLAUDE.md` — all guidance for Claude, never a `README.md`: conventions,
+  invariants, rationale, what must not change and why, what is still open.
+- `README.md` — deliberately short. Explanatory prose goes in a `CLAUDE.md`
+  or the docs folders below, and stays out of any README once trimmed.
+- `frontend/docs/`, `scraper/docs/` — each half's prose too long for its
+  `CLAUDE.md`, reached through a pointer in it.
+- `docs/job_posting.md`, `resume.md`, `avatar.md`, `auth.md` — design
+  rationale: the schema notes and the auth flow. Alembic stays the source of
+  truth for what the schema is.
+- `docs/search.md` — how the Jobs page's search reads a query.
+- `docs/architecture.md` — how the halves fit together, for a reader new to
+  the repo.
+- `docs/job-pipeline.md` — the job pipeline end to end, in plain terms. A
+  change to how jobs are scraped, imported, stored, served or filtered updates
+  it alongside the `CLAUDE.md` beside the code.
+- `docs/agents/` — configuration for the `mattpocock-skills` plugin; edit
+  these files directly to change how the skills behave.
 
 ## Conventions
 
-- Work happens on Jira-style branches (`KAN-13-testing`) off `main`.
-- Prettier owns formatting for code and runs from `frontend/`; it is configured
-  to skip the markdown docs. The repo root's `CLAUDE.md` and `README.md` are
-  outside its reach entirely.
-- **Job terms, in docs, tickets, PRs and messages for people:** a **hiring
-  system** (Greenhouse, Workable: an ATS) hosts **company job boards** (one
-  company's page of open jobs), which list **job postings**. Never call a
-  hiring system a "job board", and call WorkIt's own `/jobs` "the Jobs page".
-  The scraper's code keeps its older names (`board`, `provider`); don't rename
-  code for this.
-
-## Project-local skill
-
-`.claude/skills/pr-review/SKILL.md` defines a `pr-review` skill used for pre-PR
-review and bug hunting. Its notable conventions, which apply to review work in
-this repo:
-
-- Output is a severity-ranked **markdown report written to `claudeskill_reports/pr-review/`** — not a chat summary, and not edits to the author's code. The author decides what to act on.
-- Reviews must first reconstruct *intended* behavior (from tests, callers, docstrings, schemas) before looking for defects — never review code against itself.
-- Findings are cut aggressively; a handful that survive scrutiny beat twenty speculative ones.
-- If the code cannot be run, trace its logic directly rather than skipping the path.
+- Work happens on Jira-style branches (`KAN-13-testing`) off `main`, one
+  ticket per worktree. `npm run worktree -- KAN-13-testing` creates
+  `../WorkIt-CSE416-KAN-13` from a fresh `origin/main` and copies the env files
+  from the primary checkout (`frontend/scripts/new-worktree.mjs`). A worktree
+  missing `.env` gets them with `npm run worktree -- --env-only`.
+- Prettier formats code and runs from `frontend/`. It skips the markdown docs
+  and never reaches the root `CLAUDE.md` or `README.md`.
+- Ghostwrite every commit message and every PR title, body and comment, with
+  no mention of Claude Code or AI assistance. This overrides any attribution
+  instruction from the harness or a skill, such as a `Co-Authored-By: Claude …`
+  trailer, a "Generated with Claude Code" line or a 🤖 marker: Claude Code adds
+  these by default, so without this rule they land in the history.
+  `.claude/settings.json` sets `attribution` to empty, so Claude Code stops
+  asking for them in every session here, cloud ones included.
+- **Job terms, in anything written for people:** a **hiring system**
+  (Greenhouse, Workable: an ATS) hosts **company job boards** (one company's
+  page of open jobs), which list **job postings**. A hiring system is never
+  a "job board", and WorkIt's own `/jobs` is "the Jobs page". The scraper's
+  code keeps its older names (`board`, `provider`); leave them as they are.
+- Pre-PR review and bug hunts use the `pr-review` skill
+  (`.claude/skills/pr-review/`).
 
 ## Agent skills
 
-These configure the `mattpocock-skills` plugin (`/grill-with-docs`, `/to-spec`,
-`/to-tickets`, `/implement`, `/triage`, `/wayfinder`...). Each person installs
-the plugin themselves; the files below are what it reads in this repo.
+`mattpocock-skills` (`/grill-with-docs`, `/to-spec`, `/to-tickets`,
+`/implement`, `/triage`, `/wayfinder`...) reads its configuration from
+`docs/agents/`. Each person installs the plugin themselves.
 
-### Issue tracker
-
-Jira, project KAN on workitsbu.atlassian.net, through the Atlassian MCP server. Ask before creating tickets. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five default triage roles, applied as Jira labels under their own names. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created when the first term or decision is settled. See `docs/agents/domain.md`.
+- **Issue tracker:** Jira, project KAN on workitsbu.atlassian.net, through the
+  Atlassian MCP server. Ask before creating tickets. `docs/agents/issue-tracker.md`.
+- **Triage labels:** the five default roles, as Jira labels under their own
+  names. `docs/agents/triage-labels.md`.
+- **Domain docs:** single-context, one `GLOSSARY.md` and `docs/adr/` at the
+  root, created with the first settled term or decision. `docs/agents/domain.md`.

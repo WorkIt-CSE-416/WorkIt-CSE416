@@ -113,16 +113,13 @@ export async function createAccount(
     };
   }
 
-  // only send to onboarding if it's profile 
-  if (account.account_type=="applicant")
-  {
+  // only send to onboarding if it's profile
+  if (account.account_type == "applicant") {
     // KAN-141: onboarding is skipped for faster prototyping; restore this
     // redirect to send new applicants through it again.
     // redirect(`/onboarding/${account.account_type}`);
     redirect(`/profile`);
-  }
-  else 
-  {
-    redirect('/company'); 
+  } else {
+    redirect("/company");
   }
 }

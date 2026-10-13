@@ -12,7 +12,7 @@ export const metadata = { title: SECTIONS.motion.title };
 /**
  * Motion: the curves, the animations built on them, the view-transition
  * classes and the one component that moves a value. The rules for which to
- * reach for are frontend/CLAUDE.md's "Motion"; this page shows each one
+ * reach for are in frontend/docs/motion.md; this page shows each one
  * moving. The sidebar's gliding highlight and the segmented control's thumb
  * are their own specimens, in the shells and under Form Controls.
  */

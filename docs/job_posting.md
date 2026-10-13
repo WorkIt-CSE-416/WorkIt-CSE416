@@ -7,7 +7,7 @@ Tables:
   states them -- job_type, salary*, min_years_experience -- plus `start_term`
   ("Summer 2027"), an internship's start. With no pay stated, salary_currency
   and salary_period keep their defaults beside empty amounts, and GET /jobs
-  reports neither (routers/jobs.py `to_listing`).
+  reports neither (`backend/app/routers/jobs.py`, `to_listing`).
   A posting can carry any number of role tags (see `job_role_tags`).
 - `job_roles`: the canonical job titles used as tags — "Software Engineer",
   "Mechanical Engineer", etc.
@@ -22,8 +22,12 @@ Tables:
   exactly one role, stored on the row itself (`role_id`), so no separate join
   table is needed.
 
+Superseded: the role tree above (`parent_id`, `ltree` path, `role_aliases`
+table) and its SQL below. Roles are a short flat list keyed by slug, with
+aliases in `backend/app/services/role_resolver.py`; `search.md` has the design.
+
 Superseded: location **is** its own table now, `job_locations`, one row of ISO
-codes per place a job is offered (`4138dcee44b1`; `app/models/CLAUDE.md` has
+codes per place a job is offered (`4138dcee44b1`; `backend/app/models/CLAUDE.md` has
 why). The original plan below stored `location_city` and `location_country`
 directly on `job_postings`.
 

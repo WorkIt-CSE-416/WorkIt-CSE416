@@ -1,5 +1,6 @@
 """
-Load the scraper's feed.json into job_postings and job_locations.
+Load the scraper's feed.json into job_postings, job_locations and
+job_role_tags.
 
     uv run python -m app.scripts.import_jobs                  the default feed
     uv run python -m app.scripts.import_jobs path/to/feed.json
@@ -13,18 +14,24 @@ holds unique. One run, in one transaction:
 
 1. validates every row against schemas/jobs.py (the feed's contract);
 2. resolves each distinct location string (services/location_resolver.py)
-   against the countries and states in the database;
-3. inserts new jobs and updates changed ones, description and roles included,
-   ON CONFLICT (apply_url), with role_category derived from roles for the code
-   that still reads it (KAN-172). A row
+   against the countries and states in the database, and each distinct title
+   (services/role_resolver.py) against the roles in job_roles;
+3. inserts new jobs and updates changed ones, description included,
+   ON CONFLICT (apply_url). A row
    whose fields all match is left alone, so updated_at means something and a
    second run on the same feed changes nothing;
 4. brings each job's job_locations rows in line with what the resolver says;
-5. closes scraped jobs no longer in the feed. The scraper drops a job only
+5. brings each job's job_role_tags in line the same way. Every job in the
+   feed is re-resolved on every run, so an alias added to role_resolver.py
+   reaches every job on the next run with no backfill;
+6. closes scraped jobs no longer in the feed. The scraper drops a job only
    after reading its board in full without it (scraper/CLAUDE.md), so absence
    is evidence. A job that comes back is published again.
 
-Step 5 refuses to close more than half the published scraped jobs at once, and
+The report lists the titles that resolved to no role, most jobs first: that
+list is how the aliases grow (docs/search.md).
+
+Step 6 refuses to close more than half the published scraped jobs at once, and
 the whole run rolls back: a broken scrape mustn't empty the site. Pass
 --allow-mass-close when that many really did go.
 
@@ -43,6 +50,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import (
     Text,
+    Uuid,
     all_,
     and_,
     any_,
@@ -53,6 +61,7 @@ from sqlalchemy import (
     literal_column,
     or_,
     select,
+    tuple_,
     update,
     values,
 )
@@ -62,6 +71,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.config import get_settings
 from app.db import get_engine
 from app.models import dto
+from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
@@ -69,20 +79,21 @@ from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
 
 logger = logging.getLogger(__name__)
+from app.services.role_resolver import RoleResolver
 
 _FEED = TypeAdapter(list[JobListing])
 _jobs = Job_Post.__table__
 _locations = Job_Location.__table__
+_tags = Job_Role_Tag.__table__
 
 # The columns the feed owns, compared to decide whether a known job changed.
 _FEED_COLUMNS = (
     "title", "company_name", "company_logo_url", "description",
     "experience_level", "work_style", "location_raw", "location_label", "posted_at",
     "job_type", "min_years_experience", "start_term", "sponsorship",
-    "role_category", "roles",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 22.
+# asyncpg allows 32,767 parameters a statement; a row here binds 20.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
@@ -104,8 +115,12 @@ class Prepared:
     '''
     rows: list[dict]
     places: dict[str, tuple[Place, ...]]
+    # apply_url -> the job_roles slugs its title names, for job_role_tags
+    role_tags: dict[str, frozenset[str]] = field(default_factory=dict)
     # location text -> the pieces of it that matched nothing
     unresolved: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    # title -> how many jobs carry it, for titles that named no role
+    untagged: dict[str, int] = field(default_factory=dict)
     no_place: int = 0
     duplicates: int = 0
 
@@ -119,9 +134,11 @@ class Report:
     closed: int = 0
     embedded: int = 0
     locations_changed: int = 0
+    roles_changed: int = 0
     duplicates: int = 0
     no_place: int = 0
     unresolved: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    untagged: dict[str, int] = field(default_factory=dict)
 
 
 def parse_posted_at(value: str | None) -> datetime.datetime | None:
@@ -138,15 +155,20 @@ def parse_posted_at(value: str | None) -> datetime.datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=datetime.UTC)
 
 
-def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepared:
+def prepare(
+    listings: Iterable[JobListing], resolver: LocationResolver, role_resolver: RoleResolver
+) -> Prepared:
     '''
     one row per apply_url (the first wins: the feed is newest first), with its
-    places. Each distinct location string is resolved once.
+    places and roles. Each distinct location string and title is resolved once.
     '''
     rows: list[dict] = []
     places: dict[str, tuple[Place, ...]] = {}
+    role_tags: dict[str, frozenset[str]] = {}
     resolved: dict[str | None, Resolution] = {}
+    resolved_titles: dict[str, frozenset[str]] = {}
     unresolved: dict[str, tuple[str, ...]] = {}
+    untagged: dict[str, int] = {}
     no_place = duplicates = 0
 
     for listing in listings:
@@ -162,7 +184,11 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
         if not found:
             no_place += 1
         places[listing.apply_url] = found
-        roles = _roles(listing)
+        if listing.title not in resolved_titles:
+            resolved_titles[listing.title] = role_resolver.resolve(listing.title)
+        role_tags[listing.apply_url] = resolved_titles[listing.title]
+        if not role_tags[listing.apply_url]:
+            untagged[listing.title] = untagged.get(listing.title, 0) + 1
         rows.append({
             "apply_url": listing.apply_url,
             "title": listing.title,
@@ -183,36 +209,9 @@ def prepare(listings: Iterable[JobListing], resolver: LocationResolver) -> Prepa
             "min_years_experience": listing.min_years_experience,
             "start_term": listing.start_term,
             "sponsorship": listing.sponsorship,
-            "roles": roles,
-            "role_category": _role_category(roles),
             **_pay(listing),
         })
-    return Prepared(rows, places, unresolved, no_place, duplicates)
-
-
-def _roles(listing: JobListing) -> list[str]:
-    '''
-    the job's role keys, as plain text for the text[] column. A feed written
-    between KAN-171 and KAN-172 has a role_category and no roles: that one
-    category stands for them, rather than wiping the job's roles
-    '''
-    if listing.roles:
-        return [role.value for role in listing.roles]
-    return [listing.role_category.value] if listing.role_category else []
-
-
-# The old one-category column's values. It stays until a later migration drops it,
-# because the API deployed before KAN-172 reads it (expand, then contract).
-_CATEGORIES = {category.value for category in dto.role_category}
-
-
-def _role_category(roles: list[str]) -> dto.role_category | None:
-    '''
-    role_category for code that still reads it: the job's first category when
-    it is one of the column's five, else None (a business or engineering job)
-    '''
-    first = roles[0] if roles else None
-    return dto.role_category(first) if first in _CATEGORIES else None
+    return Prepared(rows, places, role_tags, unresolved, untagged, no_place, duplicates)
 
 
 def _pay(listing: JobListing) -> dict:
@@ -266,9 +265,12 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
     report.unchanged = len(rows) - report.inserted - report.updated
 
 
-async def _sync_locations(conn: AsyncConnection, places: dict[str, tuple[Place, ...]], report: Report) -> None:
-    urls = list(places)
-    ids = {
+async def _scraped_ids(conn: AsyncConnection, urls: list[str]) -> dict:
+    '''
+    apply_url -> id for the scraped jobs among urls; a company's job is never
+    read here, so it never gets locations or tags from a feed
+    '''
+    return {
         row.apply_url: row.id
         for row in await conn.execute(
             select(_jobs.c.id, _jobs.c.apply_url).where(
@@ -276,6 +278,12 @@ async def _sync_locations(conn: AsyncConnection, places: dict[str, tuple[Place, 
             )
         )
     }
+
+
+async def _sync_locations(
+    conn: AsyncConnection, places: dict[str, tuple[Place, ...]], ids: dict, report: Report
+) -> None:
+    urls = list(places)
     existing: dict = {}
     for row in await conn.execute(
         select(_locations.c.id, _locations.c.job_id, _locations.c.country, _locations.c.state).where(
@@ -302,6 +310,42 @@ async def _sync_locations(conn: AsyncConnection, places: dict[str, tuple[Place, 
         await conn.execute(delete(_locations).where(_locations.c.id.in_(stale)))
     for start in range(0, len(fresh), _CHUNK * 2):
         await conn.execute(insert(_locations).values(fresh[start:start + _CHUNK * 2]))
+
+
+async def _sync_roles(
+    conn: AsyncConnection, role_tags: dict[str, frozenset[str]], ids: dict, report: Report
+) -> None:
+    '''
+    each job's job_role_tags made equal to the slugs its title resolves to:
+    missing tags inserted, stale ones deleted, a job already right untouched
+    '''
+    existing: dict = {}
+    for row in await conn.execute(
+        select(_tags.c.job_id, _tags.c.role_slug).where(
+            _tags.c.job_id == any_(literal(list(ids.values()), type_=ARRAY(Uuid)))
+        )
+    ):
+        existing.setdefault(row.job_id, set()).add(row.role_slug)
+
+    stale: list[tuple] = []
+    fresh: list[dict] = []
+    for url, wanted in role_tags.items():
+        job_id = ids.get(url)
+        if job_id is None:
+            continue
+        have = existing.get(job_id, set())
+        if have != wanted:
+            report.roles_changed += 1
+            stale.extend((job_id, slug) for slug in have - wanted)
+            fresh.extend({"job_id": job_id, "role_slug": slug} for slug in wanted - have)
+
+    # A pair binds 2 parameters, as an inserted row does.
+    for start in range(0, len(stale), _CHUNK * 2):
+        await conn.execute(delete(_tags).where(
+            tuple_(_tags.c.job_id, _tags.c.role_slug).in_(stale[start:start + _CHUNK * 2])
+        ))
+    for start in range(0, len(fresh), _CHUNK * 2):
+        await conn.execute(insert(_tags).values(fresh[start:start + _CHUNK * 2]))
 
 
 async def _close_missing(conn: AsyncConnection, urls: list[str], report: Report, *, allow_mass_close: bool) -> None:
@@ -348,16 +392,30 @@ async def import_feed(
     # Reading the 3 MB gazetteer blocks; off the event loop like every other
     # blocking call here.
     resolver = await asyncio.to_thread(LocationResolver, countries, states)
-    prepared = prepare(listings, resolver)
+    job_roles = {row.slug: row.name for row in await conn.execute(select(Job_Role.slug, Job_Role.name))}
+    try:
+        role_resolver = RoleResolver(job_roles)
+    except ValueError as exc:
+        # An alias for a role the database doesn't hold: the seed migration
+        # isn't applied, or the alias has a typo. Writing tags would fail
+        # their foreign key halfway; fail here instead.
+        raise ImportRefused(
+            f"{exc}. Apply the job_roles migrations or fix the alias in "
+            "services/role_resolver.py; nothing was written."
+        ) from exc
+    prepared = prepare(listings, resolver, role_resolver)
 
     report = Report(
         feed_rows=len(listings),
         duplicates=prepared.duplicates,
         no_place=prepared.no_place,
         unresolved=prepared.unresolved,
+        untagged=prepared.untagged,
     )
     await _upsert(conn, prepared.rows, report)
-    await _sync_locations(conn, prepared.places, report)
+    ids = await _scraped_ids(conn, list(prepared.places))
+    await _sync_locations(conn, prepared.places, ids, report)
+    await _sync_roles(conn, prepared.role_tags, ids, report)
     await _close_missing(conn, list(prepared.places), report, allow_mass_close=allow_mass_close)
     return report
 
@@ -408,11 +466,16 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"  embedded {report.embedded}")
     print(f"  closed (no longer in the feed) {report.closed}")
     print(f"  jobs whose locations changed {report.locations_changed}")
+    print(f"  jobs whose job_role_tags changed {report.roles_changed}")
     if report.duplicates:
         print(f"  duplicate apply_urls skipped {report.duplicates}")
     print(f"  jobs naming no place {report.no_place}, of which unresolved strings:")
     for text, pieces in sorted(report.unresolved.items()):
         print(f"    {text!r}  (unknown: {', '.join(pieces)})")
+    untagged = sum(report.untagged.values())
+    print(f"  jobs naming no role {untagged}, by title (add aliases in services/role_resolver.py):")
+    for title, jobs in sorted(report.untagged.items(), key=lambda item: (-item[1], item[0])):
+        print(f"    {title!r}" + (f"  ({jobs} jobs)" if jobs > 1 else ""))
 
 
 async def _run(path: Path, *, dry_run: bool, allow_mass_close: bool) -> Report:

@@ -106,7 +106,7 @@ Each turn the API hands `agent.run` two sets of facts, rendered by
   and raw text never do.
 - **The job** — when the panel sends a `job_id` (an "Ask Scout" click, and every
   message after it), the feed's row for it, description included. Descriptions
-  come from the scraper (`scraper/CLAUDE.md`, "Descriptions are read once").
+  come from the scraper (`scraper/CLAUDE.md`, "A posting's own page is read once").
 
 The prompt makes that block the only truth: no claim about the user that their
 resume does not state, none about the job that the posting does not state. A

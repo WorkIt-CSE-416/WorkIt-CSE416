@@ -53,8 +53,7 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
   }
 
   const account_type = account.account_type;
-  if (account_type==="applicant" )
-  {
+  if (account_type === "applicant") {
     // KAN-141: onboarding is skipped for faster prototyping. The backend still
     // reports onboarding_completed; restore this block to route on it again.
     // if (!account.onboarding_completed)
