@@ -7,12 +7,17 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
+import { cn } from "@/lib/cn";
+
 export function PrototypeSwitcher({
   variants,
   current,
+  top = false,
 }: {
   variants: { key: string; name: string }[];
   current: string;
+  /** At the top, so it never covers a phone layout's bottom sheet (KAN-201). */
+  top?: boolean;
 }) {
   const router = useRouter();
   const path = usePathname();
@@ -44,7 +49,12 @@ export function PrototypeSwitcher({
   if (process.env.NODE_ENV === "production") return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/90 p-1 text-white shadow-lg">
+    <div
+      className={cn(
+        "fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/90 p-1 text-white shadow-lg",
+        top ? "top-2" : "bottom-4",
+      )}
+    >
       <button
         aria-label="Previous variant"
         onClick={() => step(-1)}

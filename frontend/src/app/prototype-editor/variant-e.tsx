@@ -38,7 +38,7 @@ const ON_PAGE =
   "w-full min-w-0 resize-none bg-transparent p-0 font-normal outline-none [font-family:inherit] [font-size:inherit] [font-style:inherit] [line-height:inherit]";
 
 // Scripted: same facts, fewer words (the truth rule).
-const SHORTER: Record<string, string> = {
+export const SHORTER: Record<string, string> = {
   acme1:
     "Built a TypeScript and Postgres intake service that cut check-in time from 9 to 4 minutes",
   acme2: "Wrote 120 Playwright integration tests, raising end-to-end coverage from 40% to 75%",
