@@ -18,6 +18,8 @@ export type SentResume = {
   uploaded_resume_id: string | null;
   job_posting_id: string | null;
   created_at: string;
+  /** The kept file's kind, "pdf" or "docx" (an uploaded resume's own). */
+  format: string;
 };
 
 /** A kept sent resume, its download link, and the characters a fresh
@@ -62,11 +64,14 @@ export async function listSentResumes(): Promise<Result<SentResume[]>> {
   return call<SentResume[]>("");
 }
 
-/** A PDF download of a built resume, kept as a sent resume. */
-export async function sendBuiltResume(builtResumeId: string): Promise<Result<SentDownload>> {
+/** A download of a built resume, PDF or Word, kept as a sent resume. */
+export async function sendBuiltResume(
+  builtResumeId: string,
+  format: "pdf" | "docx" = "pdf",
+): Promise<Result<SentDownload>> {
   return call<SentDownload>(
     "",
-    { method: "POST", body: JSON.stringify({ built_resume_id: builtResumeId }) },
+    { method: "POST", body: JSON.stringify({ built_resume_id: builtResumeId, format }) },
     async (res) => ({ ...((await res.json()) as SentDownload), created: res.status === 201 }),
   );
 }
