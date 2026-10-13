@@ -190,3 +190,35 @@ class DuplicateEntry(BaseModel):
 
     detail: str
     duplicate: EntryResponse
+
+
+class ImportRequest(BaseModel):
+    """POST body for import. Without a resume id, import reads the default
+    resume, else the newest upload."""
+
+    resume_id: UUID | None = None
+
+
+class DraftEntry(EntryCreate):
+    """A draft entry from import: the body POST /entries takes, plus the id of
+    the bank entry it matches ("Already in your bank"), if any."""
+
+    gpa: float | None = None
+    gpa_scale: float | None = None
+    duplicate_of: UUID | None = None
+
+
+class DraftSkill(BaseModel):
+    name: str
+    group: str | None
+    # A skill of that name, ignoring case, is already in the bank.
+    in_bank: bool
+
+
+class ImportResponse(BaseModel):
+    """What import read from one uploaded resume. Nothing here is saved."""
+
+    resume_id: UUID
+    filename: str | None
+    entries: list[DraftEntry]
+    skills: list[DraftSkill]
