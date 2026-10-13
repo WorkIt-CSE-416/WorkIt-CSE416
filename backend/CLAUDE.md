@@ -246,6 +246,11 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Every model feature counts its daily uses through `app/services/usage.py`**
   (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
   it succeeds, so a failed or rejected call costs the student nothing.
+  What a failure says comes from one `services/ai_messages.AIMessages`
+  per route (its own spent, offline and lost lines; the mapping from
+  `ScoutUnavailable` is shared). Routes under `/applicants/{id}` check the
+  path with `deps.owned_applicant`, or `assert_applicant_owns` when they
+  also need the account.
   `count_use` flushes and never commits, like every service: the router
   commits it with the request's other writes (Tailor's generated base
   resume, the keyword cache), and a route that forgets the commit counts

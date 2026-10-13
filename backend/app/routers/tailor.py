@@ -27,7 +27,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from workit_scout.llm import LLM, OUT_OF_QUOTA, InvalidReply, ScoutUnavailable
+from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
@@ -44,6 +44,7 @@ from app.schemas.tailor import (
     TailorRun,
 )
 from app.services import built_resumes, keywords, postings, tailor
+from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
 from app.services.usage import Feature, count_use, uses_left
@@ -53,16 +54,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/applicants/{applicant_id}/tailor", tags=["tailor"])
 
 EMPTY_BANK = "Your experience bank is empty. Add what you did first, then Tailor."
-AI_SPENT = "You've used today's Tailor runs. They reset at midnight UTC."
-AI_BUSY = "WorkIt has hit today's AI limit. Try again tomorrow."
-AI_OFFLINE = "Tailor can't reach WorkIt's AI right now. Try again in a minute."
-AI_LOST = "Tailor couldn't make sense of the AI's answer. Try again."
-
-
-def _ai_message(exc: ScoutUnavailable) -> str:
-    if isinstance(exc, InvalidReply):
-        return AI_LOST
-    return AI_BUSY if str(exc) == OUT_OF_QUOTA else AI_OFFLINE
+AI = AIMessages(
+    spent="You've used today's Tailor runs. They reset at midnight UTC.",
+    offline="Tailor can't reach WorkIt's AI right now. Try again in a minute.",
+    lost="Tailor couldn't make sense of the AI's answer. Try again.",
+)
 
 
 async def _posting(session: AsyncSession, posting_id: uuid.UUID) -> Job_Post:
@@ -87,14 +83,14 @@ async def run(
         raise HTTPException(409, EMPTY_BANK)
     left = await uses_left(session, applicant_id, Feature.TAILOR)
     if left <= 0:
-        raise HTTPException(429, AI_SPENT)
+        raise HTTPException(429, AI.spent)
 
     found = keywords.cached(job)
     if found is None:
         try:
             found = await keywords.extract(job, llm)
         except ScoutUnavailable as exc:
-            raise HTTPException(503, _ai_message(exc)) from exc
+            raise HTTPException(503, AI.failure(exc)) from exc
         # The cache is the posting's, not this run's: keep it even if the
         # run fails below.
         keywords.store(job, found)
@@ -115,7 +111,7 @@ async def run(
         reading = await llm.complete_json(
             tailor.prompt(job, found, bank, choices, ranks), TailorReading, identity=identity)
     except ScoutUnavailable as exc:
-        raise HTTPException(503, _ai_message(exc)) from exc
+        raise HTTPException(503, AI.failure(exc)) from exc
     changes, dropped = tailor.propose(bank, choices, reading, ranks, found)
     matched, missing = tailor.match(bank, choices, found)
     source_id = source.id

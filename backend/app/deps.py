@@ -153,6 +153,17 @@ def assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUID
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
 
 
+async def owned_applicant(
+    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+) -> uuid.UUID:
+    """`assert_applicant_owns` as a dependency: a route under
+    /applicants/{applicant_id} takes `applicant_id: uuid.UUID =
+    Depends(owned_applicant)` and gets the checked id."""
+    assert_applicant_owns(account, applicant_id)
+    return applicant_id
+
+
 def _not_a_company_member() -> HTTPException:
     return HTTPException(status.HTTP_403_FORBIDDEN, "Only active company members can do this.")
 
