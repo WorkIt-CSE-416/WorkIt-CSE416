@@ -283,7 +283,9 @@ export type Action =
   | { type: "deleteVariant"; variant: string }
   | { type: "toggleGpa" }
   | { type: "toggleCoursework" }
-  | { type: "hideMany"; ids: string[] };
+  | { type: "hideMany"; ids: string[] }
+  | { type: "editBullet"; bullet: string; text: string }
+  | { type: "addVariant"; bullet: string; text: string; note?: string };
 
 function move<T>(xs: T[], x: T, by: number) {
   const i = xs.indexOf(x);
@@ -382,6 +384,38 @@ function reduce(s: State, a: Action): State {
       return { ...s, built: { ...built, showGpa: !built.showGpa } };
     case "toggleCoursework":
       return { ...s, built: { ...built, showCoursework: !built.showCoursework } };
+    case "editBullet":
+      // Editing the original marks its variants "original changed" (KAN-185).
+      return {
+        ...s,
+        bank: s.bank.map((e) => ({
+          ...e,
+          bullets: e.bullets.map((bl) =>
+            bl.id === a.bullet
+              ? {
+                  ...bl,
+                  text: a.text,
+                  variants: bl.variants.map((v) => ({ ...v, originalChanged: true })),
+                }
+              : bl,
+          ),
+        })),
+      };
+    case "addVariant": {
+      const id = `${a.bullet}-v${Date.now()}`;
+      return {
+        bank: s.bank.map((e) => ({
+          ...e,
+          bullets: e.bullets.map((bl) =>
+            bl.id === a.bullet
+              ? { ...bl, variants: [...bl.variants, { id, text: a.text, posting: a.note }] }
+              : bl,
+          ),
+        })),
+        skills: s.skills,
+        built: { ...built, pick: { ...built.pick, [a.bullet]: id } },
+      };
+    }
     case "hideMany":
       return { ...s, built: { ...built, hidden: [...new Set([...built.hidden, ...a.ids])] } };
   }

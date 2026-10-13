@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * PROTOTYPE (KAN-195), throwaway: four layouts of the built-resume editor on
- * one route, switchable with ?variant=A|B|C|D. Fixture bank (model.ts); the
+ * PROTOTYPE (KAN-195), throwaway: five layouts of the built-resume editor on
+ * one route, switchable with ?variant=A|B|C|D|E. Fixture bank (model.ts); the
  * PDF is an HTML stand-in that lags each edit by one fake render. Sits
  * outside the seeker shell so it needs no sign-in. Lives on a throwaway
  * branch and never merges.
@@ -20,12 +20,14 @@ import * as A from "./variant-a";
 import * as B from "./variant-b";
 import * as C from "./variant-c";
 import * as D from "./variant-d";
+import * as E from "./variant-e";
 
 const VARIANTS = [
   { key: "A", name: A.NAME, View: A.VariantA },
   { key: "B", name: B.NAME, View: B.VariantB },
   { key: "C", name: C.NAME, View: C.VariantC },
   { key: "D", name: D.NAME, View: D.VariantD },
+  { key: "E", name: E.NAME, View: E.VariantE },
 ];
 
 export default function Page() {
