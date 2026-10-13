@@ -71,6 +71,25 @@ export async function sendBuiltResume(builtResumeId: string): Promise<Result<Sen
   );
 }
 
+/** Apply (KAN-220): the resume the student picked, kept as a sent resume
+ *  linked to the job posting. A built resume renders a new file (or repeats
+ *  the last one with the same content for that posting); an uploaded resume
+ *  makes no file, the sent resume points at the uploaded file. */
+export async function applyWithResume(
+  source: { builtResumeId: string } | { uploadedResumeId: string },
+  jobPostingId: string,
+): Promise<Result<SentDownload>> {
+  const body =
+    "builtResumeId" in source
+      ? { built_resume_id: source.builtResumeId }
+      : { uploaded_resume_id: source.uploadedResumeId };
+  return call<SentDownload>(
+    "",
+    { method: "POST", body: JSON.stringify({ ...body, job_posting_id: jobPostingId }) },
+    async (res) => ({ ...((await res.json()) as SentDownload), created: res.status === 201 }),
+  );
+}
+
 export async function sentResumeFileUrl(sentId: string): Promise<Result<{ url: string }>> {
   return call<{ url: string }>(`/${id(sentId)}/file`);
 }
