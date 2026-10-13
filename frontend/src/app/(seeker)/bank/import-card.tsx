@@ -2,7 +2,7 @@
 
 import { Pencil, Plus, Sparkles, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,14 @@ const toEditor = ({ bullets, key, error, duplicate_of, ...fields }: Row): EntryD
   bullets: bullets.map((text) => ({ text })),
 });
 
-export function ImportCard({ onSaved }: { onSaved: () => Promise<string | null> }) {
+export function ImportCard({
+  onSaved,
+  autoStart = false,
+}: {
+  onSaved: () => Promise<string | null>;
+  /** Start the import on mount: the Jobs page's one-click "Import Your Resume". */
+  autoStart?: boolean;
+}) {
   const [filename, setFilename] = useState<string | null>(null);
   const [readBy, setReadBy] = useState<"parser" | "model">("parser");
   const [usesLeft, setUsesLeft] = useState(0);
@@ -64,6 +71,15 @@ export function ImportCard({ onSaved }: { onSaved: () => Promise<string | null> 
     setSkills(data.skills);
     setEditing(null);
   }
+
+  // Once, even under Strict Mode's double mount.
+  const started = useRef(false);
+  useEffect(() => {
+    if (!autoStart || started.current) return;
+    started.current = true;
+    void runImport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on mount only
+  }, []);
 
   function close() {
     setRows(null);

@@ -27,8 +27,10 @@ export const metadata: Metadata = {
  * downloaded from the card above the sections; the "Sent" card (KAN-208)
  * lists every PDF downloaded.
  */
-export default async function BankPage() {
+export default async function BankPage({ searchParams }: PageProps<"/bank">) {
   await connection();
+  // The Jobs page's "Import Your Resume" (?import=1) starts the import here.
+  const autoImport = (await searchParams).import === "1";
   const [{ data, error }, resumes, sent] = await Promise.all([
     getBank(),
     listBuiltResumes(),
@@ -45,7 +47,7 @@ export default async function BankPage() {
       {data && resumes.data && sent.data ? (
         <>
           <BuiltResumes initial={resumes.data} initialSent={sent.data} />
-          <BankScreen initial={data} />
+          <BankScreen initial={data} autoImport={autoImport} />
         </>
       ) : (
         <EmptyState
