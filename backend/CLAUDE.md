@@ -275,7 +275,10 @@ Find files with a directory listing; these are the rules for where code goes.
   is replaced by a fixed wrap-up line; a reply that fails the schema, or
   drafts another section, is an `error` line and does not count; a field
   the model echoes as an identity placeholder (`[link]`) keeps the card's
-  value. **The reply is NDJSON like Scout's, but not streamed token by
+  value; each turn's context says what `title` and `organization` hold in
+  the section (`FIELD_MEANINGS`, matching the card's labels), because
+  without it a live model put the university in Education's organization.
+  **The reply is NDJSON like Scout's, but not streamed token by
   token, on purpose**: the draft is one JSON object that must pass the
   schema and the section check, and a fourth question is swapped for the
   wrap-up line, all before the student reads a word. Streaming the reply
