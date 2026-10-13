@@ -44,6 +44,8 @@ export function EntryEditor({
   error,
   duplicate,
   onSaveAsNew,
+  onChange,
+  cancelLabel = "Cancel",
 }: {
   initial: EntryDraft;
   onSave: (draft: EntryDraft) => void;
@@ -56,11 +58,19 @@ export function EntryEditor({
    *  `onSaveAsNew`, or Cancel. */
   duplicate?: Pick<BankEntry, "title" | "organization"> | null;
   onSaveAsNew?: (draft: EntryDraft) => void;
+  /** Every edit, as the whole draft: intake sends the card's edits back to
+   *  the model with each turn. */
+  onChange?: (draft: EntryDraft) => void;
+  cancelLabel?: string;
 }) {
   const [draft, setDraft] = useState(initial);
   const uid = useId();
   const section = sectionOf(draft.section);
-  const set = (changes: Partial<EntryDraft>) => setDraft((d) => ({ ...d, ...changes }));
+  const set = (changes: Partial<EntryDraft>) => {
+    const next = { ...draft, ...changes };
+    setDraft(next);
+    onChange?.(next);
+  };
   const field = (name: string) => `${uid}-${name}`;
 
   function cleaned(): EntryDraft {
@@ -267,7 +277,7 @@ export function EntryEditor({
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
-          Cancel
+          {cancelLabel}
         </Button>
         {duplicate && onSaveAsNew ? (
           <Button type="button" disabled={saving} onClick={() => onSaveAsNew(cleaned())}>
