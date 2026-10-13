@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Scissors,
+  Sparkles,
   Undo2,
   X,
   ZoomIn,
@@ -34,7 +35,8 @@ import { Tray } from "./tray";
  * The whole layout is sized to the visual viewport, because the iOS keyboard
  * covers the layout viewport instead of shrinking it; sized this way the
  * sheet stays above the keyboard. The desktop editor owns the state and the
- * saves; this file only lays them out.
+ * saves; this file only lays them out. "Ask WorkIt", in the bottom bar and
+ * in a line's sheet, opens the assistant (KAN-221) in its own sheet.
  */
 
 /** Below this width the editor takes the phone layout. */
@@ -97,6 +99,7 @@ export function PhoneEditor({
   error,
   fitHidden,
   actions,
+  assistant,
   onSelect,
   onType,
   onFlush,
@@ -119,6 +122,8 @@ export function PhoneEditor({
   fitHidden: string[] | null;
   /** The selected line's actions, the same as the desktop sticky bar's. */
   actions: ReactNode;
+  /** The editor assistant (KAN-221), shown in a sheet when asked for. */
+  assistant: ReactNode;
   onSelect: (key: string | null) => void;
   onType: (text: string) => void;
   onFlush: () => void;
@@ -131,6 +136,7 @@ export function PhoneEditor({
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
   const [trayOpen, setTrayOpen] = useState(false);
+  const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
   const order = pageOrder(rendered.boxes);
@@ -218,9 +224,14 @@ export function PhoneEditor({
             TAP,
           )}
         >
-          <Button variant="secondary" className="w-full" onClick={() => setTrayOpen(true)}>
-            Not on This Resume {waiting > 0 && <span className="text-ink-meta">({waiting})</span>}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={() => setTrayOpen(true)}>
+              Not on This Resume {waiting > 0 && <span className="text-ink-meta">({waiting})</span>}
+            </Button>
+            <Button variant="outline" onClick={() => setAsking(true)}>
+              <Sparkles /> Ask WorkIt
+            </Button>
+          </div>
         </div>
       )}
 
@@ -280,9 +291,21 @@ export function PhoneEditor({
                 className={FIELD}
               />
             ))}
-          <div className={cn("flex flex-wrap items-center gap-2", TAP)}>{actions}</div>
+          <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
+            {actions}
+            <Button variant="outline" size="sm" onClick={() => setAsking(true)}>
+              <Sparkles /> Ask WorkIt About This Line
+            </Button>
+          </div>
         </Sheet>
       )}
+
+      {/* Kept mounted while closed, so the chat survives closing it */}
+      <div className={cn("absolute inset-x-0 bottom-0 z-50 h-[70%]", !asking && "hidden")}>
+        <Sheet onClose={() => setAsking(false)} title="WorkIt Assistant" fill>
+          {assistant}
+        </Sheet>
+      </div>
 
       {trayOpen && (
         <>
@@ -308,14 +331,20 @@ function Sheet({
   title,
   onClose,
   children,
+  fill = false,
 }: {
   title: ReactNode;
   onClose: () => void;
   children: ReactNode;
+  /** The body fills the sheet's full height and scrolls itself (the chat). */
+  fill?: boolean;
 }) {
   return (
     <div
-      className="animate-rise bg-surface ring-border-subtle absolute inset-x-0 bottom-0 z-40 flex max-h-[70%] flex-col rounded-t-3xl shadow-lg ring-1"
+      className={cn(
+        "animate-rise bg-surface ring-border-subtle absolute inset-x-0 bottom-0 z-40 flex flex-col rounded-t-3xl shadow-lg ring-1",
+        fill ? "h-full" : "max-h-[70%]",
+      )}
       // A press on a button keeps focus in the field, so the keyboard stays up
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).closest("button")) e.preventDefault();
@@ -330,7 +359,11 @@ function Sheet({
           <X />
         </Button>
       </div>
-      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pt-2 pb-4">{children}</div>
+      {fill ? (
+        <div className="flex min-h-0 flex-1 flex-col pt-2">{children}</div>
+      ) : (
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pt-2 pb-4">{children}</div>
+      )}
     </div>
   );
 }

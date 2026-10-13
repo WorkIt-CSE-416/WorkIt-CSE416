@@ -494,7 +494,7 @@ place they are edited: My Profile keeps the uploads and links here.
 
 `(seeker)/resumes/[resumeId]`, opened from a base resume's Open on the bank
 page. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
-phone layout. The page loads the render, the bank and the resume's choices, and
+phone layout; KAN-221 adds the assistant. The page loads the render, the bank and the resume's choices, and
 shows the error state if any fails.
 
 - **The page is the PDF itself** (ADR 0002): the render response's PDF,
@@ -557,6 +557,25 @@ shows the error state if any fails.
   switches. Manual checks on a real iPhone: the sheet stays above the
   keyboard, and the field does not zoom; and the render time on cellular
   data, read from "Saved, N ms".
+- **The assistant** (`assistant.tsx`, KAN-221; the KAN-195 prototype's
+  variant E) opens from Ask WorkIt in the sticky bar and **docks beside the
+  page** from @4xl/main (sticky, never over the page); narrower, it stacks
+  under it. On a phone, Ask WorkIt in the bottom bar or in a line's sheet
+  opens it in its own sheet. It stays mounted while closed, so closing it
+  keeps the chat; nothing is stored. The look is intake's (variant G:
+  lavender panel, WorkIt's mark) and the bubbles, dots and composer are
+  Scout's `chat.tsx`. It does four things, all through the editor's own
+  saves: Fit to One Page, hide and move the selected line, and **Make it
+  shorter** for a bullet, which shows the old and new wording with Use This
+  (saved as this resume's wording) or Keep Mine. **It does no other
+  rewording**: a typed message goes to `POST .../assistant`, which only
+  names one of those actions, and every line it says is the API's fixed
+  text (backend/CLAUDE.md, "The editor assistant"). The chips (Hide it, Move
+  it up, Fit to one page) act with no AI call; Make it shorter and typed
+  messages spend one of today's assistant messages ("N messages left
+  today"). The sticky bar stays the free path for everything. Manual
+  checks: a typed "hide this" on a selected bullet hides it; Make it
+  shorter waits for Use This; the phone sheet opens from both buttons.
 
 ## Scout panel
 
@@ -568,8 +587,9 @@ room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
 the panel is open. `chat.tsx` holds the message bubble, typing dots and
-composer (with the mic, `use-speech-input`), shared with intake on the bank
-page; each takes who is talking as a prop. `stream.ts` mirrors the API's NDJSON events, which
+composer (with the mic, `use-speech-input`) and WorkIt's mark, shared with
+intake on the bank page and the editor assistant; each takes who is talking
+as a prop. `stream.ts` mirrors the API's NDJSON events, which
 `app/api/scout/` (the one route handler, since the reply streams) forwards with
 the session's token. `reply-text` renders a reply's **bold** and "- " bullets,
 the prompt's whole formatting vocabulary, with no markdown library (a reply

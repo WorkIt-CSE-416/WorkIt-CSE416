@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Mic } from "lucide-react";
+import { ArrowUp, Mic, Sparkles } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { IconButton } from "@/components/ui/icon-button";
@@ -10,8 +10,9 @@ import type { ScoutMessage } from "./stream";
 import { useSpeechInput } from "./use-speech-input";
 
 /**
- * The chat pieces Scout's panel and intake on the bank page share: a
- * message bubble, the typing dots and the composer with its mic. Each caller
+ * The chat pieces Scout's panel, intake on the bank page and the editor
+ * assistant share: a message bubble, the typing dots, the composer with its
+ * mic, and WorkIt's mark beside its lines in intake's look. Each caller
  * names itself through the props (who is thinking, what the box is for), so
  * the pieces never say "Scout" where Scout is not the one talking.
  */
@@ -41,6 +42,19 @@ export function Message({
     >
       {children}
     </div>
+  );
+}
+
+/** WorkIt's mark: the brand gradient with a sparkle, beside its lines in
+ *  intake and the editor assistant (the intake prototype's variant G). */
+export function WorkItMark() {
+  return (
+    <span
+      aria-hidden
+      className="from-brand to-brand-pale text-on-brand flex size-8 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br shadow-[0_4px_12px_rgb(109_63_216/0.35)]"
+    >
+      <Sparkles className="size-4" />
+    </span>
   );
 }
 

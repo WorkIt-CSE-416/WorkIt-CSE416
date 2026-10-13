@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, EyeOff, Scissors, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, EyeOff, Scissors, Sparkles, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
+import { Assistant } from "./assistant";
 import { lineOf, move, pageLabel, TYPED_FIELDS, wording, type Line } from "./model";
 import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
@@ -34,7 +35,9 @@ import { Tray } from "./tray";
  * save bumps one request counter, and a response older than the latest
  * request is dropped, so a slow render never paints over a newer edit.
  * On a phone-width screen the same state is laid out by `PhoneEditor`
- * (KAN-219, ./phone.tsx).
+ * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) docks
+ * beside the page, or opens in a sheet on a phone, and acts through the same
+ * saves.
  */
 
 const SAVE_AFTER_MS = 700;
@@ -77,6 +80,7 @@ export function Editor({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Draft | null>(null);
   const phone = usePhone();
+  const [asking, setAsking] = useState(false);
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -256,6 +260,25 @@ export function Editor({
     started.current = null;
   };
 
+  const hide = (changes: ChoicesUpdate) => {
+    apply(changes);
+    select(null);
+  };
+  const assistant = (onClose?: () => void, className?: string) => (
+    <Assistant
+      resumeId={resumeId}
+      bank={bank}
+      choices={choices}
+      line={line}
+      pageCount={rendered.page_count}
+      onApply={apply}
+      onHide={hide}
+      onFit={fit}
+      onClose={onClose}
+      className={className}
+    />
+  );
+
   if (phone) {
     const start = line && startText(line);
     return (
@@ -277,15 +300,13 @@ export function Editor({
               line={line}
               choices={choices}
               onApply={apply}
-              onHide={(changes) => {
-                apply(changes);
-                select(null);
-              }}
+              onHide={hide}
               up={move(bank, choices, line, -1)}
               down={move(bank, choices, line, 1)}
             />
           )
         }
+        assistant={assistant(undefined, "h-full rounded-none ring-0")}
         onSelect={select}
         onType={(text) => selected && type(selected, text)}
         onFlush={flush}
@@ -298,35 +319,52 @@ export function Editor({
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-4">
-      <Bar
-        line={line}
-        box={box}
-        bank={bank}
-        choices={choices}
-        rendered={rendered}
-        saving={saving}
-        elapsed={elapsed}
-        fitHidden={fitHidden}
-        onApply={apply}
-        onClose={() => select(null)}
-        onFit={fit}
-        onUndoFit={undoFit}
-      />
-      {error && (
-        <p role="alert" className="text-note text-danger">
-          {error}
-        </p>
+    <div
+      className={cn(
+        "mt-4 grid items-start gap-5",
+        asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22rem]",
       )}
-      <PdfPages
-        pdf={rendered.pdf}
-        boxes={rendered.boxes}
-        selected={selected}
-        onSelect={(key) => select(selected === key ? null : key)}
-        field={field}
-        onDrawn={drawn}
-      />
-      <Tray bank={bank} choices={choices} onPutBack={apply} />
+    >
+      <div className="flex min-w-0 flex-col gap-4">
+        <Bar
+          line={line}
+          box={box}
+          bank={bank}
+          choices={choices}
+          rendered={rendered}
+          saving={saving}
+          elapsed={elapsed}
+          fitHidden={fitHidden}
+          onApply={apply}
+          onClose={() => select(null)}
+          onFit={fit}
+          onUndoFit={undoFit}
+          onAsk={asking ? undefined : () => setAsking(true)}
+        />
+        {error && (
+          <p role="alert" className="text-note text-danger">
+            {error}
+          </p>
+        )}
+        <PdfPages
+          pdf={rendered.pdf}
+          boxes={rendered.boxes}
+          selected={selected}
+          onSelect={(key) => select(selected === key ? null : key)}
+          field={field}
+          onDrawn={drawn}
+        />
+        <Tray bank={bank} choices={choices} onPutBack={apply} />
+      </div>
+      {/* Kept mounted while closed, so the chat survives closing it */}
+      <div
+        className={cn(
+          "h-[min(40rem,calc(100dvh-8rem))] min-h-[24rem] @4xl/main:sticky @4xl/main:top-4",
+          !asking && "hidden",
+        )}
+      >
+        {assistant(() => setAsking(false), "animate-rise h-full")}
+      </div>
     </div>
   );
 }
@@ -347,6 +385,7 @@ function Bar({
   onClose,
   onFit,
   onUndoFit,
+  onAsk,
 }: {
   line: Line | null;
   box: RenderBox | undefined;
@@ -360,6 +399,8 @@ function Bar({
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
+  /** Opens the assistant; absent while it is open. */
+  onAsk?: () => void;
 }) {
   return (
     <div
@@ -409,6 +450,11 @@ function Bar({
       <span className="text-note text-ink-meta ml-auto pr-2" aria-live="polite">
         {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
       </span>
+      {onAsk && (
+        <Button variant="outline" size="sm" onClick={onAsk}>
+          <Sparkles /> Ask WorkIt
+        </Button>
+      )}
     </div>
   );
 }
