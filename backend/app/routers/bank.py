@@ -21,7 +21,11 @@ PATCH  /applicants/{id}/bank/bullets/{bullet_id} BulletUpdate -> BulletResponse
 DELETE /applicants/{id}/bank/bullets/{bullet_id} -> 204
 POST   /applicants/{id}/bank/skills              SkillCreate -> 201 SkillResponse (409 if the name exists)
 PATCH  /applicants/{id}/bank/skills/{skill_id}   SkillUpdate -> SkillResponse (409 if the name exists)
-DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
+DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204 (its links too)
+PUT    /applicants/{id}/bank/skills/{skill_id}/entries/{entry_id} -> 204
+       link the skill to the entry (KAN-216); linking twice is a no-op.
+DELETE /applicants/{id}/bank/skills/{skill_id}/entries/{entry_id} -> 204
+       (404 when there is no such link)
 POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        Import (KAN-211): reads one uploaded resume (resume_id, else the
        default resume, else the newest) with the heuristic parser and returns
@@ -30,6 +34,8 @@ POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        entry carries its id in `duplicate_of`; a skill already in the bank has
        `in_bank: true`. A resume the parser cannot read gives empty lists; no
        uploaded resume (or another student's) answers 404.
+
+A SkillResponse carries `entry_ids`: its linked entries, in bank order.
 """
 
 import logging
@@ -90,6 +96,10 @@ def entry_response(entry: service.Entry) -> EntryResponse:
     )
 
 
+def skill_response(skill, entry_ids: list[uuid.UUID]) -> SkillResponse:
+    return SkillResponse(id=skill.id, name=skill.name, group=skill.group, entry_ids=entry_ids)
+
+
 @asynccontextmanager
 async def _writing(session: AsyncSession) -> AsyncIterator[None]:
     """Commit on success; turn the service's errors into HTTP answers."""
@@ -118,7 +128,7 @@ async def get_bank(
     bank = await service.load_bank(session, applicant_id)
     return BankResponse(
         entries=[entry_response(e) for e in bank.entries],
-        skills=[SkillResponse.model_validate(s) for s in bank.skills],
+        skills=[skill_response(s, bank.skill_links.get(s.id, [])) for s in bank.skills],
     )
 
 
@@ -231,7 +241,8 @@ async def update_skill(
         skill = await service.update_skill(
             session, applicant_id, skill_id, body.model_dump(include=body.model_fields_set)
         )
-    return SkillResponse.model_validate(skill)
+        entry_ids = await service.linked_entry_ids(session, skill.id)
+    return skill_response(skill, entry_ids)
 
 
 @router.delete("/skills/{skill_id}", status_code=204)
@@ -290,3 +301,27 @@ async def import_resume(
         entries=entries,
         skills=draft_skills(parsed, bank_names),
     )
+
+
+@router.put("/skills/{skill_id}/entries/{entry_id}", status_code=204)
+async def link_skill(
+    skill_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.link_skill(session, applicant_id, skill_id, entry_id)
+    return Response(status_code=204)
+
+
+@router.delete("/skills/{skill_id}/entries/{entry_id}", status_code=204)
+async def unlink_skill(
+    skill_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.unlink_skill(session, applicant_id, skill_id, entry_id)
+    return Response(status_code=204)

@@ -39,7 +39,8 @@ export type EntryFields = {
 
 export type Bullet = { id: string; position: number; text: string };
 export type BankEntry = EntryFields & { id: string; bullets: Bullet[] };
-export type Skill = { id: string; name: string; group: string | null };
+/** `entry_ids`: the entries the skill is linked to, in bank order (KAN-216). */
+export type Skill = { id: string; name: string; group: string | null; entry_ids: string[] };
 /** Entries in section order, ongoing first and then newest. */
 export type Bank = { entries: BankEntry[]; skills: Skill[] };
 
@@ -173,4 +174,13 @@ export async function importResume(resumeId?: string): Promise<Result<ImportResu
     method: "POST",
     body: JSON.stringify(resumeId ? { resume_id: resumeId } : {}),
   });
+}
+
+/** Links a skill to an entry that shows it; linking twice is a no-op. */
+export async function linkSkill(skillId: string, entryId: string): Promise<Result<null>> {
+  return call<null>(`/skills/${id(skillId)}/entries/${id(entryId)}`, { method: "PUT" });
+}
+
+export async function unlinkSkill(skillId: string, entryId: string): Promise<Result<null>> {
+  return call<null>(`/skills/${id(skillId)}/entries/${id(entryId)}`, { method: "DELETE" });
 }
