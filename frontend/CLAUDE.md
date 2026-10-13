@@ -157,7 +157,7 @@ are in `docs/auth.md`.
   through import's drafts (`(seeker)/bank/import-card.tsx`). Two editors of
   the same facts drift apart, and built resumes read the bank.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
-  (intake's draft entry, KAN-213): one key prefix, cleared by Sign Out in
+  (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
   reaches. A draft stored under any other key outlives sign-out.
 
