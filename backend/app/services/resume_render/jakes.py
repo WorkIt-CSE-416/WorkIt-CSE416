@@ -9,7 +9,7 @@ position markers (`MARKS` in __init__), which give the editor its click
 targets and leave the page itself unchanged.
 '''
 
-from app.services.resume_render import MARKS, Identity, escape, escape_url, mark
+from app.services.resume_render import MARKS, HeaderIdentity, escape, escape_url, mark
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
@@ -23,7 +23,7 @@ from app.services.resume_render.fields import (
 from app.services.resume_view import ResumeView, ViewEntry
 
 
-def _header(identity: Identity) -> list[str]:
+def _header(identity: HeaderIdentity) -> list[str]:
     # The identity comes from the profile and is edited there: no markers
     contact = []
     if identity.phone:
@@ -77,7 +77,7 @@ def _skills(view: ResumeView, marks: bool) -> str:
     return r" \\ ".join(rows)
 
 
-def body(view: ResumeView, identity: Identity, *, marks: bool = True) -> str:
+def body(view: ResumeView, identity: HeaderIdentity, *, marks: bool = True) -> str:
     lines = [MARKS] if marks else []
     lines += _header(identity)
     for section in view.sections:

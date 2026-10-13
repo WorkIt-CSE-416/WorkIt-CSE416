@@ -74,7 +74,12 @@ from app.schemas.keywords import KeywordMatchResponse
 from app.services import built_resumes as service
 from app.services import keywords, postings
 from app.services.bank import NotFound
-from app.services.resume_render import Identity, Rendered, TectonicUnavailable, render
+from app.services.resume_render import (
+    HeaderIdentity,
+    Rendered,
+    TectonicUnavailable,
+    render,
+)
 from app.services.resume_render.word import render_docx
 from app.services.usage import Feature, count_use, uses_left
 
@@ -109,9 +114,9 @@ async def _commit(session: AsyncSession, failure: str) -> None:
         raise HTTPException(500, failure)
 
 
-async def _identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:
+async def _identity(session: AsyncSession, applicant_id: uuid.UUID) -> HeaderIdentity:
     try:
-        return await service.load_identity(session, applicant_id)
+        return await service.load_header_identity(session, applicant_id)
     except NotFound:
         raise HTTPException(404, "Applicant not found")
 
@@ -190,7 +195,7 @@ async def render_pdf(
 RENDER_FAILED = "The PDF could not be made. Try again, or download the Word file."
 
 
-async def _render(view, identity: Identity, template: str) -> Rendered:
+async def _render(view, identity: HeaderIdentity, template: str) -> Rendered:
     try:
         return await asyncio.to_thread(render, view, identity, template)
     except TectonicUnavailable as exc:

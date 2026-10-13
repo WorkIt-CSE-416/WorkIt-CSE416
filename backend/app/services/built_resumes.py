@@ -31,7 +31,7 @@ from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.services.bank import NotFound, get_entry, load_bank
 from app.services.postings import LISTED
-from app.services.resume_render import Identity, Rendered, box_lines
+from app.services.resume_render import HeaderIdentity, Rendered, box_lines
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -389,12 +389,14 @@ async def fit_to_one_page(
     return hidden, rendered
 
 
-async def load_identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:
-    """The profile's identity fields a resume's header shows."""
+async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -> HeaderIdentity:
+    """The profile's identity fields a resume's header prints. Not
+    `services/identity.py`'s `load_identity`, which loads the same fields
+    for removal before a model sees text; this one is for display."""
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise NotFound
-    return Identity(
+    return HeaderIdentity(
         name=profile.full_name,
         email=profile.email,
         phone=profile.phone_number,

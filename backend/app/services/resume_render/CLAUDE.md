@@ -9,7 +9,7 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 
 - **`render(view, identity, template)` is the one way to a PDF.** It takes a
   built resume view (`../resume_view.py`, the shape every resume feature
-  reads), the profile's `Identity` and a template id, and returns
+  reads), the profile's `HeaderIdentity` (`built_resumes.load_header_identity`) and a template id, and returns
   `Rendered(pdf, page_count, missing_characters, boxes)`. An unknown template
   id is a `ValueError`. Add fields to `Rendered`, never a second render
   function.

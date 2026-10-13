@@ -36,7 +36,7 @@ from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
 from app.services import built_resumes, postings
 from app.services.bank import NotFound
-from app.services.resume_render import Identity, render
+from app.services.resume_render import HeaderIdentity, render
 from app.services.resume_render.word import render_docx
 from app.services.resume_view import ResumeView
 
@@ -58,7 +58,7 @@ FILE_TYPES = {
 }
 
 
-def content_hash(view: ResumeView, identity: Identity, template: str, file_format: str = "pdf") -> str:
+def content_hash(view: ResumeView, identity: HeaderIdentity, template: str, file_format: str = "pdf") -> str:
     """Everything the file is made from, before it is made. Dataclasses
     serialize field by field in a fixed order; dates and decimals by str.
     The PDF keeps its old payload, so a repeat PDF still matches a sent
@@ -105,7 +105,7 @@ async def send_built(
     caller removes `row.storage_path`."""
     await _check_posting(session, job_posting_id)
     resume, view = await built_resumes.load_view(session, applicant_id, built_resume_id)
-    identity = await built_resumes.load_identity(session, applicant_id)
+    identity = await built_resumes.load_header_identity(session, applicant_id)
     digest = content_hash(view, identity, resume.template, file_format)
     last = await _last_match(
         session, applicant_id, job_posting_id,
