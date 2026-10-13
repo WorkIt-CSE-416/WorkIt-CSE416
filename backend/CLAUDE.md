@@ -198,6 +198,19 @@ Find files with a directory listing; these are the rules for where code goes.
   file, Tailor, the sent resume's hash and the editor read that shape; a rule
   about what shows goes there, never into one reader. Built resumes are
   written only through `services/built_resumes.py`.
+- **The editor writes a resume's choices in one PATCH**
+  (`.../built-resumes/{rid}/choices`, KAN-218): hide, show, move (the
+  client renumbers the siblings), the GPA and coursework toggles, typed
+  wording and a wording switch, all saved together. Every id is checked
+  against the applicant's bank first (404, nothing written). A tray item
+  with no row gets one at the end of its siblings, and an entry brings its
+  row-less bullets. Typed wording is the resume's one local variant
+  (`bank_bullet_variants.built_resume_id`); typing the original back
+  deletes it; another resume's local variant is never offered. Fit to One
+  Page is `POST .../fit` (`fit_to_one_page`, order from
+  `resume_view.fit_order`), which renders between rounds, so it is slow
+  (two or three renders) and its tests need Tectonic. Tests:
+  `tests/test_resume_editor.py`.
 - **Every PDF download is a sent resume** (KAN-208): `POST
   /applicants/{id}/sent-resumes` renders through `services/sent_resumes.py`,
   which hashes the view, template and header text first and returns the last
