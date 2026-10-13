@@ -7,12 +7,15 @@ editor's actions (fit to one page, hide, move up or down, make it shorter)
 or "none". Every line the student reads is written here, never by the model,
 so the assistant cannot reword a line by talking about it. The one model
 text that reaches the student is a "Make it shorter" proposal, and only
-when it is shorter than the wording it replaces and keeps the truth rule
-(`services/truth_rule.py`). The student then uses it or keeps theirs; using
+when it is shorter than the wording it replaces, keeps the truth rule
+(`services/truth_rule.py`) and holds no identity placeholder (the model saw
+the line de-identified, so it can echo `[name]` back). The student then uses it or keeps theirs; using
 it saves it as typed wording, through the choices PATCH.
 """
 
 import dataclasses
+
+from workit_scout.identity import placeholders_in
 
 from app.schemas.assistant import Action, AssistantReading, AssistantTurn
 from app.services.bank import Bank, NotFound
@@ -116,7 +119,7 @@ def answer(reading: AssistantReading, line: Line | None, skills: list[str]) -> A
         return Answer("none", NOT_A_BULLET)
     text = " ".join((reading.text or "").split())
     given = f"{line.text}\n{line.original or ''}"
-    if not text or len(text) >= len(line.text) or invented(text, given, skills):
+    if not text or len(text) >= len(line.text) or invented(text, given, skills) or placeholders_in(text):
         return Answer("none", KEPT)
     return Answer("shorter", REPLIES["shorter"], text, line.text)
 

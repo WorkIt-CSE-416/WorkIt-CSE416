@@ -28,6 +28,18 @@ _PHONE = re.compile(
 )
 
 
+# What `remove_identity` puts in place of identity data. A model that saw
+# de-identified text can echo one back; a caller that saves or shows model
+# text checks it with `placeholders_in` first, since nothing maps a
+# placeholder back to its value.
+PLACEHOLDERS = ("[name]", "[email]", "[phone]", "[link]")
+
+
+def placeholders_in(text: str) -> list[str]:
+    """The placeholders `text` holds, each once, in PLACEHOLDERS order."""
+    return [p for p in PLACEHOLDERS if p in text]
+
+
 def _literal(text: str, value: str | None, placeholder: str) -> str:
     if not value or not value.strip():
         return text

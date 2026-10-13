@@ -170,6 +170,13 @@ address or a friend's link goes too. Rules:
 - **Placeholders are never swapped back.** The function returns only text;
   nothing keeps a map from placeholder to value. A reply that needs the
   student's name shows the placeholder or is filled by the page, not the model.
+- **Model text that is saved or shown is checked for placeholders first**,
+  with `identity.placeholders_in` over the one `PLACEHOLDERS` list. A model
+  that saw de-identified text can echo `[link]` back, and a saved
+  `[link]` replaces the student's real wording for good. Tailor, intake,
+  import's model reading and the editor assistant's "Make it shorter" all
+  call it; a new feature that keeps model text does too. Never copy the
+  list.
 - **Patterns err toward removing.** A phone is any run of 10 to 15 digits in
   groups, so years, date ranges and counts survive; a bare host counts as a
   link only with a path (`github.com/jd`), so `Node.js` and `ASP.NET` survive.

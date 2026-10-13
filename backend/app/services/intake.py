@@ -10,7 +10,7 @@ daily uses, and streams the result. Nothing said here is stored.
 import json
 from collections.abc import Sequence
 
-from workit_scout.identity import Identity
+from workit_scout.identity import Identity, placeholders_in
 from workit_scout.llm import INVALID, LLM, InvalidReply
 from workit_scout.schemas import ChatMessage
 
@@ -72,9 +72,6 @@ the student says they don't know or want to skip, accept it and move on. When \
 no questions are left, say the entry looks ready to save and set done to true.
 """
 
-PLACEHOLDERS = ("[name]", "[email]", "[phone]", "[link]")
-
-
 def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> str:
     left = max(0, MAX_FOLLOW_UPS - asked)
     current = draft.model_dump(mode="json") if draft else {"section": section.value}
@@ -93,7 +90,7 @@ def _keep_withheld(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
     fixes = {
         name: getattr(old, name) if old else None
         for name, value in new
-        if isinstance(value, str) and any(p in value for p in PLACEHOLDERS)
+        if isinstance(value, str) and placeholders_in(value)
     }
     return new.model_copy(update=fixes) if fixes else new
 
