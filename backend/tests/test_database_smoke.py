@@ -66,3 +66,19 @@ async def test_each_test_starts_with_empty_tables(database):
     async with database() as session:
         count = await session.scalar(text("SELECT count(*) FROM applicant_profiles"))
     assert count == 0
+
+
+async def test_every_public_table_has_row_level_security_on(database):
+    # The deny-all backstop against the anon key (alembic/CLAUDE.md): a
+    # migration that forgets ENABLE ROW LEVEL SECURITY fails here.
+    async with database() as session:
+        missing = (
+            await session.scalars(
+                text(
+                    "SELECT relname FROM pg_class JOIN pg_namespace n ON n.oid = relnamespace"
+                    " WHERE nspname = 'public' AND relkind = 'r' AND NOT relrowsecurity"
+                    " AND relname <> 'alembic_version'"
+                )
+            )
+        ).all()
+    assert missing == []
