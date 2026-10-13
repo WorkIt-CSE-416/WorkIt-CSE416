@@ -80,8 +80,9 @@ for privacy. Never put it in the draft.
 
 Questions: ask only about facts that are missing and that a resume needs, the \
 most important first: the title, then the organization, then the dates, then \
-what they did and its result. Never ask for something already in the draft. If \
-the student says they don't know or want to skip, accept it and move on. When \
+what they did and its result. Ask for a date in plain words ("What month and \
+year?"), never in a format like YYYY-MM. Never ask for something already in the \
+draft. If the student says they don't know or want to skip, accept it and move on. When \
 no questions are left, say the entry looks ready to save and set done to true.
 """
 
