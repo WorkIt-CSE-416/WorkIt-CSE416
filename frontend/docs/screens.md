@@ -374,6 +374,13 @@ shows initials.
 bank is where resume facts are kept, once (`GLOSSARY.md`), and the only
 place they are edited: My Profile keeps the uploads and links here.
 
+**Layout, top to bottom** (settled 2026-10-13): the title with a "Your
+Resumes" button that jumps to the bottom card; intake, the page's main
+part, with Import inside its chat; the section cards and Skills; then one
+"Your Resumes" card holding Base Resumes and Sent. Import, Base Resumes and
+Sent used to be three cards above intake, which pulled the eye from the
+chat the page is built around.
+
 - **Live, with an error state.** `page.tsx` reads `GET
   /applicants/{id}/bank` through `src/lib/bank-actions.ts` on the server; if
   that fails it shows "Your Bank Isn't Loading Right Now" and a Try Again
@@ -394,8 +401,11 @@ place they are edited: My Profile keeps the uploads and links here.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
-- **Import Your Resume** (`import-card.tsx`, KAN-211), the first card.
-  `?import=1` (the Jobs page's prompt) starts it on arrival. One
+- **Import Your Resume** (`import-card.tsx`, KAN-211) opens inside intake:
+  WorkIt's first line offers Import My Resume until the student imports
+  once, and the review takes the chat's place until Close, or a Save All
+  that leaves nothing to check. `?import=1` (the Jobs page's prompt) opens
+  it on arrival. One
   click reads the default upload, else the newest, into draft entries and
   skills (`importResume`); nothing is saved until the student saves a
   draft (Save, or Edit in the entry editor) or uses Save All. A draft that
@@ -414,7 +424,8 @@ place they are edited: My Profile keeps the uploads and links here.
   says "This looks like …" and its save button becomes Save as New; Cancel
   closes it. Two real roles may share a title.
 - **Editing an entry** sends its fields in one PATCH, then its bullets as the
-  adds, edits and deletes that turn the saved list into the draft's.
+  adds, edits and deletes that turn the saved list into the draft's
+  (`entry-save.ts`'s `editSteps`, shared with intake's entry visits).
 - **Delete asks once**, inline. **Still open:** saying how many built
   resumes use the entry (user story 18); built resumes exist since KAN-207,
   but the count is not shown yet.
@@ -427,8 +438,8 @@ place they are edited: My Profile keeps the uploads and links here.
   created). Once the entry has saved, a failed later step closes the editor
   and says "Some changes did not save", because a retry would repeat the
   steps that worked. Intake and import omit `skills`, so no links show.
-- **Intake** (`intake.tsx`, KAN-213) sits below Import Your Resume and
-  above the section cards, in the look of the intake prototype's variant
+- **Intake** (`intake.tsx`, KAN-213) leads the page, above the section
+  cards, in the look of the intake prototype's variant
   G: a lavender chat with WorkIt's gradient mark, a chapter line per section, the draft card sticky beside
   the chat from `@4xl/main` and, below that, a one-line draft that opens as
   a bottom sheet. The student picks a section from its chips; the opener
@@ -460,11 +471,18 @@ place they are edited: My Profile keeps the uploads and links here.
   filled, and a later save in it marks it done. Skip and a jump drop the
   unsaved draft, as in the prototype. Skipped sections persist beside the
   draft in `lib/local-drafts.ts`.
-- **Walking.** With an empty bank the page walks: intake opens on the first
-  section neither filled nor skipped and moves to the next after each save
-  or Skip. With entries already in the bank the student picks from the
-  chips and returns to them after each save. Walking is decided when the
-  page opens.
+- **Walking.** The bank page always walks, in the step bar's order: a
+  section with entries is passed over, except that each entry with gaps
+  (`sections.ts`'s `gapQuestions`: no dates; no organization for a job or
+  role; no bullets for a job, project or role) gets a visit. The card opens
+  on the saved entry, WorkIt's first line asks about the gap, the model is
+  told what the card has and lacks, and saving edits the entry. Skip on a
+  visit passes over that entry only. An entry visited once is not visited
+  again on the page. A section with no entries gets the full questions.
+  After an import closes, the walk starts again on the bank as it now is,
+  unless the student has already talked into the current card. A kept card
+  with nothing in it is dropped on load, so the walk picks afresh. When no
+  stop is left, the student picks from the chips.
 - **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
   profile form's Continue leads there, then Finish leads to /dashboard. It
   always walks, and its step bar shows the profile form as a done "Profile"
@@ -475,7 +493,8 @@ place they are edited: My Profile keeps the uploads and links here.
   onboarding step (settled for now in KAN-214, per the spec's "kept for
   now"); the glossary term stays either way. **Still open:** the name
   students see.
-- **Base Resumes card** (`built-resumes.tsx`, KAN-207), above the sections.
+- **Base Resumes** (`built-resumes.tsx`, KAN-207), in the "Your Resumes"
+  card below the sections.
   Generate makes a base resume with every entry, bullet and skill in the
   bank; each row downloads a PDF (Jake's Resume) or a Word file, can become
   the default resume (star) and can be deleted. Either download keeps a
@@ -491,7 +510,8 @@ place they are edited: My Profile keeps the uploads and links here.
   Jobs page no longer lists its posting (story 90, the API's
   `posting_closed`). It still opens and downloads; only Tailor needs a
   live posting.
-- **Sent card** (`sent-resumes.tsx`, KAN-208), below Base Resumes. Every
+- **Sent** (`sent-resumes.tsx`, KAN-208), in the same card below Base
+  Resumes. Every
   PDF or Word file the student downloaded or applied with (KAN-220), newest first, with its name then and the date
   ("Sent Oct 13, 2026", "Word · Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;
   none is edited. A repeat download of unchanged content adds no row. It

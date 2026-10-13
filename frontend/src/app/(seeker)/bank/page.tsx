@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudOff, FileText } from "lucide-react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
@@ -23,9 +23,9 @@ export const metadata: Metadata = {
  * kept once, that built resumes draw from. It sits beside the resume upload
  * on My Profile, with no feature flag. Live from the API's
  * `GET /applicants/{id}/bank`; when that fails the page says so and offers a
- * retry, never fixture rows. Base resumes (KAN-207) are Generated and
- * downloaded from the card above the sections; the "Sent" card (KAN-208)
- * lists every PDF downloaded.
+ * retry, never fixture rows. Intake leads the page, with Import inside its
+ * chat; the sections follow; base resumes (KAN-207) and the Sent list
+ * (KAN-208) close it in one "Your Resumes" card, reached from the title.
  */
 export default async function BankPage({ searchParams }: PageProps<"/bank">) {
   await connection();
@@ -39,15 +39,25 @@ export default async function BankPage({ searchParams }: PageProps<"/bank">) {
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <h1 className="text-heading text-ink">Experience Bank</h1>
-      <p className="text-body text-ink-meta mt-1">
-        Add each thing you did once. Every resume you make draws from here.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-heading text-ink">Experience Bank</h1>
+          <p className="text-body text-ink-meta mt-1">
+            Add each thing you did once. Every resume you make draws from here.
+          </p>
+        </div>
+        {resumes.data && (
+          <a href="#your-resumes" className={buttonClasses({ variant: "secondary", size: "sm" })}>
+            <FileText /> Your Resumes
+            {resumes.data.length > 0 && ` (${resumes.data.length})`}
+          </a>
+        )}
+      </div>
 
       {data && resumes.data && sent.data ? (
         <>
-          <BuiltResumes initial={resumes.data} initialSent={sent.data} />
           <BankScreen initial={data} autoImport={autoImport} />
+          <BuiltResumes initial={resumes.data} initialSent={sent.data} />
         </>
       ) : (
         <EmptyState

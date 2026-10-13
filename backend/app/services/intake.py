@@ -23,6 +23,7 @@ from app.schemas.intake import IntakeDraft, IntakeReply
 MAX_FOLLOW_UPS = 3
 
 # Said instead of a fourth question when the model asks one anyway.
+READY = "That's everything a resume needs. It looks ready to save, or tell me more to add."
 WRAP_UP = "That's all I need. Check the card, fix anything I got wrong, and save it."
 
 SECTION_NAMES = {
@@ -84,17 +85,77 @@ the student says they don't know or want to skip, accept it and move on. When \
 no questions are left, say the entry looks ready to save and set done to true.
 """
 
+# The facts a resume needs from each section, as the student would name
+# them, in the order intake asks for them.
+_NEEDS = {
+    bank_section.education: ("title", "dates", "degree", "field_of_study"),
+    bank_section.experience: ("title", "organization", "dates", "bullets"),
+    bank_section.projects: ("title", "dates", "bullets"),
+    bank_section.leadership: ("title", "organization", "dates", "bullets"),
+    bank_section.awards: ("title", "award_date"),
+    bank_section.certifications: ("title", "organization"),
+}
+
+
+def _has(draft: IntakeDraft | None, fact: str) -> bool:
+    if draft is None:
+        return False
+    if fact == "dates":
+        return draft.start_month is not None or draft.end_month is not None
+    return not _empty(getattr(draft, fact))
+
+
+def _complete(section: bank_section, draft: IntakeDraft | None) -> bool:
+    return all(_has(draft, fact) for fact in _NEEDS[section])
+
+
 def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> str:
     left = max(0, MAX_FOLLOW_UPS - asked)
     current = draft.model_dump(mode="json") if draft else {"section": section.value}
     title, organization = FIELD_MEANINGS[section]
+    needs = _NEEDS[section]
+    have = [fact for fact in needs if _has(draft, fact)]
+    missing = [fact for fact in needs if not _has(draft, fact)]
     return (
         f"Section: {SECTION_NAMES[section]} (section value \"{section.value}\").\n"
         f"In this section, title is {title} and organization is {organization}.\n"
-        f"Questions you may still ask for this entry: {left}."
+        + (f"The draft already has: {', '.join(have)}. Never ask about these.\n" if have else "")
+        + (
+            f"Still missing: {', '.join(missing)}. Ask about these, in this order.\n"
+            if missing
+            else "Nothing a resume needs is missing: you may ask what came of the work, "
+            "or say the entry looks ready and set done to true.\n"
+        )
+        + f"Questions you may still ask for this entry: {left}."
         + (" Ask none: set done to true." if left == 0 else "")
         + f"\nCurrent draft:\n{json.dumps(current)}"
     )
+
+
+# The end of an entry is one fact in three fields, kept or dropped together
+# so the draft never breaks the entry's end rule.
+_DATES = ("start_month", "end_month", "end_kind")
+
+
+def _empty(value: object) -> bool:
+    return value is None or value == "" or value == []
+
+
+def _keep_filled(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
+    """A field the card had that the model sends back empty keeps the card's
+    value. The prompt says to keep every field, but a live model dropped an
+    imported entry's company and dates while it added a bullet, and saving
+    that visit would erase them. A correction changes a value, never blanks it."""
+    if old is None:
+        return new
+    fixes = {
+        name: getattr(old, name)
+        for name, value in new
+        if name not in _DATES and _empty(value) and not _empty(getattr(old, name))
+    }
+    if all(_empty(getattr(new, name)) for name in _DATES):
+        fixes.update({name: getattr(old, name) for name in _DATES})
+    return new.model_copy(update=fixes) if fixes else new
 
 
 def _keep_withheld(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
@@ -137,7 +198,12 @@ async def turn(
     if answer.draft.section != section:
         # Validated as some other kind of entry: the card cannot take it.
         raise InvalidReply(INVALID)
-    answer.draft = _keep_withheld(answer.draft, draft)
+    answer.draft = _keep_filled(_keep_withheld(answer.draft, draft), draft)
+    if not answer.done and _complete(section, draft) and _complete(section, answer.draft):
+        # The card had every fact a resume needs before this turn too. The
+        # model had its turn to ask what came of the work; a small model
+        # then kept asking for facts the card held, so the code ends it.
+        return answer.model_copy(update={"reply": READY, "done": True})
     if asked >= MAX_FOLLOW_UPS and not answer.done:
         answer = answer.model_copy(update={"reply": WRAP_UP, "done": True})
     return answer

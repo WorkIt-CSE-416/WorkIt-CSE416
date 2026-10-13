@@ -4,7 +4,6 @@ import { FileDown, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { formatDate } from "@/lib/format-date";
 import { deleteSentResume, sentResumeFileUrl, type SentResume } from "@/lib/sent-resume-actions";
@@ -13,7 +12,7 @@ import { deleteSentResume, sentResumeFileUrl, type SentResume } from "@/lib/sent
  * The "Sent" list (KAN-208): every resume the student downloaded, newest
  * first, each the exact file sent. A sent resume downloads again or is
  * deleted, never edited. The list is owned by `BuiltResumes`, whose PDF
- * and Word downloads add to it.
+ * and Word downloads add to it, and sits inside its "Your Resumes" card.
  */
 
 /** Opens a Storage link that downloads its file (its Content-Disposition). */
@@ -26,10 +25,10 @@ export function openDownload(url: string) {
 
 export function SentResumes({ sent, reload }: { sent: SentResume[]; reload: () => Promise<void> }) {
   return (
-    <Card as="section" aria-labelledby="bank-sent" className="mt-4">
-      <h2 id="bank-sent" className="text-subtitle text-ink">
+    <section aria-labelledby="bank-sent" className="border-border-subtle mt-4 border-t pt-4">
+      <h3 id="bank-sent" className="text-label text-ink">
         Sent
-      </h2>
+      </h3>
       <p className="text-note text-ink-meta mt-1">
         Each resume you downloaded or applied with, kept as it was. Later changes to your bank do
         not change these.
@@ -45,7 +44,7 @@ export function SentResumes({ sent, reload }: { sent: SentResume[]; reload: () =
           ))}
         </ul>
       )}
-    </Card>
+    </section>
   );
 }
 

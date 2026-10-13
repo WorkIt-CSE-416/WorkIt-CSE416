@@ -31,8 +31,12 @@ import { openDownload, SentResumes } from "./sent-resumes";
  * student downloads anyway or fixes the bank. The 5-resume limit is the
  * API's: its refusal shows as the error. Open goes to the resume editor.
  *
+ * Base resumes and Sent share one "Your Resumes" card, below the bank's
+ * sections: they are what the bank makes, so the page leads with intake
+ * and the title's "Your Resumes" button jumps here.
+ *
  * Every download, PDF or Word, keeps a sent resume (KAN-208), shown in the
- * "Sent" card below; a repeat of the same content returns the one already
+ * "Sent" list below; a repeat of the same content returns the one already
  * kept. A download cancelled at the warning deletes the sent resume it just
  * made.
  */
@@ -71,35 +75,39 @@ export function BuiltResumes({
   }
 
   return (
-    <>
-      <Card as="section" aria-labelledby="bank-resumes" className="mt-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id="bank-resumes" className="text-subtitle text-ink">
-            Base Resumes
-          </h2>
-          <Button size="sm" onClick={generate} disabled={generating}>
-            <FileText /> {generating ? "Generating…" : "Generate"}
-          </Button>
-        </div>
-        <p className="text-note text-ink-meta mt-1">
-          A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
-          every resume.
+    <Card
+      as="section"
+      id="your-resumes"
+      aria-labelledby="bank-resumes"
+      className="mt-4 scroll-mt-4"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="bank-resumes" className="text-subtitle text-ink">
+          Your Resumes
+        </h2>
+        <Button size="sm" onClick={generate} disabled={generating}>
+          <FileText /> {generating ? "Generating…" : "Generate"}
+        </Button>
+      </div>
+      <h3 className="text-label text-ink mt-3">Base Resumes</h3>
+      <p className="text-note text-ink-meta mt-1">
+        A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
+        every resume.
+      </p>
+      {error && (
+        <p role="alert" className="text-note text-danger mt-2">
+          {error}
         </p>
-        {error && (
-          <p role="alert" className="text-note text-danger mt-2">
-            {error}
-          </p>
-        )}
-        {resumes.length > 0 && (
-          <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-            {resumes.map((resume) => (
-              <ResumeRow key={resume.id} resume={resume} reload={reload} reloadSent={reloadSent} />
-            ))}
-          </ul>
-        )}
-      </Card>
+      )}
+      {resumes.length > 0 && (
+        <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
+          {resumes.map((resume) => (
+            <ResumeRow key={resume.id} resume={resume} reload={reload} reloadSent={reloadSent} />
+          ))}
+        </ul>
+      )}
       <SentResumes sent={sent} reload={reloadSent} />
-    </>
+    </Card>
   );
 }
 

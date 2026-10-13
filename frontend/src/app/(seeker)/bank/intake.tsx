@@ -3,6 +3,7 @@
 import {
   BadgeCheck,
   Briefcase,
+  FileUp,
   GraduationCap,
   Lightbulb,
   PartyPopper,
@@ -25,8 +26,17 @@ import {
 } from "@/lib/local-drafts";
 
 import { EntryEditor } from "./entry-editor";
+import { editSteps } from "./entry-save";
+import { ImportCard } from "./import-card";
 import { StepBar, WALK } from "./intake-steps";
-import { emptyDraft, sectionOf, SECTIONS, type EntryDraft } from "./sections";
+import {
+  draftOf,
+  emptyDraft,
+  gapQuestions,
+  sectionOf,
+  SECTIONS,
+  type EntryDraft,
+} from "./sections";
 
 /**
  * Intake on the bank page (KAN-213): the student tells WorkIt about one thing
@@ -56,6 +66,17 @@ import { emptyDraft, sectionOf, SECTIONS, type EntryDraft } from "./sections";
  * them after each save. Skip and a jump drop the unsaved draft, as in the
  * prototype. Skipped sections are kept beside the draft, so a reload does
  * not walk back into them.
+ *
+ * Import inside the chat: with `importable`, WorkIt's first line offers
+ * Import My Resume, and the import review (`import-card.tsx`) takes the
+ * chat's place until it closes. The walk then starts again on the bank as
+ * it is now. It skips a section that has entries, but visits each entry in
+ * `entries` that has gaps (`gapQuestions`: no dates, no organization for a
+ * job or role, no bullets for a job, project or role): the card opens on
+ * the saved entry, WorkIt's first line asks about the gap, and the model,
+ * which never asks for what the draft already holds, asks only about the
+ * rest. Saving such a visit edits the entry (`editSteps`), never adds one.
+ * An entry visited once, saved or skipped, is not visited again on this page.
  */
 
 type DraftWire = EntryFields & { bullets: string[] };
@@ -72,7 +93,11 @@ type Line =
   | { kind: "saved"; title: string }
   | { kind: "skipped"; section: Section };
 
-type Kept = { draft: EntryDraft; done: boolean };
+/** The card. `entryId` is set when it edits an entry already in the bank. */
+type Kept = { draft: EntryDraft; done: boolean; entryId?: string };
+
+/** Where the walk goes next: a new entry in a section, or a bank entry's gaps. */
+type Target = { section: Section } | { entry: BankEntry };
 
 const ICONS: Record<Section, LucideIcon> = {
   education: GraduationCap,
@@ -93,6 +118,16 @@ const OPENERS: Record<Section, string> = {
   awards: "Tell me about an award you won. What was it, and what was it for?",
   certifications: "Tell me about a certification. What is it called, and who gave it?",
 };
+
+/** WorkIt's first line on a visit to a bank entry with gaps. Fixed text too. */
+function gapOpener(entry: BankEntry): string {
+  const [first, ...rest] = gapQuestions(entry);
+  const name = [entry.title, entry.organization].filter(Boolean).join(", ");
+  return (
+    `Your resume has ${name || `a ${sectionOf(entry.section).label} entry`}. ${first}` +
+    (rest.length ? " Then I'll ask about the rest." : "")
+  );
+}
 
 const toWire = ({ bullets, ...fields }: EntryDraft): DraftWire => ({
   ...fields,
@@ -123,17 +158,26 @@ function mergeReply(current: EntryDraft, sent: EntryDraft, reply: EntryDraft): E
 
 export function Intake({
   filled,
+  entries = [],
   onSaved,
   walk = false,
   lead,
+  importable = false,
+  autoImport = false,
 }: {
   /** Sections with at least one entry in the bank. */
   filled: readonly Section[];
+  /** The bank's entries, for the walk to visit those with gaps. */
+  entries?: readonly BankEntry[];
   onSaved: () => Promise<string | null>;
   /** Lead the student through the sections, one after another. */
   walk?: boolean;
   /** A step shown done before the sections, in the step bar. */
   lead?: string;
+  /** Offer Import My Resume in the chat. */
+  importable?: boolean;
+  /** Open the import on mount: the Jobs page's one-click "Import Your Resume". */
+  autoImport?: boolean;
 }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [messages, setMessages] = useState<ScoutMessage[]>([]);
@@ -148,6 +192,11 @@ export function Intake({
   const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
   const [sheet, setSheet] = useState(false);
   const [skipped, setSkipped] = useState<Section[]>([]);
+  const [importing, setImporting] = useState(autoImport);
+  const [imported, setImported] = useState(false);
+  // Bumped when the import closes, so the walk restarts on the fresh bank.
+  const [rewalk, setRewalk] = useState(0);
+  const visited = useRef(new Set<string>());
   const restored = useRef(false);
   const log = useRef<HTMLDivElement>(null);
 
@@ -161,15 +210,17 @@ export function Intake({
     restored.current = true;
     /* eslint-disable react-hooks/set-state-in-effect -- a one-time restore from storage */
     setSkipped(wasSkipped);
-    if (saved?.draft?.section) {
+    // A kept card with nothing in it yet is dropped, so the walk picks the
+    // stop afresh: an import may have filled its section since.
+    if (saved?.draft?.section && (saved.draft.title || saved.entryId)) {
       setKept(saved);
       setLines([
         { kind: "chapter", section: saved.draft.section },
         { kind: "text", role: "assistant", content: "Here's the draft you were working on." },
       ]);
     } else if (walk) {
-      const first = WALK.find((s) => !filled.includes(s) && !wasSkipped.includes(s));
-      if (first) start(first);
+      const first = nextTarget(wasSkipped);
+      if (first) go(first);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
     // Mount only: `filled` and `walk` as they were when the page opened.
@@ -189,6 +240,71 @@ export function Intake({
   }, [lines, answering, error]);
 
   const draft = kept?.draft ?? null;
+
+  /** The walk's next stop at or after `from`, in WALK's order: a bank entry
+   *  with gaps not yet visited, else a section with no entries. `from`
+   *  itself only offers its other entries' gaps: it was just saved or skipped. */
+  function nextTarget(skippedNow: readonly Section[] = skipped, from?: Section): Target | null {
+    for (const section of WALK.slice(from ? WALK.indexOf(from) : 0)) {
+      if (skippedNow.includes(section)) continue;
+      const gap = entries.find(
+        (e) => e.section === section && !visited.current.has(e.id) && gapQuestions(e).length > 0,
+      );
+      if (gap) return { entry: gap };
+      if (section !== from && !filled.includes(section)) return { section };
+    }
+    return null;
+  }
+
+  function go(target: Target) {
+    if ("section" in target) return start(target.section);
+    const { entry } = target;
+    visited.current.add(entry.id);
+    setKept({ draft: draftOf(entry), done: false, entryId: entry.id });
+    setVersion((v) => v + 1);
+    setMessages([]);
+    setError(null);
+    setLines((l) => [
+      ...l,
+      { kind: "chapter", section: entry.section },
+      { kind: "text", role: "assistant", content: gapOpener(entry) },
+    ]);
+  }
+
+  // After an import: a card no one has talked into yet gives way to the
+  // walk's first stop on the bank as it is now.
+  useEffect(() => {
+    if (!rewalk) return;
+    const untouched = !kept || (!kept.entryId && !kept.draft.title && messages.length === 0);
+    if (!untouched) return;
+    const next = nextTarget();
+    /* eslint-disable react-hooks/set-state-in-effect -- a one-time step after the import */
+    setKept(null);
+    setMessages([]);
+    if (next) {
+      setLines((l) => [
+        ...l,
+        {
+          kind: "text",
+          role: "assistant",
+          content: "Thanks! I'll ask only about what your resume didn't say.",
+        },
+      ]);
+      go(next);
+    } else {
+      setLines((l) => [
+        ...l,
+        {
+          kind: "text",
+          role: "assistant",
+          content: "Your resume covered every section. Pick one to add more.",
+        },
+      ]);
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // Runs once per import, on the bank as it is when the import closes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rewalk]);
 
   function start(section: Section) {
     setKept({ draft: emptyDraft(section), done: false });
@@ -219,8 +335,8 @@ export function Intake({
   /** After a save or Skip: the next section when walking, else the chips. */
   function advance(from: Section) {
     finish();
-    const next = walk ? WALK[WALK.indexOf(from) + 1] : undefined;
-    if (next) return start(next);
+    const next = walk ? nextTarget(skipped, from) : null;
+    if (next) return go(next);
     setLines((l) => [
       ...l,
       {
@@ -236,6 +352,14 @@ export function Intake({
   function skip() {
     if (!draft) return;
     const { section } = draft;
+    // Skipping a visit to a bank entry passes over that entry, not its section.
+    if (kept?.entryId) {
+      setLines((l) => [
+        ...l,
+        { kind: "text", role: "assistant", content: "Okay, I'll leave that one as it is." },
+      ]);
+      return advance(section);
+    }
     setSkipped((s) => (s.includes(section) ? s : [...s, section]));
     setLines((l) => [...l, { kind: "skipped", section }]);
     advance(section);
@@ -272,7 +396,7 @@ export function Intake({
             // A card discarded or moved to another section meanwhile stays so.
             setKept((k) =>
               k && k.draft.section === reply.section
-                ? { draft: mergeReply(k.draft, sentDraft, reply), done: event.done }
+                ? { ...k, draft: mergeReply(k.draft, sentDraft, reply), done: event.done }
                 : k,
             );
             setVersion((v) => v + 1);
@@ -291,6 +415,7 @@ export function Intake({
   }
 
   async function save(entry: EntryDraft, allowDuplicate = false) {
+    if (kept?.entryId) return saveVisit(kept.entryId, entry);
     setSaving(true);
     setSaveError(null);
     const { bullets, ...fields } = entry;
@@ -307,6 +432,32 @@ export function Intake({
     const reloadError = await onSaved();
     if (reloadError) setError(reloadError);
   }
+
+  /** Saves a visit to a bank entry as an edit of it. */
+  async function saveVisit(entryId: string, edited: EntryDraft) {
+    const saved = entries.find((e) => e.id === entryId);
+    if (!saved) return setSaveError("This entry is no longer in your bank.");
+    setSaving(true);
+    setSaveError(null);
+    for (const [i, step] of editSteps(saved, edited).entries()) {
+      const { error } = await step();
+      if (!error) continue;
+      setSaving(false);
+      if (i === 0) return setSaveError(error); // Nothing saved: the card stays to fix it.
+      setError(`Some changes did not save: ${error}`);
+      advance(edited.section);
+      await onSaved();
+      return;
+    }
+    setSaving(false);
+    setLines((l) => [...l, { kind: "saved", title: edited.title }]);
+    advance(edited.section);
+    const reloadError = await onSaved();
+    if (reloadError) setError(reloadError);
+  }
+
+  // Offered until the student imports once on this page.
+  const offerImport = importable && !imported;
 
   const card = (
     <DraftCard
@@ -357,100 +508,127 @@ export function Intake({
         onSkip={skip}
       />
 
-      <div className="grid items-start gap-5 @4xl/main:grid-cols-[1fr_21rem]">
-        <div className="from-brand-tint to-panel ring-brand-tint flex h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem] flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1">
-          <div
-            ref={log}
-            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4"
-          >
-            <WorkItLine>
-              {walk
-                ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
-                : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
-            </WorkItLine>
+      {importing ? (
+        <ImportCard
+          autoStart
+          onSaved={onSaved}
+          onClose={() => {
+            setImporting(false);
+            setImported(true);
+            setRewalk((n) => n + 1);
+          }}
+        />
+      ) : (
+        <div className="grid items-start gap-5 @4xl/main:grid-cols-[1fr_21rem]">
+          <div className="from-brand-tint to-panel ring-brand-tint flex h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem] flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1">
+            <div
+              ref={log}
+              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4"
+            >
+              <WorkItLine>
+                {offerImport
+                  ? "Hi! I'll help you fill your experience bank, one thing at a time. Have a resume? Import it first, and I'll only ask about what it's missing."
+                  : walk
+                    ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
+                    : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
+              </WorkItLine>
 
-            {lines.map((line, i) => (
-              <ChatLine key={i} line={line} follows={continues(lines, i)} />
-            ))}
+              {offerImport && (
+                <div className="animate-fade -mt-1 pl-10.5">
+                  <button
+                    type="button"
+                    onClick={() => setImporting(true)}
+                    disabled={answering || saving}
+                    className="text-label bg-brand text-on-brand hover:bg-brand-hover focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                  >
+                    <FileUp aria-hidden className="size-3.5" /> Import My Resume
+                  </button>
+                </div>
+              )}
 
-            {answering && (
-              <div className="flex items-end gap-2.5">
-                <Mark />
-                <Message role="assistant" className="bg-panel shadow-card">
-                  <Typing who="WorkIt" />
-                </Message>
-              </div>
-            )}
+              {lines.map((line, i) => (
+                <ChatLine key={i} line={line} follows={continues(lines, i)} />
+              ))}
 
-            {error && (
-              <p role="alert" className="text-note text-danger animate-fade pl-10.5">
-                {error}
-              </p>
-            )}
+              {answering && (
+                <div className="flex items-end gap-2.5">
+                  <Mark />
+                  <Message role="assistant" className="bg-panel shadow-card">
+                    <Typing who="WorkIt" />
+                  </Message>
+                </div>
+              )}
 
-            {!draft && (
-              <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
-                {SECTIONS.map((s) => {
-                  const Icon = ICONS[s.id];
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => start(s.id)}
-                      className="text-label bg-panel text-brand ring-brand-pale hover:bg-brand-tint focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ring-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                    >
-                      <Icon aria-hidden className="size-3.5" /> {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+              {error && (
+                <p role="alert" className="text-note text-danger animate-fade pl-10.5">
+                  {error}
+                </p>
+              )}
 
-          {/* A screen reader hears each of WorkIt's lines once. */}
-          <p aria-live="polite" className="sr-only">
-            {!answering && lines.at(-1)?.kind === "text" ? lastText(lines) : ""}
-          </p>
-
-          <div className="flex flex-col gap-1.5 px-3 pb-3">
-            {draft && (
-              <button
-                type="button"
-                onClick={() => setSheet(true)}
-                className="bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1 @4xl/main:hidden"
-              >
-                <Dot ready={kept?.done ?? false} />
-                <span className="text-label text-ink min-w-0 flex-1 truncate">
-                  {draft.title || `Your new ${sectionOf(draft.section).label} entry`}
-                </span>
-                <span className="text-note text-brand font-semibold">View</span>
-              </button>
-            )}
-            <div className="[&>form]:p-0">
-              <Composer
-                onSend={send}
-                answering={answering}
-                disabled={!draft}
-                who="WorkIt"
-                label="Message WorkIt"
-                placeholder={draft ? "Type your answer…" : "Pick a section to start"}
-              />
+              {!draft && (
+                <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
+                  {SECTIONS.map((s) => {
+                    const Icon = ICONS[s.id];
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => start(s.id)}
+                        className="text-label bg-panel text-brand ring-brand-pale hover:bg-brand-tint focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ring-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        <Icon aria-hidden className="size-3.5" /> {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            {usesLeft !== null && (
-              <p className="text-note text-ink-meta px-1">
-                {usesLeft === 1 ? "1 message" : `${usesLeft} messages`} left today
-              </p>
-            )}
-          </div>
-        </div>
 
-        <aside
-          aria-label="Draft entry"
-          className="bg-panel ring-brand-tint shadow-card hidden rounded-3xl ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
-        >
-          {!sheet && card}
-        </aside>
-      </div>
+            {/* A screen reader hears each of WorkIt's lines once. */}
+            <p aria-live="polite" className="sr-only">
+              {!answering && lines.at(-1)?.kind === "text" ? lastText(lines) : ""}
+            </p>
+
+            <div className="flex flex-col gap-1.5 px-3 pb-3">
+              {draft && (
+                <button
+                  type="button"
+                  onClick={() => setSheet(true)}
+                  className="bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1 @4xl/main:hidden"
+                >
+                  <Dot ready={kept?.done ?? false} />
+                  <span className="text-label text-ink min-w-0 flex-1 truncate">
+                    {draft.title || `Your new ${sectionOf(draft.section).label} entry`}
+                  </span>
+                  <span className="text-note text-brand font-semibold">View</span>
+                </button>
+              )}
+              <div className="[&>form]:p-0">
+                <Composer
+                  onSend={send}
+                  answering={answering}
+                  disabled={!draft}
+                  who="WorkIt"
+                  label="Message WorkIt"
+                  placeholder={draft ? "Type your answer…" : "Pick a section to start"}
+                />
+              </div>
+              {usesLeft !== null && (
+                <p className="text-note text-ink-meta px-1">
+                  {usesLeft === 1 ? "1 message" : `${usesLeft} messages`} left today
+                </p>
+              )}
+            </div>
+          </div>
+
+          <aside
+            aria-label="Draft entry"
+            className="bg-panel ring-brand-tint shadow-card hidden rounded-3xl ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
+          >
+            {!sheet && card}
+          </aside>
+        </div>
+      )}
 
       {sheet && draft && (
         <div

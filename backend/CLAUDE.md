@@ -278,6 +278,15 @@ Find files with a directory listing; these are the rules for where code goes.
   value; each turn's context says what `title` and `organization` hold in
   the section (`FIELD_MEANINGS`, matching the card's labels), because
   without it a live model put the university in Education's organization.
+  The context also lists the facts the section needs (`_NEEDS`) that the
+  card has ("never ask about these") and lacks ("ask about these"). Two code
+  guards back the prompt, each with a test, because the local 4B model
+  ignored it: a field the card had that the reply blanks keeps the card's
+  value (`_keep_filled`, the three end-date fields as one), so saving a
+  visit to an imported entry cannot erase it; and when the card had every
+  needed fact before the turn and still has them, the reply becomes the
+  fixed `READY` line with `done`, so the model gets one turn to ask what
+  came of the work and no more.
   **The reply is NDJSON like Scout's, but not streamed token by
   token, on purpose**: the draft is one JSON object that must pass the
   schema and the section check, and a fourth question is swapped for the

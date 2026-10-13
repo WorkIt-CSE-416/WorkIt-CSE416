@@ -31,6 +31,10 @@ import { formatDates, sectionOf, type EntryDraft } from "./sections";
  * finds no entries, and "Read It Again with AI" asks for that reading on
  * purpose while the student has an AI reading left today. The AI drafts
  * replace the shown ones; a failed AI reading keeps them and shows why.
+ *
+ * It opens inside intake's chat (`onClose` given): Close is always there,
+ * and a Save All that leaves nothing to check closes it, so the walk goes
+ * on to ask about what the resume did not say.
  */
 
 type Row = DraftEntry & { key: number; error?: string | null };
@@ -44,8 +48,11 @@ const toEditor = ({ bullets, key, error, duplicate_of, ...fields }: Row): EntryD
 export function ImportCard({
   onSaved,
   autoStart = false,
+  onClose,
 }: {
   onSaved: () => Promise<string | null>;
+  /** Hands the space back to intake's chat. */
+  onClose?: () => void;
   /** Start the import on mount: the Jobs page's one-click "Import Your Resume". */
   autoStart?: boolean;
 }) {
@@ -57,6 +64,8 @@ export function ImportCard({
   const [editing, setEditing] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Drafts Save All left for the student to check (a duplicate, a failure).
+  const rowsLeft = useRef(0);
 
   async function runImport(readWithAi = false) {
     setBusy(true);
@@ -82,6 +91,7 @@ export function ImportCard({
   }, []);
 
   function close() {
+    if (onClose) return onClose();
     setRows(null);
     setSkills([]);
     setEditing(null);
@@ -135,14 +145,18 @@ export function ImportCard({
     setError(null);
     setEditing(null);
     let any = false;
+    let left = 0;
     for (const row of rows ?? []) {
-      if (row.duplicate_of === null) any = (await saveRow(row, toEditor(row), false)) || any;
+      if (row.duplicate_of === null && (await saveRow(row, toEditor(row), false))) any = true;
+      else left++;
     }
+    rowsLeft.current = left;
     for (const skill of skills) {
       if (!skill.in_bank) any = (await saveSkill(skill)) || any;
     }
     setBusy(false);
     if (any) await reload();
+    if (onClose && !rowsLeft.current) onClose();
   }
 
   async function reload() {
@@ -159,7 +173,7 @@ export function ImportCard({
         <h2 id="bank-import" className="text-subtitle text-ink">
           Import Your Resume
         </h2>
-        {rows && (
+        {(rows || onClose) && (
           <Button variant="section" onClick={close}>
             <X /> Close
           </Button>

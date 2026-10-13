@@ -8,18 +8,14 @@ import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { TextField } from "@/components/ui/text-field";
 import {
-  addBullet,
   addSkill,
   createEntry,
-  deleteBullet,
   deleteEntry,
   deleteSkill,
   entryResumeCount,
   getBank,
   linkSkill,
   unlinkSkill,
-  updateBullet,
-  updateEntry,
   updateSkill,
   type Bank,
   type BankEntry,
@@ -28,10 +24,9 @@ import {
 } from "@/lib/bank-actions";
 
 import { EntryEditor } from "./entry-editor";
-import { ImportCard } from "./import-card";
+import { editSteps, type SaveStep } from "./entry-save";
 import { Intake } from "./intake";
 import {
-  changesOf,
   draftOf,
   emptyDraft,
   formatDates,
@@ -132,23 +127,16 @@ export function BankScreen({
     return null;
   }
 
-  /** The fields go in one PATCH; the bullets as the adds, edits and
-   *  deletes that turn the saved list into the draft's. */
+  /** The fields and bullets as `editSteps` gives them, with the skill links
+   *  and unlinks after the fields. */
   async function saveEdit(entry: BankEntry, draft: EntryDraft, skillIds: string[]) {
-    const { bullets } = draft;
     const { link, unlink } = linkChanges(linkedTo(entry.id), skillIds);
-    const steps: (() => Promise<{ error: string | null }>)[] = [
-      () => updateEntry(entry.id, changesOf(draft)),
+    const [fields, ...bulletSteps] = editSteps(entry, draft);
+    const steps: SaveStep[] = [
+      fields,
       ...link.map((skillId) => () => linkSkill(skillId, entry.id)),
       ...unlink.map((skillId) => () => unlinkSkill(skillId, entry.id)),
-      ...entry.bullets
-        .filter((saved) => !bullets.some((b) => b.id === saved.id))
-        .map((saved) => () => deleteBullet(saved.id)),
-      ...bullets.flatMap((b) => {
-        if (!b.id) return [() => addBullet(entry.id, b.text)];
-        const saved = entry.bullets.find((s) => s.id === b.id);
-        return saved && saved.text !== b.text ? [() => updateBullet(b.id!, { text: b.text })] : [];
-      }),
+      ...bulletSteps,
     ];
     for (const [i, step] of steps.entries()) {
       const { error } = await step();
@@ -166,10 +154,12 @@ export function BankScreen({
 
   return (
     <div className="mt-4 flex flex-col gap-4">
-      <ImportCard onSaved={reload} autoStart={autoImport} />
       <Intake
         filled={bank.entries.map((e) => e.section)}
-        walk={initial.entries.length === 0}
+        entries={bank.entries}
+        walk
+        importable
+        autoImport={autoImport}
         onSaved={reload}
       />
       {pageError && (
