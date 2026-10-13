@@ -319,15 +319,13 @@ async def keyword_match(
         raise HTTPException(404, "Job posting not found")
 
     left = await uses_left(session, applicant_id, Feature.TAILOR)
-    found = keywords.cached(job)
-    if found is None:
-        if left <= 0:
-            raise HTTPException(429, AI.spent)
-        try:
-            found = await keywords.extract(job, llm)
-        except ScoutUnavailable as exc:
-            raise HTTPException(503, AI.failure(exc)) from exc
-        keywords.store(job, found)
+    if keywords.cached(job) is None and left <= 0:
+        raise HTTPException(429, AI.spent)
+    try:
+        found, extracted = await keywords.ensure(job, llm)
+    except ScoutUnavailable as exc:
+        raise HTTPException(503, AI.failure(exc)) from exc
+    if extracted:
         await count_use(session, applicant_id, Feature.TAILOR)
         # One commit: the cache and the count.
         await session.commit()

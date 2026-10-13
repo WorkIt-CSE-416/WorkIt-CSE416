@@ -84,6 +84,19 @@ def store(job: Job_Post, keywords: list[Keyword]) -> None:
     job.keywords_hash = description_hash(job.description)
 
 
+async def ensure(job: Job_Post, llm: LLM) -> tuple[list[Keyword], bool]:
+    """The posting's keywords and whether they were just extracted: the
+    cache, else the model's, stored on the posting (the caller commits it).
+    The keyword match and Tailor both read keywords through this; which
+    use an extraction spends stays theirs. Raises like `extract`."""
+    found = cached(job)
+    if found is not None:
+        return found, False
+    found = await extract(job, llm)
+    store(job, found)
+    return found, True
+
+
 def _shown_text(view: ResumeView) -> str:
     parts: list[str] = []
     for section in view.sections:

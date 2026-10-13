@@ -290,8 +290,10 @@ Find files with a directory listing; these are the rules for where code goes.
   the pure count of those the built resume view shows (text and skills,
   whole words, ignoring case). **Only an extraction spends a use, and it
   counts under `TAILOR`**; a cached match is free, for every student. Tailor
-  (KAN-217) calls `keywords.cached`/`extract`/`store` itself and counts its
-  run once, not once more for the extraction. Tests:
+  (KAN-217) reads them through the same `keywords.ensure` (the cache, else
+  an extraction stored on the posting) and counts its run once, not once
+  more for the extraction. Which use an extraction spends stays in each
+  router. Tests:
   `tests/test_keyword_match.py` (the cache, its clearing by the import and
   by the hash, an invalid or failed reply counts nothing, the cap).
 - **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
