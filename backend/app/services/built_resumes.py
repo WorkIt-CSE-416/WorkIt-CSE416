@@ -14,6 +14,7 @@ resume answers `NotFound`), and flushes but never commits.
 
 import re
 import uuid
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +28,7 @@ from app.models.built_resume import (
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.services.bank import NotFound, load_bank
-from app.services.resume_render import Identity
+from app.services.resume_render import Identity, Rendered, box_lines
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -36,6 +37,7 @@ from app.services.resume_view import (
     SkillChoice,
     all_chosen,
     build_view,
+    fit_order,
 )
 
 MAX_RESUMES = 5
@@ -230,6 +232,47 @@ async def load_view(
     bank = await load_bank(session, applicant_id)
     return resume, build_view(bank, await load_choices(session, resume.id))
 
+
+
+FIT_ROUNDS = 6
+
+
+async def fit_to_one_page(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    render: Callable[[ResumeView], Awaitable[Rendered]],
+) -> tuple[list[uuid.UUID], Rendered]:
+    """Hide bullets in `fit_order` until the resume renders on one page, or
+    none is left to hide. Each round hides about as many lines as the render
+    says run over, by each bullet's own box, then renders again, so a
+    resume a few lines over costs two renders, not one per bullet. Returns
+    the hidden bullet ids (Undo shows them again) and the last render."""
+    hidden: list[uuid.UUID] = []
+    _, view = await load_view(session, applicant_id, resume_id)
+    rendered = await render(view)
+    for _ in range(FIT_ROUNDS):
+        if rendered.page_count <= 1:
+            break
+        candidates = fit_order(view)
+        if not candidates:
+            break
+        lines: dict[str, int] = {}
+        for box in rendered.boxes:
+            if box.kind == "bullet":
+                lines[box.item_id] = lines.get(box.item_id, 0) + box_lines(box)
+        need, batch = max(1, rendered.lines_over), []
+        for bullet_id in candidates:
+            batch.append(bullet_id)
+            need -= lines.get(str(bullet_id), 1)
+            if need <= 0:
+                break
+        await update_choices(session, applicant_id, resume_id,
+                             bullets=[{"bullet_id": b, "shown": False} for b in batch])
+        hidden.extend(batch)
+        _, view = await load_view(session, applicant_id, resume_id)
+        rendered = await render(view)
+    return hidden, rendered
 
 
 async def load_identity(session: AsyncSession, applicant_id: uuid.UUID) -> Identity:
