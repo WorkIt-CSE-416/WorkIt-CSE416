@@ -3,7 +3,7 @@ Identity-data removal (KAN-205): the one function every model call's text
 passes through. Run from backend/: `uv run pytest ../scout/tests`.
 """
 
-from workit_scout.identity import remove_identity
+from workit_scout.identity import placeholders_in, remove_identity
 
 
 def test_the_students_name_becomes_a_placeholder():
@@ -87,3 +87,8 @@ def test_every_kind_together_with_the_name_inside_a_link():
         links=["github.com/janedoe", "janedoe.dev"],
     )
     assert out == "[name] | [email] | [phone] | [link]\nContact [name] at [link]."
+
+
+def test_placeholders_in_names_each_placeholder_the_text_holds():
+    assert placeholders_in("Built [link] for [name], then [name] again") == ["[name]", "[link]"]
+    assert placeholders_in("Built a link checker for names") == []
