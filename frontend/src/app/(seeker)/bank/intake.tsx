@@ -154,6 +154,8 @@ export function Intake({
   // The kept draft comes back after mount, never in the first render, which
   // must match the server's (it has no localStorage).
   useEffect(() => {
+    // Strict Mode runs this twice; a second run would add the chapter again.
+    if (restored.current) return;
     const saved = readLocalDraft<Kept>(INTAKE_DRAFT_KEY);
     const wasSkipped = readLocalDraft<Section[]>(INTAKE_SKIPPED_KEY) ?? [];
     restored.current = true;
