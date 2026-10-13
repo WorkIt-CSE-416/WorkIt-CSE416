@@ -9,9 +9,16 @@ way and what bites.
 `scout/` has no job of its own: the backend installs it, so the backend job
 lints and tests it too.
 
+The backend job runs `pgvector/pgvector:pg15` as a service on port 54330,
+the same image and port as the local test container, and sets
+`TEST_DATABASE_URL` to it. The tests migrate their own database to head on it
+(`backend/CLAUDE.md`, "Tests against real Postgres"). Because `CI` is set
+there, a test database that cannot be reached fails the job instead of
+skipping the tests.
+
 The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
-(cached in the Actions cache) and runs pytest with `REQUIRE_TECTONIC=1`, so
-the resume template text test fails, never skips, when Tectonic is missing
+(kept in the Actions cache) before pytest. Because `CI` is set, the resume
+template text test fails, never skips, when Tectonic is missing
 (`backend/app/services/resume_render/CLAUDE.md`).
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
