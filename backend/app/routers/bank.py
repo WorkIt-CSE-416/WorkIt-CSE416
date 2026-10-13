@@ -122,8 +122,9 @@ async def create_entry(
                 session, applicant_id, body, body.bullets, allow_duplicate=allow_duplicate
             )
     except service.DuplicateEntryError as exc:
-        await session.rollback()
+        # Built before the rollback, which expires the loaded rows.
         payload = DuplicateEntry(detail=str(exc), duplicate=entry_response(exc.existing))
+        await session.rollback()
         return JSONResponse(status_code=409, content=payload.model_dump(mode="json"))
     return entry_response(entry)
 
