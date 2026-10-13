@@ -16,7 +16,7 @@ export type ScoutEvent =
   | { type: "usage"; uses_left: number };
 
 /** Any NDJSON stream's events; intake's route speaks the same lines plus its
- *  own (`(seeker)/bank/intake-api.ts`), so the event type is the caller's. */
+ *  own (`(seeker)/bank/intake.tsx`), so the event type is the caller's. */
 export async function* readEvents<E = ScoutEvent>(
   body: ReadableStream<Uint8Array>,
 ): AsyncGenerator<E> {

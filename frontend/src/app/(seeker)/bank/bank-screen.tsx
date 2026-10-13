@@ -25,6 +25,7 @@ import {
 } from "@/lib/bank-actions";
 
 import { EntryEditor } from "./entry-editor";
+import { Intake } from "./intake";
 import { changesOf, draftOf, emptyDraft, formatDates, SECTIONS, type EntryDraft } from "./sections";
 
 /**
@@ -120,6 +121,7 @@ export function BankScreen({ initial }: { initial: Bank }) {
 
   return (
     <div className="mt-4 flex flex-col gap-4">
+      <Intake onSaved={reload} />
       {pageError && (
         <p role="alert" className="text-note text-danger">
           {pageError}
