@@ -19,11 +19,11 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 
 | Component | How | Status |
 |---|---|---|
-| Semantic similarity | Gemini embeddings of the posting and of the resume's parsed sections, compared in Postgres (`job.embedding <=> resume.embedding`) | Client and columns built, not wired |
-| Skill overlap | The applicant's own listed skills searched for in each posting (`job_postings.fts`), rarer skills counting more | Column built, query not written |
-| Title fit | Word overlap between the job title and the applicant's titles and field of study, rarer words counting more | Not written |
-| Eligibility | Graduation date against the start term, and years of experience. A multiplier, not a weight: a great fit for an internship that starts after you graduate is still not a job you can take | Not written |
-| Freshness | Newer postings rank higher | Not written |
+| Semantic similarity | Gemini embeddings of the posting and of the resume's parsed sections, compared in Postgres (`1 - (job.embedding <=> resume.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Title fit | Word overlap between the job title and the applicant's titles and field of study, stop words removed | Built — `scoring.py` `title_fit()` |
+| Eligibility | Years of experience check; a multiplier (1.0 / 0.5 / 0.0) | Built — `scoring.py` `eligibility()` |
+| Freshness | `max(0.7, 1.0 - days_old / 300)` — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |
 
 Nothing in this folder may assume what a software job is. Two consequences:
 
@@ -72,11 +72,11 @@ Nothing in this folder may assume what a software job is. Two consequences:
   new or changed postings, never inside a user's request. Embedding on request
   would make the first person after each import wait for hundreds of vectors,
   and two people arriving together would both pay for them. *(Not written yet.)*
-- **Resumes: on demand.** `GET /jobs/recommended` embeds the chosen resume when
-  its `embedding` is NULL, and stores the result. The resume `PUT` that replaces
-  `parsed_json` clears `embedding`, and a new upload starts NULL, so the resume
-  routes never call Gemini themselves. Applicants who never open
-  recommendations never cost a call. *(Not written yet.)*
+- **Resumes: on demand.** `GET /jobs/recommended/{applicant_id}` embeds the
+  chosen resume when its `embedding` is NULL, and stores the result. The resume
+  `PUT` that replaces `parsed_json` clears `embedding`, and a new upload starts
+  NULL, so the resume routes never call Gemini themselves. Applicants who never
+  open recommendations never cost a call.
 
 ## The columns
 
@@ -92,15 +92,31 @@ and matching runs without its semantic part, the same way the app runs without
 `.env`. A value copied from `.env.example` is not a key: every call then answers
 `API_KEY_INVALID`, which `embed()` logs and treats as `None`.
 
+## Scoring — `scoring.py`
+
+Pure functions, no DB access. Weights: `W_SEMANTIC=0.45`, `W_SKILL=0.25`,
+`W_TITLE=0.15`, `W_ELIGIBILITY=0.15`. When no embedding exists, semantic
+weight is redistributed across the others. Final score is
+`round(weighted_sum * freshness * 100)`, clamped 0-100.
+
+## Highlights — `highlights.py`
+
+Picks up to 3 reasons from a priority list: skills matched, title alignment,
+strong semantic fit (positive), then years mismatch and start term mismatch
+(negative). Positives sort before negatives.
+
 ## Still open
 
 - **Applying the migration that creates the columns.** It's `4485d7a7a712`,
   and it goes on the shared database right after its PR merges, before the
   deployment is live (`../../models/CLAUDE.md` says why).
-- **The rest of the pipeline:** the import's embedding step, the resume `PUT`
-  clearing `embedding`, scoring, and `GET /jobs/recommended`.
+- **The import's embedding step** — embedding jobs during import, so
+  `GET /jobs/recommended` has vectors to compare against. Without it, jobs
+  score 0 on the semantic component.
 - **Unchecked against the live API:** whether Gemini still accepts `taskType`
   and `outputDimensionality` at the top level of each request. Google's
   reference marks them deprecated in favour of `embedContentConfig`.
 - **Scoring weights and the freshness boost** are guesses until there is real
   data to tune them on.
+- **Grad date vs start term** is not compared yet (eligibility only checks
+  years of experience).
