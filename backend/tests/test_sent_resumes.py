@@ -277,3 +277,70 @@ async def test_a_real_download_keeps_the_rendered_pdf(student, storage):
     [pdf] = storage.files.values()
     text = " ".join(extract_text(io.BytesIO(pdf)).split())
     assert "Sam Seeker" in text and "Cut page load time by 30%" in text
+
+
+async def _seed_posting(database) -> str:
+    from sqlalchemy import text
+
+    async with database() as session:
+        posting = await session.scalar(text(
+            "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
+            " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
+        ))
+        await session.commit()
+    return str(posting)
+
+
+async def test_apply_with_a_built_resume_keeps_a_sent_resume_linked_to_the_posting(
+    student, storage, renders, database
+):
+    client, me = student
+    await _fill_bank(client, me)
+    built = await _generate(client, me, "General SWE")
+    posting = await _seed_posting(database)
+
+    res = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built, "job_posting_id": posting})
+
+    assert res.status_code == 201
+    sent = res.json()
+    assert (sent["built_resume_id"], sent["job_posting_id"]) == (built, posting)
+    # The same file downloaded with no posting is its own sent resume.
+    assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).status_code == 201
+    # A second Apply to the same posting with unchanged content is a repeat.
+    again = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built, "job_posting_id": posting})
+    assert (again.status_code, again.json()["id"]) == (200, sent["id"])
+    listed = (await client.get(f"{me}/sent-resumes")).json()
+    assert sorted(str(s["job_posting_id"]) for s in listed) == sorted([posting, "None"])
+
+
+async def test_apply_with_an_uploaded_resume_points_at_its_stored_file(student, storage, database):
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    posting = await _seed_posting(database)
+
+    res = await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": uploaded["id"], "job_posting_id": posting})
+
+    assert res.status_code == 201
+    sent = res.json()
+    assert (sent["uploaded_resume_id"], sent["built_resume_id"], sent["job_posting_id"]) == (
+        uploaded["id"], None, posting)
+    assert sent["missing_characters"] == []
+    # No new file: the link opens the uploaded resume's own file.
+    assert list(storage.files) == [uploaded["storage_path"]]
+    assert sent["url"] == f"https://storage.test/{uploaded['storage_path']}?download=resume.pdf"
+    again = await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": uploaded["id"], "job_posting_id": posting})
+    assert (again.status_code, again.json()["id"]) == (200, sent["id"])
+
+
+async def test_apply_needs_exactly_one_resume_and_a_real_posting(student, storage, renders, database):
+    client, me = student
+    built = await _generate(client, me)
+    uploaded = (await _upload(client, me)).json()
+
+    assert (await client.post(f"{me}/sent-resumes", json={})).status_code == 422
+    both = {"built_resume_id": built, "uploaded_resume_id": uploaded["id"]}
+    assert (await client.post(f"{me}/sent-resumes", json=both)).status_code == 422
+    missing = {"uploaded_resume_id": uploaded["id"], "job_posting_id": str(uuid.uuid4())}
+    assert (await client.post(f"{me}/sent-resumes", json=missing)).status_code == 404
+    assert (await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": str(uuid.uuid4())})).status_code == 404
+    assert (await client.get(f"{me}/sent-resumes")).json() == []

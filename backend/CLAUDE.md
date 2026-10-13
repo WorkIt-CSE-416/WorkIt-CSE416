@@ -203,8 +203,11 @@ Find files with a directory listing; these are the rules for where code goes.
   which hashes the view, template and header text first and returns the last
   sent resume on a repeat for the same built resume. The service takes the
   Storage client from the router and flushes, never commits; when a new row's
-  commit fails, the router removes the uploaded file. Apply (KAN-220) builds
-  on `send_built(..., job_posting_id=)` and `send_uploaded`. **A stored file
+  commit fails, the router removes the uploaded file. **Apply** (KAN-220) is
+  the same POST with `job_posting_id` and exactly one of `built_resume_id`
+  or `uploaded_resume_id` (422 otherwise; 404 for a posting that does not
+  exist). An uploaded resume makes no new file, so a failed commit must not
+  remove its file: the router removes only a built sent resume's. **A stored file
   is removed only when `file_in_use` says no row needs it**: the uploaded
   resume delete and the sent resume delete both check it, because a sent
   resume can point at an uploaded resume's file.

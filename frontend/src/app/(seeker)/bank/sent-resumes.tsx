@@ -31,10 +31,13 @@ export function SentResumes({ sent, reload }: { sent: SentResume[]; reload: () =
         Sent
       </h2>
       <p className="text-note text-ink-meta mt-1">
-        Each resume you downloaded, kept as it was. Later changes to your bank do not change these.
+        Each resume you downloaded or applied with, kept as it was. Later changes to your bank do
+        not change these.
       </p>
       {sent.length === 0 ? (
-        <p className="text-note text-ink-muted mt-2">Resumes you download show here.</p>
+        <p className="text-note text-ink-muted mt-2">
+          Resumes you download or apply with show here.
+        </p>
       ) : (
         <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
           {sent.map((row) => (

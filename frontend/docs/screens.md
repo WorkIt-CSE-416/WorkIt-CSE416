@@ -107,8 +107,13 @@ The page is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. Apply Now leaves for the employer's
-posting, Ask Scout asks about the role, Share copies the page's link, Save
+says so and links to the whole posting. Apply Now (`[jobId]/apply-button.tsx`,
+KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
+to this posting and the uploaded resumes, with the tailored one, else the
+default, picked first. Apply keeps a sent resume linked to the posting, then
+shows Download Resume and Open the Posting (a link, so no popup blocker
+stops it). Apply Without a Resume leaves for the employer's posting at once.
+Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in
 sessionStorage).
@@ -455,7 +460,7 @@ place they are edited: My Profile keeps the uploads and links here.
   The page needs the bank, the resume list and the Sent list: if any fails
   it shows the error state. Each row's Open goes to the resume editor.
 - **Sent card** (`sent-resumes.tsx`, KAN-208), below Base Resumes. Every
-  PDF the student downloaded, newest first, with its name then and the date
+  PDF the student downloaded or applied with (KAN-220), newest first, with its name then and the date
   ("Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;
   none is edited. A repeat download of unchanged content adds no row. It
   sits on the bank page because base resumes do; "the resumes page" in the

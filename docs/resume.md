@@ -131,6 +131,13 @@ applicant_profiles
   resume (KAN-220) writes a row that points at that resume's own file, with
   no hash. Deleting the uploaded resume keeps the file while a sent resume
   uses it; deleting the last such sent resume removes it.
+- **Apply keeps a sent resume linked to the posting** (KAN-220). On the
+  Jobs page posting detail, Apply Now asks for a resume (a base resume, the
+  one tailored to that posting, or an uploaded resume), keeps it, and then
+  offers the file and the employer's page. A plain download and an Apply
+  of the same content are separate sent resumes: repeats merge only within
+  one posting. Linking the application in the Applications tracker waits
+  for the tracker's API.
 - **Only the PDF is kept.** The Word download is not a sent resume yet.
 
 The rest of this file is the original design for uploaded resumes.
