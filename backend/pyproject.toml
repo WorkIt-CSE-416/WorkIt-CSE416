@@ -45,6 +45,7 @@ entrypoint = "app.main:app"
 
 [dependency-groups]
 dev = [
+    "pdfminer-six>=20260107",
     "pytest>=9.1.1",
     "ruff>=0.16.8",
 ]
