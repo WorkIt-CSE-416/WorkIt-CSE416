@@ -85,10 +85,12 @@ module docstring has the steps.
   for one layout has broken another more than once. Fixtures are real resumes
   cut to start at the first section header, so no contact details are
   committed.
-- **A test that calls the resume routes monkeypatches `resumes.get_supabase`.**
-  The router calls it directly rather than through `Depends`, so a dependency
-  override misses it and the test uploads to the real bucket.
-  `tests/test_built_resumes.py`'s `_FakeSupabase` is the pattern.
+- **A test that calls the resume routes monkeypatches `resumes.get_supabase`**
+  (and `sent_resumes.get_supabase` for sent resumes). The routers call it
+  directly rather than through `Depends`, so a dependency override misses it
+  and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
+  `storage` fixture is the pattern: an in-memory bucket that records uploads
+  and removals.
 - **The import's database half has no tests yet.** It can now get them through
   the `database` fixture below.
 
@@ -183,6 +185,16 @@ Find files with a directory listing; these are the rules for where code goes.
   file, Tailor, the sent resume's hash and the editor read that shape; a rule
   about what shows goes there, never into one reader. Built resumes are
   written only through `services/built_resumes.py`.
+- **Every PDF download is a sent resume** (KAN-208): `POST
+  /applicants/{id}/sent-resumes` renders through `services/sent_resumes.py`,
+  which hashes the view, template and header text first and returns the last
+  sent resume on a repeat for the same built resume. The service takes the
+  Storage client from the router and flushes, never commits; when a new row's
+  commit fails, the router removes the uploaded file. Apply (KAN-220) builds
+  on `send_built(..., job_posting_id=)` and `send_uploaded`. **A stored file
+  is removed only when `file_in_use` says no row needs it**: the uploaded
+  resume delete and the sent resume delete both check it, because a sent
+  resume can point at an uploaded resume's file.
 - **The resume limit is 5, uploaded plus base resumes**
   (`services/built_resumes.py`'s `check_room`, called by Generate and by
   upload before anything is written; 409 with the reason). Tailored and sent
