@@ -144,7 +144,15 @@ Find files with a directory listing; these are the rules for where code goes.
   `app/models/CLAUDE.md` before adding or editing a model.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
-  matching: `app/services/matching/CLAUDE.md`.
+  matching: `app/services/matching/CLAUDE.md`. A service that reads or writes
+  rows (the experience bank, `services/bank.py`) takes the caller's session,
+  flushes and never commits, so the router owns the transaction and one
+  request can make many changes atomically (an import saving many entries).
+- **The experience bank is written only through `services/bank.py`.** It
+  holds the ownership scoping, the duplicate check and the clearing of the
+  bank embedding on every entry, bullet or skill change; a route or script
+  that writes `bank_*` rows itself leaves the recommender on a stale
+  embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.

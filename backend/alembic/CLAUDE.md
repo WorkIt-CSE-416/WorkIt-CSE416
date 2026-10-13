@@ -109,7 +109,7 @@ Read every generated migration before applying it. Autogenerate does **not**
 emit:
 
 - `CREATE EXTENSION` — this schema needs `ltree` and `pg_trgm`
-- new enum values — `ALTER TYPE ... ADD VALUE`, and there are nine enums
+- new enum values — `ALTER TYPE ... ADD VALUE`, and there are eleven enums
 - index operator classes — `gin_trgm_ops`, used on two tables
 - anything `ltree` — no native type, so it needs a `TypeDecorator`
 - **a `use_alter=True` foreign key** — see below, this one bit us
