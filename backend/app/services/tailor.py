@@ -25,6 +25,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from sqlalchemy import Text, cast, func, select
 from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.ext.asyncio import AsyncSession
+from workit_scout.identity import placeholders_in
 
 from app.models.bank import Bank_Bullet, Bank_Bullet_Variant, Bank_Entry
 from app.models.jobs import Job_Post
@@ -199,7 +200,7 @@ def check_wording(bank: Bank, bullet_id: uuid.UUID, text: str, keywords: Sequenc
     rule). An identity placeholder the model echoed counts as one."""
     original = next(b.text for e in bank.entries for b in e.bullets if b.id == bullet_id)
     found = invented(text, original, [s.name for s in bank.skills], tools=[k.keyword for k in keywords])
-    return found + [p for p in ("[name]", "[email]", "[phone]", "[link]") if p in text]
+    return found + placeholders_in(text)
 
 
 def propose(

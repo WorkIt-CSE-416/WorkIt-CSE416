@@ -302,9 +302,10 @@ Find files with a directory listing; these are the rules for where code goes.
   line the student reads is the service's fixed text**, never the model's,
   so the assistant cannot reword by talking. The only model text that
   reaches the student is a "Make it shorter" wording, and only when it is
-  shorter than what the resume shows and `truth_rule.invented` finds
-  nothing against that wording, the bank's original and the skills; else
-  the answer is `none`. It saves only when the student uses it (as typed
+  shorter than what the resume shows, `truth_rule.invented` finds
+  nothing against that wording, the bank's original and the skills, and
+  it holds no identity placeholder (`placeholders_in`); else the answer is
+  `none`. It saves only when the student uses it (as typed
   wording). One `ASSISTANT` use per answered message (cap 10, share 10%:
   on top of the spec's four shares, which already fill the pool, so a busy
   day can overshoot the pool by that much). Tests:

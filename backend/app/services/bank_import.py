@@ -14,7 +14,7 @@ import datetime
 import re
 
 from pydantic import ValidationError
-from workit_scout.identity import Identity
+from workit_scout.identity import Identity, placeholders_in
 from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
@@ -180,11 +180,8 @@ privacy. Never copy it into an entry.
 # The model sees at most this much of the resume: two full pages and more.
 MAX_RESUME_CHARS = 20_000
 
-PLACEHOLDERS = ("[name]", "[email]", "[phone]", "[link]")
-
-
 def _withheld(value: object) -> bool:
-    return isinstance(value, str) and any(p in value for p in PLACEHOLDERS)
+    return isinstance(value, str) and bool(placeholders_in(value))
 
 
 async def read_with_model(raw_text: str, llm: LLM, *, identity: Identity) -> ModelReading:

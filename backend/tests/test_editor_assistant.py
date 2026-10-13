@@ -131,6 +131,15 @@ async def test_a_shorter_wording_with_an_invented_fact_is_kept_back(student, use
     assert "facts" in body["reply"]
 
 
+@pytest.mark.parametrize("placeholder", ["[name]", "[email]", "[phone]", "[link]"])
+async def test_a_shorter_wording_with_an_identity_placeholder_is_kept_back(student, use_model, placeholder):
+    use_model(reply("shorter", f"Wrote Python billing for {placeholder}"))
+
+    body = (await student.ask("Make it shorter", bullet_id=student.bullet)).json()
+
+    assert (body["action"], body["text"]) == ("none", None)
+
+
 async def test_a_wording_that_is_not_shorter_is_kept_back(student, use_model):
     use_model(reply("shorter", LONG + " every single day"))
 
