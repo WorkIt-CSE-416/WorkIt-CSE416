@@ -73,9 +73,10 @@ Nothing in this folder may assume what a software job is. Two consequences:
   would make the first person after each import wait for hundreds of vectors,
   and two people arriving together would both pay for them. *(Not written yet.)*
 - **Resumes: on demand.** `GET /jobs/recommended/{applicant_id}` embeds the
-  chosen resume when its `embedding` is NULL, and stores the result. The resume
-  `PUT` that replaces `parsed_json` clears `embedding`, and a new upload starts
-  NULL, so the resume routes never call Gemini themselves. Applicants who never
+  chosen resume when its `embedding` is NULL, and stores the result. A new
+  upload starts NULL and nothing edits `parsed_json` afterwards (KAN-211
+  removed the resume `PUT`), so the resume routes never call Gemini
+  themselves. Applicants who never
   open recommendations never cost a call.
 
 ## The columns

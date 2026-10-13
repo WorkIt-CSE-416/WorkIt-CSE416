@@ -43,6 +43,19 @@ applicant_profiles
   skill with an entry.
 - Bullet variants and built resumes are later tables that point at these. The rules live in `backend/app/services/bank.py`.
 
+### Import fills the bank from an upload (KAN-211)
+
+An uploaded resume reaches the bank only through **import**: the heuristic
+parser reads the upload's stored text again, and the API returns draft
+entries that the student checks and saves one by one or with "Save all".
+Import writes nothing itself. A draft that matches a bank entry (the
+duplicate check) shows "Already in your bank" and "Save all" skips it. The
+parser reads all seven sections, Leadership & Activities and Awards
+included. The profile page's parsed-JSON editor is gone, so the bank is the
+only place to edit resume facts; `resumes.parsed_json` is now the parser's
+own output, never edited, and stays only until the recommender and Scout
+read the bank.
+
 The rest of this file is the original design for uploaded resumes.
 
 ## Relationship to KAN-50 tables
@@ -66,8 +79,8 @@ the first upload — correct onboarding order (contact info first, then resume).
 
 1. User uploads a file (PDF, DOCX, etc.) → stored at `resumes.storage_path`.
 2. Parser extracts text → `resumes.raw_text`, structured output → `resumes.parsed_json`, status → `parsed`.
-3. Parsed data is written into the content tables below as a draft.
-4. User reviews and edits the pre-filled entries in the UI.
+3. (Superseded: the content tables were never built. Import turns the
+   upload into bank drafts the student reviews; see above.)
 
 ## Re-upload behavior
 
