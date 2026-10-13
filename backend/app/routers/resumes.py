@@ -6,8 +6,11 @@ content, and nothing edits it afterwards (KAN-211 retired the profile's
 parsed-JSON editor; resume facts are edited in the experience bank, which
 import fills from `raw_text`). `GET .../{resume_id}` returns one resume's
 `parsed_json` (the list omits it).
-`PUT .../{resume_id}/default` makes it the primary resume
-(`applicant_profiles.default_resume_id`; the list reports it as `is_default`).
+`PUT .../{resume_id}/default` makes it the default resume
+(`applicant_profiles.default_resume_id`; the list reports it as `is_default`),
+clearing a base resume that was the default. Upload answers 409 when the
+student already has 5 resumes, uploaded and base resumes together
+(`app/services/built_resumes.py`).
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
 download under the original filename for a DOCX.
 """
@@ -30,6 +33,7 @@ from app.models.dto import ParsedResume, ResumeStatus
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
+from app.services import built_resumes
 from app.utils.resume_parser import count_sections, parse_resume
 
 router = APIRouter()
@@ -186,7 +190,6 @@ def _safe_parse(raw_text: str | None) -> ParsedResume | None:
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
 
-# TODO: Reinforce the 5 resume limit rule in the backend
 @router.post("/applicants/{applicant_id}/resumes")
 async def upload_resume(
     applicant_id: uuid.UUID,
@@ -197,6 +200,11 @@ async def upload_resume(
     assert_applicant_owns(account, applicant_id)
 
     contents, ext, mime = await _read_upload(file)
+    # Before the Storage upload, so a rejected sixth leaves no file behind
+    try:
+        await built_resumes.check_room(session, applicant_id)
+    except built_resumes.ResumeLimitReached as exc:
+        raise HTTPException(409, str(exc))
 
     resume_id = uuid.uuid4()
     storage_path = f"{applicant_id}/{resume_id}{ext}"
@@ -331,14 +339,12 @@ async def set_default_resume(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
-    """Make this the applicant's primary resume. It is a pointer on the profile
-    (default_resume_id, ON DELETE SET NULL), so deleting the resume clears it."""
+    """Make this the applicant's default resume. It is a pointer on the profile
+    (default_resume_id, ON DELETE SET NULL), so deleting the resume clears it;
+    a base resume that was the default stops being it."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
-    profile = await session.get(Applicant_Profile, applicant_id)
-    if profile is None:
-        raise HTTPException(404, "Applicant not found")
-    profile.default_resume_id = resume.id
+    await built_resumes.set_default(session, applicant_id, uploaded_id=resume.id)
     try:
         await session.commit()
     except Exception:

@@ -36,6 +36,10 @@ class Applicant_Profile(Profile):
     '''
     __tablename__= "applicant_profiles"
     default_resume_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="SET NULL", use_alter=True), index=True, nullable=True)
+    # The default can be a base resume instead (KAN-207). At most one of the
+    # two is set (applicant_profiles_one_default_resume); setting one clears
+    # the other.
+    default_built_resume_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("built_resumes.id", ondelete="SET NULL", use_alter=True), index=True, nullable=True)
     headline: Mapped[str | None] = mapped_column(String(50))
     linkedin_url: Mapped[str | None]
     portfolio_url: Mapped[str | None]

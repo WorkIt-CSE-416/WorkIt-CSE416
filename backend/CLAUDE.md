@@ -37,6 +37,7 @@ uv run alembic revision --autogenerate -m msg  write a migration
 uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
+uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -87,6 +88,7 @@ module docstring has the steps.
 - **A test that calls the resume routes monkeypatches `resumes.get_supabase`.**
   The router calls it directly rather than through `Depends`, so a dependency
   override misses it and the test uploads to the real bucket.
+  `tests/test_built_resumes.py`'s `_FakeSupabase` is the pattern.
 - **The import's database half has no tests yet.** It can now get them through
   the `database` fixture below.
 
@@ -177,6 +179,25 @@ Find files with a directory listing; these are the rules for where code goes.
   learned a section still imports it. A draft must already be a valid
   `POST /entries` body: the mapper clips text to the field limits and drops
   dates that do not fit together rather than send a draft that answers 422.
+- **Model parsing** (KAN-222) is import's `read_with_ai: true`, and its
+  fallback when the parser finds no entries. It counts a `PARSING` use only
+  when the reading succeeds; the response always carries `read_by` and
+  `uses_left`. An asked-for reading answers 429 at the limit and 503 when the
+  model fails; the fallback stays quiet and keeps the parser's reading. The
+  prompt and checks are in `services/bank_import.py`; the rules are in
+  `app/utils/CLAUDE.md`, "The model upgrade path". Tests:
+  `tests/test_bank_import.py` (checked drafts, no identity data in the
+  prompt, an invalid or failed reply counts nothing, the cap and the share).
+- **Every resume feature reads the built resume view**
+  (`app/services/resume_view.py`, KAN-207): one pure function from the bank
+  and a built resume's choices to what the resume shows. The PDF, the Word
+  file, Tailor, the sent resume's hash and the editor read that shape; a rule
+  about what shows goes there, never into one reader. Built resumes are
+  written only through `services/built_resumes.py`.
+- **The resume limit is 5, uploaded plus base resumes**
+  (`services/built_resumes.py`'s `check_room`, called by Generate and by
+  upload before anything is written; 409 with the reason). Tailored and sent
+  resumes do not count.
 - **Every model feature counts its daily uses through `app/services/usage.py`**
   (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
   it succeeds, so a failed or rejected call costs the student nothing. Each
@@ -187,6 +208,20 @@ Find files with a directory listing; these are the rules for where code goes.
   account, per feature and day). Never count in memory: a restart or a second
   Vercel instance resets it. Check-then-count can overshoot by one under
   concurrent requests, on purpose; it errs toward the student.
+- **Intake** (KAN-213) is `routers/intake.py` (`POST /intake/turn`) over
+  `services/intake.py`, which holds its frozen system prompt. It uses
+  Scout's model chain (`get_llm`) and `LLM.complete_json` with the bank's
+  entry schema (`schemas/intake.py`'s `IntakeDraft` is `EntryCreate` with an
+  optional title), and stores nothing said: the browser sends this entry's
+  chat and the card, edits included, every turn. Rules, each with a test in
+  `tests/test_intake.py`: at most `MAX_FOLLOW_UPS` (3) questions per entry,
+  counted from the assistant lines the browser sends, and a fourth question
+  is replaced by a fixed wrap-up line; a reply that fails the schema, or
+  drafts another section, is an `error` line and does not count; a field
+  the model echoes as an identity placeholder (`[link]`) keeps the card's
+  value. **The prompt wording is still open**: tune it with
+  `app.scripts.intake_test_set` against a live model, and re-run that
+  script before a new endpoint joins the chain.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -277,6 +312,10 @@ free tier). Render with a Dockerfile is the fallback.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **Apply `5753545063f3` before deploying KAN-207.** It adds
+  `applicant_profiles.default_built_resume_id`, which the model maps, so the
+  new code's signup INSERT fails on a database without it
+  (`app/models/CLAUDE.md`, "A new column reaches the database...").
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX
