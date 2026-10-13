@@ -110,7 +110,7 @@ EXPECTED = {
     # split by "|"
     "pipe_layout_leadership_honors.txt": {
         "education": [
-            ("Northfield University", "Bachelor", "Computer Science", None, "2027-12-01"),
+            ("Northfield University", "Bachelor of Science", "Computer Science", None, "2027-12-01"),
         ],
         "experience": [],
         "leadership": [
@@ -123,6 +123,20 @@ EXPECTED = {
         ],
         "projects": ["Budget Buddy"],
         "skill_count": 3,
+    },
+    # Jake's Resume from LaTeX: "Expected Graduation:" beside the school, a
+    # wrapped coursework bullet, undated "Name| tools" projects, a wrapped
+    # skills line, and PDF gaps after bold phrases
+    "jakes_undated_projects.txt": {
+        "education": [
+            ("Lakeview University", "Bachelor of Science", "Computer Science", 3.62, "2027-05-01"),
+        ],
+        "experience": [
+            ("Harbor Transit", "Software Engineer Intern", None, "2025-06-01", "2025-08-01", 2),
+            ("Riverside Robotics Lab", "Undergraduate Researcher", None, "2024-12-01", "2025-05-01", 1),
+        ],
+        "projects": ["Line Following Robot", "Plant Disease Classifier", "Arm Control Demo"],
+        "skill_count": 11,
     },
 }
 
@@ -162,3 +176,31 @@ def test_parses_fixture(fixture):
 def test_every_fixture_has_expectations():
     # A fixture dropped in without expectations would silently test nothing
     assert {p.name for p in FIXTURES.glob("*.txt")} == set(EXPECTED)
+
+
+def test_jakes_layout_details():
+    parsed = parse_resume((FIXTURES / "jakes_undated_projects.txt").read_text(encoding="utf-8"))
+    school = parsed.education[0]
+    assert school.gpa_scale == 4.0
+    # the wrapped second line of coursework stays with the first
+    assert school.description == (
+        "Relevant Coursework: Data Structures & Algorithms, Discrete Mathematics, Graph Theory, "
+        "Linear Algebra, Operating Systems, Compilers, Probability & Statistics"
+    )
+    assert [p.technologies for p in parsed.projects] == [
+        ["C++", "CMake", "Raspberry Pi"], ["Python", "PyTorch"], ["C++", "CUDA"],
+    ]
+    # a PDF gap after a bold phrase is one space; a missing-glyph tilde is "~"
+    assert parsed.projects[0].description.splitlines()[0].startswith("Programmed a Raspberry Pi to")
+    assert "from~90ms" in parsed.projects[2].description
+    # the wrapped "Concepts" line keeps its group
+    assert [(s.skill_name, s.category) for s in parsed.skills[-2:]] == [
+        ("Machine Learning", "Concepts"), ("Agile", "Concepts"),
+    ]
+
+
+def test_project_subtitle_after_bar_stays_in_the_name():
+    parsed = parse_resume("Projects\nWorkIt | Recruiting Platform\n• Built it.\n")
+    assert [(p.project_name, p.technologies) for p in parsed.projects] == [
+        ("WorkIt | Recruiting Platform", []),
+    ]

@@ -86,17 +86,52 @@ of that year.
 ### Date parsing
 
 Three patterns, checked in priority order:
-1. `Expected Month Year` -- education graduation dates
+1. `Expected Month Year` -- education graduation dates, also "Expected
+   Graduation: May 2027" and "Anticipated Grad Date May 2027". Without the
+   longer forms, "Expected Graduation:" stayed in the school's name.
 2. `Month Year - Month Year` (or Present/Current/Now) -- date ranges
 3. `Month Year` alone at end of line -- bare date, treated as end date
 
 Day is always 1 (resumes don't specify days). "Present", "Current", "Now" store
 as `None` (null end date).
 
+### Education fields
+
+- The degree keeps its full name ("Bachelor of Science", not "Bachelor").
+- The field of study ends at a PDF gap or "GPA": "Bachelor of Science,
+  Computer Science  GPA: 3.81/4.00" gives "Computer Science".
+- `GPA_RE` reads the scale too: "3.81/4.00" fills `Education.gpa_scale`.
+- A plain line after a coursework or bullet line that ends in a comma, or that
+  starts lowercase, is that line wrapped by the PDF and joins it. Before
+  this, the second line of a two-line coursework list was dropped.
+
+### Projects and skills
+
+- **Undated projects** give `_split_entries` no date to split on, so
+  `_split_undated_projects` splits them: where bullets carry markers, a plain
+  line is a new project when it holds a "|" or opens a new sentence after a
+  finished bullet. Jake's Resume from LaTeX lists projects this way; before
+  this, three projects merged into one.
+- **A project's tools** follow a "|" as a comma list ("Robot | C++, Python")
+  or sit in parentheses with a comma; they go to `Project.technologies`, and
+  import adds those missing from the skills section as ungrouped skills. One
+  phrase after the bar is a subtitle and stays in the name ("WorkIt | Full
+  Stack Recruiting Platform").
+- **A skills line that ends in a comma** continues on the next line, which
+  keeps its group. Before this, a wrapped "Concepts:" list lost its group.
+
+### Clean-up
+
+- A run of spaces inside a bullet is a PDF gap (after a bold phrase), not
+  wording, and becomes one space.
+- `∼` (U+223C, which resume fonts lack) becomes `~`, so the rendered PDF has
+  no missing glyph.
+
 ### Known ceilings
 
 - Section headers must be standalone lines. Inline bold headers won't split.
-- Entry boundaries depend on dates. A dateless entry merges into the previous.
+- Entry boundaries depend on dates. A dateless entry merges into the previous,
+  except in Projects (above).
 - `_is_header_line` requires uppercase start -- lowercase company names (eBay,
   npm) are not recognized as headers when they're the 2nd+ entry.
 - Single-column assumption. Multi-column PDFs may interleave columns.
@@ -116,7 +151,8 @@ the fallback when this parser finds no entries. Rules:
   parser finds nothing. A resume that parses wrong still becomes a fixture
   here before the parser changes; the model is not a reason to stop fixing it.
 - **The model's reading is checked, never trusted.** `ModelReading` is loose so
-  one odd field does not throw away the whole reply; each entry then passes
+  one odd field does not throw away the whole reply (a `null` list, which
+  Groq's gpt-oss sends for a job's coursework, is an empty one); each entry then passes
   the entry schema on its own (`model_drafts`), which clips text, drops an
   entry with no title and drops dates that do not fit together. A reply that
   is not JSON or misses the shape raises `InvalidReply` and counts no use.

@@ -7,7 +7,9 @@ each draft through the bank's own routes.
 
 Drafts keep the resume's words. The only changes are the ones a draft must
 pass to be a valid entry: text clipped to the field's length, at most 30
-bullets and 40 courses, and dates dropped when the end comes before the start.
+bullets and 40 courses, and dates dropped when the end comes before the start;
+and a run of spaces, which PDF extraction leaves after a bold phrase, becomes
+one.
 """
 
 import datetime
@@ -26,7 +28,8 @@ _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
 
 
 def _clip(value: str | None, limit: int = _SHORT) -> str | None:
-    value = (value or "").strip()
+    # a run of spaces is a PDF gap (after a bold phrase), not the resume's wording
+    value = re.sub(r"[ \t]{2,}", " ", (value or "").strip())
     return value[:limit].strip() or None
 
 
@@ -72,6 +75,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "degree": _clip(school.degree),
             "field_of_study": _clip(school.field_of_study),
             "gpa": school.gpa,
+            "gpa_scale": school.gpa_scale,
             "coursework": coursework[:40],
             "start_month": school.start_date,
             "end_month": end,
@@ -127,8 +131,11 @@ def draft_entries(parsed: ParsedResume, today: datetime.date | None = None) -> l
 
 
 def parsed_skills(parsed: ParsedResume) -> list[tuple[str, str | None]]:
-    """The parser's skills as (name, group) pairs, for `draft_skills`."""
-    return [(s.skill_name, s.category) for s in parsed.skills]
+    """The parser's skills as (name, group) pairs, for `draft_skills`, then
+    the tools named beside each project ("Robot | C++, Python") that the
+    skills section left out, with no group."""
+    pairs: list[tuple[str, str | None]] = [(s.skill_name, s.category) for s in parsed.skills]
+    return pairs + [(tool, None) for project in parsed.projects for tool in project.technologies]
 
 
 def draft_skills(skills: list[tuple[str, str | None]], bank_names: set[str]) -> list[DraftSkill]:

@@ -19,6 +19,7 @@ from pydantic import (
     Field,
     PlainSerializer,
     StringConstraints,
+    field_validator,
     model_validator,
 )
 
@@ -255,6 +256,13 @@ class ModelEntry(BaseModel):
     award_date: str | None = Field(None, description="YYYY-MM")
     bullets: list[str] = Field(default_factory=list)
 
+    @field_validator("coursework", "bullets", mode="before")
+    @classmethod
+    def _null_is_empty(cls, value: object) -> object:
+        # Groq's gpt-oss sends coursework: null on a job; that is no courses,
+        # not a reason to throw the reading away.
+        return [] if value is None else value
+
 
 class ModelSkill(BaseModel):
     name: str
@@ -266,3 +274,8 @@ class ModelReading(BaseModel):
 
     entries: list[ModelEntry]
     skills: list[ModelSkill] = Field(default_factory=list)
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _null_is_empty(cls, value: object) -> object:
+        return [] if value is None else value

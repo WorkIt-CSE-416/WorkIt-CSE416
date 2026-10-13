@@ -27,6 +27,8 @@ class Education(PydanticBase):
     degree: str | None = None
     field_of_study: str | None = None
     gpa: float | None = None
+    # the "4.00" of "GPA: 3.81/4.00"
+    gpa_scale: float | None = None
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
@@ -46,6 +48,8 @@ class Skill(PydanticBase):
 class Project(PydanticBase):
     project_name: str
     url: str | None = None
+    # the tools after the name: "Maze Robot | C++, Python"
+    technologies: list[str] = []
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None

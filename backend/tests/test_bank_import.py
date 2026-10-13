@@ -422,3 +422,41 @@ async def test_parsing_stops_when_its_share_of_the_pool_is_spent(student, databa
     _sign_in(other)
     res = await client.post(f"/applicants/{other}/bank/import", json={"read_with_ai": True})
     assert res.status_code == 429
+
+
+def test_draft_keeps_the_gpa_scale_and_project_tools():
+    # Pure functions, no database: "GPA: 3.62/4.00" fills the scale, and a
+    # project's "| C++, CMake" tools become ungrouped skills after the
+    # skills section's own.
+    from app.services.bank_import import draft_entries, draft_skills, parsed_skills
+    from app.utils.resume_parser import parse_resume
+
+    parsed = parse_resume(
+        "Education\nLakeview University  Expected Graduation: May 2099\n"
+        "Bachelor of Science, Computer Science  GPA: 3.62/4.00\n"
+        "Projects\nLine Robot| C++, CMake\n• Built a robot.\n"
+        "Skills\nLanguages: C++, Python\n"
+    )
+    school = draft_entries(parsed)[0]
+    assert (school.title, school.degree, school.field_of_study, school.gpa, school.gpa_scale) == (
+        "Lakeview University", "Bachelor of Science", "Computer Science", 3.62, 4.0,
+    )
+    assert [(s.name, s.group) for s in draft_skills(parsed_skills(parsed), set())] == [
+        ("C++", "Languages"), ("Python", "Languages"), ("CMake", None),
+    ]
+
+
+def test_a_model_reading_with_null_lists_still_counts():
+    # Groq's gpt-oss sends coursework: null on a job. That is an empty list,
+    # not a failed reading.
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    reading = ModelReading.model_validate({
+        "entries": [{"section": "experience", "title": "Intern", "organization": "Acme",
+                     "coursework": None, "bullets": ["Built  a tool."]}],
+        "skills": None,
+    })
+    assert [(d.title, d.coursework, d.bullets) for d in model_drafts(reading)] == [
+        ("Intern", [], ["Built a tool."]),
+    ]
