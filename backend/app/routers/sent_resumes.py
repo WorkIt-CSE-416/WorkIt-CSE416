@@ -4,13 +4,18 @@ applicant's sent resume answers 404. The rules (the repeat-hash merge, which
 file stays) live in `app/services/sent_resumes.py`. Storage goes through this
 module's `get_supabase()`, so tests patch it here.
 
-POST   /applicants/{id}/sent-resumes            SentResumeCreate {built_resume_id}
+POST   /applicants/{id}/sent-resumes            SentResumeCreate
+       {built_resume_id | uploaded_resume_id, job_posting_id?}
        -> 201 SentResumeDownload: a PDF download, kept as a sent resume.
+          With `job_posting_id` it is Apply (KAN-220): the sent resume is
+          linked to that posting. An uploaded resume (Apply only) makes no
+          new file; the sent resume points at the uploaded resume's file.
        -> 200 SentResumeDownload: the same content was sent before from this
           built resume; the last sent resume comes back, with no new file.
        SentResumeDownload is the sent resume plus `url` (a 5-minute link that
        downloads the file) and `missing_characters` (the font lacks them; a
-       repeat answers []). 404 for a built resume that is not the student's,
+       repeat answers []). 422 unless exactly one source is given. 404 for a
+       resume that is not the student's or a posting that does not exist,
        503 when the PDF cannot be made, 502 when Storage refuses the file.
 GET    /applicants/{id}/sent-resumes            -> [SentResumeResponse], newest first
 GET    /applicants/{id}/sent-resumes/{sid}/file -> {"url"}: a 5-minute download link
@@ -93,7 +98,13 @@ async def send(
     session: AsyncSession = Depends(get_session),
 ) -> SentResumeDownload:
     try:
-        sent = await service.send_built(session, get_supabase().storage, applicant_id, body.built_resume_id)
+        if body.uploaded_resume_id is not None:
+            sent = await service.send_uploaded(
+                session, applicant_id, body.uploaded_resume_id, job_posting_id=body.job_posting_id)
+        else:
+            sent = await service.send_built(
+                session, get_supabase().storage, applicant_id, body.built_resume_id,
+                job_posting_id=body.job_posting_id)
     except NotFound:
         raise HTTPException(404, "Resume not found")
     except TectonicUnavailable as exc:
@@ -111,7 +122,8 @@ async def send(
         except SQLAlchemyError:
             await session.rollback()
             logger.exception("Failed to save the sent resume")
-            await _remove_file(sent.row.storage_path)
+            if sent.row.uploaded_resume_id is None:  # an uploaded resume's file is not ours to remove
+                await _remove_file(sent.row.storage_path)
             raise HTTPException(500, "Failed to save the sent resume")
     else:
         response.status_code = 200
