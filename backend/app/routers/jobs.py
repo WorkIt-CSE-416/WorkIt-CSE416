@@ -94,6 +94,7 @@ from sqlalchemy import (
     literal_column,
     or_,
     select,
+    update,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
@@ -101,12 +102,11 @@ from sqlalchemy.orm import undefer
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models import dto
-from app.models.dto import ParsedResume, job_post_status
+from app.models.bank import Experience_Bank
+from app.models.dto import job_post_status
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
-from app.models.profiles import Applicant_Profile
-from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import (
     FacetCount,
@@ -118,7 +118,12 @@ from app.schemas.jobs import (
     JobRoleOption,
     ScoredJob,
 )
+from app.services.bank import load_bank
 from app.services.company_resolver import CompanyResolver
+from app.services.identity import load_identity
+from app.services.matching import bank_input
+from app.services.matching.bank_input import bank_text
+from app.services.matching.embeddings import embed
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
     compute_score,
@@ -1014,51 +1019,51 @@ async def recommended_jobs(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> list[ScoredJob]:
-    """Jobs scored against the applicant's default resume. Returns `match`
-    (0-100) and up to 3 `highlights`. Jobs without embeddings still appear,
-    scored on other components."""
+    """Jobs scored against the applicant's experience bank (never an uploaded
+    resume). Returns `match` (0-100) and up to 3 `highlights`. 404 while the
+    bank is empty. The bank embedding is made here when it is null, and jobs
+    without embeddings still appear, scored on the other components."""
     assert_applicant_owns(account, applicant_id)
 
-    # Load the default resume
-    profile = await db.get(Applicant_Profile, applicant_id)
-    if profile is None or profile.default_resume_id is None:
-        raise HTTPException(404, "No default resume set")
+    bank = await load_bank(db, applicant_id)
+    if not bank.entries and not bank.skills:
+        raise HTTPException(404, "Your experience bank is empty")
 
-    resume_row = (await db.execute(
-        select(Resume).where(Resume.id == profile.default_resume_id)
-        .options(undefer(Resume.embedding))
-    )).scalar_one_or_none()
-    if resume_row is None or resume_row.parsed_json is None:
-        raise HTTPException(404, "Resume not found or not parsed")
+    bank_row = await db.get(
+        Experience_Bank, applicant_id, options=[undefer(Experience_Bank.embedding)]
+    )
+    bank_embedding = bank_row.embedding if bank_row else None
+    if bank_row is not None and bank_embedding is None:
+        text = bank_text(bank, await load_identity(db, account))
+        vectors = await embed([text]) if text else None
+        if vectors:
+            bank_embedding = vectors[0]
+            # Only if the bank is unchanged since it was read: a change in
+            # between cleared the embedding, and this vector is already stale.
+            await db.execute(
+                update(Experience_Bank)
+                .where(
+                    Experience_Bank.applicant_id == applicant_id,
+                    Experience_Bank.updated_at == bank_row.updated_at,
+                )
+                .values(embedding=bank_embedding, embedded_at=func.now())
+                .execution_options(synchronize_session=False)
+            )
+            try:
+                await db.commit()
+            except Exception:
+                await db.rollback()
 
-    parsed = ParsedResume.model_validate(resume_row.parsed_json)
-
-    # Embed resume on demand if missing
-    resume_embedding = resume_row.embedding
-    if resume_embedding is None:
-        from app.services.matching.embeddings import embed, resume_text
-        text = resume_text(parsed)
-        if text:
-            vectors = await embed([text])
-            if vectors:
-                resume_row.embedding = vectors[0]
-                resume_embedding = vectors[0]
-                try:
-                    await db.commit()
-                except Exception:
-                    await db.rollback()
-
-    # Build skills text for FTS
-    skills_text = " ".join(s.skill_name for s in parsed.skills) if parsed.skills else ""
+    skill_names = bank_input.skills(bank)
+    skills_text = " ".join(skill_names)
 
     # Query with scoring columns
     score_columns = list(_COLUMNS)
 
     # Semantic similarity: 1 - cosine_distance
-    if resume_embedding is not None:
-        vec_literal = str(resume_embedding)
+    if bank_embedding is not None:
         semantic_col = (
-            literal(1.0) - Job_Post.embedding.cosine_distance(vec_literal)
+            literal(1.0) - Job_Post.embedding.cosine_distance(bank_embedding)
         ).label("semantic")
     else:
         semantic_col = literal(None).label("semantic")
@@ -1080,15 +1085,10 @@ async def recommended_jobs(
     rows = (await db.execute(query)).all()
 
     now = datetime.datetime.now(datetime.UTC)
-    resume_titles = [e.title for e in parsed.experience]
-    field_of_study = next(
-        (e.field_of_study for e in parsed.education if e.field_of_study), None
-    )
-    # Rough years of experience from resume
-    years_exp = 0.0
-    for exp in parsed.experience:
-        if exp.start_date and exp.end_date:
-            years_exp += (exp.end_date - exp.start_date).days / 365.25
+    titles = bank_input.titles(bank)
+    field_of_study = bank_input.field_of_study(bank)
+    years_exp = bank_input.years_of_experience(bank, now.date())
+    graduation = bank_input.expected_graduation(bank)
 
     scored: list[ScoredJob] = []
     # ponytail: normalize skill_rank by max across result set
@@ -1097,16 +1097,16 @@ async def recommended_jobs(
     for row in rows:
         semantic_val = row.semantic
         skill_norm = min(1.0, (row.skill_rank or 0) / max_skill_rank) if max_skill_rank > 0 else 0.0
-        t_fit = title_fit(row.title, resume_titles, field_of_study)
+        t_fit = title_fit(row.title, titles, field_of_study)
         days_old = (now - row._posted_at).total_seconds() / 86400 if row._posted_at else 30.0
         fresh = freshness(days_old)
         elig = eligibility(
-            None, row.start_term, row.min_years_experience, years_exp
+            graduation, row.start_term, row.min_years_experience, years_exp
         )
         score = compute_score(semantic_val, skill_norm, t_fit, elig, fresh)
         highlights = generate_highlights(
             row.title, row.min_years_experience, row.start_term,
-            parsed, semantic_val, skill_norm, t_fit, elig,
+            skill_names, field_of_study, semantic_val, skill_norm, t_fit, elig,
         )
 
         listing = to_listing(row)
