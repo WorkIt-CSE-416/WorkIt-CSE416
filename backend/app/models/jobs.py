@@ -20,7 +20,7 @@ from sqlalchemy import (
     desc,
     text,
 )
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -103,6 +103,14 @@ class Job_Post(BaseModel):
         ),
         deferred=True,
     )
+
+    # Tailor's keywords (KAN-215): at most 20 {"keyword", "kind"} objects,
+    # extracted by the model once per posting, and the SHA-256 of the
+    # description they came from. A different hash means they are stale; the
+    # feed import clears both when it changes a description.
+    # services/keywords.py reads and writes them.
+    keywords: Mapped[list[dict] | None] = mapped_column(JSONB, deferred=True)
+    keywords_hash: Mapped[str | None] = mapped_column(Text, deferred=True)
 
     __table_args__ = (
         CheckConstraint(
