@@ -42,9 +42,9 @@ export function Paper({
               lineHeight: LINE,
             }}
           >
-            {page.map((bl, j) => {
+            {page.map((bl) => {
               const node = <BlockView block={bl} state={state} />;
-              return <div key={j}>{decorate ? decorate(bl, node) : node}</div>;
+              return <div key={blockKey(bl)}>{decorate ? decorate(bl, node) : node}</div>;
             })}
           </div>
           <span className="text-note text-ink-meta absolute right-1 -bottom-0.5 translate-y-full">
@@ -54,6 +54,22 @@ export function Paper({
       ))}
     </div>
   );
+}
+
+/** A stable key per block, so an open field survives lines moving. */
+function blockKey(bl: Block) {
+  switch (bl.kind) {
+    case "header":
+      return "header";
+    case "section":
+      return `s:${bl.section}`;
+    case "entry":
+      return `e:${bl.entry.id}`;
+    case "bullet":
+      return `b:${bl.bullet.id}`;
+    case "skill":
+      return `k:${bl.group.group}`;
+  }
 }
 
 function BlockView({ block, state }: { block: Block; state: State }) {

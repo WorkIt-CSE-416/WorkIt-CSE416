@@ -297,7 +297,7 @@ export type Action =
   | {
       type: "editEntry";
       id: string;
-      patch: Partial<Pick<Entry, "title" | "org" | "location" | "dates">>;
+      patch: Partial<Pick<Entry, "title" | "org" | "location" | "dates" | "gpa" | "coursework">>;
     };
 
 function move<T>(xs: T[], x: T, by: number) {

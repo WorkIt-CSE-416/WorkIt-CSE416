@@ -32,9 +32,10 @@ const PURPLE = "text-[#6d3fd8]";
 const FILL = "bg-linear-to-br from-[#7c4dff] to-[#6d3fd8] text-white";
 const CHIP =
   "text-label rounded-full bg-white px-3 py-1.5 text-[#6d3fd8] ring-1 ring-[#e4dcff] transition-colors hover:bg-[#f3efff]";
-// A field that looks like the page it sits on.
+// A field that looks like the page it sits on. Weight is left to the
+// caller: the font shorthand would reset a bold title to normal.
 const ON_PAGE =
-  "w-full min-w-0 resize-none bg-transparent p-0 outline-none [font:inherit] [line-height:inherit]";
+  "w-full min-w-0 resize-none bg-transparent p-0 font-normal outline-none [font-family:inherit] [font-size:inherit] [font-style:inherit] [line-height:inherit]";
 
 // Scripted: same facts, fewer words (the truth rule).
 const SHORTER: Record<string, string> = {
@@ -172,17 +173,6 @@ export function VariantE({ editor }: { editor: Editor }) {
         ) : (
           <EntryFields key={id} editor={editor} entry={block.entry} />
         )}
-        {on && (
-          <Toolbar
-            editor={editor}
-            sel={pick()}
-            onHidden={() => setSel(null)}
-            onAsk={() => {
-              setOpen(true);
-              setTimeout(() => composer.current?.focus(), 50);
-            }}
-          />
-        )}
       </div>
     );
   }
@@ -211,34 +201,62 @@ export function VariantE({ editor }: { editor: Editor }) {
       onClick={() => setSel(null)}
     >
       <div className="flex min-w-0 flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={cn(
-              "text-label flex items-center gap-1.5 rounded-full px-3 py-1.5",
-              label.tone === "positive"
-                ? "bg-[#e3f7f0] text-[#107a52]"
-                : "bg-amber-50 text-amber-700",
-            )}
-          >
-            {label.tone === "positive" && <Check className="size-3.5" />}
-            {label.text}
-          </span>
-          {f.over > 0 && (
-            <button
-              className={CHIP}
-              onClick={() => dispatch({ type: "hideMany", ids: fitSuggestion(state) })}
-            >
-              Fit to One Page
-            </button>
+        {/* Sticky above the page, so the actions for a line never cover
+            the lines around it. */}
+        <div
+          className="sticky top-2 z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-2xl bg-white/95 p-1.5 pl-2 shadow-[0_8px_30px_-12px_rgb(80_50_160/0.3)] ring-1 ring-[#ece6ff] backdrop-blur"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {sel ? (
+            <>
+              <span className="text-note max-w-[12rem] truncate font-semibold text-[#8a80a8]">
+                {sel.kind === "bullet" ? "Bullet" : sel.entry.title}
+              </span>
+              <Toolbar
+                editor={editor}
+                sel={sel}
+                onHidden={() => setSel(null)}
+                onAsk={() => {
+                  setOpen(true);
+                  setTimeout(() => composer.current?.focus(), 50);
+                }}
+              />
+              <button className={cn(CHIP, "py-1")} onClick={() => setSel(null)}>
+                Done
+              </button>
+            </>
+          ) : (
+            <>
+              <span
+                className={cn(
+                  "text-label flex items-center gap-1.5 rounded-full px-3 py-1.5",
+                  label.tone === "positive"
+                    ? "bg-[#e3f7f0] text-[#107a52]"
+                    : "bg-amber-50 text-amber-700",
+                )}
+              >
+                {label.tone === "positive" && <Check className="size-3.5" />}
+                {label.text}
+              </span>
+              {f.over > 0 && (
+                <button
+                  className={CHIP}
+                  onClick={() => dispatch({ type: "hideMany", ids: fitSuggestion(state) })}
+                >
+                  Fit to One Page
+                </button>
+              )}
+            </>
           )}
-          <span className="text-meta text-ink-meta">Click any line to edit it.</span>
           <div className="ml-auto flex gap-2">
             <button
               disabled={!canUndo}
+              aria-label="Undo"
+              title="Undo"
               onClick={() => dispatch({ type: "undo" })}
               className={cn(CHIP, "flex items-center gap-1.5 disabled:opacity-40")}
             >
-              <Undo2 className="size-3.5" /> Undo
+              <Undo2 className="size-3.5" />
             </button>
             {!open && (
               <button
@@ -389,7 +407,7 @@ function BulletField({ editor, bullet }: { editor: Editor; bullet: Bullet }) {
 
 /** An entry's heading as fields laid out like the page. Saves to the bank. */
 function EntryFields({ editor, entry }: { editor: Editor; entry: Entry }) {
-  const { dispatch } = editor;
+  const { state, dispatch } = editor;
   const edu = entry.section === "Education";
   const one = entry.section === "Awards" || entry.section === "Certifications";
   const field = (
@@ -426,9 +444,48 @@ function EntryFields({ editor, entry }: { editor: Editor; entry: Entry }) {
         {field("dates", "Dates", "text-right max-w-[26cqw]")}
       </div>
       <div className="flex justify-between gap-[2cqw] italic" style={{ fontSize: "1.55cqw" }}>
-        {edu ? field("title", "Degree") : field("org", "Organization")}
+        {edu ? (
+          // Everything the page shows stays visible while editing.
+          <span className="flex flex-1 items-baseline gap-[0.6cqw]">
+            {field("title", "Degree", "w-auto field-sizing-content")}
+            {state.built.showGpa && (
+              <>
+                <span className="flex-none">· GPA</span>
+                <Field
+                  initial={entry.gpa ?? ""}
+                  placeholder="3.7 / 4.0"
+                  className="max-w-[14cqw]"
+                  onSave={(v) => dispatch({ type: "editEntry", id: entry.id, patch: { gpa: v } })}
+                />
+              </>
+            )}
+          </span>
+        ) : (
+          field("org", "Organization")
+        )}
         {field("location", "Location", "text-right max-w-[26cqw]")}
       </div>
+      {edu && state.built.showCoursework && (
+        <div className="flex gap-[0.6cqw]" style={{ fontSize: "1.55cqw" }}>
+          <b className="flex-none">Relevant Coursework:</b>
+          <Field
+            initial={(entry.coursework ?? []).join(", ")}
+            placeholder="Courses, separated by commas"
+            onSave={(v) =>
+              dispatch({
+                type: "editEntry",
+                id: entry.id,
+                patch: {
+                  coursework: v
+                    .split(",")
+                    .map((c) => c.trim())
+                    .filter(Boolean),
+                },
+              })
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -634,7 +691,7 @@ function Toolbar({
 
   return (
     <div
-      className="absolute top-full left-0 z-10 mt-1.5 flex flex-wrap items-center gap-0.5 rounded-full bg-white p-1 font-sans shadow-[0_8px_30px_-8px_rgb(80_50_160/0.35)] ring-1 ring-[#e4dcff]"
+      className="flex flex-wrap items-center gap-0.5 rounded-full bg-[#f7f4ff] p-0.5"
       // Keeps focus in the field, so a click here does not save and re-render first.
       onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => e.stopPropagation()}
