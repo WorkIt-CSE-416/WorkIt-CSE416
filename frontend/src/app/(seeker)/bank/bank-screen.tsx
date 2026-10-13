@@ -42,7 +42,13 @@ import { linkChanges } from "./skill-links";
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
 
-export function BankScreen({ initial }: { initial: Bank }) {
+export function BankScreen({
+  initial,
+  autoImport = false,
+}: {
+  initial: Bank;
+  autoImport?: boolean;
+}) {
   const [bank, setBank] = useState(initial);
   const [editing, setEditing] = useState<Editing>(null);
   const [saving, setSaving] = useState(false);
@@ -151,7 +157,7 @@ export function BankScreen({ initial }: { initial: Bank }) {
 
   return (
     <div className="mt-4 flex flex-col gap-4">
-      <ImportCard onSaved={reload} />
+      <ImportCard onSaved={reload} autoStart={autoImport} />
       <Intake
         filled={bank.entries.map((e) => e.section)}
         walk={initial.entries.length === 0}

@@ -17,6 +17,16 @@ codes, US or US-CA), ?work_style=, ?role=, ?experience=, ?job_type= (repeated),
 reads and writes them for the pages and the row alike, dropping any value the
 API would refuse, so a stale link narrows by what was valid instead of erroring.
 
+An empty experience bank gets a card above the /jobs feed
+(`jobs/bank-prompt.tsx`, stories 22 and 102): with an uploaded resume,
+"Import Your Resume" opens `/bank?import=1`, which starts the bank page's
+import at once (one click; the student still checks each draft); with
+none, Upload a Resume and Add What You Did. It streams in its own Suspense
+boundary and shows nothing when the bank has entries or fails to load. The
+feed under it is the live listing for everyone, not a bank match, so it
+still shows; the API's bank-scored `GET /jobs/recommended` has no screen
+yet, and when it gets one this card is its empty state.
+
 The heading and filter row stay at the top while the list scrolls under them
 (jobs/feed-header.tsx, on /jobs and /search alike), so the filters are in reach
 from anywhere in a long list. Below md only the filter row stays (the heading
@@ -375,7 +385,8 @@ place they are edited: My Profile keeps the uploads and links here.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
-- **Import Your Resume** (`import-card.tsx`, KAN-211), the first card. One
+- **Import Your Resume** (`import-card.tsx`, KAN-211), the first card.
+  `?import=1` (the Jobs page's prompt) starts it on arrival. One
   click reads the default upload, else the newest, into draft entries and
   skills (`importResume`); nothing is saved until the student saves a
   draft (Save, or Edit in the entry editor) or uses Save All. A draft that
