@@ -422,6 +422,25 @@ place they are edited: My Profile keeps the uploads and links here.
   waits for Download Anyway (user story 53). The 5-resume limit is the
   API's; its 409 message shows as the card's error. The page needs both
   the bank and the resume list: if either fails it shows the error state.
+  Each row's Open goes to the resume editor.
+
+## Resume editor
+
+`(seeker)/resumes/[resumeId]`, opened from a base resume's Open on the bank
+page. KAN-209 is the overlay proof; typing in place is KAN-218, the phone
+layout KAN-219.
+
+- **The page is the PDF itself** (ADR 0002): the render response's PDF,
+  drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
+  response's boxes is a button laid over its line in percent of the page,
+  so the targets follow the canvas at any width without a redraw.
+- **A click selects a line**; a second click or Escape clears it. The line
+  above the page names the selected kind and page. Nothing edits yet.
+- **Render Again** fetches a new render and shows the round trip, from the
+  request to the new PDF painted, in ms: the cost each saved edit will pay.
+  A response older than the latest request is dropped.
+- A failed render shows "This Resume Isn't Loading Right Now" with the API's
+  message and a Try Again link.
 
 ## Scout panel
 

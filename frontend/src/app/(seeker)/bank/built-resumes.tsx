@@ -1,10 +1,10 @@
 "use client";
 
-import { FileDown, FileText, Star, Trash2 } from "lucide-react";
+import { FileDown, FilePen, FileText, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import {
@@ -23,7 +23,7 @@ import {
  * bank in Jake's Resume, and each downloads as a PDF or a Word file. A PDF
  * whose text has characters the font cannot draw shows a warning first; the
  * student downloads anyway or fixes the bank. The 5-resume limit is the
- * API's: its refusal shows as the error.
+ * API's: its refusal shows as the error. Open goes to the resume editor.
  */
 
 const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -131,6 +131,13 @@ function ResumeRow({ resume, reload }: { resume: BuiltResume; reload: () => Prom
           {resume.is_default && <Badge>Default</Badge>}
         </div>
         <div className="flex shrink-0 items-center gap-3">
+          <ButtonLink
+            variant="secondary"
+            size="sm"
+            href={`/resumes/${encodeURIComponent(resume.id)}`}
+          >
+            <FilePen /> Open
+          </ButtonLink>
           <Button variant="secondary" size="sm" onClick={pdf} disabled={busy !== null}>
             <FileDown /> {busy === "pdf" ? "Making PDF…" : "PDF"}
           </Button>
