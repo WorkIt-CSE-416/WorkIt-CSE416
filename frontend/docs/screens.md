@@ -416,12 +416,21 @@ place they are edited: My Profile keeps the uploads and links here.
 - **Base Resumes card** (`built-resumes.tsx`, KAN-207), above the sections.
   Generate makes a base resume with every entry, bullet and skill in the
   bank; each row downloads a PDF (Jake's Resume) or a Word file, can become
-  the default resume (star) and can be deleted. Files come back from server
-  actions as base64 and the browser saves them, so no route handler is
-  needed. A PDF whose text has characters the font lacks shows them and
-  waits for Download Anyway (user story 53). The 5-resume limit is the
-  API's; its 409 message shows as the card's error. The page needs both
-  the bank and the resume list: if either fails it shows the error state.
+  the default resume (star) and can be deleted. The Word file comes back
+  from a server action as base64 and the browser saves it. A PDF download
+  keeps a sent resume (KAN-208) and comes back as a 5-minute Storage link
+  that downloads the file, so no route handler is needed. A PDF whose text
+  has characters the font lacks shows them and waits for Download Anyway
+  (user story 53); Cancel deletes the sent resume it just made. The
+  5-resume limit is the API's; its 409 message shows as the card's error.
+  The page needs the bank, the resume list and the Sent list: if any fails
+  it shows the error state.
+- **Sent card** (`sent-resumes.tsx`, KAN-208), below Base Resumes. Every
+  PDF the student downloaded, newest first, with its name then and the date
+  ("Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;
+  none is edited. A repeat download of unchanged content adds no row. It
+  sits on the bank page because base resumes do; "the resumes page" in the
+  spec means this page until resumes get their own.
 
 ## Scout panel
 

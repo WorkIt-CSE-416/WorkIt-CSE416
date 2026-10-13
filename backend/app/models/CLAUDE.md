@@ -271,6 +271,21 @@ change here must keep:
   so every signup INSERT names it: migration `5753545063f3` is applied
   before the code deploys (above, "A new column reaches the database...").
 
+## Sent resumes
+
+`sent_resume.py` (KAN-208): the exact file a student downloaded or applied
+with. Rationale in `../../../docs/resume.md`, "Sent resumes". Invariants:
+
+- **A row never changes after it is written**, and its file is never
+  overwritten. The API lists and deletes sent resumes, never edits them.
+- **`built_resume_id`, `uploaded_resume_id` and `job_posting_id` are
+  `ON DELETE SET NULL`**: the record outlives its source. At most one source
+  is set (`sent_resumes_one_source`).
+- **`storage_path` may be shared** with an uploaded resume or another sent
+  resume, so a file is removed only when no row uses it
+  (`../services/sent_resumes.py`'s `file_in_use`). `content_hash` is null on
+  a row from an uploaded resume.
+
 ## Locations — countries, states, and the resolver
 
 ### The tables
