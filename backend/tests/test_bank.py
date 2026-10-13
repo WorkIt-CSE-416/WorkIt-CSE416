@@ -216,3 +216,163 @@ async def test_a_refused_change_keeps_the_bank_embedding(student, database):
 
     assert (await client.post(f"{bank}/entries", json=entry)).status_code == 409
     assert await _is_embedded(database, applicant_id)
+
+
+async def test_each_section_keeps_its_own_fields(student):
+    client, bank = student
+    education = {
+        "section": "education",
+        "title": "Stony Brook University",
+        "organization": "College of Engineering",
+        "location": "Stony Brook, NY",
+        "start_month": "2023-08",
+        "end_month": "2027-05",
+        "end_kind": "expected",
+        "degree": "B.S.",
+        "field_of_study": "Computer Science",
+        "gpa": 3.8,
+        "gpa_scale": 4.0,
+        "coursework": ["Data Structures", "Operating Systems"],
+        "honors": "Dean's List",
+    }
+    project = {"section": "projects", "title": "WorkIt", "link": "https://github.com/x/workit"}
+    cert = {"section": "certifications", "title": "AWS Cloud Practitioner", "issuer": "Amazon"}
+    award = {"section": "awards", "title": "Hackathon Winner", "award_date": "2025-04"}
+    for body in (education, project, cert, award):
+        res = await client.post(f"{bank}/entries", json=body)
+        assert res.status_code == 201, res.text
+
+    entries = {e["section"]: e for e in (await client.get(bank)).json()["entries"]}
+    for body in (education, project, cert, award):
+        saved = entries[body["section"]]
+        assert {k: saved[k] for k in body} == body
+
+
+async def test_a_field_from_another_section_is_refused(student):
+    client, bank = student
+    for body in (
+        {"section": "projects", "title": "WorkIt", "gpa": 3.5},
+        {"section": "experience", "title": "Intern", "link": "https://x.dev"},
+        {"section": "education", "title": "SBU", "issuer": "Amazon"},
+        {"section": "projects", "title": "WorkIt", "coursework": ["Algorithms"]},
+        {"section": "skills", "title": "Python"},
+    ):
+        res = await client.post(f"{bank}/entries", json=body)
+        assert res.status_code == 422, body
+    assert (await client.get(bank)).json()["entries"] == []
+
+
+async def test_dates_must_fit_together(student):
+    client, bank = student
+    base = {"section": "experience", "title": "Intern"}
+    for dates in (
+        {"end_kind": "present", "end_month": "2025-08"},
+        {"end_kind": "expected"},
+        {"start_month": "2025-06", "end_month": "2024-08"},
+        {"start_month": "2025-13"},
+        {"start_month": "June 2025"},
+    ):
+        assert (await client.post(f"{bank}/entries", json={**base, **dates})).status_code == 422, dates
+    gpa = {"section": "education", "title": "SBU", "gpa": 4.2, "gpa_scale": 4.0}
+    assert (await client.post(f"{bank}/entries", json=gpa)).status_code == 422
+
+    # An end month alone ends on that month.
+    res = await client.post(f"{bank}/entries", json={**base, "end_month": "2025-08"})
+    assert res.status_code == 201
+    assert (res.json()["end_kind"], res.json()["end_month"]) == ("month", "2025-08")
+
+
+async def test_an_edit_changes_only_the_fields_sent(student):
+    client, bank = student
+    body = {"section": "experience", "title": "Intern", "organization": "Acme", "start_month": "2025-06", "end_kind": "present"}
+    entry = (await client.post(f"{bank}/entries", json=body)).json()
+
+    res = await client.patch(f"{bank}/entries/{entry['id']}", json={"title": "Software Intern", "organization": None})
+    assert res.status_code == 200
+    saved = (await client.get(bank)).json()["entries"][0]
+    assert (saved["title"], saved["organization"], saved["start_month"], saved["end_kind"]) == (
+        "Software Intern", None, "2025-06", "present",
+    )
+
+
+async def test_an_edit_is_checked_against_the_whole_entry(student):
+    client, bank = student
+    body = {"section": "experience", "title": "Intern", "start_month": "2025-06", "end_month": "2025-08"}
+    entry = (await client.post(f"{bank}/entries", json=body)).json()
+    url = f"{bank}/entries/{entry['id']}"
+
+    # Present needs the end month cleared in the same edit.
+    assert (await client.patch(url, json={"end_kind": "present"})).status_code == 422
+    assert (await client.patch(url, json={"end_kind": "present", "end_month": None})).status_code == 200
+    # The section is fixed, and its fields stay its own.
+    assert (await client.patch(url, json={"section": "projects"})).status_code == 422
+    assert (await client.patch(url, json={"gpa": 3.9})).status_code == 422
+    assert (await client.patch(url, json={"title": None})).status_code == 422
+
+    saved = (await client.get(bank)).json()["entries"][0]
+    assert (saved["section"], saved["title"], saved["end_kind"], saved["end_month"]) == ("experience", "Intern", "present", None)
+
+
+async def test_deleting_an_entry_deletes_its_bullets(student):
+    client, bank = student
+    entry = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "WorkIt", "bullets": ["a", "b"]})).json()
+    assert (await client.delete(f"{bank}/entries/{entry['id']}")).status_code == 204
+    assert (await client.get(bank)).json()["entries"] == []
+    assert (await client.patch(f"{bank}/bullets/{entry['bullets'][0]['id']}", json={"text": "x"})).status_code == 404
+
+
+async def _bullet_texts(client, bank) -> list[str]:
+    entry = (await client.get(bank)).json()["entries"][0]
+    assert [b["position"] for b in entry["bullets"]] == list(range(len(entry["bullets"])))
+    return [b["text"] for b in entry["bullets"]]
+
+
+async def test_bullets_keep_their_order_through_adds_moves_and_deletes(student):
+    client, bank = student
+    entry = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "WorkIt", "bullets": ["a", "b"]})).json()
+    res = await client.post(f"{bank}/entries/{entry['id']}/bullets", json={"text": "c"})
+    assert res.status_code == 201
+    c = res.json()["id"]
+    assert await _bullet_texts(client, bank) == ["a", "b", "c"]
+
+    assert (await client.patch(f"{bank}/bullets/{c}", json={"position": 0})).status_code == 200
+    assert await _bullet_texts(client, bank) == ["c", "a", "b"]
+    assert (await client.patch(f"{bank}/bullets/{c}", json={"position": 99, "text": "C"})).status_code == 200
+    assert await _bullet_texts(client, bank) == ["a", "b", "C"]
+
+    assert (await client.delete(f"{bank}/bullets/{entry['bullets'][0]['id']}")).status_code == 204
+    assert await _bullet_texts(client, bank) == ["b", "C"]
+    assert (await client.post(f"{bank}/entries/{entry['id']}/bullets", json={"text": " "})).status_code == 422
+
+
+async def test_skills_are_a_plain_list_with_one_of_each_name(student):
+    client, bank = student
+    for body in ({"name": "Python", "group": "Languages"}, {"name": "Docker"}, {"name": "Go", "group": "Languages"}):
+        assert (await client.post(f"{bank}/skills", json=body)).status_code == 201
+    assert (await client.post(f"{bank}/skills", json={"name": "python"})).status_code == 409
+
+    skills = (await client.get(bank)).json()["skills"]
+    assert [(s["name"], s["group"]) for s in skills] == [("Go", "Languages"), ("Python", "Languages"), ("Docker", None)]
+
+    docker = skills[2]["id"]
+    assert (await client.patch(f"{bank}/skills/{docker}", json={"name": "GO"})).status_code == 409
+    res = await client.patch(f"{bank}/skills/{docker}", json={"name": "Docker Compose", "group": "Tools"})
+    assert (res.status_code, res.json()["name"], res.json()["group"]) == (200, "Docker Compose", "Tools")
+    assert (await client.delete(f"{bank}/skills/{docker}")).status_code == 204
+    assert len((await client.get(bank)).json()["skills"]) == 2
+
+
+async def test_the_bank_lists_sections_in_order_ongoing_first_then_newest(student):
+    client, bank = student
+    for body in (
+        {"section": "projects", "title": "Old project", "end_month": "2023-05"},
+        {"section": "experience", "title": "Past job", "start_month": "2024-06", "end_month": "2024-08"},
+        {"section": "experience", "title": "Current job", "start_month": "2023-01", "end_kind": "present"},
+        {"section": "experience", "title": "Recent job", "start_month": "2025-06", "end_month": "2025-08"},
+        {"section": "education", "title": "SBU", "end_month": "2027-05", "end_kind": "expected"},
+        {"section": "projects", "title": "New project", "end_month": "2025-05"},
+        {"section": "awards", "title": "Prize", "award_date": "2024-04"},
+    ):
+        assert (await client.post(f"{bank}/entries", json=body)).status_code == 201
+    titles = [e["title"] for e in (await client.get(bank)).json()["entries"]]
+    assert titles == ["SBU", "Current job", "Recent job", "Past job", "New project", "Old project", "Prize"]
