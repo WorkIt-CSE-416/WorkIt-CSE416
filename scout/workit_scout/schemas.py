@@ -69,4 +69,14 @@ class ErrorEvent(BaseModel):
     message: str
 
 
-ScoutEvent = Annotated[TextEvent | ErrorEvent, Field(discriminator="type")]
+class UsageEvent(BaseModel):
+    """The turn's last line: Scout uses the student has left today. The API
+    adds it after counting the turn; a turn that failed did not count."""
+
+    type: Literal["usage"] = "usage"
+    uses_left: int
+
+
+ScoutEvent = Annotated[
+    TextEvent | ErrorEvent | UsageEvent, Field(discriminator="type")
+]
