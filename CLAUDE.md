@@ -24,6 +24,12 @@ scraper/          The job-board scraper (KAN-55). Standalone and stdlib-only:
                   no runtime dependencies, never touches the database. Runs
                   with plain `python3 -m workit_scraper`; tests run under
                   `uvx pytest`. See scraper/CLAUDE.md.
+autofiller_extension/  A Chrome extension (Manifest V3, KAN-164) that fills
+                  job applications from the applicant's existing WorkIt
+                  profile and resume. No build step — plain JS, loaded
+                  unpacked. Adds no backend routes or schema; reads the
+                  same endpoints the webapp already has. See its own
+                  CLAUDE.md.
 .claude/          Skills and settings for Claude Code, repo-wide
 .vscode/          Shared editor settings and extension recommendations
 package.json      No dependencies. Scripts only, each one forwarding to

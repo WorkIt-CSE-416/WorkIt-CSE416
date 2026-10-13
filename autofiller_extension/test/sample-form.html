@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Autofiller test form</title>
+    <style>
+      body { font-family: sans-serif; max-width: 480px; margin: 40px auto; line-height: 1.5; }
+      label { display: block; margin-top: 14px; font-weight: 600; }
+      label .hint { font-weight: 400; color: #666; font-size: 12px; }
+      input, select { display: block; width: 100%; padding: 6px 8px; margin-top: 4px; box-sizing: border-box; }
+      /* No <label for>, deliberately — tests the proximity-label fallback in lib-dom.js */
+      .pseudo-label { font-weight: 600; margin-top: 14px; }
+      .combobox-wrap { position: relative; }
+      .listbox { border: 1px solid #ccc; position: absolute; background: #fff; width: 100%; z-index: 10; list-style: none; margin: 2px 0 0; padding: 0; display: none; }
+      .listbox[data-open] { display: block; }
+      .listbox li { padding: 6px 8px; cursor: pointer; }
+      .listbox li:hover { background: #eee; }
+    </style>
+  </head>
+  <body>
+    <h1>Autofiller test form</h1>
+    <p>Not a real application — exercises each field-filling path the extension supports. Open
+      the extension popup and click <strong>Autofill This Page</strong> while this tab is active.</p>
+
+    <form>
+      <!-- Explicit <label for> — the simple case -->
+      <label for="first-name">First Name</label>
+      <input id="first-name" name="firstName" type="text" required />
+
+      <label for="last-name">Last Name</label>
+      <input id="last-name" name="lastName" type="text" required />
+
+      <label for="email">Email <span class="hint">required</span></label>
+      <input id="email" name="email" type="email" required />
+
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" />
+
+      <!-- Proximity fallback: no <label for>, no wrapping <label> -->
+      <div class="pseudo-label">LinkedIn URL</div>
+      <input name="linkedin" type="text" />
+
+      <h2>Education</h2>
+
+      <!-- Mimics a Workday-style repeated section: only ONE block exists
+           until "Add" is clicked, which the extension must find and click
+           itself to reach a 2nd resume entry. The button says only "Add" —
+           no "Education" wording on it at all, same as some real Workday
+           forms — on purpose: there are two equally-bare "Add" buttons on
+           this page (this one and Experience's below), so filling this in
+           correctly requires disambiguating by nearest section heading,
+           not by the button's own text. -->
+      <div id="education-blocks">
+        <!-- Native <select> that SHOULD match most real resumes -->
+        <label for="degree-level">Degree Level</label>
+        <select id="degree-level" name="degreeLevel">
+          <option value="">Select…</option>
+          <option>High School Diploma</option>
+          <option>Associate's</option>
+          <option>Bachelor's</option>
+          <option>Master's</option>
+          <option>Doctorate</option>
+        </select>
+
+        <!-- Native <select> deliberately impossible to match — exercises the
+             "no option matches" failure path from the JobRight research. -->
+        <label for="institution">School <span class="hint">deliberately unmatchable options</span></label>
+        <select id="institution" name="institution">
+          <option value="">Select…</option>
+          <option>Definitely Not Your School A</option>
+          <option>Definitely Not Your School B</option>
+        </select>
+      </div>
+      <button type="button" class="add-button" data-group="education">Add</button>
+
+      <!-- Required field WorkIt has no data for — exercises "failed: no data" -->
+      <label for="salary">Desired Salary <span class="hint">required, WorkIt has no field for this</span></label>
+      <input id="salary" name="salary" type="text" required />
+
+      <!-- Optional field WorkIt has no data for — exercises "skipped" -->
+      <label for="pronouns">Pronouns <span class="hint">optional</span></label>
+      <input id="pronouns" name="pronouns" type="text" />
+
+      <h2>Experience</h2>
+
+      <!-- Same bare-"Add" pattern as Education above, and the same single
+           starting block — a resume with 2 experience entries needs this
+           clicked too, disambiguated from Education's identical button by
+           this section's own heading. -->
+      <div id="experience-blocks">
+        <!-- experience[0].title — field-map.js had no form field exercising
+             this rule at all until now. -->
+        <label for="job-title">Job Title <span class="hint">tests experience[0].title</span></label>
+        <input id="job-title" name="jobTitle" type="text" />
+
+        <!-- A custom combobox (role=combobox + role=listbox), the hardest path:
+             type-to-filter, then click a matching option. Also tests
+             experience[0].company. -->
+        <label for="company-combo">Most Recent Employer <span class="hint">custom combobox, not a &lt;select&gt;, tests experience[0].company</span></label>
+        <div class="combobox-wrap">
+          <input id="company-combo" role="combobox" aria-controls="company-listbox" type="text" autocomplete="off" />
+          <ul id="company-listbox" role="listbox" class="listbox"></ul>
+        </div>
+      </div>
+      <button type="button" class="add-button" data-group="experience">Add</button>
+    </form>
+
+    <script>
+      // Backs the one fake combobox above — part of this TEST PAGE only,
+      // not the extension. A tiny stand-in for the kind of search-as-you-type
+      // widget real ATSs use (Greenhouse, Workday, etc.).
+      const OPTIONS = ["Acme Corp", "Globex", "Initech", "Umbrella Corp", "Wayne Enterprises"];
+      const input = document.getElementById("company-combo");
+      const listbox = document.getElementById("company-listbox");
+
+      input.addEventListener("input", () => {
+        const query = input.value.trim().toLowerCase();
+        const matches = query ? OPTIONS.filter((o) => o.toLowerCase().includes(query)) : [];
+        listbox.innerHTML = matches
+          .map((o) => `<li role="option">${o}</li>`)
+          .join("");
+        listbox.toggleAttribute("data-open", matches.length > 0);
+      });
+
+      listbox.addEventListener("click", (event) => {
+        if (event.target.matches("[role='option']")) {
+          input.value = event.target.textContent;
+          listbox.removeAttribute("data-open");
+        }
+      });
+
+      // Backs both bare "Add" buttons — a stand-in for Workday's own
+      // repeated-section control, deliberately identical in wording for
+      // both sections (see the HTML comments above). Plain text inputs
+      // with wrapping <label>s (no id collisions to manage across clones),
+      // matching the same synonyms field-map.js already looks for.
+      const BLOCK_FIELDS = {
+        education: ["Degree", "School"],
+        experience: ["Job Title", "Company"],
+      };
+      document.querySelectorAll(".add-button").forEach((button) => {
+        button.addEventListener("click", () => {
+          const group = button.dataset.group;
+          const block = document.createElement("div");
+          block.innerHTML = BLOCK_FIELDS[group].map((label) => `<label>${label} <input type="text" /></label>`).join("");
+          document.getElementById(`${group}-blocks`).appendChild(block);
+        });
+      });
+    </script>
+  </body>
+</html>

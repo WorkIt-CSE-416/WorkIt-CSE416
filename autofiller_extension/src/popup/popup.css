@@ -1,0 +1,74 @@
+* { box-sizing: border-box; }
+
+body {
+  width: 280px;
+  margin: 0;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1a1a1a;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #6d28d9;
+  color: #fff;
+  font-weight: 600;
+}
+
+main {
+  padding: 12px;
+}
+
+.muted {
+  color: #6b7280;
+}
+
+button {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #6d28d9;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+button.secondary {
+  background: transparent;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  color: #dc2626;
+  margin: 4px 0;
+}
+
+.profile {
+  margin-bottom: 10px;
+}
+
+.profile .name {
+  font-weight: 600;
+  margin: 0;
+}
+
+.profile .email,
+.profile .resume-status {
+  margin: 2px 0 0;
+}
+
+.hint {
+  font-size: 11.5px;
+  margin: 10px 0;
+}
