@@ -20,7 +20,7 @@ class Resume(BaseModel):
     storage_path: Mapped[str | None]
     status: Mapped[ResumeStatus] = mapped_column(server_default="uploaded")
     raw_text: Mapped[str | None]
-    # storing the ParsedResume objects 
+    # storing the ParsedResume objects
     parsed_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # The resume's meaning as a vector
     embedding: Mapped[list[float] | None] = mapped_column(VECTOR(EMBEDDING_DIMENSIONS), deferred=True)

@@ -183,9 +183,8 @@ free tier). Render with a Dockerfile is the fallback.
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
   model, where"); without `SCOUT_*` every Scout reply is "offline". **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
-  business holding that connection. `GEMINI_API_KEY` is read but unused until
-  matching embeds (`app/services/matching/CLAUDE.md`); set it here and as an
-  Actions secret then.
+  business holding that connection. Embeddings use Ollama with
+  `nomic-embed-text:v1.5`; see `app/services/matching/CLAUDE.md`.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.

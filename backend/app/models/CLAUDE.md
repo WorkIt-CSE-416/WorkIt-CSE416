@@ -597,7 +597,7 @@ produces no trigram and scans anyway. `title` had one too, dropped in
 searching company-posted jobs by employer needs a join or a copied name.
 
 **Job matching adds three columns (KAN-139):**
-- **`job_postings.embedding` and `resumes.embedding`** hold Gemini vectors,
+- **`job_postings.embedding` and `resumes.embedding`** hold embedding vectors,
   `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
 - **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
   and description (weighted D), so anything that ranks with `ts_rank` puts a
