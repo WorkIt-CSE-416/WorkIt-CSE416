@@ -44,3 +44,9 @@ class ScriptedLLM(LLM):
             if isinstance(item, Exception):
                 raise item
             yield item
+
+    async def _complete_json(self, client, endpoint, messages, schema) -> str:
+        # A structured reply is the script's pieces joined, as one answer.
+        return "".join(
+            [piece async for piece in self._complete(client, endpoint, messages)]
+        )

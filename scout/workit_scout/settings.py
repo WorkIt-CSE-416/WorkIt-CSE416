@@ -23,7 +23,6 @@ class Endpoint:
     reasoning_effort: str | None = None
 
 
-
 class ScoutSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="SCOUT_", env_file_encoding="utf-8", extra="ignore"

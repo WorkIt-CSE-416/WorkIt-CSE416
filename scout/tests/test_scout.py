@@ -5,14 +5,18 @@ installs this package: `uv run pytest ../scout/tests`.
 """
 
 import asyncio
+import json
 
 import httpx
+import pytest
 from openai import (
     APIConnectionError,
+    AsyncOpenAI,
     BadRequestError,
     InternalServerError,
     RateLimitError,
 )
+from pydantic import BaseModel
 from workit_scout import llm as llm_module
 from workit_scout.agent import MAX_REPLY_CHARS, run
 from workit_scout.facts import job_facts, resume_facts
@@ -27,7 +31,7 @@ from workit_scout.schemas import (
     ResumeFacts,
     TextEvent,
 )
-from workit_scout.settings import ScoutSettings
+from workit_scout.settings import Endpoint, ScoutSettings
 from workit_scout.testing import ScriptedLLM
 
 _REQUEST = httpx.Request("POST", "http://primary.test/v1/chat/completions")
@@ -54,9 +58,7 @@ def bad_request() -> BadRequestError:
 def collect(llm: LLM, *texts: str, identity=Identity(), **facts) -> list:
     async def go():
         messages = [ChatMessage(role="user", content=t) for t in texts]
-        return [
-            event async for event in run(messages, llm, identity=identity, **facts)
-        ]
+        return [event async for event in run(messages, llm, identity=identity, **facts)]
 
     return asyncio.run(go())
 
@@ -102,9 +104,7 @@ def test_misconfiguration_does_not_fall_back():
 
 def test_failure_mid_reply_is_not_retried():
     # A retry would send the user the start of the reply twice.
-    events = collect(
-        ScriptedLLM(["Half a", rate_limited()], ["whole"]), "hello"
-    )
+    events = collect(ScriptedLLM(["Half a", rate_limited()], ["whole"]), "hello")
     assert reply(events) == "Half a"
     assert events[-1] == ErrorEvent(message=llm_module.CUT_OFF)
 
@@ -134,6 +134,97 @@ def test_long_reply_is_cut_at_the_cap():
     assert len(reply(events)) == MAX_REPLY_CHARS
 
 
+# --- the structured call -----------------------------------------------------------
+
+
+class Entry(BaseModel):
+    title: str
+    bullets: list[str]
+
+
+def ask_json(llm: LLM, identity=Identity()) -> Entry:
+    messages = [{"role": "user", "content": "draft it"}]
+    return asyncio.run(llm.complete_json(messages, Entry, identity=identity))
+
+
+def test_a_structured_call_returns_the_checked_object():
+    fake = ScriptedLLM(['{"title": "Intern", ', '"bullets": ["Built a robot"]}'])
+    assert ask_json(fake) == Entry(title="Intern", bullets=["Built a robot"])
+
+
+def test_a_structured_call_falls_down_the_chain():
+    fake = ScriptedLLM(
+        rate_limited(), server_error(), ['{"title": "T", "bullets": []}']
+    )
+    assert ask_json(fake).title == "T"
+
+
+@pytest.mark.parametrize("bad", ['{"title": "T"}', "Sure! Here it is: {", ""])
+def test_a_reply_that_fails_the_check_is_rejected(bad):
+    with pytest.raises(llm_module.InvalidReply):
+        ask_json(ScriptedLLM([bad], ['{"title": "T", "bullets": []}']))
+
+
+def test_a_structured_call_sends_no_identity_data():
+    fake = ScriptedLLM(['{"title": "T", "bullets": []}'])
+    asyncio.run(
+        fake.complete_json(
+            [{"role": "user", "content": "Sam Seeker at sam@example.com"}],
+            Entry,
+            identity=Identity(name="Sam Seeker"),
+        )
+    )
+    assert fake.prompts == [[{"role": "user", "content": "[name] at [email]"}]]
+
+
+def test_requests_carry_a_json_schema_and_never_tool_choice():
+    sent = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        sent.append(body)
+        content = '{"title": "T", "bullets": []}'
+        if body.get("stream"):
+            chunk = {"choices": [{"index": 0, "delta": {"content": "hi"}}]}
+            text = f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n"
+            return httpx.Response(
+                200, text=text, headers={"content-type": "text/event-stream"}
+            )
+        message = {"role": "assistant", "content": content}
+        return httpx.Response(
+            200,
+            json={
+                "id": "1",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "m",
+                "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+            },
+        )
+
+    model = LLM([Endpoint("http://only.test/v1", "m")])
+    model._endpoints = [
+        (
+            endpoint,
+            AsyncOpenAI(
+                base_url=endpoint.base_url,
+                api_key="k",
+                http_client=httpx.AsyncClient(transport=httpx.MockTransport(answer)),
+            ),
+        )
+        for endpoint, _ in model._endpoints
+    ]
+    assert ask_json(model).title == "T"
+    assert reply(collect(model, "hello")) == "hi"
+
+    structured, streamed = sent
+    assert structured["response_format"]["type"] == "json_schema"
+    assert structured["response_format"]["json_schema"]["schema"] == (
+        Entry.model_json_schema()
+    )
+    assert "tool_choice" not in structured and "tool_choice" not in streamed
+
+
 # --- configuration ----------------------------------------------------------------
 
 
@@ -148,7 +239,9 @@ def test_the_chain_comes_from_env_in_order(monkeypatch):
         ' {"base_url": "http://cf/v1", "model": "gpt-oss-20b",'
         ' "reasoning_effort": "low"}]',
     )
-    endpoints = [e for e, _ in LLM.from_settings(ScoutSettings(_env_file=None))._endpoints]
+    endpoints = [
+        e for e, _ in LLM.from_settings(ScoutSettings(_env_file=None))._endpoints
+    ]
     assert [(e.model, e.api_key, e.reasoning_effort) for e in endpoints] == [
         ("gpt-oss-120b", "k", None),
         ("gpt-oss-20b", None, "low"),
