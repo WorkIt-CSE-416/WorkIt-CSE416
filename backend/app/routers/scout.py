@@ -27,22 +27,28 @@ from workit_scout.agent import run
 from workit_scout.facts import job_facts, resume_facts
 from workit_scout.identity import Identity
 from workit_scout.llm import LLM
-from workit_scout.quota import DailyQuota
-from workit_scout.schemas import ChatRequest, JobFacts, ResumeFacts, ScoutEvent
+from workit_scout.schemas import (
+    ChatRequest,
+    ErrorEvent,
+    JobFacts,
+    ResumeFacts,
+    ScoutEvent,
+    UsageEvent,
+)
 from workit_scout.settings import ScoutSettings
 
 from app.config import ENV_FILE
-from app.db import get_session
+from app.db import get_session, get_sessionmaker
 from app.deps import get_current_account
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.routers.jobs import fetch_listing
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/scout", tags=["scout"])
 
 _EVENT = TypeAdapter(ScoutEvent)
-_quota = DailyQuota()
 
 
 @lru_cache
@@ -76,11 +82,47 @@ async def get_resume_facts(
     return resume_facts(parsed) if parsed else None
 
 
+async def load_identity(db: AsyncSession, account: AuthenticatedAccount) -> Identity:
+    """The applicant's identity fields, which the model seam removes from
+    every message before a model sees it."""
+    profile = await db.get(Applicant_Profile, account.id)
+    if profile is None:
+        return Identity(name=account.full_name, email=account.email)
+    return Identity(
+        name=profile.full_name,
+        email=profile.email,
+        phone=profile.phone_number,
+        links=(
+            profile.linkedin_url,
+            profile.portfolio_url,
+            profile.github_url,
+            profile.other_url,
+        ),
+    )
+
+
 async def find_job(db: AsyncSession, job_id: str) -> JobFacts | None:
     """The listed job with this id (the one GET /jobs sent), or None — including
     when it has closed since, since "that job is gone" is the honest answer."""
     job = await fetch_listing(db, job_id)
     return job_facts(job.model_dump()) if job else None
+
+
+async def _counted(
+    events: AsyncIterator[ScoutEvent], account_id, left: int
+) -> AsyncIterator[ScoutEvent]:
+    """The turn's events, then the uses left. The turn counts only when it
+    ended without an error; a reader who leaves early is not charged."""
+    failed = False
+    async for event in events:
+        failed = failed or isinstance(event, ErrorEvent)
+        yield event
+    if not failed:
+        # Its own session: the request's may be closed once streaming starts.
+        async with get_sessionmaker()() as db:
+            await count_use(db, account_id, Feature.SCOUT)
+        left -= 1
+    yield UsageEvent(uses_left=left)
 
 
 async def _ndjson(events: AsyncIterator[ScoutEvent]) -> AsyncIterator[bytes]:
@@ -98,13 +140,17 @@ async def chat(
 ) -> StreamingResponse:
     if account.account_type is not AccountType.APPLICANT:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Scout is for job seekers.")
-    if not _quota.take(account.id, get_scout_settings().daily_turns):
+    left = await uses_left(db, account.id, Feature.SCOUT)
+    if left <= 0:
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
             "You've used all of today's Scout messages. They reset at midnight UTC.",
         )
 
+    identity = await load_identity(db, account)
     job = await find_job(db, body.job_id) if body.job_id else None
-    identity = Identity(name=account.full_name, email=account.email)
     events = run(body.messages, llm, identity=identity, resume=resume, job=job)
-    return StreamingResponse(_ndjson(events), media_type="application/x-ndjson")
+    return StreamingResponse(
+        _ndjson(_counted(events, account.id, left)),
+        media_type="application/x-ndjson",
+    )

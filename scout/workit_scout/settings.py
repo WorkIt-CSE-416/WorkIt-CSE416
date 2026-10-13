@@ -45,7 +45,3 @@ class ScoutSettings(BaseSettings):
         return self.endpoints or [
             Endpoint(self.base_url, self.model, self.api_key, self.reasoning_effort)
         ]
-
-    # Messages one account may send per UTC day. The cap is what keeps a free
-    # product free.
-    daily_turns: int = 50

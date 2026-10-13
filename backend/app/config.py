@@ -66,6 +66,19 @@ class Settings(BaseSettings):
 
     gemini_api_key: str | None = None
 
+    # AI usage limits (app/services/usage.py). A use counts only when the
+    # model call succeeds. Each feature has a cap per student per UTC day and
+    # a share of the daily pool, the day's uses across all students.
+    ai_daily_pool: int = 1000
+    ai_scout_cap: int = 3
+    ai_intake_cap: int = 15
+    ai_tailor_cap: int = 2
+    ai_parsing_cap: int = 1
+    ai_tailor_share: float = 0.4
+    ai_intake_share: float = 0.3
+    ai_scout_share: float = 0.2
+    ai_parsing_share: float = 0.1
+
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it
     # stays out of this build.

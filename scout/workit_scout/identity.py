@@ -5,7 +5,7 @@ reaches a model".
 """
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -104,7 +104,7 @@ class Identity:
     name: str | None = None
     email: str | None = None
     phone: str | None = None
-    links: tuple[str | None, ...] | list[str | None] = ()
+    links: Sequence[str | None] = ()
 
     def remove(self, text: str) -> str:
         return remove_identity(
