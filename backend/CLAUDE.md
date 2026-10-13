@@ -88,6 +88,7 @@ module docstring has the steps.
 - **A test that calls the resume routes monkeypatches `resumes.get_supabase`.**
   The router calls it directly rather than through `Depends`, so a dependency
   override misses it and the test uploads to the real bucket.
+  `tests/test_built_resumes.py`'s `_FakeSupabase` is the pattern.
 - **The import's database half has no tests yet.** It can now get them through
   the `database` fixture below.
 
@@ -176,6 +177,16 @@ Find files with a directory listing; these are the rules for where code goes.
   `app/utils/CLAUDE.md`, "The model upgrade path". Tests:
   `tests/test_bank_import.py` (checked drafts, no identity data in the
   prompt, an invalid or failed reply counts nothing, the cap and the share).
+- **Every resume feature reads the built resume view**
+  (`app/services/resume_view.py`, KAN-207): one pure function from the bank
+  and a built resume's choices to what the resume shows. The PDF, the Word
+  file, Tailor, the sent resume's hash and the editor read that shape; a rule
+  about what shows goes there, never into one reader. Built resumes are
+  written only through `services/built_resumes.py`.
+- **The resume limit is 5, uploaded plus base resumes**
+  (`services/built_resumes.py`'s `check_room`, called by Generate and by
+  upload before anything is written; 409 with the reason). Tailored and sent
+  resumes do not count.
 - **Every model feature counts its daily uses through `app/services/usage.py`**
   (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
   it succeeds, so a failed or rejected call costs the student nothing. Each
@@ -290,6 +301,10 @@ free tier). Render with a Dockerfile is the fallback.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **Apply `5753545063f3` before deploying KAN-207.** It adds
+  `applicant_profiles.default_built_resume_id`, which the model maps, so the
+  new code's signup INSERT fails on a database without it
+  (`app/models/CLAUDE.md`, "A new column reaches the database...").
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX

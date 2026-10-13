@@ -242,6 +242,35 @@ change here must keep:
   `services/bank.py`'s `link_skill` does, and a link written any other way
   can join two students' rows.
 
+## Built resumes
+
+`built_resume.py` (KAN-207): a built resume and its choice rows. Rationale in
+`../../../docs/resume.md`, "Built resumes"; what shows is
+`../services/resume_view.py`. Invariants:
+
+- **Choice rows hold no text.** `built_resume_entries`, `_bullets` and
+  `_skills` say only whether a bank item shows, its position and (entries)
+  the GPA and coursework toggles; the words always come from the bank (ADR
+  0001). Never copy bank text onto a built resume.
+- **No choice row means not on the resume**, for entries, bullets and skills
+  alike, so what is added to the bank after Generate waits in the tray.
+  Deleting a bank item cascades to its choice rows.
+- **A base resume has no `job_posting_id`; a tailored one has one**, unique
+  per applicant and posting (`built_resumes_applicant_posting_key`; NULLs are
+  distinct, so base resumes are many). Only base resumes count toward the
+  limit of 5 (`../services/built_resumes.py`).
+- **The default resume is two pointers, at most one set.**
+  `applicant_profiles.default_resume_id` (an uploaded resume) and
+  `default_built_resume_id` (a base resume), each `ON DELETE SET NULL`, with
+  the check `applicant_profiles_one_default_resume`. One column could not
+  carry a foreign key to two tables; setting one clears the other
+  (`set_default`). Code that reads "the default" checks both: a base default
+  leaves `default_resume_id` null (`/jobs/recommended` then falls back to the
+  newest parsed upload until KAN-212).
+- **`default_built_resume_id` is a mapped column on `applicant_profiles`**,
+  so every signup INSERT names it: migration `5753545063f3` is applied
+  before the code deploys (above, "A new column reaches the database...").
+
 ## Locations — countries, states, and the resolver
 
 ### The tables

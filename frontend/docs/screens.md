@@ -385,7 +385,8 @@ place they are edited: My Profile keeps the uploads and links here.
 - **Editing an entry** sends its fields in one PATCH, then its bullets as the
   adds, edits and deletes that turn the saved list into the draft's.
 - **Delete asks once**, inline. **Still open:** saying how many built
-  resumes use the entry (user story 18) once built resumes exist (KAN-207).
+  resumes use the entry (user story 18); built resumes exist since KAN-207,
+  but the count is not shown yet.
 - **Skills are a plain list** with an optional group, shown one line per
   group. A name appears once, ignoring case; the API answers 409 otherwise.
 - **Skill links live in the entry editor** (KAN-216, `skill-links.tsx`):
@@ -412,6 +413,15 @@ place they are edited: My Profile keeps the uploads and links here.
   page clear every key under its prefix, so the next person in the browser
   never sees it. The chat is never stored anywhere. The step bar, Skip and
   jump, and intake in onboarding are KAN-214.
+- **Base Resumes card** (`built-resumes.tsx`, KAN-207), above the sections.
+  Generate makes a base resume with every entry, bullet and skill in the
+  bank; each row downloads a PDF (Jake's Resume) or a Word file, can become
+  the default resume (star) and can be deleted. Files come back from server
+  actions as base64 and the browser saves them, so no route handler is
+  needed. A PDF whose text has characters the font lacks shows them and
+  waits for Download Anyway (user story 53). The 5-resume limit is the
+  API's; its 409 message shows as the card's error. The page needs both
+  the bank and the resume list: if either fails it shows the error state.
 
 ## Scout panel
 
