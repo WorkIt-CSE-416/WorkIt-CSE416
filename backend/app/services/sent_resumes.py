@@ -37,6 +37,7 @@ from app.models.sent_resume import Sent_Resume
 from app.services import built_resumes, postings
 from app.services.bank import NotFound
 from app.services.resume_render import Identity, render
+from app.services.resume_render.word import render_docx
 from app.services.resume_view import ResumeView
 
 BUCKET = "Resume"
@@ -51,10 +52,20 @@ class Sent:
     missing_characters: tuple[str, ...] = ()
 
 
-def content_hash(view: ResumeView, identity: Identity, template: str) -> str:
-    """Everything the PDF is made from, before it is made. Dataclasses
-    serialize field by field in a fixed order; dates and decimals by str."""
+FILE_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+def content_hash(view: ResumeView, identity: Identity, template: str, file_format: str = "pdf") -> str:
+    """Everything the file is made from, before it is made. Dataclasses
+    serialize field by field in a fixed order; dates and decimals by str.
+    The PDF keeps its old payload, so a repeat PDF still matches a sent
+    resume kept before Word downloads were kept."""
     payload = {"template": template, "identity": dataclasses.asdict(identity), "view": dataclasses.asdict(view)}
+    if file_format != "pdf":
+        payload["format"] = file_format
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -85,15 +96,17 @@ async def send_built(
     built_resume_id: uuid.UUID,
     *,
     job_posting_id: uuid.UUID | None = None,
+    file_format: str = "pdf",
 ) -> Sent:
-    """Raises NotFound for a built resume that is not the applicant's, and
+    """The built resume as a PDF or (`file_format="docx"`) a Word file.
+    Raises NotFound for a built resume that is not the applicant's, and
     resume_render.TectonicUnavailable when the PDF cannot be made. When this
     returns `created`, the file is uploaded: if the commit then fails, the
     caller removes `row.storage_path`."""
     await _check_posting(session, job_posting_id)
     resume, view = await built_resumes.load_view(session, applicant_id, built_resume_id)
     identity = await built_resumes.load_identity(session, applicant_id)
-    digest = content_hash(view, identity, resume.template)
+    digest = content_hash(view, identity, resume.template, file_format)
     last = await _last_match(
         session, applicant_id, job_posting_id,
         Sent_Resume.built_resume_id == resume.id, Sent_Resume.content_hash == digest,
@@ -101,10 +114,14 @@ async def send_built(
     if last is not None:
         return Sent(last, created=False)
 
-    rendered = await asyncio.to_thread(render, view, identity, resume.template)
+    if file_format == "docx":
+        contents, missing = await asyncio.to_thread(render_docx, view, identity), ()
+    else:
+        rendered = await asyncio.to_thread(render, view, identity, resume.template)
+        contents, missing = rendered.pdf, rendered.missing_characters
     sent_id = uuid.uuid4()
-    path = f"{applicant_id}/sent/{sent_id}.pdf"
-    await asyncio.to_thread(storage.from_(BUCKET).upload, path, rendered.pdf, {"content-type": "application/pdf"})
+    path = f"{applicant_id}/sent/{sent_id}.{file_format}"
+    await asyncio.to_thread(storage.from_(BUCKET).upload, path, contents, {"content-type": FILE_TYPES[file_format]})
     row = Sent_Resume(
         id=sent_id, applicant_id=applicant_id, storage_path=path, name=resume.name,
         built_resume_id=resume.id, job_posting_id=job_posting_id, content_hash=digest,
@@ -112,7 +129,7 @@ async def send_built(
     session.add(row)
     await session.flush()
     await session.refresh(row)
-    return Sent(row, created=True, missing_characters=rendered.missing_characters)
+    return Sent(row, created=True, missing_characters=missing)
 
 
 async def send_uploaded(

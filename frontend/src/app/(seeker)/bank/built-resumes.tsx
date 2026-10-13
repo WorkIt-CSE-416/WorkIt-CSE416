@@ -9,7 +9,6 @@ import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import {
   deleteBuiltResume,
-  downloadResumeDocx,
   generateResume,
   listBuiltResumes,
   setDefaultBuiltResume,
@@ -32,25 +31,11 @@ import { openDownload, SentResumes } from "./sent-resumes";
  * student downloads anyway or fixes the bank. The 5-resume limit is the
  * API's: its refusal shows as the error. Open goes to the resume editor.
  *
- * Every PDF download keeps a sent resume (KAN-208), shown in the "Sent" card
- * below; a repeat of the same content returns the one already kept. A
- * download cancelled at the warning deletes the sent resume it just made.
+ * Every download, PDF or Word, keeps a sent resume (KAN-208), shown in the
+ * "Sent" card below; a repeat of the same content returns the one already
+ * kept. A download cancelled at the warning deletes the sent resume it just
+ * made.
  */
-
-const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-function save(base64: string, type: string, filename: string) {
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const url = URL.createObjectURL(new Blob([bytes], { type }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-const fileName = (resume: BuiltResume, ext: string) =>
-  `${resume.name.replace(/[^\w -]+/g, "").trim() || "Resume"}.${ext}`;
 
 export function BuiltResumes({
   initial,
@@ -154,10 +139,11 @@ function ResumeRow({
   async function docx() {
     setBusy("docx");
     setError(null);
-    const { data, error } = await downloadResumeDocx(resume.id);
+    const { data, error } = await sendBuiltResume(resume.id, "docx");
     setBusy(null);
     if (!data) return setError(error);
-    save(data, DOCX_TYPE, fileName(resume, "docx"));
+    openDownload(data.url);
+    await reloadSent();
   }
 
   async function act(action: (id: string) => Promise<{ error: string | null }>) {

@@ -5,8 +5,12 @@ file stays) live in `app/services/sent_resumes.py`. Storage goes through this
 module's `get_supabase()`, so tests patch it here.
 
 POST   /applicants/{id}/sent-resumes            SentResumeCreate
-       {built_resume_id | uploaded_resume_id, job_posting_id?}
-       -> 201 SentResumeDownload: a PDF download, kept as a sent resume.
+       {built_resume_id | uploaded_resume_id, job_posting_id?, format?}
+       -> 201 SentResumeDownload: a download, kept as a sent resume: a PDF,
+          or with format "docx" a Word file (a built resume only, else
+          422). Every download the student makes comes through here;
+          GET .../built-resumes/{rid}/render and /docx return the file
+          unkept, for the editor's preview and the tests.
           With `job_posting_id` it is Apply (KAN-220): the sent resume is
           linked to that posting. An uploaded resume (Apply only) makes no
           new file; the sent resume points at the uploaded resume's file.
@@ -65,7 +69,7 @@ def _response(row: Sent_Resume) -> SentResumeResponse:
     return SentResumeResponse(
         id=row.id, name=row.name, built_resume_id=row.built_resume_id,
         uploaded_resume_id=row.uploaded_resume_id, job_posting_id=row.job_posting_id,
-        created_at=row.created_at,
+        created_at=row.created_at, format=row.storage_path.rsplit(".", 1)[-1].lower(),
     )
 
 
@@ -105,7 +109,7 @@ async def send(
         else:
             sent = await service.send_built(
                 session, get_supabase().storage, applicant_id, body.built_resume_id,
-                job_posting_id=body.job_posting_id)
+                job_posting_id=body.job_posting_id, file_format=body.format)
     except NotFound:
         raise HTTPException(404, "Resume not found")
     except TectonicUnavailable as exc:
@@ -115,7 +119,7 @@ async def send(
         raise
     except Exception:
         logger.exception("Storage upload of a sent resume failed")
-        raise HTTPException(502, "The PDF could not be saved. Try again.")
+        raise HTTPException(502, "The file could not be saved. Try again.")
 
     if sent.created:
         try:

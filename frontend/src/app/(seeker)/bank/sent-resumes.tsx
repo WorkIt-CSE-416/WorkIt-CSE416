@@ -13,7 +13,7 @@ import { deleteSentResume, sentResumeFileUrl, type SentResume } from "@/lib/sent
  * The "Sent" list (KAN-208): every resume the student downloaded, newest
  * first, each the exact file sent. A sent resume downloads again or is
  * deleted, never edited. The list is owned by `BuiltResumes`, whose PDF
- * downloads add to it.
+ * and Word downloads add to it.
  */
 
 /** Opens a Storage link that downloads its file (its Content-Disposition). */
@@ -74,7 +74,9 @@ function SentRow({ row, reload }: { row: SentResume; reload: () => Promise<void>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-body text-ink font-medium break-words">{row.name}</p>
-          <p className="text-note text-ink-meta">Sent {formatDate(row.created_at)}</p>
+          <p className="text-note text-ink-meta">
+            {row.format === "docx" && "Word · "}Sent {formatDate(row.created_at)}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Button variant="secondary" size="sm" onClick={download} disabled={busy}>

@@ -100,13 +100,6 @@ export async function renderResumePdf(resumeId: string): Promise<Result<Rendered
   return call<RenderedPdf>(`/${id(resumeId)}/render`);
 }
 
-/** The Word file as base64. */
-export async function downloadResumeDocx(resumeId: string): Promise<Result<string>> {
-  return call<string>(`/${id(resumeId)}/docx`, undefined, async (res) =>
-    Buffer.from(await res.arrayBuffer()).toString("base64"),
-  );
-}
-
 /** A built resume's choice rows (schemas `ChoicesResponse`, KAN-218). A bank
  *  item with no row is not on the resume. A bullet's `text` is the wording
  *  it shows when that is not the bank's original (null: the original). */
