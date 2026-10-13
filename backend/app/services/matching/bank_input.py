@@ -37,7 +37,7 @@ def _newest_first(entry: Entry) -> tuple:
     )
 
 
-def bank_text(bank: Bank, identity: Identity = Identity()) -> str:
+def bank_text(bank: Bank, *, identity: Identity) -> str:
     """
     What a bank is embedded from, in order: skills; each degree and field of
     study; each entry's section, title and organization with its original

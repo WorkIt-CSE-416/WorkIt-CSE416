@@ -1034,7 +1034,7 @@ async def recommended_jobs(
     )
     bank_embedding = bank_row.embedding if bank_row else None
     if bank_row is not None and bank_embedding is None:
-        text = bank_text(bank, await load_identity(db, account))
+        text = bank_text(bank, identity=await load_identity(db, account))
         vectors = await embed([text]) if text else None
         if vectors:
             bank_embedding = vectors[0]

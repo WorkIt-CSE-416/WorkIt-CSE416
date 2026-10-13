@@ -94,7 +94,8 @@ the recommender reads changed; the scoring did not.
   original bullets, newest first across sections (Present first, then by end
   month). Never a bullet variant, a link, a location, a grade or a date. The
   text then passes through `workit_scout.identity` with the profile's
-  identity fields, and is cut at 6,000 characters, so the oldest entries go
+  identity fields (`identity=` is required, with no empty default, so a
+  caller cannot skip loading the profile), and is cut at 6,000 characters, so the oldest entries go
   first. One embedding per bank; per-entry embeddings are out of scope until
   matches prove poor.
 - **Years of experience** sum Experience entries only (Leadership, Projects
