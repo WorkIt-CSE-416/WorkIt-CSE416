@@ -105,6 +105,7 @@ modeled at all (doesn't exist as code).
 | `company_memberships` | `app/models/profiles.py` | Yes | `/auth/me`, for an account created some other way. `id` → `auth.users.id` |
 | `auth.users` | `app/models/auth_users.py` (stub) | Owned by Supabase | Only as the account tables' FK target |
 | `resumes` | `app/models/resume.py` | Yes | No — no resume endpoint exists yet |
+| `experience_banks`, `bank_entries`, `bank_bullets`, `bank_skills` | `app/models/bank.py` | Yes | `/applicants/{id}/bank` (`app/routers/bank.py`); the experience bank, `docs/resume.md` |
 | `job_postings` | `app/models/jobs.py` | **No** | No |
 | `countries` / `states` | `app/models/locations.py` | **No** | No |
 

@@ -2,7 +2,8 @@
 
 How each screen behaves and why: the Jobs page and its filters, the job
 posting page and card, the seeker Dashboard, Applications, the Calendar, My
-Profile (resumes, photo), Scout's panel, and the company screens. Read the
+Profile (resumes, photo), the Experience Bank, Scout's panel, and the
+company screens. Read the
 section for a screen before changing it.
 
 ## Jobs page, /search and filters
@@ -372,6 +373,40 @@ signed URL valid for an hour — so it is fetched per page load, never stored.
 `docs/avatar.md` (repo root) owns the formats, limits and why. The seeker bar
 fetches it per render (`(seeker)/account-status.tsx`); the company bar still
 shows initials.
+
+## Experience Bank
+
+`(seeker)/bank` (KAN-206), a sidebar row above My Profile. The experience
+bank is where resume facts are kept, once (`GLOSSARY.md`); it sits beside
+the resume upload on My Profile with no feature flag, and the profile's
+parsed-JSON editing goes later (KAN-211).
+
+- **Live, with an error state.** `page.tsx` reads `GET
+  /applicants/{id}/bank` through `src/lib/bank-actions.ts` on the server; if
+  that fails it shows "Your Bank Isn't Loading Right Now" and a Try Again
+  link, never fixture rows. A failed save or delete shows the API's message
+  beside the control and leaves the screen as it was.
+- **One card per section**, in the fixed order (Education, Experience,
+  Projects, Leadership & Activities, Awards, Certifications), then Skills.
+  Entries come back from the API ongoing first, then newest; the screen
+  never sorts. After every change it reads the whole bank again, so the
+  order shown is always the API's.
+- **One entry editor** (`entry-editor.tsx`) for every section and, later,
+  for intake and import drafts: it edits a draft and hands the whole draft
+  back, and the caller decides between create and edit. Only the title is
+  required. Each section adds its own fields (`sections.ts` names the
+  title and organization for each). Months use the browser's month picker,
+  which falls back to a `YYYY-MM` text box where there is none.
+- **A duplicate warns and never blocks.** When a new entry matches one in
+  the bank (section, title and organization, ignoring case), the editor
+  says "This looks like …" and its save button becomes Save as New; Cancel
+  closes it. Two real roles may share a title.
+- **Editing an entry** sends its fields in one PATCH, then its bullets as the
+  adds, edits and deletes that turn the saved list into the draft's.
+- **Delete asks once**, inline. **Still open:** saying how many built
+  resumes use the entry (user story 18) once built resumes exist (KAN-207).
+- **Skills are a plain list** with an optional group, shown one line per
+  group. A name appears once, ignoring case; the API answers 409 otherwise.
 
 ## Scout panel
 
