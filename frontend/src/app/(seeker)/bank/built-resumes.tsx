@@ -174,6 +174,8 @@ function ResumeRow({
           <p className="text-body text-ink font-medium break-words">{resume.name}</p>
           {resume.is_default && <Badge>Default</Badge>}
           {resume.job_posting_id && <Badge variant="tag">Tailored</Badge>}
+          {/* Story 90: the resume still opens and downloads; only Tailor needs a live posting. */}
+          {resume.posting_closed && <Badge tone="inert">Posting closed</Badge>}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <ButtonLink

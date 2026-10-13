@@ -19,6 +19,8 @@ export type BuiltResume = {
   job_posting_id: string | null;
   is_default: boolean;
   created_at: string;
+  /** A tailored resume whose posting the Jobs page no longer lists. */
+  posting_closed: boolean;
 };
 
 /**

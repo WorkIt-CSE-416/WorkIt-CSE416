@@ -29,8 +29,10 @@ class Built_Resume(BaseModel):
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"), index=True)
     name: Mapped[str]
     template: Mapped[str]
+    # RESTRICT: postings close, never go; a hard delete must not take the
+    # student's tailored resume with it.
     job_posting_id: Mapped[_uuid.UUID | None] = mapped_column(
-        ForeignKey("job_postings.id", ondelete="CASCADE"))
+        ForeignKey("job_postings.id", ondelete="RESTRICT"))
 
 
 class Built_Resume_Entry(BaseModel):

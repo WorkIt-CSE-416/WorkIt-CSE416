@@ -463,7 +463,10 @@ place they are edited: My Profile keeps the uploads and links here.
   The page needs the bank, the resume list and the Sent list: if any fails
   it shows the error state. Each row's Open goes to the resume editor.
   A tailored resume shows there too, with a Tailored tag and no star (only
-  a base resume can be the default).
+  a base resume can be the default), and a "Posting closed" tag once the
+  Jobs page no longer lists its posting (story 90, the API's
+  `posting_closed`). It still opens and downloads; only Tailor needs a
+  live posting.
 - **Sent card** (`sent-resumes.tsx`, KAN-208), below Base Resumes. Every
   PDF the student downloaded or applied with (KAN-220), newest first, with its name then and the date
   ("Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;

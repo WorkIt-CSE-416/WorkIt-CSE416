@@ -400,6 +400,10 @@ free tier). Render with a Dockerfile is the fallback.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **Apply `bb8c9c6dee0b` with or after KAN-202's review fixes.** It only
+  changes two foreign keys (no column the code maps), so either order
+  works. Before it, a hard-deleted posting still cascades to tailored
+  resumes and their bullet variants.
 - **Apply `f2b8d6c4a913` before deploying KAN-217.** It adds
   `bank_bullet_variants` and `built_resume_bullets.variant_id`, which the
   model maps, so Generate's inserts fail on a database without it.

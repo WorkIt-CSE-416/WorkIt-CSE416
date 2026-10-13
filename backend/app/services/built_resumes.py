@@ -26,9 +26,11 @@ from app.models.built_resume import (
     Built_Resume_Entry,
     Built_Resume_Skill,
 )
+from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.services.bank import NotFound, load_bank
+from app.services.postings import LISTED
 from app.services.resume_render import Identity, Rendered, box_lines
 from app.services.resume_view import (
     BulletChoice,
@@ -111,6 +113,18 @@ async def list_resumes(session: AsyncSession, applicant_id: uuid.UUID) -> list[B
         .order_by(Built_Resume.created_at.desc(), Built_Resume.id)
     )
     return list(rows)
+
+
+async def closed_postings(session: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
+    """The ids of the applicant's tailored resumes whose posting the Jobs
+    page no longer lists: "Posting closed" (story 90). The resume stays
+    usable; only Tailor needs a listed posting."""
+    rows = await session.scalars(
+        select(Built_Resume.id)
+        .join(Job_Post, Job_Post.id == Built_Resume.job_posting_id)
+        .where(Built_Resume.applicant_id == applicant_id, ~LISTED)
+    )
+    return set(rows)
 
 
 async def latest_base(session: AsyncSession, applicant_id: uuid.UUID) -> Built_Resume | None:
