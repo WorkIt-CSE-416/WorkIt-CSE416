@@ -144,6 +144,8 @@ with the failure it prevents.
 - `docs/job-pipeline.md` — the job pipeline end to end, in plain terms. A
   change to how jobs are scraped, imported, stored, served or filtered updates
   it alongside the `CLAUDE.md` beside the code.
+- `docs/research/` — research notes from wayfinder research tickets, one
+  file per question, each claim cited to a primary source.
 - `docs/agents/` — configuration for the `mattpocock-skills` plugin; edit
   these files directly to change how the skills behave.
 
