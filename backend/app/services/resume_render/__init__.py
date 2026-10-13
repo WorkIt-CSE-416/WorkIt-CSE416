@@ -78,6 +78,8 @@ PAGE_HEIGHT = 792.0
 # ascent and descent of Jake's 10 to 11 pt text, less than the 11.9 pt
 # between two bullet lines, so neighbouring boxes do not overlap
 ASCENT, DESCENT = 8.0, 3.0
+# The distance between a wrapped line's baselines in Jake's bullets, in points
+WRAPPED_LINE = 12.0
 _SP_PER_POINT = 65536 * 72.27 / 72  # scaled points in one PDF point
 
 
@@ -133,6 +135,22 @@ class Rendered:
     missing_characters: tuple[str, ...] = ()
     # One box per marked line, in page order; empty for an unmarked body
     boxes: tuple[Box, ...] = ()
+
+    @property
+    def lines_over(self) -> int:
+        '''How many lines of text sit past page 1, for the editor's
+        page-count chip ("3 lines over 1 page", KAN-218): the distinct
+        baselines of the boxes on later pages, a wrapped box counting each of
+        its lines. Section headings have no box, so it can run a line or two
+        short; Fit to One Page re-renders rather than trust it.'''
+        baselines = set()
+        for box in self.boxes:
+            if box.page < 2:
+                continue
+            top = box.y0 + ASCENT
+            lines = 1 + max(0, round((box.y1 - DESCENT - top) / WRAPPED_LINE))
+            baselines.update((box.page, round(top + i * WRAPPED_LINE)) for i in range(lines))
+        return len(baselines)
 
 
 def render(view, identity: Identity, template: str) -> Rendered:
