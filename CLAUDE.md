@@ -155,8 +155,9 @@ with the failure it prevents.
   from the primary checkout (`frontend/scripts/new-worktree.mjs`). A worktree
   missing `.env` gets them with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
-  `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`.
-  The Run button (`.superset/run.sh`) starts the API on :8000 and the app on
+  `--env-only` copy (the env files and the sample resumes in
+  `frontend/public/resumes/`), then `npm ci` in `frontend/` and `uv sync` in
+  `backend/`. The Run button (`.superset/run.sh`) starts the API on :8000 and the app on
   :3000 together. The env files come from the git primary checkout, not
   `$SUPERSET_ROOT_PATH`, which can be a checkout with no `.env`.
 - Prettier formats code and runs from `frontend/`. It skips the markdown docs

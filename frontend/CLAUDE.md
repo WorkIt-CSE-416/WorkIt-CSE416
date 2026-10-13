@@ -30,6 +30,11 @@ them). Notes the scripts don't say:
 - **Local browser testing:** sign in as the shared non-production test
   applicant, `TEST_APPLICANT_EMAIL` / `TEST_APPLICANT_PASSWORD` in
   `frontend/.env.local`. Use that account rather than creating one.
+- **To test a resume upload**, use a file from `frontend/public/resumes/`.
+  The folder is git-ignored because it holds real people's resumes, so put
+  your own there once, in the primary checkout: `npm run worktree` and every
+  Superset workspace's setup copy it into the new worktree with the env files.
+  Delete an upload once the test is done; it lands in the shared database.
 
 ## Deployment
 
