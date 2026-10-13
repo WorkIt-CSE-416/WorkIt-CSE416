@@ -1021,13 +1021,21 @@ async def recommended_jobs(
 
     # Load the default resume
     profile = await db.get(Applicant_Profile, applicant_id)
-    if profile is None or profile.default_resume_id is None:
+    if profile is None or (profile.default_resume_id is None and profile.default_built_resume_id is None):
         raise HTTPException(404, "No default resume set")
 
-    resume_row = (await db.execute(
-        select(Resume).where(Resume.id == profile.default_resume_id)
-        .options(undefer(Resume.embedding))
-    )).scalar_one_or_none()
+    if profile.default_resume_id is not None:
+        which = select(Resume).where(Resume.id == profile.default_resume_id)
+    else:
+        # A base resume is the default (KAN-207). Until this reads the bank
+        # (KAN-212), it scores against the newest parsed upload, as Scout does.
+        which = (
+            select(Resume)
+            .where(Resume.applicant_id == applicant_id, Resume.parsed_json.is_not(None))
+            .order_by(Resume.created_at.desc())
+            .limit(1)
+        )
+    resume_row = (await db.execute(which.options(undefer(Resume.embedding)))).scalar_one_or_none()
     if resume_row is None or resume_row.parsed_json is None:
         raise HTTPException(404, "Resume not found or not parsed")
 
