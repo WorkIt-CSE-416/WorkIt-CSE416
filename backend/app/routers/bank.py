@@ -34,6 +34,14 @@ POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        entry carries its id in `duplicate_of`; a skill already in the bank has
        `in_bank: true`. A resume the parser cannot read gives empty lists; no
        uploaded resume (or another student's) answers 404.
+       Model parsing (KAN-222): `read_with_ai: true` ("Read it again with
+       AI") reads the resume with the model instead; the model is also the
+       fallback when the parser finds no entries. Each model reading counts
+       one parsing use (cap 1, 10% of the pool) only when it succeeds; the
+       response says `read_by` ("parser" or "model") and `uses_left`. An
+       asked-for reading answers 429 at the limit and 503 when the model is
+       down or answers in the wrong shape; the fallback then keeps the
+       parser's reading.
 
 A SkillResponse carries `entry_ids`: its linked entries, in bank order.
 """
@@ -50,12 +58,14 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from workit_scout.llm import LLM, OUT_OF_QUOTA, InvalidReply, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.dto import ParsedResume
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
+from app.routers.scout import get_llm, load_identity
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import (
     BankResponse,
@@ -74,7 +84,15 @@ from app.schemas.bank import (
     SkillUpdate,
 )
 from app.services import bank as service
-from app.services.bank_import import draft_entries, draft_skills
+from app.services.bank_import import (
+    draft_entries,
+    draft_skills,
+    model_drafts,
+    model_skills,
+    parsed_skills,
+    read_with_model,
+)
+from app.services.usage import Feature, count_use, uses_left
 from app.utils.resume_parser import parse_resume
 
 router = APIRouter(prefix="/applicants/{applicant_id}/bank", tags=["bank"])
@@ -280,17 +298,52 @@ def _parse(raw_text: str | None) -> ParsedResume:
     return ParsedResume()
 
 
+AI_BUSY = "WorkIt has hit today's AI limit. Use these drafts, or try again tomorrow."
+AI_OFFLINE = "WorkIt can't read it with AI right now. Try again in a minute."
+AI_LOST = "WorkIt couldn't make sense of that reading. Try again."
+AI_SPENT = "You've used today's AI reading. It resets at midnight UTC."
+
+
+def _ai_message(exc: ScoutUnavailable) -> str:
+    if isinstance(exc, InvalidReply):
+        return AI_LOST
+    return AI_BUSY if str(exc) == OUT_OF_QUOTA else AI_OFFLINE
+
+
 @router.post("/import", response_model=ImportResponse)
 async def import_resume(
     body: ImportRequest,
     applicant_id: uuid.UUID = Depends(owned_applicant),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    llm: LLM = Depends(get_llm),
     session: AsyncSession = Depends(get_session),
 ) -> ImportResponse:
     resume = await _resume_to_import(session, applicant_id, body.resume_id)
+    left = await uses_left(session, applicant_id, Feature.PARSING)
     # The stored text, read again, so a resume uploaded before the parser
     # learned a section still imports it.
     parsed = _parse(resume.raw_text)
-    entries = draft_entries(parsed)
+    entries, skills, read_by = draft_entries(parsed), parsed_skills(parsed), "parser"
+
+    # The model reads it when asked, and as the fallback when the parser
+    # found no entries. Only the asked-for reading reports a failure; the
+    # fallback quietly keeps the parser's (empty) reading.
+    if resume.raw_text and (body.read_with_ai or not entries):
+        if left <= 0:
+            if body.read_with_ai:
+                raise HTTPException(429, AI_SPENT)
+        else:
+            identity = await load_identity(session, account)
+            try:
+                reading = await read_with_model(resume.raw_text, llm, identity=identity)
+            except ScoutUnavailable as exc:
+                if body.read_with_ai:
+                    raise HTTPException(503, _ai_message(exc)) from exc
+            else:
+                await count_use(session, applicant_id, Feature.PARSING)
+                left -= 1
+                entries, skills, read_by = model_drafts(reading), model_skills(reading), "model"
+
     for draft in entries:
         match = await service.find_duplicate(session, applicant_id, draft.section, draft.title, draft.organization)
         draft.duplicate_of = match.row.id if match else None
@@ -299,7 +352,9 @@ async def import_resume(
         resume_id=resume.id,
         filename=resume.original_filename,
         entries=entries,
-        skills=draft_skills(parsed, bank_names),
+        skills=draft_skills(skills, bank_names),
+        read_by=read_by,
+        uses_left=left,
     )
 
 

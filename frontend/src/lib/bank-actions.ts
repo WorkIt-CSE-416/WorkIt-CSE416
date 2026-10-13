@@ -164,15 +164,27 @@ export type ImportResult = {
   filename: string | null;
   entries: DraftEntry[];
   skills: DraftSkill[];
+  /** Who read the resume: the heuristic parser, or the model (KAN-222). */
+  read_by: "parser" | "model";
+  /** AI readings the student has left today. */
+  uses_left: number;
 };
 
 /** Reads an uploaded resume (the default one, else the newest) into draft
  *  entries and skills. Saves nothing: each draft goes through `createEntry`
- *  and `addSkill`. With no uploaded resume, `error` says so. */
-export async function importResume(resumeId?: string): Promise<Result<ImportResult>> {
+ *  and `addSkill`. With no uploaded resume, `error` says so. `readWithAi`
+ *  reads it with the model ("Read it again with AI"), which also reads it
+ *  when the parser finds no entries; `error` says when the AI limit is spent
+ *  or the model is down. */
+export async function importResume(
+  options: { resumeId?: string; readWithAi?: boolean } = {},
+): Promise<Result<ImportResult>> {
   return call<ImportResult>("/import", {
     method: "POST",
-    body: JSON.stringify(resumeId ? { resume_id: resumeId } : {}),
+    body: JSON.stringify({
+      ...(options.resumeId ? { resume_id: options.resumeId } : {}),
+      ...(options.readWithAi ? { read_with_ai: true } : {}),
+    }),
   });
 }
 
