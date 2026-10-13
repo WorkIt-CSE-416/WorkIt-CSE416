@@ -18,7 +18,14 @@ export const SECTIONS = [
 ] as const;
 export type Section = (typeof SECTIONS)[number];
 
-export type Variant = { id: string; text: string; posting?: string; originalChanged?: boolean };
+export type Variant = {
+  id: string;
+  text: string;
+  posting?: string;
+  originalChanged?: boolean;
+  /** Wording typed straight into one built resume (variant E). */
+  local?: boolean;
+};
 export type Bullet = { id: string; text: string; variants: Variant[] };
 export type Entry = {
   id: string;
@@ -285,7 +292,13 @@ export type Action =
   | { type: "toggleCoursework" }
   | { type: "hideMany"; ids: string[] }
   | { type: "editBullet"; bullet: string; text: string }
-  | { type: "addVariant"; bullet: string; text: string; note?: string };
+  | { type: "addVariant"; bullet: string; text: string; note?: string }
+  | { type: "setWording"; bullet: string; text: string }
+  | {
+      type: "editEntry";
+      id: string;
+      patch: Partial<Pick<Entry, "title" | "org" | "location" | "dates">>;
+    };
 
 function move<T>(xs: T[], x: T, by: number) {
   const i = xs.indexOf(x);
@@ -416,6 +429,35 @@ function reduce(s: State, a: Action): State {
         built: { ...built, pick: { ...built.pick, [a.bullet]: id } },
       };
     }
+    case "setWording": {
+      // Typing on the page changes this resume's wording only: the bank's
+      // original stays, and the resume keeps one wording of its own per bullet.
+      const bl = s.bank.flatMap((e) => e.bullets).find((x) => x.id === a.bullet)!;
+      const picked = bl.variants.find((v) => v.id === built.pick[a.bullet]);
+      if (a.text === (picked ? picked.text : bl.text)) return s;
+      if (a.text === bl.text) return reduce(s, { type: "pick", bullet: a.bullet, variant: null });
+      if (picked?.local)
+        return {
+          ...s,
+          bank: mapVariants(s.bank, (v) => (v.id === picked.id ? { ...v, text: a.text } : v)),
+        };
+      const id = `${a.bullet}-local${Date.now()}`;
+      return {
+        ...s,
+        bank: s.bank.map((e) => ({
+          ...e,
+          bullets: e.bullets.map((x) =>
+            x.id === a.bullet
+              ? { ...x, variants: [...x.variants, { id, text: a.text, local: true }] }
+              : x,
+          ),
+        })),
+        built: { ...built, pick: { ...built.pick, [a.bullet]: id } },
+      };
+    }
+    case "editEntry":
+      // Title, organization, place and dates have one value, kept in the bank (KAN-185).
+      return { ...s, bank: s.bank.map((e) => (e.id === a.id ? { ...e, ...a.patch } : e)) };
     case "hideMany":
       return { ...s, built: { ...built, hidden: [...new Set([...built.hidden, ...a.ids])] } };
   }

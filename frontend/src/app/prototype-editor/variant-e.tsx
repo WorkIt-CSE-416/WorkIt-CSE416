@@ -1,20 +1,19 @@
 "use client";
 
-// PROTOTYPE (KAN-195), throwaway. E: B's page-as-editor, focused on the
-// resume's content. Click a line for a floating toolbar: Edit in place,
-// hide, move, pick the wording, and settle an "original changed" variant.
-// The assistant is a button in the corner that opens a small chat in the
-// intake screen's look (KAN-193, variant G), with the selected line attached
-// as context. The model is scripted: rewrites keep the same facts.
+// PROTOTYPE (KAN-195), throwaway. E: the page is the editor, and editing is
+// the default. Click a bullet and type; click an entry's heading and type in
+// its title, place or dates. A small toolbar under the line hides, moves and
+// switches wording. The assistant is a button; opened, it docks beside the
+// page and never covers it. Look follows the intake screen (KAN-193, G).
+// The model is scripted: a shorter version keeps the same facts.
 
-import { ArrowDown, ArrowUp, Check, EyeOff, Pencil, Send, Sparkles, Undo2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, EyeOff, Send, Sparkles, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
 import {
   bulletText,
-  changedVariants,
   fit,
   fitSuggestion,
   orderedBullets,
@@ -33,48 +32,25 @@ const PURPLE = "text-[#6d3fd8]";
 const FILL = "bg-linear-to-br from-[#7c4dff] to-[#6d3fd8] text-white";
 const CHIP =
   "text-label rounded-full bg-white px-3 py-1.5 text-[#6d3fd8] ring-1 ring-[#e4dcff] transition-colors hover:bg-[#f3efff]";
+// A field that looks like the page it sits on.
+const ON_PAGE =
+  "w-full min-w-0 resize-none bg-transparent p-0 outline-none [font:inherit] [line-height:inherit]";
 
-// Scripted rewrites: same facts, new wording (the truth rule).
-const REWRITE: Record<string, { shorter?: string; stronger?: string }> = {
-  acme1: {
-    shorter:
-      "Built a TypeScript and Postgres intake service that cut check-in time from 9 to 4 minutes",
-  },
-  acme2: {
-    shorter: "Wrote 120 Playwright integration tests, raising end-to-end coverage from 40% to 75%",
-  },
-  acme3: {
-    shorter: "Moved a nightly batch job to an event queue, removing a 2-hour reporting delay",
-    stronger:
-      "Moved a nightly batch job to an event queue with two senior engineers, removing a 2-hour reporting delay",
-  },
-  lab1: {
-    shorter: "Improved mean IoU by 6 points training PyTorch segmentation models on 40,000 images",
-  },
-  lab2: {
-    shorter: "Built a Python pipeline that flags mislabeled images, saving the lab 5 hours a week",
-  },
-  lab3: {
-    stronger: "Presented research results to 80 attendees at the department's spring showcase",
-  },
-  workit1: { shorter: "Building a Next.js, FastAPI and Postgres job platform in a team of six" },
-  workit2: {
-    stronger: "Designed the experience bank schema and the LaTeX resume renderer built on it",
-  },
-  eats1: {
-    shorter: "Built a React Native app showing crowd-sourced dining-hall wait times in 24 hours",
-  },
-  wics1: { shorter: "Managed a $6,000 budget and raised $2,500 in hackathon sponsorship" },
-  doit1: {
-    stronger: "Resolved about 25 account, Wi-Fi and printing tickets a week for students and staff",
-  },
+// Scripted: same facts, fewer words (the truth rule).
+const SHORTER: Record<string, string> = {
+  acme1:
+    "Built a TypeScript and Postgres intake service that cut check-in time from 9 to 4 minutes",
+  acme2: "Wrote 120 Playwright integration tests, raising end-to-end coverage from 40% to 75%",
+  acme3: "Moved a nightly batch job to an event queue, removing a 2-hour reporting delay",
+  lab1: "Improved mean IoU by 6 points training PyTorch segmentation models on 40,000 images",
+  lab2: "Built a Python pipeline that flags mislabeled images, saving the lab 5 hours a week",
+  workit1: "Building a Next.js, FastAPI and Postgres job platform in a team of six",
+  eats1: "Built a React Native app showing crowd-sourced dining-hall wait times in 24 hours",
+  wics1: "Managed a $6,000 budget and raised $2,500 in hackathon sponsorship",
 };
 
 type Sel = { kind: "entry"; entry: Entry } | { kind: "bullet"; entry: Entry; bullet: Bullet };
-type Card =
-  | { kind: "suggest"; bullet: string; before: string; after: string }
-  | { kind: "review"; bullet: string; variant: string }
-  | { kind: "fit"; count: number };
+type Card = { kind: "suggest"; bullet: string; before: string; after: string } | { kind: "fit" };
 type Msg = { from: "workit" | "student"; text: string; card?: Card };
 
 function Mark() {
@@ -89,49 +65,28 @@ export function VariantE({ editor }: { editor: Editor }) {
   const { state, dispatch, canUndo } = editor;
   const { rendering } = useRendered(state);
   const [sel, setSel] = useState<Sel | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [done, setDone] = useState<Set<number>>(new Set()); // cards acted on
   const [typing, setTyping] = useState(false);
-  const [open, setOpen] = useState(false);
   const composer = useRef<HTMLTextAreaElement>(null);
-  const changed = changedVariants(state);
-  const [msgs, setMsgs] = useState<Msg[]>(() => [
+  const [msgs, setMsgs] = useState<Msg[]>([
     {
       from: "workit",
-      text: "Need a hand? I can fit your resume to one page, check changed bullets, or tighten a line you pick.",
+      text: "Need a hand? I can fit your resume to one page, or tighten a line you pick.",
     },
-    ...(changed.length
-      ? [
-          {
-            from: "workit" as const,
-            text: `Heads up: you edited ${changed.length} bullets after a variant was written from them. Want to check them?`,
-          },
-        ]
-      : []),
   ]);
 
   const f = fit(state);
   const label = fitLabel(f.lines);
   const selId = sel ? (sel.kind === "entry" ? sel.entry.id : sel.bullet.id) : null;
 
-  function say(reply: Msg | Msg[], effect?: () => void) {
+  function say(reply: Msg, effect?: () => void) {
     setTyping(true);
     setTimeout(() => {
       effect?.();
       setTyping(false);
-      setMsgs((m) => [...m, ...(Array.isArray(reply) ? reply : [reply])]);
+      setMsgs((m) => [...m, reply]);
     }, 650);
-  }
-
-  function reviewNext(skip?: string) {
-    const next = changedVariants(state).find((c) => c.variant.id !== skip);
-    if (!next)
-      return say({ from: "workit", text: "All checked. Every variant matches its bullet again ✓" });
-    say({
-      from: "workit",
-      text: "Your original changed after this variant was written:",
-      card: { kind: "review", bullet: next.bullet.id, variant: next.variant.id },
-    });
   }
 
   function send(text: string) {
@@ -147,16 +102,15 @@ export function VariantE({ editor }: { editor: Editor }) {
         {
           from: "workit",
           text: `I hid ${ids.length} bullets from your oldest entries. It fits on one page now.`,
-          card: { kind: "fit", count: ids.length },
+          card: { kind: "fit" },
         },
         () => dispatch({ type: "hideMany", ids }),
       );
     }
-    if (t.includes("review") || t.includes("check")) return reviewNext();
     if (!bl)
       return say({
         from: "workit",
-        text: "Click a line on the page first, then tell me what to change. I can shorten it, reword it, hide it or move it.",
+        text: "Click a line on the page first, then tell me what to change.",
       });
     if (t.includes("hide") || t.includes("remove"))
       return say(
@@ -172,36 +126,18 @@ export function VariantE({ editor }: { editor: Editor }) {
         dispatch({ type: "moveBullet", entry: sel!.entry.id, id: bl.id, by }),
       );
     }
-    const kind =
-      t.includes("short") || t.includes("concise")
-        ? "shorter"
-        : t.includes("strong") || t.includes("verb") || t.includes("reword")
-          ? "stronger"
-          : null;
-    if (kind) {
-      const after = REWRITE[bl.id]?.[kind];
-      if (!after)
-        return say({
-          from: "workit",
-          text:
-            kind === "shorter"
-              ? "That one is already tight. I'd leave it."
-              : "That one already opens with a strong verb.",
-        });
+    if (t.includes("short") || t.includes("concise")) {
+      const after = SHORTER[bl.id];
+      if (!after) return say({ from: "workit", text: "That one is already tight. I'd leave it." });
       return say({
         from: "workit",
-        text: "Here's a version with the same facts:",
+        text: "Here's a shorter version with the same facts:",
         card: { kind: "suggest", bullet: bl.id, before: bulletText(state, bl), after },
       });
     }
-    if (/\d/.test(t) || t.includes("add"))
-      return say({
-        from: "workit",
-        text: "I only use facts already in your bank. Tell me the number or tool and I'll put it in the bullet, then you approve it.",
-      });
     say({
       from: "workit",
-      text: "I can make it shorter, give it a stronger verb, hide it or move it. Or ask me to fit the resume to one page.",
+      text: "I can make a line shorter, hide it or move it, or fit the resume to one page. To change words yourself, just type on the page.",
     });
   }
 
@@ -209,57 +145,42 @@ export function VariantE({ editor }: { editor: Editor }) {
     if (block.kind !== "entry" && block.kind !== "bullet") return node;
     const id = block.kind === "entry" ? block.entry.id : block.bullet.id;
     const on = selId === id;
-    const flag =
-      block.kind === "bullet" &&
-      block.bullet.variants.some(
-        (v) => v.originalChanged && state.built.pick[block.bullet.id] === v.id,
-      );
-    if (block.kind === "bullet" && editing === id)
-      return <InlineEdit editor={editor} bullet={block.bullet} onClose={() => setEditing(null)} />;
+    const pick = (): Sel =>
+      block.kind === "entry"
+        ? { kind: "entry", entry: block.entry }
+        : { kind: "bullet", entry: block.entry, bullet: block.bullet };
     return (
       <div
         className={cn(
-          "relative cursor-pointer rounded-[0.4cqw] transition-colors hover:bg-[#f3efff]",
-          on && "bg-[#efe9ff] outline outline-[0.25cqw] outline-[#9b7bff]",
+          "relative cursor-text rounded-[0.4cqw] transition-colors hover:bg-[#f3efff]",
+          on && "bg-[#f6f2ff] outline outline-[0.25cqw] outline-[#9b7bff] hover:bg-[#f6f2ff]",
         )}
         onClick={(ev) => {
           ev.stopPropagation();
-          setSel(
-            on
-              ? null
-              : block.kind === "entry"
-                ? { kind: "entry", entry: block.entry }
-                : { kind: "bullet", entry: block.entry, bullet: block.bullet },
-          );
+          if (!on) setSel(pick());
         }}
       >
-        {flag && (
-          <span
-            className="absolute top-[0.6cqw] -left-[3cqw] size-[1.4cqw] rounded-full bg-amber-500"
-            title="Original changed"
+        {!on ? (
+          node
+        ) : block.kind === "bullet" ? (
+          // Keyed on the wording too, so picking a version refills the field.
+          <BulletField
+            key={`${id}:${bulletText(state, block.bullet)}`}
+            editor={editor}
+            bullet={block.bullet}
           />
+        ) : (
+          <EntryFields key={id} editor={editor} entry={block.entry} />
         )}
-        {node}
         {on && (
           <Toolbar
             editor={editor}
-            sel={
-              block.kind === "entry"
-                ? { kind: "entry", entry: block.entry }
-                : { kind: "bullet", entry: block.entry, bullet: block.bullet }
-            }
-            onEdit={() => setEditing(id)}
+            sel={pick()}
+            onHidden={() => setSel(null)}
             onAsk={() => {
               setOpen(true);
               setTimeout(() => composer.current?.focus(), 50);
             }}
-            onHidden={() => setSel(null)}
-            onEntryEdit={() =>
-              say({
-                from: "workit",
-                text: `${block.entry.title}'s title, place and dates live in your experience bank. This would open the entry editor there.`,
-              })
-            }
           />
         )}
       </div>
@@ -276,14 +197,19 @@ export function VariantE({ editor }: { editor: Editor }) {
 
   const quick =
     sel?.kind === "bullet"
-      ? ["Hide it", "Move it up", "Make it shorter"]
-      : [
-          ...(changed.length ? ["Review changed bullets"] : []),
-          ...(f.over > 0 ? ["Fit to one page"] : []),
-        ];
+      ? ["Make it shorter", "Hide it", "Move it up"]
+      : f.over > 0
+        ? ["Fit to one page"]
+        : [];
 
   return (
-    <div className="mx-auto max-w-3xl" onClick={() => setSel(null)}>
+    <div
+      className={cn(
+        "grid items-start gap-5",
+        open ? "@4xl/main:grid-cols-[minmax(0,1fr)_22rem]" : "mx-auto max-w-3xl",
+      )}
+      onClick={() => setSel(null)}
+    >
       <div className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -305,6 +231,7 @@ export function VariantE({ editor }: { editor: Editor }) {
               Fit to One Page
             </button>
           )}
+          <span className="text-meta text-ink-meta">Click any line to edit it.</span>
           <div className="ml-auto flex gap-2">
             <button
               disabled={!canUndo}
@@ -313,6 +240,17 @@ export function VariantE({ editor }: { editor: Editor }) {
             >
               <Undo2 className="size-3.5" /> Undo
             </button>
+            {!open && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(true);
+                }}
+                className={cn(CHIP, "flex items-center gap-1.5")}
+              >
+                <Sparkles className="size-3.5" /> Ask WorkIt
+              </button>
+            )}
             <button
               className={cn(
                 "text-label rounded-full px-4 py-1.5 shadow-[0_4px_12px_-4px_rgb(109_63_216/0.6)]",
@@ -353,93 +291,176 @@ export function VariantE({ editor }: { editor: Editor }) {
         )}
       </div>
 
-      {!open && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen(true);
-          }}
-          className={cn(
-            "text-label fixed right-5 bottom-16 z-30 flex items-center gap-2 rounded-full py-2.5 pr-4 pl-3 shadow-[0_8px_24px_-6px_rgb(109_63_216/0.6)] transition-transform hover:scale-105",
-            FILL,
-          )}
+      {open && (
+        <aside
+          className="animate-rise flex h-[min(40rem,calc(100dvh-8rem))] min-h-[24rem] flex-col overflow-hidden rounded-3xl bg-linear-to-b from-[#f7f4ff] to-[#fbfaff] ring-1 ring-[#ece6ff] @4xl/main:sticky @4xl/main:top-4"
+          onClick={(e) => e.stopPropagation()}
         >
-          <Sparkles className="size-4" /> Ask WorkIt
-          {changed.length > 0 && (
-            <span className="text-note flex size-5 items-center justify-center rounded-full bg-amber-400 font-semibold text-[#3b2a00]">
-              {changed.length}
-            </span>
-          )}
-        </button>
-      )}
-
-      <aside
-        className={cn(
-          "animate-rise fixed right-5 bottom-16 z-30 flex h-[min(34rem,calc(100dvh-8rem))] w-[min(23rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-3xl bg-linear-to-b from-[#f7f4ff] to-[#fbfaff] shadow-[0_20px_50px_-12px_rgb(80_50_160/0.45)] ring-1 ring-[#ece6ff]",
-          !open && "hidden",
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 border-b border-[#ece6ff] px-4 py-3">
-          <Mark />
-          <span className="text-label text-ink font-semibold">WorkIt Assistant</span>
-          <button
-            aria-label="Minimize"
-            onClick={() => setOpen(false)}
-            className="ml-auto rounded-full p-1.5 text-[#8a80a8] hover:bg-[#f3efff] hover:text-[#6d3fd8]"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-5 pb-3">
-          {msgs.map((m, i) => (
-            <Bubble
-              key={i}
-              m={m}
-              follows={msgs[i - 1]?.from === m.from}
-              used={done.has(i)}
-              editor={editor}
-              onAct={(reply) => {
-                setDone((d) => new Set(d).add(i));
-                if (m.card?.kind === "review") reviewNext(m.card.variant);
-                else if (reply) say({ from: "workit", text: reply });
-              }}
-            />
-          ))}
-          {typing && (
-            <div className="flex items-end gap-2">
-              <Mark />
-              <span className="flex h-9 items-center gap-1 rounded-2xl rounded-bl-md bg-white px-4 shadow-[0_1px_3px_rgb(80_50_160/0.08)]">
-                {[0, 1, 2].map((d) => (
-                  <span
-                    key={d}
-                    className="animate-typing size-1.5 rounded-full bg-[#b9a6f0]"
-                    style={{ animationDelay: `${d * 160}ms` }}
-                  />
+          <div className="flex items-center gap-2 border-b border-[#ece6ff] px-4 py-3">
+            <Mark />
+            <span className="text-label text-ink font-semibold">WorkIt Assistant</span>
+            <button
+              aria-label="Close"
+              onClick={() => setOpen(false)}
+              className="ml-auto rounded-full p-1.5 text-[#8a80a8] hover:bg-[#f3efff] hover:text-[#6d3fd8]"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-4 pb-3">
+            {msgs.map((m, i) => (
+              <Bubble
+                key={i}
+                m={m}
+                follows={msgs[i - 1]?.from === m.from}
+                used={done.has(i)}
+                editor={editor}
+                onAct={(reply) => {
+                  setDone((d) => new Set(d).add(i));
+                  if (reply) say({ from: "workit", text: reply });
+                }}
+              />
+            ))}
+            {typing && (
+              <div className="flex items-end gap-2">
+                <Mark />
+                <span className="flex h-9 items-center gap-1 rounded-2xl rounded-bl-md bg-white px-4 shadow-[0_1px_3px_rgb(80_50_160/0.08)]">
+                  {[0, 1, 2].map((d) => (
+                    <span
+                      key={d}
+                      className="animate-typing size-1.5 rounded-full bg-[#b9a6f0]"
+                      style={{ animationDelay: `${d * 160}ms` }}
+                    />
+                  ))}
+                </span>
+              </div>
+            )}
+            {!typing && quick.length > 0 && (
+              <div className="flex flex-wrap gap-2 pl-9">
+                {quick.map((q) => (
+                  <button key={q} onClick={() => send(q)} className={CHIP}>
+                    {q}
+                  </button>
                 ))}
-              </span>
-            </div>
-          )}
-          {!typing && quick.length > 0 && (
-            <div className="flex flex-wrap gap-2 pl-9">
-              {quick.map((q) => (
-                <button key={q} onClick={() => send(q)} className={CHIP}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          )}
-          <ScrollEnd dep={msgs.length + (typing ? 1 : 0)} />
-        </div>
-        <Composer
-          inputRef={composer}
-          sel={sel}
-          onClear={() => setSel(null)}
-          onSend={send}
-          disabled={typing}
-        />
-      </aside>
+              </div>
+            )}
+            <ScrollEnd dep={msgs.length + (typing ? 1 : 0)} />
+          </div>
+          <Composer
+            inputRef={composer}
+            sel={sel}
+            text={(s) => (s.kind === "bullet" ? bulletText(state, s.bullet) : s.entry.title)}
+            onClear={() => setSel(null)}
+            onSend={send}
+            disabled={typing}
+          />
+        </aside>
+      )}
     </div>
+  );
+}
+
+/** A bullet you type into, in the page's own type. Saves when you leave it. */
+function BulletField({ editor, bullet }: { editor: Editor; bullet: Bullet }) {
+  const { state, dispatch } = editor;
+  const [text, setText] = useState(bulletText(state, bullet));
+  const save = () =>
+    text.trim() && dispatch({ type: "setWording", bullet: bullet.id, text: text.trim() });
+  return (
+    <div className="flex" style={{ paddingLeft: "3.5cqw", fontSize: "1.55cqw" }}>
+      <span style={{ width: "2cqw", flex: "none" }}>•</span>
+      <textarea
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+        onFocus={(e) => e.currentTarget.setSelectionRange(text.length, text.length)}
+        className={cn(ON_PAGE, "field-sizing-content")}
+      />
+    </div>
+  );
+}
+
+/** An entry's heading as fields laid out like the page. Saves to the bank. */
+function EntryFields({ editor, entry }: { editor: Editor; entry: Entry }) {
+  const { dispatch } = editor;
+  const edu = entry.section === "Education";
+  const one = entry.section === "Awards" || entry.section === "Certifications";
+  const field = (
+    key: "title" | "org" | "location" | "dates",
+    placeholder: string,
+    cls?: string,
+    auto?: boolean,
+  ) => (
+    <Field
+      key={key}
+      autoFocus={auto}
+      initial={entry[key] ?? ""}
+      placeholder={placeholder}
+      className={cls}
+      onSave={(v) => dispatch({ type: "editEntry", id: entry.id, patch: { [key]: v } })}
+    />
+  );
+  if (one)
+    return (
+      <div className="flex justify-between gap-[2cqw]" style={{ paddingLeft: "1.5cqw" }}>
+        <span className="flex flex-1 gap-[0.5cqw]">
+          {field("title", "Title", "font-bold", true)}
+          {field("org", "Organization")}
+        </span>
+        {field("dates", "Date", "text-right max-w-[22cqw]")}
+      </div>
+    );
+  return (
+    <div style={{ paddingLeft: "1.5cqw" }}>
+      <div className="flex justify-between gap-[2cqw]">
+        {edu
+          ? field("org", "School", "font-bold", true)
+          : field("title", "Title", "font-bold", true)}
+        {field("dates", "Dates", "text-right max-w-[26cqw]")}
+      </div>
+      <div className="flex justify-between gap-[2cqw] italic" style={{ fontSize: "1.55cqw" }}>
+        {edu ? field("title", "Degree") : field("org", "Organization")}
+        {field("location", "Location", "text-right max-w-[26cqw]")}
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  initial,
+  placeholder,
+  className,
+  autoFocus,
+  onSave,
+}: {
+  initial: string;
+  placeholder: string;
+  className?: string;
+  autoFocus?: boolean;
+  onSave: (v: string) => void;
+}) {
+  const [v, setV] = useState(initial);
+  return (
+    <input
+      autoFocus={autoFocus}
+      value={v}
+      placeholder={placeholder}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => v !== initial && onSave(v)}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      className={cn(
+        ON_PAGE,
+        "rounded-[0.3cqw] placeholder:text-[#b4b0c4] focus:bg-white focus:shadow-[0_0_0_0.3cqw_#e4dcff]",
+        className,
+      )}
+    />
   );
 }
 
@@ -464,7 +485,7 @@ function Bubble({
   editor: Editor;
   onAct: (reply?: string) => void;
 }) {
-  const { state, dispatch } = editor;
+  const { dispatch } = editor;
   if (m.from === "student")
     return (
       <p
@@ -486,15 +507,12 @@ function Bubble({
           <>
             <span className="text-meta text-[#8a80a8] line-through">{c.before}</span>
             <span className="text-meta rounded-lg bg-[#f3efff] p-2">{c.after}</span>
-            <span className="text-note text-[#8a80a8]">
-              Same facts, new wording. Saved as a variant, so the original stays in your bank.
-            </span>
             {!used && (
               <div className="flex gap-2">
                 <button
                   className={cn("text-label rounded-full px-3 py-1", FILL)}
                   onClick={() => {
-                    dispatch({ type: "addVariant", bullet: c.bullet, text: c.after });
+                    dispatch({ type: "setWording", bullet: c.bullet, text: c.after });
                     onAct("Done! It's on the page now.");
                   }}
                 >
@@ -507,51 +525,6 @@ function Bubble({
             )}
           </>
         )}
-        {c?.kind === "review" &&
-          (() => {
-            const bl = state.bank.flatMap((e) => e.bullets).find((b) => b.id === c.bullet);
-            const v = bl?.variants.find((x) => x.id === c.variant);
-            return (
-              <>
-                <span className="text-meta">
-                  <span className="text-note block font-semibold text-[#8a80a8]">Original Now</span>
-                  {bl?.text}
-                </span>
-                <span className="text-meta rounded-lg bg-[#f3efff] p-2">
-                  <span className="text-note block font-semibold text-[#8a80a8]">
-                    Variant on This Resume
-                  </span>
-                  {v?.text ?? "(deleted)"}
-                </span>
-                {!used && v && (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className={CHIP}
-                      onClick={() => (dispatch({ type: "keepVariant", variant: v.id }), onAct())}
-                    >
-                      Keep Variant
-                    </button>
-                    <button
-                      className={CHIP}
-                      onClick={() => (
-                        dispatch({ type: "pick", bullet: c.bullet, variant: null }),
-                        dispatch({ type: "keepVariant", variant: v.id }),
-                        onAct()
-                      )}
-                    >
-                      Use Original
-                    </button>
-                    <button
-                      className={CHIP}
-                      onClick={() => (dispatch({ type: "deleteVariant", variant: v.id }), onAct())}
-                    >
-                      Delete Variant
-                    </button>
-                  </div>
-                )}
-              </>
-            );
-          })()}
         {c?.kind === "fit" && !used && (
           <button
             className={cn(CHIP, "self-start")}
@@ -568,12 +541,14 @@ function Bubble({
 function Composer({
   inputRef,
   sel,
+  text: selText,
   onClear,
   onSend,
   disabled,
 }: {
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   sel: Sel | null;
+  text: (s: Sel) => string;
   onClear: () => void;
   onSend: (t: string) => void;
   disabled: boolean;
@@ -590,9 +565,7 @@ function Composer({
     >
       {sel && (
         <span className="text-note flex items-center gap-1.5 self-start rounded-lg bg-[#f3efff] py-1 pr-1 pl-2 text-[#6d3fd8]">
-          <span className="max-w-[15rem] truncate">
-            {sel.kind === "bullet" ? sel.bullet.text : sel.entry.title}
-          </span>
+          <span className="max-w-[15rem] truncate">{selText(sel)}</span>
           <button
             type="button"
             aria-label="Clear selection"
@@ -634,47 +607,40 @@ function Composer({
   );
 }
 
-/** The floating toolbar over a selected line, in the intake screen's look. */
+/** The small toolbar under a selected line: hide, move, wording, assistant. */
 function Toolbar({
   editor,
   sel,
-  onEdit,
-  onAsk,
   onHidden,
-  onEntryEdit,
+  onAsk,
 }: {
   editor: Editor;
   sel: Sel;
-  onEdit: () => void;
-  onAsk: () => void;
   onHidden: () => void;
-  onEntryEdit: () => void;
+  onAsk: () => void;
 }) {
   const { state, dispatch } = editor;
   const btn =
     "text-note flex items-center gap-1 rounded-full px-2.5 py-1 text-[#4a3a7a] hover:bg-[#f3efff] disabled:opacity-30";
-  const go = (f: () => void) => (e: React.MouseEvent) => (e.stopPropagation(), f());
+  const go = (f: () => void) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    f();
+  };
   const entry = sel.entry;
-  const flagged =
-    sel.kind === "bullet"
-      ? sel.bullet.variants.find(
-          (v) => v.originalChanged && state.built.pick[sel.bullet.id] === v.id,
-        )
-      : undefined;
+  const list = state.built.order[entry.section];
+  // Tailor's versions only; wording typed on the page is not a choice here.
+  const versions = sel.kind === "bullet" ? sel.bullet.variants.filter((v) => !v.local) : [];
+  const current = sel.kind === "bullet" ? state.built.pick[sel.bullet.id] : undefined;
 
   return (
     <div
-      className={cn(
-        "absolute top-full left-0 z-10 mt-1.5 flex max-w-[34rem] flex-wrap items-center gap-0.5 bg-white p-1 font-sans shadow-[0_8px_30px_-8px_rgb(80_50_160/0.35)] ring-1 ring-[#e4dcff]",
-        flagged ? "rounded-2xl" : "rounded-full",
-      )}
+      className="absolute top-full left-0 z-10 mt-1.5 flex flex-wrap items-center gap-0.5 rounded-full bg-white p-1 font-sans shadow-[0_8px_30px_-8px_rgb(80_50_160/0.35)] ring-1 ring-[#e4dcff]"
+      // Keeps focus in the field, so a click here does not save and re-render first.
+      onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => e.stopPropagation()}
     >
       {sel.kind === "bullet" ? (
         <>
-          <button className={cn(btn, "font-semibold text-[#6d3fd8]")} onClick={go(onEdit)}>
-            <Pencil className="size-3.5" /> Edit
-          </button>
           <button
             className={btn}
             onClick={go(() => (dispatch({ type: "toggleBullet", id: sel.bullet.id }), onHidden()))}
@@ -699,11 +665,11 @@ function Toolbar({
           >
             <ArrowDown className="size-3.5" />
           </button>
-          {sel.bullet.variants.length > 0 && (
+          {versions.length > 0 && (
             <>
               <span className="mx-1 h-4 w-px bg-[#e4dcff]" />
-              {[null, ...sel.bullet.variants].map((v, i) => {
-                const on = (state.built.pick[sel.bullet.id] ?? null) === (v?.id ?? null);
+              {[null, ...versions].map((v, i) => {
+                const on = (current ?? null) === (v?.id ?? null);
                 return (
                   <button
                     key={v?.id ?? "orig"}
@@ -719,55 +685,9 @@ function Toolbar({
               })}
             </>
           )}
-          <span className="mx-1 h-4 w-px bg-[#e4dcff]" />
-          <button
-            className={cn(btn, "text-[#6d3fd8]")}
-            title="Ask WorkIt"
-            aria-label="Ask WorkIt"
-            onClick={go(onAsk)}
-          >
-            <Sparkles className="size-3.5" />
-          </button>
-          {flagged && (
-            <div className="text-note mt-1 flex w-full flex-col gap-1.5 rounded-xl bg-amber-50 p-2.5 text-[#5c4a1a]">
-              <span className="font-semibold">
-                You changed the original after this version was written.
-              </span>
-              <span>
-                <span className="text-[#8a7a50]">Original now: </span>
-                {sel.bullet.text}
-              </span>
-              <div className="flex flex-wrap gap-1">
-                <button
-                  className={btn}
-                  onClick={go(() => dispatch({ type: "keepVariant", variant: flagged.id }))}
-                >
-                  Keep This Version
-                </button>
-                <button
-                  className={btn}
-                  onClick={go(() => {
-                    dispatch({ type: "pick", bullet: sel.bullet.id, variant: null });
-                    dispatch({ type: "keepVariant", variant: flagged.id });
-                  })}
-                >
-                  Use Original
-                </button>
-                <button
-                  className={btn}
-                  onClick={go(() => dispatch({ type: "deleteVariant", variant: flagged.id }))}
-                >
-                  Delete Version
-                </button>
-              </div>
-            </div>
-          )}
         </>
       ) : (
         <>
-          <button className={btn} onClick={go(onEntryEdit)}>
-            <Pencil className="size-3.5" /> Edit Entry
-          </button>
           <button
             className={btn}
             onClick={go(() => (dispatch({ type: "toggleEntry", id: entry.id }), onHidden()))}
@@ -777,7 +697,7 @@ function Toolbar({
           <button
             className={btn}
             aria-label="Move up"
-            disabled={state.built.order[entry.section][0] === entry.id}
+            disabled={list[0] === entry.id}
             onClick={go(() => dispatch({ type: "moveEntry", id: entry.id, by: -1 }))}
           >
             <ArrowUp className="size-3.5" />
@@ -785,7 +705,7 @@ function Toolbar({
           <button
             className={btn}
             aria-label="Move down"
-            disabled={state.built.order[entry.section].at(-1) === entry.id}
+            disabled={list.at(-1) === entry.id}
             onClick={go(() => dispatch({ type: "moveEntry", id: entry.id, by: 1 }))}
           >
             <ArrowDown className="size-3.5" />
@@ -802,56 +722,15 @@ function Toolbar({
           )}
         </>
       )}
-    </div>
-  );
-}
-
-/** Edit a bullet in place. The student picks where the new words go. */
-function InlineEdit({
-  editor,
-  bullet,
-  onClose,
-}: {
-  editor: Editor;
-  bullet: Bullet;
-  onClose: () => void;
-}) {
-  const { state, dispatch } = editor;
-  const [text, setText] = useState(bulletText(state, bullet));
-  const usedBy = 2; // fixture: how many built resumes show this bullet
-  return (
-    <div
-      className="relative z-10 my-[0.5cqw] flex flex-col gap-2 rounded-2xl bg-white p-3 font-sans shadow-[0_8px_30px_-8px_rgb(80_50_160/0.35)] ring-2 ring-[#b9a6f0]"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <textarea
-        autoFocus
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        className="text-body text-ink field-sizing-content w-full resize-none rounded-xl bg-[#f8f6ff] px-3 py-2 outline-none focus:bg-white"
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          className={cn("text-label rounded-full px-3 py-1", FILL)}
-          onClick={() => (dispatch({ type: "addVariant", bullet: bullet.id, text }), onClose())}
-        >
-          Use on This Resume Only
-        </button>
-        <button
-          className={CHIP}
-          onClick={() => (dispatch({ type: "editBullet", bullet: bullet.id, text }), onClose())}
-        >
-          Update Everywhere
-        </button>
-        <button className="text-label px-2 text-[#8a80a8] hover:text-[#6d3fd8]" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-      <span className="text-note text-[#8a80a8]">
-        &ldquo;This resume only&rdquo; saves a new version beside the original.
-        &ldquo;Everywhere&rdquo; changes your experience bank and the {usedBy} resumes that show
-        this bullet.
-      </span>
+      <span className="mx-1 h-4 w-px bg-[#e4dcff]" />
+      <button
+        className={cn(btn, "text-[#6d3fd8]")}
+        title="Ask WorkIt"
+        aria-label="Ask WorkIt"
+        onClick={go(onAsk)}
+      >
+        <Sparkles className="size-3.5" />
+      </button>
     </div>
   );
 }
