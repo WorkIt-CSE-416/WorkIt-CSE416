@@ -17,6 +17,7 @@ applicant_profiles
   ├── bank_entries       one per job, degree, project, club role, award or certification
   │     └── bank_bullets the entry's lines, in order, in their original wording
   └── bank_skills        a plain list, each with an optional group
+        └── bank_skill_links  the entries that show the skill (none is fine)
 ```
 
 - **Six entry sections, not seven.** Skills is the seventh section, but a
@@ -36,8 +37,25 @@ applicant_profiles
   recommender reads the bank (expand, then contract).
 - **The duplicate check matches section, title and organization, ignoring
   case.** It warns and never blocks: two real roles may share a title.
-- Bullet variants and skill links are later tables that point at these.
-  The rules live in `backend/app/services/bank.py`.
+- **A skill links to the entries that show it** (KAN-216), so Tailor can
+  show the skill with proof. A skill with no links is fine: one learned on
+  one's own. Links do not clear the embedding, whose text never pairs a
+  skill with an entry.
+- Bullet variants are a later table that points at these. The rules live
+  in `backend/app/services/bank.py`.
+
+### Import fills the bank from an upload (KAN-211)
+
+An uploaded resume reaches the bank only through **import**: the heuristic
+parser reads the upload's stored text again, and the API returns draft
+entries that the student checks and saves one by one or with "Save all".
+Import writes nothing itself. A draft that matches a bank entry (the
+duplicate check) shows "Already in your bank" and "Save all" skips it. The
+parser reads all seven sections, Leadership & Activities and Awards
+included. The profile page's parsed-JSON editor is gone, so the bank is the
+only place to edit resume facts; `resumes.parsed_json` is now the parser's
+own output, never edited, and stays only until the recommender and Scout
+read the bank.
 
 ## Built resumes (KAN-207)
 
@@ -101,8 +119,8 @@ the first upload — correct onboarding order (contact info first, then resume).
 
 1. User uploads a file (PDF, DOCX, etc.) → stored at `resumes.storage_path`.
 2. Parser extracts text → `resumes.raw_text`, structured output → `resumes.parsed_json`, status → `parsed`.
-3. Parsed data is written into the content tables below as a draft.
-4. User reviews and edits the pre-filled entries in the UI.
+3. (Superseded: the content tables were never built. Import turns the
+   upload into bank drafts the student reviews; see above.)
 
 ## Re-upload behavior
 

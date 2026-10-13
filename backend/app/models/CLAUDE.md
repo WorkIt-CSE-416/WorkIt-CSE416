@@ -236,6 +236,11 @@ change here must keep:
 - **Bullet positions are 0..n-1 within an entry.** The service renumbers on
   every move and delete; there is no unique constraint on them, because a
   reorder would then have to dodge its own rows mid-update.
+- **`bank_skill_links` joins a skill to an entry of the same applicant**
+  (KAN-216), keyed by the pair, cascading from either side. The table has
+  no applicant column, so it cannot check that both sides share an owner:
+  `services/bank.py`'s `link_skill` does, and a link written any other way
+  can join two students' rows.
 
 ## Built resumes
 
