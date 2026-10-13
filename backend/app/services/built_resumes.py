@@ -15,9 +15,10 @@ resume answers `NotFound`), and flushes but never commits.
 import re
 import uuid
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.bank import Bank_Bullet_Variant
 from app.models.built_resume import (
     Built_Resume,
     Built_Resume_Bullet,
@@ -76,18 +77,28 @@ async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str) ->
     # No relationship() orders the inserts (models/CLAUDE.md): the resume
     # goes in before its choice rows.
     await session.flush()
-    choices = all_chosen(await load_bank(session, applicant_id))
+    await write_choices(session, resume.id, all_chosen(await load_bank(session, applicant_id)))
+    await session.refresh(resume)
+    return resume
+
+
+async def write_choices(session: AsyncSession, resume_id: uuid.UUID, choices: Choices) -> None:
+    """Replace the resume's choice rows with `choices`. The caller has
+    checked that every id is the applicant's (a variant, that it belongs to
+    its bullet)."""
+    for table in (Built_Resume_Entry, Built_Resume_Bullet, Built_Resume_Skill):
+        await session.execute(delete(table).where(table.built_resume_id == resume_id))
     session.add_all(
-        [Built_Resume_Entry(built_resume_id=resume.id, entry_id=i, shown=c.shown, position=c.position)
+        [Built_Resume_Entry(built_resume_id=resume_id, entry_id=i, shown=c.shown, position=c.position,
+                            show_gpa=c.show_gpa, show_coursework=c.show_coursework)
          for i, c in choices.entries.items()]
-        + [Built_Resume_Bullet(built_resume_id=resume.id, bullet_id=i, shown=c.shown, position=c.position)
+        + [Built_Resume_Bullet(built_resume_id=resume_id, bullet_id=i, shown=c.shown, position=c.position,
+                               variant_id=c.variant_id)
            for i, c in choices.bullets.items()]
-        + [Built_Resume_Skill(built_resume_id=resume.id, skill_id=i, shown=c.shown, position=c.position)
+        + [Built_Resume_Skill(built_resume_id=resume_id, skill_id=i, shown=c.shown, position=c.position)
            for i, c in choices.skills.items()]
     )
     await session.flush()
-    await session.refresh(resume)
-    return resume
 
 
 async def list_resumes(session: AsyncSession, applicant_id: uuid.UUID) -> list[Built_Resume]:
@@ -98,6 +109,23 @@ async def list_resumes(session: AsyncSession, applicant_id: uuid.UUID) -> list[B
         .order_by(Built_Resume.created_at.desc(), Built_Resume.id)
     )
     return list(rows)
+
+
+async def latest_base(session: AsyncSession, applicant_id: uuid.UUID) -> Built_Resume | None:
+    return await session.scalar(
+        select(Built_Resume)
+        .where(Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id.is_(None))
+        .order_by(Built_Resume.created_at.desc(), Built_Resume.id)
+        .limit(1)
+    )
+
+
+async def tailored_for(session: AsyncSession, applicant_id: uuid.UUID, posting_id: uuid.UUID) -> Built_Resume | None:
+    """The applicant's one tailored resume for the posting, if any."""
+    return await session.scalar(
+        select(Built_Resume).where(
+            Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id == posting_id)
+    )
 
 
 async def get_resume(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID) -> Built_Resume:
@@ -146,13 +174,16 @@ async def set_default(
 async def load_choices(session: AsyncSession, resume_id: uuid.UUID) -> Choices:
     entries = await session.scalars(
         select(Built_Resume_Entry).where(Built_Resume_Entry.built_resume_id == resume_id))
-    bullets = await session.scalars(
-        select(Built_Resume_Bullet).where(Built_Resume_Bullet.built_resume_id == resume_id))
+    bullets = await session.execute(
+        select(Built_Resume_Bullet, Bank_Bullet_Variant.text)
+        .outerjoin(Bank_Bullet_Variant, Bank_Bullet_Variant.id == Built_Resume_Bullet.variant_id)
+        .where(Built_Resume_Bullet.built_resume_id == resume_id))
     skills = await session.scalars(
         select(Built_Resume_Skill).where(Built_Resume_Skill.built_resume_id == resume_id))
     return Choices(
         entries={r.entry_id: EntryChoice(r.shown, r.position, r.show_gpa, r.show_coursework) for r in entries},
-        bullets={r.bullet_id: BulletChoice(r.shown, r.position) for r in bullets},
+        bullets={r.bullet_id: BulletChoice(r.shown, r.position, r.variant_id, wording)
+                 for r, wording in bullets},
         skills={r.skill_id: SkillChoice(r.shown, r.position) for r in skills},
     )
 
