@@ -4,6 +4,7 @@ meaning in any field.
 """
 
 import logging
+import math
 from collections.abc import Sequence
 
 import httpx  # general Python library for sending HTTP requests
@@ -49,13 +50,16 @@ async def embed(texts: Sequence[str]) -> list[list[float]] | None:
     '''
     one vector per text, in order, for at most BATCH_SIZE texts, so a caller
     with many keeps every batch that succeeded. None when nothing can be
-    embedded: no GEMINI_API_KEY, or Gemini refused or was unreachable. The
-    caller stores nothing and tries again later
+    embedded: no GEMINI_API_KEY, or Gemini refused, was unreachable, or returned
+    an invalid response. The caller stores nothing and tries again later.
+    Empty input returns an empty list without contacting Gemini.
     '''
     if len(texts) > BATCH_SIZE:
         raise ValueError(f"embed() takes at most {BATCH_SIZE} texts at a time")
+    if not texts:
+        return []
     key = get_settings().gemini_api_key
-    if not key or not texts:
+    if not key:
         return None
     body = {
         "requests": [
@@ -80,4 +84,27 @@ async def embed(texts: Sequence[str]) -> list[list[float]] | None:
     except httpx.HTTPError as exc:
         logger.warning("Gemini embedding failed: %s", exc)
         return None
-    return [e["values"] for e in response.json()["embeddings"]]
+    try:
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise TypeError("response must be an object")
+        embeddings = payload.get("embeddings")
+        if not isinstance(embeddings, list) or len(embeddings) != len(texts):
+            raise ValueError("expected one embedding per input text")
+        vectors = []
+        for embedding in embeddings:
+            values = embedding.get("values") if isinstance(embedding, dict) else None
+            if not isinstance(values, list) or len(values) != DIMENSIONS:
+                raise ValueError(f"expected {DIMENSIONS} values per embedding")
+            if any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                for value in values
+            ):
+                raise ValueError("embedding values must be finite numbers")
+            vectors.append([float(value) for value in values])
+        return vectors
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.warning("Gemini embedding returned an invalid response: %s", exc)
+        return None

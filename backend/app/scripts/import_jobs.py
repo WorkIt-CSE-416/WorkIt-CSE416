@@ -46,6 +46,7 @@ from sqlalchemy import (
     all_,
     and_,
     any_,
+    column,
     delete,
     func,
     literal,
@@ -53,11 +54,10 @@ from sqlalchemy import (
     or_,
     select,
     update,
+    values,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncConnection
-
-logger = logging.getLogger(__name__)
 
 from app.config import get_settings
 from app.db import get_engine
@@ -66,8 +66,9 @@ from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
 from app.services.location_resolver import LocationResolver, Place, Resolution
-from app.services.matching.embeddings import BATCH_SIZE as _EMBED_BATCH
-from app.services.matching.embeddings import embed, job_text
+from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
+
+logger = logging.getLogger(__name__)
 
 _FEED = TypeAdapter(list[JobListing])
 _jobs = Job_Post.__table__
@@ -364,28 +365,40 @@ async def import_feed(
 async def _embed_jobs(conn: AsyncConnection) -> int:
     '''
     embed every scraped job whose vector is NULL — new, changed, or historical.
-    Each batch is committed independently so a partial failure keeps what worked.
+    Requires a connection with no active transaction. Each bounded batch owns
+    its transaction so a provider failure keeps previously committed batches.
     '''
-    rows = (await conn.execute(
-        select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
-        .where(_jobs.c.company_id.is_(None), _jobs.c.embedding.is_(None))
-    )).all()
-    if not rows:
-        return 0
-
     count = 0
-    for start in range(0, len(rows), _EMBED_BATCH):
-        batch = rows[start:start + _EMBED_BATCH]
-        texts = [job_text(r.title, r.description) for r in batch]
-        vectors = await embed(texts)
-        if vectors is None:
-            break  # Gemini down; next scheduled run picks up the rest
-        for row, vec in zip(batch, vectors):
-            await conn.execute(
-                update(_jobs).where(_jobs.c.id == row.id).values(embedding=vec)
+    while True:
+        async with conn.begin():
+            batch = (await conn.execute(
+                select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
+                .where(_jobs.c.company_id.is_(None), _jobs.c.embedding.is_(None))
+                .order_by(_jobs.c.id)
+                .limit(BATCH_SIZE)
+            )).all()
+            if not batch:
+                break
+            texts = [job_text(row.title, row.description) for row in batch]
+            vectors = await embed(texts)
+            if vectors is None:
+                break  # Gemini down; next scheduled run picks up the rest
+            if len(vectors) != len(batch):
+                logger.warning("Gemini returned %d vectors for %d texts", len(vectors), len(batch))
+                break
+            embedded = values(
+                column("id", _jobs.c.id.type),
+                column("embedding", _jobs.c.embedding.type),
+                name="embedded",
+            ).data([(row.id, vector) for row, vector in zip(batch, vectors, strict=True)])
+            result = await conn.execute(
+                update(_jobs).where(_jobs.c.id == embedded.c.id)
+                .values(embedding=embedded.c.embedding)
+                .returning(_jobs.c.id)
             )
-        await conn.commit()
-        count += len(batch)
+            written = len(result.all())
+        count += written
+        # Committed vectors leave the NULL result set; no OFFSET can skip jobs.
     return count
 
 
