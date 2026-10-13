@@ -73,7 +73,7 @@ import { cn } from "@/lib/cn";
  * Every button presses in: 98% on mouse-down, back on release, 150ms either
  * way, with its colours fading on the same clock rather than snapping. The
  * press is what makes a click feel received before anything it starts has
- * happened; see "Motion" in frontend/CLAUDE.md.
+ * happened; see frontend/docs/motion.md.
  */
 export const buttonVariants = cva(
   "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -165,23 +165,34 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
   link: "inline",
 };
 
-type StyleProps = { variant?: ButtonVariant; size?: ButtonSize; className?: string };
+type StyleProps = {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** "pill" rounds the ends fully: the seeker Dashboard's actions (KAN-173),
+   *  where every control on its tiles is a pill. */
+  shape?: "pill";
+  className?: string;
+};
 
 /**
  * Exported for the rare element that must be styled as a button without being
  * one — a file input's label, say. Prefer <Button> or <ButtonLink>.
  */
-export function buttonClasses({ variant = "default", size, className }: StyleProps = {}) {
-  return cn(buttonVariants({ variant, size: size ?? DEFAULT_SIZE[variant] }), className);
+export function buttonClasses({ variant = "default", size, shape, className }: StyleProps = {}) {
+  return cn(
+    buttonVariants({ variant, size: size ?? DEFAULT_SIZE[variant] }),
+    shape === "pill" && "rounded-full",
+    className,
+  );
 }
 
 type ButtonProps = StyleProps & Omit<ButtonPrimitive.Props, "className">;
 
-export function Button({ variant, size, className, ...props }: ButtonProps) {
+export function Button({ variant, size, shape, className, ...props }: ButtonProps) {
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={buttonClasses({ variant, size, className })}
+      className={buttonClasses({ variant, size, shape, className })}
       {...props}
     />
   );
@@ -190,6 +201,6 @@ export function Button({ variant, size, className, ...props }: ButtonProps) {
 type ButtonLinkProps = StyleProps & Omit<ComponentProps<typeof Link>, "className">;
 
 /** A link that looks like a button. Navigation, so it stays an anchor. */
-export function ButtonLink({ variant, size, className, ...props }: ButtonLinkProps) {
-  return <Link className={buttonClasses({ variant, size, className })} {...props} />;
+export function ButtonLink({ variant, size, shape, className, ...props }: ButtonLinkProps) {
+  return <Link className={buttonClasses({ variant, size, shape, className })} {...props} />;
 }

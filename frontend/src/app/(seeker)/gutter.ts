@@ -5,3 +5,8 @@
  * Next.js expects of one.
  */
 export const SEEKER_GUTTER = "px-4 sm:px-8 lg:px-12";
+
+/** The same gutter as a negative margin, for something that paints across
+ *  it while its content stays in the column (pair it with SEEKER_GUTTER).
+ *  The two change together. */
+export const SEEKER_BLEED = "-mx-4 sm:-mx-8 lg:-mx-12";

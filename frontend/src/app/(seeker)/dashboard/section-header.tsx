@@ -22,7 +22,7 @@ export function SectionHeader({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <h2 id={id} className="text-title text-ink">
+      <h2 id={id} className="text-subtitle text-ink font-medium">
         {title}
       </h2>
       {link && (

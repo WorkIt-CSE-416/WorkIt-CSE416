@@ -1,4 +1,8 @@
-"""GET and PATCH for the applicant's own profile fields."""
+"""GET and PATCH for the applicant's own profile fields.
+
+PATCH updates only the fields present in the body (`model_fields_set`), so a
+field left out keeps its value.
+"""
 
 import uuid
 

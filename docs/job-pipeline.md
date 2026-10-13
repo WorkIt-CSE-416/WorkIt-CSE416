@@ -1,0 +1,407 @@
+# How job postings get onto WorkIt
+
+How a job posting travels from a company job board to a card a student can
+filter, open and apply to. Each section stands on its own, so read the one you
+need.
+
+> **Status (2026-10-11).** This describes the code on `KAN-172-roles`, which
+> builds on `main` after the KAN-171 batch (#95). Its migration
+> (`98ab19cfe840`, the `roles` column) went to `main` first (#97) and was
+> applied on 2026-10-11 (section 5.4).
+
+## Three words used throughout
+
+| Term | Means | Example |
+|---|---|---|
+| **Hiring system** | Software companies pay for to post jobs and collect applications (also called an ATS, applicant tracking system) | Greenhouse, Workable |
+| **Company job board** | One company's page on a hiring system, listing only its own open jobs | Stripe's page on Greenhouse |
+| **Job posting** | One open job on a company job board, and the row we store for it | "Software Engineer Intern" at Stripe |
+
+One hiring system hosts thousands of company job boards; each company job board
+lists that company's job postings. Our own page of results is called **the
+Jobs page** (`/jobs`), never a job board, so the two can't be confused.
+
+---
+
+## 1. The big picture
+
+```
+ Company job boards          Scraper (Python)              Database (Supabase)
+ on Greenhouse, Lever, ──▶  reads, keeps, reads    ──▶    job_postings
+ Ashby, Workable,           the facts                     job_locations
+ BambooHR, Recruitee
+                            writes feed.json               ▲
+                                  │                        │
+                                  └──── import script ─────┘
+                                        (every 3 hours)
+                                                           │
+ Student's browser    ◀──   Next.js website   ◀──   FastAPI (GET /jobs ...)
+ cards, filters, page       /jobs, /search,          filters, counts,
+                            /jobs/[id]               one job posting
+```
+
+| Stage | What it does | Where the code lives |
+|---|---|---|
+| 1. Find companies | Keeps a list of company job boards to read | `scraper/boards.csv`, `scraper/build_boards.py` |
+| 2. Scrape | Reads every company job board, keeps early-career job postings, reads their facts | `scraper/workit_scraper/` |
+| 3. Import | Loads the scraper's output into the database | `backend/app/scripts/import_jobs.py` |
+| 4. Store | Two tables hold the job postings and their places | `backend/app/models/jobs.py`, `backend/alembic/` |
+| 5. Serve | The API filters, counts and pages the job postings | `backend/app/routers/jobs.py` |
+| 6. Show | The Jobs page, search, filters and each job posting's page | `frontend/src/app/(seeker)/jobs/`, `.../search/` |
+
+The scraper never touches the database, and the website never touches the
+database. Each hands its output to the next stage.
+
+---
+
+## 2. Finding companies
+
+We read job postings straight from each company job board, through the free
+public API its hiring system offers. No hiring system publishes a directory of
+its company job boards, so we keep our own list.
+
+| | |
+|---|---|
+| **The list** | `scraper/boards.csv`: about 2,130 company job boards (table below) |
+| **Where it comes from** | `build_boards.py` reads the apply links in public GitHub internship lists (SimplifyJobs and vanshb03, Summer 2027) and pulls out each company job board's name, plus a few added by hand |
+| **How often it's refreshed** | At the start of every scheduled run, every 3 hours (KAN-167), so new companies and new job postings arrive together |
+| **Slug** | A company job board's name in its address, like `stripe` in `boards.greenhouse.io/stripe` |
+
+How the refresh behaves:
+
+| | |
+|---|---|
+| **It only adds** | A company job board a list newly names is added; one already in the file is never dropped, even if the lists stop naming it |
+| **It's safe to fail** | If a list won't download, nothing is changed and the scrape runs on the list as it was |
+| **It isn't saved back** | The additions live only in that run, and each run makes them again. A local run reads the committed `boards.csv`, so re-run `build_boards.py` and commit it now and then to keep the two in step |
+
+| Hiring system | Company job boards | Who uses it | How a company job board is read |
+|---|---|---|---|
+| Greenhouse | 871 | Tech companies of every size | Its list, then each kept job posting's own page |
+| Ashby | 694 | Startups | One request, everything included |
+| Lever | 341 | Startups and mid-size | One request; Lever asks for one second between requests |
+| Workable | 178 | Small and mid-size companies | Its list, then each kept job posting's own page (for hybrid and pay) |
+| BambooHR | 42 | Small and mid-size companies | Its list, then each kept job posting's own page (the list has no description) |
+| Recruitee | 2 | Small companies, mostly in Europe | One request, everything included |
+
+Workable, BambooHR and Recruitee were added in KAN-171. Recruitee has so few
+company job boards because the GitHub lists barely mention it.
+
+The GitHub lists are only used as a phone book. Every job posting itself is
+read from the company's own job board, so we get job postings the lists never
+added, the full description, and a reliable signal when a job posting closes.
+
+---
+
+## 3. Scraping
+
+`.github/workflows/scrape.yml` runs the scraper and then the import **every 3
+hours, at 17 minutes past** (off the hour, since GitHub delays runs scheduled
+on it). A run takes a few minutes.
+
+### What one run does
+
+| Step | What happens |
+|---|---|
+| 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one day in three, so a first job posting at a quiet company can appear up to two days late. `--full` reads them all. |
+| 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR and Recruitee give every company its own subdomain, and each hiring system's subdomains share one pace. |
+| 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read; about 3,500 are kept. |
+| 4. Fetch full pages | Greenhouse, Workable and BambooHR lists leave out the description, pay or work style, so the scraper reads the full page of each kept job posting there, once. |
+| 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
+| 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. |
+| 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
+
+**A job posting only disappears after a complete read of its company job
+board.** If a company job board fails to load, its job postings are kept as
+they were.
+
+### 3.1 Which job postings are kept
+
+A title must pass two checks (KAN-172):
+
+| Check | Passes | Fails |
+|---|---|---|
+| **Early career** | intern, co-op, working student, Summer Analyst, new grad, graduate, entry level, junior, university, campus, apprentice | anything senior, staff, principal, director, VP; a manager or lead unless it is also junior or an intern; a recruiter *for* a university or campus |
+| **In one of twelve categories** | see the table below | a title naming none of them, or naming first a field we hold off on: law and compliance, consulting, teaching, the arts, public policy, customer support |
+
+Each kept job posting gets **one category, or two** for the engineering jobs
+that are two at once: a machine learning, AI or data engineer is Data and
+Software, a firmware or embedded engineer Hardware and Software, a quant developer
+Quant and Software. Some also get **specialties**, named in the title:
+
+| Category | Stored as | Specialties | Examples | Kept (2026-10-10) |
+|---|---|---|---|---|
+| Software Engineering | `software` | Security & IT (`software/security`): 122 | Software Engineer Intern, Backend, DevOps, IT Helpdesk Intern, Cybersecurity Intern | 957 (1,144 with the second category) |
+| Data Science, AI & ML | `data_ai` | Machine Learning & AI (`data_ai/ml`): 243; Data Science: 75; Data Analytics: 68; Data Engineering: 43 | Applied Scientist Intern, Data Analyst, Data Engineer | 413 |
+| Hardware Engineering | `hardware` | | Electrical Engineering Intern, FPGA, Firmware, Robotics | 287 |
+| Quantitative Finance | `quant` | | Quantitative Trader Intern, Quant Researcher | 187 |
+| Product Management | `product` | | Product Management Intern, Associate Product Manager | 64 |
+| Other Engineering | `engineering` | Civil & Structural (`engineering/civil`): 269; Mechanical: 160; Manufacturing & Industrial: 101; Aerospace: 59 | Civil Engineering Intern, Mechanical Engineer, Propulsion Intern, Nuclear Engineer | 703 |
+| Business & Operations | `business` | | Business Operations Intern, Supply Chain Intern, Project Management Intern | 227 |
+| Accounting & Finance | `finance` | | Accounting Intern, Credit Analyst, Investment Banking Summer Analyst | 198 |
+| Marketing & Communications | `marketing` | | Marketing Intern, Social Media Intern, Copywriter | 157 |
+| Sales & Business Development | `sales` | | Sales Development Representative, Account Executive, Sales Engineer | 156 |
+| HR & Recruiting | `hr` | | Talent Acquisition Intern, People Operations Intern, Junior Recruiter | 100 |
+| Design | `design` | | Product Design Intern, UX Research Intern, Graphic Design Intern | 58 |
+
+187 job postings have two categories. In all 3,507 were kept, against 1,723
+under the five categories that came before (KAN-171), from the same 101,000 job
+postings. Edge cases: firmware and embedded count as Hardware, "Quantitative
+Developer" counts as Quant, a recruiter of engineers is HR, an electrical engineer
+for buildings and power systems is Other Engineering, and a bare "Engineering
+Intern" names no discipline, so it is dropped.
+
+### 3.2 Reading the facts
+
+The rule everywhere: **use the hiring system's own field first, then the
+description's text, and never guess.** A missing fact stays empty rather than
+filled with a likely value. The two exceptions are rules measured on the live
+feed to be nearly always right: work style falls back to "On site", and job type
+to full-time for new-grad roles. An internship's job type is always shown as
+"Internship", whatever its hours.
+
+| Fact | Where it comes from | How often a job posting states it |
+|---|---|---|
+| Location | The company job board's location text | Almost always |
+| Work style (remote, hybrid, on-site) | The hiring system's field (Ashby, Lever, Workable, BambooHR); on Greenhouse, a location that says "Remote"; else the description | About 97% |
+| Experience level | The title (internship or new grad) | Always |
+| Job type | Every internship: "Internship". Otherwise the hiring system's field, else the description, else full-time for a new-grad role (all 216 new-grad job postings that state one say full-time) | Always, for internships and new-grad roles |
+| Pay | The description ("$40-$50/hr"), never a funding amount | About 60% |
+| Start date | The description ("Summer 2027") | Most internships |
+| Years of experience | The description ("2+ years") | Some new-grad roles |
+| Visa sponsorship | Sentences in the description (KAN-168) | About 1 in 6 |
+| Role categories and specialties | The title (section 3.1) | Always |
+
+Visa sponsorship has three answers, or none when the job posting doesn't say:
+
+| Value | Means |
+|---|---|
+| `sponsors` | The job posting says it sponsors visas |
+| `no_sponsorship` | It says it doesn't, or needs US work authorization |
+| `citizens_only` | It needs US citizenship (often for a security clearance) |
+
+Long descriptions are cut at 8,000 characters, ending in " …".
+
+---
+
+## 4. Import
+
+`import_jobs.py` loads `feed.json` into the database, all in **one
+transaction**: if any step fails, nothing changes.
+
+| Step | What happens |
+|---|---|
+| 1. Check | Every row is checked against the API's schema |
+| 2. Read places | Each location's text is turned into place codes (section 5.2) |
+| 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. The feed's `roles` keys are ignored (KAN-155): roles come from step 5 |
+| 4. Places | Each job posting's place rows are brought in line |
+| 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
+| 6. Close | Job postings no longer in the feed are marked closed; one that comes back reopens |
+
+**Safety net:** the import refuses to close more than half the job postings at
+once and rolls back. A broken scrape fails loudly instead of emptying the site.
+
+`--dry-run` does everything and then rolls back; pull requests that touch the
+scraper run it that way.
+
+---
+
+## 5. Storage
+
+### 5.1 `job_postings`, one row per job posting
+
+Scraped job postings and ones companies post on WorkIt themselves share this
+table. Scraped ones have no `company_id`.
+
+| Column | Holds |
+|---|---|
+| `title`, `company_name`, `apply_url`, `company_logo_url` | What the card shows; `apply_url` is unique |
+| `description` | The full text, for the job posting's page and Scout |
+| `location_raw` | The location as the company job board wrote it |
+| `location_label` | The card's version, "San Francisco, CA", written by the import (section 5.2) |
+| `work_style` | `remote`, `hybrid`, `onsite`, or empty |
+| `experience_level` | `internship` or `new_grad` |
+| `job_type` | `full_time`, `part_time`, `contract`, or empty |
+| `salary_min`, `salary_max`, `salary_currency`, `salary_period` | Pay as a range, with its period (hour, week, month, year) |
+| `start_term` | As the job posting says it, like "Summer 2027" |
+| `min_years_experience` | A number, or empty |
+| `sponsorship` | Section 3.2's three values, or empty |
+| `status`, `posted_at` | Published or closed; when the company job board says it went up |
+| `embedding`, `fts` | For job matching (KAN-139), not used by the Jobs page yet |
+
+### 5.2 `job_locations`, one row per place a job posting is in
+
+A job posting in three cities has three rows. Each row is a country code (`US`)
+and optionally a state (`US-CA`). Filtering by place reads these rows; the card
+shows `location_label` instead (below).
+
+**No city is filtered on.** State is as fine as the Location filter goes: a
+city filter would need thousands of options (and 30+ Springfields) to answer
+"jobs in Austin" when "jobs in Texas" serves a student.
+
+**But the card does get the city.** The resolver already picks a city while
+deciding the state, so the import writes it into `location_label` as display
+text:
+
+| Location text | `location_label` |
+|---|---|
+| "SF", "San Francisco Office" | San Francisco, CA |
+| "Philadelphia, Pennsylvania, United States" | Philadelphia, PA |
+| "Austin, Texas, United States; Boston, Massachusetts, United States" | Austin, TX; Boston, MA |
+| "Toronto, Ontario, Canada", "California", "Remote - San Francisco" | none: abroad, a state alone, or remote keeps the posting's words |
+
+About 680 of 1,160 job postings get a label; the website tidies the rest.
+
+| Location text | Rows |
+|---|---|
+| "San Francisco, CA" | `US`, `US-CA` |
+| "New York, NY; Austin, TX" | `US`/`US-NY`, `US`/`US-TX` |
+| "London, UK" | `ZZ` ("Other": every country except the US, for now) |
+| "Remote" | none: this table holds places, and remote is a work style |
+
+The **location resolver** (`backend/app/services/location_resolver.py`) does
+the reading. It knows city, state and country names and handles typos and
+abbreviations. A handful of locations name no real place ("Any SpaceX Site")
+and get no rows.
+
+### 5.3 `job_roles` and `job_role_tags`, WorkIt's own role list (KAN-155)
+
+`job_roles` is a short, fixed list of job titles (Software Engineer, Data
+Scientist, Financial Analyst, Nurse: 49 today), seeded by a migration, for
+onboarding and recommendations as well as search. It is what `?role=`, `?q=`
+and the Jobs page's Role filter read. `job_role_tags` links a job posting to
+each role its title names, zero or more. The import fills it from
+`backend/app/services/role_resolver.py`, which matches whole-word aliases in
+the title. This replaced KAN-172's `roles` column, since dropped; the scraper
+still uses its categories to decide what to keep. `docs/search.md` has the design.
+
+### 5.4 Changing the schema
+
+Alembic owns the schema. A new column is a migration, which must be **merged to
+`main` before anyone applies it** to the shared database, and only a person
+runs `uv run alembic upgrade head`. The role categories' and location labels' migrations
+(`aa41fdc1ba80`, `5c8d6ee05a0c`) went to `main` first (#94) and were applied
+on 2026-10-10.
+
+`roles` (`98ab19cfe840`, merged to `main` on its own in #97 and applied on
+2026-10-11) was added the safe way round, **expand then contract**: the
+migration added `roles` beside `role_category` and dropped nothing, because
+the code running when it was applied still read `role_category`. KAN-155
+finished the contract: its code reads `job_role_tags` instead, and
+`824f0b2e3d84` drops both columns, applied only **after** that code is
+deployed (`backend/CLAUDE.md`, Commands).
+
+---
+
+## 6. The API
+
+All public, no sign-in needed (they serve public job postings).
+
+| Endpoint | Returns |
+|---|---|
+| `GET /jobs` | A page of published job postings, newest first, without descriptions |
+| `GET /jobs/count` | How many job postings match, for "Show 128 Jobs" and /search's count |
+| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both, and an internship counts under job type `internship` only) |
+| `GET /jobs/locations` | Every country and state that has job postings, with counts |
+| `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
+
+### Filters (`GET /jobs` and `GET /jobs/count`)
+
+Several values in one filter mean **any of them**; different filters combine
+with **and**.
+
+| Parameter | Example | Matches |
+|---|---|---|
+| `location` | `US`, `US-CA` | A place row there, **or a remote job posting that names no place** (it can be done from anywhere) |
+| `work_style` | `remote` | That work style |
+| `experience` | `internship` | That level |
+| `job_type` | `full_time`, `internship` | That type. `internship` is every internship; the other types match only job postings that aren't internships, as the cards show them |
+| `role` | `software_engineer`, `civil_engineer` | A job posting tagged with that `job_roles` role in `job_role_tags` (section 5.3, KAN-155). Before KAN-155 this read the scraper's `roles` keys |
+| `posted_within` | `7` | Posted in the last 7 days |
+| `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
+| `start_term` | `summer-2027` | That season; seasons that have ended aren't offered |
+| `visa` | `sponsors` | Says it sponsors. `not_ruled_out` keeps job postings that sponsor or don't say |
+| `q` | `swe intern stripe` | A company it names by whole name (a typo corrected) narrows to that company's jobs; the roles it names (typos corrected) narrow to jobs tagged with them or whose title says the words that named them ("software" finds "Embedded Software Engineer"); "intern", "new grad", "remote", "summer 2027" and the like narrow their own columns (a start term and "remote" also match a title saying them); every other word must be in the job posting's text or its company's name. Newest first, like the rest of the feed |
+| `limit`, `offset` | `51`, `50` | Paging, for Load More |
+
+**A filter hides job postings that don't state that fact.** Picking a salary
+range hides the roughly 40% that give no pay. That's deliberate: a job posting
+can't be shown as matching a fact it never stated.
+
+---
+
+## 7. The Jobs page
+
+### 7.1 `/jobs` and `/search`
+
+| Piece | How it works |
+|---|---|
+| **Filters live in the address** | `/jobs?work_style=remote&role=quant`. A reload or a shared link keeps them. A value the API would refuse is dropped, not shown as an error. |
+| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract, as the cards show it (section 3.2). |
+| **All Filters** | One panel with every option as chips, or a search picker for the long lists: Location, Start Date, and Role, whose specialties ("Mechanical Engineering", "Security & IT") sit indented under their category. Changes are a draft until "Show N Jobs", whose number is counted live. |
+| **Counts beside options** | From `/jobs/facets` and `/jobs/locations`, cached for 5 minutes (they only change when an import runs). |
+| **Applying a filter** | The list dims at once while the narrowed list loads. |
+| **Load More** | The first 50 job postings, then a button adding 50 more with the same filters, until "That's every role that matches." |
+| **Search** | The words go to the API (`q`), so a search covers every job posting, not only the first 50. |
+| **Location on a card** | The import's label where there is one ("San Francisco, CA" for "SF"), else the raw text tidied ("Philadelphia, PA"). Several places read "Austin, TX +3 more", with every place listed on the job posting's page. `placesOf` in `jobs/format.ts`. |
+| **Pinned header** | The title and filters stay at the top while the list scrolls; on a phone only the filter row stays. |
+
+### 7.2 A job posting's page, `/jobs/[id]`
+
+| Piece | How it works |
+|---|---|
+| **Opening it** | A click anywhere on a card |
+| **Header** | The same facts as the card, and the company logo |
+| **About the Role** | The description, with headings and bullet lists recovered from the plain text |
+| **Actions** | Apply Now (the company's own page), Ask Scout, Share (copies the link). Save and Report aren't built yet. |
+| **Back to Jobs** | Returns to the list you came from, with its filters |
+
+### 7.3 Coming back
+
+The app scrolls inside its own panel rather than the browser window, so the
+browser can't restore your place by itself. The app does it instead:
+
+| You come back by | You land |
+|---|---|
+| Browser Back or Forward | Where you were, on any page in the app |
+| "Back to Jobs" | Where you were in the list, with your Load More pages still loaded (for 30 minutes) |
+| A sidebar link, a fresh link or a reload | At the top, with the first 50 job postings |
+
+---
+
+## 8. Known limits
+
+| Limit | Why | What would fix it |
+|---|---|---|
+| Six hiring systems, not the ones large companies use | Each hiring system needs its own reader | Workday (most large employers) is KAN-134 |
+| A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
+| Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
+| Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |
+| No law, consulting, teaching, arts, policy or customer support job postings, and none whose title names no field ("Engineering Intern") | Held off in KAN-172; a bare title can't be told apart (a civil firm's "Engineering Intern" from a software company's) | Add a category in the scraper, the API and the Jobs page together (no migration: `roles` is plain text) |
+| Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
+| Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
+| A company only arrives once a GitHub list names it | The lists are our only source of company job boards | Find company job boards ourselves too (Common Crawl, an archive of the web) |
+| A new job posting at a quiet company can be two days late | Quiet company job boards are read one day in three | `--full` runs, or reading more often |
+
+---
+
+## 9. Where to look
+
+| To change... | Start in |
+|---|---|
+| Which company job boards are read | `scraper/build_boards.py`, `scraper/boards.csv` |
+| How a hiring system's company job boards are read | `scraper/workit_scraper/providers.py` |
+| Which job postings are kept, and their categories and specialties | `scraper/workit_scraper/shortlist.py` |
+| How a fact is read from a description | `scraper/workit_scraper/details.py` |
+| What the import writes | `backend/app/scripts/import_jobs.py` |
+| How a location becomes a place | `backend/app/services/location_resolver.py` |
+| A filter's meaning | `backend/app/routers/jobs.py` (`JobFilters`, `matching`) |
+| A filter's options and URL | `frontend/src/app/(seeker)/jobs/filter-query.ts` |
+| The filter row and panel | `.../jobs/filters.tsx`, `.../jobs/all-filters.tsx` |
+| The list and Load More | `.../jobs/feed-list.tsx` |
+| The card | `frontend/src/components/job-posting-card.tsx` |
+| A job posting's page | `.../jobs/[jobId]/` |
+
+Each folder's `CLAUDE.md` holds the detailed rules and the reasons behind them;
+this page is the map. The code itself says "board" for a company job board
+(`boards.csv`, `Board`) and "provider" for a hiring system.

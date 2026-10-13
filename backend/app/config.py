@@ -4,6 +4,7 @@ Environment configuration, imported by other files and migration
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -63,6 +64,12 @@ class Settings(BaseSettings):
     # verifies access tokens is published.
     supabase_url: str | None = None
     supabase_service_key: str | None = None
+
+    gemini_api_key: str | None = None
+    embedding_provider: Literal["gemini", "ollama"] = "ollama"
+    ollama_embedding_url: str = "http://localhost:11434"
+    ollama_embedding_model: str = Field(default="nomic-embed-text:v1.5", min_length=1)
+    embedding_timeout_seconds: float = Field(default=120, gt=0)
 
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it

@@ -23,7 +23,7 @@ export default function ChooseAccountTypePage() {
 
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="max-w-auth rounded-card border-border bg-surface shadow-card w-full border p-6">
-          <Logo size="card" priority className="mx-auto" />
+          <Logo size="card" className="mx-auto" />
 
           <h1 className="text-title text-ink mt-2.5 text-center">Almost There</h1>
           <p className="text-body text-ink-muted mt-1 text-center">

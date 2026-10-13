@@ -49,6 +49,9 @@ export function JobFacts({ posting }: { posting: JobPosting }) {
 /** A `Fact` whose value also rides in a title, so one its column truncates
  *  (a long live location on a phone) can still be read whole on hover. */
 function JobFact({ Icon, value }: { Icon: ComponentType<{ className?: string }>; value: string }) {
+  // A live posting can leave a fact unstated (no salary, no start date); its
+  // place is left out rather than drawn as a glyph beside nothing.
+  if (!value) return null;
   return (
     <Fact Icon={Icon}>
       <span title={value}>{value}</span>

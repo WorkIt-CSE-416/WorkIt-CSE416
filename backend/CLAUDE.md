@@ -1,586 +1,247 @@
 # CLAUDE.md — backend
 
-Guidance for Claude Code when working in `backend/`. Repo-wide rules — branch
-names, the documentation split, the review skill — live in the root
-`../CLAUDE.md`, which is always loaded alongside this one. This file is the
-Python API.
+The Python API. Loads on top of the root `../CLAUDE.md`, which holds the
+repo-wide database and auth guardrails; this file does not repeat them.
 
 ## Where this folder sits
 
 `backend/` is the whole Python project: its own `pyproject.toml`, `.venv`,
-lockfile and tooling. Nothing above it is part of this build, and nothing in
-`frontend/` is importable from here. The two halves communicate over HTTP and
-share no code. The scraper is no exception: `app/scripts/import_jobs.py`
-reads `scraper/feed.json` (or the committed `data/feed.json` snapshot) as data
-and imports none of its code.
+lockfile and tooling. It shares no code with `frontend/`; the two talk over
+HTTP. The scraper is no exception: `app/scripts/import_jobs.py` reads
+`scraper/feed.json` (or the committed `data/feed.json` snapshot) as data and
+imports none of its code.
 
-**The one exception is `../scout/`**, Scout's brain, installed here as the
-`workit-scout` package. It is a library with no database or HTTP of its own;
-`routers/scout.py` hands it everything. Its settings, tests and rules live in
-`../scout/` — read its CLAUDE.md before touching Scout.
+**The one exception is `../scout/`**, installed here as the `workit-scout`
+package: a library with no database or HTTP of its own, handed everything by
+`routers/scout.py`. Read `../scout/CLAUDE.md` before touching Scout.
 
-**This folder owns the database.** Connection strings, schema and migrations
-all live on this side. The Next.js app holds no ORM and no credentials.
-
-## Stack
-
-FastAPI · Uvicorn · SQLAlchemy 2.0 (async, over asyncpg) · Alembic ·
-pydantic-settings · supabase-py (Storage, Auth admin) · PyJWT · Pillow
-(profile-photo re-encoding). Python 3.12,
-pinned by `requires-python = ">=3.12,<3.13"`.
-
-Dependencies are managed by **uv**. `uv add <pkg>` to add one, `uv sync` to
-install what the lock already names. Never `pip install` into the venv — it
-writes nothing to `pyproject.toml` and the next `uv sync` silently undoes it.
-
-**Not PostgREST, deliberately.** We connect to Postgres directly over asyncpg.
-The job search needs ltree containment and trigram ranking, which PostgREST's
-filter syntax expresses badly. `supabase-py` is installed for **Storage**
-(file uploads) and the **Auth admin API** (creating users at signup) — never
-for database queries, which still go through SQLAlchemy. `get_supabase()` in
-`app/db.py` builds that one service-role client.
+**Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
+because the job search needs ltree containment and trigram ranking, which
+PostgREST's filter syntax expresses badly. `supabase-py` is installed only for
+**Storage** and the **Auth admin API**; `get_supabase()` in `app/db.py` builds
+that one service-role client. Database queries always go through SQLAlchemy.
 
 ## Commands
 
-Always prefixed with `uv run`, which executes inside `.venv` without activating
-it. That is the whole reason uv is here: `.venv/bin/activate` and
-`.venv\Scripts\Activate.ps1` differ by platform and the team is on both.
+Always `uv run ...`, which runs inside `.venv` without activating it (activate
+scripts differ between macOS and Windows). Add dependencies with `uv add`;
+`pip install` writes nothing to `pyproject.toml` and the next `uv sync` undoes
+it.
 
 ```
 uv sync                                        install deps from the lock
 uv run uvicorn app.main:app --reload           dev server on :8000
+uv run pytest                                  the tests in tests/
+uv run ruff check .                            lint (CI runs it)
 uv run alembic revision --autogenerate -m msg  write a migration
-uv run alembic upgrade head                    apply pending migrations
-uv run alembic downgrade -1                    undo the last one
-uv run alembic current                         which revision the DB is on
 uv run alembic check                           fail if models lack a migration
+uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
+uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
 ```
 
-```
-uv run pytest                                  run the tests in tests/
-uv run python -m app.scripts.import_jobs       load a scraper feed.json into
-                                               job_postings/job_locations
-                                               (--dry-run rolls back)
-```
+Migrations: read `alembic/CLAUDE.md` before writing one; it has the offline
+`--sql` check that needs no credentials. Never run `alembic init` again: it
+overwrites `alembic/env.py` and its schema filters.
 
-**The import writes to the shared database, so Claude never runs it against
-one** — same rule as `alembic upgrade`. Run it yourself, `--dry-run` first.
-It upserts on `apply_url`, so re-running is safe, and it refuses (exit 2,
-nothing written) to close more than half the published scraped jobs at once
-unless given `--allow-mass-close`. The module docstring has the steps. First
-run against Supabase (2026-10-07): 1,069 jobs in 3.6 s; a re-run with no
-changes, 2.9 s. A `--dry-run` writes and rolls back, which leaves dead rows
-until autovacuum clears them, so table sizes read straight after one are
-inflated.
+### The feed import
 
-**It is the only way scraped jobs enter the database**, because it is the
-step that runs the location resolver and writes `job_locations`. A scraped
-row written any other way never shows up in the location filter.
-`app/models/CLAUDE.md` (the resolver section) has the rule.
+**Claude never runs it against a shared database**, same rule as `alembic
+upgrade`. The user runs it, `--dry-run` first. It upserts on `apply_url`, so a
+re-run is safe, and it refuses (exit 2, nothing written) to close more than
+half the published scraped jobs at once unless given `--allow-mass-close`. The
+module docstring has the steps.
 
-Tests cover the resume parser (`test_resume_parser.py`), DOCX text
-extraction (`test_resume_extraction.py`), the location resolver
-(`test_location_resolver.py`, which reads the real `data/places.tsv`) and
-the database-free half of the feed import (`test_import_jobs.py`). The
-import's database half needs Postgres, which CI doesn't have: test it on a
-throwaway local Postgres 15+ (`job_locations` uses `NULLS NOT DISTINCT`). A test that calls the resume routes
-Tests cover the resume parser (`test_resume_parser.py`), DOCX text
-extraction (`test_resume_extraction.py`) and Scout's route (`test_scout.py`). A test that calls the resume routes
-must monkeypatch `resumes.get_supabase`: the router calls it directly rather
-than through `Depends`, so a dependency override misses it and the test
-uploads to the real bucket. `tests/fixtures/*.txt` are extracted text
-of real resumes, each in a layout that once broke parsing, cut to start at the
-first section header so no contact details are committed. The heuristics
-interact — a fix for one layout has broken another more than once — so when a
-new resume parses wrong, add it as a fixture with its expected output in
-`tests/test_resume_parser.py` before touching `app/utils/resume_parser.py`.
+- **It is the only way scraped jobs enter the database**, because it runs the
+  location and role resolvers and writes `job_locations` and `job_role_tags`. A
+  scraped row written any other way never shows up in the location or role
+  filter (`app/models/CLAUDE.md`, the resolver sections). Its report ends with
+  the titles that named no role, most jobs first: the list to grow the aliases
+  from.
+- **It refuses (exit 2, nothing written) when `job_roles` lacks a slug the
+  aliases name**, which is what it does before the role migrations
+  (`362182aaa4fd`, `ab07572bba38`) are applied. The API reads those tables and
+  the weighted `fts` index (`a70c641b2f99`) too, so those migrations are
+  applied before the code that reads them deploys. Otherwise every scheduled
+  import fails, and the Jobs page's role filter and search answer 500.
+- **`824f0b2e3d84` goes on *after* the deploy, alone.** It drops KAN-172's
+  `roles` and `role_category` columns, which the code before KAN-155 selects
+  on every `GET /jobs` and writes on every import. The order is: apply up to
+  `a70c641b2f99`, merge and deploy, then `uv run alembic upgrade head`. A plain
+  `upgrade head` before the deploy takes the live Jobs page and the scheduled
+  import down.
+- The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
+  them, so a new scraper key never fails the import. A job's roles are its
+  `job_role_tags`, resolved from its title (KAN-155).
+- A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
+  table sizes read right after one are inflated.
 
-**Never run `alembic init` again** — it overwrites `alembic/env.py` and undoes
-the schema filters. `alembic/CLAUDE.md` explains what that costs.
+### Tests
 
-## Layout
+- **A new resume that parses wrong becomes a fixture first.** Add its text to
+  `tests/fixtures/` with its expected output in `tests/test_resume_parser.py`
+  before touching `app/utils/resume_parser.py`. The heuristics interact: a fix
+  for one layout has broken another more than once. Fixtures are real resumes
+  cut to start at the first section header, so no contact details are
+  committed.
+- **A test that calls the resume routes monkeypatches `resumes.get_supabase`.**
+  The router calls it directly rather than through `Depends`, so a dependency
+  override misses it and the test uploads to the real bucket.
+- **The import's database half needs Postgres**, which CI lacks. Test it on a
+  throwaway local Postgres 15+ (`job_locations` uses `NULLS NOT DISTINCT`);
+  `alembic/CLAUDE.md` has the recipe.
 
-```
-app/
-  main.py         FastAPI app. /health (liveness) and /health/db (readiness);
-                  the 422 handler that keeps a non-finite number from a 500
-  config.py       pydantic-settings; also rewrites URLs to postgresql+asyncpg
-  db.py           Async engine, session factory, declarative Base, Supabase client
-  security.py     Verifies Supabase access tokens against the project's JWKS
-  deps.py         get_current_account — the dependency every protected route uses;
-                  get_company_member on top of it for company-scoped routes
-  schemas/        Pydantic request/response shapes, separate from models/
-    auth.py       Signup body, /auth/me response
-    profile.py    ApplicantProfileResponse and ApplicantProfileUpdate
-    jobs.py       JobListing — also the parser for scraper/feed.json
-    company_jobs.py  JobPostingCreate and JobPosting, for /company/jobs
-                  (pay period: year or hour only; db/job_posting.md)
-  routers/
-    CLAUDE.md     Router conventions — read before adding a router
-    auth.py       POST /auth/signup, GET /auth/me
-    jobs.py       GET /jobs — published scraped jobs from job_postings, public,
-                  no descriptions, narrowed by ?location=, ?workplace=,
-                  ?experience= and ?posted=; GET /jobs/locations
-                  — the places that have jobs, named. `fetch_listing` is
-                  shared with scout.py
-    company_jobs.py  /company/jobs: create, list, load, update, pause and close a company's own jobs
-    resumes.py    CRUD /applicants/{id}/resumes — upload, list, get, replace,
-                  delete, set default, signed file link; extracts text from
-                  PDF/DOCX and parses it into structured JSON
-    avatars.py    GET/PUT/DELETE /applicants/{id}/avatar — profile photo
-    scout.py      POST /scout/chat — one Scout turn, streamed as NDJSON
-    profiles.py   GET/PATCH /applicants/{id}/profile — identity fields
-  services/       Logic with no HTTP or DB of its own. Never in models/,
-                  whose __init__ imports every file as a model
-    avatar.py     Validates and re-encodes an upload to a 512px WebP
-    location_resolver.py  Free-text job location → ISO places, from
-                  data/places.tsv (app/models/CLAUDE.md)
-  scripts/        Commands run by hand, `uv run python -m app.scripts.<name>`
-    import_jobs.py  feed.json → job_postings + job_locations, in one transaction
-  utils/
-    resume_parser.py  Heuristic resume parser (raw text → ParsedResume)
-  models/
-    CLAUDE.md     Model invariants — read before adding or editing a model
-    profiles.py   Account and company tables
-    auth_users.py Stub of Supabase's auth.users, for foreign keys only
-    jobs.py       Job postings, company-posted and scraped (NULL `company_id`),
-                  and job_locations: one row per place a job is offered
-    locations.py  Country and state reference tables
-    resume.py     Resume storage and parsed JSONB
-    dto.py        Enums and Pydantic schemas (ParsedResume, Education, etc.)
-alembic/
-  CLAUDE.md       Alembic decisions — read before editing anything here
-  env.py          Migration environment
-  versions/       Migrations. Committed — they are the schema's history
-  script.py.mako  Template for generated migrations
-tests/            pytest; resume parser, DOCX extraction, location resolver
-                  and feed-import tests, and fixtures
-data/
-  feed.json       Committed snapshot of scraper/feed.json — the import's input
-                  when no local scraper run has written one. See Deployment
-  places.tsv      GeoNames-derived gazetteer the location resolver reads.
-                  CC BY 4.0; generated, never edited by hand
-scripts/
-  build_geonames.py  Rebuilds data/places.tsv from GeoNames. Stdlib only
-alembic.ini       Alembic config. Deliberately holds no database URL
-db/
-  job_posting.md  Schema design notes — rationale, NOT a source of truth
-  resume.md       Same, for resume storage and parsing
-  avatar.md       Profile photo: formats, limits, storage, bucket setup
-pyproject.toml    Dependencies, the pinned Python series, and Vercel's entrypoint
-uv.lock           Exact resolved versions — committed
-```
+## Code layout
 
-Routers live in `app/routers/`. See `app/routers/CLAUDE.md` for conventions.
+Find files with a directory listing; these are the rules for where code goes.
 
-## Current state
-
-**The initial migration has landed.** `dee263a84adb_initial_schema.py` creates
-all seven tables — `applicant_profiles`, `company_profiles`,
-`company_memberships`, `resumes`, `countries`, `states`, `job_postings` — plus
-nine enum types. It is the root of the chain (`down_revision` is `None`).
-
-The shared Supabase project was **dropped and rebuilt from that migration on
-2026-09-21**, after a migration was applied to it whose file was never
-committed. That left `alembic_version` pointing at a revision nobody had, which
-broke every Alembic command for the whole team. `alembic/CLAUDE.md` records the
-incident and the rule that prevents it; read it before your first migration.
-
-Location reference data (`countries`, `states`) is seeded by migrations, and
-`job_postings` references it by ISO code. `app/models/CLAUDE.md` owns the
-details: what is seeded and why, how the location columns and FKs are shaped,
-and the location resolver, which every scraped job must pass through on its
-way into `job_postings`.
-
-Credentials live in Supabase's `auth.users`, not in these tables; the account
-tables' `id` references it. See Auth below.
-
-The recommended next step is Pydantic response schemas serving fixture data, so
-the frontend can replace its `data.ts` fixtures with real calls while the
-schema churns underneath. The API contract should be designed deliberately
-rather than falling out of whatever the tables happen to look like.
-
-CI (`.github/workflows/ci.yml`) runs `ruff check .` and `pytest` on every PR,
-but nothing about migrations yet. Two gates are worth adding: `alembic heads`
-failing when it returns more than one, and `alembic check` failing on model
-drift. Both would have caught the 2026-09-21 breakage before it reached anyone
-else.
-
-## Deployment
-
-This folder deploys to **Vercel as its own project** (Root Directory
-`backend`), separate from the Next.js project, both from this repo. Merging
-to `main` deploys production; every PR gets a preview URL. Chosen in KAN-146
-over Render (free tier sleeps after 15 idle minutes and takes ~1 minute to
-wake — sign-in looked broken), Railway (no real free tier), Fly.io (no free
-tier) and Cloud Run (needs a card). Render with a Dockerfile is the fallback.
-
-- **Entrypoint** is `[tool.vercel] entrypoint` in `pyproject.toml`; the whole
-  app becomes one Vercel Function. Vercel installs from `uv.lock` itself.
-- **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
-  `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (values in
-  `../scout/CLAUDE.md`, "Which model, where"). Without `SCOUT_*` the API
-  points Scout at a local Ollama that a deployment does not have, and every
-  Scout reply is "offline". **Never `DIRECT_URL`:** migrations are run by
-  hand, locally (`alembic/CLAUDE.md`); the deployed API has no business
-  holding the migration connection.
-- **`GET /jobs` reads `job_postings`, not a file** (since 2026-10-07). The
-  deployed jobs are whatever the last `app.scripts.import_jobs` run left
-  there; a deploy changes nothing about them, and an empty table is an empty
-  feed, not an error. Before this, `/jobs` served the committed
-  `data/feed.json`, because a deploy ships only `backend/` and
-  `scraper/feed.json` is gitignored — without the snapshot it answered 503.
-  The snapshot stays as the import's default input when no local scraper run
-  has written one (`config.default_scraper_feed()`; `SCRAPER_FEED`
-  overrides), so it must still validate against `schemas/jobs.py`: refresh it
-  in the same commit as any change there. Scraper + import run on a schedule
-  (`.github/workflows/scrape.yml`, root `CLAUDE.md`'s CI section), importing
-  the run's own `scraper/feed.json`, not this snapshot; a hand run is the same
-  command.
-  Order matters when the feed gains a column: apply its migration first
-  (`7c2e9a41d5b3` added `start_term` and the week/month pay periods,
-  `b81d4e2f6c09` the `sponsorship` column), then import, then deploy the API
-  that reads it. An import against the older schema fails on the unknown column and,
-  being one transaction, writes nothing.
-- **`/jobs` opens a connection per request** (`NullPool`, below), which costs
-  about half a second against Supabase where the file read cost
-  milliseconds: measured 2026-10-07, ~0.8 s for the first request and ~0.5 s
-  for 500 rows. The pooler absorbs it under load; cache the response if the
-  feed ever needs to be faster.
-- **Still open: request bodies over 4.5 MB never arrive** — Vercel refuses
-  them first. Uploads are still capped at 5 MB (`db/avatar.md`), so a
-  4.5–5 MB upload fails on the deployment with a bare 413.
-- **`../scout` is bundled despite living outside `backend/`.** uv installs it
-  as a copy at build time, so the function carries it in site-packages; the
-  KAN-146-deploy previews with Scout built and answered. Keep it a non-editable
-  path source — an editable one would point at a folder the function lacks.
-- **`NullPool` is what makes this safe** (see The database): every
-  invocation opens one connection through Supavisor's transaction pooler,
-  which does the pooling, so serverless scale-out cannot exhaust Postgres.
-
-## The database
-
-### Two connection strings, and the port is the only difference
-
-| Variable              | Used by        | Why                                       |
-| --------------------- | -------------- | ----------------------------------------- |
-| `DATABASE_URL`        | The app        | Transaction pooler (port 6543)            |
-| `DIRECT_URL`          | Alembic        | Session pooler (port 5432); DDL needs one session |
-| `SUPABASE_URL`        | Storage, Auth  | Project URL; also where the JWKS lives    |
-| `SUPABASE_SERVICE_KEY`| Storage, Auth  | Service-role key (not anon) — bypasses RLS, creates users |
-
-**`.env` lives at the repo root, not in `backend/`.** Copy the root
-`.env.example` to `.env` beside it — `.env*` is gitignored, with `.env.example`
-negated — and fill it in from the Supabase dashboard connection string (Project
-Settings → Database), using the two ports above:
-
-```
-DATABASE_URL=postgresql://postgres.<ref>:<password>@<host>.pooler.supabase.com:6543/postgres
-DIRECT_URL=postgresql://postgres.<ref>:<password>@<host>.pooler.supabase.com:5432/postgres
-```
-
-URL-encode the password if it contains `@`, `/`, `:` or `#`, or the URL parses
-wrong and the error will not say why.
-
-Do not collapse them into one variable. It appears to work until a migration
-hangs or prepared statements fail under load. `app/config.py` rewrites both to
-`postgresql+asyncpg://` automatically, so paste what Supabase gives you.
-
-`ENV_FILE` in `app/config.py` resolves the root path from `__file__`, not from
-the working directory. That is deliberate: pydantic's default `env_file=".env"`
-is relative to wherever the process started, so it would find the file when run
-from the root and silently miss it when run from `backend/` — which is where
-uvicorn and alembic actually run. If the file ever moves again, that one
-constant is the only thing to change.
-
-### Engine settings that are not optional
-
-`app/db.py` sets `NullPool` because Supavisor is already a connection pool, and
-`statement_cache_size=0` plus `prepared_statement_cache_size=0` because
-transaction mode hands each statement to whichever backend is free — a prepared
-statement made on one connection is absent on the next, and queries fail
-intermittently under load rather than immediately in development.
-
-Both are DBAPI arguments and belong in `connect_args`. Passing
-`prepared_statement_cache_size` directly to `create_async_engine()` raises
-`TypeError: Invalid argument(s) sent to create_engine()`.
-
-### Migrations
-
-**`alembic/CLAUDE.md` owns this** — the schema filters that stop autogenerate
-dropping `auth.users`, what autogenerate does not emit, the revision chain, and
-the rules for `versions/`. Read it before touching anything under `alembic/`.
-
-The two that matter from out here:
-
-- **Alembic is the single source of truth for the schema.** Never change the
-  schema in the Supabase dashboard; it bypasses Alembic silently and surfaces
-  weeks later as an unrelated failed migration. `db/*.md` are design rationale,
-  not truth.
-- **Import every new model in `alembic/env.py`.** A model no import reaches is
-  absent from `Base.metadata`, and autogenerate will write a migration
-  *dropping* the table it cannot see.
-
-### Never put a connection string or service-role key in `frontend/`
-
-They belong to this service's environment. A variable added there is one typo
-away from a `NEXT_PUBLIC_` prefix and the client bundle.
-
-## The frontend contract
-
-The two halves communicate over HTTP and share no code. What each side may
-assume about the other:
-
-**`frontend/` does not query the database.** No ORM, no connection pool, no
-connection string, no schema, no migrations. Drizzle used to live in
-`frontend/src/db/` and was removed when the API moved to Python. A query
-someone is tempted to write in a React component belongs in an endpoint here.
-
-**A screen's `data.ts` is the seam.** Each screen holds fixture data in a
-sibling `data.ts` today, and that file becomes the fetch once the endpoint
-exists — so `page.tsx` is untouched either way. Design endpoints against those
-fixture shapes; they are the closest thing to a agreed contract that exists.
-
-**The app must keep running without this service.** Every screen renders its
-`data.ts` fixture, so a clone with no environment file still boots. A screen
-whose data has gone live renders a clear error instead of its fixture — never
-the fixture in its place, which would pass made-up rows off as real. The Jobs
-feed is the first (`frontend/src/app/(seeker)/jobs/listings.ts`). On this
-side, `/health` and every fixture route work without the root `.env`; only
-`/health/db` and the routes that read real data need it — `/jobs` among them
-since it moved to the database, so with no `.env` the Jobs page shows its
-error, never fixtures. Keep both true — it is what lets someone work on one
-half without the other, and it makes a failure point at one side or the other
-instead of being ambiguous.
-
-**Schema changes through the Supabase dashboard are banned.** A UI edit bypasses
-Alembic silently and surfaces weeks later as an unrelated failed migration.
-Revoke dashboard write access if the plan allows it.
+- **Routers** (`app/routers/`): one domain per file, registered in
+  `app/main.py`. Read `app/routers/CLAUDE.md` before adding or changing a route.
+- **SQLAlchemy models and Pydantic schemas are separate layers.** Models
+  (`app/models/`) are database rows, schemas (`app/schemas/`) are request and
+  response shapes. Collapse them and the first internal column you must hide
+  leaks. Read
+  `app/models/CLAUDE.md` before adding or editing a model.
+- **Services** (`app/services/`): logic with no HTTP or database of its own.
+  Never in `models/`, whose `__init__` imports every file as a model. Job
+  matching: `app/services/matching/CLAUDE.md`.
+- **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
+- **Scripts** (`app/scripts/`): commands run by hand,
+  `uv run python -m app.scripts.<name>`.
+- **`data/places.tsv`** is the location resolver's gazetteer, generated from
+  GeoNames by `scripts/build_geonames.py` (CC BY 4.0). Never edit it by hand.
+- **`data/feed.json`** is the import's default input when no local scraper run
+  has written one (`config.default_scraper_feed()`; `SCRAPER_FEED` overrides).
+  It must validate against `app/schemas/jobs.py`: refresh it in the same
+  commit as any change there.
+- **The schema notes in `../docs/`** (`resume.md`, `avatar.md`,
+  `job_posting.md`, `auth.md`) are design rationale, never the source of truth
+  for schema.
 
 ## Conventions
 
-**Routes are `async def`.** Mixing sync and async arbitrarily invites blocking
-work inside an async route, which stalls the event loop for every request.
+- **Routes are `async def`.** Blocking work inside an async route stalls the
+  event loop for every request; blocking calls go through `asyncio.to_thread`.
+- **One session per request**, through `get_session` in `app/db.py`. A shared
+  session shares a transaction, and concurrent requests see each other's
+  uncommitted writes.
+- **Prefer SQLAlchemy Core for queries**, the ORM where object graphs help.
+  Core composes the search endpoints' many optional filters cleanly. The ORM's
+  lazy loading fails in async code with `MissingGreenlet`: load relationships
+  explicitly with `selectinload()`.
+- **Comments explain why.** A non-obvious setting gets a sentence on what
+  breaks without it.
+- **The app starts with no credentials.** `/health` works without the root
+  `.env`; only `/health/db` and routes that read real data need it. That lets
+  someone work on one half without the other, and makes a failure point at one
+  side.
+- **A screen whose data is live shows an error when this API fails, never its
+  `data.ts` fixture**, which would pass made-up rows off as real. Design new
+  endpoints against a screen's `data.ts` fixture shape: it becomes the fetch
+  once the endpoint exists, leaving `page.tsx` untouched.
 
-**One session per request**, through the `get_session` dependency in
-`app/db.py`. Sharing a session across requests shares a transaction, and
-concurrent requests then see each other's uncommitted writes.
+## The database
 
-**Prefer SQLAlchemy Core for queries**, and the ORM where object graphs help.
-The search endpoints have many optional filters, which Core composes cleanly;
-the ORM's lazy loading is a trap in async code — load relationships explicitly
-with `selectinload()` or you will meet `MissingGreenlet`.
+| Variable               | Used by       | Value                                               |
+| ---------------------- | ------------- | --------------------------------------------------- |
+| `DATABASE_URL`         | The app       | Transaction pooler, port 6543                       |
+| `DIRECT_URL`           | Alembic only  | Session pooler, port 5432; DDL needs one session    |
+| `SUPABASE_URL`         | Storage, Auth | Project URL; also where the JWKS lives              |
+| `SUPABASE_SERVICE_KEY` | Storage, Auth | Service-role key: bypasses RLS, creates users       |
 
-**SQLAlchemy models and Pydantic schemas are separate layers.** Models describe
-database rows, Pydantic describes request and response shapes. Do not collapse
-them — the first time an internal column must not be exposed, you will regret
-it.
+- **`.env` lives at the repo root, not in `backend/`.** Start it from the root
+  `.env.example`; to fill a fresh worktree's, see the root `CLAUDE.md`'s
+  Conventions.
+- **`ENV_FILE` in `app/config.py` resolves the root path from `__file__`**,
+  not the working directory. pydantic's default `env_file=".env"` would find it
+  from the root and silently miss it from `backend/`, where uvicorn and alembic
+  run.
+- **Keep the two URLs separate.** One URL appears to work until a migration
+  hangs or prepared statements fail under load. Paste Supabase's strings as
+  given (`config.py` rewrites them to `postgresql+asyncpg://`), URL-encoding a
+  password containing `@`, `/`, `:` or `#`; otherwise the URL parses wrong and
+  the error does not say why.
+- **Engine settings are not optional.** `app/db.py` sets `NullPool` because
+  Supavisor already pools, and `statement_cache_size=0` plus
+  `prepared_statement_cache_size=0` because the transaction pooler hands each
+  statement to any free backend: a prepared statement made on one is absent on
+  the next, and queries fail intermittently under load, never in development.
+  Both cache settings go in `connect_args`; passed to `create_async_engine()`
+  they raise `TypeError: Invalid argument(s)`.
+- **Still open: CI has no migration gates.** `alembic heads` returning more
+  than one, and `alembic check` failing on model drift, would each have caught
+  the 2026-09-21 breakage (`alembic/CLAUDE.md`).
 
-**Comments explain why, not what.** This matches the density of the frontend
-and of the Drizzle layer this replaced. A non-obvious setting gets a sentence
-on what breaks without it.
+## Deployment
 
-**The app must start with no credentials.** `/health` and every fixture route
-work without the root `.env`; only `/health/db` needs it. Keep that true — it is what
-lets someone work on routes without database access, and it makes a failure
-point at one half or the other.
+Vercel, its own project (Root Directory `backend`), the whole app one Vercel
+Function (`[tool.vercel] entrypoint` in `pyproject.toml`; Vercel installs from
+`uv.lock`). Chosen in KAN-146 over Render (free tier sleeps and takes ~1 minute
+to wake, so sign-in looked broken), Railway, Fly.io and Cloud Run (no usable
+free tier). Render with a Dockerfile is the fallback.
 
-## Auth — Supabase Auth issues tokens, this API authorizes
+- **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
+  `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
+  model, where"); without `SCOUT_*` every Scout reply is "offline". **Never
+  `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
+  business holding that connection. Embeddings use Ollama with
+  `nomic-embed-text:v1.5`; see `app/services/matching/CLAUDE.md`.
+- **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
+  (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
+  empty feed, not an error.
+- **When the feed gains a column: migration, then import, then deploy.** An
+  import against the older schema fails on the unknown column and, being one
+  transaction, writes nothing.
+- **`../scout` is bundled as a non-editable path source.** uv copies it into
+  site-packages at build time; an editable install would point at a folder the
+  function lacks.
+- **`NullPool` makes serverless safe**: each invocation opens one connection
+  through Supavisor's transaction pooler, so scale-out cannot exhaust Postgres.
+  It costs ~0.5 s per `/jobs` request (measured 2026-10-07); cache the
+  response if the feed must be faster.
+- **Still open:** the 4.5 MB request-body limit against the 5 MB upload cap
+  (`../frontend/CLAUDE.md`, Deployment).
 
-**Decided (2026-09-24): Supabase Auth owns credentials and sessions.** It
-stores the password hash in `auth.users`, issues the access/refresh token pair,
-and refreshes it. This API never hashes a password and never signs a token —
-it only **verifies** Supabase's access token and decides what that account may
-do. This replaced a working FastAPI implementation (Argon2id hashes on the
-account tables, HS256 JWTs in a `session_token` cookie); that code is in git
-history before this branch if it is ever needed again.
+## Auth
 
-Why the switch: email verification, password reset, magic links and OAuth
-providers come with Supabase Auth, and each would otherwise be ours to build
-and get right. The cost is a second service in the sign-in path — a Supabase
-Auth outage is a sign-in outage — and the one-account-per-email rule below.
+Supabase Auth issues tokens; this API only verifies them and decides what the
+account may do. It never hashes a password or signs a token. Read
+`../docs/auth.md` before changing sign-up, sign-in, OAuth, token verification or a
+Supabase Auth dashboard setting: it has the flow, the dashboard settings and
+why each rule exists.
 
-### The flow
-
-```
-signup   Next action ──POST /auth/signup──▶ FastAPI ──admin API──▶ Supabase Auth
-                                              │ creates auth.users row with
-                                              │ app_metadata.account_type,
-                                              │ then the profile row, same id
-                                              │ (company: the company row and
-                                              │ its owner's membership)
-         Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
-
-login    Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
-         Next action ──GET /auth/me, Bearer──▶ FastAPI  (role check, redirect)
-
-request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the session)
-         Server code ──Authorization: Bearer <access token>──▶ FastAPI
-```
-
-- **Signup goes through this API, not `supabase.auth.signUp()`.** The account
-  type must land in `app_metadata`, which only the service-role key can write.
-  `signUp()` can only set `user_metadata`, which the user can edit themselves
-  — trusting it would let anyone make themselves a company account. Going
-  through here also creates the profile row in the same request, so an
-  `auth.users` row never exists without one. If the profile insert fails, the
-  route deletes the auth user it just made.
-- **The auth user comes first, the rows second.** The profile id *is* the
-  `auth.users` id and a foreign key to it, so the rows cannot be written
-  before Supabase answers. Everything from the first `db.add()` to the commit
-  sits in one `try` whose `except` deletes that auth user — a flush left
-  outside it would fail on a constraint and leave an auth user with no
-  profile, whose email then 409s on every retry and signs in to nothing.
-- **Create Company writes two rows in one transaction**: the
-  `company_profiles` row, and a `company_memberships` row for the person
-  signing up with role `owner`, status `active`. The body carries a nested
-  `company` object (`CompanySignup` in `app/schemas/auth.py`);
-  `SignupRequest`'s model validator requires it for a company and rejects it
-  for an applicant, so the route never checks. Joining an existing company is
-  not built.
-- **Two Supabase dashboard settings back this up, and live nowhere in code.**
-  The anon key and project URL ship to the browser, so anyone can call
-  Supabase Auth directly and skip both the form and this API. Minimum
-  password length is **8**, matching `SignupRequest.password` and the form's
-  `PASSWORD_MIN_LENGTH`, so a signed-in user can't `updateUser()` their way to
-  a shorter one — set this on any new Supabase project.
-
-  Authentication → **"Allow new users to sign up" must be ON.** It reads as
-  the opposite of what it should be — turning it off was the original plan,
-  to refuse a direct `signUp()` and force account creation through this API
-  (the service-role `admin.create_user` is unaffected either way) — but
-  GoTrue applies that same switch to **every** path that creates a new
-  `auth.users` row, OAuth included: a first-time Google/LinkedIn sign-in *is*
-  a new signup from its side. Off, `signInWithOAuth()` fails with
-  `access_denied` / `signup_disabled` ("Signups not allowed for this
-  instance") before ever reaching this API — the OAuth section below depends
-  on this being on. It stopped being a real guard the day
-  `/auth/oauth/account-type` shipped: that endpoint already lets any
-  authenticated, type-less identity self-report `account_type` the same way
-  the signup form's body always has (trusted at the same level, never
-  escalated afterward — `user_metadata` still isn't). A bare `signUp()` just
-  reaches that same self-service step through a different front door, and a
-  type-less account can't do anything protected regardless
-  (`get_current_account` 401s it). Turning this on does not reopen the
-  privilege the original setting was guarding.
-- **Login does not touch this API's database code for the password.** Supabase
-  Auth checks it against `auth.users`. The Next action then calls `/auth/me`
-  to learn the account type and onboarding state.
-- **Signup creates the user already confirmed** (`email_confirm=True`), which
-  matches the behaviour before the switch. Turning on email verification means
-  dropping that flag and adding a confirmation route on the frontend.
-
-### How a token is verified — `app/security.py` and `app/deps.py`
-
-`get_current_account` reads `Authorization: Bearer`, **never a cookie**:
-Supabase's cookies belong to the Next origin, and are chunked and
-base64-encoded besides. It then:
-
-1. Verifies the signature. Projects on asymmetric signing keys are checked
-   against the public JWKS at `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
-   fetched once and cached by `PyJWKClient` — no network call per request.
-   Only ES256/RS256 are accepted. Supabase's legacy shared-secret HS256
-   scheme is deliberately unsupported: that secret can mint tokens as well as
-   verify them, so holding it here would let a leak forge any user. If the
-   project is ever switched back to it, sign-in breaks with 401s — switch
-   it back to signing keys (Project Settings → JWT Keys), don't add the
-   secret here.
-2. Checks `aud == "authenticated"`, the issuer, and expiry.
-3. Reads `sub` (the `auth.users` id, which **is** the profile's primary key)
-   and `app_metadata.account_type`, then loads the profile row. `company_id`
-   and onboarding state come from that row, never from the token.
-
-Never read `user_metadata` for anything that decides access.
-
-### OAuth (Google, LinkedIn)
-
-**Decided: Supabase Auth's native `google` and `linkedin_oidc` providers, with a
-"Choose Account Type" step filling the gap signup() closes for a password
-account.** `signInWithOAuth()` lets Supabase create the `auth.users` row
-itself after the identity provider redirects back — it never goes through
-this API, so `app_metadata.account_type` and the profile row are both
-missing afterward, the same two things `/auth/signup` sets atomically for a
-password account.
-
-`GET /auth/oauth/status` and `POST /auth/oauth/account-type` close that gap,
-both behind `get_verified_identity` (`app/deps.py`) rather than
-`get_current_account` — the one dependency that verifies the token without
-requiring a profile row to already exist, which is exactly the state a
-first-time OAuth sign-in is in. `/oauth/account-type` sets
-`app_metadata.account_type` through the same admin API `/auth/signup` uses,
-then creates the profile row; on failure it resets `account_type` back to
-`None` rather than deleting the auth user, since — unlike signup() — that
-user's Google/LinkedIn session is real and didn't originate here.
-
-Each provider needs its Client ID/Secret pasted into the Supabase dashboard
-(Authentication → Providers) from the corresponding developer console —
-Google Cloud Console for `google`, a LinkedIn Developer app with the
-"Sign In with LinkedIn using OpenID Connect" product for `linkedin_oidc` (the
-older `linkedin` provider is deprecated). Neither lives in code; both are
-dashboard-only settings, same category as the minimum password length two
-sections up.
-
-**Needs "Allow new users to sign up" on** (two sections up) — without it,
-`signInWithOAuth()` for a first-time identity fails with `access_denied` /
-`signup_disabled` before any redirect back here, since GoTrue treats a new
-Google/LinkedIn identity as a signup same as a password one.
-
-### Identity rules
-
-- **One email, one account.** `auth.users` holds an address once, so a person
-  can no longer have both an applicant and a company account on the same
-  email. Signup for a taken address is a 409 whichever type is asked for, and
-  login for the wrong account type is rejected by the frontend after `/me`.
-- **The profile id is the `auth.users` id.** Both account tables have
-  `id REFERENCES auth.users(id) ON DELETE CASCADE`, so deleting a user in the
-  Supabase dashboard deletes their profile. The id has no default: a profile
-  row cannot be created without an auth user first.
-- **`email` on the profile tables is a copy** for display and queries.
-  `auth.users.email` is the one Supabase signs in with. Nothing changes an
-  email yet; the day something does, it must update both.
-
-### Rules that did not change
-
-- **Whoever acts on a token verifies its signature.** One place —
-  `get_current_account` — used by every protected route.
-- **Authorization is Python, not row-level security.** SQLAlchemy connects as
-  one privileged role, so RLS policies never fire, even though Supabase Auth
-  now exists. A policy written against this connection is dead code that reads
-  as a security control. Every company-scoped endpoint checks for an active
-  membership on the requested `company_id`; role checks are Python guards.
-- **RLS is enabled on every `public` table, with no policies**
-  (`ce5b2e3f9b78`). That is a deny-all backstop for the `anon` and
-  `authenticated` roles, which Supabase's Data API uses for the public anon
-  key and for signed-in users. The Data API does not expose `public` either;
-  the RLS is what still holds if someone turns it back on. Every new table
-  enables RLS in its own migration — `alembic/CLAUDE.md` has the rule. Do
-  not add policies to "open up" a table: this app has no path that reads
-  through them, so data a screen needs goes through an endpoint here.
-- **Never trust a client-supplied `company_id`, `profile_id` or role.** Derive
-  identity from the verified token, then check access against it.
-- **The Next proxy is not a security boundary.** It refreshes the session and
-  may redirect for convenience; this API is reachable without going through
+- **Signup goes through `POST /auth/signup`, never `supabase.auth.signUp()`**,
+  so the account type lands in `app_metadata` (only the service-role key can
+  write it). If any profile write fails, the route deletes the auth user it
+  just made; every write sits inside that one `try`.
+- **Whoever acts on a token verifies its signature**, in one place, used by
+  every protected route: `get_current_account` (`app/deps.py`), which reads `Authorization: Bearer` (never a cookie) and verifies against
+  the project's JWKS, ES256/RS256 only. The legacy HS256 shared secret is
+  unsupported on purpose: it can mint tokens.
+- **Access decisions read the profile row and `app_metadata`**, never
+  `user_metadata`, which the user can edit. `company_id` and onboarding state
+  come from the row, never the token.
+- **Derive identity from the verified token**, never from a client-supplied
+  `company_id`, `profile_id` or role. Company-scoped endpoints check for an
+  active membership; role checks are Python guards.
+- **Authorization is Python.** SQLAlchemy's role bypasses RLS, so a policy
+  written against it is dead code that reads as a security control. RLS stays
+  enabled with no policies on every table; data a screen needs goes through an
+  endpoint here, never through a policy that "opens up" a table.
+- **The Next proxy is not a security boundary.** This API is reachable without
   Next, so every endpoint checks for itself.
+- **"Allow new users to sign up" stays ON** in the Supabase dashboard, or
+  first-time OAuth sign-in fails with `signup_disabled` (`../docs/auth.md`).
 
-### Configuration
-
-`SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (already used for Storage) are what
-signup's admin call and JWKS verification need. There is no JWT secret —
-`JWT_SECRET` from the old FastAPI auth is gone, and the legacy
-`SUPABASE_JWT_SECRET` is not supported. **The service-role key never
-goes to `frontend/`** — the frontend gets the anon key only.
-
-### Still open
+Still open:
 
 - Email verification and password reset: supported by Supabase, not wired up.
 - Deleting an account cascades its rows but not its Storage objects
-  (`Resume/<id>/`, `Avatar/<id>/`). Nothing cleans those up yet.
-- Joining an existing company: no endpoint, and the form's Join tab is a
+  (`Resume/<id>/`, `Avatar/<id>/`).
+- Joining an existing company: no endpoint; the form's Join tab is a
   placeholder.
-- Every `IntegrityError` at signup answers "An account with this email already
-  exists" — including a taken `company_profiles.contact_email`, where the
-  sign-in email is fine. Tell them apart by constraint name in `exc.orig`.
-- Nothing sets `onboarding_completed_at` for a membership, so `/auth/me`
-  always reports a company account as not onboarded. The frontend routes
-  around it (companies skip onboarding); whatever builds company onboarding
-  must set it.
+- Every signup `IntegrityError` answers "An account with this email already
+  exists", including a taken `company_profiles.contact_email`. Tell them apart
+  by constraint name in `exc.orig`.
+- Nothing sets a membership's `onboarding_completed_at`, so `/auth/me` always
+  reports a company as not onboarded. Whatever builds company onboarding must
+  set it.

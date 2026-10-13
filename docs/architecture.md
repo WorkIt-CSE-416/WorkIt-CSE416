@@ -4,8 +4,9 @@ A snapshot of how the two halves of WorkIt actually fit together today —
 what calls what, which libraries are doing the real work, and what shape the
 data is in on each side. This is a point-in-time picture, not a design doc:
 `frontend/CLAUDE.md` and `backend/CLAUDE.md` own the rules and rationale,
-`backend/db/*.md` own schema decisions. Update this file when the shape of
-the system changes, not when a screen gets a new field.
+the schema notes beside this file (`job_posting.md`, `resume.md`,
+`avatar.md`) own schema decisions. Update this file when the shape of the
+system changes, not when a screen gets a new field.
 
 ## The two halves
 
@@ -22,7 +23,7 @@ the system changes, not when a screen gets a new field.
 ```
 
 Two self-contained projects, each with its own dependency tree, that talk
-over HTTP and share no code (`../CLAUDE.md`). The backend is the only thing
+over HTTP and share no code (`backend/CLAUDE.md`, "Where this folder sits"). The backend is the only thing
 that queries Postgres, directly over `asyncpg` — no PostgREST. **Supabase
 Auth** owns credentials and sessions: it stores users in `auth.users`,
 issues access/refresh tokens, and the API only verifies them
@@ -40,8 +41,8 @@ access token out of the session and forwards it as `Authorization: Bearer`.
 own Vercel project from this repo — the Next app as a normal Next deployment,
 the FastAPI app as a single Vercel Function — and Next's `API_URL` names the
 API project's URL instead of `:8000`. Supabase is the same hosted project in
-both. Still no CORS: the hop is still server to server. Details in the root
-`CLAUDE.md`'s Deployment section.
+both. Still no CORS: the hop is still server to server. Details in each half's
+Deployment section (`frontend/CLAUDE.md`, `backend/CLAUDE.md`).
 
 ## Backend (`backend/`)
 
@@ -147,8 +148,8 @@ page.tsx  →  imports ./data.ts  →  hand-written TypeScript literals
 ```
 
 That's true for `(seeker)/jobs`, `/applications`, `/profile`, `/search`,
-`company/*`, `onboarding/applicant`, and `design-kit`. `frontend/CLAUDE.md`
-calls this "the seam" on purpose — a screen's `data.ts` is meant to become
+`company/*`, `onboarding/applicant`, and `design-kit`. That is on purpose
+(`frontend/CLAUDE.md`, Architecture): a screen's `data.ts` is meant to become
 the real fetch later without `page.tsx` itself changing shape.
 
 **The one exception is auth.** `/signup` and `/login` are wired to the real

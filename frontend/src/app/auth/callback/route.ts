@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
     // Google/LinkedIn append ?error=... instead of ?code=... when the user
     // denies consent or the provider itself rejects the request — surface
     // that instead of a bare "no code" if it's there.
-    const providerError = request.nextUrl.searchParams.get("error_description") ??
+    const providerError =
+      request.nextUrl.searchParams.get("error_description") ??
       request.nextUrl.searchParams.get("error");
     return bounceToLogin(origin, "no_code", providerError);
   }

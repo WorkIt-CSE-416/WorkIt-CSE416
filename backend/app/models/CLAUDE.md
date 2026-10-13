@@ -195,6 +195,24 @@ edit. That window has closed — `dee263a84adb` created all nine types on
 domain does not grow with the product. For anything that will, a lookup table
 costs a join and saves the coordination.
 
+## A new column reaches the database before the model that maps it
+
+`deferred=True` keeps a column out of reads, not writes. On an ORM INSERT,
+SQLAlchemy adds an explicit `NULL` for every mapped column with no value and no
+default (its own source calls this "legacy behavior"). So a column declared
+here appears in every `Model(...)` insert, even when nothing sets it.
+
+Deploy that model to a database without the column and every such insert fails.
+For `resumes.embedding` (below) that would have meant resume upload answering
+500 "Failed to save resume record", and company job creation an unhandled 500.
+It was caught in review on 2026-10-09, before anything shipped.
+
+Adding a nullable column is harmless to the code already running, so applying
+its migration early costs nothing, but deploying the model first breaks inserts.
+Run `alembic upgrade head` right after merging, before the new deployment is
+live. A column whose value the database supplies (`Computed`, a
+`server_default`) is left out of inserts and is not affected.
+
 ## Locations — countries, states, and the resolver
 
 ### The tables
@@ -239,8 +257,17 @@ jobs list several. "Jobs in California" is an `EXISTS` on this table.
   on 15 or later. That constraint's index also serves lookups by `job_id`,
   which is why the column has no index of its own.
 - `ON DELETE CASCADE` from the job: deleting a job deletes its places.
-- **Display uses `job_postings.location_raw`**, never these rows. The codes are
-  for filtering and lose the city.
+- **Display uses `job_postings.location_label`, else `location_raw`**, never
+  these rows. The codes are for filtering and lose the city. The import
+  writes `location_label` ("San Francisco, CA") from the city the resolver
+  already picks (`Resolution.label`, KAN-171): a segment becomes "City, ST"
+  only when every place in it is a US city with a state and it names no
+  arrangement ("Remote - San Francisco" keeps its words), so the label never
+  says less than the posting. It is display text, not a city field: nothing
+  filters on it, and the Location filter stays at countries and states (a
+  city filter's options would run to thousands, which the team ruled out on
+  2026-10-09). GeoNames names a job listing wouldn't use are swapped in
+  `_DISPLAY_NAME` ("New York City" reads "New York").
 - **The company API keeps one place per job.** Its body and response still
   carry `locationCountry`/`locationState`; `routers/company_jobs.py` writes
   them as the job's single row and reads them back the same way, so the
@@ -264,8 +291,13 @@ Seeded by migrations, frozen inline from pycountry 26.2.16:
 
 **`ZZ` is a catch-all for places outside the seed**, not a real country. It is
 ISO's user-assigned "unknown" code, so it can never collide with one ISO
-assigns later. Never use it for Remote — that is `work_style` (above); a job
-remote from anywhere is `work_style = remote` with country `ZZ`.
+assigns later. Never use it for Remote — that is `work_style` (above). A job
+remote from anywhere ("Remote", "Work Remotely") has `work_style = remote`
+and no `job_locations` rows: the resolver reads those words as no place, and
+the job board's location filter keeps such a job under every place
+(`unplaced_remote` in `routers/jobs.py`). Filing it under `ZZ` instead, as
+this said before, would have put it beside the roles in Peru and Colombia,
+hidden from a seeker picking United States all the same.
 The state is `ZZ-ZZ`, not `ZZ`, because the API requires a state code to be
 `<country>-<sub>` and start with its country (`schemas/company_jobs.py`).
 Anything filed under it cannot be told apart later, so the resolver should
@@ -371,7 +403,10 @@ differently ("uk", "czech republic", "turkiye"), areas wholly outside the US
    can't qualify the one before (`Austin, New York`) starts a new place, so
    `Cambridge, MA, Arlington, VA` is two places and `Boston, MA, USA` one.
 5. Decide each place. A city must fit its qualifiers; one alone takes the
-   most populous match, or a US match at least half that size. A name alone
+   most populous match, or a US match at least half that size, by its own
+   name first: only a name that is no city's own ("SF", "NYC") goes by
+   alternates. "Waterloo" is a Waterloo, not Austin's old name (that put
+   "Austin, TX" on a Waterloo co-op's card, review 2026-10-10). A name alone
    prefers a US state, then a country, then a region abroad (unless it is
    also a US city of 250k+), then a city.
 
@@ -421,6 +456,93 @@ never downloads anything. Re-run the script to refresh it.
   (`Montpelier, VT`) and a miss when one stands alone. `cities5000` is the
   next size up if that starts to matter.
 - It ships with the Vercel deploy although only the import reads it.
+
+## Job roles — `job_roles.py`
+
+The short list of roles search filters by and onboarding will offer, and the
+roles each job is tagged with. **This is what `GET /jobs?role=`, `?q=` and
+the Jobs page's Role filter read (KAN-155), not `job_postings.roles`**
+(KAN-172, below): that column holds the scraper's own category keys
+(`"data_ai/ml"`), which the import still writes until a later migration drops
+it (expand, then contract). The scraper still uses those keys itself, to
+decide which postings to keep; that is unchanged. `job_role_tags` holds
+`job_roles` slugs from `services/role_resolver.py`. `../../../docs/search.md` has the design and
+why; the rules for this folder:
+
+- **`job_roles` is keyed by `slug`**, like `countries.code`: no surrogate id.
+  The slug is copied into every tag, every onboarding pick and the resolver's
+  alias dict, so **it never changes once shipped**. Renaming what people see
+  changes `name`. The `job_roles_slug_shape` CHECK keeps it lowercase words
+  joined by underscores, so it reads cleanly in `?role=`.
+- **Only migrations change the list**, each a frozen copy of the rows it
+  inserts or updates, as the country and state seeds are. Never import a
+  Python constant into one: editing the constant later would change what an
+  old migration does. The frontend reads the list from the API, never a copy.
+- **`job_role_tags` is many-to-many on purpose.** A job has zero, one or
+  several roles, so there is no `role_slug` column on `job_postings`. The
+  primary key `(job_id, role_slug)` serves lookups by job, and
+  `job_role_tags_role_idx` the role filter. `job_id` is named as in
+  `job_locations`.
+- **Deleting a job drops its tags (CASCADE); deleting a role is refused
+  while any job is tagged with it (RESTRICT).** Removing a role is then
+  deliberate: its migration deletes the tags first. SET NULL isn't possible,
+  as `role_slug` is part of the primary key. Neither foreign key can ever
+  delete a job: a cascade only runs from the table pointed at to the table
+  pointing at it. Onboarding picks should take RESTRICT too.
+- **Their migrations:** `362182aaa4fd` creates the tables (RLS on both) and
+  revises `98ab19cfe840` (main's `roles` column; re-parented from
+  `4485d7a7a712` when KAN-155 merged main, before either was applied);
+  `ab07572bba38` seeds
+  the first 49 roles, flat, grouped to cover the twelve categories the
+  scraper keeps (so a job it keeps finds a role), with `sort_order` in gaps
+  of 10 so a role can be
+  inserted between two without renumbering. **The import reads `job_roles`
+  and writes `job_role_tags`, so both migrations must be on the database
+  before that code runs**; without them it refuses and writes nothing
+  (`../../CLAUDE.md`, Commands).
+- **A seed's downgrade deletes its roles' tags first**, since RESTRICT refuses
+  the role delete otherwise. The import writes the tags again.
+- **Adding a role is a seed migration plus its aliases** in
+  `../services/role_resolver.py`. The resolver is built from the slugs the
+  database holds and raises on an alias for one it doesn't, so aliases for a
+  role whose migration isn't applied fail the import loudly.
+
+### The resolver — `app/services/role_resolver.py`
+
+Title (or search query) → slugs, by whole-word alias lookup. The module
+docstring has the steps and `../../../docs/search.md` the measurements and
+why. Rules that a change here must keep:
+
+- **Add a case to `tests/test_role_resolver.py` before changing an alias.**
+  Aliases interact: a short one fires inside a longer title, and an outright
+  role drops the others. The tests read the roles from the seed migration,
+  check every role's name and every alias resolve to their own role, and hold
+  a 90% coverage floor on `data/feed.json` (95.8% on 2026-10-11).
+- **`WORD_FORMS` holds a person's forms, never a process.** `development` →
+  `developer` tagged "Graduate Development Program" as software.
+- **An `OUTRIGHT` role's aliases name the job, never only its field.** A lone
+  "sales" or "recruiting" would take "Software Engineer, Sales Platform" away
+  from software.
+- **One phrase, one owner.** Construction raises if two roles, or a role and
+  `NOT_ROLES`, claim the same phrase after word forms.
+- **Precision over recall.** A title that names no role gets no tag; it is
+  still found by keyword. Never add a catch-all alias to raise coverage.
+- **Search reads the title as well as the tag.** The longest alias takes a
+  title's words, so "Embedded Software Engineer" is `embedded_engineer`
+  alone. `read_query` returns the phrases that named each role (`said`), and
+  `GET /jobs?q=` keeps a job tagged with the role *or* whose title says them
+  (`title_pattern`: whole words, in order, in their `WORD_FORMS` spellings).
+  The tag stays exact; only search widens. Never make that match stemmed:
+  the `english` stemmer makes "developer" "development" again.
+- **Typos are corrected in queries, never in titles.** `read_query` snaps a
+  word of `FUZZY_MIN_LENGTH` (5) letters or more that no alias holds to the
+  nearest one that does (`difflib`, cutoff `FUZZY_CUTOFF` 0.8): "sofware
+  enginer" finds `software_engineer`. `resolve` stays exact, since its result
+  is a stored tag. A corrected word leaves `rest` only if it completed an
+  alias, so a company that looks like an alias word ("scale" ~ "sales") is
+  still searched for. Raising the cutoff or lowering the length is a test
+  change first: `test_read_query_leaves_names_alone` holds the company and
+  keyword names that must pass through untouched.
 
 ## job_postings holds company-posted and scraped jobs
 
@@ -474,6 +596,39 @@ produces no trigram and scans anyway. `title` had one too, dropped in
 `4cfa4c1836cd`; title search has no index now. `company_name` is only filled for scraped jobs, so
 searching company-posted jobs by employer needs a join or a copied name.
 
+**Job matching adds three columns (KAN-139):**
+- **`job_postings.embedding` and `resumes.embedding`** hold embedding vectors,
+  `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
+- **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
+  and description (weighted D), so anything that ranks with `ts_rank` puts a
+  title match first (search itself doesn't rank: `@@` ignores weights), with
+  the GIN index `job_postings_fts_idx` serving `GET /jobs?q=`; both from
+  `a70c641b2f99`, which drops and adds the column (a generated column's
+  expression can't be altered in place everywhere). Postgres computes it and
+  keeps it current, and `Computed` keeps it out of every INSERT and UPDATE, so
+  nothing in Python writes it. `@@` ignores weights, so matching's skill
+  overlap reads it unchanged.
+- **All three are `deferred`**, so the company-jobs and resume routes' ORM loads
+  never pull 768 numbers, or a few KB of search terms, per row.
+- **Their migration is `4485d7a7a712`**, which revises `b81d4e2f6c09` (visa
+  sponsorship). Until it is applied, any branch that maps these columns
+  breaks resume upload and company job creation (see "A new column reaches the database before the model that
+  maps it", above).
+
+What writes them, and why, is `../services/matching/CLAUDE.md`.
+
+**`job_postings.role_category` and `job_postings.roles` are gone
+(`824f0b2e3d84`).** They held the scraper's role keys: `role_category` one of
+five disciplines (KAN-171, `aa41fdc1ba80`, with its `role_category` enum) and
+`roles` up to two of twelve categories plus specialties (KAN-172,
+`98ab19cfe840`, `text[]` with the GIN index `job_postings_roles_idx`), which
+`GET /jobs?role=` filtered on. KAN-155 replaced both with `job_roles` /
+`job_role_tags` (above), and the backend's `dto.role_key` and
+`dto.role_category` went with them. The drop is the contract half of an expand,
+then contract: it must be applied only **after** the code that stopped
+reading and writing the columns is deployed (`../../CLAUDE.md`, Commands).
+Its downgrade puts the columns back empty; the old import refills them.
+
 ## Identity lives in auth.users
 
 Supabase Auth owns credentials (`../../CLAUDE.md`'s Auth section). **No table
@@ -499,7 +654,7 @@ What that means for the account tables:
   NULL until onboarding completes, and read on every `/auth/me`.
 - **`avatar_path`** is a path in the private `Avatar` Storage bucket, never a
   URL and never image bytes. Renamed from `avatar_url` in `4f1a9c2e7b30`;
-  `../../db/avatar.md` has why.
+  `../../../docs/avatar.md` has why.
 
 ## Known gaps
 
@@ -531,16 +686,17 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 These belong to later tickets and should not be added here:
 
 - Jobs, applications, pipeline stages, interviews, offers, resume scores. ATS
-  clones model all of them; `../../db/job_posting.md` starts that work.
+  clones model all of them; `../../../docs/job_posting.md` starts that work.
 - Resume storage and parsing — implemented in `resume.py` (model) and
-  `../utils/resume_parser.py` (heuristic parser). See `../../db/resume.md`
+  `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`
   for design rationale.
 - Browser-automation or session state for the autofiller. If autofill needs it
   later, that is a separate `autofill_runs` table, not a column here.
 
 ## Pointers, not copies
 
-- Auth, the frontend contract, and why not PostgREST — `../../CLAUDE.md`.
+- Auth, why not PostgREST, and what each half may assume of the other (its
+  Conventions) — `../../CLAUDE.md`.
 - Migration rules, the schema filters, and what autogenerate does not emit —
   `../../alembic/CLAUDE.md`.
 - Models vs Pydantic schemas stay separate layers — `../../CLAUDE.md`.

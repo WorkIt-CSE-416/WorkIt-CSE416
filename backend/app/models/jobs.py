@@ -4,9 +4,11 @@ hold model schema for job posting tables
 import datetime
 import uuid
 
+from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import (
     CHAR,
     CheckConstraint,
+    Computed,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -18,6 +20,7 @@ from sqlalchemy import (
     desc,
     text,
 )
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -62,6 +65,10 @@ class Job_Post(BaseModel):
     sponsorship: Mapped[dto.visa_sponsorship | None]
     # the location text as given, for display. Filtering uses job_locations
     location_raw: Mapped[str | None] = mapped_column(Text)
+    # The card's location, "San Francisco, CA", written by the import from
+    # the city the location resolver picks (KAN-171). Display only: filtering
+    # reads job_locations. NULL leaves the card to tidy location_raw.
+    location_label: Mapped[str | None] = mapped_column(Text)
 
     salary: Mapped[float | None]
     salary_min: Mapped[float | None]
@@ -79,6 +86,23 @@ class Job_Post(BaseModel):
                         server_default=dto.job_post_status.published.name)
     closes_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     posted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # The posting's meaning as a vector
+    embedding: Mapped[list[float] | None] = mapped_column(
+        VECTOR(dto.EMBEDDING_DIMENSIONS), deferred=True
+    )
+    # The title and description as stemmed search terms, the title weighted
+    # A and the description D so a search ranks title matches first
+    # (a70c641b2f99); matching searches it for the applicant's own skills.
+    # Postgres computes it and keeps it current, so nothing here writes it.
+    fts: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed(
+            "setweight(to_tsvector('english', coalesce(title, '')), 'A') || "
+            "setweight(to_tsvector('english', coalesce(description, '')), 'D')",
+            persisted=True,
+        ),
+        deferred=True,
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -105,6 +129,9 @@ class Job_Post(BaseModel):
             desc("created_at")
         ), 
         
+        # a search's fts @@ query (a70c641b2f99)
+        Index("job_postings_fts_idx", "fts", postgresql_using="gin"),
+
         # trigram GIN indexes 
         # for each company name is uploaded, split name into 3 char buckets and store the job
         # when a search title comes in, split into 3, it looks for jobs that are in all buckets
@@ -113,7 +140,7 @@ class Job_Post(BaseModel):
             "company_name",
             postgresql_using="gin",
             postgresql_ops={"company_name": "gin_trgm_ops"}
-        )
+        ),
     )
 
 

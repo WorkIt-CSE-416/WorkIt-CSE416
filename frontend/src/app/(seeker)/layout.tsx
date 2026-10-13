@@ -19,6 +19,7 @@ import { BAR_CIRCLE } from "./bar";
 import { MobileSearch } from "./mobile-search";
 import { ProfileCacheProvider } from "./profile-cache";
 import { ProfileStrength } from "./profile-strength";
+import { ScrollMemory } from "./scroll-memory";
 import { QueryField } from "./search/query-field";
 import { SeekerSidebar } from "./seeker-sidebar";
 
@@ -174,7 +175,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             href="/dashboard"
             className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97] md:hidden"
           >
-            <LogoLockup priority />
+            <LogoLockup />
           </Link>
 
           <Form
@@ -237,6 +238,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </ProfileCacheProvider>
             </div>
           </SidebarInset>
+          {/* Puts a page back where it was scrolled on a return to it; the
+              <main> above scrolls, not the window, so the browser can't. */}
+          <ScrollMemory />
           <ScoutPanel />
         </div>
       </div>

@@ -16,6 +16,7 @@ import {
   Clock,
   Ellipsis,
   ExternalLink,
+  Globe,
   GraduationCap,
   House,
   ListFilter,
@@ -28,6 +29,7 @@ import {
   Plus,
   Search,
   Settings,
+  Shapes,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -227,6 +229,18 @@ const WORK_STYLE_ICON = {
 export function workStyleIcon(workStyle: string | null) {
   const key = workStyle?.toLowerCase().replace(/[^a-z]/g, "");
   return WORK_STYLE_ICON[key as keyof typeof WORK_STYLE_ICON] ?? OnSiteIcon;
+}
+
+/** Visa sponsorship: a globe, the job open to someone from anywhere. The
+ *  Visa filter's, and the job card's once it shows sponsorship (KAN-168). */
+export function VisaIcon({ className }: IconProps) {
+  return <Globe aria-hidden className={className} />;
+}
+
+/** A role's discipline (software, data, product, quant, hardware): shapes, one
+ *  of each kind. The Role filter's; the job card doesn't print the fact. */
+export function RoleIcon({ className }: IconProps) {
+  return <Shapes aria-hidden className={className} />;
 }
 
 export function CalendarIcon({ className }: IconProps) {

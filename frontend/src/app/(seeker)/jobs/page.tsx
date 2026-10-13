@@ -5,10 +5,14 @@ import { BriefcaseIcon } from "@/components/icons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
+import { RememberFeed } from "./[jobId]/page-actions";
+import { FeedHeader } from "./feed-header";
+import { FeedList } from "./feed-list";
+import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
-import { ListingCard, ListingsError, ListingsSkeleton } from "./listing-card";
-import { getJobListings, getJobLocations, isFiltered, readFilters, withFilters } from "./listings";
-import type { FeedFilters } from "./data";
+import { ListingsError, ListingsSkeleton } from "./listing-card";
+import { filtersQuery, isFiltered, readFilters, type FeedFilters } from "./filter-query";
+import { getJobFacets, getJobListings, getJobLocations } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
 
 export const metadata: Metadata = {
@@ -17,9 +21,10 @@ export const metadata: Metadata = {
 };
 
 /* Built without a mockup, from the layout described in ./data. The feed is
- * live (./listings), narrowed by the filters in the URL: `?location=`,
- * `?workplace=`, `?experience=` and `?posted=` (./filters); Save, Not Interested and Ask WorkIt are still inert. The card
- * and its loading and error states are ./listing-card, which /search shares. */
+ * live (./listings), narrowed on the server by the filter row's picks, which
+ * live in the URL (./filter-query, ./filters); Save, Not Interested and Ask
+ * WorkIt are still inert. The card and its loading and error states are
+ * ./listing-card, which /search shares. */
 
 /**
  * The live feed and the states that stand in for it. Its own async component
@@ -30,16 +35,15 @@ export const metadata: Metadata = {
  * cover /jobs/[jobId].
  */
 async function Feed({ filters }: { filters: FeedFilters }) {
-  const { jobs, error } = await getJobListings(filters);
+  const { jobs, more, error } = await getJobListings(filters);
 
   if (error != null)
-    return <ListingsError error={error} retryHref={withFilters("/jobs", filters)} />;
+    return <ListingsError error={error} retryHref={`/jobs${filtersQuery(filters)}`} />;
 
   if (jobs.length === 0 && isFiltered(filters)) {
     return (
-      <EmptyState Icon={BriefcaseIcon} title="No Roles Match Yet" className="mt-4">
-        Nothing in the feed matches the filters you picked. Loosen one, or clear them under All
-        Filters.
+      <EmptyState Icon={BriefcaseIcon} title="No Roles Match These Filters" className="mt-4">
+        Nothing in the feed fits every filter you picked. Loosen one, or clear them all.
       </EmptyState>
     );
   }
@@ -59,19 +63,8 @@ async function Feed({ filters }: { filters: FeedFilters }) {
           an h3 because the company preview nests it under headings of its
           own. */}
       <h2 className="sr-only">Recommended Jobs</h2>
-      <ul className="mt-4 flex flex-col gap-3">
-        {jobs.map((job, i) => (
-          // The cards rise in as the feed arrives, 50ms apart and capped at
-          // the sixth, about a screenful, so the list never makes anyone wait.
-          <li
-            key={job.id}
-            style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
-            className="animate-rise"
-          >
-            <ListingCard job={job} />
-          </li>
-        ))}
-      </ul>
+      {/* The first page, and a Load More for the rest (./feed-list). */}
+      <FeedList initial={jobs} more={more} query={filtersQuery(filters)} />
     </>
   );
 }
@@ -84,24 +77,34 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <div>
-        <h1 className="text-heading text-ink">Recommended for You</h1>
-        <p className="text-body text-ink-meta mt-1">
-          Roles matched to your profile, refreshed every few hours.
-        </p>
-      </div>
+      {/* So a job's page can go back to this list, filters and all. */}
+      <RememberFeed />
+      {/* One transition for a filter change, so the feed dims the moment the
+          row starts it (./feed-transition). */}
+      <FeedTransition>
+        {/* The heading and filters stay put while the list scrolls. */}
+        <FeedHeader
+          heading={
+            <>
+              <h1 className="text-heading text-ink">Recommended for You</h1>
+              <p className="text-body text-ink-meta mt-1">
+                Roles matched to your profile, refreshed every few hours.
+              </p>
+            </>
+          }
+        >
+          <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
+        </FeedHeader>
 
-      {/* A container, so the facets switch on the row's own width (see
-          ./filters), which an open sidebar narrows, not on the window's. */}
-      <div className="@container mt-4 flex flex-wrap items-center gap-2">
-        <JobFilters locations={locations} filters={filters} />
-      </div>
-
-      {/* Keyed by the filters, so a new pick shows the skeleton straight away
-          instead of holding the old list until the narrowed one arrives. */}
-      <Suspense key={withFilters("", filters)} fallback={<ListingsSkeleton />}>
-        <Feed filters={filters} />
-      </Suspense>
+        {/* Keyed by the filters, so a new pick shows the skeleton straight
+            away instead of holding the old list until the narrowed one
+            arrives. */}
+        <PendingFeed>
+          <Suspense key={filtersQuery(filters)} fallback={<ListingsSkeleton />}>
+            <Feed filters={filters} />
+          </Suspense>
+        </PendingFeed>
+      </FeedTransition>
     </div>
   );
 }

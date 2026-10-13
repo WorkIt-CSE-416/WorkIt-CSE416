@@ -41,6 +41,12 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         **salary(role),
         "min_years_experience": role.facts.min_years,
         "start_term": role.facts.start_term,
+        # "sponsors", "no_sponsorship", "citizens_only" or None (details.py).
+        "sponsorship": role.facts.sponsorship,
+        # Its categories, first first, then its specialties: ["data_ai", "software",
+        # "data_ai/ml"] (shortlist.Tag). The backend ignores them since KAN-155: it
+        # tags each job from its title with its own job_roles list.
+        "roles": list(role.roles),
     }
 
 

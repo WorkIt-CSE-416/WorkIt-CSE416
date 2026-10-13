@@ -1,11 +1,14 @@
 import uuid as _uuid
 
+from pgvector.sqlalchemy import (
+    VECTOR,  # for storing embeddings in Postgres (gives PG a vector type)
+)
 from sqlalchemy import ForeignKey, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import BaseModel
-from app.models.dto import ResumeStatus
+from app.models.dto import EMBEDDING_DIMENSIONS, ResumeStatus
 
 
 class Resume(BaseModel):
@@ -17,5 +20,7 @@ class Resume(BaseModel):
     storage_path: Mapped[str | None]
     status: Mapped[ResumeStatus] = mapped_column(server_default="uploaded")
     raw_text: Mapped[str | None]
-    # storing the ParsedResume objects 
+    # storing the ParsedResume objects
     parsed_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # The resume's meaning as a vector
+    embedding: Mapped[list[float] | None] = mapped_column(VECTOR(EMBEDDING_DIMENSIONS), deferred=True)

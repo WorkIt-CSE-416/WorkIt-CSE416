@@ -15,6 +15,7 @@ import {
   formatExperienceLevel,
   formatJobType,
   formatMinYears,
+  formatPlaces,
   formatPosted,
   formatSalary,
   formatWorkStyle,
@@ -41,9 +42,13 @@ import { MatchRail } from "./match-rail";
  *   location_city/country  `location`, one string from the board; a remote
  *                          role with none has nothing to list, so it is left
  *                          out (Work Style says Remote), as on a fixture
- *   job_type               "Internship" on every internship, as Jobright
- *                          shows it; otherwise `job_type`, when the posting
- *                          states it
+ *   job_type               "Internship" for every internship, whatever its
+ *                          hours (as Jobright shows it: one kind of
+ *                          internship, not a full-time and a part-time one).
+ *                          Otherwise `job_type`, when the posting states it,
+ *                          or the scraper's Full-Time for a silent new-grad
+ *                          role: how the job is set up (Full-Time,
+ *                          Part-Time, Contract)
  *   salary_*               `salary_*`, when the posting states pay
  *   work_style             `work_style`, when the board states it
  *   experience_level       `experience_level`, always: the scraper keeps
@@ -55,8 +60,8 @@ import { MatchRail } from "./match-rail";
  *   uploaded_at            `posted_at`, when the board dated it
  *
  * The match rail is its placeholder (score null): nothing scores a role yet.
- * There is no title link: there is no expanded view for a role with no
- * description. Apply Now leaves for the employer's own posting.
+ * The card opens the role's own page, /jobs/[jobId] (KAN-73), which shows
+ * its description; Apply Now leaves for the employer's own posting.
  */
 export function ListingCard({ job }: { job: JobListing }) {
   return (
@@ -65,13 +70,9 @@ export function ListingCard({ job }: { job: JobListing }) {
         company: job.company,
         logoUrl: job.logo_url,
         title: job.title,
+        titleHref: `/jobs/${job.id}`,
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
-        location: job.location ?? (job.work_style === "remote" ? null : NOT_LISTED),
-        jobType: jobType(job),
-        salary: salary(job),
-        workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
-        experienceLevel: formatExperienceLevel(job.experience_level),
-        ...yearsOrStart(job),
+        ...listingFacts(job),
       }}
       rail={<MatchRail score={null} highlights={[]} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
@@ -110,9 +111,32 @@ export function ListingCard({ job }: { job: JobListing }) {
   );
 }
 
+/** A scraped role's six facts as the card prints them, NOT_LISTED where the
+ *  posting doesn't say. Shared with the role's own page (/jobs/[jobId]), so
+ *  the page and its card never describe one job two ways. */
+export function listingFacts(job: JobListing) {
+  return {
+    // The import's label where it placed a US city ("San Francisco, CA" for
+    // "SF"), else the board's text tidied ("Philadelphia, PA"); several read
+    // "Bellevue, WA +2 more", and the job posting's page lists every place.
+    location:
+      formatPlaces(job.location_label ?? job.location) ??
+      (job.work_style === "remote" ? null : NOT_LISTED),
+    jobType: jobType(job),
+    salary: salary(job),
+    workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
+    experienceLevel: formatExperienceLevel(job.experience_level),
+    ...yearsOrStart(job),
+  };
+}
+
+/** "Internship" for every internship (KAN-171, as Jobright does), else how
+ *  the job is set up. The Job Type filter matches the same way, so a
+ *  Full-Time filter never returns a card that says "Internship". */
 function jobType(job: JobListing) {
-  // Jobright's rule: an internship's job type is "Internship", whatever hours
-  // it states. "Full-Time" beside "Internship" read as a contradiction.
+  // Every internship reads "Internship", whatever hours its posting states:
+  // "Full-Time Internship" beside "Part-Time Internship" read as two kinds of
+  // internship (decided 2026-10-10).
   if (job.experience_level === "internship") return "Internship";
   return job.job_type ? formatJobType(job.job_type) : NOT_LISTED;
 }
