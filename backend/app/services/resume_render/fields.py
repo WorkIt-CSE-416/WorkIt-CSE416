@@ -54,8 +54,13 @@ def _number(value: Decimal) -> str:
 def gpa(entry: ViewEntry) -> str | None:
     if entry.gpa is None:
         return None
-    scale = f"/{_number(entry.gpa_scale)}" if entry.gpa_scale is not None else ""
-    return f"GPA: {_number(entry.gpa)}{scale}"
+    score = _number(entry.gpa)
+    scale = ""
+    if entry.gpa_scale is not None:
+        # the scale as precise as the GPA: "3.81/4.00", "3.8/4.0"
+        places = len(score.partition(".")[2])
+        scale = "/" + max(_number(entry.gpa_scale), f"{entry.gpa_scale:.{places}f}", key=len)
+    return f"GPA: {score}{scale}"
 
 
 @dataclass(frozen=True)
