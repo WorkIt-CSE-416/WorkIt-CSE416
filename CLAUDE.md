@@ -69,6 +69,9 @@ in `app_metadata`) and the profile row with the same id.
   connection string stay in `backend/`. A secret added to `frontend/` is one
   typo away from a `NEXT_PUBLIC_` prefix and the client bundle.
 
+To test a page behind sign-in, use the shared test account and its rules in
+`frontend/CLAUDE.md`, "Auth and the API"; never create one.
+
 Before touching sign-in on either half, read `backend/CLAUDE.md`'s Auth
 section (the flow and its rules) and, for the Next side, `frontend/CLAUDE.md`'s
 "Auth and the API".
