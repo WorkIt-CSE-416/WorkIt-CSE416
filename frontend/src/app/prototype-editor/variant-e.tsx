@@ -1,8 +1,9 @@
 "use client";
 
-// PROTOTYPE (KAN-195), throwaway. E: B's page-as-editor, with editing made
-// friendlier. Click a line for a floating toolbar (quick actions, Edit, Ask
-// WorkIt), the way ChatGPT's canvas does. Beside the page sits a chat in the
+// PROTOTYPE (KAN-195), throwaway. E: B's page-as-editor, focused on the
+// resume's content. Click a line for a floating toolbar: Edit in place,
+// hide, move, pick the wording, and settle an "original changed" variant.
+// The assistant is a button in the corner that opens a small chat in the
 // intake screen's look (KAN-193, variant G), with the selected line attached
 // as context. The model is scripted: rewrites keep the same facts.
 
@@ -91,10 +92,14 @@ export function VariantE({ editor }: { editor: Editor }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [done, setDone] = useState<Set<number>>(new Set()); // cards acted on
   const [typing, setTyping] = useState(false);
+  const [open, setOpen] = useState(false);
   const composer = useRef<HTMLTextAreaElement>(null);
   const changed = changedVariants(state);
   const [msgs, setMsgs] = useState<Msg[]>(() => [
-    { from: "workit", text: "Hi! Click any line on your resume to change it, or ask me here." },
+    {
+      from: "workit",
+      text: "Need a hand? I can fit your resume to one page, check changed bullets, or tighten a line you pick.",
+    },
     ...(changed.length
       ? [
           {
@@ -244,7 +249,10 @@ export function VariantE({ editor }: { editor: Editor }) {
                 : { kind: "bullet", entry: block.entry, bullet: block.bullet }
             }
             onEdit={() => setEditing(id)}
-            onAsk={() => composer.current?.focus()}
+            onAsk={() => {
+              setOpen(true);
+              setTimeout(() => composer.current?.focus(), 50);
+            }}
             onHidden={() => setSel(null)}
             onEntryEdit={() =>
               say({
@@ -268,17 +276,14 @@ export function VariantE({ editor }: { editor: Editor }) {
 
   const quick =
     sel?.kind === "bullet"
-      ? ["Make it shorter", "Stronger verb", "Hide it"]
+      ? ["Hide it", "Move it up", "Make it shorter"]
       : [
           ...(changed.length ? ["Review changed bullets"] : []),
           ...(f.over > 0 ? ["Fit to one page"] : []),
         ];
 
   return (
-    <div
-      className="grid items-start gap-5 @4xl/main:grid-cols-[minmax(0,1fr)_22rem]"
-      onClick={() => setSel(null)}
-    >
+    <div className="mx-auto max-w-3xl" onClick={() => setSel(null)}>
       <div className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -292,6 +297,14 @@ export function VariantE({ editor }: { editor: Editor }) {
             {label.tone === "positive" && <Check className="size-3.5" />}
             {label.text}
           </span>
+          {f.over > 0 && (
+            <button
+              className={CHIP}
+              onClick={() => dispatch({ type: "hideMany", ids: fitSuggestion(state) })}
+            >
+              Fit to One Page
+            </button>
+          )}
           <div className="ml-auto flex gap-2">
             <button
               disabled={!canUndo}
@@ -340,10 +353,44 @@ export function VariantE({ editor }: { editor: Editor }) {
         )}
       </div>
 
+      {!open && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+          className={cn(
+            "text-label fixed right-5 bottom-16 z-30 flex items-center gap-2 rounded-full py-2.5 pr-4 pl-3 shadow-[0_8px_24px_-6px_rgb(109_63_216/0.6)] transition-transform hover:scale-105",
+            FILL,
+          )}
+        >
+          <Sparkles className="size-4" /> Ask WorkIt
+          {changed.length > 0 && (
+            <span className="text-note flex size-5 items-center justify-center rounded-full bg-amber-400 font-semibold text-[#3b2a00]">
+              {changed.length}
+            </span>
+          )}
+        </button>
+      )}
+
       <aside
-        className="flex h-[min(44rem,calc(100dvh-8rem))] min-h-[28rem] flex-col overflow-hidden rounded-3xl bg-linear-to-b from-[#f7f4ff] to-[#fbfaff] ring-1 ring-[#ece6ff] @4xl/main:sticky @4xl/main:top-4"
+        className={cn(
+          "animate-rise fixed right-5 bottom-16 z-30 flex h-[min(34rem,calc(100dvh-8rem))] w-[min(23rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-3xl bg-linear-to-b from-[#f7f4ff] to-[#fbfaff] shadow-[0_20px_50px_-12px_rgb(80_50_160/0.45)] ring-1 ring-[#ece6ff]",
+          !open && "hidden",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="flex items-center gap-2 border-b border-[#ece6ff] px-4 py-3">
+          <Mark />
+          <span className="text-label text-ink font-semibold">WorkIt Assistant</span>
+          <button
+            aria-label="Minimize"
+            onClick={() => setOpen(false)}
+            className="ml-auto rounded-full p-1.5 text-[#8a80a8] hover:bg-[#f3efff] hover:text-[#6d3fd8]"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-5 pb-3">
           {msgs.map((m, i) => (
             <Bubble
@@ -608,18 +655,24 @@ function Toolbar({
     "text-note flex items-center gap-1 rounded-full px-2.5 py-1 text-[#4a3a7a] hover:bg-[#f3efff] disabled:opacity-30";
   const go = (f: () => void) => (e: React.MouseEvent) => (e.stopPropagation(), f());
   const entry = sel.entry;
+  const flagged =
+    sel.kind === "bullet"
+      ? sel.bullet.variants.find(
+          (v) => v.originalChanged && state.built.pick[sel.bullet.id] === v.id,
+        )
+      : undefined;
 
   return (
     <div
-      className="absolute top-full left-0 z-10 mt-1.5 flex flex-wrap items-center gap-0.5 rounded-full bg-white p-1 font-sans shadow-[0_8px_30px_-8px_rgb(80_50_160/0.35)] ring-1 ring-[#e4dcff]"
+      className={cn(
+        "absolute top-full left-0 z-10 mt-1.5 flex max-w-[34rem] flex-wrap items-center gap-0.5 bg-white p-1 font-sans shadow-[0_8px_30px_-8px_rgb(80_50_160/0.35)] ring-1 ring-[#e4dcff]",
+        flagged ? "rounded-2xl" : "rounded-full",
+      )}
       onClick={(e) => e.stopPropagation()}
     >
       {sel.kind === "bullet" ? (
         <>
-          <button className={cn(btn, "font-semibold text-[#6d3fd8]")} onClick={go(onAsk)}>
-            <Sparkles className="size-3.5" /> Ask WorkIt
-          </button>
-          <button className={btn} onClick={go(onEdit)}>
+          <button className={cn(btn, "font-semibold text-[#6d3fd8]")} onClick={go(onEdit)}>
             <Pencil className="size-3.5" /> Edit
           </button>
           <button
@@ -665,6 +718,49 @@ function Toolbar({
                 );
               })}
             </>
+          )}
+          <span className="mx-1 h-4 w-px bg-[#e4dcff]" />
+          <button
+            className={cn(btn, "text-[#6d3fd8]")}
+            title="Ask WorkIt"
+            aria-label="Ask WorkIt"
+            onClick={go(onAsk)}
+          >
+            <Sparkles className="size-3.5" />
+          </button>
+          {flagged && (
+            <div className="text-note mt-1 flex w-full flex-col gap-1.5 rounded-xl bg-amber-50 p-2.5 text-[#5c4a1a]">
+              <span className="font-semibold">
+                You changed the original after this version was written.
+              </span>
+              <span>
+                <span className="text-[#8a7a50]">Original now: </span>
+                {sel.bullet.text}
+              </span>
+              <div className="flex flex-wrap gap-1">
+                <button
+                  className={btn}
+                  onClick={go(() => dispatch({ type: "keepVariant", variant: flagged.id }))}
+                >
+                  Keep This Version
+                </button>
+                <button
+                  className={btn}
+                  onClick={go(() => {
+                    dispatch({ type: "pick", bullet: sel.bullet.id, variant: null });
+                    dispatch({ type: "keepVariant", variant: flagged.id });
+                  })}
+                >
+                  Use Original
+                </button>
+                <button
+                  className={btn}
+                  onClick={go(() => dispatch({ type: "deleteVariant", variant: flagged.id }))}
+                >
+                  Delete Version
+                </button>
+              </div>
+            </div>
           )}
         </>
       ) : (
