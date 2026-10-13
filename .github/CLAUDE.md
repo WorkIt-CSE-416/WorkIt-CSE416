@@ -9,6 +9,11 @@ way and what bites.
 `scout/` has no job of its own: the backend installs it, so the backend job
 lints and tests it too.
 
+The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
+(cached in the Actions cache) and runs pytest with `REQUIRE_TECTONIC=1`, so
+the resume template text test fails, never skips, when Tectonic is missing
+(`backend/app/services/resume_render/CLAUDE.md`).
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.
