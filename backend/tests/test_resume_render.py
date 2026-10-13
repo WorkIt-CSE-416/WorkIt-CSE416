@@ -210,14 +210,14 @@ def test_render_gives_a_box_for_each_line_the_editor_can_select() -> None:
     # Each box covers its text where pdfminer, reading the PDF on its own,
     # finds it. Places and dates are pdfminer's own lines
     lines = _text_lines(rendered.pdf)
-    page, bbox = _line(lines, "Southwestern University")
+    _, bbox = _line(lines, "Southwestern University")
     assert _inside(bbox, boxes[(str(school.id), "title")])
-    page, bbox = _line(lines, "Georgetown, TX")
+    _, bbox = _line(lines, "Georgetown, TX")
     assert _inside(bbox, boxes[(str(school.id), "location")])
-    page, bbox = _line(lines, "June 2020 – Present")
+    _, bbox = _line(lines, "June 2020 – Present")
     assert _inside(bbox, boxes[(str(job.id), "dates")])
     first = job.bullets[0]
-    page, bbox = _line(lines, first.text[:30])
+    _, bbox = _line(lines, first.text[:30])
     assert _inside(bbox, boxes[(str(first.id), "bullet")])
 
 

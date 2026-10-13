@@ -42,8 +42,12 @@ applicant_profiles
   show the skill with proof. A skill with no links is fine: one learned on
   one's own. Links do not clear the embedding, whose text never pairs a
   skill with an entry.
-- Bullet variants are a later table that points at these. The rules live
-  in `backend/app/services/bank.py`.
+- **A bullet variant is another wording kept beside the original**
+  (`bank_bullet_variants`, KAN-217), never in its place. It belongs to a
+  job posting (made by Tailor) or to one built resume (typed on it, the
+  editor), never both. The same wording for the same bullet is stored
+  once and reused. Variants never reach the embedding. The rules live in
+  `backend/app/services/bank.py` and `tailor.py`.
 
 ### Import fills the bank from an upload (KAN-211)
 
@@ -72,14 +76,15 @@ A built resume is a choice over the bank, never a copy of it (ADR 0001):
 applicant_profiles
   └── built_resumes            name, template id, optional job posting
         ├── built_resume_entries   entry: shown, position in its section, GPA and coursework toggles
-        ├── built_resume_bullets   bullet: shown, position in its entry
+        ├── built_resume_bullets   bullet: shown, position in its entry, variant (null: the original)
         └── built_resume_skills    skill: shown, position
 ```
 
 - **No text on a built resume.** The view (`backend/app/services/resume_view.py`)
   joins the choices to the bank's current text, so a fix in the bank shows
-  everywhere. The chosen bullet variant joins `built_resume_bullets` when
-  variants exist (Tailor, the editor).
+  everywhere. A bullet choice may name a variant (`variant_id`), whose
+  text then shows in place of the original; deleting the variant brings
+  the original back (`ON DELETE SET NULL`).
 - **No choice row, not on the resume.** Generate writes a row for everything
   in the bank at that moment; what is added later waits in the editor's tray
   instead of appearing on old resumes. Bullets and skills follow the same
@@ -89,6 +94,13 @@ applicant_profiles
   has at most one tailored resume per student (a unique key; NULLs distinct).
   Deleting the posting deletes its tailored resume; sent resumes keep their
   own file.
+- **Tailor makes the tailored resume** (KAN-217). A run proposes changes
+  and saves nothing; Done copies the starting resume's choices (the
+  tailored one if it exists, else the newest base resume), applies the
+  accepted changes and saves them on the posting's one tailored resume.
+  Tailor changes only what shows, the order, which variant shows and which
+  skills show. Every wording passes the truth-rule check twice: when the
+  model proposes it and when the student approves it.
 - **The limit is 5 uploaded plus base resumes.** Tailored and sent resumes
   do not count. The API checks before writing, on Generate and on upload.
 - **The default resume is one of two pointers.** It was
@@ -131,6 +143,13 @@ applicant_profiles
   resume (KAN-220) writes a row that points at that resume's own file, with
   no hash. Deleting the uploaded resume keeps the file while a sent resume
   uses it; deleting the last such sent resume removes it.
+- **Apply keeps a sent resume linked to the posting** (KAN-220). On the
+  Jobs page posting detail, Apply Now asks for a resume (a base resume, the
+  one tailored to that posting, or an uploaded resume), keeps it, and then
+  offers the file and the employer's page. A plain download and an Apply
+  of the same content are separate sent resumes: repeats merge only within
+  one posting. Linking the application in the Applications tracker waits
+  for the tracker's API.
 - **Only the PDF is kept.** The Word download is not a sent resume yet.
 
 The rest of this file is the original design for uploaded resumes.

@@ -65,13 +65,16 @@ _TABLE = str.maketrans({**_SPECIAL, "\n": " ", "\r": " "})
 # moved 0.4 to 0.8 pt without it). The first line records the text's right
 # edge, where a wrapped line ends. tests/test_resume_render.py checks the page
 # is the same with and without markers.
-MARKS = "\n".join((
+_MARK_LINES = (
     r"\newwrite\wipos\immediate\openout\wipos=\jobname.pos",
     r"\immediate\write\wipos{right \the\dimexpr1in+\hoffset+\oddsidemargin+\textwidth\relax}",
-    r"\def\wimark#1#2{\leavevmode\pdfsavepos"
-    r"\write\wipos{#1 #2 \the\pdflastxpos\space\the\pdflastypos\space\thepage}}",
+    (
+        r"\def\wimark#1#2{\leavevmode\pdfsavepos"
+        r"\write\wipos{#1 #2 \the\pdflastxpos\space\the\pdflastypos\space\thepage}}"
+    ),
     r"\def\wiend#1{\/\wimark{#1}{e}}",
-))
+)
+MARKS = "\n".join(_MARK_LINES)
 # Letter only (the spec), in PDF points; a box's y counts down from the top
 PAGE_HEIGHT = 792.0
 # A box reaches this far above and below a line's baseline: about the
