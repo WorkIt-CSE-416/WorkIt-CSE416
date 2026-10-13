@@ -101,6 +101,28 @@ export function formatDates(entry: EntryFields): string | null {
   return start ?? end;
 }
 
+/** "/4.00" beside a GPA of 3.81: the scale as precise as the GPA, as the
+ *  resume prints it. */
+function gpaScale(gpa: number, scale: number | null): string {
+  if (!scale) return "";
+  const places = (n: number) => String(n).split(".")[1]?.length ?? 0;
+  return `/${scale.toFixed(Math.max(places(gpa), places(scale)))}`;
+}
+
+/** The lines under an entry's title and place: degree and GPA, coursework,
+ *  honors, issuer and link. The bank list and import's drafts both show them. */
+export function entryDetails(entry: EntryFields): string[] {
+  const degree = [entry.degree, entry.field_of_study].filter(Boolean).join(" in ");
+  const gpa = entry.gpa != null ? `GPA ${entry.gpa}${gpaScale(entry.gpa, entry.gpa_scale)}` : null;
+  return [
+    [degree, gpa].filter(Boolean).join(" · "),
+    entry.coursework.length ? `Coursework: ${entry.coursework.join(", ")}` : null,
+    entry.honors && `Honors: ${entry.honors}`,
+    entry.issuer && `Issued by ${entry.issuer}`,
+    entry.link,
+  ].filter((line): line is string => Boolean(line));
+}
+
 /** Sections whose entries a resume reads as "at" someone: a job, a club role. */
 const NEEDS_ORGANIZATION = new Set<Section>(["experience", "leadership"]);
 

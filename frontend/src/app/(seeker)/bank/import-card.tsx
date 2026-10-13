@@ -17,7 +17,7 @@ import {
 } from "@/lib/bank-actions";
 
 import { EntryEditor } from "./entry-editor";
-import { formatDates, sectionOf, type EntryDraft } from "./sections";
+import { entryDetails, formatDates, sectionOf, type EntryDraft } from "./sections";
 
 /**
  * "Import Your Resume" (KAN-211): reads the student's uploaded resume (the
@@ -315,6 +315,11 @@ function DraftView({
           </div>
           <p className="text-body text-ink font-medium break-words">{row.title}</p>
           {place && <p className="text-note text-ink-muted break-words">{place}</p>}
+          {entryDetails(row).map((line) => (
+            <p key={line} className="text-note text-ink-meta break-words">
+              {line}
+            </p>
+          ))}
         </div>
         {dates && <span className="text-note text-ink-meta shrink-0">{dates}</span>}
       </div>

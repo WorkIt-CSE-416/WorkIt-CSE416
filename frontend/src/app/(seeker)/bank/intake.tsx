@@ -220,8 +220,10 @@ export function Intake({
     /* eslint-disable react-hooks/set-state-in-effect -- a one-time restore from storage */
     setSkipped(wasSkipped);
     // A kept card with nothing in it yet is dropped, so the walk picks the
-    // stop afresh: an import may have filled its section since.
-    if (saved?.draft?.section && (saved.draft.title || saved.entryId)) {
+    // stop afresh: an import may have filled its section since. So is a gap
+    // card whose entry is no longer in the bank: saving it would find none.
+    const gone = saved?.entryId && !entries.some((e) => e.id === saved.entryId);
+    if (saved?.draft?.section && (saved.draft.title || saved.entryId) && !gone) {
       setKept(saved);
       setLines([
         { kind: "chapter", section: saved.draft.section },

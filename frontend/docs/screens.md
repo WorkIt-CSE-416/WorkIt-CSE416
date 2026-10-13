@@ -412,7 +412,10 @@ chat the page is built around.
   shows as the strip's error. `?import=1` (the Jobs page's prompt) opens
   it on arrival. One
   click reads the default upload, else the newest, into draft entries and
-  skills (`importResume`); nothing is saved until the student saves a
+  skills (`importResume`). Each draft shows the lines the bank list shows
+  under an entry (`entryDetails`: degree and GPA, coursework, honors,
+  issuer, link), so an Education draft is checked before it is saved;
+  nothing is saved until the student saves a
   draft (Save, or Edit in the entry editor) or uses Save All. A draft that
   matches a bank entry shows "Already in Your Bank": Save All skips it and
   its own button reads Save as New. Skip drops a draft; Close drops them
@@ -486,7 +489,9 @@ chat the page is built around.
   again on the page. A section with no entries gets the full questions.
   After an import closes, the walk starts again on the bank as it now is,
   unless the student has already talked into the current card. A kept card
-  with nothing in it is dropped on load, so the walk picks afresh. When no
+  with nothing in it is dropped on load, so the walk picks afresh, and so is
+  a gap card whose entry has been deleted since (saving it found no entry,
+  and it hid the walk's questions about the import). When no
   stop is left, the student picks from the chips.
 - **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
   profile form's Continue leads there, then Finish leads to /dashboard. It

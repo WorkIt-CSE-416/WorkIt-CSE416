@@ -29,6 +29,7 @@ import { Intake } from "./intake";
 import {
   draftOf,
   emptyDraft,
+  entryDetails,
   formatDates,
   missingFacts,
   SECTIONS,
@@ -252,16 +253,7 @@ function EntryView({
   const dates = formatDates(entry);
   const missing = missingFacts(entry);
   const place = [entry.organization, entry.location].filter(Boolean).join(" · ");
-  const degree = [entry.degree, entry.field_of_study].filter(Boolean).join(" in ");
-  const gpa =
-    entry.gpa != null ? `GPA ${entry.gpa}${entry.gpa_scale ? `/${entry.gpa_scale}` : ""}` : null;
-  const details = [
-    [degree, gpa].filter(Boolean).join(" · "),
-    entry.coursework.length ? `Coursework: ${entry.coursework.join(", ")}` : null,
-    entry.honors && `Honors: ${entry.honors}`,
-    entry.issuer && `Issued by ${entry.issuer}`,
-    entry.link,
-  ].filter(Boolean);
+  const details = entryDetails(entry);
 
   async function confirm() {
     setError(null);
