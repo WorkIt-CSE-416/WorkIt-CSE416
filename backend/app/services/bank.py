@@ -38,7 +38,13 @@ from app.models.bank import (
     Experience_Bank,
 )
 from app.models.dto import bank_section, entry_end_kind
-from app.schemas.bank import EntryFields
+from app.schemas.bank import (
+    BankResponse,
+    BulletResponse,
+    EntryFields,
+    EntryResponse,
+    SkillResponse,
+)
 
 
 class NotFound(Exception):
@@ -376,3 +382,22 @@ async def unlink_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id:
         raise NotFound
     await session.delete(link)
     await session.flush()
+
+
+def entry_response(entry: Entry) -> EntryResponse:
+    fields = {name: getattr(entry.row, name) for name in EntryFields.model_fields}
+    return EntryResponse.model_validate(
+        {**fields, "id": entry.row.id, "bullets": [BulletResponse.model_validate(b) for b in entry.bullets]}
+    )
+
+
+def skill_response(skill: Bank_Skill, entry_ids: list[uuid.UUID]) -> SkillResponse:
+    return SkillResponse(id=skill.id, name=skill.name, group=skill.group, entry_ids=entry_ids)
+
+
+def bank_response(bank: Bank) -> BankResponse:
+    """The whole bank as the API sends it; Scout's facts read this shape too."""
+    return BankResponse(
+        entries=[entry_response(e) for e in bank.entries],
+        skills=[skill_response(s, bank.skill_links.get(s.id, [])) for s in bank.skills],
+    )

@@ -266,3 +266,73 @@ async def test_each_student_has_their_own_cap(database, client, caps):
         assert (await client.post("/scout/chat", json=CHAT)).status_code == 200
     finally:
         app.dependency_overrides.clear()
+
+
+# --- what Scout knows: the bank, never the upload (KAN-212) -------------------------
+
+
+@pytest.fixture
+async def student(database):
+    """A signed-in applicant whose facts the route loads itself."""
+    account = _account()
+    await _seed(database, account)
+    app.dependency_overrides[get_current_account] = lambda: account
+    yield account
+    app.dependency_overrides.clear()
+
+
+async def _upload(database, account, parsed_json: dict) -> None:
+    async with database() as session:
+        await session.execute(
+            text(
+                "INSERT INTO resumes (id, applicant_id, original_filename, status, raw_text, parsed_json)"
+                " VALUES (:id, :a, 'resume.pdf', 'parsed', 'Sam Seeker', CAST(:p AS jsonb))"
+            ),
+            {"id": uuid.uuid4(), "a": account.id, "p": json.dumps(parsed_json)},
+        )
+        await session.commit()
+
+
+UPLOADED = {"skills": [{"skill_name": "COBOL"}], "experience": [{"company_name": "Old Co", "title": "Clerk"}]}
+
+
+async def test_scout_knows_the_bank_and_not_the_upload(student, client, database):
+    await _upload(database, student, UPLOADED)
+    bank = f"/applicants/{student.id}/bank"
+    entry = {
+        "section": "experience",
+        "title": "Robotics Intern",
+        "organization": "Acme",
+        "location": "Austin, TX",
+        "start_month": "2025-06",
+        "end_kind": "present",
+        "bullets": ["Wrote ROS nodes for arms."],
+    }
+    assert (await client.post(f"{bank}/entries", json=entry)).status_code == 201
+    project = {"section": "projects", "title": "WorkIt", "link": "https://github.com/sam/workit"}
+    assert (await client.post(f"{bank}/entries", json=project)).status_code == 201
+    assert (await client.post(f"{bank}/skills", json={"name": "Python"})).status_code == 201
+
+    model = use_model(["ok"])
+    assert (await client.post("/scout/chat", json=CHAT)).status_code == 200
+    prompt = model.system_prompt
+    assert "Robotics Intern at Acme (2025–present): Wrote ROS nodes for arms." in prompt
+    assert "Python" in prompt and "WorkIt" in prompt
+    for absent in ("COBOL", "Old Co", "github.com", "Austin"):
+        assert absent not in prompt
+
+
+async def test_an_empty_bank_with_an_upload_points_at_import(student, client, database):
+    await _upload(database, student, UPLOADED)
+    model = use_model(["ok"])
+    assert (await client.post("/scout/chat", json=CHAT)).status_code == 200
+    assert "experience bank is empty" in model.system_prompt
+    assert "have uploaded a resume but have not imported it" in model.system_prompt
+    assert "COBOL" not in model.system_prompt
+
+
+async def test_an_empty_bank_without_an_upload_says_so(student, client):
+    model = use_model(["ok"])
+    assert (await client.post("/scout/chat", json=CHAT)).status_code == 200
+    assert "experience bank is empty" in model.system_prompt
+    assert "have not uploaded a resume either" in model.system_prompt

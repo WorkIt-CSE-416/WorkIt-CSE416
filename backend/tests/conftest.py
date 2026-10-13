@@ -48,6 +48,11 @@ async def _create_database() -> None:
     server = await asyncpg.connect(_dsn(_server))
     try:
         await server.execute(f'CREATE DATABASE "{_test_url.database}"')
+        # Supabase's search path, so pgvector's operators (in `extensions`)
+        # resolve as they do in production: without it `<=>` is not found.
+        await server.execute(
+            f'ALTER DATABASE "{_test_url.database}" SET search_path = "$user", public, extensions'
+        )
     finally:
         await server.close()
 

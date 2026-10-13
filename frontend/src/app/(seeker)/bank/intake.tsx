@@ -6,6 +6,7 @@ import {
   GraduationCap,
   Lightbulb,
   PartyPopper,
+  SkipForward,
   Sparkles,
   Trophy,
   Users,
@@ -17,9 +18,15 @@ import { Composer, Message, Typing } from "@/components/scout/chat";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
 import { createEntry, type BankEntry, type EntryFields, type Section } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
-import { INTAKE_DRAFT_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
+import {
+  INTAKE_DRAFT_KEY,
+  INTAKE_SKIPPED_KEY,
+  readLocalDraft,
+  writeLocalDraft,
+} from "@/lib/local-drafts";
 
 import { EntryEditor } from "./entry-editor";
+import { StepBar, WALK } from "./intake-steps";
 import { emptyDraft, sectionOf, SECTIONS, type EntryDraft } from "./sections";
 
 /**
@@ -40,8 +47,16 @@ import { emptyDraft, sectionOf, SECTIONS, type EntryDraft } from "./sections";
  * What persists: the unsaved draft and its section, in localStorage, so a
  * reload keeps it; Sign Out clears it (lib/local-drafts.ts). The chat itself
  * is never stored, here or in the API, so a reload starts the talk afresh
- * beside the kept card. The step bar, Skip and jump are intake slice 2
- * (KAN-214).
+ * beside the kept card.
+ *
+ * The step bar, Skip and jump (KAN-214, `intake-steps.tsx`): with `walk`,
+ * intake opens on the first section that is neither filled nor skipped and
+ * moves to the next one after each save or Skip, in the order WALK gives.
+ * The bank page walks when the bank is empty; onboarding always does.
+ * Without it, the student picks a section from the chips and comes back to
+ * them after each save. Skip and a jump drop the unsaved draft, as in the
+ * prototype. Skipped sections are kept beside the draft, so a reload does
+ * not walk back into them.
  */
 
 type DraftWire = EntryFields & { bullets: string[] };
@@ -55,7 +70,8 @@ type IntakeEvent =
 type Line =
   | { kind: "chapter"; section: Section }
   | { kind: "text"; role: ScoutMessage["role"]; content: string }
-  | { kind: "saved"; title: string };
+  | { kind: "saved"; title: string }
+  | { kind: "skipped"; section: Section };
 
 type Kept = { draft: EntryDraft; done: boolean };
 
@@ -89,7 +105,20 @@ const fromWire = ({ bullets, ...fields }: DraftWire): EntryDraft => ({
   bullets: bullets.map((text) => ({ text })),
 });
 
-export function Intake({ onSaved }: { onSaved: () => Promise<string | null> }) {
+export function Intake({
+  filled,
+  onSaved,
+  walk = false,
+  lead,
+}: {
+  /** Sections with at least one entry in the bank. */
+  filled: readonly Section[];
+  onSaved: () => Promise<string | null>;
+  /** Lead the student through the sections, one after another. */
+  walk?: boolean;
+  /** A step shown done before the sections, in the step bar. */
+  lead?: string;
+}) {
   const [lines, setLines] = useState<Line[]>([]);
   const [messages, setMessages] = useState<ScoutMessage[]>([]);
   const [kept, setKept] = useState<Kept | null>(null);
@@ -102,6 +131,7 @@ export function Intake({ onSaved }: { onSaved: () => Promise<string | null> }) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
   const [sheet, setSheet] = useState(false);
+  const [skipped, setSkipped] = useState<Section[]>([]);
   const restored = useRef(false);
   const log = useRef<HTMLDivElement>(null);
 
@@ -109,19 +139,32 @@ export function Intake({ onSaved }: { onSaved: () => Promise<string | null> }) {
   // must match the server's (it has no localStorage).
   useEffect(() => {
     const saved = readLocalDraft<Kept>(INTAKE_DRAFT_KEY);
+    const wasSkipped = readLocalDraft<Section[]>(INTAKE_SKIPPED_KEY) ?? [];
     restored.current = true;
-    if (!saved?.draft?.section) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- a one-time restore from storage
-    setKept(saved);
-    setLines([
-      { kind: "chapter", section: saved.draft.section },
-      { kind: "text", role: "assistant", content: "Here's the draft you were working on." },
-    ]);
+    /* eslint-disable react-hooks/set-state-in-effect -- a one-time restore from storage */
+    setSkipped(wasSkipped);
+    if (saved?.draft?.section) {
+      setKept(saved);
+      setLines([
+        { kind: "chapter", section: saved.draft.section },
+        { kind: "text", role: "assistant", content: "Here's the draft you were working on." },
+      ]);
+    } else if (walk) {
+      const first = WALK.find((s) => !filled.includes(s) && !wasSkipped.includes(s));
+      if (first) start(first);
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // Mount only: `filled` and `walk` as they were when the page opened.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (restored.current) writeLocalDraft(INTAKE_DRAFT_KEY, kept);
   }, [kept]);
+
+  useEffect(() => {
+    if (restored.current) writeLocalDraft(INTAKE_SKIPPED_KEY, skipped.length ? skipped : null);
+  }, [skipped]);
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -147,6 +190,37 @@ export function Intake({ onSaved }: { onSaved: () => Promise<string | null> }) {
     setDuplicate(null);
     setSaveError(null);
     setSheet(false);
+  }
+
+  /** A jump from the step bar: this section, with the draft dropped. */
+  function jump(section: Section) {
+    finish();
+    start(section);
+  }
+
+  /** After a save or Skip: the next section when walking, else the chips. */
+  function advance(from: Section) {
+    finish();
+    const next = walk ? WALK[WALK.indexOf(from) + 1] : undefined;
+    if (next) return start(next);
+    setLines((l) => [
+      ...l,
+      {
+        kind: "text",
+        role: "assistant",
+        content: walk
+          ? "That's every section. Pick one to add more, or build a resume from your bank."
+          : "Anything else? Pick a section.",
+      },
+    ]);
+  }
+
+  function skip() {
+    if (!draft) return;
+    const { section } = draft;
+    setSkipped((s) => (s.includes(section) ? s : [...s, section]));
+    setLines((l) => [...l, { kind: "skipped", section }]);
+    advance(section);
   }
 
   async function send(text: string) {
@@ -204,7 +278,7 @@ export function Intake({ onSaved }: { onSaved: () => Promise<string | null> }) {
     if (res.duplicate) return setDuplicate(res.duplicate);
     if (res.error) return setSaveError(res.error);
     setLines((l) => [...l, { kind: "saved", title: entry.title }]);
-    finish();
+    advance(entry.section);
     const reloadError = await onSaved();
     if (reloadError) setError(reloadError);
   }
@@ -224,6 +298,15 @@ export function Intake({ onSaved }: { onSaved: () => Promise<string | null> }) {
     />
   );
 
+  // The current segment grows with the draft: a head start, more once it has
+  // a title, more with each answer, and full when WorkIt has no questions.
+  const asked = messages.filter((m) => m.role === "assistant").length;
+  const currentFill = !draft
+    ? 0
+    : kept?.done
+      ? 100
+      : Math.min(85, (draft.title ? 35 : 12) + asked * 20);
+
   return (
     <section aria-labelledby="intake-title" className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
@@ -238,6 +321,17 @@ export function Intake({ onSaved }: { onSaved: () => Promise<string | null> }) {
         </div>
       </div>
 
+      <StepBar
+        current={draft?.section ?? null}
+        currentFill={currentFill}
+        filled={filled}
+        skipped={skipped}
+        lead={lead}
+        busy={answering || saving}
+        onJump={jump}
+        onSkip={skip}
+      />
+
       <div className="grid items-start gap-5 @4xl/main:grid-cols-[1fr_21rem]">
         <div className="from-brand-tint to-panel ring-brand-tint flex h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem] flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1">
           <div
@@ -245,8 +339,9 @@ export function Intake({ onSaved }: { onSaved: () => Promise<string | null> }) {
             className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4"
           >
             <WorkItLine>
-              Hi! Pick a section and tell me about one thing you did. I&apos;ll draft the entry
-              while we talk, and you save it when it looks right.
+              {walk
+                ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
+                : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
             </WorkItLine>
 
             {lines.map((line, i) => (
@@ -404,6 +499,13 @@ function ChatLine({ line, follows }: { line: Line; follows: boolean }) {
         <PartyPopper aria-hidden className="size-4" />
         Saved! {line.title}
       </div>
+    );
+  if (line.kind === "skipped")
+    return (
+      <p className="text-note text-ink-meta mx-auto flex items-center gap-1.5 text-center">
+        <SkipForward aria-hidden className="size-3.5 shrink-0" />
+        Skipped {sectionOf(line.section).label}. You can come back to it anytime.
+      </p>
     );
   if (line.role === "user") return <Message role="user">{line.content}</Message>;
   return <WorkItLine follows={follows}>{line.content}</WorkItLine>;

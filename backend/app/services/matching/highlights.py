@@ -1,18 +1,19 @@
 """
-Pick the top 3 most informative reasons a job matches (or doesn't) a resume.
-Pure functions, no DB access.
+Pick the top 3 most informative reasons a job matches (or doesn't) an
+applicant's experience bank. Pure functions, no DB access.
 """
 
 from __future__ import annotations
 
-from app.models.dto import ParsedResume
+from collections.abc import Sequence
 
 
 def generate_highlights(
     job_title: str,
     job_min_years: int | None,
     job_start_term: str | None,
-    resume: ParsedResume,
+    skills: Sequence[str],
+    field_of_study: str | None,
     semantic: float | None,
     skill_overlap: float,
     title_fit: float,
@@ -22,14 +23,13 @@ def generate_highlights(
     candidates: list[dict] = []
 
     # --- positive ---
-    if skill_overlap > 0.1 and resume.skills:
-        top_skills = ", ".join(s.skill_name for s in resume.skills[:3])
+    if skill_overlap > 0.1 and skills:
+        top_skills = ", ".join(skills[:3])
         candidates.append({"text": f"Your {top_skills} skills match this role", "met": True})
 
     if title_fit > 0.3:
-        field = next((e.field_of_study for e in resume.education if e.field_of_study), None)
-        if field:
-            candidates.append({"text": f"Aligns with your {field} background", "met": True})
+        if field_of_study:
+            candidates.append({"text": f"Aligns with your {field_of_study} background", "met": True})
         else:
             candidates.append({"text": "Aligns with your experience", "met": True})
 
