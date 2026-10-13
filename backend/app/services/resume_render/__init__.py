@@ -101,9 +101,10 @@ class TectonicUnavailable(RuntimeError):
 
 
 @dataclass(frozen=True)
-class Identity:
-    '''The profile's identity fields a resume's header shows. Links are
-    full URLs, printed without their scheme.'''
+class HeaderIdentity:
+    '''The profile's identity fields a resume's header prints. Links are
+    full URLs, printed without their scheme. Not `workit_scout.identity`'s
+    `Identity`, which holds the same fields for removal before a model.'''
 
     name: str
     email: str | None = None
@@ -160,7 +161,7 @@ class Rendered:
         return len(baselines)
 
 
-def render(view, identity: Identity, template: str) -> Rendered:
+def render(view, identity: HeaderIdentity, template: str) -> Rendered:
     '''
     A built resume view (services/resume_view.py) as a PDF in `template`.
     Raises ValueError for a template id it does not know, and

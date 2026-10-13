@@ -14,7 +14,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 
-from app.services.resume_render import Identity
+from app.services.resume_render import HeaderIdentity
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
@@ -87,7 +87,7 @@ def _entry(doc, entry: ViewEntry) -> None:
     doc.paragraphs[-1].paragraph_format.space_after = Pt(4)
 
 
-def render_docx(view: ResumeView, identity: Identity) -> bytes:
+def render_docx(view: ResumeView, identity: HeaderIdentity) -> bytes:
     doc = Document()
     section = doc.sections[0]
     section.page_width, section.page_height = PAGE_WIDTH, PAGE_HEIGHT

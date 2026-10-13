@@ -10,7 +10,7 @@ import itertools
 import uuid
 from decimal import Decimal
 
-from app.services.resume_render import Identity, jakes_document
+from app.services.resume_render import HeaderIdentity, jakes_document
 from app.services.resume_view import (
     ResumeView,
     ViewBullet,
@@ -30,7 +30,7 @@ def _bullets(*texts: str) -> tuple[ViewBullet, ...]:
     return tuple(ViewBullet(next(_ids), t) for t in texts)
 
 
-IDENTITY = Identity(
+IDENTITY = HeaderIdentity(
     name="Jake Ryan",
     email="jake@su.edu",
     phone="123-456-7890",

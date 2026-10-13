@@ -183,6 +183,9 @@ Find files with a directory listing; these are the rules for where code goes.
   this check.
 - **Identity fields load through `app/services/identity.py`**
   (`load_identity`), for Scout's model seam and the bank embedding alike.
+  A resume's header prints them from `built_resumes.load_header_identity`
+  (`resume_render.HeaderIdentity`): display, never model input, so the
+  two names stay apart.
 - **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
   re-reads an uploaded resume's stored `raw_text` with the heuristic parser
   and returns draft entries and skills (`services/bank_import.py` maps them,
