@@ -116,3 +116,12 @@ class ChoicesUpdate(BaseModel):
     entries: list[EntryChoiceUpdate] = []
     bullets: list[BulletChoiceUpdate] = []
     skills: list[SkillChoiceUpdate] = []
+
+
+class FitResponse(BaseModel):
+    """Fit to One Page (KAN-218): the bullets it hid, in the order it hid
+    them (Undo shows them again through PATCH .../choices), and the render
+    after, which can still be 2 pages when nothing more could be hidden."""
+
+    hidden: list[UUID]
+    render: RenderResponse

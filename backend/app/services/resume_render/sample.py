@@ -112,3 +112,18 @@ def document() -> str:
     from app.services.resume_render import jakes
 
     return jakes_document(jakes.body(VIEW, IDENTITY))
+
+
+SIZES = ("tiny", "scriptsize", "footnotesize", "small", "normalsize", "large", "Large", "LARGE", "huge", "Huge")
+SHAPES = ("upshape", "itshape", "scshape", "slshape")
+
+
+def fonts() -> str:
+    '''Jake's preamble with a word in every size, shape and weight, so the
+    warm-up caches every Latin Modern file a page can reach. The sample
+    alone missed one (KAN-218): `\\large` upright, which a section heading
+    selects only at some page breaks, failed offline once Fit to One Page
+    moved "Technical Skills" across one.'''
+    words = [f"{{\\{size}\\{shape}\\{weight} Aa}}" for size in SIZES for shape in SHAPES
+             for weight in ("mdseries", "bfseries")]
+    return jakes_document(" ".join(words))

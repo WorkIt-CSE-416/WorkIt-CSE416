@@ -126,6 +126,11 @@ class Box:
     y1: float
 
 
+def box_lines(box: Box) -> int:
+    '''How many lines of text a box covers: 1, or more for a wrapped line.'''
+    return 1 + max(0, round((box.y1 - box.y0 - ASCENT - DESCENT) / WRAPPED_LINE))
+
+
 @dataclass(frozen=True)
 class Rendered:
     pdf: bytes
@@ -148,8 +153,7 @@ class Rendered:
             if box.page < 2:
                 continue
             top = box.y0 + ASCENT
-            lines = 1 + max(0, round((box.y1 - DESCENT - top) / WRAPPED_LINE))
-            baselines.update((box.page, round(top + i * WRAPPED_LINE)) for i in range(lines))
+            baselines.update((box.page, round(top + i * WRAPPED_LINE)) for i in range(box_lines(box)))
         return len(baselines)
 
 
