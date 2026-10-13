@@ -19,11 +19,11 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 
 | Component | How | Status |
 |---|---|---|
-| Semantic similarity | Gemini embeddings of the posting and of the resume's parsed sections, compared in Postgres (`job.embedding <=> resume.embedding`) | Client and columns built, not wired |
-| Skill overlap | The applicant's own listed skills searched for in each posting (`job_postings.fts`), rarer skills counting more | Column built, query not written |
-| Title fit | Word overlap between the job title and the applicant's titles and field of study, rarer words counting more | Not written |
-| Eligibility | Graduation date against the start term, and years of experience. A multiplier, not a weight: a great fit for an internship that starts after you graduate is still not a job you can take | Not written |
-| Freshness | Newer postings rank higher | Not written |
+| Semantic similarity | Nomic embeddings of the posting and of the resume's parsed sections, compared in Postgres (`1 - (job.embedding <=> resume.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Title fit | Word overlap between the job title and the applicant's titles and field of study, stop words removed | Built — `scoring.py` `title_fit()` |
+| Eligibility | Years of experience check; a multiplier (1.0 / 0.5 / 0.0) | Built — `scoring.py` `eligibility()` |
+| Freshness | `max(0.7, 1.0 - days_old / 300)` — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |
 
 Nothing in this folder may assume what a software job is. Two consequences:
 
@@ -37,31 +37,29 @@ Nothing in this folder may assume what a software job is. Two consequences:
 
 - **One model, everywhere.** Laptops, the deployed API and the scheduled import
   all write into the same database, and vectors from two models can't be
-  compared. So `MODEL` (`gemini-embedding-001`) and the size
-  (`dto.EMBEDDING_DIMENSIONS`, 768) are constants, never settings, and there is
-  no Ollama option for embeddings, even on a laptop.
+  compared. Use Ollama's `nomic-embed-text:v1.5` at
+  `dto.EMBEDDING_DIMENSIONS` (768) for every job and resume vector.
 - **Changing either one changes the database too.**
   - A new size needs a migration changing both columns' type (`ALTER COLUMN
     embedding TYPE extensions.vector(N) USING NULL`).
-  - A new model at the same size needs a migration setting both columns to NULL.
+  - A new model at the same size requires clearing both columns before vectors
+    from the new model are written; there is no model-provenance column.
   - A wrong size fails loudly: Postgres refuses the vector. A new model next to
     old vectors fails **silently**: the scores are wrong and nothing errors.
   - After either, the import re-embeds every job, and each resume is
     re-embedded on its next request.
-- **Gemini's native REST API (`batchEmbedContents`), called through httpx.** The
-  OpenAI-compatible endpoint documents neither the vector size nor batching.
-  This also keeps `workit_scout/llm.py` the only module that imports `openai`.
-  The key travels in the `x-goog-api-key` header, so it never shows up in a
-  logged URL.
-- **`embed()` takes at most `BATCH_SIZE` (100) texts and never raises on a
-  provider failure.** No key, a refusal (429 is the free tier's quota) or an
-  unreachable Gemini all return `None`. The caller stores nothing and tries
-  again later, and a job or resume without a vector scores neutral on meaning.
-  An upload or an import must never fail because Gemini is down.
+- **Ollama's native `/api/embed` endpoint, called through httpx.** The local
+  server defaults to `http://localhost:11434`; `OLLAMA_EMBEDDING_URL` can point
+  to another Ollama server. Install the model with `ollama pull
+  nomic-embed-text:v1.5`.
+- **`embed()` takes at most `BATCH_SIZE` (100) texts and never raises when
+  Ollama is unavailable.** A failed request returns `None`. The caller stores
+  nothing and tries again later, and a job or resume without a vector scores
+  neutral on meaning. An upload or an import must never fail because Ollama is
+  down.
 - **Only parsed resume sections and public postings are sent**, never the raw
-  resume text with its name, email, phone and links. That is Scout's rule
-  (`../../../../scout/CLAUDE.md`), because Gemini's free tier may train on what
-  it receives. `resume_text()` is where that boundary lives.
+  resume text with its name, email, phone and links. `resume_text()` enforces
+  that boundary. The local Ollama endpoint keeps the text on that machine.
 - **Texts are cut to 6,000 characters**, since the model reads about 2,048
   tokens. A posting loses its tail, which is mostly benefits and legal
   boilerplate.
@@ -69,14 +67,17 @@ Nothing in this folder may assume what a software job is. Two consequences:
 ## When things are embedded
 
 - **Jobs: ahead of time, by the import.** Each scheduled run embeds only the
-  new or changed postings, never inside a user's request. Embedding on request
-  would make the first person after each import wait for hundreds of vectors,
-  and two people arriving together would both pay for them. *(Not written yet.)*
+  new or changed postings (embedding IS NULL), never inside a user's request.
+  Embedding runs **after** the import transaction commits, so the upsert stays
+  fast and a dry-run never calls Ollama. A changed job's embedding is cleared
+  in the upsert's `set_` dict, so it gets a fresh vector. Each batch of 100
+  is committed independently; if Ollama goes down mid-run, the next scheduled
+  run picks up the rest.
 - **Resumes: on demand.** `GET /jobs/recommended` embeds the chosen resume when
   its `embedding` is NULL, and stores the result. The resume `PUT` that replaces
   `parsed_json` clears `embedding`, and a new upload starts NULL, so the resume
-  routes never call Gemini themselves. Applicants who never open
-  recommendations never cost a call. *(Not written yet.)*
+  routes never call Ollama themselves. Applicants who never open
+  recommendations never cost a call. 
 
 ## The columns
 
@@ -87,20 +88,31 @@ code that maps them is deployed.
 
 ## Configuration
 
-`GEMINI_API_KEY`, read as `Settings.gemini_api_key`. Unset, nothing is embedded
-and matching runs without its semantic part, the same way the app runs without
-`.env`. A value copied from `.env.example` is not a key: every call then answers
-`API_KEY_INVALID`, which `embed()` logs and treats as `None`.
+Ollama is expected at `OLLAMA_EMBEDDING_URL` with `nomic-embed-text:v1.5`
+installed. If Ollama is unavailable, embedding returns no vector and the import
+or recommendation request can retry later.
+
+## Scoring — `scoring.py`
+
+Pure functions, no DB access. Weights: `W_SEMANTIC=0.45`, `W_SKILL=0.25`,
+`W_TITLE=0.15`, `W_ELIGIBILITY=0.15`. When no embedding exists, semantic
+weight is redistributed across the others. Final score is
+`round(weighted_sum * freshness * 100)`, clamped 0-100.
+
+## Highlights — `highlights.py`
+
+Picks up to 3 reasons from a priority list: skills matched, title alignment,
+strong semantic fit (positive), then years mismatch and start term mismatch
+(negative). Positives sort before negatives.
 
 ## Still open
 
 - **Applying the migration that creates the columns.** It's `4485d7a7a712`,
   and it goes on the shared database right after its PR merges, before the
   deployment is live (`../../models/CLAUDE.md` says why).
-- **The rest of the pipeline:** the import's embedding step, the resume `PUT`
+- **The rest of the pipeline:** the resume `PUT`
   clearing `embedding`, scoring, and `GET /jobs/recommended`.
-- **Unchecked against the live API:** whether Gemini still accepts `taskType`
-  and `outputDimensionality` at the top level of each request. Google's
-  reference marks them deprecated in favour of `embedContentConfig`.
 - **Scoring weights and the freshness boost** are guesses until there is real
   data to tune them on.
+- **Grad date vs start term** is not compared yet (eligibility only checks
+  years of experience).

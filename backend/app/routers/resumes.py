@@ -1,4 +1,18 @@
-"""API endpoint that accepts resume file uploads from frontend"""
+"""Resumes under /applicants/{applicant_id}/resumes: upload, list, edit, delete.
+
+Upload (POST) extracts text from a PDF or DOCX and parses it into structured
+JSON. `POST .../parse` returns the parse with no Storage or database write, for
+the profile's review dialog; upload then takes the reviewed copy as a
+`parsed_json` form field instead of parsing again. `GET .../{resume_id}`
+returns one resume's `parsed_json` (the list omits it). `PUT .../{resume_id}`
+replaces it with a full `ParsedResume`: a section left out comes back empty,
+which is why it is a PUT and not a PATCH. That body and upload's `parsed_json`
+are client-supplied, so both are capped at `MAX_PARSED_JSON_BYTES` (413).
+`PUT .../{resume_id}/default` makes it the primary resume
+(`applicant_profiles.default_resume_id`; the list reports it as `is_default`).
+`GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
+download under the original filename for a DOCX.
+"""
 import asyncio
 import logging
 import re
@@ -361,6 +375,7 @@ async def update_resume(
     _reject_oversized(body)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     resume.parsed_json = body.model_dump(mode="json")
+    resume.embedding = None  # re-embed on next scoring request
     resume.status = ResumeStatus.parsed
     try:
         await session.commit()

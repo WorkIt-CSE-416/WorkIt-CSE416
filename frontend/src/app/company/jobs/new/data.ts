@@ -3,7 +3,7 @@
  * falls back to. Fixtures — swapping to real data touches this file and nothing
  * else.
  *
- * Shaped after `backend/db/job_posting.md`'s `job_postings` table rather than
+ * Shaped after `docs/job_posting.md`'s `job_postings` table rather than
  * the original mockup-only fields:
  *
  * - `Department` stays its own free-standing select (Engineering, Design, …).

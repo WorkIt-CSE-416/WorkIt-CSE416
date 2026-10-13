@@ -1,22 +1,29 @@
 """Tests for the part of the feed import that needs no database: turning feed
-rows into job_postings rows and places. The database half (upsert, location
-sync, closing) needs Postgres; app/scripts/import_jobs.py's docstring says
-what it does."""
+rows into job_postings rows (the scraper's role keys among them), places and
+job_role_tags slugs. The database half (upsert,
+location and role sync, closing) needs Postgres; app/scripts/import_jobs.py's
+docstring says what it does."""
 import datetime
 
 import pytest
-from pydantic import ValidationError
 
 from app.models import dto
 from app.schemas.jobs import JobListing
 from app.scripts.import_jobs import parse_posted_at, prepare
 from app.services.location_resolver import LocationResolver, Place
+from app.services.role_resolver import RoleResolver
 from tests.test_location_resolver import US_STATES
+from tests.test_role_resolver import ROLES
 
 
 @pytest.fixture(scope="module")
 def resolver():
     return LocationResolver({"US", "ZZ"}, US_STATES)
+
+
+@pytest.fixture(scope="module")
+def role_resolver():
+    return RoleResolver(ROLES)
 
 
 def listing(url, location="Austin, TX", **overrides):
@@ -28,8 +35,8 @@ def listing(url, location="Austin, TX", **overrides):
     return JobListing(**{**fields, **overrides})
 
 
-def test_row_shape(resolver):
-    prepared = prepare([listing("https://x/1")], resolver)
+def test_row_shape(resolver, role_resolver):
+    prepared = prepare([listing("https://x/1")], resolver, role_resolver)
     assert prepared.rows == [{
         "apply_url": "https://x/1",
         "title": "SWE Intern",
@@ -46,8 +53,6 @@ def test_row_shape(resolver):
         "min_years_experience": None,
         "start_term": None,
         "sponsorship": None,
-        "roles": [],
-        "role_category": None,
         # No pay stated: the NOT NULL columns keep their defaults, amounts empty.
         "salary": None,
         "salary_min": None,
@@ -58,12 +63,12 @@ def test_row_shape(resolver):
     assert prepared.places == {"https://x/1": (Place("US", "US-TX"),)}
 
 
-def test_card_facts_are_kept(resolver):
+def test_card_facts_are_kept(resolver, role_resolver):
     # Strada's internship: "$7.5K per month".
     prepared = prepare([listing(
         "https://x/1", job_type="full_time", start_term="Summer 2027", min_years_experience=1,
         salary=7500, salary_currency="USD", salary_period="month",
-    )], resolver)
+    )], resolver, role_resolver)
     row = prepared.rows[0]
     assert (row["job_type"], row["start_term"], row["min_years_experience"]) == (
         dto.job_type.full_time, "Summer 2027", 1)
@@ -71,82 +76,87 @@ def test_card_facts_are_kept(resolver):
         7500, "USD", dto.salary_period.month)
 
 
-def test_sponsorship_is_kept(resolver):
+def test_sponsorship_is_kept(resolver, role_resolver):
     # The scraper's reading of the posting's visa lines (details.py).
-    prepared = prepare([listing("https://x/1", sponsorship="citizens_only")], resolver)
+    prepared = prepare([listing("https://x/1", sponsorship="citizens_only")], resolver, role_resolver)
     assert prepared.rows[0]["sponsorship"] == dto.visa_sponsorship.citizens_only
 
 
-def test_roles_are_kept_as_text(resolver):
-    # The scraper's reading of the title (shortlist.py): Cresta's "Machine
-    # Learning Engineering Intern" is data and software, ML its specialty.
-    prepared = prepare(
-        [listing("https://x/1", roles=["data_ai", "software", "data_ai/ml"])], resolver
+def test_the_scraper_s_role_keys_are_ignored(resolver, role_resolver):
+    # feed.json still carries KAN-172's keys, and older feeds role_category.
+    # A job's roles are job_role_tags, resolved from its title (KAN-155), so
+    # the keys are dropped like any undeclared field: a key the backend never
+    # heard of no longer fails the import, and no row writes them.
+    job = listing(
+        "https://x/1", title="Data Engineer Intern",
+        roles=["data_ai", "software", "legal"], role_category="hardware",
     )
-    row = prepared.rows[0]
-    assert row["roles"] == ["data_ai", "software", "data_ai/ml"]
-    assert all(type(key) is str for key in row["roles"])
+    prepared = prepare([job], resolver, role_resolver)
+    assert "roles" not in prepared.rows[0] and "role_category" not in prepared.rows[0]
+    assert prepared.role_tags == {"https://x/1": {"data_engineer"}}
 
 
-def test_role_category_is_the_first_role_while_it_is_one_of_the_five(resolver):
-    # The column the API deployed before KAN-172 reads (expand, then contract).
-    prepared = prepare([
-        listing("https://x/1", roles=["quant", "software"]),
-        # Olsson's "Civil Engineering Internship - Roadway": no old category fits.
-        listing("https://x/2", roles=["engineering", "engineering/civil"]),
-    ], resolver)
-    assert [r["role_category"] for r in prepared.rows] == [dto.role_category.quant, None]
-
-
-def test_a_feed_from_before_kan_172_keeps_its_one_category(resolver):
-    # role_category and no roles: the category stands for them.
-    row = prepare([listing("https://x/1", role_category="hardware")], resolver).rows[0]
-    assert (row["roles"], row["role_category"]) == (["hardware"], dto.role_category.hardware)
-
-
-def test_a_feed_without_roles_still_imports(resolver):
-    # feed.json from before KAN-171 has neither key at all.
-    row = prepare([listing("https://x/1")], resolver).rows[0]
-    assert (row["roles"], row["role_category"]) == ([], None)
-
-
-def test_an_unknown_role_key_fails_the_feed():
-    # A key the scraper added and this side never learned is a contract break,
-    # caught before anything is written, never a role quietly dropped.
-    with pytest.raises(ValidationError):
-        listing("https://x/1", roles=["software", "legal"])
-
-
-def test_description_is_kept(resolver):
-    prepared = prepare([listing("https://x/1", description="Build things.")], resolver)
+def test_description_is_kept(resolver, role_resolver):
+    prepared = prepare([listing("https://x/1", description="Build things.")], resolver, role_resolver)
     assert prepared.rows[0]["description"] == "Build things."
 
 
-def test_first_of_a_duplicate_url_wins(resolver):
-    prepared = prepare([listing("https://x/1", title="Newer"), listing("https://x/1", title="Older")], resolver)
+def test_first_of_a_duplicate_url_wins(resolver, role_resolver):
+    prepared = prepare([listing("https://x/1", title="Newer"), listing("https://x/1", title="Older")], resolver, role_resolver)
     assert [r["title"] for r in prepared.rows] == ["Newer"]
     assert prepared.duplicates == 1
 
 
-def test_places_and_misses(resolver):
+def test_places_and_misses(resolver, role_resolver):
     prepared = prepare([
         listing("https://x/1", "San Francisco, CA • New York, NY"),
         listing("https://x/2", "Remote"),
         listing("https://x/3", "RWC HQ"),
         listing("https://x/4", None),
-    ], resolver)
+    ], resolver, role_resolver)
     assert prepared.places["https://x/1"] == (Place("US", "US-CA"), Place("US", "US-NY"))
     assert prepared.no_place == 3
     # Only the string that named something unknown is worth logging.
     assert prepared.unresolved == {"RWC HQ": ("RWC HQ",)}
 
 
-def test_each_location_resolved_once(resolver, monkeypatch):
+def test_each_location_resolved_once(resolver, role_resolver, monkeypatch):
     calls = []
     real = resolver.resolve
     monkeypatch.setattr(resolver, "resolve", lambda text: calls.append(text) or real(text))
-    prepare([listing(f"https://x/{i}", "Austin, TX") for i in range(5)], resolver)
+    prepare([listing(f"https://x/{i}", "Austin, TX") for i in range(5)], resolver, role_resolver)
     assert calls == ["Austin, TX"]
+
+
+def test_roles_and_untagged_titles(resolver, role_resolver):
+    prepared = prepare([
+        listing("https://x/1", title="Software Engineer (Machine Learning) Intern"),
+        listing("https://x/2", title="AI Labs Intern"),
+        listing("https://x/3", title="AI Labs Intern"),
+    ], resolver, role_resolver)
+    assert prepared.role_tags == {
+        "https://x/1": {"software_engineer", "ai_ml_engineer"},
+        "https://x/2": set(),
+        "https://x/3": set(),
+    }
+    # Counted per title, so the report can put the commonest misses first.
+    assert prepared.untagged == {"AI Labs Intern": 2}
+
+
+def test_each_title_resolved_once(resolver, role_resolver, monkeypatch):
+    calls = []
+    real = role_resolver.resolve
+    monkeypatch.setattr(role_resolver, "resolve", lambda title: calls.append(title) or real(title))
+    prepare([listing(f"https://x/{i}", title="SWE Intern") for i in range(5)], resolver, role_resolver)
+    assert calls == ["SWE Intern"]
+
+
+def test_a_duplicate_url_takes_the_first_title_s_roles(resolver, role_resolver):
+    prepared = prepare([
+        listing("https://x/1", title="Data Engineer Intern"),
+        listing("https://x/1", title="Recruiter"),
+    ], resolver, role_resolver)
+    assert prepared.role_tags == {"https://x/1": {"data_engineer"}}
 
 
 @pytest.mark.parametrize(("value", "expected"), [

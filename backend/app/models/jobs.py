@@ -20,7 +20,7 @@ from sqlalchemy import (
     desc,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -63,17 +63,6 @@ class Job_Post(BaseModel):
     work_style: Mapped[dto.work_style | None]
     # what the posting says about visa sponsorship; NULL when it says nothing
     sponsorship: Mapped[dto.visa_sponsorship | None]
-    # a scraped role's discipline (software, data_ai, ...); NULL for a company's job.
-    # Superseded by roles (KAN-172): kept, and still written by the import, until
-    # every deployed reader has moved to roles; a later migration drops it
-    role_category: Mapped[dto.role_category | None]
-    # A scraped role's category and specialty keys, first category first:
-    # ["data_ai", "software", "data_ai/ml"] (KAN-172, the scraper's shortlist.Tag).
-    # Empty for a company's own job. The database supplies the empty default, so
-    # an insert that names none leaves the column out
-    roles: Mapped[list[str]] = mapped_column(
-        ARRAY(Text), server_default=text("'{}'::text[]")
-    )
     # the location text as given, for display. Filtering uses job_locations
     location_raw: Mapped[str | None] = mapped_column(Text)
     # The card's location, "San Francisco, CA", written by the import from
@@ -101,13 +90,15 @@ class Job_Post(BaseModel):
     embedding: Mapped[list[float] | None] = mapped_column(
         VECTOR(dto.EMBEDDING_DIMENSIONS), deferred=True
     )
-    # The title and description as stemmed search terms; matching searches
-    # it for the applicant's own skills. Postgres computes it and keeps it
-    # current, so nothing here ever writes it.
+    # The title and description as stemmed search terms, the title weighted
+    # A and the description D so a search ranks title matches first
+    # (a70c641b2f99); matching searches it for the applicant's own skills.
+    # Postgres computes it and keeps it current, so nothing here writes it.
     fts: Mapped[str | None] = mapped_column(
         TSVECTOR,
         Computed(
-            "to_tsvector('english', coalesce(title, '') || ' ' || coalesce(description, ''))",
+            "setweight(to_tsvector('english', coalesce(title, '')), 'A') || "
+            "setweight(to_tsvector('english', coalesce(description, '')), 'D')",
             persisted=True,
         ),
         deferred=True,
@@ -138,6 +129,9 @@ class Job_Post(BaseModel):
             desc("created_at")
         ), 
         
+        # a search's fts @@ query (a70c641b2f99)
+        Index("job_postings_fts_idx", "fts", postgresql_using="gin"),
+
         # trigram GIN indexes 
         # for each company name is uploaded, split name into 3 char buckets and store the job
         # when a search title comes in, split into 3, it looks for jobs that are in all buckets
@@ -147,14 +141,6 @@ class Job_Post(BaseModel):
             postgresql_using="gin",
             postgresql_ops={"company_name": "gin_trgm_ops"}
         ),
-
-        # GET /jobs?role= keeps jobs whose roles overlap the keys asked for
-        # (roles && ARRAY[...]), which a GIN index looks up
-        Index(
-            "job_postings_roles_idx",
-            "roles",
-            postgresql_using="gin"
-        )
     )
 
 

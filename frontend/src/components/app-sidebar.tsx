@@ -342,14 +342,13 @@ export function AppSidebar({
 
 /**
  * The floating panel's logo: <LogoLockup> from @/components/logo, the mark
- * 40px tall (its ink about 37px square) beside the wordmark sized to about
- * 55% of it.
+ * and the word in one 26px box.
  *
  * Open, the mark's ink starts on the panel's 28px line with the captions and
- * the row icons (the image carries 1.4px of transparent padding, so the box
- * sits at 27px). Collapsed, it is centred in the 72px rail instead, its 43px
- * box at 14px: a mark wider than two icons cannot share both their left edge and
- * their centre. So the inset slides between the two on the panel's own 200ms
+ * the row icons (the drawing has no padding, so the box sits there too).
+ * Collapsed, it is centred in the 72px rail instead, its 34px box at 19px: a
+ * mark wider than an icon cannot share both their left edge and their
+ * centre. So the inset slides between the two on the panel's own 200ms
  * linear, the same time the width takes, while the wordmark fades and the
  * narrowing panel clips it. Nothing swaps mid-way and nothing jumps. The link
  * stays live on the rail, where the mark alone still goes home.
@@ -365,8 +364,8 @@ function PanelBrand({ href }: { href: string }) {
   return (
     <SidebarHeader
       className={cn(
-        "h-16 shrink-0 flex-row items-center p-0 pl-[27px] transition-[padding] duration-200 ease-linear",
-        collapsed && "pl-3.5",
+        "h-16 shrink-0 flex-row items-center p-0 pl-7 transition-[padding] duration-200 ease-linear",
+        collapsed && "pl-[19px]",
       )}
     >
       {/* Presses in on the click like every control, and only that: a logo
@@ -375,7 +374,7 @@ function PanelBrand({ href }: { href: string }) {
         href={href}
         className="focus-visible:ring-brand-ring flex shrink-0 items-center rounded-xs transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
       >
-        <LogoLockup priority wordmarkHidden={collapsed} />
+        <LogoLockup wordmarkHidden={collapsed} />
       </Link>
     </SidebarHeader>
   );

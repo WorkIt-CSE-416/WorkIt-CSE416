@@ -21,12 +21,15 @@ from app.routers.jobs import (
     location_options,
     matching,
     offered_in,
-    role_counts,
+    query_facts,
     season_is_over,
     season_of,
     to_listing,
 )
-from app.schemas.jobs import FacetCount, JobFacets, JobListing
+from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
+from app.services.company_resolver import CompanyResolver
+from app.services.role_resolver import RoleResolver, raw_words
+from tests.test_role_resolver import ROLES
 
 ROW = SimpleNamespace(
     id=uuid.UUID("6f1c0e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b"),
@@ -43,8 +46,6 @@ ROW = SimpleNamespace(
     min_years_experience=None,
     start_term="Summer 2027",
     sponsorship=dto.visa_sponsorship.sponsors,
-    role_category=dto.role_category.hardware,
-    roles=["hardware", "software"],
     salary=None,
     salary_min=40.0,
     salary_max=46.0,
@@ -54,8 +55,23 @@ ROW = SimpleNamespace(
 
 
 @pytest.fixture
-def no_database():
+def no_database(monkeypatch):
     app.dependency_overrides[get_session] = lambda: None
+    # ?q= is read by a resolver the route builds from job_roles; here, from the
+    # seed migration's roles instead.
+    resolver = RoleResolver(ROLES)
+
+    async def role_resolver(db):
+        return resolver
+
+    monkeypatch.setattr("app.routers.jobs.role_resolver", role_resolver)
+    # The company names ?q= is read against; a fixed list, not the database's.
+    companies = CompanyResolver(["Stripe", "Jump Trading", "Bedrock Robotics", "SpaceX", "Palantir"])
+
+    async def company_resolver(db):
+        return companies
+
+    monkeypatch.setattr("app.routers.jobs.company_resolver", company_resolver)
     yield
     app.dependency_overrides.clear()
 
@@ -84,8 +100,6 @@ def test_row_becomes_the_feed_shape():
         "min_years_experience": None,
         "start_term": "Summer 2027",
         "sponsorship": dto.visa_sponsorship.sponsors,
-        "roles": [dto.role_key.hardware, dto.role_key.software],
-        "role_category": dto.role_category.hardware,
     }
 
 
@@ -132,24 +146,251 @@ def test_route_reads_the_search_words(no_database, monkeypatch):
     seen = []
 
     async def fetch(db, limit, filters, offset=0):
-        seen.append(filters.query)
+        seen.append((list(filters.query_roles), list(filters.query_words)))
         return []
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
     client = TestClient(app)
     for q in ("  Stripe ", "   ", None):
         assert client.get("/jobs", params={"q": q} if q is not None else {}).status_code == 200
-    # Trimmed, and blank is no search at all.
-    assert seen == ["Stripe", None, None]
+    # Read as words, folded; blank is no search at all.
+    # "stripe" is a company now (company_resolver), not a word for the text.
+    assert seen == [([], []), ([], []), ([], [])]
     assert client.get("/jobs", params={"q": "x" * 201}).status_code == 422
 
 
-def test_a_search_matches_title_or_company_and_escapes_wildcards():
-    sql = _sql(matching(JobFilters(query="100%_on"))[0])
-    assert "lower(job_postings.title) LIKE" in sql
-    assert "lower(job_postings.company_name) LIKE" in sql
-    # % and _ are matched as themselves, not as wildcards.
-    assert "100/%/_on" in sql
+@pytest.mark.parametrize(("q", "roles", "levels", "styles", "words"), [
+    # a role, a fact, and a word left for the text or the company's name
+    ("swe intern stripe", ["software_engineer"], ["internship"], [], []),
+    ("stripe intern", [], ["internship"], [], []),
+    ("machine learning", ["ai_ml_engineer"], [], [], []),
+    # a typo is corrected before it is read (read_query)
+    ("sofware engineer google", ["software_engineer"], [], [], ["google"]),
+    # two roles: each narrows, so a job must be tagged with both
+    ("ml software engineer", ["ai_ml_engineer", "software_engineer"], [], [], []),
+    # a fact counts though a role's alias used its word: "marketing intern"
+    # is the marketing role and an internship both
+    ("marketing intern", ["marketing_specialist"], ["internship"], [], []),
+    ("software engineer new grad remote", ["software_engineer"], ["new_grad"], ["remote"], []),
+    ("data scientist co-op hybrid", ["data_scientist"], ["internship"], ["hybrid"], []),
+])
+def test_a_search_is_read_in_its_three_parts(no_database, monkeypatch, q, roles, levels, styles, words):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs", params={"q": q}).status_code == 200
+    (filters,) = seen
+    assert list(filters.query_roles) == roles
+    assert list(filters.query_levels) == levels
+    assert [style.value for style in filters.query_work_styles] == styles
+    assert list(filters.query_words) == words
+    assert filters.query_start_terms is None
+
+
+@pytest.mark.parametrize(("q", "companies", "roles", "levels", "words"), [
+    # a company by whole name, then the rest as before
+    ("jump trading quant intern", ["Jump Trading"], ["quantitative_analyst"], ["internship"], []),
+    # a name keeps its words: not the robotics role
+    ("bedrock robotics", ["Bedrock Robotics"], [], [], []),
+    ("robotics", [], ["robotics_engineer"], [], []),
+    # a typo in what the other parts left, corrected to the one name close to it
+    ("strpe intern", ["Stripe"], [], ["internship"], []),
+    ("palntir software engineer", ["Palantir"], ["software_engineer"], [], []),
+    ("jump tradng", ["Jump Trading"], [], [], []),
+    # two companies: either
+    ("stripe palantir", ["Palantir", "Stripe"], [], [], []),
+    # an ordinary word is no company: left for the text and company names
+    ("react intern", [], [], ["internship"], ["react"]),
+])
+def test_a_search_names_companies(no_database, monkeypatch, q, companies, roles, levels, words):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs", params={"q": q}).status_code == 200
+    (filters,) = seen
+    assert list(filters.query_companies) == companies
+    assert list(filters.query_roles) == roles
+    assert list(filters.query_levels) == levels
+    assert list(filters.query_words) == words
+
+
+def test_a_search_s_companies_keep_jobs_at_any_of_them():
+    (clause,) = matching(JobFilters(query_companies=["Palantir", "Stripe"]))
+    assert _sql(clause) == "job_postings.company_name IN ('Palantir', 'Stripe')"
+
+
+def test_a_search_s_year_is_a_start_term(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    async def terms_in(db, seasons):
+        # A bare year is every season of it, and the year alone.
+        assert list(seasons) == [
+            "winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027",
+        ]
+        return ["Summer 2027", "January 2027", "2027"]
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    monkeypatch.setattr("app.routers.jobs.terms_in", terms_in)
+    assert TestClient(app).get("/jobs", params={"q": "intern 2027"}).status_code == 200
+    (filters,) = seen
+    assert list(filters.query_start_terms) == ["Summer 2027", "January 2027", "2027"]
+    # ...and the year as typed, for a title that says it.
+    assert list(filters.query_start_phrases) == ["2027"]
+    assert list(filters.query_levels) == ["internship"] and list(filters.query_words) == []
+
+
+def test_a_search_s_remote_and_season_reach_the_title_too(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    async def terms_in(db, seasons):
+        assert list(seasons) == ["fall-2027"]
+        return ["Fall 2027"]
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    monkeypatch.setattr("app.routers.jobs.terms_in", terms_in)
+    assert TestClient(app).get("/jobs", params={"q": "Fall 2027 remote hybrid"}).status_code == 200
+    (filters,) = seen
+    assert list(filters.query_start_phrases) == ["fall 2027"]
+    # remote only: hybrid and onsite are the column alone
+    assert list(filters.query_work_style_phrases) == ["remote"]
+    assert [w.value for w in filters.query_work_styles] == ["remote", "hybrid"]
+
+
+@pytest.mark.parametrize(("q", "levels", "styles", "seasons", "left"), [
+    ("summer 2027", [], [], ["summer-2027"], []),
+    ("2027 summer", [], [], ["summer-2027"], []),          # either order
+    ("fall 2026 internship", ["internship"], [], ["fall-2026"], []),
+    ("co-op on-site", ["internship"], ["onsite"], [], []),  # punctuation is gone
+    ("new grads in person", ["new_grad"], ["onsite"], [], []),
+    ("entry level", ["new_grad"], [], [], []),
+    # a season with no year names no season, as season_of reads one
+    ("summer", [], [], [], ["summer"]),
+    ("stripe interns remote", ["internship"], ["remote"], [], ["stripe"]),
+    # a misspelt month or season beside a year is the one it is close to
+    ("summe 2027", [], [], ["summer-2027"], []),
+    ("janury 2027", [], [], ["winter-2027"], []),
+    ("2027 sprng", [], [], ["spring-2027"], []),
+    ("autum 2026", [], [], ["fall-2026"], []),
+    # ...but never alone, and never an ordinary word: the year is read, the
+    # word stays
+    ("summe", [], [], [], ["summe"]),
+    ("summit 2027", [], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], ["summit"]),
+    ("junior 2027", [], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], ["junior"]),
+    # a search's own word is never a season's typo: "intern" and "writer"
+    # (a role alias's) are each 0.8 or more from "winter"
+    ("intern 2027", ["internship"], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], []),
+    ("writer 2027", [], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], ["writer"]),
+])
+def test_query_facts(q, levels, styles, seasons, left):
+    words = raw_words(q)
+    facts = query_facts(words)
+    assert list(facts.levels) == levels
+    assert [style.value for style in facts.work_styles] == styles
+    assert list(facts.seasons) == seasons
+    assert [w for i, w in enumerate(words) if i not in facts.used] == left
+
+
+def test_a_misspelt_season_is_matched_in_titles_as_spelt():
+    # A title says "Summer 2027", so the title match takes the corrected words.
+    assert list(query_facts(raw_words("summe 2027")).season_phrases) == ["summer 2027"]
+
+
+def test_a_search_s_roles_each_narrow_on_their_own():
+    clauses = matching(JobFilters(query_roles=["ai_ml_engineer", "software_engineer"]))
+    assert len(clauses) == 2
+    assert "job_role_tags.role_slug IN ('ai_ml_engineer')" in _sql(clauses[0])
+    assert "job_role_tags.role_slug IN ('software_engineer')" in _sql(clauses[1])
+
+
+def test_a_search_s_role_also_matches_its_words_in_the_title():
+    filters = JobFilters(
+        query_roles=["ai_ml_engineer", "software_engineer"],
+        query_role_words={"software_engineer": (("software",),)},
+    )
+    ml, software = (c.compile(dialect=postgresql.dialect()) for c in matching(filters))
+    # a role without its words is the tag alone
+    assert "~*" not in str(ml)
+    assert "job_role_tags.role_slug IN" in str(software)
+    assert ") OR job_postings.title ~* %(title_1)s" in str(software)
+    assert software.params["title_1"] == r"\m(?:software|sw)\M"
+    # the title only: never the description
+    assert "description" not in str(software) and "fts" not in str(software)
+
+
+def test_a_search_passes_each_role_s_words_on(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get("/jobs", params={"q": "sofware enginer intern"}).status_code == 200
+    (filters,) = seen
+    assert dict(filters.query_role_words) == {"software_engineer": (("software", "engineer"),)}
+
+
+def test_a_search_s_start_term_and_remote_also_match_the_title():
+    filters = JobFilters(
+        query_work_styles=[dto.work_style.remote],
+        query_work_style_phrases=["remote"],
+        query_start_terms=["Fall 2027"],
+        query_start_phrases=["fall 2027"],
+    )
+    styles, terms = (_sql(c) for c in matching(filters))
+    assert styles.startswith("job_postings.work_style IN ('remote') OR (lower(job_postings.title) LIKE")
+    assert "'%' || lower('remote') || '%'" in styles
+    assert terms.startswith("job_postings.start_term IN ('Fall 2027') OR (lower(job_postings.title) LIKE")
+    assert "'%' || lower('fall 2027') || '%'" in terms
+    # the title only: never the description
+    assert "description" not in styles + terms and "fts" not in styles + terms
+
+
+def test_a_season_no_posting_names_still_matches_a_title():
+    # no posting's start_term is in the season: the column's empty IN is
+    # false, and the title can still say it
+    (clause,) = matching(JobFilters(query_start_terms=[], query_start_phrases=["fall 2031"]))
+    assert "lower(job_postings.title) LIKE" in _sql(clause)
+
+
+def test_a_search_s_facts_narrow_their_own_columns():
+    filters = JobFilters(
+        query_levels=["internship"],
+        query_work_styles=[dto.work_style.remote],
+        query_start_terms=["Summer 2027"],
+    )
+    assert [_sql(c) for c in matching(filters)] == [
+        "job_postings.experience_level IN ('internship')",
+        "job_postings.work_style IN ('remote')",
+        "job_postings.start_term IN ('Summer 2027')",
+    ]
+
+
+def test_each_search_word_matches_the_text_or_the_company_on_its_own():
+    clauses = matching(JobFilters(query_words=["stripe", "100%_on"]))
+    assert len(clauses) == 2
+    sql = str(clauses[1].compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    # A stop word's empty query passes; else the stemmed text, or the name as typed.
+    assert "numnode(plainto_tsquery('english', '100%%_on')) = 0" in sql
+    assert "job_postings.fts @@ plainto_tsquery('english', '100%%_on')" in sql
+    assert "job_postings.company_name ILIKE" in sql
+    assert "100/%%/_on" in sql   # % and _ as themselves in the name
 
 
 def test_route_passes_the_limit(no_database, monkeypatch):
@@ -376,11 +617,13 @@ def test_route_reads_internship_as_a_job_type(no_database, monkeypatch):
     assert list(seen[0]) == ["internship", "part_time"]
 
 
-def test_role_keeps_jobs_holding_any_of_the_keys_asked_for():
-    # An array overlap, which job_postings_roles_idx (GIN) serves: a category and
-    # a specialty in one filter (KAN-172).
-    (clause,) = matching(JobFilters(roles=[dto.role_key.quant, dto.role_key.data_ai_ml]))
-    assert _sql(clause) == "job_postings.roles && ARRAY['quant', 'data_ai/ml']"
+def test_role_keeps_jobs_tagged_with_any_of_the_roles_asked_for():
+    # job_role_tags (KAN-155), not the scraper's roles column (KAN-172).
+    (clause,) = matching(JobFilters(roles=["quantitative_analyst", "data_scientist"]))
+    sql = _sql(clause)
+    assert sql.startswith("EXISTS (SELECT *")
+    assert "job_role_tags.job_id = job_postings.id" in sql
+    assert "job_role_tags.role_slug IN ('quantitative_analyst', 'data_scientist')" in sql
 
 
 def test_route_reads_roles(no_database, monkeypatch):
@@ -392,29 +635,30 @@ def test_route_reads_roles(no_database, monkeypatch):
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
     client = TestClient(app)
-    assert client.get("/jobs?role=data_ai&role=hardware").status_code == 200
-    assert client.get("/jobs?role=engineering/civil&role=design").status_code == 200
+    assert client.get("/jobs?role=data_scientist&role=hardware_engineer").status_code == 200
     assert client.get("/jobs").status_code == 200
-    assert seen == [
-        [dto.role_key.data_ai, dto.role_key.hardware],
-        [dto.role_key.engineering_civil, dto.role_key.design],
-        [],
-    ]
+    assert seen == [["data_scientist", "hardware_engineer"], []]
 
 
-def test_route_takes_every_role_key_at_once(no_database, monkeypatch):
+def test_route_takes_every_seeded_role_at_once(no_database, monkeypatch):
     async def fetch(db, limit, filters, offset=0):
         return []
 
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
-    params = [("role", key.value) for key in dto.role_key]
+    params = [("role", slug) for slug in ROLES]
     assert TestClient(app).get("/jobs", params=params).status_code == 200
+    # Capped, like ?location=, so a URL can't become a thousand-clause query.
+    params = [("role", f"role_{i}") for i in range(61)]
+    assert TestClient(app).get("/jobs", params=params).status_code == 422
 
 
+# Only the shape is checked, as for a place: a well-formed slug no job has
+# matches nothing. KAN-172's keys with a slash are refused, so an old link's
+# "data_ai/ml" is a 422 the Jobs page drops before sending (filter-query.ts).
 @pytest.mark.parametrize(
-    "role", ["swe", "Software", "mechanical", "data_ai/robotics", "legal", "engineering/"]
+    "role", ["Software", "data_ai/ml", "software-engineer", "1st_role", "", "a" * 65]
 )
-def test_route_rejects_an_unknown_role(no_database, role):
+def test_route_rejects_a_malformed_role(no_database, role):
     assert TestClient(app).get("/jobs", params={"role": role}).status_code == 422
     assert TestClient(app).get("/jobs/count", params={"role": role}).status_code == 422
 
@@ -427,8 +671,8 @@ def test_count_reads_roles(no_database, monkeypatch):
         return 3
 
     monkeypatch.setattr("app.routers.jobs.fetch_count", count)
-    assert TestClient(app).get("/jobs/count?role=product").json() == {"jobs": 3}
-    assert seen == [[dto.role_key.product]]
+    assert TestClient(app).get("/jobs/count?role=product_manager").json() == {"jobs": 3}
+    assert seen == [["product_manager"]]
 
 
 def test_visa_sponsors_keeps_only_stated_sponsors():
@@ -534,20 +778,13 @@ def test_a_season_is_over_once_the_next_begins(key, day, over):
     assert season_is_over(key, datetime.date.fromisoformat(day)) is over
 
 
-def test_role_facets_count_every_key_a_job_holds():
-    # A job in data and software counts under both, and under its specialty:
-    # each key is one row of unnest(roles), grouped outside it (Postgres won't
-    # group by a set-returning function).
-    sql = str(role_counts().compile(dialect=postgresql.dialect()))
-    assert "unnest(job_postings.roles) AS key" in sql
-    assert sql.rstrip().endswith("GROUP BY anon_1.key")
-    assert "job_postings.company_id IS NULL" in sql
-
-
 def test_route_lists_facets(no_database, monkeypatch):
     facets = JobFacets(
         work_style=[FacetCount(value="remote", jobs=73)],
-        role=[FacetCount(value="quant", jobs=41), FacetCount(value="data_ai/ml", jobs=243)],
+        role=[
+            JobRoleOption(value="software_engineer", label="Software Engineer", jobs=957),
+            JobRoleOption(value="quantitative_analyst", label="Quantitative Analyst", jobs=41),
+        ],
         experience=[], job_type=[], posted_within=[], visa=[], start_term=[],
     )
 
@@ -557,10 +794,26 @@ def test_route_lists_facets(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_facets", fetch)
     body = TestClient(app).get("/jobs/facets").json()
     assert body["work_style"] == [{"value": "remote", "jobs": 73}]
+    # A role carries its name: the Role filter's options come from here.
     assert body["role"] == [
-        {"value": "quant", "jobs": 41},
-        {"value": "data_ai/ml", "jobs": 243},
+        {"value": "software_engineer", "label": "Software Engineer", "jobs": 957},
+        {"value": "quantitative_analyst", "label": "Quantitative Analyst", "jobs": 41},
     ]
+
+
+def test_route_lists_every_role(no_database, monkeypatch):
+    seen = []
+
+    async def fetch(db, *, with_jobs_only):
+        seen.append(with_jobs_only)
+        return [JobRoleOption(value="nurse", label="Nurse", jobs=0)]
+
+    monkeypatch.setattr("app.routers.jobs.fetch_role_options", fetch)
+    # Matched as itself, not read as a job id by GET /jobs/{job_id}.
+    body = TestClient(app).get("/jobs/roles").json()
+    # Every role, a role with no jobs too: onboarding offers them all.
+    assert body == [{"value": "nurse", "label": "Nurse", "jobs": 0}]
+    assert seen == [False]
 
 
 def test_count_reads_the_same_filters(no_database, monkeypatch):

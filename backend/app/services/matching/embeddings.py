@@ -4,6 +4,7 @@ meaning in any field.
 """
 
 import logging
+import math
 from collections.abc import Sequence
 
 import httpx  # general Python library for sending HTTP requests
@@ -13,9 +14,8 @@ from app.models.dto import EMBEDDING_DIMENSIONS, ParsedResume
 
 logger = logging.getLogger(__name__)
 
-# One model for every writer: laptops, the deployed API and the import all
-# share one database, and vectors from different models can't be compared.
-# Changing MODEL or DIMENSIONS means re-embedding every job and resume.
+# Gemini stays fixed for production; local Ollama models are configurable.
+# Stored vectors carry model_key() so different embedding spaces stay distinct.
 MODEL = "gemini-embedding-001"
 
 DIMENSIONS = EMBEDDING_DIMENSIONS
@@ -45,39 +45,83 @@ def resume_text(resume: ParsedResume) -> str:
     return "\n".join(line.strip() for line in lines if line.strip())
 
 
+def model_key() -> str:
+    """Identity stored with vectors; equal dimensions alone do not imply compatibility."""
+    settings = get_settings()
+    model = MODEL if settings.embedding_provider == "gemini" else settings.ollama_embedding_model
+    return f"{settings.embedding_provider}:{model}:{DIMENSIONS}"
+
+
 async def embed(texts: Sequence[str]) -> list[list[float]] | None:
-    '''
-    one vector per text, in order, for at most BATCH_SIZE texts, so a caller
-    with many keeps every batch that succeeded. None when nothing can be
-    embedded: no GEMINI_API_KEY, or Gemini refused or was unreachable. The
-    caller stores nothing and tries again later
-    '''
+    """One vector per text, or None on provider failure; never fall back to another model.
+
+    Empty input returns []; oversized batches are caller errors. Both providers
+    must return finite, 768-dimensional vectors before anything can be stored.
+    """
     if len(texts) > BATCH_SIZE:
         raise ValueError(f"embed() takes at most {BATCH_SIZE} texts at a time")
-    key = get_settings().gemini_api_key
-    if not key or not texts:
-        return None
-    body = {
-        "requests": [
-            {
-                "model": f"models/{MODEL}",
-                "content": {"parts": [{"text": text[:_MAX_CHARS]}]},
-                "taskType": "SEMANTIC_SIMILARITY",
-                "outputDimensionality": DIMENSIONS,
-            }
-            for text in texts
-        ]
-    }
+    if not texts:
+        return []
+    settings = get_settings()
+    provider = settings.embedding_provider
+    headers = {}
+    if provider == "gemini":
+        if not settings.gemini_api_key:
+            return None
+        url = _URL
+        headers = {"x-goog-api-key": settings.gemini_api_key}
+        body = {
+            "requests": [
+                {
+                    "model": f"models/{MODEL}",
+                    "content": {"parts": [{"text": text[:_MAX_CHARS]}]},
+                    "taskType": "SEMANTIC_SIMILARITY",
+                    "outputDimensionality": DIMENSIONS,
+                }
+                for text in texts
+            ]
+        }
+    else:
+        url = settings.ollama_embedding_url.rstrip("/") + "/api/embed"
+        body = {
+            "model": settings.ollama_embedding_model,
+            "input": [text[:_MAX_CHARS] for text in texts],
+            "truncate": True,
+        }
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            # The key goes in a header, not ?key=, so it never shows up in a logged URL.
-            response = await client.post(_URL, json=body, headers={"x-goog-api-key": key})
+        async with httpx.AsyncClient(timeout=settings.embedding_timeout_seconds) as client:
+            response = await client.post(url, json=body, headers=headers)
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
-        # 429 is the free tier's quota; the next import or save tries again.        
-        logger.warning("Gemini embedding failed: %s %s", exc.response.status_code, exc.response.text[:300])
+        logger.warning("%s embedding failed: HTTP %s", provider, exc.response.status_code)
         return None
     except httpx.HTTPError as exc:
-        logger.warning("Gemini embedding failed: %s", exc)
+        logger.warning("%s embedding failed: %s", provider, exc)
         return None
-    return [e["values"] for e in response.json()["embeddings"]]
+    try:
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise TypeError("response must be an object")
+        embeddings = payload.get("embeddings")
+        if not isinstance(embeddings, list) or len(embeddings) != len(texts):
+            raise ValueError("expected one embedding per input text")
+        vectors = []
+        for embedding in embeddings:
+            if provider == "gemini":
+                values = embedding.get("values") if isinstance(embedding, dict) else None
+            else:
+                values = embedding
+            if not isinstance(values, list) or len(values) != DIMENSIONS:
+                raise ValueError(f"expected {DIMENSIONS} values per embedding")
+            if any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                for value in values
+            ):
+                raise ValueError("embedding values must be finite numbers")
+            vectors.append([float(value) for value in values])
+        return vectors
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.warning("%s embedding returned an invalid response: %s", provider, exc)
+        return None
