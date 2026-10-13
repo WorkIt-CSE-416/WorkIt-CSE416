@@ -306,7 +306,8 @@ link into the Calendar from anywhere else goes through `DayLink` in
 ## My Profile
 
 **Resume upload is wired.** The onboarding form (`onboarding/applicant`)
-uploads on Continue. The seeker profile (`(seeker)/profile`) supports up to
+uploads on Continue, then goes to intake, onboarding's next step (Experience
+Bank section). The seeker profile (`(seeker)/profile`) supports up to
 5 resumes, newest first: picking a file uploads it at once (`uploadResume`);
 the API reads it itself, and the client never sends parsed content. Each
 resume row (`resume-row.tsx`) has an eye — a short-lived signed link from
@@ -410,8 +411,36 @@ place they are edited: My Profile keeps the uploads and links here.
   (`components/scout/chat.tsx`). **The unsaved draft lives in localStorage**
   (`lib/local-drafts.ts`), so a reload keeps it; Sign Out and the login
   page clear every key under its prefix, so the next person in the browser
-  never sees it. The chat is never stored anywhere. The step bar, Skip and
-  jump, and intake in onboarding are KAN-214.
+  never sees it. The chat is never stored anywhere.
+- **Intake's step bar** (`intake-steps.tsx`, KAN-214), after variant G: one
+  segment per section in the order intake walks (Education, Projects,
+  Leadership & Activities, Experience, Awards, Certifications: user story
+  41, not the bank's order), Back on the left, Skip on the right. A segment
+  jumps to its section; the bar is disabled while WorkIt answers or a save
+  runs, so a late reply never lands on another section. It starts at 25%
+  and fills as sections are done; the current segment fills as its draft
+  grows (a title, each answer, full when WorkIt has no questions left).
+  **A skipped section counts toward the percentage** (settled in KAN-214,
+  as the prototype does): the bar measures sections dealt with, so a
+  student with no awards still reaches 100%. Its segment is striped, not
+  filled, and a later save in it marks it done. Skip and a jump drop the
+  unsaved draft, as in the prototype. Skipped sections persist beside the
+  draft in `lib/local-drafts.ts`.
+- **Walking.** With an empty bank the page walks: intake opens on the first
+  section neither filled nor skipped and moves to the next after each save
+  or Skip. With entries already in the bank the student picks from the
+  chips and returns to them after each save. Walking is decided when the
+  page opens.
+- **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
+  profile form's Continue leads there, then Finish leads to /dashboard. It
+  always walks, and its step bar shows the profile form as a done "Profile"
+  step before the sections. It imports `Intake` from the bank route rather
+  than promoting it to `src/components`: intake needs the bank's entry
+  editor and sections, which stay with the bank page.
+- **The page title stays "Experience Bank"** on the bank page and the
+  onboarding step (settled for now in KAN-214, per the spec's "kept for
+  now"); the glossary term stays either way. **Still open:** the name
+  students see.
 
 ## Scout panel
 
