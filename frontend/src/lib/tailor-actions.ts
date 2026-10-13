@@ -1,8 +1,7 @@
 "use server";
 
-import { apiFetch, extractErrorMessage } from "@/lib/auth";
+import { applicantCall, type Result } from "@/lib/applicant-call";
 import type { BuiltResume } from "@/lib/built-resume-actions";
-import { getApplicantSession } from "@/lib/session";
 
 /**
  * Tailor (backend/app/routers/tailor.py), as server actions. Types mirror
@@ -42,18 +41,8 @@ export type TailorProposal = {
 
 export type TailorResult = { resume: BuiltResume; matched: Keyword[]; missing: Keyword[] };
 
-type Result<T> = { data: T | null; error: string | null; status: number | null };
-
-async function post<T>(path: string, body: unknown): Promise<Result<T>> {
-  try {
-    const session = await getApplicantSession();
-    const url = `/applicants/${encodeURIComponent(session.id)}/tailor${path}`;
-    const res = await apiFetch(url, { method: "POST", body: JSON.stringify(body) }, session.token);
-    if (!res.ok) return { data: null, error: await extractErrorMessage(res), status: res.status };
-    return { data: (await res.json()) as T, error: null, status: res.status };
-  } catch {
-    return { data: null, error: "Could not reach the server.", status: null };
-  }
+function post<T>(path: string, body: unknown): Promise<Result<T>> {
+  return applicantCall<T>(`/tailor${path}`, { method: "POST", body: JSON.stringify(body) });
 }
 
 /** One Tailor run: spends one of today's Tailor runs. Saves nothing. */

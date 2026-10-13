@@ -1,8 +1,6 @@
 "use server";
 
-import { apiDelete, apiGet } from "@/lib/api";
-import { apiFetch, extractErrorMessage } from "@/lib/auth";
-import { getApplicantSession } from "@/lib/session";
+import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
 
 /**
  * Sent resumes (backend/app/routers/sent_resumes.py), as server actions.
@@ -31,32 +29,10 @@ export type SentDownload = SentResume & {
   created: boolean;
 };
 
-type Result<T> = { data: T | null; error: string | null };
+const id = encodeId;
 
-const OFFLINE = "Could not reach the server.";
-
-// Ids are encoded: any browser script can call an action with any argument.
-const id = (value: string) => encodeURIComponent(value);
-
-async function call<T>(
-  path: string,
-  init?: RequestInit,
-  read: (res: Response) => Promise<T> = (res) => res.json() as Promise<T>,
-): Promise<Result<T>> {
-  try {
-    const session = await getApplicantSession();
-    const url = `/applicants/${id(session.id)}/sent-resumes${path}`;
-    const res =
-      init == null
-        ? await apiGet(url, session.token)
-        : init.method === "DELETE"
-          ? await apiDelete(url, session.token)
-          : await apiFetch(url, init, session.token);
-    if (!res.ok) return { data: null, error: await extractErrorMessage(res) };
-    return { data: res.status === 204 ? null : await read(res), error: null };
-  } catch {
-    return { data: null, error: OFFLINE };
-  }
+function call<T>(path: string, init?: RequestInit, read?: (res: Response) => Promise<T>) {
+  return applicantCall<T>(`/sent-resumes${path}`, init, read);
 }
 
 /** Newest first. */
