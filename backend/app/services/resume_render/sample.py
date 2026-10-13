@@ -1,109 +1,114 @@
 '''
-The fixed resume the Tectonic proof renders (KAN-204): Jake's own sample
-content, as data, written with the template's own commands. Every string goes
-through escape(), as applicant text will once the bank feeds this (KAN-207).
+A fixed built resume view: Jake's own sample content as bank data (KAN-204,
+KAN-207). scripts/fetch_tectonic.py renders it to warm Tectonic's cache, so
+the warm-up goes through the same template code as a real resume and fetches
+every font shape that code uses; the template text test renders it too.
 '''
 
-from app.services.resume_render import escape, jakes_document
+import datetime
+import itertools
+import uuid
+from decimal import Decimal
 
-NAME = "Jake Ryan"
-PHONE = "123-456-7890"
-LINKS = (
-    ("mailto:x@x.com", "jake@su.edu"),
-    ("https://linkedin.com/in/...", "linkedin.com/in/jake"),
-    ("https://github.com/...", "github.com/jake"),
-)
-# (organization, location, title, start, end)
-EDUCATION = (
-    ("Southwestern University", "Georgetown, TX", "Bachelor of Arts in Computer Science, Minor in Business", "Aug. 2018", "May 2021"),
-    ("Blinn College", "Bryan, TX", "Associate's in Liberal Arts", "Aug. 2014", "May 2018"),
-)
-# (title, start, end, organization, location, bullets)
-EXPERIENCE = (
-    ("Undergraduate Research Assistant", "June 2020", "Present", "Texas A&M University", "College Station, TX", (
-        "Developed a REST API using FastAPI and PostgreSQL to store data from learning management systems",
-        "Developed a full-stack web application using Flask, React, PostgreSQL and Docker to analyze GitHub data",
-        "Explored ways to visualize GitHub collaboration in a classroom setting",
-    )),
-    ("Information Technology Support Specialist", "Sep. 2018", "Present", "Southwestern University", "Georgetown, TX", (
-        "Communicate with managers to set up campus computers used on campus",
-        "Assess and troubleshoot computer problems brought by students, faculty and staff",
-        "Maintain upkeep of computers, classroom equipment, and 200 printers across campus",
-    )),
-    ("Artificial Intelligence Research Assistant", "May 2019", "July 2019", "Southwestern University", "Georgetown, TX", (
-        "Explored methods to generate video game dungeons based off of The Legend of Zelda",
-        "Developed a game in Java to test the generated dungeons",
-        "Contributed 50K+ lines of code to an established codebase via Git",
-        "Conducted a human subject study to determine which video game dungeon generation technique is enjoyable",
-        "Wrote an 8-page paper and gave multiple presentations on-campus",
-        "Presented virtually to the World Conference on Computational Intelligence",
-    )),
-)
-# (name, technologies, start, end, bullets)
-PROJECTS = (
-    ("Gitlytics", "Python, Flask, React, PostgreSQL, Docker", "June 2020", "Present", (
-        "Developed a full-stack web application using with Flask serving a REST API with React as the frontend",
-        "Implemented GitHub OAuth to get data from user’s repositories",
-        "Visualized GitHub data to show collaboration",
-        "Used Celery and Redis for asynchronous tasks",
-    )),
-    ("Simple Paintball", "Spigot API, Java, Maven, TravisCI, Git", "May 2018", "May 2020", (
-        "Developed a Minecraft server plugin to entertain kids during free time for a previous job",
-        "Published plugin to websites gaining 2K+ downloads and an average 4.5/5-star review",
-        "Implemented continuous delivery using TravisCI to build the plugin upon new a release",
-        "Collaborated with Minecraft server administrators to suggest features and get feedback about the plugin",
-    )),
-)
-SKILLS = (
-    ("Languages", "Java, Python, C/C++, SQL (Postgres), JavaScript, HTML/CSS, R"),
-    ("Frameworks", "React, Node.js, Flask, JUnit, WordPress, Material-UI, FastAPI"),
-    ("Developer Tools", "Git, Docker, TravisCI, Google Cloud Platform, VS Code, Visual Studio, PyCharm, IntelliJ, Eclipse"),
-    ("Libraries", "pandas, NumPy, Matplotlib"),
+from app.services.resume_render import Identity, jakes_document
+from app.services.resume_view import (
+    ResumeView,
+    ViewBullet,
+    ViewEntry,
+    ViewSection,
+    ViewSkill,
 )
 
-
-def _dates(start: str, end: str) -> str:
-    return f"{escape(start)} -- {escape(end)}"
+_ids = (uuid.UUID(int=n) for n in itertools.count(1))
 
 
-def _bullets(bullets: tuple[str, ...]) -> list[str]:
-    # An empty itemize is a LaTeX error, so a list opens only around bullets
-    if not bullets:
-        return []
-    return [r"\resumeItemListStart", *(rf"\resumeItem{{{escape(b)}}}" for b in bullets), r"\resumeItemListEnd"]
+def _month(year: int, month: int) -> datetime.date:
+    return datetime.date(year, month, 1)
 
 
-def body() -> str:
-    '''The resume after \\begin{document}, as Jake's sample writes it.'''
-    links = " $|$ ".join(rf"\href{{{escape(url)}}}{{\underline{{{escape(text)}}}}}" for url, text in LINKS)
-    lines = [
-        r"\begin{center}",
-        rf"\textbf{{\Huge \scshape {escape(NAME)}}} \\ \vspace{{1pt}}",
-        rf"\small {escape(PHONE)} $|$ {links}",
-        r"\end{center}",
-        r"\section{Education}",
-        r"\resumeSubHeadingListStart",
-    ]
-    for org, location, title, start, end in EDUCATION:
-        lines.append(rf"\resumeSubheading{{{escape(org)}}}{{{escape(location)}}}{{{escape(title)}}}{{{_dates(start, end)}}}")
-    lines += [r"\resumeSubHeadingListEnd", r"\section{Experience}", r"\resumeSubHeadingListStart"]
-    for title, start, end, org, location, bullets in EXPERIENCE:
-        lines.append(rf"\resumeSubheading{{{escape(title)}}}{{{_dates(start, end)}}}{{{escape(org)}}}{{{escape(location)}}}")
-        lines += _bullets(bullets)
-    lines += [r"\resumeSubHeadingListEnd", r"\section{Projects}", r"\resumeSubHeadingListStart"]
-    for name, tech, start, end, bullets in PROJECTS:
-        lines.append(rf"\resumeProjectHeading{{\textbf{{{escape(name)}}} $|$ \emph{{{escape(tech)}}}}}{{{_dates(start, end)}}}")
-        lines += _bullets(bullets)
-    skills = r" \\ ".join(rf"\textbf{{{escape(label)}}}{{: {escape(items)}}}" for label, items in SKILLS)
-    lines += [
-        r"\resumeSubHeadingListEnd",
-        r"\section{Technical Skills}",
-        r"\begin{itemize}[leftmargin=0.15in, label={}]",
-        rf"\small{{\item{{{skills}}}}}",
-        r"\end{itemize}",
-    ]
-    return "\n".join(lines)
+def _bullets(*texts: str) -> tuple[ViewBullet, ...]:
+    return tuple(ViewBullet(next(_ids), t) for t in texts)
+
+
+IDENTITY = Identity(
+    name="Jake Ryan",
+    email="jake@su.edu",
+    phone="123-456-7890",
+    links=("https://linkedin.com/in/jake", "https://github.com/jake"),
+)
+
+VIEW = ResumeView(
+    sections=(
+        ViewSection("education", (
+            ViewEntry(next(_ids), "education", "Southwestern University", location="Georgetown, TX",
+                      degree="Bachelor of Arts", field_of_study="Computer Science, Minor in Business",
+                      gpa=Decimal("3.80"), gpa_scale=Decimal("4.00"),
+                      start_month=_month(2018, 8), end_month=_month(2021, 5), end_kind="month"),
+            ViewEntry(next(_ids), "education", "Blinn College", location="Bryan, TX",
+                      degree="Associate's in Liberal Arts",
+                      start_month=_month(2014, 8), end_month=_month(2018, 5), end_kind="month"),
+        )),
+        ViewSection("experience", (
+            ViewEntry(next(_ids), "experience", "Undergraduate Research Assistant",
+                      organization="Texas A&M University", location="College Station, TX",
+                      start_month=_month(2020, 6), end_kind="present", bullets=_bullets(
+                          "Developed a REST API using FastAPI and PostgreSQL to store data from learning management systems",
+                          "Developed a full-stack web application using Flask, React, PostgreSQL and Docker to analyze GitHub data",
+                          "Explored ways to visualize GitHub collaboration in a classroom setting",
+                      )),
+            ViewEntry(next(_ids), "experience", "Information Technology Support Specialist",
+                      organization="Southwestern University", location="Georgetown, TX",
+                      start_month=_month(2018, 9), end_kind="present", bullets=_bullets(
+                          "Communicate with managers to set up campus computers used on campus",
+                          "Assess and troubleshoot computer problems brought by students, faculty and staff",
+                          "Maintain upkeep of computers, classroom equipment, and 200 printers across campus",
+                      )),
+            ViewEntry(next(_ids), "experience", "Artificial Intelligence Research Assistant",
+                      organization="Southwestern University", location="Georgetown, TX",
+                      start_month=_month(2019, 5), end_month=_month(2019, 7), end_kind="month", bullets=_bullets(
+                          "Explored methods to generate video game dungeons based off of The Legend of Zelda",
+                          "Developed a game in Java to test the generated dungeons",
+                          "Contributed 50K+ lines of code to an established codebase via Git",
+                          "Conducted a human subject study to determine which video game dungeon generation technique is enjoyable",
+                          "Wrote an 8-page paper and gave multiple presentations on-campus",
+                          "Presented virtually to the World Conference on Computational Intelligence",
+                      )),
+        )),
+        ViewSection("projects", (
+            # The bank has no technologies field; the organization slot
+            # carries Jake's list here, as a team or course would
+            ViewEntry(next(_ids), "projects", "Gitlytics", organization="Python, Flask, React, PostgreSQL, Docker",
+                      start_month=_month(2020, 6), end_kind="present", bullets=_bullets(
+                          "Developed a full-stack web application using with Flask serving a REST API with React as the frontend",
+                          "Implemented GitHub OAuth to get data from user’s repositories",
+                          "Visualized GitHub data to show collaboration",
+                          "Used Celery and Redis for asynchronous tasks",
+                      )),
+            ViewEntry(next(_ids), "projects", "Simple Paintball",
+                      organization="Spigot API, Java, Maven, TravisCI, Git",
+                      start_month=_month(2018, 5), end_month=_month(2020, 5), end_kind="month", bullets=_bullets(
+                          "Developed a Minecraft server plugin to entertain kids during free time for a previous job",
+                          "Published plugin to websites gaining 2K+ downloads and an average 4.5/5-star review",
+                          "Implemented continuous delivery using TravisCI to build the plugin upon new a release",
+                          "Collaborated with Minecraft server administrators to suggest features and get feedback about the plugin",
+                      )),
+        )),
+    ),
+    skills=tuple(
+        ViewSkill(next(_ids), name, group)
+        for group, names in (
+            ("Languages", ("Java", "Python", "C/C++", "SQL (Postgres)", "JavaScript", "HTML/CSS", "R")),
+            ("Frameworks", ("React", "Node.js", "Flask", "JUnit", "WordPress", "Material-UI", "FastAPI")),
+            ("Developer Tools", ("Git", "Docker", "TravisCI", "Google Cloud Platform", "VS Code",
+                                 "Visual Studio", "PyCharm", "IntelliJ", "Eclipse")),
+            ("Libraries", ("pandas", "NumPy", "Matplotlib")),
+        )
+        for name in names
+    ),
+)
 
 
 def document() -> str:
-    return jakes_document(body())
+    from app.services.resume_render import jakes
+
+    return jakes_document(jakes.body(VIEW, IDENTITY))

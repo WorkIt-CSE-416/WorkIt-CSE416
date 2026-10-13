@@ -187,7 +187,7 @@ class _FakeBucket:
 
 
 class _FakeSupabase:
-    class storage:  # noqa: N801 - mirrors client.storage.from_(bucket)
+    class storage:
         @staticmethod
         def from_(bucket):
             return _FakeBucket()
@@ -281,3 +281,66 @@ async def test_another_students_built_resumes_are_out_of_reach(student, database
         assert (await client.get(f"{me}/built-resumes/{theirs}/{path}")).status_code == 404
     assert (await client.put(f"{me}/built-resumes/{theirs}/default")).status_code == 404
     assert (await client.delete(f"{me}/built-resumes/{theirs}")).status_code == 404
+
+
+def _tectonic_or_skip() -> None:
+    from tests.test_resume_render import _tectonic_or_skip as check
+
+    check()
+
+
+def _pdf_text(encoded: str) -> str:
+    import base64
+    import io
+
+    from pdfminer.high_level import extract_text
+
+    return " ".join(extract_text(io.BytesIO(base64.b64decode(encoded))).split())
+
+
+async def test_generate_then_render_gives_a_one_page_pdf_with_the_bank(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+
+    res = await client.get(f"{me}/built-resumes/{resume_id}/render")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["page_count"] == 1
+    assert body["missing_characters"] == []
+    text = _pdf_text(body["pdf"])
+    for expected in ("Sam Seeker", "Stony Brook University", "Software Intern", "Cut page load time by 30%",
+                     # TeX's font mapping prints a straight apostrophe curly
+                     "Dean’s List | Stony Brook University", "Languages: Python"):
+        assert expected in text
+
+
+async def test_render_reports_a_long_resume_and_the_characters_the_font_lacks(student):
+    _tectonic_or_skip()
+    client, me = student
+    bullets = [f"Organized event number {i} for two hundred members of the society" for i in range(30)]
+    for title in ("Президент", "Treasurer"):
+        res = await client.post(f"{me}/bank/entries", json={"section": "leadership", "title": title,
+                                                            "organization": "Chess Society", "bullets": bullets})
+        assert res.status_code == 201
+    resume_id = await _generate(client, me)
+
+    body = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert body["page_count"] == 2
+    assert body["missing_characters"] == ["П", "р", "е", "з", "и", "д", "н", "т"]
+
+
+async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch):
+    from app.services.resume_render import TectonicUnavailable
+
+    def missing(view, identity, template):
+        raise TectonicUnavailable("no tectonic binary")
+
+    monkeypatch.setattr("app.routers.built_resumes.render", missing)
+    client, me = student
+    resume_id = await _generate(client, me)
+
+    res = await client.get(f"{me}/built-resumes/{resume_id}/render")
+    assert res.status_code == 503
+    assert res.json() == {"detail": "The PDF could not be made. Try again, or download the Word file."}

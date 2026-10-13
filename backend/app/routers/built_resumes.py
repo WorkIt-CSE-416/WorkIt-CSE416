@@ -33,7 +33,11 @@ from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
 from app.models.profiles import Applicant_Profile
 from app.schemas.auth import AuthenticatedAccount
-from app.schemas.built_resume import BuiltResumeCreate, BuiltResumeResponse, RenderResponse
+from app.schemas.built_resume import (
+    BuiltResumeCreate,
+    BuiltResumeResponse,
+    RenderResponse,
+)
 from app.services import built_resumes as service
 from app.services.bank import NotFound
 from app.services.resume_render import Identity, TectonicUnavailable, render
