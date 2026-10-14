@@ -65,7 +65,10 @@ function labelled(
   label: string,
   codec: Codec<BankEntry, EntryPatch>,
 ): Codec<BankEntry, EntryPatch> {
-  const prefix = new RegExp(`^${label}:\\s*`, "i");
+  // The label as printed, or one damaged while typing ("Relevant Coursewok:"),
+  // which would otherwise save into the value: text before the first colon
+  // that starts with the label's first word
+  const prefix = new RegExp(`^\\s*${label.split(" ")[0]}[^:]{0,30}:\\s*`, "i");
   return {
     read: (e) => {
       const value = codec.read(e);
