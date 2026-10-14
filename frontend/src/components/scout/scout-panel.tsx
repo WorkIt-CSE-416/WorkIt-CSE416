@@ -59,6 +59,7 @@ import type { ScoutMessage } from "./stream";
  */
 export function ScoutPanel() {
   const { open, messages, reply, error, takeover } = useScout();
+  const width = takeover ? "md:w-112" : "md:w-96";
   const answering = reply !== null;
   // "closed" only once it has been open, so a page load does not play the
   // page's settle for a panel nobody opened.
@@ -80,9 +81,13 @@ export function ScoutPanel() {
   // answer an "Ask Scout" click is waiting for.
   useEffect(() => {
     if (open && window.matchMedia("(min-width: 48rem)").matches) {
-      input.current?.focus({ preventScroll: true });
+      // A takeover's own message box when a page holds the panel.
+      const box = takeover
+        ? document.getElementById(SCOUT_SLOT_ID)?.querySelector("textarea")
+        : input.current;
+      box?.focus({ preventScroll: true });
     }
-  }, [open]);
+  }, [open, takeover]);
 
   // The streaming reply sits in the thread at the index its finished message
   // will take, so React keeps the same bubble when it lands rather than
@@ -114,14 +119,14 @@ export function ScoutPanel() {
         // edge (the row clips it at the window's).
         "md:visible md:static md:inset-auto md:z-auto md:translate-y-0 md:opacity-100",
         "md:relative md:shrink-0",
-        open ? cn("md:ml-3", takeover ? "md:w-112" : "md:w-96") : "md:ml-0 md:w-0",
+        open ? cn("md:ml-3", width) : "md:ml-0 md:w-0",
       )}
     >
       <div
         className={cn(
           "bg-panel flex h-full flex-col",
           "md:border-rail-border md:rounded-shell md:shadow-panel md:absolute md:inset-y-0 md:right-0 md:border",
-          takeover ? "md:w-112" : "md:w-96",
+          width,
           // Slides from just past the window's edge into the room made for it.
           "md:transition-[opacity,translate] md:delay-0",
           open

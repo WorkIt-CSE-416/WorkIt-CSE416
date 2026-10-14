@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { setScoutTakeover } from "./scout-store";
+import { closeScout, setScoutTakeover } from "./scout-store";
 
 /** The element in Scout's panel that a takeover's content renders into. */
 export const SCOUT_SLOT_ID = "scout-slot";
@@ -16,7 +16,10 @@ export const SCOUT_SLOT_ID = "scout-slot";
  * back to Scout, with its conversation as it was.
  *
  * A portal, so the children stay in the page's React tree: they keep its
- * state and props, and a save in the panel can refresh the page.
+ * state and props, and a save in the panel can refresh the page. For the
+ * same reason a key pressed in them bubbles to the page, never to the
+ * panel's <aside>, so Escape is caught here to close the panel as it does
+ * from Scout's own chat.
  */
 export function ScoutTakeover({
   title,
@@ -37,5 +40,20 @@ export function ScoutTakeover({
     return () => setScoutTakeover(null);
   }, [title, subtitle]);
 
-  return slot ? createPortal(children, slot) : null;
+  return slot
+    ? createPortal(
+        <div
+          className="contents"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              closeScout();
+            }
+          }}
+        >
+          {children}
+        </div>,
+        slot,
+      )
+    : null;
 }
