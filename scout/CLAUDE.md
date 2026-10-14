@@ -87,6 +87,16 @@ are now ignored; a deploy that still sets them has no fallback until
 | Laptops (default) | Qwen 3.5 4B on Ollama, $0, nothing leaves the machine; nothing to set |
 | Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` on the `workit-api` Vercel project |
 | At launch (spec) | DeepInfra `gpt-oss-120b`, then Groq, with a $50 a month spend limit |
+| Laptops testing on hosted models | Groq `openai/gpt-oss-120b`, then Groq `openai/gpt-oss-20b` (effort `low`), then Gemini `gemini-3.5-flash-lite` once a key is added; as `SCOUT_ENDPOINTS` in the root `.env`. Each Groq model has its own daily quota, so the 20b doubles the free room |
+
+**Production differs from the spec** (checked 2026-10-14 with `vercel env
+pull`): `workit-api` sets no `SCOUT_ENDPOINTS`, only `SCOUT_BASE_URL`,
+`SCOUT_MODEL` and `SCOUT_API_KEY` for Gemini `gemini-3.5-flash-lite` alone,
+with no fallback. Its key is a Vercel Sensitive variable, so a pull shows
+`[SENSITIVE]`, not the value; a laptop needs its own key from AI Studio.
+Training on prompts is acceptable to the team (2026-10-14), since identity
+data is removed on every call, so Gemini's and Z.ai's free tiers are open
+choices.
 
 **Z.ai `GLM-4.7-Flash` is not in the chain.** It joins only after a person
 checks its console limits, its terms (may it train on prompts?) and the fixed
