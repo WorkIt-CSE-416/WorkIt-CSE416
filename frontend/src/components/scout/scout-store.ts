@@ -70,9 +70,14 @@ export function setScoutOpen(open: boolean) {
   update({ open });
 }
 
-/** A page takes the panel over (scout-takeover.tsx), or gives it back. */
-export function setScoutTakeover(takeover: ScoutState["takeover"]) {
+/** A page takes the panel over (scout-takeover.tsx). The returned release
+ *  gives it back only while this takeover still holds it, so one page
+ *  leaving never clears another that took the panel after it. */
+export function takeOverScout(takeover: NonNullable<ScoutState["takeover"]>) {
   update({ takeover });
+  return () => {
+    if (state.takeover === takeover) update({ takeover: null });
+  };
 }
 
 /** The bar's launcher, where focus goes back to when the panel closes. */

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { closeScout, setScoutTakeover } from "./scout-store";
+import { closeScout, takeOverScout } from "./scout-store";
 
 /** The element in Scout's panel that a takeover's content renders into. */
 export const SCOUT_SLOT_ID = "scout-slot";
@@ -36,8 +36,7 @@ export function ScoutTakeover({
     // The panel renders in the layout, so its slot is in the DOM by now.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the DOM once mounted
     setSlot(document.getElementById(SCOUT_SLOT_ID));
-    setScoutTakeover({ title, subtitle });
-    return () => setScoutTakeover(null);
+    return takeOverScout({ title, subtitle });
   }, [title, subtitle]);
 
   return slot
