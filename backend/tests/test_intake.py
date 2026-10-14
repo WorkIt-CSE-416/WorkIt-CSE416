@@ -388,3 +388,9 @@ async def test_intake_asks_for_a_gpa_an_imported_school_lacks(applicant, client)
     assert "Still missing: gpa." in model.prompts[0][1]["content"]
     # The card lacks a fact a resume needs, so the code does not end the visit.
     assert lines(res)[1]["done"] is False
+
+
+async def test_a_blank_bullet_in_the_reply_is_dropped(applicant, client):
+    use_model([reply(draft={**DRAFT, "bullets": ["", "Wrote the arm's controller in Python.", " "], "coursework": [""]})])
+    draft = lines(await client.post("/intake/turn", json=TURN))[1]["draft"]
+    assert (draft["bullets"], draft["coursework"]) == (["Wrote the arm's controller in Python."], [])

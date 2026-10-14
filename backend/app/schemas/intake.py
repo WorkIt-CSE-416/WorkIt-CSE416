@@ -43,8 +43,13 @@ class IntakeDraft(EntryCreate):
     def _null_is_empty(cls, value: object) -> object:
         # A live model sends null for a list it has nothing for, most often
         # Education's coursework in another section; that is an empty list,
-        # not a reason to throw the whole turn away.
-        return [] if value is None else value
+        # not a reason to throw the whole turn away. A blank item in a list
+        # ("bullets": [""], on a turn with nothing done yet) is dropped too.
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [v for v in value if not (isinstance(v, str) and not v.strip())]
+        return value
 
     @field_validator(
         "organization", "location", "degree", "field_of_study", "honors", "link", "issuer",
