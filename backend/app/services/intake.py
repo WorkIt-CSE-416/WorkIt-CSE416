@@ -302,7 +302,10 @@ def bank_match(said: str, bank: Bank) -> Entry | None:
     robotics club on its organization alone. So "the IEEE
     Micromouse lead" finds the project "Micromouse" at "Stony Brook IEEE",
     and "an internship at Google" never finds another company's "Software
-    Engineer Intern". Only one match counts: two is a guess."""
+    Engineer Intern". Only one match counts: two is a guess, unless they
+    are copies (the same section, title and organization, as an import saved
+    "as new" leaves): those are one entry, and the one with the most bullets
+    lends."""
     heard = _words(said)
     found = []
     for entry in bank.entries:
@@ -312,12 +315,17 @@ def bank_match(said: str, bank: Bank) -> Entry | None:
         parts = [w for w in (title, _words(entry.row.organization)) if w]
         if title and all(part & heard for part in parts):
             found.append(entry)
-    return found[0] if len(found) == 1 else None
+    same = {(e.row.section, e.row.title.strip().lower(), (e.row.organization or "").strip().lower()) for e in found}
+    return max(found, key=lambda e: len(e.bullets)) if len(same) == 1 else None
 
 
-def _from_bank(draft: IntakeDraft, entry: Entry) -> IntakeDraft:
+def _from_bank(draft: IntakeDraft, entry: Entry, card: IntakeDraft | None) -> IntakeDraft:
     """The draft with the entry's facts in its empty fields. A group the
-    section cannot take (it fails the entry schema) is skipped."""
+    section cannot take (it fails the entry schema) is skipped. Bullets go
+    in when the card had none before this turn, over any the model wrote
+    this turn: the student named the entry, so its own bullets beat the
+    model's from a line speech input misheard ("Thomas Mays navigation
+    robot" for "autonomous maze navigation robot")."""
     lent = {
         "organization": entry.row.organization,
         "location": entry.row.location,
@@ -327,7 +335,8 @@ def _from_bank(draft: IntakeDraft, entry: Entry) -> IntakeDraft:
         "bullets": [b.text for b in entry.bullets],
     }
     for group in _FROM_BANK:
-        if not all(_empty(getattr(draft, name)) for name in group):
+        before = card if group == ("bullets",) else draft
+        if before is not None and not all(_empty(getattr(before, name)) for name in group):
             continue
         if all(_empty(lent[name]) for name in group):
             continue
@@ -409,7 +418,7 @@ async def turn(
     # way the bank also costs no tokens.
     entry = bank_match(messages[-1].content, bank) if bank and messages[-1].role == "user" else None
     if entry is not None:
-        filled = _from_bank(answer.draft, entry)
+        filled = _from_bank(answer.draft, entry, draft)
         if filled != answer.draft:
             answer = answer.model_copy(update={
                 "draft": filled,

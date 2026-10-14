@@ -538,3 +538,49 @@ async def test_a_date_question_the_card_answers_is_replaced(applicant, client):
     use_model([reply("Got it. When do you expect to finish?", draft=job)])
     res = await client.post("/intake/turn", json={"section": "experience", "messages": said, "draft": None})
     assert lines(res)[0]["delta"] == "What did you do there, and what came of it?"
+
+
+# A student's bank held "Autonomous Maze Navigation Robot" twice (an import
+# saved as new), so "I did the autonomous maze navigation robot project"
+# matched two entries and filled nothing. And the turn before, speech input
+# heard "Thomas Mays navigation robot": the model wrote a bullet from that,
+# which kept the bank's bullets out of the card.
+
+MAZE = {
+    "section": "projects",
+    "title": "Autonomous Maze Navigation Robot",
+    "bullets": ["Engineered a Raspberry Pi to navigate a 16x16 maze."],
+}
+MAZE_LINE = {"role": "user", "content": "I did the autonomous maze navigation robot project."}
+
+
+async def save_copy(client, applicant, entry: dict) -> None:
+    res = await client.post(f"/applicants/{applicant.id}/bank/entries?allow_duplicate=true", json=entry)
+    assert res.status_code == 201
+
+
+async def test_two_identical_entries_match_as_one(applicant, client):
+    await save(client, applicant, MAZE)
+    await save_copy(client, applicant, MAZE)
+    use_model([reply("What did you do?", draft={**ROLE, "organization": "IEEE"})])
+    res = await client.post("/intake/turn", json={"section": "leadership", "messages": [MAZE_LINE], "draft": None})
+    assert lines(res)[1]["draft"]["bullets"] == MAZE["bullets"]
+
+
+async def test_the_banks_bullets_replace_ones_the_model_wrote_this_turn(applicant, client):
+    await save(client, applicant, MAZE)
+    card = {**ROLE, "organization": "IEEE"}
+    misheard = {**card, "bullets": ["Built the Thomas Mays navigation robot."]}
+    use_model([reply("What did you accomplish?", draft=misheard)])
+    res = await client.post("/intake/turn", json={"section": "leadership", "messages": [MAZE_LINE], "draft": card})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["draft"]["bullets"] == MAZE["bullets"]
+    assert text_line["delta"].startswith("I filled in what your bank has on Autonomous Maze Navigation Robot.")
+
+
+async def test_bullets_the_card_had_before_the_turn_stay(applicant, client):
+    await save(client, applicant, MAZE)
+    card = {**ROLE, "organization": "IEEE", "bullets": ["Led 12 members."]}
+    use_model([reply(draft=card)])
+    res = await client.post("/intake/turn", json={"section": "leadership", "messages": [MAZE_LINE], "draft": card})
+    assert lines(res)[1]["draft"]["bullets"] == ["Led 12 members."]

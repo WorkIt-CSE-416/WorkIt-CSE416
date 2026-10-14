@@ -347,7 +347,13 @@ Find files with a directory listing; these are the rules for where code goes.
   word list (`_GENERIC`) keeps "intern" or "club" from matching alone. An
   entry whose title has no telling word never matches: a leadership entry
   titled "hi" at "Stony Brook Robotics Club" matched "for my robotics team"
-  in a project's visit and put the club on the project.
+  in a project's visit and put the club on the project. Copies (same
+  section, title and organization, as an import saved "as new" leaves)
+  match as one entry: a bank holding "Autonomous Maze Navigation Robot"
+  twice filled nothing. The matched entry's bullets go in when the card had
+  none before the turn, over any the model wrote that turn: speech input
+  heard "Thomas Mays navigation robot", the model wrote a bullet from it,
+  and that bullet kept the bank's out (2026-10-14).
   **The code matches, not the model, on purpose**: given the bank in its
   context, gpt-oss-120b copied the club and left the dates, and told to
   name the matching entry's number it never did. Code matching also keeps
