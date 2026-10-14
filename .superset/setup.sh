@@ -15,6 +15,12 @@ for f in .env frontend/.env.local; do
   fi
 done
 
+# Without a Scout key the API quietly uses a local Ollama instead of Groq.
+if ! grep -qE '^SCOUT_API_KEY=.+' .env 2>/dev/null; then
+  echo "warning: .env has no SCOUT_API_KEY, so Scout will use Ollama, not Groq." >&2
+  echo "         Add it to the primary checkout's .env, then run: npm run worktree -- --env-only" >&2
+fi
+
 npm ci --prefix frontend
 (cd backend && uv sync)
 
