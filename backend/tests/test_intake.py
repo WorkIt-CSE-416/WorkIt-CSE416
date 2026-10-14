@@ -394,3 +394,15 @@ async def test_a_blank_bullet_in_the_reply_is_dropped(applicant, client):
     use_model([reply(draft={**DRAFT, "bullets": ["", "Wrote the arm's controller in Python.", " "], "coursework": [""]})])
     draft = lines(await client.post("/intake/turn", json=TURN))[1]["draft"]
     assert (draft["bullets"], draft["coursework"]) == (["Wrote the arm's controller in Python."], [])
+
+
+async def test_an_entry_with_no_telling_title_never_matches_on_its_organization(applicant, client):
+    # A leadership entry titled "hi" at a robotics club: "my robotics team"
+    # in a project's visit named no entry, but it lent the club.
+    await save(client, applicant, {"section": "leadership", "title": "hi", "organization": "Stony Brook Robotics Club"})
+    said = {"role": "user", "content": "Sep 2024 to Dec 2024, for my robotics team."}
+    use_model([reply("What did it do?", draft={**DRAFT, "organization": None})])
+    res = await client.post("/intake/turn", json={"section": "projects", "messages": [said], "draft": None})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["draft"]["organization"] is None
+    assert text_line["delta"] == "What did it do?"

@@ -317,7 +317,10 @@ Find files with a directory listing; these are the rules for where code goes.
   organization, location, dates and bullets go into the card's empty
   fields, and WorkIt's line becomes "I filled in what your bank has on …"
   plus the first fact still missing. Exactly one entry must match, and a
-  word list (`_GENERIC`) keeps "intern" or "club" from matching alone.
+  word list (`_GENERIC`) keeps "intern" or "club" from matching alone. An
+  entry whose title has no telling word never matches: a leadership entry
+  titled "hi" at "Stony Brook Robotics Club" matched "for my robotics team"
+  in a project's visit and put the club on the project.
   **The code matches, not the model, on purpose**: given the bank in its
   context, gpt-oss-120b copied the club and left the dates, and told to
   name the matching entry's number it never did. Code matching also keeps

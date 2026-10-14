@@ -224,7 +224,9 @@ def _words(text: str | None) -> set[str]:
 def bank_match(said: str, bank: Bank) -> Entry | None:
     """The bank entry the student's line names, or None. An entry matches
     when the line holds a telling word of its title and one of its
-    organization (each part it has telling words in), so "the IEEE
+    organization (when it has telling words in one). A title with none
+    ("hi") never matches, or "my robotics team" would find any entry at a
+    robotics club on its organization alone. So "the IEEE
     Micromouse lead" finds the project "Micromouse" at "Stony Brook IEEE",
     and "an internship at Google" never finds another company's "Software
     Engineer Intern". Only one match counts: two is a guess."""
@@ -233,8 +235,9 @@ def bank_match(said: str, bank: Bank) -> Entry | None:
     for entry in bank.entries:
         if entry.row.section not in _LENDERS:
             continue
-        parts = [w for w in (_words(entry.row.title), _words(entry.row.organization)) if w]
-        if parts and all(part & heard for part in parts):
+        title = _words(entry.row.title)
+        parts = [w for w in (title, _words(entry.row.organization)) if w]
+        if title and all(part & heard for part in parts):
             found.append(entry)
     return found[0] if len(found) == 1 else None
 
