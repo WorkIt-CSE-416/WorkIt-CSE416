@@ -3,11 +3,13 @@ import type { Metadata } from "next";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
-import { ApplyingResume } from "./applying-resume";
+import { ActivityList } from "./activity-list";
+import { AutoApplyPanel } from "./auto-apply-panel";
+import { getActivity, getNow } from "./data";
 
 export const metadata: Metadata = {
   title: "Auto Apply",
-  description: "Built in pipeline to auto apply to jobs. One resume, auto submit jobs",
+  description: "Apply to the jobs that match you, with your resume filled in for you.",
 };
 
 /**
@@ -15,11 +17,22 @@ export const metadata: Metadata = {
  * pipeline it will grow into is `auto-apply/design.md` at the repo root:
  * match, tailor the resume, fill the form with the extension, record.
  *
- * Today it holds one live section, the resume an application goes out with
- * (./applying-resume.tsx). It uses the heading block every seeker screen
- * does. A <div>, since SidebarInset is already the <main>.
+ * Two sections, under the heading block every seeker screen uses:
+ *
+ *   Applying with Resume   live: the primary resume, and the Start button
+ *                          beside it (./applying-resume.tsx)
+ *   Live Activity          a fixture (./data.ts): each job posting the
+ *                          pipeline is working on and where it stands
+ *                          (./activity-list.tsx)
+ *
+ * The button and the feed's heading share whether it runs, so both sit in
+ * the client ./auto-apply-panel.tsx; the feed is drawn here, on the server,
+ * against the request's clock. A <div>, since SidebarInset is already the
+ * <main>.
  */
 export default function AutoApplyPage() {
+  const now = getNow();
+
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <h1 className="text-heading text-ink">Auto Apply</h1>
@@ -27,7 +40,9 @@ export default function AutoApplyPage() {
         Apply to the jobs that match you, with your resume filled in for you.
       </p>
 
-      <ApplyingResume />
+      <AutoApplyPanel>
+        <ActivityList items={getActivity()} now={now} />
+      </AutoApplyPanel>
     </div>
   );
 }

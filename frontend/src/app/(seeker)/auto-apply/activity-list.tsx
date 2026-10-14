@@ -1,0 +1,126 @@
+import { CompanyLogo } from "@/components/company-logo";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
+
+import type { ActivityItem, ActivityStatus } from "./data";
+
+/**
+ * Live Activity's feed: one row per job posting the pipeline is working on,
+ * newest change first, in one white card with rules between rows, the frame
+ * the Applications list and the company Dashboard's Recent Applicants use.
+ *
+ * COLOURS FOLLOW THE BADGE TONES' KINDS (ui/badge.tsx), and Applied keeps its
+ * stage's violet (../stage-colors.ts), so "Applied" reads the same here as on
+ * the Applications board:
+ *
+ *   queued              inert grey   not begun, nothing owed
+ *   tailoring, filling  advanced     in flight: WorkIt is doing the work
+ *   review, failed      warning      halted, waiting on the seeker
+ *   applied             brand        the Applied stage
+ *
+ * A row in flight rings out from its dot, three times and then rests
+ * (`animate-status-ping`, as the detail panel's next step does): a dot that
+ * never stops is the one thing on screen the eye cannot leave alone.
+ */
+const STATUS: Record<ActivityStatus, { label: string; tone: BadgeTone; dot: string }> = {
+  queued: { label: "Queued", tone: "inert", dot: "bg-ink-meta" },
+  tailoring: { label: "Tailoring Resume", tone: "advanced", dot: "bg-advanced" },
+  filling: { label: "Autofilling", tone: "advanced", dot: "bg-advanced" },
+  review: { label: "Needs Review", tone: "warning", dot: "bg-warning-strong" },
+  failed: { label: "Couldn't Finish", tone: "warning", dot: "bg-warning-strong" },
+  applied: { label: "Applied", tone: "brand", dot: "bg-brand" },
+};
+
+const IN_FLIGHT: ActivityStatus[] = ["tailoring", "filling"];
+
+/** The summary over the feed: each group's count, by the same dot colours. */
+const GROUPS: { label: string; statuses: ActivityStatus[]; dot: string }[] = [
+  { label: "In Progress", statuses: IN_FLIGHT, dot: "bg-advanced" },
+  { label: "Needs You", statuses: ["review", "failed"], dot: "bg-warning-strong" },
+  { label: "Applied", statuses: ["applied"], dot: "bg-brand" },
+  { label: "Queued", statuses: ["queued"], dot: "bg-ink-meta" },
+];
+
+/** "Just now", "4 min ago", "2 hr ago". Worked out against the request's own
+ *  clock on the server, so the browser draws the same words it was sent. */
+function ago(at: string, now: Date) {
+  const minutes = Math.floor((now.getTime() - new Date(at).getTime()) / 60_000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  return `${Math.floor(minutes / 60)} hr ago`;
+}
+
+export function ActivityList({ items, now }: { items: ActivityItem[]; now: Date }) {
+  return (
+    <>
+      <ul role="list" className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+        {GROUPS.map((group) => (
+          <li key={group.label} className="text-label text-ink-muted flex items-center gap-2">
+            <span aria-hidden="true" className={cn("size-2 rounded-full", group.dot)} />
+            {group.label}
+            <span className="text-ink font-semibold tabular-nums">
+              {items.filter((item) => group.statuses.includes(item.status)).length}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <Card padding="none" className="mt-3 overflow-hidden">
+        {/* Polite, so a status that changes once this is live is read out
+            after whatever the seeker is doing, not over it. */}
+        <ul role="list" aria-live="polite" className="divide-border-subtle divide-y">
+          {items.map((item, i) => {
+            const status = STATUS[item.status];
+            const moving = IN_FLIGHT.includes(item.status);
+
+            return (
+              <li
+                key={item.id}
+                className="animate-rise flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 @md/main:flex-nowrap"
+                style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
+              >
+                <CompanyLogo
+                  name={item.company}
+                  src={item.logoUrl}
+                  className="text-meta mt-0.5 size-8 shrink-0 rounded"
+                />
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-label text-ink truncate">{item.role}</p>
+                  <p className="text-note text-ink-meta truncate">
+                    {item.company} · {item.location}
+                  </p>
+                  <p className="text-note text-ink-muted mt-1 flex items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
+                    >
+                      {moving && (
+                        <span
+                          className={cn(
+                            "animate-status-ping absolute inset-0 rounded-full",
+                            status.dot,
+                          )}
+                        />
+                      )}
+                    </span>
+                    <span className="min-w-0 truncate">{item.detail}</span>
+                  </p>
+                </div>
+
+                {/* Wide, a column at the right edge. Narrow, a line of its
+                    own under the text, lined up with it past the logo (32px
+                    and the 12px gap), so the role keeps the row's width. */}
+                <div className="flex w-full shrink-0 items-center gap-2 pl-11 @md/main:w-auto @md/main:flex-col @md/main:items-end @md/main:gap-1.5 @md/main:pl-0">
+                  <Badge tone={status.tone}>{status.label}</Badge>
+                  <span className="text-note text-ink-meta">{ago(item.at, now)}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+    </>
+  );
+}

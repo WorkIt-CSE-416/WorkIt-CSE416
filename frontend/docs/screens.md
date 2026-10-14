@@ -292,6 +292,27 @@ matching reads the primary alone, so a seeker without one is asked to star
 one. It is a client component reading `listResumes()` like My Profile, and
 starts from My Profile's cache when the shell has one, without writing to it.
 
+**The button beside the resume starts and pauses auto apply, and nothing runs
+yet.** Start Auto Apply, then Pause, then Resume; it is off until there is a
+primary resume. It only moves a state (`idle`, `running`, `paused`) held in
+`auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
+Started, Live (a green dot that rings out) or Paused. The brand fill marks
+the action that starts work, so Pause is the bordered neutral. The button is
+52px tall and 208px wide beside the row, so the row does not shift between
+labels; on a phone it drops under the row at full width.
+
+**Live Activity is a fixture** (`auto-apply/data.ts`, timed against the
+request like the Applications fixture), one row per job posting the pipeline
+is working on, in one white card with rules between rows. Each status takes a
+badge tone by its kind (`ui/badge.tsx`): Queued inert grey; Tailoring Resume
+and Autofilling `advanced` blue, their dot ringing three times; Needs Review
+and Couldn't Finish warning amber, as both wait on the seeker; Applied the
+Applied stage's violet, so it reads the same as on the Applications board.
+The counts above the card use the same dot colours. Narrow, a row's badge and
+time drop under its text so the role keeps the width. The list is
+`aria-live="polite"` for when it updates for real; the statuses and the
+routes it will read are in `auto-apply/design.md`, sections 4 to 7.
+
 ## Calendar
 
 **The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
