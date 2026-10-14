@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { Composer, Message, Typing } from "./chat";
 import { ReplyText } from "./reply-text";
 import { closeScout, sendToScout, useScout } from "./scout-store";
+import { SCOUT_SLOT_ID } from "./scout-takeover";
 import type { ScoutMessage } from "./stream";
 
 /**
@@ -49,9 +50,15 @@ import type { ScoutMessage } from "./stream";
  * surface. Every icon-only control carries a tooltip (ui/icon-button.tsx),
  * Send included: it is aria-disabled rather than disabled while there is
  * nothing to send, so its tooltip can still say why.
+ *
+ * A PAGE CAN TAKE THE PANEL OVER (scout-takeover.tsx): the Experience Bank
+ * puts intake here. Its content renders into the slot below in place of the
+ * chat, under its own title, and the panel widens from 384px to 448px so an
+ * entry card fits beside nothing. Scout's conversation is kept, not shown,
+ * and comes back on any other page.
  */
 export function ScoutPanel() {
-  const { open, messages, reply, error } = useScout();
+  const { open, messages, reply, error, takeover } = useScout();
   const answering = reply !== null;
   // "closed" only once it has been open, so a page load does not play the
   // page's settle for a panel nobody opened.
@@ -107,13 +114,14 @@ export function ScoutPanel() {
         // edge (the row clips it at the window's).
         "md:visible md:static md:inset-auto md:z-auto md:translate-y-0 md:opacity-100",
         "md:relative md:shrink-0",
-        open ? "md:ml-3 md:w-96" : "md:ml-0 md:w-0",
+        open ? cn("md:ml-3", takeover ? "md:w-112" : "md:w-96") : "md:ml-0 md:w-0",
       )}
     >
       <div
         className={cn(
           "bg-panel flex h-full flex-col",
-          "md:border-rail-border md:rounded-shell md:shadow-panel md:absolute md:inset-y-0 md:right-0 md:w-96 md:border",
+          "md:border-rail-border md:rounded-shell md:shadow-panel md:absolute md:inset-y-0 md:right-0 md:border",
+          takeover ? "md:w-112" : "md:w-96",
           // Slides from just past the window's edge into the room made for it.
           "md:transition-[opacity,translate] md:delay-0",
           open
@@ -129,8 +137,10 @@ export function ScoutPanel() {
             <SparkleIcon className="size-4" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-subtitle text-ink font-semibold">Scout</h2>
-            <p className="text-note text-ink-meta">Your job search assistant</p>
+            <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
+            <p className="text-note text-ink-meta">
+              {takeover?.subtitle ?? "Your job search assistant"}
+            </p>
           </div>
           <IconButton
             label="Close Scout"
@@ -141,41 +151,48 @@ export function ScoutPanel() {
           </IconButton>
         </header>
 
-        {/* The conversation fades out under the header and above the
+        {/* A takeover's content; empty and hidden while Scout has the panel. */}
+        <div id={SCOUT_SLOT_ID} className={takeover ? "flex min-h-0 flex-1 flex-col" : "hidden"} />
+
+        {!takeover && (
+          <>
+            {/* The conversation fades out under the header and above the
             composer rather than being ruled off from them. */}
-        <div
-          ref={log}
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-4"
-        >
-          <Bubble>Hi, I&apos;m Scout! You&apos;ve just unlocked your chat with me.</Bubble>
-          <Suggestions onPick={sendToScout} disabled={answering} />
+            <div
+              ref={log}
+              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-4"
+            >
+              <Bubble>Hi, I&apos;m Scout! You&apos;ve just unlocked your chat with me.</Bubble>
+              <Suggestions onPick={sendToScout} disabled={answering} />
 
-          {thread.map((message, i) => (
-            <Message key={i} role={message.role}>
-              {message.role === "user" ? (
-                message.content
-              ) : message.content ? (
-                <ReplyText text={message.content} />
-              ) : (
-                <Typing />
+              {thread.map((message, i) => (
+                <Message key={i} role={message.role}>
+                  {message.role === "user" ? (
+                    message.content
+                  ) : message.content ? (
+                    <ReplyText text={message.content} />
+                  ) : (
+                    <Typing />
+                  )}
+                </Message>
+              ))}
+
+              {error && (
+                <p role="alert" className="text-note text-danger animate-fade px-1">
+                  {error}
+                </p>
               )}
-            </Message>
-          ))}
+            </div>
 
-          {error && (
-            <p role="alert" className="text-note text-danger animate-fade px-1">
-              {error}
-            </p>
-          )}
-        </div>
-
-        {/* A screen reader hears each finished reply once, not every word as
+            {/* A screen reader hears each finished reply once, not every word as
             it streams in. */}
-        <p aria-live="polite" className="sr-only">
-          {!answering && last?.role === "assistant" ? last.content : ""}
-        </p>
+            <p aria-live="polite" className="sr-only">
+              {!answering && last?.role === "assistant" ? last.content : ""}
+            </p>
 
-        <Composer onSend={sendToScout} answering={answering} input={input} />
+            <Composer onSend={sendToScout} answering={answering} input={input} />
+          </>
+        )}
       </div>
     </aside>
   );
