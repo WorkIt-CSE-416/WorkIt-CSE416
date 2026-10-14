@@ -12,7 +12,6 @@ import re
 from collections.abc import Sequence
 
 from pydantic import ValidationError
-
 from workit_scout.identity import Identity, placeholders_in
 from workit_scout.llm import INVALID, LLM, InvalidReply
 from workit_scout.schemas import ChatMessage
@@ -181,10 +180,12 @@ _LENDERS = (bank_section.experience, bank_section.projects, bank_section.leaders
 
 # Words too common to say which entry the student means.
 _GENERIC = frozenset(
-    "the and for with from was were our its this that lead leader member intern "
-    "engineer engineering software developer research researcher assistant team "
-    "club society student students university college school project projects "
-    "president officer head chair".split()
+    [
+        "the", "and", "for", "with", "from", "was", "were", "our", "its", "this", "that", "lead",
+        "leader", "member", "intern", "engineer", "engineering", "software", "developer", "research",
+        "researcher", "assistant", "team", "club", "society", "student", "students", "university",
+        "college", "school", "project", "projects", "president", "officer", "head", "chair",
+    ]
 )
 
 # A matched entry's facts, each group only into a card that lacks all of it.
