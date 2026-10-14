@@ -582,7 +582,10 @@ the profile (the header's fields), and shows the error state if any fails.
   profile lacks has no line to click, so selecting the header puts "Add
   Phone" and the next missing link in the bar. Picking a wording (bar or
   assistant) drops the typed draft, so the field shows the picked text.
-  Escape or Done clears the selection.
+  Escape, Done or Enter clears the selection (Enter saves first), and so
+  does a press outside the page, the bar and the assistant panel, which
+  carry `data-keeps-selection` (the assistant acts on the selected line).
+  The phone editor keeps its own sheet: Enter there only saves.
 - **The sticky bar** sits above the page, so a line's actions never cover
   nearby lines. With a line selected: Hide (Hide Entry), Move Up and Move
   Down (entries within their section, bullets within their entry, one PATCH

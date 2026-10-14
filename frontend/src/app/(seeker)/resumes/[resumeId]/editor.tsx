@@ -59,6 +59,10 @@ import { Tray } from "./tray";
  * saves.
  */
 
+// The attribute on the parts of the editor a press may land on without
+// clearing the selected line
+const KEEPS_SELECTION = "data-keeps-selection";
+
 const SAVE_AFTER_MS = 700;
 // Letter is 612 pt wide and Jake's text ends at 576 pt; field type is set in
 // cqw of the page so it matches the PDF's at any width.
@@ -269,6 +273,19 @@ export function Editor({
     return () => window.removeEventListener("keydown", clear);
   }, [select]);
 
+  // On a desktop, a press outside the page, the bar and the assistant (each
+  // marked KEEPS_SELECTION) saves the line and clears the selection. The
+  // assistant keeps it: it acts on the selected line. The phone editor
+  // covers the screen and closes its own sheet.
+  useEffect(() => {
+    if (!selected || phone) return;
+    const away = (event: PointerEvent) => {
+      if (!(event.target as Element).closest?.(`[${KEEPS_SELECTION}]`)) select(null);
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [selected, phone, select]);
+
   // The pause timer calls the newest flush, which sees the newest bank
   const latestFlush = useRef(flush);
   useEffect(() => {
@@ -358,10 +375,11 @@ export function Editor({
       onBlur: flush,
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         type(key, e.target.value),
+      // Enter saves the line and clears the selection, back to the page
       onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
-        e.currentTarget.blur();
+        select(null);
       },
       className: cn(
         latinModern.className,
@@ -488,6 +506,7 @@ export function Editor({
         )}
         <div
           ref={pages}
+          data-keeps-selection
           onPointerDownCapture={(e) => {
             const origin = e.currentTarget.getBoundingClientRect();
             pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
@@ -506,6 +525,7 @@ export function Editor({
       </div>
       {/* Kept mounted while closed, so the chat survives closing it */}
       <div
+        data-keeps-selection
         className={cn(
           "h-[min(40rem,calc(100dvh-8rem))] min-h-[24rem] @4xl/main:sticky @4xl/main:top-4",
           !asking && "hidden",
@@ -556,6 +576,7 @@ function Bar({
 }) {
   return (
     <div
+      data-keeps-selection
       className="bg-surface/95 ring-border-subtle sticky top-2 z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-2xl p-1.5 pl-3 shadow-sm ring-1 backdrop-blur"
       // A press on a button keeps focus in the field, so it does not blur and save first
       onMouseDown={(e) => {
