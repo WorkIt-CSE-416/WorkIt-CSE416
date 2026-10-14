@@ -8,7 +8,10 @@ daily uses, and streams the result. Nothing said here is stored.
 """
 
 import json
+import re
 from collections.abc import Sequence
+
+from pydantic import ValidationError
 
 from workit_scout.identity import Identity, placeholders_in
 from workit_scout.llm import INVALID, LLM, InvalidReply
@@ -16,6 +19,7 @@ from workit_scout.schemas import ChatMessage
 
 from app.models.dto import bank_section
 from app.schemas.intake import IntakeDraft, IntakeReply
+from app.services.bank import Bank, Entry
 
 # Follow-up questions for each entry (spec). Counted from the chat the browser
 # sends, which starts afresh with every entry; the opening question is not
@@ -171,6 +175,93 @@ def _keep_withheld(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
     return new.model_copy(update=fixes) if fixes else new
 
 
+# The sections a named activity is looked up in. A school (Education), an
+# award or a certification has no club, dates and bullets to lend a role.
+_LENDERS = (bank_section.experience, bank_section.projects, bank_section.leadership)
+
+# Words too common to say which entry the student means.
+_GENERIC = frozenset(
+    "the and for with from was were our its this that lead leader member intern "
+    "engineer engineering software developer research researcher assistant team "
+    "club society student students university college school project projects "
+    "president officer head chair".split()
+)
+
+# A matched entry's facts, each group only into a card that lacks all of it.
+# The dates go as one, like _keep_filled's.
+_FROM_BANK = (("organization",), ("location",), _DATES, ("bullets",))
+
+# Asked after a bank match, in place of the model's line: the model wrote it
+# before the copy and may ask for what the card now holds.
+_ASK = {
+    "title": "What was {title}?",
+    "organization": "What was {organization}?",
+    "dates": "What month and year did it start and end?",
+    "bullets": "What did you do there, and what came of it?",
+    "degree": "What degree is it?",
+    "field_of_study": "What are you studying?",
+    "award_date": "What month and year did you win it?",
+}
+
+
+def _words(text: str | None) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", (text or "").lower()) if len(w) > 2} - _GENERIC
+
+
+def bank_match(said: str, bank: Bank) -> Entry | None:
+    """The bank entry the student's line names, or None. An entry matches
+    when the line holds a telling word of its title and one of its
+    organization (each part it has telling words in), so "the IEEE
+    Micromouse lead" finds the project "Micromouse" at "Stony Brook IEEE",
+    and "an internship at Google" never finds another company's "Software
+    Engineer Intern". Only one match counts: two is a guess."""
+    heard = _words(said)
+    found = []
+    for entry in bank.entries:
+        if entry.row.section not in _LENDERS:
+            continue
+        parts = [w for w in (_words(entry.row.title), _words(entry.row.organization)) if w]
+        if parts and all(part & heard for part in parts):
+            found.append(entry)
+    return found[0] if len(found) == 1 else None
+
+
+def _from_bank(draft: IntakeDraft, entry: Entry) -> IntakeDraft:
+    """The draft with the entry's facts in its empty fields. A group the
+    section cannot take (it fails the entry schema) is skipped."""
+    lent = {
+        "organization": entry.row.organization,
+        "location": entry.row.location,
+        "start_month": entry.row.start_month,
+        "end_month": entry.row.end_month,
+        "end_kind": entry.row.end_kind,
+        "bullets": [b.text for b in entry.bullets],
+    }
+    for group in _FROM_BANK:
+        if not all(_empty(getattr(draft, name)) for name in group):
+            continue
+        if all(_empty(lent[name]) for name in group):
+            continue
+        try:
+            draft = IntakeDraft.model_validate(
+                {**draft.model_dump(), **{name: lent[name] for name in group}}
+            )
+        except ValidationError:
+            pass
+    return draft
+
+
+def _after_match(section: bank_section, draft: IntakeDraft, entry: Entry) -> str:
+    """WorkIt's line once the card took an entry's facts: what it used, then
+    the first fact still missing, if any."""
+    found = f"I filled in what your bank has on {entry.row.title}."
+    missing = [fact for fact in _NEEDS[section] if not _has(draft, fact)]
+    if not missing:
+        return f"{found} It looks ready to save, or tell me more to add."
+    title, organization = FIELD_MEANINGS[section]
+    return f"{found} {_ASK[missing[0]].format(title=title, organization=organization)}"
+
+
 def follow_ups(messages: Sequence[ChatMessage]) -> int:
     """The questions asked since the student first spoke. An assistant line
     before that is the opening question ("Tell me about a project"), which
@@ -186,6 +277,7 @@ async def turn(
     llm: LLM,
     *,
     identity: Identity,
+    bank: Bank | None = None,
 ) -> IntakeReply:
     """One turn. Raises `ScoutUnavailable` (or its `InvalidReply`) when no
     model answers or the answer fails the schema; nothing then counts."""
@@ -200,6 +292,19 @@ async def turn(
         # Validated as some other kind of entry: the card cannot take it.
         raise InvalidReply(INVALID)
     answer.draft = _keep_filled(_keep_withheld(answer.draft, draft), draft)
+    # The code, not the model, finds and copies a bank entry the student
+    # named: told to copy from a bank in its context, a live model took the
+    # club and left the dates, and asked to name a match it never did. This
+    # way the bank also costs no tokens.
+    entry = bank_match(messages[-1].content, bank) if bank and messages[-1].role == "user" else None
+    if entry is not None:
+        filled = _from_bank(answer.draft, entry)
+        if filled != answer.draft:
+            answer = answer.model_copy(update={
+                "draft": filled,
+                "reply": _after_match(section, filled, entry),
+                "done": _complete(section, filled),
+            })
     if not answer.done and _complete(section, draft) and _complete(section, answer.draft):
         # The card had every fact a resume needs before this turn too. The
         # model had its turn to ask what came of the work; a small model

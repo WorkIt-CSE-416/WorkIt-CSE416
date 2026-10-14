@@ -284,6 +284,75 @@ async def test_intake_stops_asking_once_the_resume_has_what_it_needs(applicant, 
     assert "ready to save" in text_line["delta"]
 
 
+
+
+MOUSE = {
+    "section": "projects",
+    "title": "Micromouse",
+    "organization": "Stony Brook IEEE",
+    "start_month": "2024-09",
+    "end_kind": "present",
+    "bullets": ["Led a team of 6 building a maze-solving robot."],
+}
+LEAD = {"role": "user", "content": "I was the IEEE Micromouse lead."}
+ROLE = {"section": "leadership", "title": "Micromouse Lead"}
+
+
+def lead_turn(draft: dict | None = None) -> dict:
+    return {"section": "leadership", "messages": [LEAD], "draft": draft}
+
+
+async def save(client, applicant, entry: dict) -> None:
+    assert (await client.post(f"/applicants/{applicant.id}/bank/entries", json=entry)).status_code == 201
+
+
+async def test_naming_a_bank_entry_fills_the_cards_empty_fields_from_it(applicant, client):
+    await save(client, applicant, MOUSE)
+    use_model([reply("When did you start?", draft=ROLE)])
+    text_line, draft_line, _ = lines(await client.post("/intake/turn", json=lead_turn()))
+    draft = draft_line["draft"]
+    assert draft["title"] == "Micromouse Lead"
+    assert draft["organization"] == "Stony Brook IEEE"
+    assert (draft["start_month"], draft["end_kind"]) == ("2024-09", "present")
+    assert draft["bullets"] == ["Led a team of 6 building a maze-solving robot."]
+    # The model asked for the start, which the card now has.
+    assert text_line["delta"] == "I filled in what your bank has on Micromouse. It looks ready to save, or tell me more to add."
+    assert draft_line["done"] is True
+
+
+async def test_the_bank_never_overwrites_what_the_card_has(applicant, client):
+    await save(client, applicant, MOUSE)
+    use_model([reply(draft={**ROLE, "organization": "Robotics Club"})])
+    draft = lines(await client.post("/intake/turn", json=lead_turn()))[1]["draft"]
+    assert draft["organization"] == "Robotics Club"
+    assert draft["start_month"] == "2024-09"
+
+
+async def test_the_bank_never_reaches_the_model(applicant, client):
+    await save(client, applicant, MOUSE)
+    model = use_model([reply(draft=ROLE)])
+    await client.post("/intake/turn", json=lead_turn())
+    assert "maze-solving" not in json.dumps(model.prompts)
+
+
+async def test_a_line_that_names_no_entry_leaves_the_models_draft(applicant, client):
+    await save(client, applicant, {**MOUSE, "section": "experience", "title": "Software Engineer Intern", "organization": "Clever Devices"})
+    said = {"role": "user", "content": "I was a software engineer intern at Google."}
+    use_model([reply("When was it?", draft={"section": "experience", "title": "Software Engineer Intern", "organization": "Google"})])
+    res = await client.post("/intake/turn", json={"section": "experience", "messages": [said], "draft": None})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["draft"]["start_month"] is None
+    assert text_line["delta"] == "When was it?"
+
+
+async def test_an_award_lends_nothing_to_a_role(applicant, client):
+    award = {"section": "awards", "title": "IEEE Micromouse First Place", "organization": "IEEE Region 1", "award_date": "2025-04"}
+    await save(client, applicant, award)
+    use_model([reply(draft=ROLE)])
+    draft = lines(await client.post("/intake/turn", json=lead_turn()))[1]["draft"]
+    assert draft["organization"] is None
+
+
 async def test_a_null_list_or_blank_text_in_the_reply_is_empty(applicant, client):
     use_model([reply(draft={**DRAFT, "coursework": None, "bullets": None, "organization": ""})])
     res = await client.post("/intake/turn", json=TURN)

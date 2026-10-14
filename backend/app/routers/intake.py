@@ -3,7 +3,9 @@ POST /intake/turn — one turn of intake (KAN-213), streamed back as NDJSON.
 
 Body: IntakeTurnRequest {section, messages, draft} (app/schemas/intake.py).
 The browser holds this entry's chat and the card, and sends both every turn,
-the card with the student's own edits; the API stores neither.
+the card with the student's own edits; the API stores neither. It reads the
+student's bank, so a line naming an entry already in it fills the card's
+empty fields from that entry (`intake.bank_match`).
 
 Lines, like Scout's: {"type": "text", "delta"} with the whole reply, then
 {"type": "draft", "draft", "done"} with the full draft, checked against the
@@ -30,6 +32,7 @@ from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.intake import DraftEvent, IntakeTurnRequest
 from app.services import intake
 from app.services.ai_messages import AIMessages
+from app.services.bank import load_bank
 from app.services.identity import load_identity
 from app.services.usage import Feature, count_use, uses_left
 
@@ -63,9 +66,10 @@ async def take_turn(
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, AI.spent)
 
     identity = await load_identity(db, account)
+    bank = await load_bank(db, account.id)
     try:
         answer = await intake.turn(
-            body.section, body.messages, body.draft, llm, identity=identity
+            body.section, body.messages, body.draft, llm, identity=identity, bank=bank
         )
     except ScoutUnavailable as exc:
         events: list[BaseModel] = [ErrorEvent(message=AI.failure(exc))]

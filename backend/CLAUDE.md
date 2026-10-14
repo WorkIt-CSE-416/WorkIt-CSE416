@@ -299,6 +299,20 @@ Find files with a directory listing; these are the rules for where code goes.
   a blank text field as `null` (`IntakeDraft`'s validators): Groq's
   gpt-oss-120b sent `"coursework": null` and `"organization": ""` on most
   leadership turns, and each failed the whole turn as "the wrong shape".
+  **A line that names a bank entry fills the card from it** (`bank_match`,
+  `_from_bank`): the route loads the student's bank, and when the latest
+  line holds a telling word of an Experience, Projects or Leadership
+  entry's title and of its organization ("the IEEE Micromouse lead" finds
+  the project "Micromouse" at "Stony Brook IEEE"), that entry's
+  organization, location, dates and bullets go into the card's empty
+  fields, and WorkIt's line becomes "I filled in what your bank has on …"
+  plus the first fact still missing. Exactly one entry must match, and a
+  word list (`_GENERIC`) keeps "intern" or "club" from matching alone.
+  **The code matches, not the model, on purpose**: given the bank in its
+  context, gpt-oss-120b copied the club and left the dates, and told to
+  name the matching entry's number it never did. Code matching also keeps
+  the bank out of the prompt, which matters on Groq's free tier (8,000
+  tokens a minute for gpt-oss-120b).
   **The reply is NDJSON like Scout's, but not streamed token by
   token, on purpose**: the draft is one JSON object that must pass the
   schema and the section check, and a fourth question is swapped for the
