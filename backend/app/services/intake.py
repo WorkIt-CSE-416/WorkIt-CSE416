@@ -120,8 +120,14 @@ def _has(draft: IntakeDraft | None, fact: str) -> bool:
     return not _empty(getattr(draft, fact))
 
 
+# Facts intake asks for but a resume can go without: the student may decline
+# one, and a card lacking it still counts as complete, so a declined GPA is
+# not asked for again.
+_OPTIONAL = frozenset({"gpa"})
+
+
 def _complete(section: bank_section, draft: IntakeDraft | None) -> bool:
-    return all(_has(draft, fact) for fact in _NEEDS[section])
+    return all(_has(draft, fact) for fact in _NEEDS[section] if fact not in _OPTIONAL)
 
 
 def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> str:
@@ -136,7 +142,8 @@ def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> st
         f"In this section, title is {title} and organization is {organization}.\n"
         + (f"The draft already has: {', '.join(have)}. Never ask about these.\n" if have else "")
         + (
-            f"Still missing: {', '.join(missing)}. Ask about these, in this order.\n"
+            f"Still missing: {', '.join(missing)}. Ask about these, in this order, "
+            "except one the student declined.\n"
             if missing
             else "Nothing a resume needs is missing: you may ask what came of the work, "
             "or say the entry looks ready and set done to true.\n"

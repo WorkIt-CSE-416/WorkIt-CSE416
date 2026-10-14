@@ -295,7 +295,9 @@ Find files with a directory listing; these are the rules for where code goes.
   The context also lists the facts the section needs (`_NEEDS`) that the
   card has ("never ask about these") and lacks ("ask about these").
   Education's include the GPA, so a school imported without one gets asked
-  for it; the student can say skip. Two code
+  for it. The GPA is optional (`_OPTIONAL`): a card without one still counts
+  as complete, so after the student declines it the `READY` guard below
+  ends the visit instead of asking again. Two code
   guards back the prompt, each with a test, because the local 4B model
   ignored it: a field the card had that the reply blanks keeps the card's
   value (`_keep_filled`, the three end-date fields as one), so saving a

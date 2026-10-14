@@ -381,13 +381,22 @@ SCHOOL = {
 
 async def test_intake_asks_for_a_gpa_an_imported_school_lacks(applicant, client):
     model = use_model([reply("What's your GPA?", draft=SCHOOL)])
-    res = await client.post(
+    await client.post(
         "/intake/turn",
         json={"section": "education", "messages": [{"role": "user", "content": "Hi"}], "draft": SCHOOL},
     )
     assert "Still missing: gpa." in model.prompts[0][1]["content"]
-    # The card lacks a fact a resume needs, so the code does not end the visit.
-    assert lines(res)[1]["done"] is False
+
+
+async def test_a_declined_gpa_ends_the_visit(applicant, client):
+    # A resume can go without a GPA: once the student skips it, the code ends
+    # the visit, as for a card with every fact, instead of asking again.
+    use_model([reply("What's your GPA?", draft=SCHOOL)])
+    said = [{"role": "assistant", "content": "What is your GPA?"}, {"role": "user", "content": "Skip that."}]
+    res = await client.post("/intake/turn", json={"section": "education", "messages": said, "draft": SCHOOL})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["done"] is True
+    assert "ready to save" in text_line["delta"]
 
 
 async def test_a_blank_bullet_in_the_reply_is_dropped(applicant, client):
