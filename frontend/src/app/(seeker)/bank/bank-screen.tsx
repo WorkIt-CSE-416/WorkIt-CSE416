@@ -1,13 +1,14 @@
 "use client";
 
-import { Pencil, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { OpenScoutButton } from "@/components/scout/scout-buttons";
-import { setScoutOpen } from "@/components/scout/scout-store";
+import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 import { IconButton } from "@/components/ui/icon-button";
 import { TextField } from "@/components/ui/text-field";
 import {
@@ -28,7 +29,7 @@ import {
 
 import { EntryEditor } from "./entry-editor";
 import { editSteps, type SaveStep } from "./entry-save";
-import { Intake } from "./intake";
+import { Intake, type IntakeFocus } from "./intake";
 import {
   draftOf,
   emptyDraft,
@@ -72,6 +73,11 @@ export function BankScreen({
   // An error that outlives the editor: a bullet that failed after the
   // entry's fields saved, or a failed read-back.
   const [pageError, setPageError] = useState<string | null>(null);
+  // What Scout is working on, marked on the page while its panel is open,
+  // as Gemini in Docs and Grammarly mark the text their panel acts on.
+  const [focus, setFocus] = useState<IntakeFocus | null>(null);
+  const scoutOpen = useScout().open;
+  const marked = scoutOpen ? focus : null;
 
   useEffect(() => {
     if (!autoImport) return;
@@ -180,6 +186,7 @@ export function BankScreen({
           autoImport={autoImport}
           onSaved={reload}
           docked
+          onFocus={setFocus}
         />
       </ScoutTakeover>
       {bank.entries.length === 0 && (
@@ -199,8 +206,16 @@ export function BankScreen({
       {SECTIONS.map((section) => {
         const entries = bank.entries.filter((e) => e.section === section.id);
         const adding = editing?.kind === "new" && editing.section === section.id;
+        const here = marked?.section === section.id ? marked : null;
+        const scoutAdding = here !== null && !here.entryId;
         return (
-          <Card as="section" key={section.id} aria-labelledby={`bank-${section.id}`}>
+          <Card
+            as="section"
+            key={section.id}
+            aria-labelledby={`bank-${section.id}`}
+            selected={here !== null}
+            className="transition-colors duration-200"
+          >
             <div className="flex items-baseline justify-between gap-3">
               <h2 id={`bank-${section.id}`} className="text-subtitle text-ink">
                 {section.label}
@@ -215,13 +230,13 @@ export function BankScreen({
               )}
             </div>
 
-            {entries.length === 0 && !adding && (
+            {entries.length === 0 && !adding && !scoutAdding && (
               <p className="text-body text-ink-meta mt-2">Nothing here yet.</p>
             )}
 
             <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
               {entries.map((entry) => (
-                <li key={entry.id} className="py-3">
+                <ScoutMarked key={entry.id} active={here?.entryId === entry.id}>
                   {editing?.kind === "edit" && editing.entry.id === entry.id ? (
                     <EntryEditor
                       initial={draftOf(entry)}
@@ -239,8 +254,16 @@ export function BankScreen({
                       onDeleted={reload}
                     />
                   )}
-                </li>
+                </ScoutMarked>
               ))}
+              {scoutAdding && (
+                <ScoutMarked active>
+                  <p className="text-body text-ink font-medium break-words">
+                    {here.title || `New ${section.label} entry`}
+                  </p>
+                  <p className="text-note text-ink-meta">Filling in as you talk to Scout</p>
+                </ScoutMarked>
+              )}
             </ul>
 
             {adding && (
@@ -263,6 +286,37 @@ export function BankScreen({
 
       <SkillsCard skills={bank.skills} reload={reload} />
     </div>
+  );
+}
+
+/**
+ * A bank row, marked while Scout works on it: a brand tint, a "With Scout"
+ * tag, and a scroll into view, so the student sees which entry the panel's
+ * questions are about.
+ */
+function ScoutMarked({ active, children }: { active: boolean; children: ReactNode }) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (!active) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    ref.current?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+  }, [active]);
+  return (
+    <li
+      ref={ref}
+      aria-current={active ? "true" : undefined}
+      className={cn(
+        "-mx-3 scroll-my-24 rounded-xl px-3 py-3 transition-colors duration-200",
+        active && "bg-brand-tint ring-brand/30 ring-1",
+      )}
+    >
+      {active && (
+        <span className="text-note text-brand mb-1 inline-flex items-center gap-1 font-medium">
+          <Sparkles className="size-3.5" /> With Scout
+        </span>
+      )}
+      {children}
+    </li>
   );
 }
 

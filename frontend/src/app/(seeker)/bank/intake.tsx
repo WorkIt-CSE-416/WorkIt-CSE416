@@ -188,6 +188,10 @@ function mergeReply(current: EntryDraft, sent: EntryDraft, reply: EntryDraft): E
   return merged as EntryDraft;
 }
 
+/** What intake is working on, for the page to mark: a bank entry it is
+ *  visiting, or a new entry in a section. */
+export type IntakeFocus = { section: Section; entryId?: string; title: string };
+
 export function Intake({
   filled,
   entries = [],
@@ -197,6 +201,7 @@ export function Intake({
   importable = false,
   autoImport = false,
   docked = false,
+  onFocus,
 }: {
   /** Sections with at least one entry in the bank. */
   filled: readonly Section[];
@@ -213,6 +218,8 @@ export function Intake({
   autoImport?: boolean;
   /** Lay out for Scout's panel rather than the page. */
   docked?: boolean;
+  /** Told each time the entry being worked on changes; null for none. */
+  onFocus?: (focus: IntakeFocus | null) => void;
 }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [messages, setMessages] = useState<ScoutMessage[]>([]);
@@ -284,6 +291,16 @@ export function Intake({
   }, [lines, answering, error]);
 
   const draft = kept?.draft ?? null;
+
+  // The import review replaces the card, so nothing is being worked on.
+  const focusSection = importing ? undefined : draft?.section;
+  const focusEntry = kept?.entryId;
+  const focusTitle = draft?.title ?? "";
+  useEffect(() => {
+    onFocus?.(
+      focusSection ? { section: focusSection, entryId: focusEntry, title: focusTitle } : null,
+    );
+  }, [onFocus, focusSection, focusEntry, focusTitle]);
 
   /** The walk's next stop at or after `from`, in WALK's order: a bank entry
    *  with gaps not yet visited, else a section with no entries. `from`

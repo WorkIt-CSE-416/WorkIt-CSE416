@@ -388,7 +388,14 @@ bottom: the step bar and a read-only preview of the draft
 as the bank lists it, fading each line in as WorkIt fills it, with "Still
 needed" chips, Edit and Save Entry, and on the left "Leave As Is" (a
 visit) or "Skip Section" (a new entry): the step bar's Skip, where a student
-happy with an entry looked for "next" and found none. It folds to its header. The chips are
+happy with an entry looked for "next" and found none. It folds to its header.
+**The page marks what Scout is working on** while the panel is open
+(`Intake`'s `onFocus`, `ScoutMarked` in `bank-screen.tsx`): the section card
+takes the brand outline, a visited entry a brand tint with a "With Scout"
+tag, and a new entry shows as a tinted row with the draft's title. The
+marked row scrolls into view (instantly under reduced motion). Gemini in
+Docs and Grammarly mark the text their side panel acts on the same way;
+before this, the student could not tell which entry the questions meant. The chips are
 `sections.ts`'s `neededFacts`: only what intake asks about (a school's or
 job's dates, a job's or role's organization, a school's degree and field,
 bullets) and the title. An optional field such as a school's college never shows; an early
