@@ -643,7 +643,12 @@ export function Intake({
           >
             <div
               ref={log}
-              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4"
+              className={cn(
+                "flex flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4",
+                // Docked, the card below gives way first: the chat keeps
+                // room for WorkIt's last question.
+                docked ? "min-h-32" : "min-h-0",
+              )}
             >
               <WorkItLine>
                 {walk
@@ -694,11 +699,11 @@ export function Intake({
               {!answering && lines.at(-1)?.kind === "text" ? lastText(lines) : ""}
             </p>
 
-            <div className="flex flex-col gap-1.5 px-3 pb-3">
+            <div className="flex min-h-0 flex-col gap-1.5 px-3 pb-3">
               {docked && draft && !folded && (
                 <div
                   aria-label="Draft entry"
-                  className="bg-panel ring-brand-tint shadow-card max-h-[45dvh] overflow-y-auto overscroll-contain rounded-2xl ring-1"
+                  className="bg-panel ring-brand-tint shadow-card min-h-0 shrink overflow-y-auto overscroll-contain rounded-2xl ring-1"
                 >
                   {card}
                 </div>
