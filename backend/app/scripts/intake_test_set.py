@@ -75,8 +75,10 @@ CASES = [
         "project, one answer is enough",
         bank_section.projects,
         [
-            "I built a line-following robot called LineBot in C++ on an Arduino. "
-            "It used PID control and finished a 10 meter track in 14 seconds.",
+            (
+                "I built a line-following robot called LineBot in C++ on an Arduino. "
+                "It used PID control and finished a 10 meter track in 14 seconds."
+            ),
         ],
         ["title", "bullets"],
         title="LineBot",
