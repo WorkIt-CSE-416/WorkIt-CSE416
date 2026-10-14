@@ -127,13 +127,27 @@ export function entryDetails(entry: EntryFields): string[] {
 const NEEDS_ORGANIZATION = new Set<Section>(["experience", "leadership"]);
 
 /**
- * What a resume would miss from the entry (story 17): its dates, and for a
- * job or club role its organization. The bank page warns before Generate;
- * the entry still saves, since the student may not know them yet.
+ * Sections whose dates application forms ask for: Greenhouse requires a
+ * school's and a job's start and end months (or "current"). No form asks for
+ * a project's, club role's or award's dates, so the bank never asks for them
+ * either. The backend's intake `_NEEDS` keeps the same list.
+ */
+const NEEDS_DATES = new Set<Section>(["education", "experience"]);
+
+/** A start, and an end or "still going": the dates a form takes. */
+function hasDates(entry: EntryFields): boolean {
+  return Boolean(entry.start_month && (entry.end_month || entry.end_kind === "present"));
+}
+
+/**
+ * What a resume or an application would miss from the entry (story 17): a
+ * school's or job's dates, and a job's or club role's organization. The bank
+ * page warns before Generate; the entry still saves, since the student may
+ * not know them yet.
  */
 export function missingFacts(entry: EntryFields): string[] {
   const missing = [];
-  if (!formatDates(entry)) missing.push("dates");
+  if (NEEDS_DATES.has(entry.section) && !hasDates(entry)) missing.push("dates");
   if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
     missing.push(sectionOf(entry.section).organization.toLowerCase());
   }
@@ -152,10 +166,8 @@ const NEEDS_BULLETS = new Set<Section>(["experience", "projects", "leadership"])
  */
 export function gapQuestions(entry: BankEntry): string[] {
   const questions = [];
-  if (!formatDates(entry)) {
-    questions.push(
-      entry.section === "awards" ? "When did you win it?" : "When did it start and end?",
-    );
+  if (NEEDS_DATES.has(entry.section) && !hasDates(entry)) {
+    questions.push("When did it start and end?");
   }
   if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
     questions.push(`What was the ${sectionOf(entry.section).organization.toLowerCase()}?`);
@@ -174,10 +186,10 @@ export function gapQuestions(entry: BankEntry): string[] {
 
 /**
  * What intake's draft preview lists under "Still needed": the field's own
- * label for each fact a resume line wants that the draft lacks. The same
- * facts intake asks about (`missingFacts`, `gapQuestions`), plus the title,
- * which Save needs. Optional fields (a school's college, a location, a link,
- * a GPA) never show.
+ * label for each fact the draft lacks. The same facts intake asks about
+ * (`missingFacts`, `gapQuestions`), plus the title, which Save needs.
+ * Optional fields (a school's college, a location, a link, a GPA, a
+ * project's dates) never show.
  */
 export function neededFacts(entry: EntryFields & { bullets: readonly { text: string }[] }) {
   const meta = sectionOf(entry.section);
@@ -186,7 +198,7 @@ export function neededFacts(entry: EntryFields & { bullets: readonly { text: str
   if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
     needed.push(meta.organization);
   }
-  if (!formatDates(entry)) needed.push(entry.section === "awards" ? "Date" : "Dates");
+  if (NEEDS_DATES.has(entry.section) && !hasDates(entry)) needed.push("Dates");
   if (entry.section === "education") {
     if (!entry.degree?.trim()) needed.push("Degree");
     if (!entry.field_of_study?.trim()) needed.push("Field of Study");

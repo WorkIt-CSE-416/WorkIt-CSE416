@@ -387,9 +387,9 @@ bottom: the step bar and a read-only preview of the draft
 (`draft-preview.tsx`); the chat; the composer. The preview shows the entry
 as the bank lists it, fading each line in as WorkIt fills it, with "Still
 needed" chips, Edit and Save Entry; it folds to its header. The chips are
-`sections.ts`'s `neededFacts`: only what intake asks about (dates, a job's
-or role's organization, a school's degree and field, bullets) and the
-title. An optional field such as a school's college never shows; an early
+`sections.ts`'s `neededFacts`: only what intake asks about (a school's or
+job's dates, a job's or role's organization, a school's degree and field,
+bullets) and the title. An optional field such as a school's college never shows; an early
 version listed every empty field and asked for "College or Department".
 Before the draft has a title the chips stay hidden, since the chat's
 question is the next step. Edit opens the
@@ -418,8 +418,10 @@ in Docs (suggested answers in the chat, not a banner).
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
 - **An entry warns what a resume would miss** (`sections.ts`'s
-  `missingFacts`, story 17): no dates, and for Experience and Leadership
-  no organization. It still saves; the warning says to add them before
+  `missingFacts`, story 17): for Education and Experience no start and end
+  (or "present"), and for Experience and Leadership no organization. A
+  project, role or award has no dates warning: no application form asks for
+  them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). It still saves; the warning says to add them before
   Generate.
 - **Deleting an entry confirms with how many built resumes show it**
   (story 18): the trash button reads `GET .../entries/{id}/resumes` first,
@@ -505,7 +507,7 @@ in Docs (suggested answers in the chat, not a banner).
   draft in `lib/local-drafts.ts`.
 - **Walking.** The bank page always walks, in the step bar's order: a
   section with entries is passed over, except that each entry with gaps
-  (`sections.ts`'s `gapQuestions`: no dates; no organization for a job or
+  (`sections.ts`'s `gapQuestions`: no dates for a school or job; no organization for a job or
   role; no bullets for a job, project or role; no degree, field or GPA for
   a school, which a resume import often lacks) gets a visit. The card opens
   on the saved entry, WorkIt's first line asks about the gap, the model is

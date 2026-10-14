@@ -293,8 +293,14 @@ Find files with a directory listing; these are the rules for where code goes.
   assistant in Professor Smith's AI lab" for their title and organization.
   The test set's `title=` cases check the split.
   The context also lists the facts the section needs (`_NEEDS`) that the
-  card has ("never ask about these") and lacks ("ask about these").
-  Education's include the GPA, so a school imported without one gets asked
+  card has ("never ask about these") and lacks ("ask about these, and
+  about nothing else"). `_NEEDS` is what application forms take plus what a
+  resume line needs (2026-10-14): Greenhouse requires a school's degree,
+  discipline and start and end months, and a job's company, title, start
+  and end or "current", so "dates" means a start and an end or "present".
+  No hiring system asks for a project's, club role's or award's dates, so
+  intake does not; `frontend/src/app/(seeker)/bank/sections.ts` keeps the
+  same list for the bank's warnings and visits. Education's include the GPA, so a school imported without one gets asked
   for it. The GPA is optional (`_OPTIONAL`): a card without one still counts
   as complete, so after the student declines it the `READY` guard below
   ends the visit instead of asking again. Two code

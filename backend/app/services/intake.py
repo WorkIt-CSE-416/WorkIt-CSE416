@@ -100,14 +100,18 @@ draft. If the student says they don't know or want to skip, accept it and move o
 no questions are left, say the entry looks ready to save and set done to true.
 """
 
-# The facts a resume needs from each section, as the student would name
-# them, in the order intake asks for them.
+# The facts intake asks for in each section, in the order it asks: what
+# application forms take, plus what a resume line needs. Greenhouse requires
+# a school's degree, discipline and start and end months, and a job's
+# company, title, start and end (or "current"); Workday and the autofill
+# extension also read a GPA. No form asks for a project's, club role's or
+# award's dates, so intake does not (frontend/docs/screens.md, Experience Bank).
 _NEEDS = {
-    bank_section.education: ("title", "dates", "degree", "field_of_study", "gpa"),
+    bank_section.education: ("title", "degree", "field_of_study", "dates", "gpa"),
     bank_section.experience: ("title", "organization", "dates", "bullets"),
-    bank_section.projects: ("title", "dates", "bullets"),
-    bank_section.leadership: ("title", "organization", "dates", "bullets"),
-    bank_section.awards: ("title", "award_date"),
+    bank_section.projects: ("title", "bullets"),
+    bank_section.leadership: ("title", "organization", "bullets"),
+    bank_section.awards: ("title",),
     bank_section.certifications: ("title", "organization"),
 }
 
@@ -116,7 +120,9 @@ def _has(draft: IntakeDraft | None, fact: str) -> bool:
     if draft is None:
         return False
     if fact == "dates":
-        return draft.start_month is not None or draft.end_month is not None
+        # A start, and an end or "still going", as application forms take them.
+        ended = draft.end_month is not None or draft.end_kind == "present"
+        return draft.start_month is not None and ended
     return not _empty(getattr(draft, fact))
 
 
@@ -143,7 +149,7 @@ def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> st
         + (f"The draft already has: {', '.join(have)}. Never ask about these.\n" if have else "")
         + (
             f"Still missing: {', '.join(missing)}. Ask about these, in this order, "
-            "except one the student declined.\n"
+            "except one the student declined, and about nothing else.\n"
             if missing
             else "Nothing a resume needs is missing: you may ask what came of the work, "
             "or say the entry looks ready and set done to true.\n"

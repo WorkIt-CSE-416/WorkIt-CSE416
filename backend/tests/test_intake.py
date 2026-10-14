@@ -272,8 +272,45 @@ async def test_the_turn_lists_what_the_draft_has_and_what_is_missing(applicant, 
     model = use_model([reply()])
     await client.post("/intake/turn", json={**TURN, "draft": {**DRAFT, "bullets": []}})
     context = model.prompts[0][1]["content"]
-    assert "already has: title, dates. Never ask" in context
+    assert "already has: title. Never ask" in context
     assert "Still missing: bullets." in context
+
+
+# Intake asks for what application forms take (Greenhouse requires a school's
+# degree, discipline and start and end months, and a job's start and end or
+# "current") and what a resume line needs. No form asks for a project's,
+# club role's or award's dates, so intake does not either.
+
+
+async def test_a_project_is_complete_without_dates(applicant, client):
+    undated = {"section": "projects", "title": "Robot Arm Controller", "bullets": ["Cut path time by 30%."]}
+    use_model([reply("When did you build it?", draft=undated)])
+    res = await client.post("/intake/turn", json={**TURN, "draft": undated})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["done"] is True
+    assert "ready to save" in text_line["delta"]
+
+
+async def test_an_award_needs_only_its_name(applicant, client):
+    award = {"section": "awards", "title": "Dean's List"}
+    model = use_model([reply("When did you win it?", draft=award)])
+    res = await client.post("/intake/turn", json={**TURN, "section": "awards", "draft": award})
+    assert lines(res)[1]["done"] is True
+    assert "Still missing" not in model.prompts[0][1]["content"]
+
+
+async def test_a_job_with_only_an_end_month_still_asks_for_its_start(applicant, client):
+    job = {
+        "section": "experience",
+        "title": "Software Engineer Intern",
+        "organization": "Clever Devices",
+        "end_month": "2025-08",
+        "end_kind": "month",
+        "bullets": ["Cut latency 85%."],
+    }
+    model = use_model([reply("When did it start?", draft=job)])
+    await client.post("/intake/turn", json={**TURN, "section": "experience", "draft": job})
+    assert "Still missing: dates." in model.prompts[0][1]["content"]
 
 
 async def test_intake_stops_asking_once_the_resume_has_what_it_needs(applicant, client):
@@ -415,3 +452,17 @@ async def test_an_entry_with_no_telling_title_never_matches_on_its_organization(
     text_line, draft_line, _ = lines(res)
     assert draft_line["draft"]["organization"] is None
     assert text_line["delta"] == "What did it do?"
+
+
+async def test_a_job_still_going_has_its_dates(applicant, client):
+    job = {
+        "section": "experience",
+        "title": "Software Engineer Intern",
+        "organization": "Clever Devices",
+        "start_month": "2025-06",
+        "end_kind": "present",
+        "bullets": ["Cut latency 85%."],
+    }
+    model = use_model([reply(draft=job)])
+    await client.post("/intake/turn", json={**TURN, "section": "experience", "draft": job})
+    assert "already has: title, organization, dates, bullets" in model.prompts[0][1]["content"]
