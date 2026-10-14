@@ -17,3 +17,12 @@ done
 
 npm ci --prefix frontend
 (cd backend && uv sync)
+
+# Resume PDFs need Tectonic and its warm cache in backend/vendor/, once per
+# checkout. Without it every resume shows "This Resume Isn't Loading Right
+# Now". Only branches with resume rendering have the script; on a Mac it
+# needs `brew install tectonic`, so a failure warns instead of stopping setup.
+if [ -f backend/scripts/fetch_tectonic.py ]; then
+  (cd backend && python3 scripts/fetch_tectonic.py) ||
+    echo "warning: resume PDFs will not render; run brew install tectonic, then python3 scripts/fetch_tectonic.py in backend/" >&2
+fi
