@@ -98,6 +98,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,
   `addTransitionType`): the App Router runs React canary and `@types/react`'s
   stable entry lacks them.
+- **A page can take Scout's panel over** with `components/scout/
+  scout-takeover.tsx`: its children portal into the panel in place of
+  Scout's chat while the page is mounted, so the bar's Scout button opens
+  the page's assistant. The Experience Bank puts intake there. Open it only
+  on a click (the panel's rule), never on page load.
 - **The company table (`app/company/table.tsx`) is TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
   `node_modules/@tanstack/react-table/skills`, not a blog post.

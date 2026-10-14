@@ -375,13 +375,21 @@ bank is where resume facts are kept, once (`GLOSSARY.md`), and the only
 place they are edited: My Profile keeps the uploads and links here.
 
 **Layout, top to bottom** (settled 2026-10-13): the title with a "Your
-Resumes" button that jumps to the bottom card; a slim upload strip
-("Want to pre-fill your entries? Upload your resume…", Upload Resume, and
-"Use one you already uploaded"); intake, the page's main part, with the
-import review opening in its chat's place; the section cards and Skills; then one
-"Your Resumes" card holding Base Resumes and Sent. Import, Base Resumes and
-Sent used to be three cards above intake, which pulled the eye from the
-chat the page is built around.
+Resumes" button that jumps to the bottom card and Fill With Scout; the
+section cards and Skills; then one "Your Resumes" card holding Base Resumes
+and Sent. The page is the filled-out bank itself.
+
+**Intake lives in Scout's panel** (2026-10-14), where Scout does: the bar's
+Scout button or Fill With Scout opens it. On this page the panel shows
+intake in place of Scout's job chat (`components/scout/scout-takeover.tsx`)
+and widens to 448px: the slim upload strip ("Want to pre-fill your
+entries?…", Upload Resume, "Use one you already uploaded"), the step bar,
+the chat, and the draft card under it, which fills in as the student answers
+and folds away from its one-line title. The import review opens in the
+chat's place. A save reads the bank again, so the page behind updates at
+once. Any other page gets Scout's own chat back. Intake used to lead the
+page, with the card in a column beside the chat; onboarding still shows it
+that way.
 
 - **Live, with an error state.** `page.tsx` reads `GET
   /applicants/{id}/bank` through `src/lib/bank-actions.ts` on the server; if
@@ -410,7 +418,7 @@ chat the page is built around.
   upload, else the newest. The review takes the chat's place until Close,
   or a Save All that leaves nothing to check. The API's 5-resume limit
   shows as the strip's error. `?import=1` (the Jobs page's prompt) opens
-  it on arrival. One
+  the panel and the import on arrival. One
   click reads the default upload, else the newest, into draft entries and
   skills (`importResume`). Each draft shows the lines the bank list shows
   under an entry (`entryDetails`: degree and GPA, coursework, honors,

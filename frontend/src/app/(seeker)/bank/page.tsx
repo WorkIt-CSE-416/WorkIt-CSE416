@@ -2,6 +2,7 @@ import { CloudOff, FileText } from "lucide-react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
+import { OpenScoutButton } from "@/components/scout/scout-buttons";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getBank } from "@/lib/bank-actions";
@@ -23,9 +24,10 @@ export const metadata: Metadata = {
  * kept once, that built resumes draw from. It sits beside the resume upload
  * on My Profile, with no feature flag. Live from the API's
  * `GET /applicants/{id}/bank`; when that fails the page says so and offers a
- * retry, never fixture rows. Intake leads the page, with Import inside its
- * chat; the sections follow; base resumes (KAN-207) and the Sent list
- * (KAN-208) close it in one "Your Resumes" card, reached from the title.
+ * retry, never fixture rows. The page is the bank itself: the sections, then
+ * base resumes (KAN-207) and the Sent list (KAN-208) in one "Your Resumes"
+ * card, reached from the title. Intake, with Import inside its chat, lives in
+ * Scout's panel (bank-screen.tsx), opened by the title's Fill With Scout.
  */
 export default async function BankPage({ searchParams }: PageProps<"/bank">) {
   await connection();
@@ -46,12 +48,15 @@ export default async function BankPage({ searchParams }: PageProps<"/bank">) {
             Add each thing you did once. Every resume you make draws from here.
           </p>
         </div>
-        {resumes.data && (
-          <a href="#your-resumes" className={buttonClasses({ variant: "secondary", size: "sm" })}>
-            <FileText /> Your Resumes
-            {resumes.data.length > 0 && ` (${resumes.data.length})`}
-          </a>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {resumes.data && (
+            <a href="#your-resumes" className={buttonClasses({ variant: "secondary", size: "sm" })}>
+              <FileText /> Your Resumes
+              {resumes.data.length > 0 && ` (${resumes.data.length})`}
+            </a>
+          )}
+          {data && <OpenScoutButton>Fill With Scout</OpenScoutButton>}
+        </div>
       </div>
 
       {data && resumes.data && sent.data ? (

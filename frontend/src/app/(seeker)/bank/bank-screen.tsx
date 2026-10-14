@@ -1,8 +1,10 @@
 "use client";
 
 import { Pencil, Plus, Trash2, X } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
+import { setScoutOpen } from "@/components/scout/scout-store";
+import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
@@ -43,6 +45,11 @@ import { linkChanges } from "./skill-links";
  * read back afterwards, so the order shown is always the API's (ongoing
  * first, then newest). A failed call shows its message beside the control
  * and leaves the screen as it was.
+ *
+ * Intake is not on the page: it takes over Scout's panel (docked), opened
+ * from the bar's launcher or the title's Fill With Scout, so the page is the
+ * bank itself. `autoImport` (the Jobs page's Import Your Resume) opens the
+ * panel on arrival, since the student clicked to get there.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -62,6 +69,10 @@ export function BankScreen({
   // An error that outlives the editor: a bullet that failed after the
   // entry's fields saved, or a failed read-back.
   const [pageError, setPageError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (autoImport) setScoutOpen(true);
+  }, [autoImport]);
 
   async function reload(): Promise<string | null> {
     const { data, error } = await getBank();
@@ -155,14 +166,17 @@ export function BankScreen({
 
   return (
     <div className="mt-4 flex flex-col gap-4">
-      <Intake
-        filled={bank.entries.map((e) => e.section)}
-        entries={bank.entries}
-        walk
-        importable
-        autoImport={autoImport}
-        onSaved={reload}
-      />
+      <ScoutTakeover title="Scout" subtitle="Fills your experience bank as you talk">
+        <Intake
+          filled={bank.entries.map((e) => e.section)}
+          entries={bank.entries}
+          walk
+          importable
+          autoImport={autoImport}
+          onSaved={reload}
+          docked
+        />
+      </ScoutTakeover>
       {pageError && (
         <p role="alert" className="text-note text-danger">
           {pageError}
