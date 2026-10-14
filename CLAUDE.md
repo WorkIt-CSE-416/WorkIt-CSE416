@@ -150,6 +150,9 @@ with the failure it prevents.
 - `docs/job-pipeline.md` — the job pipeline end to end, in plain terms. A
   change to how jobs are scraped, imported, stored, served or filtered updates
   it alongside the `CLAUDE.md` beside the code.
+- `auto-apply/design.md` — the auto-apply proposal (KAN-223): match, tailor
+  the resume, fill with the extension, record. Nothing in it is built yet;
+  read it before starting any of its steps.
 - `docs/agents/` — configuration for the `mattpocock-skills` plugin; edit
   these files directly to change how the skills behave.
 

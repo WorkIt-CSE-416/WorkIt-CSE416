@@ -276,6 +276,22 @@ server to draw them again. A card or row is one link: its role, stretched
 over it. Its next step is a second, `relative` link to that week on
 the Calendar, which paints over the stretched one.
 
+## Auto Apply
+
+/auto-apply (KAN-223) is where the seeker will apply in bulk. Its sidebar row
+sits between Jobs and Applications, in the order the work goes, and its page
+uses the same heading block as every seeker screen. The pipeline it grows
+into is `auto-apply/design.md` at the repo root.
+
+**"Applying with Resume:" is its first section, and it is live**
+(`auto-apply/applying-resume.tsx`). It shows the seeker's primary resume
+(`is_default`) in My Profile's own row (`src/components/resume-row.tsx`) with
+only the eye, and a Change link to My Profile, where resumes are chosen and
+deleted. Only the primary, never My Profile's fallback to the newest: the
+matching reads the primary alone, so a seeker without one is asked to star
+one. It is a client component reading `listResumes()` like My Profile, and
+starts from My Profile's cache when the shell has one, without writing to it.
+
 ## Calendar
 
 **The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
@@ -315,11 +331,14 @@ itself and marks it `parse_failed` rather than "parsed". That dialog is a
 panel sliding in from the right over a darkened page, built from the
 vendored dialog's parts because the vendored Sheet's 10% overlay cannot be
 darkened from outside. A click on the darkened page does not close it — that
-would throw away every unsaved edit — but › and Escape do. Each resume row (`resume-row.tsx`) has an eye — a short-lived signed
-link from `getResumeFileUrl`: a PDF opens in a new tab, opened inside the
+would throw away every unsaved edit — but › and Escape do. Each resume row
+(`src/components/resume-row.tsx`, shared with the Auto Apply page) has an
+eye — a short-lived signed link from `getResumeFileUrl`, opened by
+`src/lib/preview-resume.ts`: a PDF opens in a new tab, opened inside the
 click so it is not blocked as a popup (if it is blocked anyway, the page says
-so rather than leaving the profile); a DOCX downloads — and a star that
-makes it primary (`setPrimaryResume`). All of these actions live in
+so rather than leaving it); a DOCX downloads — and a star that makes it
+primary (`setPrimaryResume`). The star and the delete are optional props, so
+a screen that only shows a resume leaves them out. All of these actions live in
 `src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's.
 The `ResumeUpload` component (`src/components/resume-upload.tsx`) is a pure
 dropzone + file preview — it knows nothing about upload logic or limits.
