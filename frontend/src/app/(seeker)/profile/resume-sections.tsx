@@ -57,6 +57,17 @@ function period(start: string | null, end: string | null) {
   return [start && month(start), end ? month(end) : start && "Present"].filter(Boolean).join(" - ");
 }
 
+/** A description's lines as resume bullets: one per line break, blank lines
+ *  dropped, and any bullet the text already starts with (•, -, –, *) removed so
+ *  it is not drawn twice. - and * count only with a space after them, so
+ *  "-20% churn" keeps its sign. Display only; the stored text is unchanged. */
+function descriptionBullets(description: string | null) {
+  return (description ?? "")
+    .split("\n")
+    .map((line) => line.replace(/^\s*(?:[•–]\s*|[-*]\s+)/, "").trim())
+    .filter(Boolean);
+}
+
 /** Roles shown while the section is collapsed. */
 const PREVIEW_ROLES = 2;
 
@@ -79,6 +90,7 @@ function RoleItem({
     period(role.start_date, role.end_date),
     role.location,
   ].filter(Boolean);
+  const bullets = descriptionBullets(role.description);
 
   return (
     <li
@@ -107,16 +119,25 @@ function RoleItem({
           ))}
         </p>
       )}
-      {role.description && (
-        <p
+      {bullets.length > 0 && (
+        <ul
+          // Tailwind's list-style: none drops the list role in Safari.
+          role="list"
           data-description
           className={cn(
-            "text-body text-ink-muted mt-1.5 wrap-break-word whitespace-pre-line",
+            "text-body text-ink-muted mt-1.5 wrap-break-word",
             !expanded && "line-clamp-2",
           )}
         >
-          {role.description}
-        </p>
+          {bullets.map((line, i) => (
+            <li key={i} className="relative pl-4">
+              <span aria-hidden="true" className="absolute left-1">
+                •
+              </span>
+              {line}
+            </li>
+          ))}
+        </ul>
       )}
     </li>
   );

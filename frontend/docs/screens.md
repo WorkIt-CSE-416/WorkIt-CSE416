@@ -336,6 +336,10 @@ chevron appears only when the preview hides something; whether a description
 overflows depends on the column's width, so `resume-sections.tsx` measures it
 with a ResizeObserver. The one-section edit modal numbers its entries
 ("Experience 1", …) since it has no section headings to go by.
+A role's description shows as resume bullets, one per line break, so the
+paragraphs a parsed or pasted description holds do not run together. Blank
+lines drop out and a bullet the text already starts with (•, -, –, *) is not
+drawn twice. This is display only: the stored text is unchanged.
 Deleting the resume the sections show switches them to whichever `shownResume`
 picks next.
 
