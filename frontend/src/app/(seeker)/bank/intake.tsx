@@ -67,10 +67,12 @@ import {
  * Without it, the student picks a section from the chips and comes back to
  * them after each save. Skip and a jump drop the unsaved draft, as in the
  * prototype. A jump or a chip opens the section's bank entry with gaps, if
- * it has one, as the walk would, so WorkIt asks only for what is missing;
- * a section whose entries are complete opens a new card, and WorkIt's
- * first line names the entries it already has. Skipped sections are kept beside the draft, so a reload does
- * not walk back into them.
+ * it has one not visited yet, as the walk would, so WorkIt asks only for
+ * what is missing; otherwise a new card, and WorkIt's first line names the
+ * entries the section already has. A visited entry is not reopened: a
+ * student who declined a school's GPA could otherwise never add another
+ * school. Skipped sections are kept beside the draft, so a reload does not
+ * walk back into them.
  *
  * Upload first: with `importable`, a slim strip above the step bar offers
  * Upload Resume (PDF or DOCX, the API's `uploadResume`) with a note on what
@@ -349,7 +351,7 @@ export function Intake({
   function opener(section: Section): string {
     const have = entries.filter((e) => e.section === section).map((e) => e.title);
     if (!have.length) return OPENERS[section];
-    return `Your bank already has ${have.join(", ")}, with nothing missing. To add ${ANOTHER[section]}, tell me about it.`;
+    return `Your bank already has ${have.join(", ")}. To add ${ANOTHER[section]}, tell me about it.`;
   }
 
   function finish() {
@@ -361,12 +363,13 @@ export function Intake({
   }
 
   /** A jump from the step bar or a chip, with the draft dropped: the
-   *  section's first bank entry with gaps (one not visited yet first), so
-   *  WorkIt asks only for what the entry lacks, else a new entry. */
+   *  section's first bank entry with gaps not visited yet, so WorkIt asks
+   *  only for what the entry lacks, else a new entry. */
   function jump(section: Section) {
     finish();
-    const gaps = entries.filter((e) => e.section === section && gapQuestions(e).length > 0);
-    const entry = gaps.find((e) => !visited.current.has(e.id)) ?? gaps[0];
+    const entry = entries.find(
+      (e) => e.section === section && !visited.current.has(e.id) && gapQuestions(e).length > 0,
+    );
     if (entry) return go({ entry });
     start(section);
   }
