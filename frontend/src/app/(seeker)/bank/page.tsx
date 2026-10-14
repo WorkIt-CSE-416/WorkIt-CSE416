@@ -55,7 +55,7 @@ export default async function BankPage({ searchParams }: PageProps<"/bank">) {
               {resumes.data.length > 0 && ` (${resumes.data.length})`}
             </a>
           )}
-          {data && <OpenScoutButton>Fill With Scout</OpenScoutButton>}
+          {data && resumes.data && sent.data && <OpenScoutButton>Fill With Scout</OpenScoutButton>}
         </div>
       </div>
 

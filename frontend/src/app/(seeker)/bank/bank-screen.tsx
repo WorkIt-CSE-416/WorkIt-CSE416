@@ -3,6 +3,7 @@
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { OpenScoutButton } from "@/components/scout/scout-buttons";
 import { setScoutOpen } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,9 @@ import { linkChanges } from "./skill-links";
  * Intake is not on the page: it takes over Scout's panel (docked), opened
  * from the bar's launcher or the title's Fill With Scout, so the page is the
  * bank itself. `autoImport` (the Jobs page's Import Your Resume) opens the
- * panel on arrival, since the student clicked to get there.
+ * panel on arrival, since the student clicked to get there, and drops
+ * ?import=1 so a reload or Back does not open it again. An empty bank says
+ * where to start, since intake is no longer on the page.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -71,7 +74,9 @@ export function BankScreen({
   const [pageError, setPageError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (autoImport) setScoutOpen(true);
+    if (!autoImport) return;
+    setScoutOpen(true);
+    window.history.replaceState(null, "", "/bank");
   }, [autoImport]);
 
   async function reload(): Promise<string | null> {
@@ -177,6 +182,15 @@ export function BankScreen({
           docked
         />
       </ScoutTakeover>
+      {bank.entries.length === 0 && (
+        <Card className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-body text-ink-muted min-w-0 flex-1">
+            Your bank is empty. Scout asks about one thing at a time and fills in each entry from
+            your answers, or reads your resume for you.
+          </p>
+          <OpenScoutButton>Fill With Scout</OpenScoutButton>
+        </Card>
+      )}
       {pageError && (
         <p role="alert" className="text-note text-danger">
           {pageError}

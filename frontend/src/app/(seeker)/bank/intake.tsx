@@ -554,8 +554,7 @@ export function Intake({
 
   return (
     <section
-      aria-labelledby={docked ? undefined : "intake-title"}
-      aria-label={docked ? "Tell WorkIt About It" : undefined}
+      aria-labelledby="intake-title"
       className={cn(
         "flex flex-col gap-3",
         // Its own container, so the step bar and chips size to the panel.

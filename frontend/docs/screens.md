@@ -379,15 +379,16 @@ Resumes" button that jumps to the bottom card and Fill With Scout; the
 section cards and Skills; then one "Your Resumes" card holding Base Resumes
 and Sent. The page is the filled-out bank itself.
 
-**Intake lives in Scout's panel** (2026-10-14), where Scout does: the bar's
+**Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
 Scout button or Fill With Scout opens it. On this page the panel shows
 intake in place of Scout's job chat (`components/scout/scout-takeover.tsx`)
-and widens to 448px: the slim upload strip ("Want to pre-fill your
+and widens to 448px (460px of room with its gap): the slim upload strip ("Want to pre-fill your
 entries?…", Upload Resume, "Use one you already uploaded"), the step bar,
 the chat, and the draft card under it, which fills in as the student answers
 and folds away from its one-line title. The import review opens in the
 chat's place. A save reads the bank again, so the page behind updates at
-once. Any other page gets Scout's own chat back. Intake used to lead the
+once. An empty bank shows a card pointing to Fill With Scout. Any other
+page gets Scout's own chat back. Intake used to lead the
 page, with the card in a column beside the chat; onboarding still shows it
 that way.
 
@@ -676,7 +677,10 @@ the profile (the header's fields), and shows the error state if any fails.
 Scout, the job assistant, lives in `components/scout/`; its brain is the repo's
 `scout/`, so read `scout/CLAUDE.md` first. `scout-store` holds the one chat per
 tab (a module store, so no provider). `scout-panel` docks beside the page, never
-over it, and opens only on a click. It stays mounted and opens in two moves: its
+over it, and opens only on a click (the Jobs page's Import Your Resume
+counts: `/bank?import=1` opens it on arrival, then drops the param). A page
+can take it over (`scout-takeover.tsx`, the Experience Bank's intake): the
+page's content replaces the chat and the panel widens to 448px. It stays mounted and opens in two moves: its
 room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
