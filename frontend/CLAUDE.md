@@ -27,9 +27,11 @@ them). Notes the scripts don't say:
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
 - There is no test runner yet. When one is added, document it here.
-- **Local browser testing:** sign in as the shared non-production test
-  applicant, `TEST_APPLICANT_EMAIL` / `TEST_APPLICANT_PASSWORD` in
-  `frontend/.env.local`. Use that account rather than creating one.
+- **To test a resume upload**, use a file from `frontend/public/resumes/`.
+  The folder is git-ignored because it holds real people's resumes, so put
+  your own there once, in the primary checkout: `npm run worktree` and every
+  Superset workspace's setup copy it into the new worktree with the env files.
+  Delete an upload once the test is done; it lands in the shared database.
 
 ## Deployment
 
@@ -186,6 +188,14 @@ are in `docs/auth.md`.
   (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
   reaches. A draft stored under any other key outlives sign-out.
+- **To test a page behind sign-in, use the shared test account**:
+  `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` in the root `.env`. It is a
+  normal applicant with test data only, on the one shared Supabase project, so
+  it signs in to the live site too. Never create an account for testing, never
+  give this one admin or company rights, and never put real personal data on
+  it. If the variables are missing, run `npm run worktree -- --env-only`; if
+  they are still missing, ask the user. Never write the values into a
+  committed file, PR or comment: the repo is public.
 
 ## Screens, design and motion
 
