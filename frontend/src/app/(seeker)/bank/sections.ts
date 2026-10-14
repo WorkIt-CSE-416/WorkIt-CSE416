@@ -139,6 +139,22 @@ function hasDates(entry: EntryFields): boolean {
   return Boolean(entry.start_month && (entry.end_month || entry.end_kind === "present"));
 }
 
+/** Which part of the dates is missing, so intake asks for that part alone:
+ *  an import often has a school's expected end and no start. */
+function missingDates(entry: EntryFields): "start" | "end" | "both" | null {
+  if (!NEEDS_DATES.has(entry.section) || hasDates(entry)) return null;
+  if (!entry.start_month) return entry.end_month || entry.end_kind === "present" ? "start" : "both";
+  return "end";
+}
+
+const DATES_QUESTION = {
+  start: "What month and year did it start?",
+  end: "When did it end, or is it still going?",
+  both: "When did it start and end?",
+};
+
+const DATES_LABEL = { start: "Start Date", end: "End Date", both: "Dates" };
+
 /**
  * What a resume or an application would miss from the entry (story 17): a
  * school's or job's dates, and a job's or club role's organization. The bank
@@ -147,7 +163,8 @@ function hasDates(entry: EntryFields): boolean {
  */
 export function missingFacts(entry: EntryFields): string[] {
   const missing = [];
-  if (NEEDS_DATES.has(entry.section) && !hasDates(entry)) missing.push("dates");
+  const dates = missingDates(entry);
+  if (dates) missing.push(dates === "both" ? "dates" : `${dates} date`);
   if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
     missing.push(sectionOf(entry.section).organization.toLowerCase());
   }
@@ -166,9 +183,8 @@ const NEEDS_BULLETS = new Set<Section>(["experience", "projects", "leadership"])
  */
 export function gapQuestions(entry: BankEntry): string[] {
   const questions = [];
-  if (NEEDS_DATES.has(entry.section) && !hasDates(entry)) {
-    questions.push("When did it start and end?");
-  }
+  const dates = missingDates(entry);
+  if (dates) questions.push(DATES_QUESTION[dates]);
   if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
     questions.push(`What was the ${sectionOf(entry.section).organization.toLowerCase()}?`);
   }
@@ -198,7 +214,8 @@ export function neededFacts(entry: EntryFields & { bullets: readonly { text: str
   if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
     needed.push(meta.organization);
   }
-  if (NEEDS_DATES.has(entry.section) && !hasDates(entry)) needed.push("Dates");
+  const dates = missingDates(entry);
+  if (dates) needed.push(DATES_LABEL[dates]);
   if (entry.section === "education") {
     if (!entry.degree?.trim()) needed.push("Degree");
     if (!entry.field_of_study?.trim()) needed.push("Field of Study");
