@@ -12,7 +12,9 @@ test. It costs real model calls (about 25) and writes nothing to any database.
 Each case plays a student who answers WorkIt's questions with prepared lines,
 one per turn, through the same `intake.turn` the route calls. A case passes
 when every reply came back in the entry schema, intake asked at most three
-follow-ups, the draft holds the fields the case expects, and the draft states
+follow-ups, the draft holds the fields the case expects (and its title, when
+a case gives one: a line naming both a role and its club puts each in its own
+field), and the draft states
 nothing the student did not say (the truth rule: every number, and every
 word of the title and organization, appears in what the student said).
 """
@@ -43,6 +45,9 @@ class Case:
     said: list[str]
     # Fields the draft must have filled by the end.
     expect: list[str] = field(default_factory=list)
+    # The title the draft must end with, when one line also names the
+    # organization: the two belong in separate fields.
+    title: str | None = None
 
 
 CASES = [
@@ -76,6 +81,26 @@ CASES = [
         "leadership, a student who doesn't know",
         bank_section.leadership,
         ["I'm treasurer of the Robotics Club.", "I don't know.", "Skip this question.", "I don't know."],
+        ["title", "organization"],
+    ),
+    Case(
+        "project, name and course in one line",
+        bank_section.projects,
+        ["PennyWise, a budgeting app for my CSE 316 class.", "January to May 2025.", "40 classmates used it."],
+        ["title", "organization", "bullets"],
+        title="PennyWise",
+    ),
+    Case(
+        "leadership, role and club in one line",
+        bank_section.leadership,
+        ["Robotics Club, I was treasurer from Sep 2023 to May 2024.", "I ran a $5,000 budget."],
+        ["title", "organization", "start_month", "end_month"],
+        title="Treasurer",
+    ),
+    Case(
+        "experience, summer with no month",
+        bank_section.experience,
+        ["I was a research assistant in Professor Smith's AI lab at Stony Brook, summer 2024."],
         ["title", "organization"],
     ),
     Case(
@@ -133,6 +158,8 @@ async def run_case(case: Case, llm: LLM, verbose: bool) -> list[str]:
     missing = [f for f in case.expect if getattr(draft, f) in (None, "", [])]
     if missing:
         failures.append(f"missing {', '.join(missing)}")
+    if case.title and draft.title.lower() != case.title.lower():
+        failures.append(f"title {draft.title!r}, not {case.title!r}")
     invented = _invented(draft, " ".join(case.said))
     if invented:
         failures.append(f"not said by the student: {', '.join(invented)}")

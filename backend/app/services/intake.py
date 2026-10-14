@@ -70,6 +70,15 @@ title, organization, date, number, tool or result. Leave a field empty \
 (null, or "" for the title) when they have not said it. You may reword what \
 they said into resume style, but not add to it.
 
+One answer often holds several facts: put each in its own field, using what \
+title and organization hold in this section (given below). "Treasurer of the \
+Robotics Club" is title "Treasurer" and organization "Robotics Club". \
+"PennyWise, a budgeting app for my CSE 316 class" is title "PennyWise", \
+organization "CSE 316" and a bullet about the budgeting app. "I was a research \
+assistant in Professor Lee's lab" is title "Research Assistant" and \
+organization "Professor Lee's lab". A title is a name or a role, never a whole \
+sentence, and a role said in lowercase or in passing is still the title.
+
 Fields:
 - Months are "YYYY-MM". end_kind is "month" (ended), "present" (still going, \
 no end_month) or "expected" (an expected end, such as graduation).
@@ -84,7 +93,9 @@ for privacy. Never put it in the draft.
 Questions: ask only about facts that are missing and that a resume needs, the \
 most important first: the title, then the organization, then the dates, then \
 what they did and its result. Ask for a date in plain words ("What month and \
-year?"), never in a format like YYYY-MM. Never ask for something already in the \
+year?"), never in a format like YYYY-MM. Fill the draft from everything the \
+student has said before you ask: a fact said in passing ("a research assistant \
+in the AI lab") is said, so never ask for it again. Never ask for something already in the \
 draft. If the student says they don't know or want to skip, accept it and move on. When \
 no questions are left, say the entry looks ready to save and set done to true.
 """

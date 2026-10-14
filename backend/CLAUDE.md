@@ -287,6 +287,11 @@ Find files with a directory listing; these are the rules for where code goes.
   value; each turn's context says what `title` and `organization` hold in
   the section (`FIELD_MEANINGS`, matching the card's labels), because
   without it a live model put the university in Education's organization.
+  The prompt also says one answer can fill several fields, with examples:
+  gpt-oss-120b put all of "PennyWise, a budgeting app for my CSE 316 class"
+  in the title, and asked a student who had said "I was a research
+  assistant in Professor Smith's AI lab" for their title and organization.
+  The test set's `title=` cases check the split.
   The context also lists the facts the section needs (`_NEEDS`) that the
   card has ("never ask about these") and lacks ("ask about these").
   Education's include the GPA, so a school imported without one gets asked
