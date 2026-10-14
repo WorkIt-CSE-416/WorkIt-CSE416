@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { BankEntry } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { entryDetails, formatDates, sectionOf, type EntryDraft } from "./sections";
+import { entryDetails, formatDates, neededFacts, sectionOf, type EntryDraft } from "./sections";
 
 /**
  * Intake's draft as Scout's panel shows it (KAN-202): a read-only preview,
@@ -20,13 +20,12 @@ import { entryDetails, formatDates, sectionOf, type EntryDraft } from "./section
  * context block chat guides recommend: what WorkIt has understood so far,
  * in plain view. Each line is keyed by its text, so a line WorkIt fills in
  * or changes fades in, and the student sees the answer land. "Still needed"
- * names the facts a resume line wants that the draft lacks yet.
+ * names the facts a resume line wants that the draft lacks yet
+ * (`neededFacts`), never an optional field.
  *
  * Folded, it is its header alone: the title, the section and the state dot.
  */
 
-/** Sections whose bullets carry the entry on a resume. */
-const NEEDS_BULLETS = new Set(["experience", "projects", "leadership"]);
 const SHOWN_BULLETS = 2;
 
 export function DraftPreview({
@@ -56,12 +55,7 @@ export function DraftPreview({
   const dates = formatDates(draft);
   const place = [draft.organization, draft.location].filter(Boolean).join(" · ");
   const bullets = draft.bullets.map((b) => b.text.trim()).filter(Boolean);
-  const needed = [
-    !draft.title && meta.title,
-    !draft.organization && meta.organization,
-    !dates && "Dates",
-    NEEDS_BULLETS.has(draft.section) && bullets.length === 0 && "Bullets",
-  ].filter((n): n is string => Boolean(n));
+  const needed = neededFacts(draft);
 
   return (
     <section
@@ -116,8 +110,13 @@ export function DraftPreview({
 
       {!folded && (
         <div className="border-border-subtle flex flex-col gap-2.5 border-t px-3.5 pt-2.5 pb-3">
+          {/* Before WorkIt has a title, the chat's question is the next step,
+              so the preview says only that the entry fills in from it. */}
+          {!draft.title && (
+            <p className="text-note text-ink-meta">Answer in the chat, and this entry fills in.</p>
+          )}
           {/* The entry as the bank lists it. */}
-          <div className="min-w-0">
+          <div className="min-w-0 empty:hidden">
             {(place || dates) && (
               <p
                 key={`${place}|${dates}`}
@@ -135,8 +134,9 @@ export function DraftPreview({
             {bullets.length > 0 && (
               <ul className="text-note text-ink-muted mt-1 flex list-disc flex-col gap-0.5 pl-4">
                 {bullets.slice(0, SHOWN_BULLETS).map((text) => (
-                  <li key={text} className="animate-fade truncate">
-                    {text}
+                  // The text clips, not the <li>: clipping the <li> hides its marker.
+                  <li key={text} className="animate-fade">
+                    <span className="block truncate">{text}</span>
                   </li>
                 ))}
                 {bullets.length > SHOWN_BULLETS && (
@@ -148,7 +148,7 @@ export function DraftPreview({
             )}
           </div>
 
-          {needed.length > 0 && (
+          {draft.title && needed.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-meta text-ink-meta">Still needed:</span>
               {needed.map((n) => (

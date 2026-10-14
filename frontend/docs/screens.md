@@ -386,7 +386,13 @@ and widens to 448px (460px of room with its gap). Three bands, top to
 bottom: the step bar and a read-only preview of the draft
 (`draft-preview.tsx`); the chat; the composer. The preview shows the entry
 as the bank lists it, fading each line in as WorkIt fills it, with "Still
-needed" chips, Edit and Save Entry; it folds to its header. Edit opens the
+needed" chips, Edit and Save Entry; it folds to its header. The chips are
+`sections.ts`'s `neededFacts`: only what intake asks about (dates, a job's
+or role's organization, a school's degree and field, bullets) and the
+title. An optional field such as a school's college never shows; an early
+version listed every empty field and asked for "College or Department".
+Before the draft has a title the chips stay hidden, since the chat's
+question is the next step. Edit opens the
 full form over the panel, with Back to Chat (Escape goes back too). The
 upload offer is WorkIt's second line with Upload Resume and Use One I
 Uploaded, not a strip. The import review opens in the chat's place. A save

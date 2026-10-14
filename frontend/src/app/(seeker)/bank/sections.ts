@@ -171,3 +171,28 @@ export function gapQuestions(entry: BankEntry): string[] {
   }
   return questions;
 }
+
+/**
+ * What intake's draft preview lists under "Still needed": the field's own
+ * label for each fact a resume line wants that the draft lacks. The same
+ * facts intake asks about (`missingFacts`, `gapQuestions`), plus the title,
+ * which Save needs. Optional fields (a school's college, a location, a link,
+ * a GPA) never show.
+ */
+export function neededFacts(entry: EntryFields & { bullets: readonly { text: string }[] }) {
+  const meta = sectionOf(entry.section);
+  const needed: string[] = [];
+  if (!entry.title.trim()) needed.push(meta.title);
+  if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
+    needed.push(meta.organization);
+  }
+  if (!formatDates(entry)) needed.push(entry.section === "awards" ? "Date" : "Dates");
+  if (entry.section === "education") {
+    if (!entry.degree?.trim()) needed.push("Degree");
+    if (!entry.field_of_study?.trim()) needed.push("Field of Study");
+  }
+  if (NEEDS_BULLETS.has(entry.section) && !entry.bullets.some((b) => b.text.trim())) {
+    needed.push("Bullets");
+  }
+  return needed;
+}
