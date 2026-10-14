@@ -291,6 +291,15 @@ async def test_a_project_is_complete_without_dates(applicant, client):
     assert "ready to save" in text_line["delta"]
 
 
+async def test_a_complete_card_asks_for_no_other_field(applicant, client):
+    undated = {"section": "projects", "title": "LineBot", "bullets": ["Ran a 10 m track in 14 s."]}
+    model = use_model([reply(draft=undated)])
+    await client.post("/intake/turn", json={**TURN, "draft": undated})
+    system, context = model.prompts[0][0]["content"], model.prompts[0][1]["content"]
+    assert "Ask for no other field" in context
+    assert "never ask for it" in system
+
+
 async def test_an_award_needs_only_its_name(applicant, client):
     award = {"section": "awards", "title": "Dean's List"}
     model = use_model([reply("When did you win it?", draft=award)])

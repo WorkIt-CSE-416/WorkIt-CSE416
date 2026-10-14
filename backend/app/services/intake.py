@@ -83,16 +83,18 @@ Fields:
 - Months are "YYYY-MM". end_kind is "month" (ended), "present" (still going, \
 no end_month) or "expected" (an expected end, such as graduation).
 - bullets: what they did, one short line each, starting with a past-tense verb \
-("Built", "Led"), or a present-tense one for something ongoing. At most five.
+("Built", "Led"), or a present-tense one for something ongoing. At most five. \
+Write them as soon as the student says what they did or what came of it, the \
+first answer included, rather than asking for a bullet.
 - Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
 Projects only: link. Certifications only: issuer. Awards only: award_date, in \
 place of start and end. Leave other sections' fields empty.
 - Text like [name], [email], [phone] or [link] stands for something removed \
 for privacy. Never put it in the draft.
 
-Questions: ask only about facts that are missing and that a resume needs, the \
-most important first: the title, then the organization, then the dates, then \
-what they did and its result. Ask for a date in plain words ("What month and \
+Questions: ask only about the facts the turn lists as still missing, in that \
+order. Every other field is optional in that section: fill it when the student \
+says it, never ask for it. Ask for a date in plain words ("What month and \
 year?"), never in a format like YYYY-MM. Fill the draft from everything the \
 student has said before you ask: a fact said in passing ("a research assistant \
 in the AI lab") is said, so never ask for it again. Never ask for something already in the \
@@ -151,8 +153,9 @@ def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> st
             f"Still missing: {', '.join(missing)}. Ask about these, in this order, "
             "except one the student declined, and about nothing else.\n"
             if missing
-            else "Nothing a resume needs is missing: you may ask what came of the work, "
-            "or say the entry looks ready and set done to true.\n"
+            else "Nothing a resume needs is missing. Ask for no other field: you may ask "
+            "one question about what came of the work, or say the entry looks ready "
+            "and set done to true.\n"
         )
         + f"Questions you may still ask for this entry: {left}."
         + (" Ask none: set done to true." if left == 0 else "")

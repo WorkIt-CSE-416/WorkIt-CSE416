@@ -300,7 +300,12 @@ Find files with a directory listing; these are the rules for where code goes.
   and end or "current", so "dates" means a start and an end or "present".
   No hiring system asks for a project's, club role's or award's dates, so
   intake does not; `frontend/src/app/(seeker)/bank/sections.ts` keeps the
-  same list for the bank's warnings and visits. Education's include the GPA, so a school imported without one gets asked
+  same list for the bank's warnings and visits. The system prompt asks only
+  the listed facts ("every other field is optional, never ask for it"):
+  it used to order every section's questions as title, organization, dates,
+  so a live model asked a finished project for its team. It also writes
+  bullets from the first answer that says what the student did, rather
+  than asking for one. Education's include the GPA, so a school imported without one gets asked
   for it. The GPA is optional (`_OPTIONAL`): a card without one still counts
   as complete, so after the student declines it the `READY` guard below
   ends the visit instead of asking again. Two code

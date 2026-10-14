@@ -66,7 +66,20 @@ CASES = [
             "From January to May 2025.",
             "React and Firebase. I added charts of spending by category and 40 classmates used it.",
         ],
-        ["title", "organization", "start_month", "bullets"],
+        # A project's dates are not asked for (no application form takes
+        # them); said here, they still land in the draft if intake is still
+        # listening, but the case does not count on it.
+        ["title", "organization", "bullets"],
+    ),
+    Case(
+        "project, one answer is enough",
+        bank_section.projects,
+        [
+            "I built a line-following robot called LineBot in C++ on an Arduino. "
+            "It used PID control and finished a 10 meter track in 14 seconds.",
+        ],
+        ["title", "bullets"],
+        title="LineBot",
     ),
     Case(
         "experience, ongoing job",
