@@ -1,5 +1,6 @@
 import { Ban, CloudOff } from "lucide-react";
 
+import { AutofillBadge } from "@/components/autofill-badge";
 import { ExternalLinkIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { SaveButton } from "@/components/save-button";
@@ -97,6 +98,8 @@ export function ListingCard({ job }: { job: JobListing }) {
               a screen reader hears it. On a card under 384px (a phone) the
               glyph steps out: its 22px pushed Apply Now onto a line of its
               own, and the spoken hint still stands. */}
+          <AutofillBadge />
+
           <ButtonLink href={job.apply_url} target="_blank" rel="noopener noreferrer" size="sm">
             Apply Now
             <ExternalLinkIcon className="size-3.5 @max-sm:hidden" />
