@@ -358,3 +358,11 @@ async def test_a_null_list_or_blank_text_in_the_reply_is_empty(applicant, client
     res = await client.post("/intake/turn", json=TURN)
     draft = lines(res)[1]["draft"]
     assert (draft["coursework"], draft["bullets"], draft["organization"]) == ([], [], None)
+
+
+async def test_an_end_kind_with_no_end_month_is_dropped(applicant, client):
+    # "Summer 2024": a live model sent end_kind "month" with no end_month.
+    use_model([reply(draft={**DRAFT, "start_month": "2024-06", "end_month": None, "end_kind": "month"})])
+    res = await client.post("/intake/turn", json=TURN)
+    draft = lines(res)[1]["draft"]
+    assert (draft["start_month"], draft["end_month"], draft["end_kind"]) == ("2024-06", None, None)

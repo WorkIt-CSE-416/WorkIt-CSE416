@@ -56,6 +56,20 @@ class IntakeDraft(EntryCreate):
         # and a live model sends "" where the schema wants null.
         return None if isinstance(value, str) and not value.strip() else value
 
+    @model_validator(mode="before")
+    @classmethod
+    def _no_end_month_no_end(cls, value: object) -> object:
+        # "Summer 2024": a live model sent end_kind "month" with no end_month,
+        # which the entry's end rule rejects. The end is a fact the student
+        # has not given yet, not a reason to throw the whole turn away.
+        if (
+            isinstance(value, dict)
+            and value.get("end_kind") in ("month", "expected")
+            and not value.get("end_month")
+        ):
+            return {**value, "end_kind": None}
+        return value
+
 
 class IntakeTurnRequest(BaseModel):
     """One turn: the section being filled, this entry's chat so far (the

@@ -299,6 +299,8 @@ Find files with a directory listing; these are the rules for where code goes.
   a blank text field as `null` (`IntakeDraft`'s validators): Groq's
   gpt-oss-120b sent `"coursework": null` and `"organization": ""` on most
   leadership turns, and each failed the whole turn as "the wrong shape".
+  For the same reason an `end_kind` of `month` or `expected` with no
+  `end_month` becomes no end: "summer 2024" got exactly that.
   **A line that names a bank entry fills the card from it** (`bank_match`,
   `_from_bank`): the route loads the student's bank, and when the latest
   line holds a telling word of an Experience, Projects or Leadership
