@@ -302,7 +302,7 @@ function DraftView({
   const dates = formatDates(row);
   const place = [row.organization, row.location].filter(Boolean).join(" · ");
   return (
-    <div>
+    <div className="@container">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -314,6 +314,8 @@ function DraftView({
             )}
           </div>
           <p className="text-body text-ink font-medium break-words">{row.title}</p>
+          {/* Under the title in a phone-wide panel, as on the bank page. */}
+          {dates && <p className="text-note text-ink-meta @sm:hidden">{dates}</p>}
           {place && <p className="text-note text-ink-muted break-words">{place}</p>}
           {entryDetails(row).map((line) => (
             <p key={line} className="text-note text-ink-meta break-words">
@@ -321,7 +323,9 @@ function DraftView({
             </p>
           ))}
         </div>
-        {dates && <span className="text-note text-ink-meta shrink-0">{dates}</span>}
+        {dates && (
+          <span className="text-note text-ink-meta hidden shrink-0 @sm:inline">{dates}</span>
+        )}
       </div>
 
       {row.bullets.length > 0 && (

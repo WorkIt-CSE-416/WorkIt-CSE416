@@ -420,6 +420,9 @@ in Docs (suggested answers in the chat, not a banner).
 - **An entry's dates sit under its title below `@xl/main`**, beside the
   edit and delete buttons above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
+  An import draft does the same below `@sm` of its own width (each draft is
+  a container, since Scout's panel is not), and a resume row's buttons wrap:
+  held on one line, they ran past the card's edge.
 - **An entry warns what a resume would miss** (`sections.ts`'s
   `missingFacts`, story 17): for Education and Experience no start and end
   (or "present"), and for Experience and Leadership no organization. A

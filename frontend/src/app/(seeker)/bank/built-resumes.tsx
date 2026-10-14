@@ -171,7 +171,9 @@ function ResumeRow({
           {/* Story 90: the resume still opens and downloads; only Tailor needs a live posting. */}
           {resume.posting_closed && <Badge tone="inert">Posting closed</Badge>}
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        {/* Wraps: four buttons and a star held on one line ran past the
+            card's edge on a phone. */}
+        <div className="flex flex-wrap items-center gap-3">
           <ButtonLink
             variant="secondary"
             size="sm"
