@@ -69,6 +69,9 @@ in `app_metadata`) and the profile row with the same id.
   connection string stay in `backend/`. A secret added to `frontend/` is one
   typo away from a `NEXT_PUBLIC_` prefix and the client bundle.
 
+To test a page behind sign-in, use the shared test account and its rules in
+`frontend/CLAUDE.md`, "Auth and the API"; never create one.
+
 Before touching sign-in on either half, read `backend/CLAUDE.md`'s Auth
 section (the flow and its rules) and, for the Next side, `frontend/CLAUDE.md`'s
 "Auth and the API".
@@ -152,13 +155,14 @@ with the failure it prevents.
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`, one
   ticket per worktree. `npm run worktree -- KAN-13-testing` creates
   `../WorkIt-CSE416-KAN-13` from a fresh `origin/main` and copies the env files
-  from the primary checkout (`frontend/scripts/new-worktree.mjs`). A worktree
-  missing `.env` gets them with `npm run worktree -- --env-only`.
-- Superset workspaces run `.superset/setup.sh` on creation: copy the env
-  files, then `npm ci` in `frontend/` and `uv sync` in `backend/`. Setup
-  starts no processes. Env files come from `$SUPERSET_ROOT_PATH`; any it
-  lacks come from the git primary checkout (`--env-only`), because
-  `$SUPERSET_ROOT_PATH` can be a checkout with no `.env`.
+  and the sample resumes (`frontend/CLAUDE.md`) from the primary checkout
+  (`frontend/scripts/new-worktree.mjs`). A worktree missing them gets them
+  with `npm run worktree -- --env-only`.
+- Superset workspaces run `.superset/setup.sh` on creation: that same
+  `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`.
+  Setup starts no processes. Env files that `$SUPERSET_ROOT_PATH` has
+  replace the copied ones; it can be a checkout with no `.env`, so the
+  primary-checkout copy always runs first.
 - The Run button (`.superset/run.sh`) starts the API and the app on the first
   free ports from :8000 and :3000 and prints both, so parallel workspaces never
   collide; it sets the app's `API_URL` to its own API's port. It records its
