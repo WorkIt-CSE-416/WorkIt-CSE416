@@ -282,3 +282,10 @@ async def test_intake_stops_asking_once_the_resume_has_what_it_needs(applicant, 
     text_line, draft_line, _ = lines(res)
     assert draft_line["done"] is True
     assert "ready to save" in text_line["delta"]
+
+
+async def test_a_null_list_or_blank_text_in_the_reply_is_empty(applicant, client):
+    use_model([reply(draft={**DRAFT, "coursework": None, "bullets": None, "organization": ""})])
+    res = await client.post("/intake/turn", json=TURN)
+    draft = lines(res)[1]["draft"]
+    assert (draft["coursework"], draft["bullets"], draft["organization"]) == ([], [], None)

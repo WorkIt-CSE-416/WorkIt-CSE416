@@ -295,7 +295,10 @@ Find files with a directory listing; these are the rules for where code goes.
   visit to an imported entry cannot erase it; and when the card had every
   needed fact before the turn and still has them, the reply becomes the
   fixed `READY` line with `done`, so the model gets one turn to ask what
-  came of the work and no more.
+  came of the work and no more. The draft reads a `null` list as empty and
+  a blank text field as `null` (`IntakeDraft`'s validators): Groq's
+  gpt-oss-120b sent `"coursework": null` and `"organization": ""` on most
+  leadership turns, and each failed the whole turn as "the wrong shape".
   **The reply is NDJSON like Scout's, but not streamed token by
   token, on purpose**: the draft is one JSON object that must pass the
   schema and the section check, and a fourth question is swapped for the

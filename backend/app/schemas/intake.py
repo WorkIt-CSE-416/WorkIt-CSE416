@@ -15,6 +15,7 @@ from pydantic import (
     Field,
     StringConstraints,
     WithJsonSchema,
+    field_validator,
     model_validator,
 )
 from workit_scout.schemas import MAX_MESSAGES, ChatMessage
@@ -36,6 +37,24 @@ class IntakeDraft(EntryCreate):
     award_date: DraftMonth | None = None
     gpa: float | None = Field(None, gt=0, le=100)
     gpa_scale: float | None = Field(None, gt=0, le=100)
+
+    @field_validator("coursework", "bullets", mode="before")
+    @classmethod
+    def _null_is_empty(cls, value: object) -> object:
+        # A live model sends null for a list it has nothing for, most often
+        # Education's coursework in another section; that is an empty list,
+        # not a reason to throw the whole turn away.
+        return [] if value is None else value
+
+    @field_validator(
+        "organization", "location", "degree", "field_of_study", "honors", "link", "issuer",
+        mode="before",
+    )
+    @classmethod
+    def _blank_is_none(cls, value: object) -> object:
+        # The same for a blank text field: the prompt says to leave it empty,
+        # and a live model sends "" where the schema wants null.
+        return None if isinstance(value, str) and not value.strip() else value
 
 
 class IntakeTurnRequest(BaseModel):
