@@ -4,6 +4,7 @@ Environment configuration, imported by other files and migration
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -65,6 +66,10 @@ class Settings(BaseSettings):
     supabase_service_key: str | None = None
 
     gemini_api_key: str | None = None
+    embedding_provider: Literal["gemini", "ollama"] = "ollama"
+    ollama_embedding_url: str = "http://localhost:11434"
+    ollama_embedding_model: str = Field(default="nomic-embed-text:v1.5", min_length=1)
+    embedding_timeout_seconds: float = Field(default=120, gt=0)
 
     # AI usage limits (app/services/usage.py). A use counts only when the
     # model call succeeds. Each feature has a cap per student per UTC day and

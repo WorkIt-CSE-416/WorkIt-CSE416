@@ -612,6 +612,13 @@ why. Rules that a change here must keep:
   `NOT_ROLES`, claim the same phrase after word forms.
 - **Precision over recall.** A title that names no role gets no tag; it is
   still found by keyword. Never add a catch-all alias to raise coverage.
+- **Search reads the title as well as the tag.** The longest alias takes a
+  title's words, so "Embedded Software Engineer" is `embedded_engineer`
+  alone. `read_query` returns the phrases that named each role (`said`), and
+  `GET /jobs?q=` keeps a job tagged with the role *or* whose title says them
+  (`title_pattern`: whole words, in order, in their `WORD_FORMS` spellings).
+  The tag stays exact; only search widens. Never make that match stemmed:
+  the `english` stemmer makes "developer" "development" again.
 - **Typos are corrected in queries, never in titles.** `read_query` snaps a
   word of `FUZZY_MIN_LENGTH` (5) letters or more that no alias holds to the
   nearest one that does (`difflib`, cutoff `FUZZY_CUTOFF` 0.8): "sofware
@@ -675,7 +682,7 @@ produces no trigram and scans anyway. `title` had one too, dropped in
 searching company-posted jobs by employer needs a join or a copied name.
 
 **Job matching adds three columns (KAN-139):**
-- **`job_postings.embedding` and `resumes.embedding`** hold Gemini vectors,
+- **`job_postings.embedding` and `resumes.embedding`** hold embedding vectors,
   `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
   **`resumes.embedding` is no longer mapped** (KAN-212 moved the embedding to
   `experience_banks`): the column stays in the database until a contract

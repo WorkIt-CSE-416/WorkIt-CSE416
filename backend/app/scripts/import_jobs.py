@@ -41,6 +41,7 @@ Company-posted jobs (company_id set) are never read or written here.
 import argparse
 import asyncio
 import datetime
+import logging
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -54,6 +55,7 @@ from sqlalchemy import (
     and_,
     any_,
     case,
+    column,
     delete,
     func,
     literal,
@@ -62,6 +64,7 @@ from sqlalchemy import (
     select,
     tuple_,
     update,
+    values,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -74,6 +77,9 @@ from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
 from app.services.location_resolver import LocationResolver, Place, Resolution
+from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
+
+logger = logging.getLogger(__name__)
 from app.services.role_resolver import RoleResolver
 
 _FEED = TypeAdapter(list[JobListing])
@@ -127,6 +133,7 @@ class Report:
     updated: int = 0
     unchanged: int = 0
     closed: int = 0
+    embedded: int = 0
     locations_changed: int = 0
     roles_changed: int = 0
     duplicates: int = 0
@@ -251,6 +258,8 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
                     col: case((description_changed, None), else_=_jobs.c[col])
                     for col in ("keywords", "keywords_hash")
                 },
+                # A changed job's old vector is stale; re-embedded after commit.
+                "embedding": None,
                 "updated_at": func.now(),
             },
             # Never touch a company's job, and leave an unchanged one alone.
@@ -419,9 +428,57 @@ async def import_feed(
     return report
 
 
+async def _embed_jobs(conn: AsyncConnection, *, limit: int | None = None) -> int:
+    '''
+    embed scraped jobs with missing vectors, optionally capped.
+    Requires a connection with no active transaction. Each bounded batch owns
+    its transaction so a provider failure keeps previously committed batches.
+    '''
+    count = 0
+    attempted = 0
+    while limit is None or attempted < limit:
+        batch_size = BATCH_SIZE if limit is None else min(BATCH_SIZE, limit - attempted)
+        async with conn.begin():
+            batch = (await conn.execute(
+                select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
+                .where(_jobs.c.company_id.is_(None), _jobs.c.embedding.is_(None))
+                .order_by(_jobs.c.id)
+                .limit(batch_size)
+            )).all()
+            if not batch:
+                break
+            texts = [job_text(row.title, row.description) for row in batch]
+            attempted += len(batch)
+            vectors = await embed(texts)
+            if vectors is None:
+                break  # Provider unavailable; next scheduled run picks up the rest
+            if len(vectors) != len(batch):
+                logger.warning("Embedding provider returned %d vectors for %d texts", len(vectors), len(batch))
+                break
+            embedded = values(
+                column("id", _jobs.c.id.type),
+                column("embedding", _jobs.c.embedding.type),
+                name="embedded",
+            ).data([(row.id, vector) for row, vector in zip(batch, vectors, strict=True)])
+            result = await conn.execute(
+                update(_jobs).where(_jobs.c.id == embedded.c.id)
+                # VALUES infers text for pgvector's serialized bind values.
+                # Qualify the cast: local Postgres lacks Supabase's search_path.
+                .values(
+                    embedding=literal_column("embedded.embedding::extensions.vector"),
+                )
+                .returning(_jobs.c.id)
+            )
+            written = len(result.all())
+        count += written
+        # Committed vectors leave the NULL result set; no OFFSET can skip jobs.
+    return count
+
+
 def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"{'DRY RUN, rolled back — ' if dry_run else ''}{report.feed_rows} rows in the feed")
     print(f"  inserted {report.inserted}, updated {report.updated}, unchanged {report.unchanged}")
+    print(f"  embedded {report.embedded}")
     print(f"  closed (no longer in the feed) {report.closed}")
     print(f"  jobs whose locations changed {report.locations_changed}")
     print(f"  jobs whose job_role_tags changed {report.roles_changed}")
@@ -436,7 +493,9 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
         print(f"    {title!r}" + (f"  ({jobs} jobs)" if jobs > 1 else ""))
 
 
-async def _run(path: Path, *, dry_run: bool, allow_mass_close: bool) -> Report:
+async def _run(
+    path: Path, *, dry_run: bool, allow_mass_close: bool, embed_limit: int | None = None
+) -> Report:
     listings = _FEED.validate_json(path.read_bytes())
     engine = get_engine()
     try:
@@ -451,6 +510,10 @@ async def _run(path: Path, *, dry_run: bool, allow_mass_close: bool) -> Report:
                 await trans.rollback()
             else:
                 await trans.commit()
+                try:
+                    report.embedded = await _embed_jobs(conn, limit=embed_limit)
+                except Exception:
+                    logger.warning("Embedding failed after import committed", exc_info=True)
             return report
     finally:
         await engine.dispose()
@@ -461,11 +524,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("feed", nargs="?", type=Path, help="feed.json to import (default: the one GET /jobs reads)")
     parser.add_argument("--dry-run", action="store_true", help="run every step, then roll back")
     parser.add_argument("--allow-mass-close", action="store_true", help="close however many jobs left the feed")
+    parser.add_argument("--embed-limit", type=int, help="embed at most this many jobs; still import the full feed")
     args = parser.parse_args(argv)
+    if args.embed_limit is not None and args.embed_limit < 1:
+        parser.error("--embed-limit must be a positive integer")
 
     path = args.feed or get_settings().scraper_feed
     try:
-        report = asyncio.run(_run(path, dry_run=args.dry_run, allow_mass_close=args.allow_mass_close))
+        report = asyncio.run(_run(
+            path, dry_run=args.dry_run, allow_mass_close=args.allow_mass_close,
+            embed_limit=args.embed_limit,
+        ))
     except FileNotFoundError:
         print(f"No feed at {path}. Run `python3 -m workit_scraper` in scraper/ first.", file=sys.stderr)
         return 1

@@ -20,7 +20,7 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 
 | Component | How | Status |
 |---|---|---|
-| Semantic similarity | Gemini embeddings of the posting and of the experience bank, compared in Postgres (`1 - (job.embedding <=> bank.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Semantic similarity | Nomic embeddings (Gemini in production) of the posting and of the experience bank, compared in Postgres (`1 - (job.embedding <=> bank.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
 | Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `routers/jobs.py` |
 | Title fit | Word overlap between the job title and the bank's Experience titles and first field of study, stop words removed | Built — `scoring.py` `title_fit()` |
 | Eligibility | Years of experience check; a multiplier (1.0 / 0.5 / 0.0) | Built — `scoring.py` `eligibility()` |
@@ -38,28 +38,33 @@ Nothing in this folder may assume what a software job is. Two consequences:
 
 - **One model, everywhere.** Laptops, the deployed API and the scheduled import
   all write into the same database, and vectors from two models can't be
-  compared. So `MODEL` (`gemini-embedding-001`) and the size
-  (`dto.EMBEDDING_DIMENSIONS`, 768) are constants, never settings, and there is
-  no Ollama option for embeddings, even on a laptop.
+  compared. Use Ollama's `nomic-embed-text:v1.5` at
+  `dto.EMBEDDING_DIMENSIONS` (768) for every job and bank vector.
 - **Changing either one changes the database too.**
   - A new size needs a migration changing both columns' type (`ALTER COLUMN
     embedding TYPE extensions.vector(N) USING NULL`).
-  - A new model at the same size needs a migration setting both columns to NULL.
+  - A new model at the same size requires clearing both columns before vectors
+    from the new model are written; there is no model-provenance column.
   - A wrong size fails loudly: Postgres refuses the vector. A new model next to
     old vectors fails **silently**: the scores are wrong and nothing errors.
   - After either, the import re-embeds every job, and the migration also
     sets every `experience_banks.embedding` to NULL, so each bank is
     re-embedded on its next recommendations request.
-- **Gemini's native REST API (`batchEmbedContents`), called through httpx.** The
-  OpenAI-compatible endpoint documents neither the vector size nor batching.
-  This also keeps `workit_scout/llm.py` the only module that imports `openai`.
-  The key travels in the `x-goog-api-key` header, so it never shows up in a
-  logged URL.
+- **Two providers, picked by `EMBEDDING_PROVIDER`, each called through
+  httpx.** `ollama` (the default) calls Ollama's native `/api/embed`, at
+  `http://localhost:11434` unless `OLLAMA_EMBEDDING_URL` says otherwise;
+  install the model with `ollama pull nomic-embed-text:v1.5`. `gemini` calls
+  Gemini's native REST API (`batchEmbedContents`): the OpenAI-compatible
+  endpoint documents neither the vector size nor batching. This keeps
+  `workit_scout/llm.py` the only module that imports `openai`. Gemini's key
+  travels in the `x-goog-api-key` header, so it never shows up in a logged
+  URL. Every writer to one database must use the same provider and model.
 - **`embed()` takes at most `BATCH_SIZE` (100) texts and never raises on a
-  provider failure.** No key, a refusal (429 is the free tier's quota) or an
-  unreachable Gemini all return `None`. The caller stores nothing and tries
-  again later, and a job or resume without a vector scores neutral on meaning.
-  An upload or an import must never fail because Gemini is down.
+  provider failure.** No key, a refusal (429 is Gemini's free-tier quota), an
+  unreachable provider or a malformed response all return `None`. The caller
+  stores nothing and tries again later, and a job or bank without a vector
+  scores neutral on meaning. An upload or an import must never fail because
+  the provider is down.
 - **Only the bank's text and public postings are sent**, never identity data
   (name, email, phone, address, links). That is Scout's rule
   (`../../../../scout/CLAUDE.md`), because Gemini's free tier may train on what
@@ -71,9 +76,13 @@ Nothing in this folder may assume what a software job is. Two consequences:
 ## When things are embedded
 
 - **Jobs: ahead of time, by the import.** Each scheduled run embeds only the
-  new or changed postings, never inside a user's request. Embedding on request
-  would make the first person after each import wait for hundreds of vectors,
-  and two people arriving together would both pay for them. *(Not written yet.)*
+  new or changed postings (embedding IS NULL), never inside a user's request.
+  Embedding on request would make the first person after each import wait
+  for hundreds of vectors. Embedding runs **after** the import transaction
+  commits, so the upsert stays fast and a dry-run never calls the provider. A
+  changed job's embedding is cleared in the upsert's `set_` dict, so it gets
+  a fresh vector. Each batch of 100 is committed independently; if the
+  provider goes down mid-run, the next scheduled run picks up the rest.
 - **Banks: on demand.** `GET /jobs/recommended/{applicant_id}` embeds the
   bank when `experience_banks.embedding` is NULL, and stores it with
   `embedded_at`. Every entry, bullet or skill change sets it back to NULL
@@ -115,10 +124,9 @@ code that maps them is deployed.
 
 ## Configuration
 
-`GEMINI_API_KEY`, read as `Settings.gemini_api_key`. Unset, nothing is embedded
-and matching runs without its semantic part, the same way the app runs without
-`.env`. A value copied from `.env.example` is not a key: every call then answers
-`API_KEY_INVALID`, which `embed()` logs and treats as `None`.
+Ollama is expected at `OLLAMA_EMBEDDING_URL` with `nomic-embed-text:v1.5`
+installed. If Ollama is unavailable, embedding returns no vector and the import
+or recommendation request can retry later.
 
 ## Scoring — `scoring.py`
 
@@ -139,12 +147,6 @@ strong semantic fit (positive), then years mismatch and start term mismatch
 - **Applying the migration that creates the columns.** It's `4485d7a7a712`,
   and it goes on the shared database right after its PR merges, before the
   deployment is live (`../../models/CLAUDE.md` says why).
-- **The import's embedding step** — embedding jobs during import, so
-  `GET /jobs/recommended` has vectors to compare against. Without it, jobs
-  score 0 on the semantic component.
-- **Unchecked against the live API:** whether Gemini still accepts `taskType`
-  and `outputDimensionality` at the top level of each request. Google's
-  reference marks them deprecated in favour of `embedContentConfig`.
 - **Scoring weights and the freshness boost** are guesses until there is real
   data to tune them on.
 - **Grad date vs start term** is not compared yet. The bank's expected

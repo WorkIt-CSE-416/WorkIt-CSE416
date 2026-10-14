@@ -17,7 +17,7 @@ class Resume(BaseModel):
     storage_path: Mapped[str | None]
     status: Mapped[ResumeStatus] = mapped_column(server_default="uploaded")
     raw_text: Mapped[str | None]
-    # storing the ParsedResume objects 
+    # storing the ParsedResume objects
     parsed_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # resumes.embedding still exists in the database but is no longer mapped:
     # the embedding moved to experience_banks (KAN-212). Its drop is the
