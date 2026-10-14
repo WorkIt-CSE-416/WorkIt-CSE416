@@ -120,6 +120,10 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   (~44 MB). On a Mac it uses `brew install tectonic` from PATH and
   warms the same cache. Run `python3 scripts/fetch_tectonic.py` from
   `backend/` once; `--check` compiles offline from the cache.
+- **Warming gets 10 minutes, a render 60 s** (`WARM_TIMEOUT_SECONDS`,
+  `COMPILE_TIMEOUT_SECONDS`). The online compile downloads every package,
+  and under the render's 60 s it failed CI on a cold cache; Vercel builds
+  cold every time, so the same limit could fail a production deploy.
 - **Runtime:** `compile_pdf` uses `vendor/tectonic/tectonic`, else
   `tectonic` on PATH. A read-only cache (a Vercel Function writes only under
   `/tmp`) is copied to `/tmp` once per process, and a binary that lost its

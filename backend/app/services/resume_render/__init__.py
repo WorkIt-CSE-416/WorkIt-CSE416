@@ -30,6 +30,9 @@ BODY_MARKER = "\n%%BODY%%\n"
 # package cache. Gitignored
 VENDOR = HERE.parents[2] / "vendor" / "tectonic"
 COMPILE_TIMEOUT_SECONDS = 60
+# Warming downloads every package (~40 MB) from Tectonic's bundle server, which
+# ran past 60 s on a cold CI cache; a render stays offline and short
+WARM_TIMEOUT_SECONDS = 600
 # XeTeX's warning for a glyph the font lacks, e.g. "Missing character: There
 # is no Ж (U+0416) in font [lmroman10-regular]...". Tectonic prints it on
 # stderr; the character itself can be garbled there, the code point is not.
@@ -237,7 +240,7 @@ def compile_document(tex: str, *, cache: Path | None = None, offline: bool = Tru
         try:
             result = subprocess.run(
                 command, env=_env(cache, work), capture_output=True, text=True, errors="replace",
-                timeout=COMPILE_TIMEOUT_SECONDS, check=False,
+                timeout=COMPILE_TIMEOUT_SECONDS if offline else WARM_TIMEOUT_SECONDS, check=False,
             )
         except subprocess.TimeoutExpired as exc:
             raise TectonicUnavailable("tectonic timed out") from exc
