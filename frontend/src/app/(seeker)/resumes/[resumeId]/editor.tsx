@@ -35,6 +35,7 @@ import {
   type HeaderField,
   type Line,
 } from "./model";
+import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
 import { Tray } from "./tray";
@@ -292,17 +293,29 @@ export function Editor({
       return setError(error);
     }
     setRendered(data.render);
-    setFitUndo(data.undo.bullets?.length || data.undo.entries?.length ? data.undo : null);
+    rememberFitUndo(data.undo.bullets?.length || data.undo.entries?.length ? data.undo : null);
     const fresh = await getChoices(resumeId);
     if (!current()) return;
     setSaving(false);
     if (fresh.data) setChoices(fresh.data);
   }
 
+  function rememberFitUndo(undo: ChoicesUpdate | null) {
+    setFitUndo(undo);
+    keepFitUndo(resumeId, undo);
+  }
+
+  // A Fit's Undo from before a reload comes back after mount, never in the
+  // first render, which must match the server's (it has no sessionStorage).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a one-time restore from storage
+    setFitUndo(readFitUndo(resumeId));
+  }, [resumeId]);
+
   function undoFit() {
     if (!fitUndo) return;
     void apply(fitUndo);
-    setFitUndo(null);
+    rememberFitUndo(null);
   }
 
   const box = rendered.boxes.find((b) => boxKey(b) === selected);

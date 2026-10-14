@@ -591,14 +591,18 @@ the profile (the header's fields), and shows the error state if any fails.
   and Coursework. A press on a bar button keeps focus in the field. With no
   line selected: the page-count chip ("1 page", "2 pages · 3 lines over
   1 page", from the render's `lines_over`, an estimate) and, over one page,
-  Fit to One Page, then Undo, which shows the bullets Fit hid. The bar also
+  Fit to One Page, then Undo, which shows again everything Fit hid (the
+  response's `undo` body). Undo is kept in sessionStorage per resume
+  (`fit-undo.ts`), so a reload in the same tab still offers it. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
   the Vercel preview check.
-- **Fit to One Page is the API's** (`POST .../fit`): it hides the last
-  bullet of the bottom entry of Leadership & Activities, then Projects,
-  then Experience, never an entry's first bullet, re-rendering until the
-  page fits (the KAN-195 prototype's rule; a base resume has no posting to
-  rank against).
+- **Fit to One Page is the API's** (`POST .../fit`): it cuts least useful
+  first, in steps across every section: coursework (beside Experience),
+  then bullets past a cap per entry, then the bottom entries of
+  Leadership, Awards and Certifications before Projects and Experience,
+  re-rendering until the page fits and putting back what it did not need
+  (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
+  bullet, or the top Experience and Projects entry.
 - **"Not on This Resume"** (`tray.tsx`) under the page: entries the resume
   does not show (hidden, or added to the bank after Generate), hidden
   bullets of shown entries, and hidden skills. One click puts one back; an
