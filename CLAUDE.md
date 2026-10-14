@@ -69,6 +69,9 @@ in `app_metadata`) and the profile row with the same id.
   connection string stay in `backend/`. A secret added to `frontend/` is one
   typo away from a `NEXT_PUBLIC_` prefix and the client bundle.
 
+To test a page behind sign-in, use the shared test account and its rules in
+`frontend/CLAUDE.md`, "Auth and the API"; never create one.
+
 Before touching sign-in on either half, read `backend/CLAUDE.md`'s Auth
 section (the flow and its rules) and, for the Next side, `frontend/CLAUDE.md`'s
 "Auth and the API".
@@ -152,8 +155,9 @@ with the failure it prevents.
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`, one
   ticket per worktree. `npm run worktree -- KAN-13-testing` creates
   `../WorkIt-CSE416-KAN-13` from a fresh `origin/main` and copies the env files
-  from the primary checkout (`frontend/scripts/new-worktree.mjs`). A worktree
-  missing `.env` gets them with `npm run worktree -- --env-only`.
+  and the sample resumes (`frontend/CLAUDE.md`) from the primary checkout
+  (`frontend/scripts/new-worktree.mjs`). A worktree missing them gets them
+  with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`.
   The Run button (`.superset/run.sh`) starts the API on :8000 and the app on

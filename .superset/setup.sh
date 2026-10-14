@@ -2,7 +2,8 @@
 # Superset workspace setup: env files, then both halves' dependencies.
 set -euo pipefail
 
-# Copies .env and frontend/.env.local from the primary checkout.
+# Copies .env, frontend/.env.local and the sample resumes in
+# frontend/public/resumes/ from the primary checkout.
 npm run worktree -- --env-only
 
 npm ci --prefix frontend

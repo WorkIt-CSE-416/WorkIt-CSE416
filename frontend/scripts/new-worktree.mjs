@@ -9,11 +9,15 @@
 // - Env files are copied from the primary checkout, because a new worktree
 //   has none and the app and the API fail without them. They are copies:
 //   re-run with --env-only to refresh them.
+// - The sample resumes in frontend/public/resumes/ (git-ignored: real
+//   people's resumes) are copied the same way, so an agent testing an upload
+//   in any worktree finds one there.
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
 const ENV_FILES = [".env", join("frontend", ".env.local")];
+const SAMPLE_RESUMES = join("frontend", "public", "resumes");
 
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
@@ -55,6 +59,12 @@ for (const file of ENV_FILES) {
   mkdirSync(dirname(join(target, file)), { recursive: true });
   copyFileSync(from, join(target, file));
   console.log(`copied ${file}`);
+}
+
+const resumes = join(primary, SAMPLE_RESUMES);
+if (existsSync(resumes) && resolve(resumes) !== resolve(join(target, SAMPLE_RESUMES))) {
+  cpSync(resumes, join(target, SAMPLE_RESUMES), { recursive: true });
+  console.log(`copied ${SAMPLE_RESUMES}`);
 }
 
 if (!envOnly)
