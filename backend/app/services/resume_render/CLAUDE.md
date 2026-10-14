@@ -123,7 +123,11 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **Runtime:** `compile_pdf` uses `vendor/tectonic/tectonic`, else
   `tectonic` on PATH. A read-only cache (a Vercel Function writes only under
   `/tmp`) is copied to `/tmp` once per process, and a binary that lost its
-  execute bit runs from a copy there. No binary or cache raises
+  execute bit runs from a copy there. Each copy is made under a staging name
+  and renamed into place only when finished (`_copy_once`): a Function
+  serves several renders at once on threads, and a plain "copy if missing"
+  let a second render read a half-copied cache, and a copy that died partway
+  failed every render on that instance until it recycled. No binary or cache raises
   `TectonicUnavailable`, and the endpoint answers 503. There is no fallback
   renderer.
 - **Warming also compiles `sample.fonts()`**: a word in every size, shape

@@ -307,11 +307,11 @@ def _binary() -> Path:
             return vendored
         # Vercel's bundle can drop the execute bit, and /var/task is
         # read-only, so run a copy from /tmp
-        copy = Path(tempfile.gettempdir()) / "workit-tectonic"
-        if not copy.exists():
-            shutil.copy(vendored, copy)
-            copy.chmod(0o755)
-        return copy
+        def copy(staged: Path) -> None:
+            shutil.copy(vendored, staged)
+            staged.chmod(0o755)
+
+        return _copy_once("workit-tectonic", copy)
     found = shutil.which("tectonic")
     if found is None:
         raise TectonicUnavailable("no tectonic binary: run python3 scripts/fetch_tectonic.py")
@@ -326,7 +326,29 @@ def _cache() -> Path:
         return cache
     # Tectonic writes into its cache even offline, and a Vercel Function can
     # write only under /tmp: copy it there once per process
-    copy = Path(tempfile.gettempdir()) / "workit-tectonic-cache"
-    if not copy.exists():
-        shutil.copytree(cache, copy)
-    return copy
+    return _copy_once("workit-tectonic-cache", lambda staged: shutil.copytree(cache, staged))
+
+
+def _copy_once(name: str, copy) -> Path:
+    '''/tmp/`name`, made by `copy(path)` the first time. Renders run on
+    threads, and a Function serves several at once: `copy` fills a staging
+    path and only a finished copy is renamed into place, so no render sees a
+    half-made one, and a copy that fails leaves nothing behind.'''
+    dest = Path(tempfile.gettempdir()) / name
+    if dest.exists():
+        return dest
+    staging = Path(tempfile.mkdtemp(prefix=f"{name}-", dir=dest.parent))
+    staged = staging / name
+    try:
+        copy(staged)
+        try:
+            staged.rename(dest)
+        except OSError:
+            # Another render renamed its copy first: use that one
+            if not dest.exists():
+                raise
+        return dest
+    except OSError as exc:
+        raise TectonicUnavailable(f"could not copy {name} to {dest.parent}: {exc}") from exc
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)

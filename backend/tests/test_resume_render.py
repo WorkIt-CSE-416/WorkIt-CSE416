@@ -9,13 +9,18 @@ skip when it is missing.
 import hashlib
 import io
 import os
+import shutil
+import tempfile
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from pdfminer.high_level import extract_text
 from pdfminer.pdfpage import PDFPage
 
+from app.services import resume_render
 from app.services.resume_render import (
     TEMPLATE,
     TectonicUnavailable,
@@ -287,3 +292,63 @@ def test_boxes_on_the_second_page_say_so() -> None:
     assert box.page == 2
     _, bbox = next((p, bbox) for t, p, bbox in _text_lines(rendered.pdf) if t == last.text and p == 2)
     assert _inside(bbox, box)
+
+
+@pytest.fixture
+def read_only_vendor(tmp_path, monkeypatch):
+    '''A vendored binary without its execute bit and a cache the process
+    cannot write, as in a Vercel Function, with /tmp under tmp_path.'''
+    vendor = tmp_path / "vendor"
+    (vendor / "cache" / "fonts").mkdir(parents=True)
+    for i in range(50):
+        (vendor / "cache" / "fonts" / f"{i}.otf").write_bytes(os.urandom(4096))
+    (vendor / "tectonic").write_bytes(b"#!/bin/sh\n")
+    (vendor / "tectonic").chmod(0o644)
+    tmp = tmp_path / "tmp"
+    tmp.mkdir()
+    monkeypatch.setattr(resume_render, "VENDOR", vendor)
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp))
+    real_access = os.access
+    monkeypatch.setattr(
+        resume_render.os, "access",
+        lambda path, mode: False if Path(path).parent == vendor else real_access(path, mode),
+    )
+    return vendor, tmp
+
+
+def test_concurrent_renders_share_one_complete_cache_copy(read_only_vendor) -> None:
+    vendor, tmp = read_only_vendor
+    with ThreadPoolExecutor(8) as pool:
+        copies = list(pool.map(lambda _: resume_render._cache(), range(16)))
+    assert set(copies) == {tmp / "workit-tectonic-cache"}
+    assert sorted(p.name for p in (copies[0] / "fonts").iterdir()) == sorted(
+        p.name for p in (vendor / "cache" / "fonts").iterdir()
+    )
+    # No staging folder is left behind
+    assert [p.name for p in tmp.iterdir()] == ["workit-tectonic-cache"]
+
+
+def test_a_failed_cache_copy_leaves_nothing_and_the_next_one_works(read_only_vendor, monkeypatch) -> None:
+    _, tmp = read_only_vendor
+    real_copytree = shutil.copytree
+
+    def dies_partway(src, dst, **kwargs):
+        Path(dst).mkdir()
+        (Path(dst) / "half").write_text("x")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(resume_render.shutil, "copytree", dies_partway)
+    with pytest.raises(TectonicUnavailable):
+        resume_render._cache()
+    assert list(tmp.iterdir()) == []
+
+    monkeypatch.setattr(resume_render.shutil, "copytree", real_copytree)
+    assert (resume_render._cache() / "fonts").is_dir()
+
+
+def test_a_binary_without_its_execute_bit_runs_from_an_executable_copy(read_only_vendor) -> None:
+    _, tmp = read_only_vendor
+    with ThreadPoolExecutor(8) as pool:
+        copies = set(pool.map(lambda _: resume_render._binary(), range(16)))
+    assert copies == {tmp / "workit-tectonic"}
+    assert os.access(tmp / "workit-tectonic", os.X_OK)
