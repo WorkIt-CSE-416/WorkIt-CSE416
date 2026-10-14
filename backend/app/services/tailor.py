@@ -32,7 +32,7 @@ from app.models.jobs import Job_Post
 from app.schemas.keywords import Keyword
 from app.schemas.tailor import TailorChange, TailorReading
 from app.services import keywords as kw
-from app.services.bank import Bank, NotFound
+from app.services.bank import Bank, Entry, NotFound
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -139,15 +139,41 @@ def _next(positions: Iterable[int]) -> int:
     return max(positions, default=-1) + 1
 
 
+def _same_as(row: Bank_Entry) -> tuple[str, str, str]:
+    """What makes two entries the same job to a reader: section, title and
+    organization, ignoring case, as the bank's own duplicate check."""
+    return (str(row.section), row.title.strip().lower(), (row.organization or "").strip().lower())
+
+
+def _label(row: Bank_Entry) -> str:
+    """An entry as a change names it: two jobs can share a title."""
+    return ", ".join(p for p in (row.title, row.organization) if p)
+
+
+def _bring_back(bank: Bank, entries: dict[uuid.UUID, EntryChoice], entry: Entry) -> None:
+    """Show the entry at its date-order place among its section's shown
+    entries (the bank lists newest first), keeping the order the student set
+    for the rest. Added last, a newer job showed below an older one."""
+    me = entry.row.id
+    section = [e.row.id for e in bank.entries if e.row.section == entry.row.section]
+    shown = sorted((i for i in section if i != me and _shown(entries, i)), key=lambda i: entries[i].position)
+    later = set(section[section.index(me) + 1:])
+    at = next((n for n, i in enumerate(shown) if i in later), len(shown))
+    entries[me] = dataclasses.replace(entries.get(me, EntryChoice()), shown=True)
+    for n, i in enumerate([*shown[:at], me, *shown[at:]]):
+        entries[i] = dataclasses.replace(entries[i], position=n)
+
+
 def with_changes(
     bank: Bank,
     choices: Choices,
     changes: Sequence[TailorChange],
     variant_ids: Mapping[uuid.UUID, uuid.UUID] | None = None,
 ) -> Choices:
-    """`choices` with the changes applied, pure. An entry brought back goes
-    last in its section with all its bullets; a reworded bullet shows the
-    change's text (and `variant_ids[bullet]`, once saved)."""
+    """`choices` with the changes applied, pure. An entry brought back takes
+    its date-order place in its section (`_bring_back`) with all its bullets;
+    a reworded bullet shows the change's text (and `variant_ids[bullet]`,
+    once saved)."""
     entries, bullets, skills = dict(choices.entries), dict(choices.bullets), dict(choices.skills)
     by_id = {e.row.id: e for e in bank.entries}
     ordered = sorted(changes, key=lambda c: c.kind != "show_entry")
@@ -155,10 +181,7 @@ def with_changes(
         if change.kind == "show_entry" and change.entry_id in by_id:
             entry = by_id[change.entry_id]
             if not _shown(entries, entry.row.id):
-                peers = [entries[e.row.id].position for e in bank.entries
-                         if e.row.section == entry.row.section and e.row.id in entries]
-                old = entries.get(entry.row.id, EntryChoice())
-                entries[entry.row.id] = dataclasses.replace(old, shown=True, position=_next(peers))
+                _bring_back(bank, entries, entry)
                 for i, bullet in enumerate(entry.bullets):
                     if not _shown(bullets, bullet.id):
                         bullets[bullet.id] = dataclasses.replace(
@@ -218,12 +241,19 @@ def propose(
     changes: list[TailorChange] = []
     dropped = 0
 
+    # A left-out copy of an entry the resume shows (an import saved "as
+    # new") is never offered: it showed the same job twice.
+    showing = {_same_as(e.row) for e in bank.entries if _shown(choices.entries, e.row.id)}
     brought: list[uuid.UUID] = []
     for handle in reading.add_entries:
         entry_id = ids.get(handle.strip())
-        if entry_id in entries and not _shown(choices.entries, entry_id) and entry_id not in brought:
-            brought.append(entry_id)
-            changes.append(TailorChange(kind="show_entry", entry_id=entry_id, label=entries[entry_id].row.title))
+        if entry_id not in entries or _shown(choices.entries, entry_id) or entry_id in brought:
+            continue
+        if _same_as(entries[entry_id].row) in showing:
+            continue
+        showing.add(_same_as(entries[entry_id].row))
+        brought.append(entry_id)
+        changes.append(TailorChange(kind="show_entry", entry_id=entry_id, label=_label(entries[entry_id].row)))
 
     reworded: set[uuid.UUID] = set()
     for item in reading.rewords:
@@ -251,7 +281,7 @@ def propose(
                        key=lambda b: choices.bullets[b].position)
         best = sorted(shown, key=lambda b: -ranks.get(b, 0.0))
         if len(shown) > 1 and best != shown and _shown(choices.entries, entry.row.id):
-            changes.append(TailorChange(kind="order", entry_id=entry.row.id, bullet_ids=best, label=entry.row.title))
+            changes.append(TailorChange(kind="order", entry_id=entry.row.id, bullet_ids=best, label=_label(entry.row)))
 
     before = {k.keyword for k in match(bank, choices, keywords)[0]}
     for change in changes:

@@ -577,7 +577,9 @@ in Docs (suggested answers in the chat, not a banner).
   description shows the "weak match" notice.
 - **Every change has Accept and Reject**, plus Accept All; a new wording
   shows beside the old one. Nothing saves until Done; Leave Without Saving
-  goes back to the posting.
+  goes back to the posting. "Bring back" and "Reorder bullets" name the
+  entry with its organization ("Software Intern, Acme"), since two jobs can
+  share a title; the API never offers a copy of an entry already shown.
 - **"Have you used X?"** lists missing keywords that are nowhere in the
   bank. Yes adds the skill to the bank (it is saved at once, being true),
   shows it on the tailored resume, and offers to link it to an entry.

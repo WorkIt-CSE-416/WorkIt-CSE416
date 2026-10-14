@@ -251,6 +251,51 @@ async def test_a_left_out_entry_the_model_names_is_proposed(student, database, u
     assert _words(body["questions"]) == ["Kubernetes"]
 
 
+async def test_a_left_out_copy_of_a_shown_entry_is_not_proposed(student, database, use_model):
+    # An import saved "as new" left a second Software Intern at Acme off the
+    # resume; bringing it back showed the same job twice and ran to 2 pages.
+    copy = {"section": "experience", "title": "software intern", "organization": "ACME",
+            "start_month": "2025-06", "end_month": "2025-08", "bullets": ["Fixed bugs in a React dashboard"]}
+    assert (await student.post("/bank/entries?allow_duplicate=true", copy)).status_code == 201
+    posting = await _seed_posting(database)
+    use_model(reply(add_entries=["e1", "e2"]))
+
+    body = (await student.tailor(posting)).json()
+
+    assert "show_entry" not in _kinds(body)
+
+
+async def test_an_entry_brought_back_is_named_with_its_organization(student, database, use_model):
+    await student.entry(
+        section="experience", title="Research Assistant", organization="AI Lab",
+        start_month="2024-01", end_month="2024-05", bullets=["Wrote a Go tool to restart services"])
+    posting = await _seed_posting(database)
+    use_model(reply(add_entries=["e2"]))
+
+    body = (await student.tailor(posting)).json()
+
+    shows = [c for c in body["changes"] if c["kind"] == "show_entry"]
+    assert [c["label"] for c in shows] == ["Research Assistant, AI Lab"]
+
+
+async def test_an_entry_brought_back_takes_its_date_order_place(student, database, use_model):
+    # Newer than the job on the resume, so it goes above it, not last.
+    newer = await student.entry(
+        section="experience", title="Platform Intern", organization="Globex",
+        start_month="2026-01", end_month="2026-05", bullets=["Wrote a Go tool to restart services"])
+    posting = await _seed_posting(database)
+    use_model(reply(add_entries=["e1"]))
+    run = (await student.tailor(posting)).json()
+    show = next(c for c in run["changes"] if c["kind"] == "show_entry")
+    assert show["entry_id"] == newer["id"]
+
+    res = await student.done(posting, run["source_resume_id"], [show])
+
+    assert res.status_code == 200, res.text
+    shown = await student.words(res.json()["resume"]["id"])
+    assert shown.index("Platform Intern") < shown.index("Software Intern")
+
+
 async def test_text_search_puts_the_posting_s_bullets_first(student, database, use_model):
     posting = await _seed_posting(database)
     use_model(reply())
