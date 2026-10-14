@@ -335,7 +335,11 @@ Find files with a directory listing; these are the rules for where code goes.
   question, or `READY`. Groq's gpt-oss-20b, the chain's second model,
   dropped "I started in August 2023" one turn in three and asked "What
   month and year did you start?" again; it and Gemini also asked for an end
-  the card already had (2026-10-14).
+  the card already had (2026-10-14). `_fill_title` does the same for a
+  role said in passing, in Experience and Leadership only ("I was a backend
+  intern at Initech", "I served as the treasurer of the Robotics Club"),
+  when the model leaves the title empty: a live model filled Initech and
+  asked "What was your official title for that role?" (2026-10-14).
   **A line that names a bank entry fills the card from it** (`bank_match`,
   `_from_bank`): the route loads the student's bank, and when the latest
   line holds a telling word of an Experience, Projects or Leadership

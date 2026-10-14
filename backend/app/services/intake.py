@@ -243,6 +243,30 @@ def _fill_dates(section: bank_section, draft: IntakeDraft, said: str) -> IntakeD
         return draft
 
 
+# "I was a backend intern at Initech", "I served as the treasurer of the
+# Robotics Club": the role between the verb and "at", "for" or "of".
+_SAID_ROLE = re.compile(
+    r"\b(?:i was|i'm|i am|i worked as|worked as|i served as|served as)\s+(?:an?|the)\s+"
+    r"(?P<role>[a-z][a-z0-9&/+-]*(?:\s+[a-z0-9&/+-]+){0,4}?)\s+(?:at|for|with|of|in)\b",
+    re.IGNORECASE,
+)
+# Sections whose title is a role, so a role phrase names it.
+_ROLE_TITLED = (bank_section.experience, bank_section.leadership)
+
+
+def _fill_title(section: bank_section, draft: IntakeDraft, said: str) -> IntakeDraft:
+    """The draft with the role the student's line names as its title, when
+    the model left the title empty: told "I was a backend intern at
+    Initech", a live model filled the company and asked for the title."""
+    if section not in _ROLE_TITLED or draft.title:
+        return draft
+    found = _SAID_ROLE.search(said)
+    if found is None:
+        return draft
+    title = " ".join(w[:1].upper() + w[1:] for w in found["role"].split())
+    return draft.model_copy(update={"title": title})
+
+
 _ASKS_DATES = re.compile(r"\b(when|month|year|start|end|finish|graduat)", re.IGNORECASE)
 
 
@@ -403,11 +427,11 @@ async def turn(
         # Validated as some other kind of entry: the card cannot take it.
         raise InvalidReply(INVALID)
     answer.draft = _keep_filled(_keep_withheld(answer.draft, draft), draft)
-    # The code reads a month the model dropped from the student's line, and
-    # then writes the next question itself: the model's line asked for that
-    # month again. So does a model line asking for dates the card holds.
+    # The code reads a month or a role the model dropped from the student's
+    # line, and then writes the next question itself: the model's line asked
+    # for it again. So does a model line asking for dates the card holds.
     said = messages[-1].content if messages[-1].role == "user" else ""
-    dated = _fill_dates(section, answer.draft, said)
+    dated = _fill_title(section, _fill_dates(section, answer.draft, said), said)
     asks_held_dates = (
         "dates" in _NEEDS[section]
         and _has(dated, "dates")

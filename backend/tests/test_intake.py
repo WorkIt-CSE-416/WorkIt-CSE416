@@ -605,3 +605,42 @@ async def test_a_tie_between_entries_is_a_guess(applicant, client):
     use_model([reply("What did it do?", draft={**ROLE, "organization": "IEEE"})])
     res = await client.post("/intake/turn", json={"section": "leadership", "messages": [said], "draft": None})
     assert lines(res)[1]["draft"]["bullets"] == []
+
+
+# "I was a backend intern at Initech": a live model put Initech in the card
+# and asked "What was your official title for that role?" The prompt says a
+# role said in passing is the title; the code reads it when the model does not.
+
+INITECH = {"section": "experience", "title": "", "organization": "Initech",
+           "bullets": ["Built data pipelines in Python."]}
+
+
+async def test_a_role_said_in_passing_becomes_the_title(applicant, client):
+    said = {"role": "user", "content": "I was a backend intern at Initech. I built data pipelines in Python."}
+    use_model([reply("What was your official title for that role?", draft=INITECH)])
+    res = await client.post("/intake/turn", json={"section": "experience", "messages": [said], "draft": None})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["draft"]["title"] == "Backend Intern"
+    assert text_line["delta"] == "What month and year did it start and end?"
+
+
+async def test_a_club_role_said_in_passing_becomes_the_title(applicant, client):
+    said = {"role": "user", "content": "I served as the treasurer of the Robotics Club."}
+    club = {"section": "leadership", "title": "", "organization": "Robotics Club"}
+    use_model([reply("What was your role?", draft=club)])
+    res = await client.post("/intake/turn", json={"section": "leadership", "messages": [said], "draft": None})
+    assert lines(res)[1]["draft"]["title"] == "Treasurer"
+
+
+async def test_a_title_the_model_wrote_stays(applicant, client):
+    said = {"role": "user", "content": "I was a backend intern at Initech."}
+    use_model([reply(draft={**INITECH, "title": "Backend Engineering Intern"})])
+    res = await client.post("/intake/turn", json={"section": "experience", "messages": [said], "draft": None})
+    assert lines(res)[1]["draft"]["title"] == "Backend Engineering Intern"
+
+
+async def test_a_project_name_is_never_read_from_a_role_phrase(applicant, client):
+    said = {"role": "user", "content": "I was a lead developer at a hackathon."}
+    use_model([reply("What was the project called?", draft={"section": "projects", "title": ""})])
+    res = await client.post("/intake/turn", json={"section": "projects", "messages": [said], "draft": None})
+    assert lines(res)[1]["draft"]["title"] == ""
