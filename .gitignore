@@ -81,3 +81,7 @@ docs/superpowers/
 # Tectonic and its warm package cache (KAN-204), built by
 # backend/scripts/fetch_tectonic.py, never committed
 backend/vendor/
+
+# Superset: the Run button's PID, read by teardown
+.superset/run.pid
+.superset/config.local.json

@@ -160,9 +160,16 @@ with the failure it prevents.
   with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`.
-  The Run button (`.superset/run.sh`) starts the API on :8000 and the app on
-  :3000 together. The env files come from the git primary checkout, not
-  `$SUPERSET_ROOT_PATH`, which can be a checkout with no `.env`.
+  Setup starts no processes. Env files that `$SUPERSET_ROOT_PATH` has
+  replace the copied ones; it can be a checkout with no `.env`, so the
+  primary-checkout copy always runs first.
+- The Run button (`.superset/run.sh`) starts the API and the app on the first
+  free ports from :8000 and :3000 and prints both, so parallel workspaces never
+  collide; it sets the app's `API_URL` to its own API's port. It records its
+  PID in `.superset/run.pid` (gitignored), and `.superset/teardown.sh` stops
+  that process tree when the workspace is deleted. Google sign-in on a port
+  other than :3000 needs Supabase's redirect list to allow
+  `http://localhost:*/auth/callback`.
 - Prettier formats code and runs from `frontend/`. It skips the markdown docs
   and never reaches the root `CLAUDE.md` or `README.md`.
 - Ghostwrite every commit message and every PR title, body and comment, with
