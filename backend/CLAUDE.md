@@ -322,6 +322,20 @@ Find files with a directory listing; these are the rules for where code goes.
   For the same reason a blank list item (`"bullets": [""]`) is dropped, and
   an `end_kind` of `month` or `expected` with no `end_month` becomes no
   end: "summer 2024" got both.
+  **The code reads a month the model drops** (`_fill_dates`, for sections
+  that need dates): when the card still lacks its dates after the reply, a
+  month and year in the student's latest line ("August 2023", "Aug 2025",
+  "2023-08", "8/2023") fills them if the reading is unambiguous: one month
+  for the one missing part (a start earlier than the end, an end not before
+  the start, "expected" when it is in the future), two for both, or "still"
+  or "currently" for a job still going. A lone month on an undated entry
+  stays the model's to ask about, since it could be either end. When the
+  code fills the dates, or the card holds them and the model's line still
+  asks a date question, the line becomes the next missing fact's `_ASK`
+  question, or `READY`. Groq's gpt-oss-20b, the chain's second model,
+  dropped "I started in August 2023" one turn in three and asked "What
+  month and year did you start?" again; it and Gemini also asked for an end
+  the card already had (2026-10-14).
   **A line that names a bank entry fills the card from it** (`bank_match`,
   `_from_bank`): the route loads the student's bank, and when the latest
   line holds a telling word of an Experience, Projects or Leadership

@@ -475,3 +475,66 @@ async def test_a_job_still_going_has_its_dates(applicant, client):
     model = use_model([reply(draft=job)])
     await client.post("/intake/turn", json={**TURN, "section": "experience", "draft": job})
     assert "already has: title, organization, dates, bullets" in model.prompts[0][1]["content"]
+
+
+# A smaller model in the chain (gpt-oss-20b) dropped a month the student had
+# just said, one turn in three, and asked for it again word for word; the
+# fallbacks also asked for an end the card already had. The code reads the
+# month from the student's own line and writes the next question itself.
+
+UNSTARTED = {**SCHOOL, "start_month": None, "gpa": 3.81, "gpa_scale": 4.0}
+STARTED = [{"role": "user", "content": "I started in August 2023"}]
+
+
+async def test_a_month_the_model_drops_is_read_from_the_students_line(applicant, client):
+    use_model([reply("Great! What month and year did you start?", draft=UNSTARTED)])
+    res = await client.post("/intake/turn", json={"section": "education", "messages": STARTED, "draft": UNSTARTED})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["draft"]["start_month"] == "2023-08"
+    assert draft_line["done"] is True
+    assert "ready to save" in text_line["delta"]
+
+
+async def test_an_end_the_student_says_fills_a_started_job(applicant, client):
+    job = {"section": "experience", "title": "Intern", "organization": "Clever Devices", "start_month": "2025-06"}
+    said = [{"role": "user", "content": "It ended in Aug 2025."}]
+    use_model([reply("When did it end?", draft=job)])
+    res = await client.post("/intake/turn", json={"section": "experience", "messages": said, "draft": job})
+    text_line, draft_line, _ = lines(res)
+    assert (draft_line["draft"]["end_month"], draft_line["draft"]["end_kind"]) == ("2025-08", "month")
+    assert text_line["delta"] == "What did you do there, and what came of it?"
+
+
+async def test_a_job_still_going_is_read_as_present(applicant, client):
+    job = {"section": "experience", "title": "Intern", "organization": "Clever Devices", "start_month": "2025-06"}
+    said = [{"role": "user", "content": "I still work there."}]
+    use_model([reply("When did it end?", draft=job)])
+    res = await client.post("/intake/turn", json={"section": "experience", "messages": said, "draft": job})
+    assert lines(res)[1]["draft"]["end_kind"] == "present"
+
+
+async def test_one_month_for_an_entry_with_no_dates_is_left_to_the_model(applicant, client):
+    # Start or end? The code cannot tell, so the model's line stands.
+    job = {"section": "experience", "title": "Intern", "organization": "Clever Devices"}
+    said = [{"role": "user", "content": "May 2025"}]
+    use_model([reply("Was that the start or the end?", draft=job)])
+    res = await client.post("/intake/turn", json={"section": "experience", "messages": said, "draft": job})
+    text_line, draft_line, _ = lines(res)
+    assert draft_line["draft"]["start_month"] is None
+    assert text_line["delta"] == "Was that the start or the end?"
+
+
+async def test_the_end_month_said_again_is_not_read_as_the_start(applicant, client):
+    said = [{"role": "user", "content": "I graduate in May 2027."}]
+    use_model([reply("And when did you start?", draft=UNSTARTED)])
+    res = await client.post("/intake/turn", json={"section": "education", "messages": said, "draft": UNSTARTED})
+    assert lines(res)[1]["draft"]["start_month"] is None
+
+
+async def test_a_date_question_the_card_answers_is_replaced(applicant, client):
+    job = {"section": "experience", "title": "Intern", "organization": "Clever Devices",
+           "start_month": "2025-06", "end_month": "2025-08"}
+    said = [{"role": "user", "content": "June to August 2025."}]
+    use_model([reply("Got it. When do you expect to finish?", draft=job)])
+    res = await client.post("/intake/turn", json={"section": "experience", "messages": said, "draft": None})
+    assert lines(res)[0]["delta"] == "What did you do there, and what came of it?"

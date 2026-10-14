@@ -7,6 +7,7 @@ No database and no HTTP: the route loads the identity, checks and counts the
 daily uses, and streams the result. Nothing said here is stored.
 """
 
+import datetime
 import json
 import re
 from collections.abc import Sequence
@@ -189,6 +190,62 @@ def _keep_filled(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
     return new.model_copy(update=fixes) if fixes else new
 
 
+_MONTH_NAMES = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+_SAID_MONTH = re.compile(
+    r"\b(?P<name>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+(?P<year>(?:19|20)\d\d)\b"
+    r"|\b(?P<iso_year>(?:19|20)\d\d)-(?P<iso_month>0[1-9]|1[0-2])\b"
+    r"|\b(?P<slash_month>0?[1-9]|1[0-2])/(?P<slash_year>(?:19|20)\d\d)\b",
+    re.IGNORECASE,
+)
+_STILL_GOING = re.compile(r"\b(still|present|currently|ongoing|right now)\b", re.IGNORECASE)
+
+
+def _said_months(said: str) -> list[datetime.date]:
+    months = []
+    for m in _SAID_MONTH.finditer(said):
+        if m["name"]:
+            year, month = int(m["year"]), _MONTH_NAMES.index(m["name"].lower()) + 1
+        elif m["iso_year"]:
+            year, month = int(m["iso_year"]), int(m["iso_month"])
+        else:
+            year, month = int(m["slash_year"]), int(m["slash_month"])
+        months.append(datetime.date(year, month, 1))
+    return months
+
+
+def _fill_dates(section: bank_section, draft: IntakeDraft, said: str) -> IntakeDraft:
+    """The draft with the dates the student's line plainly gives and the
+    model left out: a smaller model in the chain dropped "I started in
+    August 2023" one turn in three and asked again. Only an unambiguous
+    reading counts: one month for the one missing part, two for both, or a
+    job still going. Anything else stays the model's to ask about."""
+    if "dates" not in _NEEDS[section] or _has(draft, "dates"):
+        return draft
+    months = _said_months(said)
+    has_end = draft.end_month is not None or draft.end_kind == "present"
+    fill: dict[str, object] = {}
+    if draft.start_month is None and has_end:
+        if len(months) == 1 and (draft.end_month is None or months[0] < draft.end_month):
+            fill = {"start_month": months[0]}
+    elif draft.start_month is None:
+        if len(months) == 2:
+            fill = {"start_month": months[0], "end_month": months[1], "end_kind": "month"}
+    elif _STILL_GOING.search(said) and not months:
+        fill = {"end_month": None, "end_kind": "present"}
+    elif len(months) == 1 and months[0] >= draft.start_month:
+        kind = "expected" if months[0] > datetime.datetime.now(datetime.UTC).date() else "month"
+        fill = {"end_month": months[0], "end_kind": kind}
+    if not fill:
+        return draft
+    try:
+        return IntakeDraft.model_validate({**draft.model_dump(), **fill})
+    except ValidationError:
+        return draft
+
+
+_ASKS_DATES = re.compile(r"\b(when|month|year|start|end|finish|graduat)", re.IGNORECASE)
+
+
 def _keep_withheld(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
     """The model saw the card with identity data replaced by placeholders, so
     a field it echoes back as "[link]" keeps the card's own value. Placeholders
@@ -283,15 +340,21 @@ def _from_bank(draft: IntakeDraft, entry: Entry) -> IntakeDraft:
     return draft
 
 
+def _next_question(section: bank_section, draft: IntakeDraft) -> str | None:
+    """The question for the first fact the draft still lacks, or None."""
+    missing = [fact for fact in _NEEDS[section] if not _has(draft, fact)]
+    if not missing:
+        return None
+    title, organization = FIELD_MEANINGS[section]
+    return _ASK[missing[0]].format(title=title, organization=organization)
+
+
 def _after_match(section: bank_section, draft: IntakeDraft, entry: Entry) -> str:
     """WorkIt's line once the card took an entry's facts: what it used, then
     the first fact still missing, if any."""
     found = f"I filled in what your bank has on {entry.row.title}."
-    missing = [fact for fact in _NEEDS[section] if not _has(draft, fact)]
-    if not missing:
-        return f"{found} It looks ready to save, or tell me more to add."
-    title, organization = FIELD_MEANINGS[section]
-    return f"{found} {_ASK[missing[0]].format(title=title, organization=organization)}"
+    question = _next_question(section, draft)
+    return f"{found} {question or 'It looks ready to save, or tell me more to add.'}"
 
 
 def follow_ups(messages: Sequence[ChatMessage]) -> int:
@@ -324,6 +387,22 @@ async def turn(
         # Validated as some other kind of entry: the card cannot take it.
         raise InvalidReply(INVALID)
     answer.draft = _keep_filled(_keep_withheld(answer.draft, draft), draft)
+    # The code reads a month the model dropped from the student's line, and
+    # then writes the next question itself: the model's line asked for that
+    # month again. So does a model line asking for dates the card holds.
+    said = messages[-1].content if messages[-1].role == "user" else ""
+    dated = _fill_dates(section, answer.draft, said)
+    asks_held_dates = (
+        "dates" in _NEEDS[section]
+        and _has(dated, "dates")
+        and "?" in answer.reply
+        and _ASKS_DATES.search(answer.reply) is not None
+    )
+    if dated != answer.draft or asks_held_dates:
+        question = _next_question(section, dated)
+        answer = answer.model_copy(
+            update={"draft": dated, "reply": question or READY, "done": question is None}
+        )
     # The code, not the model, finds and copies a bank entry the student
     # named: told to copy from a bank in its context, a live model took the
     # club and left the dates, and asked to name a match it never did. This
