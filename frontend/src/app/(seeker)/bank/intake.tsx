@@ -127,6 +127,17 @@ const OPENERS: Record<Section, string> = {
   certifications: "Tell me about a certification. What is it called, and who gave it?",
 };
 
+/** What a new entry is in each section, for the opener of a section that
+ *  already has complete entries. */
+const ANOTHER: Record<Section, string> = {
+  education: "another school",
+  experience: "another job or internship",
+  projects: "another project",
+  leadership: "another club, team or activity",
+  awards: "another award",
+  certifications: "another certification",
+};
+
 /** WorkIt's first line on a visit to a bank entry with gaps. Fixed text too. */
 function gapOpener(entry: BankEntry): string {
   const [first, ...rest] = gapQuestions(entry);
@@ -338,8 +349,7 @@ export function Intake({
   function opener(section: Section): string {
     const have = entries.filter((e) => e.section === section).map((e) => e.title);
     if (!have.length) return OPENERS[section];
-    const ask = OPENERS[section];
-    return `Your bank already has ${have.join(", ")}. To add another, ${ask[0].toLowerCase()}${ask.slice(1)}`;
+    return `Your bank already has ${have.join(", ")}, with nothing missing. To add ${ANOTHER[section]}, tell me about it.`;
   }
 
   function finish() {
