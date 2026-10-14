@@ -87,6 +87,13 @@ import {
  * which never asks for what the draft already holds, asks only about the
  * rest. Saving such a visit edits the entry (`editSteps`), never adds one.
  * An entry visited once, saved or skipped, is not visited again on this page.
+ *
+ * Docked (`docked`): the bank page renders intake in Scout's panel
+ * (components/scout/scout-takeover.tsx), which is too narrow for the card's
+ * column. The panel's header replaces intake's own; the upload strip and the
+ * step bar head it, the chat fills the middle, and the card sits under the
+ * chat, above the composer, where the one-line draft folds it away and opens
+ * it again. Onboarding keeps the page layout.
  */
 
 type DraftWire = EntryFields & { bullets: string[] };
@@ -185,6 +192,7 @@ export function Intake({
   lead,
   importable = false,
   autoImport = false,
+  docked = false,
 }: {
   /** Sections with at least one entry in the bank. */
   filled: readonly Section[];
@@ -199,6 +207,8 @@ export function Intake({
   importable?: boolean;
   /** Open the import on mount: the Jobs page's one-click "Import Your Resume". */
   autoImport?: boolean;
+  /** Lay out for Scout's panel rather than the page. */
+  docked?: boolean;
 }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [messages, setMessages] = useState<ScoutMessage[]>([]);
@@ -212,6 +222,8 @@ export function Intake({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
   const [sheet, setSheet] = useState(false);
+  // Docked only: the card under the chat is folded away.
+  const [folded, setFolded] = useState(false);
   const [skipped, setSkipped] = useState<Section[]>([]);
   const [importing, setImporting] = useState(autoImport);
   // The upload to import; unset reads the default one.
@@ -541,7 +553,15 @@ export function Intake({
       : Math.min(85, (draft.title ? 35 : 12) + asked * 20);
 
   return (
-    <section aria-labelledby="intake-title" className="flex flex-col gap-3">
+    <section
+      aria-labelledby={docked ? undefined : "intake-title"}
+      aria-label={docked ? "Tell WorkIt About It" : undefined}
+      className={cn(
+        "flex flex-col gap-3",
+        // Its own container, so the step bar and chips size to the panel.
+        docked && "@container/main min-h-0 flex-1 px-4 pt-2 pb-4",
+      )}
+    >
       {offerImport && !importing && (
         <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
           <FileUp aria-hidden className="text-brand size-5 shrink-0" />
@@ -572,7 +592,7 @@ export function Intake({
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className={cn("flex items-center gap-3", docked && "hidden")}>
         <Mark />
         <div className="min-w-0">
           <h2 id="intake-title" className="text-subtitle text-ink">
@@ -596,19 +616,31 @@ export function Intake({
       />
 
       {importing ? (
-        <ImportCard
-          autoStart
-          resumeId={importFrom}
-          onSaved={onSaved}
-          onClose={() => {
-            setImporting(false);
-            setImported(true);
-            setRewalk((n) => n + 1);
-          }}
-        />
+        <div className={cn(docked && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}>
+          <ImportCard
+            autoStart
+            resumeId={importFrom}
+            onSaved={onSaved}
+            onClose={() => {
+              setImporting(false);
+              setImported(true);
+              setRewalk((n) => n + 1);
+            }}
+          />
+        </div>
       ) : (
-        <div className="grid items-start gap-5 @4xl/main:grid-cols-[1fr_21rem]">
-          <div className="from-brand-tint to-panel ring-brand-tint flex h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem] flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1">
+        <div
+          className={cn(
+            "grid items-start gap-5",
+            docked ? "min-h-0 flex-1 grid-rows-1" : "@4xl/main:grid-cols-[1fr_21rem]",
+          )}
+        >
+          <div
+            className={cn(
+              "from-brand-tint to-panel ring-brand-tint flex flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1",
+              docked ? "h-full" : "h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem]",
+            )}
+          >
             <div
               ref={log}
               className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4"
@@ -663,17 +695,31 @@ export function Intake({
             </p>
 
             <div className="flex flex-col gap-1.5 px-3 pb-3">
+              {docked && draft && !folded && (
+                <div
+                  aria-label="Draft entry"
+                  className="bg-panel ring-brand-tint shadow-card max-h-[45dvh] overflow-y-auto overscroll-contain rounded-2xl ring-1"
+                >
+                  {card}
+                </div>
+              )}
               {draft && (
                 <button
                   type="button"
-                  onClick={() => setSheet(true)}
-                  className="bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1 @4xl/main:hidden"
+                  onClick={() => (docked ? setFolded((f) => !f) : setSheet(true))}
+                  aria-expanded={docked ? !folded : undefined}
+                  className={cn(
+                    "bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1",
+                    !docked && "@4xl/main:hidden",
+                  )}
                 >
                   <Dot ready={kept?.done ?? false} />
                   <span className="text-label text-ink min-w-0 flex-1 truncate">
                     {draft.title || `Your new ${sectionOf(draft.section).label} entry`}
                   </span>
-                  <span className="text-note text-brand font-semibold">View</span>
+                  <span className="text-note text-brand font-semibold">
+                    {docked && !folded ? "Hide" : "View"}
+                  </span>
                 </button>
               )}
               <div className="[&>form]:p-0">
@@ -694,12 +740,14 @@ export function Intake({
             </div>
           </div>
 
-          <aside
-            aria-label="Draft entry"
-            className="bg-panel ring-brand-tint shadow-card hidden rounded-3xl ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
-          >
-            {!sheet && card}
-          </aside>
+          {!docked && (
+            <aside
+              aria-label="Draft entry"
+              className="bg-panel ring-brand-tint shadow-card hidden rounded-3xl ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
+            >
+              {!sheet && card}
+            </aside>
+          )}
         </div>
       )}
 
