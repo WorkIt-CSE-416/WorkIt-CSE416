@@ -1,7 +1,7 @@
 # scraper
 
 Finds internship and new-grad software roles on company job boards (Greenhouse,
-Lever, Ashby, Workable, Recruitee, BambooHR) and renders them as one self-contained
+Lever, Ashby, Workable, Recruitee, BambooHR, Workday) and renders them as one self-contained
 HTML page.
 
 ```sh

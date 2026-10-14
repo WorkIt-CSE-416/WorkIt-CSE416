@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import pytest
 
-from build_boards import PATTERNS
+from build_boards import tokens
 
 
 def slugs(link: str) -> list[tuple[str, str]]:
-    return [(ats, token) for ats, pattern in PATTERNS.items() for token in pattern.findall(link)]
+    return tokens(link)
 
 
 @pytest.mark.parametrize(

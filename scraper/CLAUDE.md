@@ -28,8 +28,9 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶
 ```
 
 Each module owns one stage (its docstring says which); every network read goes
-through `web.get` behind `polite.Robots`. Every provider returns a whole board
-in one request, so there is no pagination.
+through `web.get` (or Workday's one `web.post`) behind `polite.Robots`. Every
+provider but Workday returns a whole board in one request. Workday sends 20
+postings a request, which changes how its boards are read: `docs/workday.md`.
 
 ## This package imports only the standard library
 
@@ -49,8 +50,11 @@ Read the provider's `robots.txt` before writing anything. SmartRecruiters is
 absent because it disallows us, and that is the whole reason.
 
 1. A function in `providers.py` taking `(token, company)` and returning `list[Job]`.
+   One that makes more than one request per board goes in `PAGED` too, takes
+   `pace` and calls it before each request after the first (Workday's `workday`).
 2. Its URL template in `LISTING_URL`, which both the fetcher and the robots
    check read, so a board is never checked at one address and fetched at another.
+   Anything else robots.txt must allow goes in `robots_urls` (Workday's careers site).
 3. Its name in `FETCHERS`.
 4. Its apply-URL pattern in `build_boards.PATTERNS`, or none of its boards ever
    reaches `boards.csv`.
@@ -61,7 +65,8 @@ absent because it disallows us, and that is the whole reason.
 7. If each company is its own subdomain: its domain in `polite.SHARED_PACE`.
 
 Each reader's test is built from that day's real responses. Workable,
-Recruitee and BambooHR quirks: `docs/providers.md`.
+Recruitee and BambooHR quirks: `docs/providers.md`. Workday's, and how its
+boards are read over several runs: `docs/workday.md`.
 
 - **A 404 means the board does not exist; a 200 with an empty list means a
   real board with nothing open.** Raise `BoardNotFound` for the first, return
@@ -76,6 +81,11 @@ Recruitee and BambooHR quirks: `docs/providers.md`.
   `Job.places` takes the city from the posting page's `offices`. Two cards
   that look identical are usually this, not a dedupe bug: `pick` keys on the
   apply URL on purpose.
+- **The one exception: a Workday job on two careers sites is one role.**
+  `shortlist.pick` merges Workday postings with the same company, tenant and
+  requisition number (`_requisition`, the record's `jobReqId`), and the role
+  links the copy on the site made for students (`_lead`). Only Workday, and
+  only the same number at the same company: `docs/workday.md`.
 - **The company name comes from `boards.csv`**, not the provider. Greenhouse's
   `company_name` carries internal labels ("DRW - University Jobs") that split
   one company's roles into several.
@@ -84,20 +94,24 @@ Recruitee and BambooHR quirks: `docs/providers.md`.
 
 A posting's own text is one value, `providers.Page`: the description (cut to
 `DESCRIPTION_CHARS` for Scout), the card's `details.Facts`, and on Greenhouse
-its offices. Lever, Ashby and Recruitee send it with the board's list.
-Greenhouse, Workable and BambooHR do not (`providers.JOB_URL`): Greenhouse's
-`content=true` would send hundreds of megabytes a run to describe the ~2% we
-keep. So `__main__.with_page` reads each *kept* posting's page once, through
-the same robots and pacing.
+its offices (on Workday, its places and requisition number). Lever, Ashby and
+Recruitee send it with the board's list. Greenhouse, Workable, BambooHR and
+Workday do not (`providers.JOB_URL`): Greenhouse's `content=true` would send
+hundreds of megabytes a run to describe the ~2% we keep, and Workday's list
+has no description, exact date or places. So `__main__.with_page` reads each
+*kept* posting's page once, through the same robots and pacing.
 
 - **The store carries a `Page` forward whole: `job.page or old.page`.** It
   used to be nine fields carried one by one, and a Greenhouse title's "2027"
   overwrote the page's "Summer 2027". `posted_at` is carried the same way, for
-  BambooHR, whose date is only on the page.
+  BambooHR, whose date is only on the page. Workday's is the reverse
+  (`store.carry`): its list has a date counted back from "Posted 3 Days Ago",
+  but the page's exact one wins, so a bare Workday listing keeps the stored
+  date and never drifts by a day or vanishes at "30+ Days Ago".
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
-  Greenhouse, Workable and BambooHR posting.
+  Greenhouse, Workable, BambooHR and Workday posting.
 - **Changing `DESCRIPTION_CHARS` does not re-cut stored Greenhouse
   descriptions.** Clear them so the next run fetches them again:
 
@@ -187,25 +201,35 @@ needs it: two accepted complete absences, at most one miss per board per run.
 Every request goes through `web.get` and, before it, `polite.Robots`,
 including `build_boards.py`'s fetches from GitHub.
 
-- `Robots` reads every origin's robots.txt once, up front. Per RFC 9309, a 4xx
-  means no rules; a 5xx **or an unreachable robots.txt** means complete
-  disallow for the run. An outage is not permission.
+- `Robots` reads every origin's robots.txt once: up front for the origins it
+  is given, and on first use, paced, for any other (Workday's ~1,500 hosts, of
+  which a run reaches only some). Per RFC 9309, a 4xx means no rules; a 5xx
+  **or an unreachable robots.txt** means complete disallow for the run. An
+  outage is not permission.
+- A host whose paths are case-blind has its robots.txt read case-blind too
+  (`polite.FOLD_CASE`, Workday): otherwise `Disallow: /CaterpillarCareers/`
+  would not stop a request for `/caterpillarcareers/`.
 - `Robots.pace()` paces **every** origin: a published `Crawl-delay` (Lever:
   one second), else `DEFAULT_DELAY_S`. Greenhouse publishes none, and ~1,800
   boards at eight in flight would otherwise run at ~60 requests a second.
 - **A provider is paced as one host even when each company is its own
-  origin** (`polite.SHARED_PACE`, for Recruitee and BambooHR subdomains).
-- `web.get` refuses a cross-origin redirect: robots.txt was checked for the
-  origin we asked for.
+  origin** (`polite.SHARED_PACE`, for Recruitee, BambooHR and Workday hosts).
+- `web.get` (and `web.post`, for Workday) refuses a cross-origin redirect:
+  robots.txt was checked for the origin we asked for.
 
 **Speed comes from lanes and quiet boards, never from less pacing.** One lane
 per provider (`__main__.scrape`), so a worker waiting out Lever's delay never
 blocks Greenhouse. Quiet boards rest (`Store.to_read`): a board that has never
 had a kept posting is read on one day in `QUIET_EVERY`, staggered by key, so a
 first posting there can appear two days late; `--full` reads every board. A
-board with any kept posting ever is read every run. The page's "postings
-scanned" counts what this run read, so it is lower on a run that rested quiet
-boards.
+board with any kept posting ever is read every run.
+
+**A lane can have a time budget** (`__main__.LANE_BUDGET_S`; only Workday's,
+12 minutes). It starts boards from the front of `Store.to_read`'s order, least
+recently read first, and once its time is up leaves the rest for a later run.
+`--full` keeps the budget: it un-rests quiet boards, it does not make a Workday
+sweep fit in one run. The page's "postings scanned" counts what this run read,
+so it is lower on a run that rested quiet boards or ran out of Workday time.
 
 ## `boards.csv` is a seed, not a conclusion
 
@@ -257,7 +281,10 @@ and `tmp_path` rather than `tempfile`. Tested where a bug would be silent: the
 shortlist, and the "new today" and "open roles" path through `store.py` and
 `report.py`. One bug shipped marking every row "just added";
 `tests/test_report_and_store.py` has a case for each way that count has been
-wrong.
+wrong. Each provider's reader is tested on its real responses, trimmed:
+`tests/test_providers.py` for Workable, Recruitee and BambooHR,
+`tests/test_workday.py` for Workday. Where a board must be small enough to page
+by hand, the page size or cap is shrunk, never the data.
 
 ## Committed data and deliberate limits
 
@@ -271,4 +298,6 @@ gitignored output.
 
 Limits marked in the code with `ponytail:` comments: nothing is ever closed;
 the whole store is loaded and rewritten each run; only matching postings are
-stored (all ~91,000 scanned would be tens of megabytes we never display).
+stored (all ~91,000 scanned would be tens of megabytes we never display); a
+Workday board is read about every fourth run, not every run, and the biggest
+are not read at all (`docs/workday.md`).

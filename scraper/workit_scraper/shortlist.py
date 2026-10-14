@@ -14,7 +14,9 @@ The scraper's densest logic, and the place a bug is quietest. Two steps:
    jobs and seven rows. Only copies sharing one URL -- the same application
    reached from several places -- collapse into one role carrying their locations.
    Keying on `(company, title)` instead merged those seven and kept one link,
-   hiding six applications.
+   hiding six applications. The one exception is Workday's: one requisition
+   posted on two of a company's careers sites is one job with two URLs, so it is
+   one role, linking the site built for students (`_requisition`, `_lead`).
 
 Deduping is presentation only: every posting that classifies is stored in jobs.json
 as its own row. (Postings that do not classify are counted and never stored.)
@@ -925,9 +927,10 @@ class Role:
 
     title: str
     company: str
+    #: The lead copy's (`_lead`): the oldest, or a Workday job's student site.
     apply_url: str
     ats: str
-    #: The oldest copy's board -- whose logo the feed shows.
+    #: The lead copy's board -- whose logo the feed shows.
     board_key: str
     #: `classify`'s answer: the stage, one or two categories, then any specialties.
     tags: tuple[Tag, ...]
@@ -937,8 +940,9 @@ class Role:
     department: str | None
     locations: tuple[str, ...]
     description: str | None
-    #: The first copy's facts, whole, with `work_style` and `job_type` as the card
-    #: shows them: stated, or inferred (see `_work_style` and `_job_type`).
+    #: The lead copy's facts (or, with no page, the first copy's that has one),
+    #: whole, with `work_style` and `job_type` as the card shows them: stated, or
+    #: inferred (see `_work_style` and `_job_type`).
     facts: Facts = field(default_factory=Facts)
 
     @property
@@ -963,37 +967,42 @@ class Role:
 
 def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
     """Classify, dedupe, and order newest-first by the provider's posted date."""
-    # Copies at one URL are one posting, so its first copy's title and company
-    # speak for all of them; tags depend only on the title.
     # Every work style a company's postings state, for its postings that state none.
     styles: dict[str, Counter[str]] = {}
     for job in jobs:
         if job.facts.work_style:
             styles.setdefault(job.company, Counter())[job.facts.work_style] += 1
-    grouped: dict[str, tuple[tuple[Tag, ...], list[Job]]] = {}
+    # Copies at one URL are one posting. So are the URLs of one Workday
+    # requisition on several of a company's careers sites (`_requisition`).
+    by_url: dict[str, list[Job]] = {}
     for job in jobs:
-        if job.apply_url not in grouped:
-            grouped[job.apply_url] = (classify(job.title), [])
-        grouped[job.apply_url][1].append(job)
+        by_url.setdefault(job.apply_url, []).append(job)
+    grouped: dict[str | tuple[str, str, str], list[Job]] = {}
+    for url, copies in by_url.items():
+        grouped.setdefault(_requisition(copies) or url, []).extend(copies)
 
     roles = []
-    for tags, postings in grouped.values():
+    for copies in grouped.values():
+        # The oldest copy says whether the role is new: it has been known to us since
+        # we first saw *any* of its copies, so it is new only if that copy is.
+        oldest = min(copies, key=_age)
+        # The lead copy says what the role is and where to apply, and goes first.
+        lead = _lead(copies, oldest)
+        postings = [lead, *(job for job in copies if job is not lead)]
+        tags = classify(lead.title)
         if not tags:
             continue
-        # The oldest copy speaks for the role: it has been known to us since we first
-        # saw *any* of its copies, so it is new only if that copy is. Unstamped sort last.
-        oldest = min(postings, key=lambda job: (job.first_seen_at is None, job.first_seen_at))
         locations = tuple(dict.fromkeys(place for job in postings for place in job.places))
         # Facts come whole from one copy, never field by field across copies:
         # pay from one and job type from another would describe no posting.
         facts = next((job.facts for job in postings if job.page), Facts())
         roles.append(
             Role(
-                title=postings[0].title,
-                company=postings[0].company,
-                apply_url=oldest.apply_url,
-                ats=oldest.ats,
-                board_key=oldest.board_key,
+                title=lead.title,
+                company=lead.company,
+                apply_url=lead.apply_url,
+                ats=lead.ats,
+                board_key=lead.board_key,
                 tags=tags,
                 posted_at=min((job.posted_at for job in postings if job.posted_at), default=None),
                 new=is_new(oldest),
@@ -1002,7 +1011,7 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
                 description=next((job.description for job in postings if job.description), None),
                 facts=replace(
                     facts,
-                    work_style=_work_style(postings, styles.get(postings[0].company)),
+                    work_style=_work_style(postings, styles.get(lead.company)),
                     job_type=_job_type(tags, facts),
                 ),
             )
@@ -1011,6 +1020,61 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
     return sorted(
         roles, key=lambda role: (role.posted_at is not None, role.posted_at or ""), reverse=True
     )
+
+
+def _age(job: Job) -> tuple[bool, str]:
+    """Oldest first by `first_seen_at`; unstamped sort last."""
+    return job.first_seen_at is None, job.first_seen_at or ""
+
+
+def _requisition(copies: list[Job]) -> tuple[str, str, str] | None:
+    """The job a Workday posting is a copy of: its company, its tenant (where a
+    requisition number is unique) and the number its own record states.
+
+    A company can run several careers sites and post one requisition on more
+    than one: Autodesk's interns are on `ext` and `uni`, Cadence's on up to three
+    sites. Each copy has its own URL, but it is one job and one application, so
+    one role. Only Workday, and only the record's number (`describe_workday`): a
+    Workday posting whose record was not read keeps its own URL, and every other
+    provider's copies are one job only at one URL (Stripe's seven offices).
+    """
+    for job in copies:
+        if job.ats == "workday" and job.page and job.page.requisition:
+            return job.company, job.token.split("/")[0], job.page.requisition
+    return None
+
+
+# A careers site built for students, by its name: Autodesk's `uni`, Cadence's
+# `univ_careers` and `university_talent_intern`, BMO's and CIBC's `campus`,
+# Boeing's `intern`, Becton Dickinson's `us_early_talent_site`, and run together
+# (`bpearlycareers`, `futureforce_newgradroles`). Not `international_career_site`,
+# `internaljobs`, `earlywarningcareers` or `unilever_...`. All are boards.csv names.
+STUDENT_SITE = re.compile(
+    r"(?<![a-z])uni(?![a-z])|univ|campus|student|intern(?!al|ation)|early[_-]?(?:career|talent)"
+    r"|newgrad|grad(?:uates?)?(?![a-z])|college|entry[_-]?level"
+)
+
+
+def _lead(copies: list[Job], oldest: Job) -> Job:
+    """The copy a role links to and is described by.
+
+    Copies at one URL are one posting, so the oldest. A Workday job on several
+    careers sites links the one whose name says it is for students
+    (`STUDENT_SITE`): the employer made that site for exactly this applicant. The
+    copies describe one job (35 of the 36 found on 2026-10-10 read word for word
+    alike; Autodesk's Oslo role differs only in each site's footer), so the choice
+    loses nothing, and nothing else prefers one: the curated lists link both. A
+    private site (`private_postings_intern_conversion_only`) is not for everyone.
+    Then the oldest, then by URL, so a role keeps its link from run to run.
+    """
+    if len({job.apply_url for job in copies}) == 1:
+        return oldest
+    return min(copies, key=lambda job: (not _for_students(job), _age(job), job.apply_url))
+
+
+def _for_students(job: Job) -> bool:
+    site = job.token.rsplit("/", 1)[-1].lower()
+    return "private" not in site and bool(STUDENT_SITE.search(site))
 
 
 # Words that make "On site" a guess too far: the posting allows something else.

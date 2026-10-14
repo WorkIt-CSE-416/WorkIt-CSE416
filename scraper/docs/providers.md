@@ -1,6 +1,6 @@
 # Providers — notes per hiring system
 
-How each of Workable, Recruitee and BambooHR is read, and the quirks found adding them. Reached from `../CLAUDE.md`, "Adding a provider"; Greenhouse, Lever and Ashby are documented in `providers.py` itself.
+How each of Workable, Recruitee and BambooHR is read, and the quirks found adding them. Reached from `../CLAUDE.md`, "Adding a provider"; Greenhouse, Lever and Ashby are documented in `providers.py` itself, and Workday in `workday.md`.
 
 ## Workable, Recruitee and BambooHR (KAN-171)
 

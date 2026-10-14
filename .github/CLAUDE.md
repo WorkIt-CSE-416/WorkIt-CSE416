@@ -19,8 +19,10 @@ Run `npm run format` before pushing. Markdown docs are in
 `app.scripts.import_jobs` into Supabase **every three hours at :17 UTC** (off the
 hour: GitHub delays, and under load drops, runs scheduled on it). Daily is what
 the big internship lists do and hourly the most any aggregator does; every few
-hours gets a new posting onto the site the same day for a ~3 minute run that
-only writes the rows that changed.
+hours gets a new posting onto the site the same day for a ~15 minute run that
+only writes the rows that changed. Twelve of those minutes are Workday's (KAN-134):
+its boards are read for a fixed share of each run and take about four runs to go
+round, which keeps the job well inside its 30-minute timeout (`scraper/CLAUDE.md`).
 
 It was every six hours until KAN-166. GitHub started those runs up to five hours
 late and skipped some outright (2026-10-08 to 10-09), so a posting could wait

@@ -51,6 +51,85 @@ class TestPay:
         assert details.pay("Customers save $40,000 a year with our product.") is None
 
 
+class TestCents:
+    """Amounts with cents, read whole. "$61,900.00" used to stop at "61,900", and
+    its ".00" hid the rest of the range, so the card showed the low end alone: 72
+    roles on 2026-10-10. Every string is from the posting named."""
+
+    def test_a_range_with_cents_is_a_range(self) -> None:
+        # Booz Allen (42 roles), Carrier, and Dark Wolf Solutions with an en dash.
+        text = (
+            "The projected compensation range for this position is $61,900.00 to "
+            "$141,000.00 (annualized USD)."
+        )
+        assert details.pay(text) == Pay("USD", 61900, 141000, "year")
+        text = "The annual salary for this position is between $43,500.00 - $87,500.00 annually."
+        assert details.pay(text) == Pay("USD", 43500, 87500, "year")
+        text = "Target Salary Range: $90,000.00 – $130,000.00 (Commensurate with specialized"
+        assert details.pay(text) == Pay("USD", 90000, 130000, "year")
+
+    def test_with_its_label_on_the_line_above(self) -> None:
+        # SpaceX, Blue Origin (cents that are not zero), Applied Materials.
+        text = "Pay range:\nSoftware Engineering/Level I: $125,000.00 - $145,000.00/per year"
+        assert details.pay(text) == Pay("USD", 125000, 145000, "year")
+        text = "Base Pay Range for:\nCA applicants is $110,623.00 - $154,871.85"
+        assert details.pay(text) == Pay("USD", 110623, 154871.85, "year")
+        assert details.pay("Salary:\n€38,400.00 - €52,800.00") == Pay("EUR", 38400, 52800, "year")
+
+    def test_what_read_right_before_reads_the_same(self) -> None:
+        # Cents on hourly rates (Dubak Electrical, Ibotta, Databricks), a range
+        # with "to" (WorldQuant), a code after the amount (Rocket Lab).
+        assert details.pay("Compensation: $20.00 per hour") == Pay("USD", 20, 20, "hour")
+        text = "The hourly compensation for this role is: $33.85 per hour worked."
+        assert details.pay(text) == Pay("USD", 33.85, 33.85, "hour")
+        text = "Bellevue, Washington Hourly Rate\n$51.50—$53.50 USD"
+        assert details.pay(text) == Pay("USD", 51.5, 53.5, "hour")
+        text = "The estimated salary range for this position is $125,000 to $150,000 which is"
+        assert details.pay(text) == Pay("USD", 125000, 150000, "year")
+        assert details.pay("Pay Range CA: $28.00 USD Hourly") == Pay("USD", 28, 28, "hour")
+        # CWAN's placeholder: nothing to ten million is no pay.
+        assert details.pay("Salary Range\n$0.00 - $10,000,000.00") is None
+
+
+class TestPayWords:
+    """A word that calls an amount pay counts only as a whole word, and the amount's
+    own sentence counts as its label (2026-10-11). Every string is from the posting
+    named."""
+
+    def test_a_pay_word_inside_another_word_is_not_one(self) -> None:
+        # Cisco: a company-wide range, with "quota-based" on the line below it.
+        text = (
+            "New York City Metro Area:\n$44,000.00 - $185,000.00\n"
+            "Non-Metro New York state & Washington state:\n$44,000.00 - $185,000.00\n"
+            "* For quota-based sales roles on Cisco’s sales plan, the ranges provided"
+        )
+        assert details.pay(text) is None
+        # Valon: "operate" is not "rate", so its loan book is not an hourly rate.
+        text = (
+            "we built and operate our own mortgage servicing business managing $110+ "
+            "billion in loans.\n"
+            "Salary Expectations: The compensation for our interns is $60/hour USD + stipend."
+        )
+        assert details.pay(text) == Pay("USD", 60, 60, "hour")
+
+    def test_base_salary_still_reads(self) -> None:
+        # Color, with no space before the amount; 3RedPartners.
+        text = "Base Salary Range:$125,000-$140,000 annually"
+        assert details.pay(text) == Pay("USD", 125000, 140000, "year")
+        text = "The expected base salary range for this position is $125,000 to $200,000, depending"
+        assert details.pay(text) == Pay("USD", 125000, 200000, "year")
+
+    def test_the_amounts_sentence_is_its_label(self) -> None:
+        # Toyota Research Institute: "pay range" opens the sentence, 85 characters
+        # before the amount. ("$45 and $65" is not read as a range, so $45.)
+        text = (
+            "The pay range for this position at commencement of employment is expected to "
+            "be between $45 and $65/hour for California-based roles; however, base pay "
+            "offered may vary"
+        )
+        assert details.pay(text) == Pay("USD", 45, 45, "hour")
+
+
 class TestJobType:
     def test_full_time_internship(self) -> None:
         # Cloudflare, after "not considering remote or part-time".
@@ -960,8 +1039,14 @@ class TestSponsorship:
 
 
 class TestConstructedGuards:
-    """Constructed guards for KAN-168's fixes, not seen live: each bug was real, but no
-    posting on 2026-10-09 said it this way."""
+    """Constructed guards for KAN-168's fixes and one pay shape, not seen live: each
+    bug was real, but no posting on 2026-10-09 (or, for the pay, on 2026-10-10) said
+    it this way."""
+
+    def test_cents_on_one_end_of_a_range(self) -> None:
+        # Reported as read "50,000 to 50,000"; the cached postings write cents on
+        # both ends or neither.
+        assert details.pay("Salary: $50,000.00 - $70,000") == Pay("USD", 50000, 70000, "year")
 
     INTERN = "Software Engineer Intern"
 
