@@ -9,7 +9,14 @@ position markers (`MARKS` in __init__), which give the editor its click
 targets and leave the page itself unchanged.
 '''
 
-from app.services.resume_render import MARKS, HeaderIdentity, escape, escape_url, mark
+from app.services.resume_render import (
+    HEADER,
+    MARKS,
+    HeaderIdentity,
+    escape,
+    escape_url,
+    mark,
+)
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
@@ -23,15 +30,24 @@ from app.services.resume_render.fields import (
 from app.services.resume_view import ResumeView, ViewEntry
 
 
-def _header(identity: HeaderIdentity) -> list[str]:
-    # The identity comes from the profile and is edited there: no markers
+def _header(identity: HeaderIdentity, marks: bool) -> list[str]:
+    # The identity comes from the profile; its markers use HEADER as the id,
+    # and each field's profile column as the kind
+    def slot(kind: str, latex: str) -> str:
+        return mark(HEADER, kind, latex) if marks else latex
+
     contact = []
     if identity.phone:
-        contact.append(escape(identity.phone))
+        contact.append(slot("phone_number", escape(identity.phone)))
     if identity.email:
-        contact.append(rf"\href{{mailto:{escape_url(identity.email)}}}{{\underline{{{escape(identity.email)}}}}}")
-    contact += [rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}" for u in identity.links]
-    lines = [r"\begin{center}", rf"\textbf{{\Huge \scshape {escape(identity.name)}}} \\ \vspace{{1pt}}"]
+        email = escape(identity.email)
+        contact.append(slot("email", rf"\href{{mailto:{escape_url(identity.email)}}}{{\underline{{{email}}}}}"))
+    contact += [
+        slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}")
+        for field, u in identity.links
+    ]
+    name = slot("full_name", rf"\textbf{{\Huge \scshape {escape(identity.name)}}}")
+    lines = [r"\begin{center}", rf"{name} \\ \vspace{{1pt}}"]
     if contact:
         lines.append(r"\small " + " $|$ ".join(contact))
     lines.append(r"\end{center}")
@@ -79,7 +95,7 @@ def _skills(view: ResumeView, marks: bool) -> str:
 
 def body(view: ResumeView, identity: HeaderIdentity, *, marks: bool = True) -> str:
     lines = [MARKS] if marks else []
-    lines += _header(identity)
+    lines += _header(identity, marks)
     for section in view.sections:
         lines += [rf"\section{{{escape(SECTION_LABELS[section.section])}}}", r"\resumeSubHeadingListStart"]
         for entry in section.entries:

@@ -82,6 +82,12 @@ PAGE_HEIGHT = 792.0
 # ascent and descent of Jake's 10 to 11 pt text, less than the 11.9 pt
 # between two bullet lines, so neighbouring boxes do not overlap
 ASCENT, DESCENT = 8.0, 3.0
+# The name prints \Huge, so its box reaches further each way
+NAME_ASCENT, NAME_DESCENT = 21.0, 5.0
+# The item id of the header's boxes, whose kinds are the profile columns
+# they show: full_name, phone_number, email, linkedin_url, github_url,
+# portfolio_url, other_url
+HEADER = "header"
 # The distance between a wrapped line's baselines in Jake's bullets, in points
 WRAPPED_LINE = 12.0
 _SP_PER_POINT = 65536 * 72.27 / 72  # scaled points in one PDF point
@@ -104,13 +110,13 @@ class TectonicUnavailable(RuntimeError):
 @dataclass(frozen=True)
 class HeaderIdentity:
     '''The profile's identity fields a resume's header prints. Links are
-    full URLs, printed without their scheme. Not `workit_scout.identity`'s
+    (profile column, full URL) pairs, printed without their scheme. Not `workit_scout.identity`'s
     `Identity`, which holds the same fields for removal before a model.'''
 
     name: str
     email: str | None = None
     phone: str | None = None
-    links: tuple[str, ...] = ()
+    links: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -257,7 +263,8 @@ def _boxes(positions: str) -> tuple[Box, ...]:
 
     def box(name: str, page: int, x0: float, x1: float, top: float, bottom: float) -> Box:
         item_id, kind = name.rsplit(".", 1)
-        y0, y1 = PAGE_HEIGHT - top - ASCENT, PAGE_HEIGHT - bottom + DESCENT
+        ascent, descent = (NAME_ASCENT, NAME_DESCENT) if name == f"{HEADER}.full_name" else (ASCENT, DESCENT)
+        y0, y1 = PAGE_HEIGHT - top - ascent, PAGE_HEIGHT - bottom + descent
         return Box(item_id, kind, page, round(x0, 2), round(y0, 2), round(x1, 2), round(y1, 2))
 
     for line in positions.splitlines():

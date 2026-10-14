@@ -28,8 +28,12 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   the field: `title`, `organization`, `location`, `dates`, `degree`
   (Education's subtitle, which also names the school), `gpa`, `coursework`,
   `honors`. `fields.heading_fields()` says which field each heading slot
-  shows. The header (name, contacts) has no boxes: it comes from the
-  profile. The render route sends them as `RenderResponse.boxes`
+  shows. The header's boxes have `item_id` `HEADER` ("header", not a
+  bank id) and the profile column as `kind`: `full_name`, `phone_number`,
+  `email`, `linkedin_url`, `github_url`, `portfolio_url`, `other_url`, which
+  is why `HeaderIdentity.links` carries each link's column. The name's box
+  reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
+  types them into the profile. The render route sends them as `RenderResponse.boxes`
   (`schemas/built_resume.py`).
 - **`Rendered.lines_over` is read from the boxes** (KAN-218): the distinct
   baselines past page 1, a wrapped box counting each line

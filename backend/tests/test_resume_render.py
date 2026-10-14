@@ -127,7 +127,8 @@ def _link_targets(pdf: bytes) -> list[str]:
 def test_header_links_with_underscores_and_tildes_stay_clickable() -> None:
     _tectonic_or_skip()
     links = ("https://github.com/john_doe", "https://cs.example.edu/~jdoe/a%20b#top")
-    identity = replace(IDENTITY, email="john_doe@example.com", links=links)
+    identity = replace(IDENTITY, email="john_doe@example.com",
+                       links=(("github_url", links[0]), ("other_url", links[1])))
 
     pdf = render(VIEW, identity, "jakes").pdf
 
@@ -238,6 +239,26 @@ def test_render_gives_a_box_for_each_line_the_editor_can_select() -> None:
     first = job.bullets[0]
     _, bbox = _line(lines, first.text[:30])
     assert _inside(bbox, boxes[(str(first.id), "bullet")])
+
+
+def test_the_header_gives_a_box_for_each_profile_field() -> None:
+    _tectonic_or_skip()
+    rendered = render(VIEW, IDENTITY, "jakes")
+    boxes = {b.kind: b for b in rendered.boxes if b.item_id == "header"}
+
+    assert set(boxes) == {"full_name", "phone_number", "email", "linkedin_url", "github_url"}
+    lines = _text_lines(rendered.pdf)
+    for kind, text in [("full_name", "Jake Ryan"), ("phone_number", "123-456-7890"),
+                       ("email", "jake@su.edu"), ("github_url", "github.com/jake")]:
+        bbox = next(bbox for t, _, bbox in lines if text in t)
+        box = boxes[kind]
+        if kind == "full_name":
+            assert _inside(bbox, box)
+        else:
+            # The contact line is one pdfminer line, its "|" taller than the
+            # text, so a field's box sits inside it rather than around it
+            assert box.y0 < bbox[3] and bbox[1] < box.y1
+            assert bbox[0] - 1.5 <= box.x0 and box.x1 <= bbox[2] + 1.5
 
 
 def test_a_wrapped_bullet_box_covers_both_lines() -> None:

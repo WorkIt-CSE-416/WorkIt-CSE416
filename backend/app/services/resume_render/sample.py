@@ -34,7 +34,7 @@ IDENTITY = HeaderIdentity(
     name="Jake Ryan",
     email="jake@su.edu",
     phone="123-456-7890",
-    links=("https://linkedin.com/in/jake", "https://github.com/jake"),
+    links=(("linkedin_url", "https://linkedin.com/in/jake"), ("github_url", "https://github.com/jake")),
 )
 
 VIEW = ResumeView(

@@ -453,7 +453,9 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
         email=profile.email,
         phone=profile.phone_number,
         links=tuple(
-            u for u in (profile.linkedin_url, profile.github_url, profile.portfolio_url, profile.other_url) if u
+            (field, url)
+            for field in ("linkedin_url", "github_url", "portfolio_url", "other_url")
+            if (url := getattr(profile, field))
         ),
     )
 

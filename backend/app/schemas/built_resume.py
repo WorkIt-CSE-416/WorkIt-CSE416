@@ -1,7 +1,7 @@
 """Request/response shapes for built resumes (KAN-207)."""
 
 import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, StringConstraints
@@ -30,12 +30,14 @@ class RenderBox(BaseModel):
     """Where one line sits on the PDF, for the editor's click target
     (KAN-209). `item_id` is the bank id of the bullet, skill or entry the line
     shows; `kind` is "bullet", "skill" or the entry field (title,
-    organization, location, dates, degree, gpa, coursework, honors). A
+    organization, location, dates, degree, gpa, coursework, honors). The
+    header's lines have `item_id` "header" and the profile column as `kind`
+    (full_name, phone_number, email, linkedin_url, ...). A
     rectangle in PDF points from the page's top left, y growing down;
     `page` counts from 1. One item and kind can have a box on each of two
     pages when its line splits across a page break."""
 
-    item_id: UUID
+    item_id: UUID | Literal["header"]
     kind: str
     page: int
     x0: float
