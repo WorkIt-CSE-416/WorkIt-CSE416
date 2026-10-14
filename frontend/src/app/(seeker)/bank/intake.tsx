@@ -12,7 +12,14 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 
 import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scout/chat";
 import { Button } from "@/components/ui/button";
@@ -552,46 +559,211 @@ export function Intake({
       ? 100
       : Math.min(85, (draft.title ? 35 : 12) + asked * 20);
 
-  return (
-    <section
-      aria-labelledby="intake-title"
+  const uploadStrip = offerImport && !importing && (
+    <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
+      <FileUp aria-hidden className="text-brand size-5 shrink-0" />
+      <p className="text-note text-ink-muted min-w-0 flex-1">
+        Want to pre-fill your entries? Upload your resume. WorkIt fills in what it can, then asks
+        only about the rest.{" "}
+        <button
+          type="button"
+          onClick={() => setImporting(true)}
+          className="text-brand hover:text-brand-hover underline"
+        >
+          Use one you already uploaded
+        </button>
+      </p>
+      <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
+      <Button
+        size="sm"
+        onClick={() => fileInput.current?.click()}
+        disabled={uploading || answering || saving}
+      >
+        <FileUp /> {uploading ? "Uploading…" : "Upload Resume"}
+      </Button>
+      {uploadError && (
+        <p role="alert" className="text-note text-danger basis-full">
+          {uploadError}
+        </p>
+      )}
+    </div>
+  );
+
+  const stepBar = (
+    <StepBar
+      current={draft?.section ?? null}
+      currentFill={currentFill}
+      filled={filled}
+      skipped={skipped}
+      lead={lead}
+      busy={answering || saving}
+      onJump={jump}
+      onSkip={skip}
+    />
+  );
+
+  const importer = (
+    <ImportCard
+      autoStart
+      resumeId={importFrom}
+      onSaved={onSaved}
+      onClose={() => {
+        setImporting(false);
+        setImported(true);
+        setRewalk((n) => n + 1);
+      }}
+    />
+  );
+
+  /** The chat: WorkIt's lines, then `tray` (the draft's way in) above the
+   *  composer. `className` sizes the box; `logClassName` sets how far the
+   *  lines may shrink. */
+  const chat = (className: string, logClassName: string, tray: ReactNode) => (
+    <div
       className={cn(
-        "flex flex-col gap-3",
-        // Its own container, so the step bar and chips size to the panel.
-        docked && "@container/main min-h-0 flex-1 px-4 pt-2 pb-4",
+        "from-brand-tint to-panel ring-brand-tint flex flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1",
+        className,
       )}
     >
-      {offerImport && !importing && (
-        <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
-          <FileUp aria-hidden className="text-brand size-5 shrink-0" />
-          <p className="text-note text-ink-muted min-w-0 flex-1">
-            Want to pre-fill your entries? Upload your resume. WorkIt fills in what it can, then
-            asks only about the rest.{" "}
-            <button
-              type="button"
-              onClick={() => setImporting(true)}
-              className="text-brand hover:text-brand-hover underline"
-            >
-              Use one you already uploaded
-            </button>
-          </p>
-          <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
-          <Button
-            size="sm"
-            onClick={() => fileInput.current?.click()}
-            disabled={uploading || answering || saving}
-          >
-            <FileUp /> {uploading ? "Uploading…" : "Upload Resume"}
-          </Button>
-          {uploadError && (
-            <p role="alert" className="text-note text-danger basis-full">
-              {uploadError}
-            </p>
-          )}
-        </div>
-      )}
+      <div
+        ref={log}
+        className={cn(
+          "flex flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4",
+          logClassName,
+        )}
+      >
+        <WorkItLine>
+          {walk
+            ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
+            : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
+        </WorkItLine>
 
-      <div className={cn("flex items-center gap-3", docked && "hidden")}>
+        {lines.map((line, i) => (
+          <ChatLine key={i} line={line} follows={continues(lines, i)} />
+        ))}
+
+        {answering && (
+          <div className="flex items-end gap-2.5">
+            <Mark />
+            <Message role="assistant" className="bg-panel shadow-card">
+              <Typing who="WorkIt" />
+            </Message>
+          </div>
+        )}
+
+        {error && (
+          <p role="alert" className="text-note text-danger animate-fade pl-10.5">
+            {error}
+          </p>
+        )}
+
+        {!draft && (
+          <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
+            {SECTIONS.map((s) => {
+              const Icon = ICONS[s.id];
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => start(s.id)}
+                  className="text-label bg-panel text-brand ring-brand-pale hover:bg-brand-tint focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ring-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <Icon aria-hidden className="size-3.5" /> {s.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* A screen reader hears each of WorkIt's lines once. */}
+      <p aria-live="polite" className="sr-only">
+        {!answering && lines.at(-1)?.kind === "text" ? lastText(lines) : ""}
+      </p>
+
+      <div className="flex min-h-0 flex-col gap-1.5 px-3 pb-3">
+        {tray}
+        <div className="[&>form]:p-0">
+          <Composer
+            onSend={send}
+            answering={answering}
+            disabled={!draft}
+            who="WorkIt"
+            label="Message WorkIt"
+            placeholder={draft ? "Type your answer…" : "Pick a section to start"}
+          />
+        </div>
+        {usesLeft !== null && (
+          <p className="text-note text-ink-meta px-1">
+            {usesLeft === 1 ? "1 message" : `${usesLeft} messages`} left today
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  /** The draft's one-line title, which opens it (or folds it, docked). */
+  const pill = (action: string, onClick: () => void, className?: string, expanded?: boolean) =>
+    draft && (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-expanded={expanded}
+        className={cn(
+          "bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1",
+          className,
+        )}
+      >
+        <Dot ready={kept?.done ?? false} />
+        <span className="text-label text-ink min-w-0 flex-1 truncate">
+          {draft.title || `Your new ${sectionOf(draft.section).label} entry`}
+        </span>
+        <span className="text-note text-brand font-semibold">{action}</span>
+      </button>
+    );
+
+  if (docked)
+    return (
+      // Its own container, so the step bar and chips size to the panel.
+      <section
+        aria-labelledby="intake-title"
+        className="@container/main flex min-h-0 flex-1 flex-col gap-3 px-4 pt-2 pb-4"
+      >
+        {/* The panel's header names it; this names the region. */}
+        <h2 id="intake-title" className="sr-only">
+          Tell WorkIt About It
+        </h2>
+        {uploadStrip}
+        {stepBar}
+        {importing ? (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{importer}</div>
+        ) : (
+          // The card gives way first, down to min-h-40, while the chat keeps
+          // room for WorkIt's last question.
+          chat(
+            "min-h-0 flex-1",
+            "min-h-32",
+            <>
+              {draft && !folded && (
+                <CardFrame
+                  aria-label="Draft entry"
+                  className="min-h-40 shrink overflow-y-auto overscroll-contain rounded-2xl"
+                >
+                  {card}
+                </CardFrame>
+              )}
+              {pill(folded ? "View" : "Hide", () => setFolded((f) => !f), undefined, !folded)}
+            </>,
+          )
+        )}
+      </section>
+    );
+
+  return (
+    <section aria-labelledby="intake-title" className="flex flex-col gap-3">
+      {uploadStrip}
+
+      <div className="flex items-center gap-3">
         <Mark />
         <div className="min-w-0">
           <h2 id="intake-title" className="text-subtitle text-ink">
@@ -603,155 +775,25 @@ export function Intake({
         </div>
       </div>
 
-      <StepBar
-        current={draft?.section ?? null}
-        currentFill={currentFill}
-        filled={filled}
-        skipped={skipped}
-        lead={lead}
-        busy={answering || saving}
-        onJump={jump}
-        onSkip={skip}
-      />
+      {stepBar}
 
       {importing ? (
-        <div className={cn(docked && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}>
-          <ImportCard
-            autoStart
-            resumeId={importFrom}
-            onSaved={onSaved}
-            onClose={() => {
-              setImporting(false);
-              setImported(true);
-              setRewalk((n) => n + 1);
-            }}
-          />
-        </div>
+        importer
       ) : (
-        <div
-          className={cn(
-            "grid items-start gap-5",
-            docked ? "min-h-0 flex-1 grid-rows-1" : "@4xl/main:grid-cols-[1fr_21rem]",
+        <div className="grid items-start gap-5 @4xl/main:grid-cols-[1fr_21rem]">
+          {chat(
+            "h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem]",
+            "min-h-0",
+            pill("View", () => setSheet(true), "@4xl/main:hidden"),
           )}
-        >
-          <div
-            className={cn(
-              "from-brand-tint to-panel ring-brand-tint flex flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1",
-              docked ? "h-full" : "h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem]",
-            )}
+
+          <CardFrame
+            as="aside"
+            aria-label="Draft entry"
+            className="hidden rounded-3xl @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
           >
-            <div
-              ref={log}
-              className={cn(
-                "flex flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4",
-                // Docked, the card below gives way first: the chat keeps
-                // room for WorkIt's last question.
-                docked ? "min-h-32" : "min-h-0",
-              )}
-            >
-              <WorkItLine>
-                {walk
-                  ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
-                  : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
-              </WorkItLine>
-
-              {lines.map((line, i) => (
-                <ChatLine key={i} line={line} follows={continues(lines, i)} />
-              ))}
-
-              {answering && (
-                <div className="flex items-end gap-2.5">
-                  <Mark />
-                  <Message role="assistant" className="bg-panel shadow-card">
-                    <Typing who="WorkIt" />
-                  </Message>
-                </div>
-              )}
-
-              {error && (
-                <p role="alert" className="text-note text-danger animate-fade pl-10.5">
-                  {error}
-                </p>
-              )}
-
-              {!draft && (
-                <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
-                  {SECTIONS.map((s) => {
-                    const Icon = ICONS[s.id];
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => jump(s.id)}
-                        className="text-label bg-panel text-brand ring-brand-pale hover:bg-brand-tint focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ring-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                      >
-                        <Icon aria-hidden className="size-3.5" /> {s.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* A screen reader hears each of WorkIt's lines once. */}
-            <p aria-live="polite" className="sr-only">
-              {!answering && lines.at(-1)?.kind === "text" ? lastText(lines) : ""}
-            </p>
-
-            <div className="flex min-h-0 flex-col gap-1.5 px-3 pb-3">
-              {docked && draft && !folded && (
-                <div
-                  aria-label="Draft entry"
-                  className="bg-panel ring-brand-tint shadow-card min-h-0 shrink overflow-y-auto overscroll-contain rounded-2xl ring-1"
-                >
-                  {card}
-                </div>
-              )}
-              {draft && (
-                <button
-                  type="button"
-                  onClick={() => (docked ? setFolded((f) => !f) : setSheet(true))}
-                  aria-expanded={docked ? !folded : undefined}
-                  className={cn(
-                    "bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1",
-                    !docked && "@4xl/main:hidden",
-                  )}
-                >
-                  <Dot ready={kept?.done ?? false} />
-                  <span className="text-label text-ink min-w-0 flex-1 truncate">
-                    {draft.title || `Your new ${sectionOf(draft.section).label} entry`}
-                  </span>
-                  <span className="text-note text-brand font-semibold">
-                    {docked && !folded ? "Hide" : "View"}
-                  </span>
-                </button>
-              )}
-              <div className="[&>form]:p-0">
-                <Composer
-                  onSend={send}
-                  answering={answering}
-                  disabled={!draft}
-                  who="WorkIt"
-                  label="Message WorkIt"
-                  placeholder={draft ? "Type your answer…" : "Pick a section to start"}
-                />
-              </div>
-              {usesLeft !== null && (
-                <p className="text-note text-ink-meta px-1">
-                  {usesLeft === 1 ? "1 message" : `${usesLeft} messages`} left today
-                </p>
-              )}
-            </div>
-          </div>
-
-          {!docked && (
-            <aside
-              aria-label="Draft entry"
-              className="bg-panel ring-brand-tint shadow-card hidden rounded-3xl ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
-            >
-              {!sheet && card}
-            </aside>
-          )}
+            {!sheet && card}
+          </CardFrame>
         </div>
       )}
 
@@ -838,6 +880,18 @@ function Chapter({ section }: { section: Section }) {
       </span>
       <span className="bg-brand-pale h-px flex-1" />
     </div>
+  );
+}
+
+/** The frame around the draft card, wherever it sits: beside the chat on
+ *  the page, under it in Scout's panel. Rounding and sizing are the caller's. */
+function CardFrame({
+  as: Tag = "div",
+  className,
+  ...props
+}: { as?: "div" | "aside" } & HTMLAttributes<HTMLElement>) {
+  return (
+    <Tag className={cn("bg-panel ring-brand-tint shadow-card ring-1", className)} {...props} />
   );
 }
 
