@@ -76,7 +76,8 @@ import {
  * file just uploaded or else the default one, until it closes. The walk then starts again on the bank as
  * it is now. It skips a section that has entries, but visits each entry in
  * `entries` that has gaps (`gapQuestions`: no dates, no organization for a
- * job or role, no bullets for a job, project or role): the card opens on
+ * job or role, no bullets for a job, project or role, no degree, field or
+ * GPA for a school): the card opens on
  * the saved entry, WorkIt's first line asks about the gap, and the model,
  * which never asks for what the draft already holds, asks only about the
  * rest. Saving such a visit edits the entry (`editSteps`), never adds one.

@@ -146,7 +146,8 @@ const NEEDS_BULLETS = new Set<Section>(["experience", "projects", "leadership"])
 /**
  * Intake's questions about an entry already in the bank, an imported one
  * most often: one for each fact a resume would miss, plus what they did when
- * a job, project or role has no bullets. Empty when the entry is complete,
+ * a job, project or role has no bullets, and a school's degree, field and
+ * GPA (a resume import often has no GPA). Empty when the entry is complete,
  * and then intake does not visit it.
  */
 export function gapQuestions(entry: BankEntry): string[] {
@@ -161,6 +162,12 @@ export function gapQuestions(entry: BankEntry): string[] {
   }
   if (NEEDS_BULLETS.has(entry.section) && entry.bullets.length === 0) {
     questions.push("What did you do there, and what came of it?");
+  }
+  if (entry.section === "education") {
+    if (!entry.degree?.trim() || !entry.field_of_study?.trim()) {
+      questions.push("What degree is it, and in what field?");
+    }
+    if (entry.gpa == null) questions.push("What is your GPA? Say skip to leave it off.");
   }
   return questions;
 }

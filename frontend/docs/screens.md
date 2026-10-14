@@ -482,7 +482,8 @@ chat the page is built around.
 - **Walking.** The bank page always walks, in the step bar's order: a
   section with entries is passed over, except that each entry with gaps
   (`sections.ts`'s `gapQuestions`: no dates; no organization for a job or
-  role; no bullets for a job, project or role) gets a visit. The card opens
+  role; no bullets for a job, project or role; no degree, field or GPA for
+  a school, which a resume import often lacks) gets a visit. The card opens
   on the saved entry, WorkIt's first line asks about the gap, the model is
   told what the card has and lacks, and saving edits the entry. Skip on a
   visit passes over that entry only. An entry visited once is not visited
