@@ -288,7 +288,9 @@ Find files with a directory listing; these are the rules for where code goes.
   the section (`FIELD_MEANINGS`, matching the card's labels), because
   without it a live model put the university in Education's organization.
   The context also lists the facts the section needs (`_NEEDS`) that the
-  card has ("never ask about these") and lacks ("ask about these"). Two code
+  card has ("never ask about these") and lacks ("ask about these").
+  Education's include the GPA, so a school imported without one gets asked
+  for it; the student can say skip. Two code
   guards back the prompt, each with a test, because the local 4B model
   ignored it: a field the card had that the reply blanks keeps the card's
   value (`_keep_filled`, the three end-date fields as one), so saving a

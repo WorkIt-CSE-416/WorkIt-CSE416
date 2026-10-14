@@ -92,7 +92,7 @@ no questions are left, say the entry looks ready to save and set done to true.
 # The facts a resume needs from each section, as the student would name
 # them, in the order intake asks for them.
 _NEEDS = {
-    bank_section.education: ("title", "dates", "degree", "field_of_study"),
+    bank_section.education: ("title", "dates", "degree", "field_of_study", "gpa"),
     bank_section.experience: ("title", "organization", "dates", "bullets"),
     bank_section.projects: ("title", "dates", "bullets"),
     bank_section.leadership: ("title", "organization", "dates", "bullets"),
@@ -201,6 +201,7 @@ _ASK = {
     "bullets": "What did you do there, and what came of it?",
     "degree": "What degree is it?",
     "field_of_study": "What are you studying?",
+    "gpa": "What is your GPA? Say skip to leave it off.",
     "award_date": "What month and year did you win it?",
 }
 

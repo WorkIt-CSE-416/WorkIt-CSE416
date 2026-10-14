@@ -366,3 +366,25 @@ async def test_an_end_kind_with_no_end_month_is_dropped(applicant, client):
     res = await client.post("/intake/turn", json=TURN)
     draft = lines(res)[1]["draft"]
     assert (draft["start_month"], draft["end_month"], draft["end_kind"]) == ("2024-06", None, None)
+
+
+SCHOOL = {
+    "section": "education",
+    "title": "Stony Brook University",
+    "start_month": "2023-08",
+    "end_month": "2027-05",
+    "end_kind": "expected",
+    "degree": "B.S.",
+    "field_of_study": "Computer Science",
+}
+
+
+async def test_intake_asks_for_a_gpa_an_imported_school_lacks(applicant, client):
+    model = use_model([reply("What's your GPA?", draft=SCHOOL)])
+    res = await client.post(
+        "/intake/turn",
+        json={"section": "education", "messages": [{"role": "user", "content": "Hi"}], "draft": SCHOOL},
+    )
+    assert "Still missing: gpa." in model.prompts[0][1]["content"]
+    # The card lacks a fact a resume needs, so the code does not end the visit.
+    assert lines(res)[1]["done"] is False
