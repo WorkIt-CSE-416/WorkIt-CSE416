@@ -386,7 +386,9 @@ and widens to 448px (460px of room with its gap). Three bands, top to
 bottom: the step bar and a read-only preview of the draft
 (`draft-preview.tsx`); the chat; the composer. The preview shows the entry
 as the bank lists it, fading each line in as WorkIt fills it, with "Still
-needed" chips, Edit and Save Entry; it folds to its header. The chips are
+needed" chips, Edit and Save Entry, and on the left "Leave As Is" (a
+visit) or "Skip Section" (a new entry): the step bar's Skip, where a student
+happy with an entry looked for "next" and found none. It folds to its header. The chips are
 `sections.ts`'s `neededFacts`: only what intake asks about (a school's or
 job's dates, a job's or role's organization, a school's degree and field,
 bullets) and the title. An optional field such as a school's college never shows; an early

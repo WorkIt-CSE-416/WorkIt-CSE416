@@ -38,6 +38,8 @@ export function DraftPreview({
   onFold,
   onEdit,
   onSave,
+  onSkip,
+  skipLabel,
   icon,
 }: {
   draft: EntryDraft;
@@ -49,6 +51,10 @@ export function DraftPreview({
   onFold: () => void;
   onEdit: () => void;
   onSave: () => void;
+  /** Moves on without saving: a student happy with a visited entry had only
+   *  the step bar's small Skip and asked where "next" was. */
+  onSkip?: () => void;
+  skipLabel?: string;
   icon: ReactNode;
 }) {
   const meta = sectionOf(draft.section);
@@ -171,6 +177,11 @@ export function DraftPreview({
           )}
 
           <div className="flex items-center justify-end gap-2">
+            {onSkip && (
+              <Button size="sm" variant="ghost" className="mr-auto" onClick={onSkip}>
+                {skipLabel}
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={onEdit}>
               <Pencil /> Edit
             </Button>

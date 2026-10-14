@@ -784,6 +784,8 @@ export function Intake({
               onFold={() => setFolded((f) => !f)}
               onEdit={() => setSheet(true)}
               onSave={() => save(draft)}
+              onSkip={saving || answering ? undefined : skip}
+              skipLabel={kept?.entryId ? "Leave As Is" : "Skip Section"}
             />
           )}
         </div>
