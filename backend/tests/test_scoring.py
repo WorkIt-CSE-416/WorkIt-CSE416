@@ -1,13 +1,16 @@
 """Tests for scoring and highlights — pure functions, no DB."""
 
+from datetime import date
+
 import pytest
 
-from app.models.dto import Education, ParsedResume, Skill
+from app.models.dto import Education, Experience, ParsedResume, Skill
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
     compute_breakdown,
     compute_score,
     eligibility,
+    experience_years,
     freshness,
     title_fit,
 )
@@ -81,6 +84,49 @@ def test_freshness_floor():
 def test_freshness_midpoint():
     f = freshness(60)
     assert 0.7 < f < 1.0
+
+
+@pytest.mark.parametrize(("age", "expected"), [(-30, 1), (90, .91), (150, .85), (300, .7)])
+def test_freshness_decay(age, expected):
+    assert freshness(age) == pytest.approx(expected)
+
+
+def test_experience_merges_overlaps_and_counts_ongoing_roles():
+    today = date(2026, 1, 1)
+    roles = [
+        Experience(company_name="A", title="Engineer", start_date=date(2023, 1, 1), end_date=date(2025, 1, 1)),
+        Experience(company_name="B", title="Engineer", start_date=date(2024, 1, 1)),
+        Experience(company_name="C", title="Engineer", start_date=date(2024, 2, 1), end_date=date(2024, 3, 1)),
+    ]
+    assert experience_years(roles, today=today) == pytest.approx((today - date(2023, 1, 1)).days / 365.25)
+
+
+def test_experience_ignores_invalid_dates_caps_future_and_preserves_gaps():
+    today = date(2026, 1, 1)
+    periods = [(None, None), (date(2027, 1, 1), None),
+               (date(2025, 1, 1), date(2024, 1, 1)),
+               (date(2025, 7, 1), date(2028, 1, 1)),
+               (date(2023, 1, 1), date(2024, 1, 1))]
+    roles = [Experience(company_name="A", title="Engineer", start_date=start, end_date=end)
+             for start, end in periods]
+    expected_days = (today - date(2025, 7, 1)).days + 365
+    assert experience_years(roles, today=today) == pytest.approx(expected_days / 365.25)
+
+
+def test_relevant_older_role_outranks_fresh_unrelated_role():
+    relevant = compute_score(.8, .75, .8, 1, freshness(150))
+    unrelated = compute_score(.3, 0, 0, 1, freshness(0))
+    assert relevant > unrelated
+
+
+def test_experience_mismatch_stays_visible_and_skills_are_evidenced():
+    resume = _resume(skills=[Skill(skill_name="Java"), Skill(skill_name="Python")])
+    highlights = generate_highlights("Engineer", 5, None, resume, .9, .5, .8, 0,
+                                     matched_skills=["Python"])
+    assert len(highlights) == 3
+    assert any("Python" in h["text"] for h in highlights)
+    assert not any("Java" in h["text"] for h in highlights)
+    assert any(not h["met"] and "5+ years" in h["text"] for h in highlights)
 
 
 # --- title_fit ---
