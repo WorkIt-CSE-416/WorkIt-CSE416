@@ -584,3 +584,24 @@ async def test_bullets_the_card_had_before_the_turn_stay(applicant, client):
     use_model([reply(draft=card)])
     res = await client.post("/intake/turn", json={"section": "leadership", "messages": [MAZE_LINE], "draft": card})
     assert lines(res)[1]["draft"]["bullets"] == ["Led 12 members."]
+
+
+async def test_the_entry_naming_the_most_words_wins(applicant, client):
+    # "robot" is in two project titles; the maze project shares four words
+    # with the line and the CNN robot one, so the maze project is meant.
+    await save(client, applicant, MAZE)
+    await save(client, applicant, {"section": "projects", "title": "CNN-Powered Object Detection Robot",
+                                   "bullets": ["Built a CNN on 3,500 images."]})
+    use_model([reply("What did you do?", draft={**ROLE, "organization": "IEEE"})])
+    res = await client.post("/intake/turn", json={"section": "leadership", "messages": [MAZE_LINE], "draft": None})
+    assert lines(res)[1]["draft"]["bullets"] == MAZE["bullets"]
+
+
+async def test_a_tie_between_entries_is_a_guess(applicant, client):
+    await save(client, applicant, MAZE)
+    await save(client, applicant, {"section": "projects", "title": "CNN-Powered Object Detection Robot",
+                                   "bullets": ["Built a CNN on 3,500 images."]})
+    said = {"role": "user", "content": "I built a robot."}
+    use_model([reply("What did it do?", draft={**ROLE, "organization": "IEEE"})])
+    res = await client.post("/intake/turn", json={"section": "leadership", "messages": [said], "draft": None})
+    assert lines(res)[1]["draft"]["bullets"] == []

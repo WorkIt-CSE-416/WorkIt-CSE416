@@ -343,7 +343,11 @@ Find files with a directory listing; these are the rules for where code goes.
   the project "Micromouse" at "Stony Brook IEEE"), that entry's
   organization, location, dates and bullets go into the card's empty
   fields, and WorkIt's line becomes "I filled in what your bank has on …"
-  plus the first fact still missing. Exactly one entry must match, and a
+  plus the first fact still missing. When several match, the one sharing
+  the most telling words with the line wins (a tie fills nothing): "robot"
+  in both "Autonomous Maze Navigation Robot" and "CNN-Powered Object
+  Detection Robot" made "the autonomous maze navigation robot" a guess
+  that filled nothing (2026-10-14). A
   word list (`_GENERIC`) keeps "intern" or "club" from matching alone. An
   entry whose title has no telling word never matches: a leadership entry
   titled "hi" at "Stony Brook Robotics Club" matched "for my robotics team"

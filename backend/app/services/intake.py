@@ -302,19 +302,27 @@ def bank_match(said: str, bank: Bank) -> Entry | None:
     robotics club on its organization alone. So "the IEEE
     Micromouse lead" finds the project "Micromouse" at "Stony Brook IEEE",
     and "an internship at Google" never finds another company's "Software
-    Engineer Intern". Only one match counts: two is a guess, unless they
-    are copies (the same section, title and organization, as an import saved
+    Engineer Intern". When several match, the one sharing the most telling
+    words with the line wins: "the autonomous maze navigation robot" shares
+    four with "Autonomous Maze Navigation Robot" and one ("robot") with "CNN-
+    Powered Object Detection Robot", which made it a two-way guess that
+    filled nothing. A tie is still a guess, unless the tied entries are
+    copies (the same section, title and organization, as an import saved
     "as new" leaves): those are one entry, and the one with the most bullets
     lends."""
     heard = _words(said)
-    found = []
+    scored: list[tuple[int, Entry]] = []
     for entry in bank.entries:
         if entry.row.section not in _LENDERS:
             continue
         title = _words(entry.row.title)
         parts = [w for w in (title, _words(entry.row.organization)) if w]
         if title and all(part & heard for part in parts):
-            found.append(entry)
+            scored.append((sum(len(part & heard) for part in parts), entry))
+    if not scored:
+        return None
+    best = max(score for score, _ in scored)
+    found = [e for score, e in scored if score == best]
     same = {(e.row.section, e.row.title.strip().lower(), (e.row.organization or "").strip().lower()) for e in found}
     return max(found, key=lambda e: len(e.bullets)) if len(same) == 1 else None
 
