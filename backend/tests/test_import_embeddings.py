@@ -151,3 +151,49 @@ def test_cli_passes_embedding_limit(monkeypatch, tmp_path):
     feed = tmp_path / "feed.json"
     assert import_jobs.main([str(feed), "--embed-limit", "100"]) == 0
     run.assert_awaited_once_with(feed, dry_run=False, allow_mass_close=False, embed_limit=100)
+
+
+@pytest.mark.parametrize("limit", [None, 1])
+def test_embeddings_only_skips_feed_and_import(monkeypatch, capsys, limit):
+    run = AsyncMock(return_value=1)
+    import_run = AsyncMock()
+    settings = Mock(side_effect=AssertionError("must not resolve feed"))
+    monkeypatch.setattr(import_jobs, "_run_embeddings_only", run)
+    monkeypatch.setattr(import_jobs, "_run", import_run)
+    monkeypatch.setattr(import_jobs, "get_settings", settings)
+    args = ["--embeddings-only"]
+    if limit is not None:
+        args.extend(["--embed-limit", str(limit)])
+    assert import_jobs.main(args) == 0
+    run.assert_awaited_once_with(limit=limit)
+    import_run.assert_not_awaited()
+    settings.assert_not_called()
+    assert "embedded 1 scraped jobs; no feed imported" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("extra", [["missing.json"], ["--dry-run"], ["--allow-mass-close"]])
+def test_embeddings_only_rejects_import_options(extra):
+    with pytest.raises(SystemExit) as exc:
+        import_jobs.main(["--embeddings-only", *extra])
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_embeddings_only_disposes_engine(monkeypatch, fail):
+    conn = object()
+
+    @asynccontextmanager
+    async def connect():
+        yield conn
+
+    engine = SimpleNamespace(connect=connect, dispose=AsyncMock())
+    embed_jobs = AsyncMock(return_value=2, side_effect=RuntimeError("write failed") if fail else None)
+    monkeypatch.setattr(import_jobs, "get_engine", lambda: engine)
+    monkeypatch.setattr(import_jobs, "_embed_jobs", embed_jobs)
+    if fail:
+        with pytest.raises(RuntimeError, match="write failed"):
+            asyncio.run(import_jobs._run_embeddings_only(limit=2))
+    else:
+        assert asyncio.run(import_jobs._run_embeddings_only(limit=2)) == 2
+    embed_jobs.assert_awaited_once_with(conn, limit=2)
+    engine.dispose.assert_awaited_once()

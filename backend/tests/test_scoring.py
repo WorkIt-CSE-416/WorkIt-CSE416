@@ -1,8 +1,11 @@
 """Tests for scoring and highlights — pure functions, no DB."""
 
+import pytest
+
 from app.models.dto import Education, ParsedResume, Skill
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
+    compute_breakdown,
     compute_score,
     eligibility,
     freshness,
@@ -10,6 +13,24 @@ from app.services.matching.scoring import (
 )
 
 # --- compute_score ---
+
+
+@pytest.mark.parametrize("semantic", [0.8, None, -0.2])
+@pytest.mark.parametrize("fresh", [0.7, 1.0, 2.0])
+def test_breakdown_reconciles_with_score(semantic, fresh):
+    result = compute_breakdown(semantic, 0.6, 0.4, 1.0, fresh)
+    parts = [result.semantic, result.skill_overlap, result.title_fit, result.eligibility]
+    assert sum(p.weight for p in parts) == pytest.approx(1)
+    assert sum(p.points for p in parts) == pytest.approx(result.weighted_score)
+    assert result.score_before_rounding == pytest.approx(result.weighted_score * fresh)
+    expected = (0.45 * semantic + 0.25 * 0.6 + 0.15 * 0.4 + 0.15) if semantic is not None else (
+        (0.25 * 0.6 + 0.15 * 0.4 + 0.15) / 0.55
+    )
+    assert result.final_score == max(0, min(100, round(expected * fresh * 100)))
+    assert result.final_score == compute_score(semantic, 0.6, 0.4, 1.0, fresh)
+    if semantic is None:
+        assert result.semantic.value is None
+        assert result.semantic.weight == result.semantic.points == 0
 
 def test_perfect_score():
     score = compute_score(

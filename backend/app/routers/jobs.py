@@ -123,7 +123,7 @@ from app.schemas.jobs import (
 from app.services.company_resolver import CompanyResolver
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
-    compute_score,
+    compute_breakdown,
     eligibility,
     freshness,
     title_fit,
@@ -1042,7 +1042,8 @@ async def recommended_jobs(
 ) -> list[ScoredJob]:
     """Jobs scored against the applicant's default resume. Returns `match`
     (0-100) and up to 3 `highlights`. Jobs without embeddings still appear,
-    scored on other components."""
+    scored on other components. Includes score_breakdown with effective weights,
+    component points before freshness, and the final rounded score."""
     assert_applicant_owns(account, applicant_id)
 
     # Load the default resume
@@ -1082,9 +1083,8 @@ async def recommended_jobs(
 
     # Semantic similarity: 1 - cosine_distance
     if resume_embedding is not None:
-        vec_literal = str(resume_embedding)
         semantic_col = (
-            literal(1.0) - Job_Post.embedding.cosine_distance(vec_literal)
+            literal(1.0) - Job_Post.embedding.cosine_distance(resume_embedding)
         ).label("semantic")
     else:
         semantic_col = literal(None).label("semantic")
@@ -1129,7 +1129,7 @@ async def recommended_jobs(
         elig = eligibility(
             None, row.start_term, row.min_years_experience, years_exp
         )
-        score = compute_score(semantic_val, skill_norm, t_fit, elig, fresh)
+        breakdown = compute_breakdown(semantic_val, skill_norm, t_fit, elig, fresh)
         highlights = generate_highlights(
             row.title, row.min_years_experience, row.start_term,
             parsed, semantic_val, skill_norm, t_fit, elig,
@@ -1138,7 +1138,8 @@ async def recommended_jobs(
         listing = to_listing(row)
         scored.append(ScoredJob(
             **listing.model_dump(),
-            match=score,
+            match=breakdown.final_score,
+            score_breakdown=breakdown,
             highlights=[Highlight(**h) for h in highlights],
         ))
 
