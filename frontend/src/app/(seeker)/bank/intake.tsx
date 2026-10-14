@@ -3,6 +3,7 @@
 import {
   BadgeCheck,
   Briefcase,
+  ChevronLeft,
   FileUp,
   GraduationCap,
   Lightbulb,
@@ -12,14 +13,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type HTMLAttributes,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scout/chat";
 import { Button } from "@/components/ui/button";
@@ -34,6 +28,7 @@ import {
   writeLocalDraft,
 } from "@/lib/local-drafts";
 
+import { Dot, DraftPreview } from "./draft-preview";
 import { EntryEditor } from "./entry-editor";
 import { editSteps } from "./entry-save";
 import { ImportCard } from "./import-card";
@@ -97,10 +92,12 @@ import {
  *
  * Docked (`docked`): the bank page renders intake in Scout's panel
  * (components/scout/scout-takeover.tsx), which is too narrow for the card's
- * column. The panel's header replaces intake's own; the upload strip and the
- * step bar head it, the chat fills the middle, and the card sits under the
- * chat, above the composer, where the one-line draft folds it away and opens
- * it again. Onboarding keeps the page layout.
+ * column. The panel's header replaces intake's own. Three bands: the step bar
+ * and a read-only preview of the draft (`draft-preview.tsx`), the chat on
+ * the panel's own surface, and the composer. The form opens over the panel
+ * on the preview's Edit, so it never sits on the chat. The upload offer is
+ * WorkIt's second line, with its two answers as buttons. Onboarding keeps
+ * the page layout.
  */
 
 type DraftWire = EntryFields & { bullets: string[] };
@@ -229,7 +226,7 @@ export function Intake({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
   const [sheet, setSheet] = useState(false);
-  // Docked only: the card under the chat is folded away.
+  // Docked only: the draft's preview is folded to one line.
   const [folded, setFolded] = useState(false);
   const [skipped, setSkipped] = useState<Section[]>([]);
   const [importing, setImporting] = useState(autoImport);
@@ -573,7 +570,6 @@ export function Intake({
           Use one you already uploaded
         </button>
       </p>
-      <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
       <Button
         size="sm"
         onClick={() => fileInput.current?.click()}
@@ -587,6 +583,37 @@ export function Intake({
         </p>
       )}
     </div>
+  );
+
+  const fileField = (
+    <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
+  );
+
+  /** Docked, the upload offer is WorkIt's second line, with its two answers
+   *  as buttons, rather than a strip that stays over the chat. */
+  const importOffer = offerImport && !importing && (
+    <>
+      <WorkItLine follows>
+        Have a resume? I can read it, fill in what it can, and then ask only about the rest.
+      </WorkItLine>
+      <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
+        <Button
+          size="sm"
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading || answering || saving}
+        >
+          <FileUp /> {uploading ? "Uploading…" : "Upload Resume"}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => setImporting(true)}>
+          Use One I Uploaded
+        </Button>
+      </div>
+      {uploadError && (
+        <p role="alert" className="text-note text-danger pl-10.5">
+          {uploadError}
+        </p>
+      )}
+    </>
   );
 
   const stepBar = (
@@ -615,10 +642,20 @@ export function Intake({
     />
   );
 
-  /** The chat: WorkIt's lines, then `tray` (the draft's way in) above the
-   *  composer. `className` sizes the box; `logClassName` sets how far the
-   *  lines may shrink. */
-  const chat = (className: string, logClassName: string, tray: ReactNode) => (
+  /** The chat: WorkIt's lines, with `intro` after its greeting, then `tray`
+   *  (the draft's way in) above the composer. The class names size and
+   *  frame the box and its lines. */
+  const chat = ({
+    className,
+    logClassName,
+    intro,
+    tray,
+  }: {
+    className: string;
+    logClassName?: string;
+    intro?: ReactNode;
+    tray?: ReactNode;
+  }) => (
     <div
       className={cn(
         "from-brand-tint to-panel ring-brand-tint flex flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1",
@@ -628,7 +665,7 @@ export function Intake({
       <div
         ref={log}
         className={cn(
-          "flex flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4",
+          "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4",
           logClassName,
         )}
       >
@@ -637,6 +674,7 @@ export function Intake({
             ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
             : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
         </WorkItLine>
+        {intro}
 
         {lines.map((line, i) => (
           <ChatLine key={i} line={line} follows={continues(lines, i)} />
@@ -681,7 +719,7 @@ export function Intake({
         {!answering && lines.at(-1)?.kind === "text" ? lastText(lines) : ""}
       </p>
 
-      <div className="flex min-h-0 flex-col gap-1.5 px-3 pb-3">
+      <div className="flex flex-col gap-1.5 px-3 pb-3">
         {tray}
         <div className="[&>form]:p-0">
           <Composer
@@ -702,65 +740,95 @@ export function Intake({
     </div>
   );
 
-  /** The draft's one-line title, which opens it (or folds it, docked). */
-  const pill = (action: string, onClick: () => void, className?: string, expanded?: boolean) =>
-    draft && (
-      <button
-        type="button"
-        onClick={onClick}
-        aria-expanded={expanded}
-        className={cn(
-          "bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1",
-          className,
-        )}
-      >
-        <Dot ready={kept?.done ?? false} />
-        <span className="text-label text-ink min-w-0 flex-1 truncate">
-          {draft.title || `Your new ${sectionOf(draft.section).label} entry`}
-        </span>
-        <span className="text-note text-brand font-semibold">{action}</span>
-      </button>
-    );
+  /** Below @4xl/main, the draft's one-line title, which opens it as a sheet. */
+  const pill = draft && (
+    <button
+      type="button"
+      onClick={() => setSheet(true)}
+      className="bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1 @4xl/main:hidden"
+    >
+      <Dot ready={kept?.done ?? false} />
+      <span className="text-label text-ink min-w-0 flex-1 truncate">
+        {draft.title || `Your new ${sectionOf(draft.section).label} entry`}
+      </span>
+      <span className="text-note text-brand font-semibold">View</span>
+    </button>
+  );
 
-  if (docked)
+  if (docked) {
+    const Icon = draft ? ICONS[draft.section] : null;
     return (
       // Its own container, so the step bar and chips size to the panel.
+      // Three bands: progress and the draft's preview, the chat, the
+      // composer. The form opens over all three on Edit.
       <section
         aria-labelledby="intake-title"
-        className="@container/main flex min-h-0 flex-1 flex-col gap-3 px-4 pt-2 pb-4"
+        className="@container/main relative flex min-h-0 flex-1 flex-col gap-3 pt-1"
       >
         {/* The panel's header names it; this names the region. */}
         <h2 id="intake-title" className="sr-only">
           Tell WorkIt About It
         </h2>
-        {uploadStrip}
-        {stepBar}
+        {fileField}
+        <div className="flex flex-col gap-3 px-4">
+          {stepBar}
+          {draft && Icon && !importing && (
+            <DraftPreview
+              draft={draft}
+              done={kept?.done ?? false}
+              folded={folded}
+              saving={saving}
+              error={saveError}
+              duplicate={duplicate}
+              icon={<Icon className="size-4" />}
+              onFold={() => setFolded((f) => !f)}
+              onEdit={() => setSheet(true)}
+              onSave={() => save(draft)}
+            />
+          )}
+        </div>
         {importing ? (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{importer}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+            {importer}
+          </div>
         ) : (
-          // The card gives way first, down to min-h-40, while the chat keeps
-          // room for WorkIt's last question.
-          chat(
-            "min-h-0 flex-1",
-            "min-h-32",
-            <>
-              {draft && !folded && (
-                <CardFrame
-                  aria-label="Draft entry"
-                  className="min-h-40 shrink overflow-y-auto overscroll-contain rounded-2xl"
-                >
-                  {card}
-                </CardFrame>
-              )}
-              {pill(folded ? "View" : "Hide", () => setFolded((f) => !f), undefined, !folded)}
-            </>,
-          )
+          // No frame of its own: the panel is the chat's surface, and the
+          // lines fade out under the preview.
+          chat({
+            className: "min-h-0 flex-1 rounded-none bg-none ring-0",
+            logClassName: "pt-2 [mask-image:linear-gradient(to_bottom,transparent,black_12px)]",
+            intro: importOffer,
+          })
+        )}
+
+        {sheet && draft && (
+          <div
+            role="dialog"
+            aria-label="Edit entry"
+            className="animate-rise bg-panel absolute inset-0 z-10 flex flex-col"
+            onKeyDown={(e) => {
+              // Back to the chat, not out of the panel.
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                setSheet(false);
+              }
+            }}
+          >
+            <div className="px-3 pb-1">
+              <Button size="sm" variant="ghost" onClick={() => setSheet(false)}>
+                <ChevronLeft /> Back to Chat
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{card}</div>
+          </div>
         )}
       </section>
     );
+  }
 
   return (
     <section aria-labelledby="intake-title" className="flex flex-col gap-3">
+      {fileField}
       {uploadStrip}
 
       <div className="flex items-center gap-3">
@@ -781,19 +849,14 @@ export function Intake({
         importer
       ) : (
         <div className="grid items-start gap-5 @4xl/main:grid-cols-[1fr_21rem]">
-          {chat(
-            "h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem]",
-            "min-h-0",
-            pill("View", () => setSheet(true), "@4xl/main:hidden"),
-          )}
+          {chat({ className: "h-[min(34rem,calc(100dvh-16rem))] min-h-[24rem]", tray: pill })}
 
-          <CardFrame
-            as="aside"
+          <aside
             aria-label="Draft entry"
-            className="hidden rounded-3xl @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
+            className="bg-panel ring-brand-tint shadow-card hidden rounded-3xl ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
           >
             {!sheet && card}
-          </CardFrame>
+          </aside>
         </div>
       )}
 
@@ -880,29 +943,6 @@ function Chapter({ section }: { section: Section }) {
       </span>
       <span className="bg-brand-pale h-px flex-1" />
     </div>
-  );
-}
-
-/** The frame around the draft card, wherever it sits: beside the chat on
- *  the page, under it in Scout's panel. Rounding and sizing are the caller's. */
-function CardFrame({
-  as: Tag = "div",
-  className,
-  ...props
-}: { as?: "div" | "aside" } & HTMLAttributes<HTMLElement>) {
-  return (
-    <Tag className={cn("bg-panel ring-brand-tint shadow-card ring-1", className)} {...props} />
-  );
-}
-
-function Dot({ ready }: { ready: boolean }) {
-  return (
-    <span aria-hidden className="relative flex size-2.5 shrink-0">
-      {!ready && (
-        <span className="bg-brand absolute inset-0 animate-ping rounded-full opacity-40" />
-      )}
-      <span className={cn("relative size-2.5 rounded-full", ready ? "bg-positive" : "bg-brand")} />
-    </span>
   );
 }
 

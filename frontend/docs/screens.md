@@ -382,15 +382,24 @@ and Sent. The page is the filled-out bank itself.
 **Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
 Scout button or Fill With Scout opens it. On this page the panel shows
 intake in place of Scout's job chat (`components/scout/scout-takeover.tsx`)
-and widens to 448px (460px of room with its gap): the slim upload strip ("Want to pre-fill your
-entries?…", Upload Resume, "Use one you already uploaded"), the step bar,
-the chat, and the draft card under it, which fills in as the student answers
-and folds away from its one-line title. The import review opens in the
-chat's place. A save reads the bank again, so the page behind updates at
-once. An empty bank shows a card pointing to Fill With Scout. Any other
-page gets Scout's own chat back. Intake used to lead the
-page, with the card in a column beside the chat; onboarding still shows it
-that way.
+and widens to 448px (460px of room with its gap). Three bands, top to
+bottom: the step bar and a read-only preview of the draft
+(`draft-preview.tsx`); the chat; the composer. The preview shows the entry
+as the bank lists it, fading each line in as WorkIt fills it, with "Still
+needed" chips, Edit and Save Entry; it folds to its header. Edit opens the
+full form over the panel, with Back to Chat (Escape goes back too). The
+upload offer is WorkIt's second line with Upload Resume and Use One I
+Uploaded, not a strip. The import review opens in the chat's place. A save
+reads the bank again, so the page behind updates at once. An empty bank
+shows a card pointing to Fill With Scout. Any other page gets Scout's own
+chat back. Intake used to lead the page, with the card in a column beside
+the chat; onboarding still shows it that way.
+
+The bands were settled 2026-10-14. The first docked version stacked the
+whole form between the chat and the composer and left the chat one line
+high. The fix follows Cloudscape's inline versus canvas previews (a summary
+card in view, the editable form opened on demand) and Gemini's side panel
+in Docs (suggested answers in the chat, not a banner).
 
 - **Live, with an error state.** `page.tsx` reads `GET
   /applicants/{id}/bank` through `src/lib/bank-actions.ts` on the server; if
