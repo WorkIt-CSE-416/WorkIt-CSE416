@@ -31,6 +31,13 @@ const KIND_LABELS: Record<string, string> = {
   gpa: "GPA",
   coursework: "Coursework",
   honors: "Honors",
+  full_name: "Name",
+  phone_number: "Phone",
+  email: "Email",
+  linkedin_url: "LinkedIn",
+  github_url: "GitHub",
+  portfolio_url: "Portfolio",
+  other_url: "Link",
 };
 export const kindLabel = (kind: string) => KIND_LABELS[kind] ?? kind;
 

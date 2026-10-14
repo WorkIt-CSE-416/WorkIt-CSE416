@@ -551,8 +551,8 @@ chat the page is built around.
 
 `(seeker)/resumes/[resumeId]`, opened from a base resume's Open on the bank
 page. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
-phone layout; KAN-221 adds the assistant. The page loads the render, the bank and the resume's choices, and
-shows the error state if any fails.
+phone layout; KAN-221 adds the assistant. The page loads the render, the bank, the resume's choices and
+the profile (the header's fields), and shows the error state if any fails.
 
 - **The page is the PDF itself** (ADR 0002): the render response's PDF,
   drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
@@ -560,14 +560,29 @@ shows the error state if any fails.
   so the targets follow the canvas at any width without a redraw.
 - **Click a line and type** (`editor.tsx`). A text field opens over the
   line's first box, in type sized in `cqw` of the page (each page is a size
-  container), so the typed text shows at once. It saves after a 700 ms
+  container), so the typed text shows at once. The field is set in Latin
+  Modern, the PDF's own font (`fonts/`, loaded with `next/font/local` on
+  this page only), at the line's size, weight and slant, with its baseline
+  on the PDF's, so its text covers the printed glyphs and wraps where the
+  PDF does; before this, a wider fallback serif wrapped early and the field
+  covered the lines below. It opens with the caret where the press landed
+  (`caretPositionFromPoint`, measured from the pages' top left, because the
+  bar can change height in the same render). It saves after a 700 ms
   pause, on blur, on Enter, or when another line is selected; then the PDF
   renders again. Every save bumps one request counter and a response older
   than the latest is dropped, so a slow render never paints over a newer
   edit. A bullet's text becomes this resume's local variant; an entry's
-  title, organization and location change the bank (user story 61). Dates,
-  degree, GPA, coursework and honors are not typed here: the bar links to
-  the Experience Bank. Escape or Done clears the selection.
+  title, organization, location, GPA, coursework and honors change the
+  bank (user story 61), and the header's name, phone and links change the
+  profile. `model.ts`'s codecs say how each field reads and saves; a
+  detail line shows its printed label ("GPA: 3.81/4.00"), so the field
+  covers the whole line. Dates and the degree line are built from several
+  fields, so they are not typed here: the bar links to the Experience Bank.
+  The email is the sign-in address and is not typed either. A contact the
+  profile lacks has no line to click, so selecting the header puts "Add
+  Phone" and the next missing link in the bar. Picking a wording (bar or
+  assistant) drops the typed draft, so the field shows the picked text.
+  Escape or Done clears the selection.
 - **The sticky bar** sits above the page, so a line's actions never cover
   nearby lines. With a line selected: Hide (Hide Entry), Move Up and Move
   Down (entries within their section, bullets within their entry, one PATCH

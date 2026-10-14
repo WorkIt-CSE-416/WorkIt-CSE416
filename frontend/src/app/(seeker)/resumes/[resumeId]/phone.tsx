@@ -21,7 +21,7 @@ import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate, RenderBox, RenderedPdf } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
-import { pageLabel, tray, type Line } from "./model";
+import { lineName, pageLabel, tray, type Line } from "./model";
 import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
 import { Tray } from "./tray";
 
@@ -251,7 +251,7 @@ export function PhoneEditor({
                 <ChevronLeft />
               </Button>
               <span className="text-label text-ink-meta min-w-0 flex-1 truncate text-center font-semibold">
-                {kindLabel(box.kind)} · {line.kind === "skill" ? line.skill.name : line.entry.title}
+                {kindLabel(box.kind)} · {lineName(line)}
               </span>
               <Button
                 variant="secondary"

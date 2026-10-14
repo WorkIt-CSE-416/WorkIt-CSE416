@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Check, EyeOff, Scissors, Sparkles, Undo2 } from "lucide-react";
+import localFont from "next/font/local";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +19,22 @@ import {
   type RenderedPdf,
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
+import { updateProfile } from "@/lib/profile-actions";
 
 import { Assistant } from "./assistant";
-import { lineOf, move, pageLabel, TYPED_FIELDS, wording, type Line } from "./model";
+import {
+  ENTRY_CODECS,
+  HEADER_CODECS,
+  LINK_FIELDS,
+  lineOf,
+  move,
+  pageLabel,
+  typed,
+  wording,
+  type Header,
+  type HeaderField,
+  type Line,
+} from "./model";
 import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
 import { Tray } from "./tray";
@@ -30,7 +44,11 @@ import { Tray } from "./tray";
  * page. Click a line and type: the field over it shows the text at once and
  * saves after a pause (SAVE_AFTER_MS) or on blur, then the PDF renders
  * again. A bullet's typing becomes this resume's local variant; an entry's
- * title, organization and location change the bank. The sticky bar holds the
+ * typed fields (`ENTRY_CODECS`) change the bank, and the header's
+ * (`HEADER_CODECS`) change the profile. The field is set in Latin Modern,
+ * the PDF's own font, at the line's size and weight, and opens with the
+ * caret where the click landed, so typing starts where the student
+ * pointed and wraps where the PDF does. The sticky bar holds the
  * selected line's actions, or the page-count chip and Fit to One Page. Every
  * save bumps one request counter, and a response older than the latest
  * request is dropped, so a slow render never paints over a newer edit.
@@ -47,8 +65,47 @@ const PAGE_WIDTH = 612;
 const RIGHT_EDGE = 576;
 const pt = (points: number) => `${(points / PAGE_WIDTH) * 100}cqw`;
 
+// Latin Modern Roman, the face Tectonic sets Jake's Resume in (GUST Font
+// License), subset to Latin; loaded on the editor page only
+const latinModern = localFont({
+  src: [
+    { path: "./fonts/lmroman10-regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/lmroman10-bold.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/lmroman10-italic.woff2", weight: "400", style: "italic" },
+  ],
+  display: "swap",
+});
+
+/** Jake's type for each kind of line: its size in points, and whether it is
+ *  bold or italic. Body text is 11 pt, \small 10 pt, the name \Huge. */
+function typeOf(kind: string, section: string | null) {
+  const twoRow = section === "education" || section === "experience" || section === "leadership";
+  // \scshape has no bold small capitals in Latin Modern, so the name prints bold
+  if (kind === "full_name") return { size: 24.88, bold: true, italic: false };
+  if (kind === "title") return { size: twoRow ? 11 : 10, bold: true, italic: false };
+  if (kind === "organization") return { size: 10, bold: false, italic: true };
+  // Education's location is the heading's right slot, upright at 11 pt
+  if (kind === "location")
+    return {
+      size: section === "education" ? 11 : 10,
+      bold: false,
+      italic: section !== "education",
+    };
+  return { size: 10, bold: false, italic: false };
+}
+
+// Where a field's first baseline sits below its top, in ems: Latin Modern's
+// ascent (1.127) less half the leading a 1.2 line height takes from its
+// 1.417 em content area. A box's top is its first baseline less ASCENT (the
+// API's resume_render), more for the name.
+const LINE_HEIGHT = 1.2;
+const FIELD_BASELINE = 1.127 - (1.417 - LINE_HEIGHT) / 2;
+const boxAscent = (kind: string) => (kind === "full_name" ? 21 : 8);
+
+/** Lines that wrap: typed in a textarea as wide as the text column. */
+const WRAPS = new Set(["bullet", "coursework", "honors"]);
+
 type Draft = { key: string; text: string };
-type TypedField = "title" | "organization" | "location";
 
 function splitKey(key: string) {
   const dot = key.lastIndexOf(".");
@@ -60,14 +117,17 @@ export function Editor({
   initial,
   initialBank,
   initialChoices,
+  initialHeader,
 }: {
   resumeId: string;
   initial: RenderedPdf;
   initialBank: Bank;
   initialChoices: Choices;
+  initialHeader: Header;
 }) {
   const [rendered, setRendered] = useState(initial);
   const [bank, setBank] = useState(initialBank);
+  const [header, setHeader] = useState(initialHeader);
   const [choices, setChoices] = useState(initialChoices);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -79,6 +139,11 @@ export function Editor({
   const started = useRef<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Draft | null>(null);
+  // Where the last press on the pages landed, from their top left (the bar
+  // can change height as the line is selected), to put the caret there
+  const pages = useRef<HTMLDivElement>(null);
+  const pressed = useRef<{ x: number; y: number } | null>(null);
+  const placed = useRef<string | null>(null);
   const phone = usePhone();
   const [asking, setAsking] = useState(false);
 
@@ -104,6 +169,13 @@ export function Editor({
 
   const apply = useCallback(
     async (changes: ChoicesUpdate) => {
+      // A wording picked from the bar or the assistant replaces what was
+      // typed, so the field shows the picked wording, not the old draft
+      if (changes.bullets?.some((b) => "variant_id" in b)) {
+        if (timer.current) clearTimeout(timer.current);
+        pending.current = null;
+        setDraft(null);
+      }
       const current = begin();
       const { data, error } = await updateChoices(resumeId, changes);
       if (!current()) return;
@@ -117,6 +189,23 @@ export function Editor({
     [begin, resumeId, renderAgain],
   );
 
+  /** Changes the profile fields the header prints, then renders again. */
+  const saveHeader = useCallback(
+    async (changes: Partial<Header>) => {
+      setHeader((h) => ({ ...h, ...changes }));
+      const current = begin();
+      const { profile, error } = await updateProfile(changes);
+      if (!current()) return;
+      if (!profile) {
+        setSaving(false);
+        return setError(error);
+      }
+      setHeader(profile);
+      await renderAgain(current);
+    },
+    [begin, renderAgain],
+  );
+
   /** Saves typed text when it differs from what the resume shows. */
   const save = useCallback(
     async (typed: Draft) => {
@@ -126,26 +215,32 @@ export function Editor({
         if (!text || text === wording(choices, line.bullet)) return;
         return apply({ bullets: [{ bullet_id: line.bullet.id, text }] });
       }
-      if (line?.kind !== "entry" || !TYPED_FIELDS.has(line.field)) return;
-      const field = line.field as TypedField;
-      if (text === (line.entry[field] ?? "") || (field === "title" && !text)) return;
-      // The bank changes here at once, so a dropped response cannot lose it
-      setBank((b) => ({
-        ...b,
-        entries: b.entries.map((e) =>
-          e.id === line.entry.id ? { ...e, [field]: text || null } : e,
-        ),
-      }));
-      const current = begin();
-      const { error } = await updateEntry(line.entry.id, { [field]: text || null });
-      if (!current()) return;
-      if (error) {
-        setSaving(false);
-        return setError(error);
+      if (line?.kind === "entry") {
+        const codec = ENTRY_CODECS[line.field];
+        const changes = codec && text !== codec.read(line.entry) ? codec.write(text) : null;
+        if (!changes) return;
+        // The bank changes here at once, so a dropped response cannot lose it
+        setBank((b) => ({
+          ...b,
+          entries: b.entries.map((e) => (e.id === line.entry.id ? { ...e, ...changes } : e)),
+        }));
+        const current = begin();
+        const { error } = await updateEntry(line.entry.id, changes);
+        if (!current()) return;
+        if (error) {
+          setSaving(false);
+          return setError(error);
+        }
+        return renderAgain(current);
       }
-      await renderAgain(current);
+      if (line?.kind === "header") {
+        const codec = HEADER_CODECS[line.field];
+        const changes = codec && text !== codec.read(header) ? codec.write(text) : null;
+        if (!changes) return;
+        await saveHeader(changes);
+      }
     },
-    [apply, bank, begin, choices, renderAgain],
+    [apply, bank, begin, choices, header, renderAgain, saveHeader],
   );
 
   /** Saves a waiting draft now, instead of after the pause. */
@@ -161,6 +256,7 @@ export function Editor({
     (key: string | null) => {
       flush();
       setDraft(null);
+      placed.current = null;
       setSelected(key);
     },
     [flush],
@@ -214,43 +310,70 @@ export function Editor({
 
   function startText(line: Line) {
     if (line.kind === "bullet") return wording(choices, line.bullet);
-    if (line.kind === "entry" && TYPED_FIELDS.has(line.field))
-      return line.entry[line.field as TypedField] ?? "";
+    if (line.kind === "entry") return ENTRY_CODECS[line.field]?.read(line.entry) ?? null;
+    if (line.kind === "header") return HEADER_CODECS[line.field]?.read(header) ?? null;
     return null;
+  }
+
+  /** Focuses a field once per selection, with the caret where the press
+   *  landed on the PDF (the field's text sits over the same glyphs), or at
+   *  the end. */
+  function focusAt(key: string, element: HTMLInputElement | HTMLTextAreaElement | null) {
+    if (!element || placed.current === key) return;
+    placed.current = key;
+    element.focus({ preventScroll: true });
+    const at = pressed.current;
+    const origin = pages.current?.getBoundingClientRect();
+    const caret =
+      at && origin && document.caretPositionFromPoint?.(origin.left + at.x, origin.top + at.y);
+    const offset = caret && caret.offsetNode === element ? caret.offset : element.value.length;
+    element.setSelectionRange(offset, offset);
   }
 
   function field(target: RenderBox) {
     const start = line && startText(line);
-    if (start == null) return null;
+    if (start == null || !line) return null;
     const key = boxKey(target);
+    const look = typeOf(
+      target.kind,
+      line.kind === "entry" || line.kind === "bullet" ? line.entry.section : null,
+    );
     const common = {
-      autoFocus: true,
+      ref: (element: HTMLInputElement | HTMLTextAreaElement | null) => focusAt(key, element),
       value: draft?.key === key ? draft.text : start,
       "aria-label": kindLabel(target.kind),
       onBlur: flush,
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+        type(key, e.target.value),
       onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
         e.currentTarget.blur();
       },
       className: cn(
-        "bg-panel text-ink ring-brand block resize-none rounded-[2px] px-[0.3cqw] font-serif ring-2 outline-none",
+        latinModern.className,
+        // A negative margin puts the side padding outside the text, so the
+        // text lands on the PDF's own glyphs
+        "bg-panel text-ink ring-brand -mx-[0.4cqw] block resize-none overflow-hidden rounded-[2px] px-[0.4cqw] shadow-md ring-2 outline-none",
         "field-sizing-content",
+        look.bold && "font-bold",
+        look.italic && "italic",
       ),
     };
-    return line?.kind === "bullet" ? (
+    const size = {
+      fontSize: pt(look.size),
+      lineHeight: pt(look.size * LINE_HEIGHT),
+      // Puts the field's baseline on the PDF's
+      marginTop: pt(boxAscent(target.kind) - FIELD_BASELINE * look.size),
+    };
+    return WRAPS.has(target.kind) ? (
       <textarea
         {...common}
         rows={1}
-        onChange={(e) => type(key, e.target.value)}
-        style={{ width: pt(RIGHT_EDGE - target.x0), fontSize: pt(10), lineHeight: pt(12) }}
+        style={{ ...size, width: `calc(${pt(RIGHT_EDGE - target.x0)} + 0.8cqw)` }}
       />
     ) : (
-      <input
-        {...common}
-        onChange={(e) => type(key, e.target.value)}
-        style={{ fontSize: pt(11), minWidth: pt(40), lineHeight: pt(13) }}
-      />
+      <input {...common} style={{ ...size, minWidth: pt(40) }} />
     );
   }
 
@@ -269,7 +392,7 @@ export function Editor({
       resumeId={resumeId}
       bank={bank}
       choices={choices}
-      line={line}
+      line={line?.kind === "header" ? null : line}
       pageCount={rendered.page_count}
       onApply={apply}
       onHide={hide}
@@ -299,7 +422,9 @@ export function Editor({
             <LineActions
               line={line}
               choices={choices}
+              header={header}
               onApply={apply}
+              onSaveHeader={saveHeader}
               onHide={hide}
               up={move(bank, choices, line, -1)}
               down={move(bank, choices, line, 1)}
@@ -331,11 +456,13 @@ export function Editor({
           box={box}
           bank={bank}
           choices={choices}
+          header={header}
           rendered={rendered}
           saving={saving}
           elapsed={elapsed}
           fitUndo={fitUndo}
           onApply={apply}
+          onSaveHeader={saveHeader}
           onClose={() => select(null)}
           onFit={fit}
           onUndoFit={undoFit}
@@ -346,14 +473,22 @@ export function Editor({
             {error}
           </p>
         )}
-        <PdfPages
-          pdf={rendered.pdf}
-          boxes={rendered.boxes}
-          selected={selected}
-          onSelect={(key) => select(selected === key ? null : key)}
-          field={field}
-          onDrawn={drawn}
-        />
+        <div
+          ref={pages}
+          onPointerDownCapture={(e) => {
+            const origin = e.currentTarget.getBoundingClientRect();
+            pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
+          }}
+        >
+          <PdfPages
+            pdf={rendered.pdf}
+            boxes={rendered.boxes}
+            selected={selected}
+            onSelect={(key) => select(selected === key ? null : key)}
+            field={field}
+            onDrawn={drawn}
+          />
+        </div>
         <Tray bank={bank} choices={choices} onPutBack={apply} />
       </div>
       {/* Kept mounted while closed, so the chat survives closing it */}
@@ -377,11 +512,13 @@ function Bar({
   box,
   bank,
   choices,
+  header,
   rendered,
   saving,
   elapsed,
   fitUndo,
   onApply,
+  onSaveHeader,
   onClose,
   onFit,
   onUndoFit,
@@ -391,11 +528,13 @@ function Bar({
   box: RenderBox | undefined;
   bank: Bank;
   choices: Choices;
+  header: Header;
   rendered: RenderedPdf;
   saving: boolean;
   elapsed: number | null;
   fitUndo: ChoicesUpdate | null;
   onApply: (changes: ChoicesUpdate) => void;
+  onSaveHeader: (changes: Partial<Header>) => void;
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
@@ -416,7 +555,9 @@ function Bar({
           <LineActions
             line={line}
             choices={choices}
+            header={header}
             onApply={onApply}
+            onSaveHeader={onSaveHeader}
             onHide={(changes) => {
               onApply(changes);
               onClose();
@@ -462,14 +603,18 @@ function Bar({
 function LineActions({
   line,
   choices,
+  header,
   onApply,
+  onSaveHeader,
   onHide,
   up,
   down,
 }: {
   line: Line;
   choices: Choices;
+  header: Header;
   onApply: (changes: ChoicesUpdate) => void;
+  onSaveHeader: (changes: Partial<Header>) => void;
   onHide: (changes: ChoicesUpdate) => void;
   up: ChoicesUpdate | null;
   down: ChoicesUpdate | null;
@@ -496,6 +641,28 @@ function LineActions({
       </Button>
     </>
   );
+
+  if (line.kind === "header") {
+    // A contact the profile lacks has no line to click, so it is added
+    // here: the phone, and the next link, keeping the bar one row
+    const link = LINK_FIELDS.find((f) => !header[f]);
+    const missing = [
+      ...(header.phone_number ? [] : (["phone_number"] as const)),
+      ...(link ? [link] : []),
+    ];
+    return (
+      <>
+        {line.field === "email" && (
+          <span className="text-note text-ink-meta">
+            This is your sign-in email, so it changes with your account.
+          </span>
+        )}
+        {missing.map((f) => (
+          <AddContact key={f} field={f} onSave={onSaveHeader} />
+        ))}
+      </>
+    );
+  }
 
   if (line.kind === "skill") {
     return (
@@ -582,11 +749,39 @@ function LineActions({
           </Button>
         </>
       )}
-      {!TYPED_FIELDS.has(line.field) && (
+      {!typed(line) && (
         <span className="text-note text-ink-meta">
           Change this in the <TextLink href="/bank">Experience Bank</TextLink>.
         </span>
       )}
     </>
+  );
+}
+
+/** A short field in the bar that adds a contact the header lacks; Enter or
+ *  leaving it saves to the profile. */
+function AddContact({
+  field,
+  onSave,
+}: {
+  field: Exclude<HeaderField, "full_name" | "email">;
+  onSave: (changes: Partial<Header>) => void;
+}) {
+  const label = `Add ${kindLabel(field)}`;
+  function save(element: HTMLInputElement) {
+    const text = element.value.trim();
+    if (!text) return;
+    const changes = HEADER_CODECS[field]?.write(text);
+    if (changes) onSave(changes);
+    element.value = "";
+  }
+  return (
+    <input
+      aria-label={label}
+      placeholder={label}
+      onBlur={(e) => save(e.currentTarget)}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand h-8 w-36 rounded-lg px-2 ring-1 outline-none focus:ring-2"
+    />
   );
 }

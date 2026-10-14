@@ -51,8 +51,10 @@ applicant_profiles
 - **Typing on a bullet in the editor makes a local variant** (KAN-218):
   at most one per bullet and built resume, updated in place as the student
   types, and deleted when they type the original back. The bank's bullet
-  never changes there; an entry's title, organization and location typed
-  in the editor do change the bank, so those facts match on every resume.
+  never changes there; an entry's title, organization, location, GPA,
+  coursework and honors typed in the editor do change the bank, so those
+  facts match on every resume. The header's name, phone and links typed
+  there change the profile, for the same reason.
   Rules: `backend/app/services/built_resumes.py`'s `update_choices`.
 - **The bank page shows the original wording only** (settled in KAN-218,
   the spec's open question for slice 7). Local wording stays on its

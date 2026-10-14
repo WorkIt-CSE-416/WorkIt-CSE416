@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { getBank } from "@/lib/bank-actions";
 import { getChoices, listBuiltResumes, renderResumePdf } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
+import { getProfile } from "@/lib/profile-actions";
 
 import { SEEKER_GUTTER } from "../../gutter";
 import { Editor } from "./editor";
@@ -18,30 +19,33 @@ export const metadata: Metadata = { title: "Resume Editor" };
  * bank page: the PDF from `GET .../built-resumes/{id}/render`, drawn with
  * pdf.js (loaded on this page only), with a click target from each of the
  * render's boxes (KAN-209), edited in place (KAN-218). It needs the render,
- * the bank and the resume's choices; if any fails it shows the error state.
+ * the bank, the resume's choices and the profile (the header's fields); if
+ * any fails it shows the error state.
  * On a phone it takes the layout in ./phone.tsx (KAN-219).
  */
 export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[resumeId]">) {
   await connection();
   const { resumeId } = await params;
-  const [rendered, resumes, bank, choices] = await Promise.all([
+  const [rendered, resumes, bank, choices, { profile, error: profileError }] = await Promise.all([
     renderResumePdf(resumeId),
     listBuiltResumes(),
     getBank(),
     getChoices(resumeId),
+    getProfile(),
   ]);
   const name = resumes.data?.find((r) => r.id === resumeId)?.name ?? "Resume";
-  const error = rendered.error ?? bank.error ?? choices.error;
+  const error = rendered.error ?? bank.error ?? choices.error ?? profileError;
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <h1 className="text-heading text-ink">{name}</h1>
-      {rendered.data && bank.data && choices.data ? (
+      {rendered.data && bank.data && choices.data && profile ? (
         <Editor
           resumeId={resumeId}
           initial={rendered.data}
           initialBank={bank.data}
           initialChoices={choices.data}
+          initialHeader={profile}
         />
       ) : (
         <EmptyState

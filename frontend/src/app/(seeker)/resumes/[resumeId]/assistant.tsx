@@ -10,7 +10,7 @@ import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
-import { move, wording, type Line } from "./model";
+import { move, wording, type BankLine as Line } from "./model";
 
 /**
  * The editor assistant (KAN-221): a chat docked beside the page on a wide
