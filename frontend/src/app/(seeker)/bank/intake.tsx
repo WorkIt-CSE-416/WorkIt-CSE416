@@ -382,7 +382,13 @@ export function Intake({
   /** The section's opening question, after what the bank already has in it,
    *  so a student who picks a filled section is not asked to retell it. */
   function opener(section: Section): string {
-    const have = entries.filter((e) => e.section === section).map((e) => e.title);
+    // Each once, with its organization: copies of an entry, or two jobs
+    // with one title, read "Software Engineer Intern, Software Engineer
+    // Intern" and left the student guessing which was which.
+    const named = entries
+      .filter((e) => e.section === section)
+      .map((e) => (e.organization ? `${e.title} (${e.organization})` : e.title));
+    const have = [...new Set(named)];
     if (!have.length) return OPENERS[section];
     return `Your bank already has ${have.join(", ")}. To add ${ANOTHER[section]}, tell me about it.`;
   }

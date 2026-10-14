@@ -532,7 +532,9 @@ in Docs (suggested answers in the chat, not a banner).
   **A jump or a chip visits too**: picking a section opens its first entry
   with gaps not yet visited, never a blank card that asks the student to
   retell what the bank holds. Otherwise it opens a new card, and WorkIt's
-  first line names the entries the bank already has there. A visited entry
+  first line names the entries the bank already has there, each once with
+  its organization ("Software Engineer Intern (Clever Devices)"): copies
+  read as the same title over and over. A visited entry
   is not reopened, or a student who declined a school's GPA could never
   add another school.
   After an import closes, the walk starts again on the bank as it now is,
