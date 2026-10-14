@@ -488,6 +488,11 @@ chat the page is built around.
   told what the card has and lacks, and saving edits the entry. Skip on a
   visit passes over that entry only. An entry visited once is not visited
   again on the page. A section with no entries gets the full questions.
+  **A jump or a chip visits too**: picking a section opens its first entry
+  with gaps (one not yet visited first), never a blank card that asks the
+  student to retell what the bank holds. A section with only complete
+  entries opens a new card, and WorkIt's first line names the entries the
+  bank already has there.
   After an import closes, the walk starts again on the bank as it now is,
   unless the student has already talked into the current card. A kept card
   with nothing in it is dropped on load, so the walk picks afresh, and so is

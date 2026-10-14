@@ -66,7 +66,10 @@ import {
  * The bank page walks when the bank is empty; onboarding always does.
  * Without it, the student picks a section from the chips and comes back to
  * them after each save. Skip and a jump drop the unsaved draft, as in the
- * prototype. Skipped sections are kept beside the draft, so a reload does
+ * prototype. A jump or a chip opens the section's bank entry with gaps, if
+ * it has one, as the walk would, so WorkIt asks only for what is missing;
+ * a section whose entries are complete opens a new card, and WorkIt's
+ * first line names the entries it already has. Skipped sections are kept beside the draft, so a reload does
  * not walk back into them.
  *
  * Upload first: with `importable`, a slim strip above the step bar offers
@@ -326,8 +329,17 @@ export function Intake({
     setLines((l) => [
       ...l,
       { kind: "chapter", section },
-      { kind: "text", role: "assistant", content: OPENERS[section] },
+      { kind: "text", role: "assistant", content: opener(section) },
     ]);
+  }
+
+  /** The section's opening question, after what the bank already has in it,
+   *  so a student who picks a filled section is not asked to retell it. */
+  function opener(section: Section): string {
+    const have = entries.filter((e) => e.section === section).map((e) => e.title);
+    if (!have.length) return OPENERS[section];
+    const ask = OPENERS[section];
+    return `Your bank already has ${have.join(", ")}. To add another, ${ask[0].toLowerCase()}${ask.slice(1)}`;
   }
 
   function finish() {
@@ -338,9 +350,14 @@ export function Intake({
     setSheet(false);
   }
 
-  /** A jump from the step bar: this section, with the draft dropped. */
+  /** A jump from the step bar or a chip, with the draft dropped: the
+   *  section's first bank entry with gaps (one not visited yet first), so
+   *  WorkIt asks only for what the entry lacks, else a new entry. */
   function jump(section: Section) {
     finish();
+    const gaps = entries.filter((e) => e.section === section && gapQuestions(e).length > 0);
+    const entry = gaps.find((e) => !visited.current.has(e.id)) ?? gaps[0];
+    if (entry) return go({ entry });
     start(section);
   }
 
@@ -616,7 +633,7 @@ export function Intake({
                       <button
                         key={s.id}
                         type="button"
-                        onClick={() => start(s.id)}
+                        onClick={() => jump(s.id)}
                         className="text-label bg-panel text-brand ring-brand-pale hover:bg-brand-tint focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ring-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
                       >
                         <Icon aria-hidden className="size-3.5" /> {s.label}
