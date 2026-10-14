@@ -11,14 +11,17 @@ import logging
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import date
+
+from app.models.dto import Experience
 
 logger = logging.getLogger(__name__)
 
 # --- weights (tunable) ---
 W_SEMANTIC = 0.45       # cosine similarity via pg_vector
-W_SKILL = 0.25          # ts_rank of skills against fts
+W_SKILL = 0.25          # fraction of distinct resume skills mentioned in posting
 W_TITLE = 0.15          # word overlap of resume titles & job title
-W_ELIGIBILITY = 0.15    # grad date vs start term, years of exp
+W_ELIGIBILITY = 0.15    # stated years-of-experience requirement (not a gate)
 
 
 @dataclass(frozen=True)
@@ -123,7 +126,30 @@ def title_fit(job_title: str, resume_titles: Sequence[str], field_of_study: str 
 
 def freshness(days_old: float) -> float:
     """1.0 for today, decaying linearly to 0.7 over 300 days."""
-    return max(0.7, 1.0 - days_old / 300)
+    return max(0.7, 1.0 - 0.3 * max(0.0, days_old) / 300)
+
+
+def experience_years(experience: Sequence[Experience], *, today: date) -> float:
+    """Elapsed experience, counting ongoing roles and overlapping dates once.
+
+    Missing end dates mean ongoing. Missing starts and reversed/future ranges
+    contribute no duration; future end dates cannot add unearned experience.
+    """
+    intervals = sorted(
+        (role.start_date, min(role.end_date or today, today))
+        for role in experience
+        if role.start_date is not None
+        and role.start_date < min(role.end_date or today, today)
+    )
+    days = 0
+    end = None
+    for start, stop in intervals:
+        if end is not None:
+            start = max(start, end)
+        if stop > start:
+            days += (stop - start).days
+        end = max(end, stop) if end is not None else stop
+    return days / 365.25
 
 
 def eligibility(
@@ -132,9 +158,11 @@ def eligibility(
     min_years: int | None,
     years_experience: float,
 ) -> float:
-    """0.0-1.0 multiplier.
+    """0.0-1.0 additive experience fit; does not exclude a posting.
 
-    1.0 = eligible or unknown, 0.5 = soft mismatch, 0.0 = hard mismatch.
+    1.0 = meets stated years or requirement unknown, 0.5 = partial fit,
+    0.0 = substantial mismatch. Graduation/start dates are not evaluated:
+    a start term alone is not a graduation requirement.
     """
     score = 1.0
 

@@ -5,6 +5,8 @@ Pure functions, no DB access.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from app.models.dto import ParsedResume
 
 
@@ -17,14 +19,16 @@ def generate_highlights(
     skill_overlap: float,
     title_fit: float,
     eligibility: float,
+    *,
+    matched_skills: Sequence[str] = (),
 ) -> list[dict]:
     """Up to 3 highlights, each ``{"text": str, "met": bool}``."""
     candidates: list[dict] = []
 
     # --- positive ---
-    if skill_overlap > 0.1 and resume.skills:
-        top_skills = ", ".join(s.skill_name for s in resume.skills[:3])
-        candidates.append({"text": f"Your {top_skills} skills match this role", "met": True})
+    if matched_skills:
+        top_skills = ", ".join(matched_skills[:3])
+        candidates.append({"text": f"Posting mentions your skills: {top_skills}", "met": True})
 
     if title_fit > 0.3:
         field = next((e.field_of_study for e in resume.education if e.field_of_study), None)
@@ -50,4 +54,4 @@ def generate_highlights(
     # Positive first, then negative, capped at 3
     positives = [c for c in candidates if c["met"]]
     negatives = [c for c in candidates if not c["met"]]
-    return (positives + negatives)[:3]
+    return positives[:max(0, 3 - len(negatives))] + negatives[:3]
