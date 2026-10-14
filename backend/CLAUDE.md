@@ -404,9 +404,9 @@ Find files with a directory listing; these are the rules for where code goes.
     bullets: the best 40 go to the model, and the rank proposes each
     entry's bullet order. A posting with no description is read by its
     title, with `weak_match`.
-  - **An entry brought back is never a copy of one shown** (`_same_as`:
-    section, title and organization, ignoring case, as the bank's
-    duplicate check), and it takes its date-order place among its
+  - **An entry brought back is never a copy of one shown** (`bank.py`'s
+    `copy_key`: section, title and organization ignoring case, and the
+    same months, which Generate and intake's bank match also use), and it takes its date-order place among its
     section's shown entries (`_bring_back`), not the end. A change names
     its entry with the organization ("Software Intern, Acme"). An import
     saved "as new" left a second Software Engineer Intern at Clever Devices

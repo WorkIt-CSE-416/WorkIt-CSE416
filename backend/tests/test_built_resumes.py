@@ -178,6 +178,27 @@ async def test_a_bank_fix_shows_but_a_new_entry_waits_off_the_resume(student):
     assert "Barista" in fresh and "Ran review sessions" in fresh and "Languages: Python, Rust" in fresh
 
 
+async def test_generate_leaves_a_copy_of_an_entry_off(student):
+    # An import saved "as new" left two of one job in a bank; Generate showed
+    # both, and the resume ran to two pages. The copy waits in "Not on This
+    # Resume"; a job held twice at one company in other months is two jobs.
+    client, me = student
+    job = {"section": "experience", "title": "Software Intern", "organization": "Acme",
+           "start_month": "2025-06", "end_month": "2025-08", "bullets": ["Cut page load time by 30%"]}
+    for body in (job, {**job, "title": "software intern ", "organization": "ACME"},
+                 {**job, "start_month": "2024-06", "end_month": "2024-08", "bullets": ["Wrote tests"]}):
+        res = await client.post(f"{me}/bank/entries?allow_duplicate=true", json=body)
+        assert res.status_code == 201, res.text
+    resume_id = await _generate(client, me)
+
+    lines = _docx_lines((await client.get(f"{me}/built-resumes/{resume_id}/docx")).content)
+    assert lines.count("Cut page load time by 30%") == 1
+    assert "Wrote tests" in lines
+    choices = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
+    hidden = [e for e in choices["entries"] if not e["shown"]]
+    assert len(hidden) == 1
+
+
 class _FakeBucket:
     def upload(self, path, contents, options):
         return {"path": path}

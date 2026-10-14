@@ -102,7 +102,8 @@ applicant_profiles
   in the bank at that moment; what is added later waits in the editor's tray
   instead of appearing on old resumes. Bullets and skills follow the same
   rule as entries, so a bullet added to an entry already on a resume waits
-  too.
+  too. A copy of an entry (same section, title, organization and months)
+  gets a row with `shown` false, so it waits in the tray as well.
 - **Base or tailored by `job_posting_id`.** Null is a base resume. A posting
   has at most one tailored resume per student (a unique key; NULLs distinct).
   Deleting the posting deletes its tailored resume; sent resumes keep their

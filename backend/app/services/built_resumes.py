@@ -12,6 +12,7 @@ resume answers `NotFound`), and flushes but never commits.
   setting one clears the other, and a check constraint backs it.
 """
 
+import dataclasses
 import re
 import uuid
 from collections.abc import Awaitable, Callable
@@ -36,7 +37,7 @@ from app.schemas.built_resume import (
     SkillChoiceResponse,
     VariantResponse,
 )
-from app.services.bank import NotFound, get_entry, load_bank
+from app.services.bank import NotFound, copy_key, get_entry, load_bank
 from app.services.postings import LISTED
 from app.services.resume_render import HeaderIdentity, Rendered, line_count
 from app.services.resume_view import (
@@ -82,14 +83,23 @@ async def check_room(session: AsyncSession, applicant_id: uuid.UUID) -> None:
 
 async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str) -> Built_Resume:
     """A base resume with every bank entry, bullet and skill, in the bank's
-    order (the fixed section order, newest first)."""
+    order (the fixed section order, newest first), except a copy of an entry
+    already on it (`copy_key`), which waits hidden in "Not on This Resume":
+    two copies of one job sent a resume to two pages."""
     await check_room(session, applicant_id)
     resume = Built_Resume(id=uuid.uuid4(), applicant_id=applicant_id, name=name, template=DEFAULT_TEMPLATE)
     session.add(resume)
     # No relationship() orders the inserts (models/CLAUDE.md): the resume
     # goes in before its choice rows.
     await session.flush()
-    await write_choices(session, resume.id, all_chosen(await load_bank(session, applicant_id)))
+    bank = await load_bank(session, applicant_id)
+    choices = all_chosen(bank)
+    seen: set[tuple] = set()
+    for entry in bank.entries:
+        if copy_key(entry.row) in seen:
+            choices.entries[entry.row.id] = dataclasses.replace(choices.entries[entry.row.id], shown=False)
+        seen.add(copy_key(entry.row))
+    await write_choices(session, resume.id, choices)
     await session.refresh(resume)
     return resume
 

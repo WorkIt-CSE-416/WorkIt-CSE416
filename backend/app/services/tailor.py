@@ -32,7 +32,7 @@ from app.models.jobs import Job_Post
 from app.schemas.keywords import Keyword
 from app.schemas.tailor import TailorChange, TailorReading
 from app.services import keywords as kw
-from app.services.bank import Bank, Entry, NotFound
+from app.services.bank import Bank, Entry, NotFound, copy_key
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -139,12 +139,6 @@ def _next(positions: Iterable[int]) -> int:
     return max(positions, default=-1) + 1
 
 
-def _same_as(row: Bank_Entry) -> tuple[str, str, str]:
-    """What makes two entries the same job to a reader: section, title and
-    organization, ignoring case, as the bank's own duplicate check."""
-    return (str(row.section), row.title.strip().lower(), (row.organization or "").strip().lower())
-
-
 def _label(row: Bank_Entry) -> str:
     """An entry as a change names it: two jobs can share a title."""
     return ", ".join(p for p in (row.title, row.organization) if p)
@@ -243,15 +237,15 @@ def propose(
 
     # A left-out copy of an entry the resume shows (an import saved "as
     # new") is never offered: it showed the same job twice.
-    showing = {_same_as(e.row) for e in bank.entries if _shown(choices.entries, e.row.id)}
+    showing = {copy_key(e.row) for e in bank.entries if _shown(choices.entries, e.row.id)}
     brought: list[uuid.UUID] = []
     for handle in reading.add_entries:
         entry_id = ids.get(handle.strip())
         if entry_id not in entries or _shown(choices.entries, entry_id) or entry_id in brought:
             continue
-        if _same_as(entries[entry_id].row) in showing:
+        if copy_key(entries[entry_id].row) in showing:
             continue
-        showing.add(_same_as(entries[entry_id].row))
+        showing.add(copy_key(entries[entry_id].row))
         brought.append(entry_id)
         changes.append(TailorChange(kind="show_entry", entry_id=entry_id, label=_label(entries[entry_id].row)))
 

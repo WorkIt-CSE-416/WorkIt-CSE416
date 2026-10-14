@@ -556,7 +556,9 @@ in Docs (suggested answers in the chat, not a banner).
 - **Base Resumes** (`built-resumes.tsx`, KAN-207), in the "Your Resumes"
   card below the sections.
   Generate makes a base resume with every entry, bullet and skill in the
-  bank; each row downloads a PDF (Jake's Resume) or a Word file, can become
+  bank, except a copy of an entry already on it (same section, title,
+  organization and months: an import saved "as new"), which waits in "Not on
+  This Resume"; two copies of one job sent a resume to two pages. Each row downloads a PDF (Jake's Resume) or a Word file, can become
   the default resume (star) and can be deleted. Either download keeps a
   sent resume (KAN-208) and comes back as a 5-minute Storage link that
   downloads the file, so no route handler is needed. A PDF whose text

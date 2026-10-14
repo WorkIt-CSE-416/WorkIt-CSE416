@@ -19,7 +19,7 @@ from workit_scout.schemas import ChatMessage
 
 from app.models.dto import bank_section
 from app.schemas.intake import IntakeDraft, IntakeReply
-from app.services.bank import Bank, Entry
+from app.services.bank import Bank, Entry, copy_key
 
 # Follow-up questions for each entry (spec). Counted from the chat the browser
 # sends, which starts afresh with every entry; the opening question is not
@@ -307,9 +307,8 @@ def bank_match(said: str, bank: Bank) -> Entry | None:
     four with "Autonomous Maze Navigation Robot" and one ("robot") with "CNN-
     Powered Object Detection Robot", which made it a two-way guess that
     filled nothing. A tie is still a guess, unless the tied entries are
-    copies (the same section, title and organization, as an import saved
-    "as new" leaves): those are one entry, and the one with the most bullets
-    lends."""
+    copies (`copy_key`, as an import saved "as new" leaves): those are one
+    entry, and the one with the most bullets lends."""
     heard = _words(said)
     scored: list[tuple[int, Entry]] = []
     for entry in bank.entries:
@@ -323,7 +322,7 @@ def bank_match(said: str, bank: Bank) -> Entry | None:
         return None
     best = max(score for score, _ in scored)
     found = [e for score, e in scored if score == best]
-    same = {(e.row.section, e.row.title.strip().lower(), (e.row.organization or "").strip().lower()) for e in found}
+    same = {copy_key(e.row) for e in found}
     return max(found, key=lambda e: len(e.bullets)) if len(same) == 1 else None
 
 

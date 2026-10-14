@@ -86,6 +86,21 @@ class Bank:
 _SECTION_ORDER = {section: i for i, section in enumerate(bank_section)}
 
 
+def copy_key(entry: Bank_Entry) -> tuple:
+    """What makes two entries copies of one: the section, title and
+    organization (ignoring case and spaces, as `find_duplicate`) and the same
+    months. An import saved "as new" leaves copies; two stints of one job at
+    one company, in other months, are two entries. Generate, Tailor and
+    intake's bank match all read copies through this."""
+    return (
+        str(entry.section),
+        entry.title.strip().lower(),
+        (entry.organization or "").strip().lower(),
+        entry.start_month,
+        entry.end_month,
+    )
+
+
 def _newest_first(entry: Bank_Entry) -> tuple:
     # Python sorts ascending, so dates sort by their negated ordinal and a
     # missing date (0) goes after every real one.
