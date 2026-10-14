@@ -5,18 +5,19 @@ makes a single GET and maps the response onto `Job`. Explicit functions rather
 than a shared field-map table: a teammate reading `lever()` should see Lever's
 actual field names, not a DSL that encodes them.
 
-Every API returns a whole board in one response -- verified at Stripe (701
-postings), OpenAI (829), Palantir (321), Genetec's Workable board (188) and
-Hard Rock Digital's Recruitee board (58) -- so there is no pagination here.
+Every API but Workday's returns a whole board in one response -- verified at
+Stripe (701 postings), OpenAI (829), Palantir (321), Genetec's Workable board (188)
+and Hard Rock Digital's Recruitee board (58). Workday sends 20 postings a request,
+so `workday` pages, and paces every page (scraper/CLAUDE.md, "Workday").
 
 A slug that does not exist is a 404 everywhere but BambooHR, which redirects it
 to its own homepage (`bamboohr` turns that into the same answer). That is what
 makes `BoardNotFound` meaningful: a 200 carrying an empty list is a real board
 that simply has nothing open right now, and must never be confused with a typo.
 
-Greenhouse, Workable and BambooHR list a board without its descriptions, so a
-kept posting's own page is read once more (`describe`); Ashby, Lever and
-Recruitee send the descriptions with the list.
+Greenhouse, Workable, BambooHR and Workday list a board without its
+descriptions, so a kept posting's own page is read once more (`describe`); Ashby,
+Lever and Recruitee send the descriptions with the list.
 """
 
 from __future__ import annotations
@@ -26,9 +27,10 @@ import json
 import re
 import time
 import urllib.error
+from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, fields, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from html.parser import HTMLParser
 
 from workit_scraper import details, web
@@ -48,11 +50,24 @@ DESCRIPTION_CHARS = 8000
 #: 8: work-model metadata, LinkedIn tags and the facts the 2026-10-08 audit found missed.
 #: 9: visa sponsorship (`details.sponsorship`). 10: the KAN-168 sponsorship fixes
 #: (plural "citizens", narrower negations and headings), so stored pages are re-read.
-PAGE_VERSION = 10
+#: 11: a Workday posting's requisition number (`Page.requisition`). 12: pay with
+#: cents ("$61,900.00 to $141,000.00") read as the whole range, not its low end.
+#: 13: pay words as whole words ("quota-based" is not "base"), and a sentence's own.
+PAGE_VERSION = 13
 
 
 class BoardNotFound(Exception):
     """The board does not exist (HTTP 404), as opposed to existing and being empty."""
+
+
+class TooLarge(Exception):
+    """A board we cannot read whole within a run's means (Workday: see `workday`).
+    Reported and skipped; a partial read would be evidence of nothing."""
+
+
+class Incomplete(Exception):
+    """A paged read that did not add up: the board changed under us, or the pages
+    overlapped. Treated as a failed read, so it is evidence of nothing."""
 
 
 # One place both the fetchers and the robots.txt check read the URL from, so a board
@@ -70,11 +85,37 @@ LISTING_URL = {
     # origin and robots.txt; `polite` still paces each provider as one host.
     "recruitee": "https://{token}.recruitee.com/api/offers/",
     "bamboohr": "https://{token}.bamboohr.com/careers/list",
+    # What a Workday careers page itself calls: a POST of a search, answered 20
+    # postings at a time. Not a documented public API (an accepted risk, like
+    # Workable's per-posting page). `token` is "{tenant}.{wd}/{site}".
+    "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs",
 }
 
 
+def _parts(ats: str, token: str) -> dict[str, str]:
+    """A Workday token's three parts: "nvidia.wd5/nvidiaexternalcareersite" is the
+    tenant `nvidia`, on data centre `wd5`, careers site `nvidiaexternalcareersite`.
+    A tenant can run several sites (Boeing has 40), each its own board."""
+    if ats != "workday":
+        return {}
+    host, site = token.split("/")
+    tenant, wd = host.split(".")
+    return {"tenant": tenant, "wd": wd, "site": site}
+
+
 def listing_url(ats: str, token: str) -> str:
-    return LISTING_URL[ats].format(token=token)
+    return LISTING_URL[ats].format(token=token, **_parts(ats, token))
+
+
+def robots_urls(ats: str, token: str) -> list[str]:
+    """Every URL robots.txt must allow before a board is read. A Workday tenant's
+    robots.txt names its careers sites, not the API path under them: Caterpillar's
+    disallows `/CaterpillarCareers/`, and reading that site's postings through the
+    API would be reading what the employer asked crawlers to leave alone."""
+    urls = [listing_url(ats, token)]
+    if ats == "workday":
+        urls.append("https://{tenant}.{wd}.myworkdayjobs.com/{site}/".format(**_parts(ats, token)))
+    return urls
 
 
 # A kept posting's own page, for the providers whose list leaves it out. Each is on
@@ -95,11 +136,15 @@ JOB_URL = {
     "workable": "https://apply.workable.com/api/v2/accounts/{token}/jobs/{job_id}",
     # BambooHR's list has no description, no date and no pay.
     "bamboohr": "https://{token}.bamboohr.com/careers/{job_id}/detail",
+    # Workday's list has the title, the place and a relative date; the
+    # description, the exact date and the job type are on the posting's own
+    # record. `job_id` is the posting's path ("/job/China-Shanghai/..._JR2024692").
+    "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{job_id}",
 }
 
 
 def job_url(ats: str, token: str, job_id: str) -> str:
-    return JOB_URL[ats].format(token=token, job_id=job_id)
+    return JOB_URL[ats].format(token=token, job_id=job_id, **_parts(ats, token))
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,8 +175,12 @@ class Page:
     description: str | None
     facts: details.Facts
     #: A Greenhouse posting's offices: the place when its location is only a work
-    #: model ("In-Office").
+    #: model ("In-Office"). A Workday posting's places when its list said only
+    #: "3 Locations", joined into one ("A; B; C").
     offices: tuple[str, ...] = ()
+    #: A Workday posting's requisition number (`jobReqId`): one job posted on two of
+    #: a company's careers sites has one, and `shortlist.pick` shows it once.
+    requisition: str | None = None
 
     @classmethod
     def from_row(cls, row: dict) -> Page:
@@ -140,6 +189,7 @@ class Page:
             description=row["description"],
             facts=details.Facts.from_row(row["facts"]),
             offices=tuple(row.get("offices") or ()),
+            requisition=row.get("requisition"),
         )
 
 
@@ -189,9 +239,11 @@ class Job:
         """Where the posting is. Cloudflare's Greenhouse board names every location
         "In-Office" and puts the city in the posting's offices, so its Lisbon and
         London internships read as one role posted twice. "Hybrid" with no office
-        is a work style, not somewhere to be; "Remote" is a place: anywhere."""
-        if not _placeless(self.location):
-            return (self.location,) if self.location else ()
+        is a work style, not somewhere to be; "Remote" is a place: anywhere. A
+        Workday list says only "3 Locations" of a posting in several, so such a
+        posting has no location, and its own page names them (`describe_workday`)."""
+        if self.location and not _placeless(self.location):
+            return (self.location,)
         return self.page.offices if self.page else ()
 
     def to_row(self) -> dict[str, object]:
@@ -207,19 +259,29 @@ class Job:
 
 
 def _get_json(url: str) -> object:
-    """GET and parse JSON, with one retry on a 5xx or an explicit Retry-After.
+    """GET and parse JSON, with one retry on a 5xx, a 429 or an explicit Retry-After.
 
     A 404 becomes `BoardNotFound`; every other failure propagates, because a board
     we could not read is not a board we know anything about.
     """
+    return _json(url, lambda: web.get(url, timeout=TIMEOUT_S))
+
+
+def _post_json(url: str, payload: object) -> object:
+    """`_get_json` for a POST: Workday's list. A 429 is retried once too, since
+    five of ~1,700 Workday boards answered one on the first full sweep."""
+    return _json(url, lambda: web.post(url, payload, timeout=TIMEOUT_S))
+
+
+def _json(url: str, fetch: Callable[[], bytes]) -> object:
     for attempt in (1, 2):
         try:
-            return json.loads(web.get(url, timeout=TIMEOUT_S))
+            return json.loads(fetch())
         except urllib.error.HTTPError as error:
             if error.code == 404:
                 raise BoardNotFound(url) from error
             retry_after = error.headers.get("Retry-After") if error.headers else None
-            if attempt == 2 or (error.code < 500 and not retry_after):
+            if attempt == 2 or (error.code < 500 and error.code != 429 and not retry_after):
                 raise
             time.sleep(min(float(retry_after), 30) if retry_after and retry_after.isdigit() else 2)
     raise AssertionError("unreachable")
@@ -303,12 +365,19 @@ def _page(
     stated_style: str | None = None,
     stated_pay: details.Pay | None = None,
     offices: tuple[str, ...] = (),
+    requisition: str | None = None,
 ) -> Page:
     """A Page from a posting's whole text: facts read first, description cut after."""
     facts = details.read(
         title, full, stated_type=stated_type, stated_style=stated_style, stated_pay=stated_pay
     )
-    return Page(version=PAGE_VERSION, description=cap(full), facts=facts, offices=offices)
+    return Page(
+        version=PAGE_VERSION,
+        description=cap(full),
+        facts=facts,
+        offices=offices,
+        requisition=requisition,
+    )
 
 
 def _work_style(value: object, location: str | None) -> str | None:
@@ -693,6 +762,209 @@ def describe_bamboohr(job: Job) -> Job:
     )
 
 
+#: Postings per request: Workday answers a larger `limit` with a 400.
+WORKDAY_PAGE = 20
+#: The most a Workday list will report. A board answering exactly this is capped:
+#: NVIDIA reports 2,000 and has 2,676, and an offset past 2,000 returns its first
+#: page again. A board that reports more (Northrop Grumman: 3,740) pages past it.
+WORKDAY_CAP = 2000
+#: The largest Workday board read: 250 requests, about 2 minutes of one worker.
+#: The ~20 boards past it on 2026-10-10 are retail and hospital chains (Dollar
+#: Tree 25,026, CVS 18,575, Lowe's 12,701) plus Accenture (42,179) and Walmart.
+WORKDAY_MAX = 5000
+
+
+def workday(
+    token: str, company: str, *, pace: Callable[[str], None] = lambda url: None
+) -> list[Job]:
+    """Every posting on a Workday board, read whole or not at all.
+
+    The list comes 20 postings a request, and `pace` is called before each one but
+    the first, which the caller paces like any board's one request. A read that
+    does not add up to the count Workday gave raises `Incomplete`, and a board past
+    WORKDAY_MAX raises `TooLarge`: only a whole read may count as evidence that a
+    posting has gone (scraper/CLAUDE.md, "Nothing closes").
+
+    A board reporting exactly WORKDAY_CAP is read in slices by one of its own
+    filters (`_workday_slices`), or raises `TooLarge` when none splits it.
+    """
+    url = listing_url("workday", token)
+    try:
+        first = _workday_page(url, {}, 0)
+    except urllib.error.HTTPError as error:
+        # A tenant that does not exist, or the right tenant on the wrong data
+        # centre, is a 422 rather than a 404.
+        if error.code == 422:
+            raise BoardNotFound(url) from error
+        raise
+    size = int(first.get("total") or 0)
+    slices: list[dict] | None = [{}]
+    if size == WORKDAY_CAP:
+        size, slices = _workday_slices(first)
+    if size > WORKDAY_MAX:
+        raise TooLarge(f"{size:,} postings")
+    if slices is None:
+        raise TooLarge(f"capped at {WORKDAY_CAP:,} postings, and no filter splits it")
+
+    rows: dict[str, dict] = {}
+    for facets in slices:
+        offset, expected = 0, None
+        while expected is None or offset < expected:
+            if facets or offset:
+                pace(url)
+                page = _workday_page(url, facets, offset)
+            else:
+                page = first
+            # Only the first page of a search carries the count; later pages say 0.
+            expected = int(page.get("total") or 0) if expected is None else expected
+            postings = page.get("jobPostings") or []
+            for row in postings:
+                # AT&T's list has a row with only a requisition number: counted
+                # in the total and linked nowhere, so counted here and never a Job.
+                rows.setdefault(row.get("externalPath") or json.dumps(row, sort_keys=True), row)
+            if not postings:
+                break
+            offset += WORKDAY_PAGE
+    if len(rows) != size:
+        raise Incomplete(f"read {len(rows):,} distinct postings of {size:,}")
+
+    host = "https://{tenant}.{wd}.myworkdayjobs.com/{site}".format(**_parts("workday", token))
+    today = datetime.now(UTC).date()
+    return [
+        Job(
+            ats="workday",
+            token=token,
+            company=company,
+            # The posting's path, which its own record is read by.
+            external_id=row["externalPath"],
+            title=(row.get("title") or "").strip(),
+            apply_url=f"{host}{row['externalPath']}",
+            location=_workday_location(row.get("locationsText")),
+            # Only a relative date ("Posted 3 Days Ago"); the posting's own
+            # record has the exact one (`describe_workday`).
+            posted_at=_workday_posted(row.get("postedOn"), today),
+        )
+        for row in rows.values()
+        if row.get("externalPath")
+    ]
+
+
+def _workday_page(url: str, facets: dict, offset: int) -> dict:
+    payload = _post_json(
+        url, {"appliedFacets": facets, "limit": WORKDAY_PAGE, "offset": offset, "searchText": ""}
+    )
+    assert isinstance(payload, dict)
+    return payload
+
+
+def _workday_slices(first: dict) -> tuple[int, list[dict] | None]:
+    """A capped board's real size, and one filter value per slice to read it by.
+
+    The list's filters (job family, job type, time type, ...) come with a count per
+    value. A filter whose counts add up to the board's size puts every posting in
+    exactly one slice; the size is the sum that two filters agree on, since one
+    filter alone could leave postings out (NVIDIA: 2,676 by job family, job type
+    and time type alike). A slice is only readable below the cap, so a filter with
+    any value at 2,000 or more is no use. `workday` then checks that the slices
+    really held that many distinct postings. None when no filter fits: 17 of the
+    39 capped boards on 2026-10-10 (Citi, Walmart, Target, Airbus).
+    """
+    filters = {
+        facet.get("facetParameter"): values
+        for facet in first.get("facets") or []
+        if (values := facet.get("values"))
+        and all(isinstance(v.get("count"), int) and v.get("id") for v in values)
+    }
+    sums = Counter(sum(v["count"] for v in values) for values in filters.values())
+    agreed = [total for total, n in sums.items() if n >= 2 and total >= WORKDAY_CAP]
+    if not agreed:
+        return WORKDAY_CAP, None
+    size = max(agreed)
+    for name, values in filters.items():
+        if sum(v["count"] for v in values) == size and all(
+            v["count"] < WORKDAY_CAP for v in values
+        ):
+            return size, [{name: [v["id"]]} for v in values]
+    return size, None
+
+
+def _workday_location(text: str | None) -> str | None:
+    """The list's place, or None for "3 Locations": the posting's own record names
+    them (`describe_workday`)."""
+    text = (text or "").strip()
+    return None if not text or re.fullmatch(r"\d+ Locations", text) else text
+
+
+def _workday_posted(text: str | None, today: date) -> str | None:
+    """A date from "Posted Today", "Posted Yesterday" or "Posted 3 Days Ago",
+    counted back from today in UTC (so a day either side of the employer's own).
+    "Posted 30+ Days Ago" says only that it is older, so it gives no date."""
+    match = re.fullmatch(r"Posted (?:(Today)|(Yesterday)|(\d+) Days? Ago)", (text or "").strip())
+    if not match:
+        return None
+    days = 0 if match[1] else 1 if match[2] else int(match[3])
+    return _iso((today - timedelta(days=days)).isoformat())
+
+
+def _workday_work_style(value: object) -> str | None:
+    """Workday's `remoteType` is the employer's own wording, ~80 kinds of it across
+    the first sweep: "Hybrid", "On-Site", "Partially Remote", "Office Worker (NOT
+    Remote)", "Remote work is not available". A refusal of remote work is on site;
+    any mention of hybrid (or "Flex") is hybrid, so "Hybrid or 100% Remote" is too;
+    then remote; then the on-site words. Others ("Field", "As Needed") say nothing.
+    """
+    text = re.sub(r"^(?:remote type\s*-\s*|#li-)", "", str(value or "").strip().lower())
+    if re.search(r"not remote|remote work is not|not eligible|non[- ]flex", text):
+        return "On site"
+    if re.search(r"hybrid|partially remote|\bflex\b|office or home", text):
+        return "Hybrid"
+    if re.search(r"remote|work from home", text):
+        return "Remote"
+    if re.search(r"on[- ]?site|in[- ]?office|in[- ]?person|on campus|^office\b", text):
+        return "On site"
+    return None
+
+
+def describe_workday(job: Job) -> Job:
+    """The same Workday posting with what only its own record says: the
+    description, its places, the date it went up, the time type, work model and
+    requisition number.
+
+    `startDate` is the day the posting went up, not when the job starts: it is
+    exactly the list's "Posted 3 Days Ago" on every posting compared (2026-10-10).
+
+    `jobReqId` is the requisition, the job itself: posted on two careers sites, it
+    is one requisition with two paths (Autodesk's "..._26WD100002-1" on `ext` and
+    "..._26WD100002-3" on `uni`). Only the record states it whole. The path ends in
+    a slug of it plus a posting number, which no rule can split from an id that
+    ends in digits itself (Amgen's "R-257526"), and the list's `bulletFields`
+    show whatever each employer chose to show there.
+    """
+    payload = _get_json(job_url("workday", job.token, job.external_id))
+    assert isinstance(payload, dict)
+    info = payload.get("jobPostingInfo") or {}
+    # All its places as one location, as Workable's are: the card would say only
+    # "3 locations" of three offices, and the backend's resolver splits on ";".
+    places = _places(
+        str(place).strip()
+        for place in [info.get("location"), *(info.get("additionalLocations") or [])]
+        if place
+    )
+    return replace(
+        job,
+        posted_at=_iso(info.get("startDate")) or job.posted_at,
+        page=_page(
+            job.title,
+            plain_text(info.get("jobDescription")),
+            stated_type=details.job_type_label(info.get("timeType")),
+            stated_style=_workday_work_style(info.get("remoteType"))
+            or _work_style(None, job.location),
+            offices=(places,) if places else (),
+            requisition=str(info.get("jobReqId") or "").strip() or None,
+        ),
+    )
+
+
 def describe_greenhouse(job: Job) -> Job:
     """The same Greenhouse posting with what only its own page says: the
     description, the offices, pay ranges and any employment-type field."""
@@ -761,7 +1033,12 @@ FETCHERS: dict[str, Callable[[str, str], list[Job]]] = {
     "workable": workable,
     "recruitee": recruitee,
     "bamboohr": bamboohr,
+    "workday": workday,
 }
+
+#: Providers whose reader makes more than one request per board, and so takes the
+#: run's `pace` to space them (`__main__._scrape_one`).
+PAGED = frozenset({"workday"})
 
 
 def describe(job: Job) -> Job:
@@ -771,4 +1048,5 @@ def describe(job: Job) -> Job:
         "greenhouse": describe_greenhouse,
         "workable": describe_workable,
         "bamboohr": describe_bamboohr,
+        "workday": describe_workday,
     }[job.ats](job)

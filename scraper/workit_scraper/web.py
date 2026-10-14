@@ -1,12 +1,15 @@
 """The one way this package makes an HTTP request.
 
-Every GET carries our User-Agent, and none follows a redirect to another origin:
-robots.txt is checked per origin, so a redirect elsewhere would land us somewhere
-we never asked permission to be.
+Every request carries our User-Agent, and none follows a redirect to another
+origin: robots.txt is checked per origin, so a redirect elsewhere would land us
+somewhere we never asked permission to be. Almost everything is a GET; Workday's
+careers pages list a board with a POST of a JSON search (`post`), so that is here
+too, under the same rules.
 """
 
 from __future__ import annotations
 
+import json
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
@@ -34,5 +37,22 @@ _OPENER = urllib.request.build_opener(_SameOriginRedirects)
 def get(url: str, *, timeout: float) -> bytes:
     """GET `url` and return the body. HTTP errors propagate as `HTTPError`."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with _OPENER.open(request, timeout=timeout) as response:
+        return response.read()
+
+
+def post(url: str, payload: object, *, timeout: float) -> bytes:
+    """POST `payload` as JSON to `url` and return the body. HTTP errors propagate
+    as `HTTPError`. Same User-Agent and same-origin rule as `get`."""
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={
+            "User-Agent": USER_AGENT,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
     with _OPENER.open(request, timeout=timeout) as response:
         return response.read()

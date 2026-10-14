@@ -69,7 +69,8 @@ DEGREE_FIELD_RE = re.compile(
     r'(?:\s+of\s+\w+)?(?:\s+in\s+|,\s*)([^|;,\n]+)',
     re.IGNORECASE,
 )
-BULLET_RE = re.compile(r'^\s*[•▪●◦·\-]\s*')          # catch bullet points
+# catch bullet points; a hyphen before a digit is a minus sign ("-20%"), not one
+BULLET_RE = re.compile(r'^\s*(?:[•▪●◦·]|-(?!\d))\s*')
 URL_RE = re.compile(r'https?://\S+|github\.com/\S+', re.IGNORECASE)
 
 # ponytail: keyword list — add words as real resumes expose gaps
@@ -307,7 +308,8 @@ def _split_entries(text: str) -> list[list[str]]:
 def _bullets(lines: list[str]) -> str | None:
     """Join bullet lines and their PDF-wrapped continuations."""
     # Some PDFs draw bullets as shapes, so no marker reaches the text. Then a
-    # line that opens a new sentence after a full stop starts a new item.
+    # line that opens a new sentence after a full stop starts a new item: any
+    # line not starting lowercase, so "-20% churn" or "3 launches" counts.
     has_markers = any(BULLET_RE.match(ln.strip()) for ln in lines if ln.strip())
     parts: list[str] = []
     for ln in lines:
@@ -316,11 +318,14 @@ def _bullets(lines: list[str]) -> str | None:
             continue
         if BULLET_RE.match(stripped):
             parts.append(BULLET_RE.sub("", stripped).strip())
-        elif not has_markers and (not parts or (parts[-1].endswith(".") and stripped[0].isupper())):
+        elif not has_markers and (not parts or (parts[-1].endswith(".") and not stripped[0].islower())):
             parts.append(stripped)
         elif parts:
             # Continuation of previous bullet (PDF line wrap)
             parts[-1] += " " + stripped
+        else:
+            # Text before the first marker has nothing to continue: keep it
+            parts.append(stripped)
     # a run of spaces inside a line is a PDF gap (after a bold phrase), not wording
     return "\n".join(re.sub(r'\s{2,}', ' ', p) for p in parts) if parts else None
 
@@ -557,7 +562,8 @@ def _parse_projects(text: str) -> list[Project]:
                 url = url_m.group(0)
                 break
 
-        desc = _bullets(lines[1:])
+        # a line that is only the link is the url above, not a bullet
+        desc = _bullets([ln for ln in lines[1:] if not URL_RE.fullmatch(ln.strip())])
 
         results.append(Project(
             project_name=name, url=url, technologies=technologies,

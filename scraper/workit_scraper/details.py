@@ -138,8 +138,11 @@ DOLLAR_PREFIX = {"CA": "CAD", "C": "CAD", "AU": "AUD", "A": "AUD", "S": "SGD", "
 CODES = ("USD", "EUR", "GBP", "CAD", "AUD", "SGD", "CHF")
 
 # Thousands grouped by "," or by "." ("34.000 EUR"); a "." before exactly two
-# digits is cents ("$40.00").
-_NUMBER = r"(\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d{3})+(?!\d)|\d+(?:\.\d+)?)\s*([kK])?"
+# digits is cents ("$40.00"), grouped thousands included: without it "$61,900.00
+# to $141,000.00" stopped at "61,900", and its ".00" hid the rest of the range.
+_NUMBER = (
+    r"(\d{1,3}(?:,\d{3})+(?:\.\d{2}(?!\d))?|\d{1,3}(?:\.\d{3})+(?!\d)|\d+(?:\.\d+)?)\s*([kK])?"
+)
 _CODE = r"(USD|EUR|GBP|CAD|AUD|SGD|CHF)"
 _RANGE_TO = r"\s*(?:-|–|—|to)\s*"
 _PAY = re.compile(
@@ -161,8 +164,12 @@ _NOT_PAY_BEFORE = re.compile(
     r"|reimburse\w*|worth|valuation|benefit of)\b[^.\n]{0,40}$",
     re.I,
 )
+# Words that call an amount pay, as whole words: "base" inside Cisco's "quota-based"
+# and "rate" inside Valon's "operate" are not pay.
 _PAID = re.compile(
-    r"salary|pay|compensation|wage|rate|stipend|base|range|earn|pro rata|gross", re.I
+    r"\b(?:salary|pay(?:s|ing|ments?)?|compensation|wages?|rates?|stipends?|base|ranges?"
+    r"|earn(?:s|ed|ings?)?|pro rata|gross)\b",
+    re.I,
 )
 # A period right after an amount says it is pay, whatever labels it:
 # "Intern/Undergraduate: $34/hour", "$30-$50 per hour subject to taxes".
@@ -262,9 +269,12 @@ def pay(text: str | None) -> Pay | None:
         if _NOT_PAY_BEFORE.search(before):
             continue
         # A label is only near enough to speak for the amount on its own line or
-        # the one before it: "Hourly Rate:\n$50—$50 USD".
+        # the one before it: "Hourly Rate:\n$50—$50 USD". Its own sentence counts
+        # whole, however long: Toyota Research Institute's "The pay range for this
+        # position at commencement of employment is expected to be between $45".
         label = "\n".join(before.split("\n")[-2:])
-        if not (_PAID.search(label + tail) or _PERIOD_AFTER.match(tail)):
+        sentence = re.split(r"[.!?]\s", text[text.rfind("\n", 0, start) + 1 : start])[-1]
+        if not (_PAID.search(f"{label} {sentence} {tail}") or _PERIOD_AFTER.match(tail)):
             continue
         period = period_for(lo, hi, tail, label)
         if period is None:

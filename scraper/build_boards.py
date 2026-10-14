@@ -63,7 +63,39 @@ PATTERNS = {
     # {company}.bamboohr.com/careers/{id}. `www` is the vendor's own site.
     "recruitee": re.compile(r"//(?!www\.)([a-z0-9-]+)\.recruitee\.com", re.I),
     "bamboohr": re.compile(r"//(?!www\.)([a-z0-9-]+)\.bamboohr\.com", re.I),
+    # {tenant}.wd{N}.myworkdayjobs.com/{locale}/{site}/job/..., whose token is
+    # "{tenant}.wd{N}/{site}": all three are needed to reach the board. The
+    # locale ("en-US") is optional, and a site can be two letters itself (Boeing's
+    # "DA"), so a locale is only skipped when a site follows it.
+    "workday": re.compile(
+        r"//([a-z0-9-]+\.wd\d+)\.myworkdayjobs\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?"
+        r"(?!(?:job|details|wday)/)([a-z0-9_-]+)",
+        re.I,
+    ),
 }
+# The same boards under Workday's other address,
+# wd{N}.myworkdaysite.com/recruiting/{tenant}/{site}: each answers on its tenant's
+# own myworkdayjobs.com host too (Snap's, Magna's), which has the robots.txt.
+WORKDAY_SITE = re.compile(
+    r"//(wd\d+)\.myworkdaysite\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?recruiting/([a-z0-9-]+)/([a-z0-9_-]+)",
+    re.I,
+)
+
+
+def tokens(link: str) -> list[tuple[str, str]]:
+    """Every (ats, token) an apply link names, lower-cased: slugs are case-blind on
+    every provider, Workday's sites included."""
+    found = [
+        (ats, "/".join(match.groups()).lower())
+        for ats, pattern in PATTERNS.items()
+        for match in pattern.finditer(link)
+    ]
+    found += [
+        ("workday", f"{tenant}.{wd}/{site}".lower())
+        for wd, tenant, site in WORKDAY_SITE.findall(link)
+    ]
+    return found
+
 
 # Boards verified by hand to yield early-career software roles, kept because the
 # curated lists miss some of them -- the quant firms especially.
@@ -128,13 +160,11 @@ def harvest() -> dict[tuple[str, str], str]:
         for row in rows:
             link = row.get("url") or ""
             company = (row.get("company_name") or row.get("company") or "").strip()
-            for ats, pattern in PATTERNS.items():
-                for token in pattern.findall(link):
-                    key = (ats, token.lower())
-                    # First name wins; later duplicates are the same company.
-                    if company and key not in boards:
-                        boards[key] = company
-                    boards.setdefault(key, token)
+            for key in tokens(link):
+                # First name wins; later duplicates are the same company.
+                if company and key not in boards:
+                    boards[key] = company
+                boards.setdefault(key, key[1])
     return boards
 
 

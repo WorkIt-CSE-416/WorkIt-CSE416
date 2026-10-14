@@ -34,5 +34,5 @@ board page is a script shell, so its logo is read from the account JSON
 (`/api/v1/accounts/{slug}`): `logo` on `workablehr.s3.amazonaws.com` under
 `/uploads/account/logo/`, never its `open_graph_logo`. It is 120px tall, a square or
 a wordmark up to 720 wide (17 of the first 25), which the card letterboxes like any
-other wordmark. Recruitee and BambooHR
-are not in `logos.PAGE` at all (`providers.md`).
+other wordmark. Recruitee, BambooHR and Workday
+are not in `logos.PAGE` at all (`providers.md`, `workday.md`).

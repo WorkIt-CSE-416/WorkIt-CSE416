@@ -10,7 +10,7 @@ since nobody asks an intern for years. Each is filled from the provider's own fi
 where it has one (Ashby `employmentType` and `compensation`, Lever `commitment` and
 `salaryRange`, Greenhouse `pay_input_ranges` and board metadata, Workable `type` and
 `salary_*`, Recruitee `employment_type_code` and `salary`, BambooHR
-`employmentStatusLabel` and `compensation`), and otherwise from
+`employmentStatusLabel` and `compensation`, Workday `timeType` and `remoteType`), and otherwise from
 the description by `details.py`. What neither states stays null, and the card says
 "not listed" -- except work style and job type, each inferred by a measured rule below.
 
@@ -20,7 +20,7 @@ and only then is it cut to `DESCRIPTION_CHARS` for storage. Pay is often the las
 a posting says, under a long benefits section: reading the stored, cut copy missed it
 on a sixteenth of the feed. So `--offline` re-renders the facts a fetch found but finds
 no new ones; changing a pattern in `details.py` takes a live run (and, for Greenhouse,
-a `PAGE_VERSION` bump) to reach stored postings.
+Workable, BambooHR and Workday, a `PAGE_VERSION` bump) to reach stored postings.
 
 `details.py` is regex over prose, so it is fussy in the same way `shortlist.py` is, and
 every case in `tests/test_details.py` was seen in a real posting, except
@@ -40,9 +40,10 @@ every case in `tests/test_details.py` was seen in a real posting, except
   amount); the card prints an equal range once.
 - **"Intern" is not a job type.** Ashby and Lever say Intern where they could say
   Full-time; it says nothing about hours, so the description decides.
-- **A role's facts come whole from one posting**, its first copy with a page --
-  never field by field across copies of one URL, which would pair one copy's pay
-  with another's job type. `Role.facts.work_style` is the card's answer.
+- **A role's facts come whole from one posting**, the copy it links (`_lead`) or,
+  when that has no page, the first copy with one -- never field by field across
+  copies of one URL, which would pair one copy's pay with another's job type.
+  `Role.facts.work_style` is the card's answer.
 - **Work style is the one fact the card infers** (`shortlist._work_style`), in this
   order: what the posting states (its board's field, or a sentence like Sigma's "an
   in-office work environment"); then what the company's other postings state, most
@@ -88,6 +89,32 @@ Most gaps were honest -- 444 of 474 without pay, 267 of 311 internships without 
 - **A currency can be a code with no symbol** ("800 USD monthly", "34.000 - 38.000 EUR",
   "CAD $30-50/hour"), thousands can be "." ("$120.000"), and a range's low end can be
   short ("€55-65,000").
+- **Cents belong to the amount, thousands or not** (`_NUMBER`, 2026-10-10). "$61,900.00
+  to $141,000.00" (Booz Allen) read as $61,900 alone: the grouped-thousands pattern
+  took no cents, so it stopped at "61,900", and the ".00" left behind ended both the
+  range and the tail. On the cached store, re-read from every job posting's whole
+  text (and BambooHR's pay field), 96 of 2,392 changed, each read against its
+  sentence. 72 cards showing a range's low end now show the range (Booz Allen 42,
+  SpaceX 13, Blue Origin 9, BMO 4, Dark Wolf 2, Applied Materials, Carrier). It also
+  let 24 Cisco internships misread a company-wide range (next bullet). The tail after
+  an amount runs onto the next line, and stays that way: The Aerospace Corporation's
+  "$25.00 - $30.00" is proved by "Pay Basis: Hourly" below it. `PAGE_VERSION` went to
+  12 so stored pages are read again.
+- **A pay word is a whole word, and an amount's own sentence is its label** (`_PAID`,
+  `pay`, 2026-10-11). The check used to match inside words: "base" in Cisco's "* For
+  quota-based sales roles", the line under its $44,000 to $185,000 range for New York
+  and Washington, and "rate" in Valon's "operate our own mortgage servicing business
+  managing $110+ billion in loans", read as $110 an hour. Whole words alone cost one
+  true read: Toyota Research Institute's "The pay range for this position at
+  commencement of employment is expected to be between $45 and $65/hour" names its
+  pay 85 characters before the amount, past the 60-character window, and had passed
+  only on "California-based". So the amount's own sentence counts too, for the pay
+  word only; the period still comes from the near label. On the cached store, 28 of
+  2,392 reads changed, each read: Cisco's 24 back to none, Valon's intern to its
+  stated $60 an hour (its new grad's card keeps Ashby's own pay field), and Cadence's
+  Montreal co-op (two copies, one role) from none to CA$30 an hour, the low end of
+  "The hourly range ... is from $30CAD to $45CAD". Neither "$45 and $65" nor
+  "$30CAD to $45CAD" reads as a range yet. `PAGE_VERSION` went to 13.
 - **A LinkedIn tag (`#LI-Hybrid`) is the employer's own work-style label** and wins;
   **Hybrid beside On site is Hybrid** (Lyft: "in-office on a hybrid schedule, 3 days
   per week"); naming weekdays onsite is hybrid. Greenhouse boards add a "Working
@@ -202,4 +229,5 @@ of sponsorship.
 
 **`TestConstructedGuards` is the one exception to "seen in a real posting":** KAN-168's
 review found bugs with sentences built to show them, and where no live posting said it
-that way the built sentence stays, in that class only, as a guard.
+that way the built sentence stays, in that class only, as a guard. The cents fix added
+one: "$50,000.00 - $70,000", cents on one end only, which no cached posting wrote.
