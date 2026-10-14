@@ -71,6 +71,15 @@ on purpose: Postgres respells defaults, so it reports phantom changes).
 `configure_context()` is shared by offline and online modes so they cannot
 drift: add new settings there, not to one path.
 
+## env.py keeps existing loggers
+
+`fileConfig(..., disable_existing_loggers=False)`. The test suite runs the
+migrations in `tests/conftest.py` after collection has imported the app, and
+`fileConfig`'s default disables every logger made before it. Then a test
+that checks a log line with `caplog` sees nothing, but only when it runs
+after a database test (`test_import_embeddings.py` failed that way when
+main's embedding import met KAN-203's real-Postgres tests).
+
 ## env.py imports app.models
 
 A model that no import reaches is absent from `Base.metadata`, and autogenerate
