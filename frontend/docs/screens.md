@@ -417,6 +417,9 @@ in Docs (suggested answers in the chat, not a banner).
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
+- **An entry's dates sit under its title below `@xl/main`**, beside the
+  edit and delete buttons above it. Beside them on a phone, the dates never
+  shrank and left the title a column a few letters wide ("Universi / ty").
 - **An entry warns what a resume would miss** (`sections.ts`'s
   `missingFacts`, story 17): for Education and Experience no start and end
   (or "present"), and for Experience and Leadership no organization. A

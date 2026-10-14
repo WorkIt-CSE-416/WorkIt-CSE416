@@ -302,6 +302,9 @@ function EntryView({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-body text-ink font-medium break-words">{entry.title}</p>
+          {/* A narrow column puts the dates under the title: beside it, they
+              never shrink and left the title a few letters wide on a phone. */}
+          {dates && <p className="text-note text-ink-meta @xl/main:hidden">{dates}</p>}
           {place && <p className="text-note text-ink-muted break-words">{place}</p>}
           {details.map((line) => (
             <p key={line} className="text-note text-ink-meta break-words">
@@ -310,7 +313,7 @@ function EntryView({
           ))}
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          {dates && <span className="text-note text-ink-meta">{dates}</span>}
+          {dates && <span className="text-note text-ink-meta hidden @xl/main:inline">{dates}</span>}
           <IconButton label="Edit Entry" tooltip="Edit this entry" onClick={onEdit}>
             <Pencil className="size-4" />
           </IconButton>
