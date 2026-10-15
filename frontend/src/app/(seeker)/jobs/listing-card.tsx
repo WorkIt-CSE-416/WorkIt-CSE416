@@ -1,4 +1,4 @@
-import { Ban, CloudOff } from "lucide-react";
+import { Ban, CloudOff, Zap } from "lucide-react";
 
 import { AutofillBadge } from "@/components/autofill-badge";
 import { ExternalLinkIcon } from "@/components/icons";
@@ -6,7 +6,7 @@ import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { SaveButton } from "@/components/save-button";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { ButtonLink, buttonClasses } from "@/components/ui/button";
+import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
@@ -77,8 +77,8 @@ export function ListingCard({ job }: { job: JobListing }) {
       rail={<MatchRail score={null} highlights={[]} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
-         too many. All four sit at the row's right end, as on the mock cards:
-         the quick verdicts first, then the two steps toward applying. */
+         too many. All five sit at the row's right end, as on the mock cards:
+         the quick verdicts first, then the three steps toward applying. */
       actions={
         <>
           <IconButton
@@ -93,6 +93,14 @@ export function ListingCard({ job }: { job: JobListing }) {
           <SaveButton title={job.title} />
 
           <AskScoutButton id={job.id} title={job.title} company={job.company} />
+
+          {/* Ask Scout's design, with the sidebar's Auto Apply glyph. Inert
+              until a single job posting can be queued (KAN-223,
+              auto-apply/architecture.md). */}
+          <Button variant="secondary" size="sm">
+            <Zap className="size-4" />
+            Auto Apply
+          </Button>
 
           {/* Leaves for the employer's own posting, so the glyph says so and
               a screen reader hears it. On a card under 384px (a phone) the
@@ -201,6 +209,7 @@ export function ListingsSkeleton() {
                   <div className="border-border-subtle mt-3 flex justify-end gap-2 border-t pt-3">
                     <Skeleton className="size-8" />
                     <Skeleton className="size-8" />
+                    <Skeleton className="h-8 w-28" />
                     <Skeleton className="h-8 w-28" />
                     <Skeleton className="h-8 w-24" />
                   </div>

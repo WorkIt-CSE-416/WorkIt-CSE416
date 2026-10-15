@@ -9,7 +9,8 @@ built. It replaces the earlier `design.md`.
 > Chrome, through the WorkIt extension. No WorkIt server ever drives a
 > browser. The code is function based, in three layers, so that an MCP
 > server can expose it later. **Built:** the Match step's function ("Match
-> (built)", below). Everything else is a plan. The exact function names are a
+> (built)", below) and the batch rule, `pick_batch` in
+> `backend/app/auto_apply/rules.py`. Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
 
 ## Terms
@@ -166,8 +167,7 @@ Names are not final.
 | Layer | Function | Does |
 |---|---|---|
 | 1 | `fetch_recommended(db, applicant_id, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
-| 1, pure | `hiring_system_of(apply_url)` | `"greenhouse"`, `"lever"`… or `None` |
-| 1, pure | `pick_batch(scored, done_job_ids, size)` | Drops job postings that already have an application, duplicates and hiring systems the extension cannot fill; takes the first `size` |
+| 1, pure | `pick_batch(scored, done_job_ids, size)` | Drops job postings that already have an application, and duplicates; takes the first `size`. Every hiring system stays in. **Built** |
 | 1 | `queue_applications(db, applicant_id, job_ids, resume_id)` | Saves them as `queued` |
 | 1 | `next_application(db, applicant_id)` | The next queued application, with its `apply_url` and resume |
 | 1, LLM | `tailor_resume(llm, parsed, job)` | A tailored `ParsedResume` (in `scout/`) |
@@ -199,7 +199,7 @@ Webapp or AI agent: "start a batch of 10"
 
 ```
 backend/app/auto_apply/
-    rules.py        layer 1, pure:  hiring_system_of, pick_batch
+    rules.py        layer 1, pure:  pick_batch
     queries.py      layer 1, DB:    queue_applications, next_application, record_run, set_stage
     pipeline.py     layer 2:        get_matches, start_batch, prepare_application, finish_application
 backend/app/routers/auto_apply.py   layer 3: the routes. Every router lives in app/routers/
@@ -268,10 +268,10 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
 4. **Use the student's filters.** Matching reads the resume only, not
    location, visa or start date. Pass the student's preferences as
    `filters=`, or let them set filters on the Auto Apply page.
-5. **Keep only job postings that can be filled.** Keep one per company and
-   title: some roles are listed once per office. Leave out hiring systems the
-   extension does not fill well yet (Workday, which needs an account per
-   company).
+5. **Keep one job posting per company and title.** Some roles are listed
+   once per office. The batch does not filter by hiring system: a job
+   posting the extension cannot fill (Workday, a company's own site) is
+   queued like any other, and its fill fails to `needs_you` ("The run").
 
 Why 10: the student checks each form before Submit, so 10 applications take
 about 10 to 30 minutes. A small batch also limits the harm of a bad fill.
@@ -746,8 +746,8 @@ sample form (`test/sample-form.html`) needs a file input.
 Each step ships alone and is about one ticket.
 
 1. **Match**: `fetch_recommended` and `min_match` (done).
-2. **`applications` table**, `app/auto_apply/`, and `start_batch` with its
-   route. The Applications screen can read the table instead of `data.ts`.
+2. **`applications` table**, the rest of `app/auto_apply/` (`rules.py` is
+   done), and `start_batch` with its route. The Applications screen can read the table instead of `data.ts`.
 3. **Extension: file upload**, tested on Greenhouse, Lever and Ashby. They
    host 87% of the job postings in the feed snapshot (`backend/data/feed.json`).
 4. **Extension: the runner**, the port, host permissions, and the overlay's

@@ -104,6 +104,12 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
   matching: `app/services/matching/CLAUDE.md`.
+- **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2, in three
+  files by kind: `rules.py` pure (no session), `queries.py` database, and
+  `pipeline.py` the steps that call them. Unlike a service, its functions may
+  take a session; its routes still go in `app/routers/`. Read
+  `../auto-apply/architecture.md`, "The function layers", before adding one:
+  a layer-2 step that skips a layer-1 check lets any caller skip it.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
