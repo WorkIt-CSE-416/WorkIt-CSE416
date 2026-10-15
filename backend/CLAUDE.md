@@ -101,6 +101,13 @@ Find files with a directory listing; these are the rules for where code goes.
   response shapes. Collapse them and the first internal column you must hide
   leaks. Read
   `app/models/CLAUDE.md` before adding or editing a model.
+- **Queries** (`app/queries/`): the SQLAlchemy queries a router runs, one
+  module per domain (`applications.py`), or a package split by job once it
+  grows (`jobs/`: `filters.py`, `listings.py`, `search.py`, `facets.py`,
+  `recommendations.py`). No HTTP: no `HTTPException`, no
+  `Query()`, no `Depends`; a query returns a value or None and the route
+  decides the status code. Before 2026-10-15 `routers/jobs.py` held all of
+  it in 1,179 lines, which every jobs change had to read whole.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
   matching: `app/services/matching/CLAUDE.md`.

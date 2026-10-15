@@ -45,7 +45,7 @@ Jobs page** (`/jobs`), never a job board, so the two can't be confused.
 | 2. Scrape | Reads every company job board, keeps early-career job postings, reads their facts | `scraper/workit_scraper/` |
 | 3. Import | Loads the scraper's output into the database | `backend/app/scripts/import_jobs.py` |
 | 4. Store | Two tables hold the job postings and their places | `backend/app/models/jobs.py`, `backend/alembic/` |
-| 5. Serve | The API filters, counts and pages the job postings | `backend/app/routers/jobs.py` |
+| 5. Serve | The API filters, counts and pages the job postings | `backend/app/routers/jobs.py` (the routes), `backend/app/queries/jobs/` (the queries) |
 | 6. Show | The Jobs page, search, filters and each job posting's page | `frontend/src/app/(seeker)/jobs/`, `.../search/` |
 
 The scraper never touches the database, and the website never touches the
@@ -424,7 +424,7 @@ browser can't restore your place by itself. The app does it instead:
 | How a fact is read from a description | `scraper/workit_scraper/details.py` |
 | What the import writes | `backend/app/scripts/import_jobs.py` |
 | How a location becomes a place | `backend/app/services/location_resolver.py` |
-| A filter's meaning | `backend/app/routers/jobs.py` (`JobFilters`, `matching`) |
+| A filter's meaning | `backend/app/queries/jobs/filters.py` (`JobFilters`, `matching`) |
 | A filter's options and URL | `frontend/src/app/(seeker)/jobs/filter-query.ts` |
 | The filter row and panel | `.../jobs/filters.tsx`, `.../jobs/all-filters.tsx` |
 | The list and Load More | `.../jobs/feed-list.tsx` |

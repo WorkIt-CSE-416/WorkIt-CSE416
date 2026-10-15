@@ -2,7 +2,7 @@
 The jobs an applicant has marked as applied (KAN-232), one job_applications
 row each. The job posting's page reads and sets it with its Applied button;
 GET /jobs, /jobs/count and /jobs/recommended leave those jobs out for that
-applicant (routers/jobs.py, JobFilters.applied_by).
+applicant (queries/jobs/filters.py, JobFilters.applied_by).
 
 GET  /jobs/{job_id}/applied  {"applied_at": null} until the applicant marks it.
 POST /jobs/{job_id}/applied  marks it, and answers when. Marking it again
@@ -21,15 +21,11 @@ other whatever the order they're registered in.
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.deps import get_current_account
-from app.models.applications import Job_Application
-from app.models.dto import job_post_status
-from app.models.jobs import Job_Post
+from app.queries.applications import fetch_applied_at, mark_applied
 from app.schemas.applications import JobApplied
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
@@ -42,15 +38,6 @@ def _applicant_only(account: AuthenticatedAccount) -> uuid.UUID:
     return account.id
 
 
-async def _applied_at(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID):
-    return await db.scalar(
-        select(Job_Application.applied_at).where(
-            Job_Application.applicant_id == applicant_id,
-            Job_Application.job_id == job_id,
-        )
-    )
-
-
 @router.get("/{job_id}/applied", response_model=JobApplied)
 async def get_applied(
     job_id: uuid.UUID,
@@ -59,33 +46,18 @@ async def get_applied(
 ) -> JobApplied:
     """When the signed-in applicant marked this job as applied, if they have."""
     applicant_id = _applicant_only(account)
-    return JobApplied(applied_at=await _applied_at(db, applicant_id, job_id))
+    return JobApplied(applied_at=await fetch_applied_at(db, applicant_id, job_id))
 
 
 @router.post("/{job_id}/applied", response_model=JobApplied)
-async def mark_applied(
+async def post_applied(
     job_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> JobApplied:
     """Marks this job as applied for the signed-in applicant."""
     applicant_id = _applicant_only(account)
-    # The same jobs GET /jobs/{job_id} shows: a seeker can't apply to the rest.
-    listed = await db.scalar(
-        select(Job_Post.id).where(
-            Job_Post.id == job_id,
-            Job_Post.company_id.is_(None),
-            Job_Post.status == job_post_status.published,
-        )
-    )
-    if listed is None:
+    applied_at = await mark_applied(db, applicant_id, job_id)
+    if applied_at is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That job isn't open any more.")
-
-    # DO NOTHING on a second click (or two tabs at once), so the first date stays.
-    await db.execute(
-        insert(Job_Application)
-        .values(applicant_id=applicant_id, job_id=job_id)
-        .on_conflict_do_nothing(index_elements=["applicant_id", "job_id"])
-    )
-    await db.commit()
-    return JobApplied(applied_at=await _applied_at(db, applicant_id, job_id))
+    return JobApplied(applied_at=applied_at)

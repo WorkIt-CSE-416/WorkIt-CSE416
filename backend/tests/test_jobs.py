@@ -15,20 +15,14 @@ from sqlalchemy.dialects import postgresql
 from app.db import get_session
 from app.main import app
 from app.models import dto
-from app.routers.jobs import (
-    YEARLY,
-    JobFilters,
-    location_options,
-    matching,
-    offered_in,
-    query_facts,
-    season_is_over,
-    season_of,
-    to_listing,
-)
+from app.queries.jobs.facets import location_options
+from app.queries.jobs.filters import YEARLY, JobFilters, matching, offered_in
+from app.queries.jobs.listings import to_listing
 from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
 from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import RoleResolver, raw_words
+from app.services.search_facts import query_facts
+from app.services.start_terms import season_is_over, season_of
 from tests.test_role_resolver import ROLES
 
 ROW = SimpleNamespace(
@@ -64,14 +58,14 @@ def no_database(monkeypatch):
     async def role_resolver(db):
         return resolver
 
-    monkeypatch.setattr("app.routers.jobs.role_resolver", role_resolver)
+    monkeypatch.setattr("app.queries.jobs.search.role_resolver", role_resolver)
     # The company names ?q= is read against; a fixed list, not the database's.
     companies = CompanyResolver(["Stripe", "Jump Trading", "Bedrock Robotics", "SpaceX", "Palantir"])
 
     async def company_resolver(db):
         return companies
 
-    monkeypatch.setattr("app.routers.jobs.company_resolver", company_resolver)
+    monkeypatch.setattr("app.queries.jobs.search.company_resolver", company_resolver)
     yield
     app.dependency_overrides.clear()
 

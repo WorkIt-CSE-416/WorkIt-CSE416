@@ -295,7 +295,7 @@ assigns later. Never use it for Remote — that is `work_style` (above). A job
 remote from anywhere ("Remote", "Work Remotely") has `work_style = remote`
 and no `job_locations` rows: the resolver reads those words as no place, and
 the job board's location filter keeps such a job under every place
-(`unplaced_remote` in `routers/jobs.py`). Filing it under `ZZ` instead, as
+(`unplaced_remote` in `queries/jobs/filters.py`). Filing it under `ZZ` instead, as
 this said before, would have put it beside the roles in Peru and Colombia,
 hidden from a seeker picking United States all the same.
 The state is `ZZ-ZZ`, not `ZZ`, because the API requires a state code to be

@@ -16,8 +16,8 @@ from fastapi.testclient import TestClient
 from app.db import get_session
 from app.deps import get_current_account, get_signed_in_applicant_id
 from app.main import app
+from app.queries.jobs.filters import JobFilters, matching
 from app.routers import jobs
-from app.routers.jobs import JobFilters, matching
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from tests.test_jobs import _sql, no_database  # noqa: F401
 
