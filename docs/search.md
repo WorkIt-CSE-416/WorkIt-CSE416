@@ -298,7 +298,7 @@ workplace, experience and posted filters the same way: each one narrows.
   `?location=`. Validated against the slug shape only; an unknown slug matches
   nothing.
 - **`?q=`**, free text, read in parts (`read_search` in
-  `backend/app/routers/jobs.py`):
+  `backend/app/queries/jobs/search.py`):
   0. **The companies it names** (`backend/app/services/company_resolver.py`),
      first, so a name keeps its words: "Bedrock Robotics" is that company,
      not the robotics role, while "robotics" alone is the role. Whole names,

@@ -1,9 +1,10 @@
 "use server";
 
 import { apiGet } from "@/lib/api";
+import { apiFetch, extractErrorMessage } from "@/lib/auth";
 
 import { feedQuery, readFilters, readQuery } from "./filter-query";
-import { getFeedPage, type FeedPage } from "./listings";
+import { getFeedPage, viewerToken, type FeedPage } from "./listings";
 
 /** A query string as the record a page's searchParams would be. */
 function paramsOf(query: string): Record<string, string[]> {
@@ -24,7 +25,10 @@ function paramsOf(query: string): Record<string, string[]> {
 export async function countJobs(query: string): Promise<number | null> {
   const params = paramsOf(query);
   try {
-    const res = await apiGet(`/jobs/count${feedQuery(readFilters(params), readQuery(params))}`);
+    const res = await apiGet(
+      `/jobs/count${feedQuery(readFilters(params), readQuery(params))}`,
+      (await viewerToken()) ?? undefined,
+    );
     if (!res.ok) return null;
     return ((await res.json()) as { jobs: number }).jobs;
   } catch {
@@ -47,4 +51,28 @@ export async function loadMoreJobs(query: string, offset: number): Promise<FeedP
   }
   const params = paramsOf(query);
   return getFeedPage(feedQuery(readFilters(params), readQuery(params)), offset);
+}
+
+/**
+ * Marks a job as applied for the signed-in applicant (`POST
+ * /jobs/{id}/applied`), from the Applied button on its page. Answers when,
+ * as the API stored it: the first click's date, if it was marked before. The
+ * API checks the token and the account type; this only forwards it.
+ */
+export async function markApplied(
+  jobId: string,
+): Promise<{ appliedAt: string; error: null } | { appliedAt: null; error: string }> {
+  const token = await viewerToken();
+  if (!token) return { appliedAt: null, error: "You're signed out. Sign in again to continue." };
+  try {
+    const res = await apiFetch(
+      `/jobs/${encodeURIComponent(jobId)}/applied`,
+      { method: "POST" },
+      token,
+    );
+    if (!res.ok) return { appliedAt: null, error: await extractErrorMessage(res) };
+    return { appliedAt: ((await res.json()) as { applied_at: string }).applied_at, error: null };
+  } catch {
+    return { appliedAt: null, error: "Could not reach the server." };
+  }
 }

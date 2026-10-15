@@ -19,8 +19,8 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 
 | Component | How | Status |
 |---|---|---|
-| Semantic similarity | Nomic embeddings of the posting and of the resume's parsed sections, compared in Postgres (`1 - (job.embedding <=> resume.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
-| Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Semantic similarity | Nomic embeddings of the posting and of the resume's parsed sections, compared in Postgres (`1 - (job.embedding <=> resume.embedding)`) | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
+| Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
 | Title fit | Word overlap between the job title and the applicant's titles and field of study, stop words removed | Built — `scoring.py` `title_fit()` |
 | Eligibility | Years of experience check; a multiplier (1.0 / 0.5 / 0.0) | Built — `scoring.py` `eligibility()` |
 | Freshness | `max(0.7, 1.0 - days_old / 300)` — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |

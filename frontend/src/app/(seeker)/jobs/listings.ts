@@ -4,6 +4,7 @@ import { connection } from "next/server";
 
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
+import { getAccessToken } from "@/lib/session";
 
 import type { ExperienceLevel, JobType, WorkStyle } from "./data";
 import { feedQuery, NO_FILTERS, PAGE_SIZE, type FeedFilters } from "./filter-query";
@@ -81,12 +82,24 @@ export type JobLocationOption = {
   jobs: number;
 };
 
-/** Public, so no token. An error is a message to print, never fixture jobs in
- *  its place — made-up postings shown silently would read as real ones.
- *  `filters` narrows it on the server, the filter row's picks as the URL
- *  holds them (./filter-query). */
+/** Public, but sent with the viewer's token when they are signed in: the API
+ *  then leaves out the jobs an applicant marked as applied (KAN-232). An
+ *  error is a message to print, never fixture jobs in its place — made-up
+ *  postings shown silently would read as real ones. `filters` narrows it on
+ *  the server, the filter row's picks as the URL holds them (./filter-query). */
 export type FeedPage =
   { jobs: JobListing[]; more: boolean; error: null } | { jobs: null; more: false; error: string };
+
+/** The signed-in viewer's token, or null: signed out, or no Supabase env vars
+ *  (a fresh clone, where the feed still loads, public). Never pass it with
+ *  `revalidate`: a cached answer would be one applicant's, served to all. */
+export async function viewerToken(): Promise<string | null> {
+  try {
+    return await getAccessToken();
+  } catch {
+    return null;
+  }
+}
 
 /** The first page of the feed under these filters and /search's words, for a
  *  page to render. */
@@ -106,7 +119,7 @@ export async function getFeedPage(query: string, offset: number): Promise<FeedPa
   params.set("limit", String(PAGE_SIZE + 1));
   if (offset > 0) params.set("offset", String(offset));
   try {
-    const res = await apiGet(`/jobs?${params}`);
+    const res = await apiGet(`/jobs?${params}`, (await viewerToken()) ?? undefined);
     if (!res.ok) return { jobs: null, more: false, error: await extractErrorMessage(res) };
     const jobs = (await res.json()) as JobListing[];
     return { jobs: jobs.slice(0, PAGE_SIZE), more: jobs.length > PAGE_SIZE, error: null };
@@ -116,10 +129,14 @@ export async function getFeedPage(query: string, offset: number): Promise<FeedPa
 }
 
 /** How many roles these filters and words keep, every page together: /search's
- *  "128 Roles". Null when the API can't say. */
+ *  "128 Roles". Null when the API can't say. With the token, as the feed, so
+ *  the count leaves out the same applied jobs the list does. */
 export async function getJobCount(filters: FeedFilters, q = ""): Promise<number | null> {
   try {
-    const res = await apiGet(`/jobs/count${feedQuery(filters, q)}`);
+    const res = await apiGet(
+      `/jobs/count${feedQuery(filters, q)}`,
+      (await viewerToken()) ?? undefined,
+    );
     if (!res.ok) return null;
     return ((await res.json()) as { jobs: number }).jobs;
   } catch {
@@ -225,5 +242,21 @@ export async function getJobListing(
     return { job: (await res.json()) as JobListing, error: null };
   } catch {
     return { job: null, error: "Could not reach the server." };
+  }
+}
+
+/** Whether the viewer marked this job as applied (`GET /jobs/{id}/applied`),
+ *  for the Applied button on its page: `appliedAt` is when, or null when they
+ *  haven't. `null` overall when there is no button to show: signed out, a
+ *  company account, or the API unreachable. */
+export async function getApplied(id: string): Promise<{ appliedAt: string | null } | null> {
+  const token = await viewerToken();
+  if (!token) return null;
+  try {
+    const res = await apiGet(`/jobs/${encodeURIComponent(id)}/applied`, token);
+    if (!res.ok) return null;
+    return { appliedAt: ((await res.json()) as { applied_at: string | null }).applied_at };
+  } catch {
+    return null;
   }
 }

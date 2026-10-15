@@ -223,7 +223,7 @@ def _pay(listing: JobListing) -> dict:
     '''
     the salary columns. currency and period are NOT NULL with defaults (USD,
     year), so a job stating no pay stores those with no amount; to_listing in
-    routers/jobs.py reads them only beside an amount
+    queries/jobs/listings.py reads them only beside an amount
     '''
     return {
         "salary": listing.salary,
