@@ -7,7 +7,8 @@ they need and embeds the resume on demand.
 
 import datetime
 
-from sqlalchemy import func, literal, select
+from sqlalchemy import case, func, literal, select
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dto import ParsedResume
@@ -18,8 +19,9 @@ from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
 from app.schemas.jobs import Highlight, ScoredJob
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
-    compute_score,
+    compute_breakdown,
     eligibility,
+    experience_years,
     freshness,
     title_fit,
 )
@@ -47,30 +49,34 @@ async def score_jobs(
                 except Exception:
                     await db.rollback()
 
-    # Build skills text for FTS
-    skills_text = " ".join(s.skill_name for s in parsed.skills) if parsed.skills else ""
+    # Deduplicate case-insensitively so repeated skills cannot change the score.
+    skills = list({s.skill_name.strip().casefold(): s.skill_name.strip()
+                   for s in parsed.skills if s.skill_name.strip()}.values())
 
     # Query with scoring columns
     score_columns = list(LISTING_COLUMNS)
 
     # Semantic similarity: 1 - cosine_distance
     if resume_embedding is not None:
-        vec_literal = str(resume_embedding)
         semantic_col = (
-            literal(1.0) - Job_Post.embedding.cosine_distance(vec_literal)
+            literal(1.0) - Job_Post.embedding.cosine_distance(resume_embedding)
         ).label("semantic")
     else:
         semantic_col = literal(None).label("semantic")
     score_columns.append(semantic_col)
 
-    # FTS skill rank
-    if skills_text:
-        skill_rank_col = func.ts_rank(
-            Job_Post.fts, func.plainto_tsquery("english", skills_text)
-        ).label("skill_rank")
+    # Match skills independently, so partial coverage earns credit. This is
+    # independent of other results and remains stable when filters change.
+    if skills:
+        skill_matches = array([
+            case((Job_Post.fts.bool_op("@@")(
+                func.plainto_tsquery("english", skill)
+            ), literal(skill)), else_=None)
+            for skill in skills
+        ]).label("matched_skills")
     else:
-        skill_rank_col = literal(0.0).label("skill_rank")
-    score_columns.append(skill_rank_col)
+        skill_matches = literal(None).label("matched_skills")
+    score_columns.append(skill_matches)
 
     # posted_at for freshness
     score_columns.append(Job_Post.posted_at.label("_posted_at"))
@@ -83,38 +89,34 @@ async def score_jobs(
     field_of_study = next(
         (e.field_of_study for e in parsed.education if e.field_of_study), None
     )
-    # Rough years of experience from resume
-    years_exp = 0.0
-    for exp in parsed.experience:
-        if exp.start_date and exp.end_date:
-            years_exp += (exp.end_date - exp.start_date).days / 365.25
+    years_exp = experience_years(parsed.experience, today=now.date())
 
     scored: list[ScoredJob] = []
-    # ponytail: normalize skill_rank by max across result set
-    max_skill_rank = max((r.skill_rank or 0 for r in rows), default=1.0) or 1.0
-
     for row in rows:
         semantic_val = row.semantic
-        skill_norm = min(1.0, (row.skill_rank or 0) / max_skill_rank) if max_skill_rank > 0 else 0.0
+        matched_skills = [skill for skill in (row.matched_skills or []) if skill is not None]
+        skill_norm = len(matched_skills) / len(skills) if skills else 0.0
         t_fit = title_fit(row.title, resume_titles, field_of_study)
         days_old = (now - row._posted_at).total_seconds() / 86400 if row._posted_at else 30.0
         fresh = freshness(days_old)
         elig = eligibility(
             None, row.start_term, row.min_years_experience, years_exp
         )
-        score = compute_score(semantic_val, skill_norm, t_fit, elig, fresh)
+        breakdown = compute_breakdown(semantic_val, skill_norm, t_fit, elig, fresh)
         highlights = generate_highlights(
             row.title, row.min_years_experience, row.start_term,
             parsed, semantic_val, skill_norm, t_fit, elig,
+            matched_skills=matched_skills,
         )
 
         listing = to_listing(row)
         scored.append(ScoredJob(
             **listing.model_dump(),
-            match=score,
+            match=breakdown.final_score,
+            score_breakdown=breakdown,
             highlights=[Highlight(**h) for h in highlights],
         ))
 
-    # Sort by score descending, then apply offset/limit
-    scored.sort(key=lambda s: s.match, reverse=True)
+    # Best first; ties broken by the unrounded score, then id, so pages are stable
+    scored.sort(key=lambda s: (-s.match, -s.score_breakdown.score_before_rounding, s.id))
     return scored
