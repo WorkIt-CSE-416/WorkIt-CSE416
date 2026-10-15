@@ -5,7 +5,60 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 
-import type { ActivityItem, ActivityStatus } from "./data";
+import { formatPlaces } from "../jobs/format";
+import type { ApplicationStage } from "./actions";
+import type { Application } from "./applications";
+
+/** Where one application stands in the pipeline. The order a job moves
+ *  through: queued, tailoring, filling, then review or failed, then applied
+ *  or skipped. Only queued, failed, skipped and applied are stored
+ *  (job_applications.stage); tailoring, filling and review are the runner's
+ *  live states, for when the extension reports them. */
+export type ActivityStatus =
+  "queued" | "tailoring" | "filling" | "review" | "failed" | "skipped" | "applied";
+
+export type ActivityItem = {
+  id: string;
+  role: string;
+  company: string;
+  /** The job posting's logo URL; its initials when null. */
+  logoUrl: string | null;
+  /** Null when the job posting names no place. */
+  location: string | null;
+  status: ActivityStatus;
+  /** One line on what is happening or what went wrong. */
+  detail: string;
+  /** When the status last changed: an ISO instant. */
+  at: string;
+  /** The job posting's own page; the whole row opens it. None once closed. */
+  href?: string;
+};
+
+/** Each stored stage's row: its status, and a line on what it waits on. */
+const STAGE_ROW: Record<ApplicationStage, { status: ActivityStatus; detail: string }> = {
+  queued: { status: "queued", detail: "Waiting for its turn" },
+  needs_you: { status: "failed", detail: "Couldn't fill the form. Finish it on the job's page" },
+  skipped: { status: "skipped", detail: "You skipped this one" },
+  applied: { status: "applied", detail: "You applied" },
+};
+
+/** A stored application as its Live Activity row. */
+export function activityOf(application: Application): ActivityItem {
+  const { job, stage, open } = application;
+  const { status, detail } = STAGE_ROW[stage];
+  return {
+    id: job.id,
+    role: job.title,
+    company: job.company,
+    logoUrl: job.logo_url,
+    location: formatPlaces(job.location_label ?? job.location),
+    status,
+    // A closed one waits on nothing: its page is gone.
+    detail: open ? detail : "This job posting has closed",
+    at: application.applied_at ?? application.added_at,
+    href: open ? `/jobs/${job.id}` : undefined,
+  };
+}
 
 /**
  * Live Activity's feed: one row per job posting the pipeline is working on,
@@ -16,12 +69,12 @@ import type { ActivityItem, ActivityStatus } from "./data";
  * stage's violet (../stage-colors.ts), so "Applied" reads the same here as on
  * the Applications board:
  *
- *   queued              inert grey   not begun, nothing owed
+ *   queued, skipped     inert grey   not begun, or set aside: nothing owed
  *   tailoring, filling  advanced     in flight: WorkIt is doing the work
  *   review, failed      warning      halted, waiting on the seeker
  *   applied             brand        the Applied stage
  *
- * A row with an `href` (a job posting the seeker queued) is one link: its
+ * A row with an `href` (its job posting is still open) is one link: its
  * role, stretched over the row, as on the Applications list.
  *
  * A row in flight rings out from its dot, three times and then rests
@@ -34,6 +87,7 @@ const STATUS: Record<ActivityStatus, { label: string; tone: BadgeTone; dot: stri
   filling: { label: "Autofilling", tone: "advanced", dot: "bg-advanced" },
   review: { label: "Needs Review", tone: "warning", dot: "bg-warning-strong" },
   failed: { label: "Couldn't Finish", tone: "warning", dot: "bg-warning-strong" },
+  skipped: { label: "Skipped", tone: "inert", dot: "bg-ink-faint" },
   applied: { label: "Applied", tone: "brand", dot: "bg-brand" },
 };
 

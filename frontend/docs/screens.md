@@ -119,10 +119,17 @@ says so and links to the whole posting. Apply Now leaves for the employer's
 posting, Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. The card's own row has Not Interested, Save, Ask
 Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
-Now on the page and the card alike (`src/components/auto-apply-button.tsx`):
+Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
 Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
-the job posting for the Auto Apply page and the button turns to Queued, off,
-so it is never queued twice (see Auto Apply, below). Back returns to the list the seeker came from: the feed, filters and all, or
+the job posting through the API (`POST /applicants/{id}/applications`, the
+server action `queueJob`), and the button turns to the stage it answers
+(Queued; or Skipped, Needs You, Applied for a job that already had an
+application), off, so it is never queued twice. Its first state comes from
+the server: the job's page reads its one application (`GET
+.../applications/{job_id}`), and /jobs and /search read every application
+once beside the first page (`getApplicationStages`) and hand the stages to
+each card, Load More's too. A stale one is harmless: a click answers the real
+stage. Back returns to the list the seeker came from: the feed, filters and all, or
 the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
 the last one visited in sessionStorage). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
@@ -315,32 +322,40 @@ matching reads the primary alone, so a seeker without one is asked to star
 one. It is a client component reading `listResumes()` like My Profile, and
 starts from My Profile's cache when the shell has one, without writing to it.
 
-**The button beside the resume starts and pauses auto apply, and nothing runs
-yet.** Start Auto Apply, then Pause, then Resume; it is off until there is a
-primary resume. It only moves a state (`idle`, `running`, `paused`) held in
+**The button beside the resume starts and pauses auto apply.** Start Auto
+Apply queues a batch of the seeker's best matches through the API (`POST
+.../auto-apply/batches`, the server action `startBatch`: 10, leaving out
+every job they already have an application for), says how many under the
+row, and refreshes the route so Live Activity lists them; an error (no
+primary resume) shows there in red instead. Then Pause and Resume, which
+only move the state: nothing fills a form until the extension's runner
+exists. It is off until there is a primary resume, and while a batch is
+queueing. The state (`idle`, `running`, `paused`) is held in
 `auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
-Started, Live (a green dot that rings out) or Paused. The brand fill marks
+Started, Live (a green dot that rings out) or Paused; a return visit starts
+idle, so Start queues another batch. The brand fill marks
 the action that starts work, so Pause is the bordered neutral. The button is
 52px tall and 208px wide beside the row, so the row does not shift between
 labels; on a phone it drops under the row at full width.
 
-**Live Activity is the seeker's queue over a fixture.** The job postings
-queued with Auto Apply on a job card or page come first, newest first, each
-Queued; the whole row opens the job posting's page, as on the Applications
-list. They are kept in the browser (`src/components/auto-apply-queue.tsx`,
-localStorage under the account's id, so the next account on the browser
-starts empty) until the API holds the queue; then Auto Apply becomes a POST
-and that file goes. The fixture's invented rows (`auto-apply/data.ts`, timed
-against the request like the Applications fixture) follow, and link nowhere.
-One row per job posting the pipeline is working on, in one white card with rules between rows. Each status takes a
-badge tone by its kind (`ui/badge.tsx`): Queued inert grey; Tailoring Resume
+**Live Activity is live: the seeker's applications from the API**
+(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), newest
+first, drawn on the server against the request's clock. Each stored stage is
+a row (`activityOf` in `auto-apply/activity-list.tsx`): queued Queued,
+needs_you Couldn't Finish, skipped Skipped, applied Applied. The whole row
+opens the job posting's page, as on the Applications list, while the posting
+is open; a closed one says so and links nowhere. None yet is an empty state
+pointing at Start and the jobs' Auto Apply; a failed read says so, never a
+fixture. One row per job posting, in one white card with rules between rows. Each status takes a
+badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Tailoring Resume
 and Autofilling `advanced` blue, their dot ringing three times; Needs Review
 and Couldn't Finish warning amber, as both wait on the seeker; Applied the
 Applied stage's violet, so it reads the same as on the Applications board.
 The counts above the card use the same dot colours. Narrow, a row's badge and
 time drop under its text so the role keeps the width. The list is
-`aria-live="polite"` for when it updates for real; the statuses and the
-routes it will read are in `auto-apply/architecture.md`, "The run" and
+`aria-live="polite"`. Tailoring Resume, Autofilling and Needs Review are the
+runner's live states, kept for when the extension reports them; the
+statuses and the routes are in `auto-apply/architecture.md`, "The run" and
 "API routes".
 
 ## Calendar

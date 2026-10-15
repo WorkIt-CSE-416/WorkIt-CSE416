@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type ReactNode } from "react";
 
-import { useAutoApplyQueue } from "@/components/auto-apply-queue";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
-import { ActivityList } from "./activity-list";
+import { startBatch } from "./actions";
 import { ApplyingResume } from "./applying-resume";
-import type { ActivityItem } from "./data";
 
 /** Whether auto apply is on: never started, running, or paused after a run. */
 export type RunState = "idle" | "running" | "paused";
@@ -22,46 +21,64 @@ const RUN_LABEL: Record<RunState, string> = {
 /**
  * The page's two sections, and the one piece of state they share: the button
  * beside the resume starts and pauses auto apply, and Live Activity's heading
- * says which it is.
+ * says which it is. `children` is Live Activity's list, drawn on the server
+ * (./page.tsx) and passed through, since this half is a client component.
  *
- * LIVE ACTIVITY IS THE SEEKER'S QUEUE OVER THE FIXTURE. The job postings
- * queued with Auto Apply on a job card or page (@/components/auto-apply-queue)
- * come first, newest first, each Queued and linking to its page; the
- * fixture's invented rows (`items`, ./data.ts) follow. The queue is read in
- * the browser, so it lands just after hydration. `now` is the request's
- * clock, which the fixture's times are set against.
- *
- * NOTHING RUNS YET. The button only moves this state; no job is matched,
- * tailored or filled. Wiring it is `auto-apply/architecture.md` at the repo
- * root: the runner and its routes.
+ * START QUEUES A BATCH. From idle, the button asks the API for the seeker's
+ * best matches (./actions, startBatch: 10, leaving out every job they
+ * already have an application for), then refreshes the route so the list
+ * shows them. Pause and Resume only move this state: nothing fills a form
+ * until the extension's runner exists (`auto-apply/architecture.md`, "The
+ * run"). The state is the page's own, so a return visit starts idle, and
+ * Start queues another batch.
  */
-export function AutoApplyPanel({ items, now }: { items: ActivityItem[]; now: Date }) {
+export function AutoApplyPanel({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [run, setRun] = useState<RunState>("idle");
-  const { jobs } = useAutoApplyQueue();
-  const queued = jobs.map((job): ActivityItem => ({
-    id: `queued-${job.id}`,
-    role: job.title,
-    company: job.company,
-    logoUrl: job.logoUrl,
-    location: job.location,
-    status: "queued",
-    detail: "Waiting for its turn",
-    at: job.queuedAt,
-    href: `/jobs/${job.id}`,
-  }));
+  const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
+  const [pending, start] = useTransition();
+
+  function toggle() {
+    if (run !== "idle") {
+      setRun(run === "running" ? "paused" : "running");
+      return;
+    }
+    start(async () => {
+      const result = await startBatch();
+      if (result.error != null) {
+        setNote({ text: result.error, error: true });
+        return;
+      }
+      setRun("running");
+      setNote({
+        text:
+          result.queued === 0
+            ? "No new matches to queue. Every match already has an application."
+            : `Queued ${result.queued} ${result.queued === 1 ? "job" : "jobs"}.`,
+        error: false,
+      });
+      router.refresh();
+    });
+  }
 
   return (
     <>
-      <ApplyingResume
-        run={run}
-        onToggle={() => setRun((now) => (now === "running" ? "paused" : "running"))}
-      />
+      <ApplyingResume run={run} pending={pending} onToggle={toggle} />
+
+      {note && (
+        <p
+          role={note.error ? "alert" : "status"}
+          className={cn("text-meta mt-2", note.error ? "text-danger" : "text-ink-meta")}
+        >
+          {note.text}
+        </p>
+      )}
 
       <section aria-labelledby="live-activity" className="mt-8">
         <SectionHeading id="live-activity" action={<RunIndicator run={run} />}>
           Live Activity
         </SectionHeading>
-        <ActivityList items={[...queued, ...items]} now={now} />
+        {children}
       </section>
     </>
   );

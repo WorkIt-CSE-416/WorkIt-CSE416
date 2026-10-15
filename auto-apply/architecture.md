@@ -11,9 +11,10 @@ built. It replaces the earlier `design.md`.
 > server can expose it later. **Built:** the Match step's function ("Match
 > (built)", below), and the queue: `job_applications.stage`, the layer-1
 > and layer-2 functions in `backend/app/auto_apply/` and their routes in
-> `backend/app/routers/auto_apply.py` ("Data model", "API routes"). Nothing
-> calls the routes yet: the webapp and the extension are next. Everything
-> else is a plan. The exact function names are a
+> `backend/app/routers/auto_apply.py` ("Data model", "API routes"), which
+> the webapp now calls: a job's Auto Apply button queues it, Start Auto
+> Apply queues a batch, and Live Activity lists the applications. The
+> extension is next. Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
 
 ## Terms
@@ -80,10 +81,11 @@ everything up to that click and nothing after it ("Decisions", below).
 | Auto Apply page | The primary resume, a Start button that only changes local state, and Live Activity over a fixture | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
 | Applications screen | UI only, over a fixture (`data.ts`) | `frontend/src/app/(seeker)/applications/` |
 
-**Built since:** the queue (`job_applications.stage`) and its routes.
-**Missing:** the webapp and the extension calling them, the runner, file
-upload in the extension, `autofill_runs`, tailoring and the PDF renderer,
-and the MCP server.
+**Built since:** the queue (`job_applications.stage`), its routes, and the
+webapp's use of them (Auto Apply buttons, Start Auto Apply, Live Activity).
+**Missing:** the extension calling them, the runner, file upload in the
+extension, `autofill_runs`, tailoring and the PDF renderer, and the MCP
+server.
 
 ---
 
@@ -186,7 +188,7 @@ Names are not final.
 | 2 | `get_matches(db, applicant_id, filters, min_match=60, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
 | 2 | `start_batch(db, applicant_id, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
 | 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
-| 2 | `list_applications`, `next_application` | Thin: `fetch_applications`, `fetch_next_application`. **Built** |
+| 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. **Built** |
 | 2 | `prepare_application(db, llm, storage, application_id)` | `tailor_resume` → `check_grounding` → `render_resume_pdf` → `store_tailored_resume`. If any step fails, keep the primary resume; never block the fill |
 | 2 | `finish_application(db, applicant_id, job_id, outcome)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `set_stage`: submitted → `applied`, skipped → `skipped`, failed → `needs_you`. **Built**, without `record_run`, which waits for `autofill_runs` |
 
@@ -209,10 +211,10 @@ Webapp or AI agent: "start a batch of 10"
 ```
 backend/app/auto_apply/
     rules.py        layer 1, pure:  pick_batch
-    queries.py      layer 1, DB:    queue_applications, fetch_stage, fetch_applications,
+    queries.py      layer 1, DB:    queue_applications, fetch_stage, fetch_application, fetch_applications,
                                     fetch_next_application, set_stage; later record_run
     pipeline.py     layer 2:        get_matches, start_batch, queue_job, list_applications,
-                                    next_application, finish_application; later prepare_application
+                                    get_application, next_application, finish_application; later prepare_application
 backend/app/routers/auto_apply.py   layer 3: the routes. Every router lives in app/routers/
 scout/workit_scout/tailor.py        layer 1, LLM: tailor_resume, check_grounding
 the MCP server                      layer 3, later: its own small program that calls the routes
@@ -591,6 +593,7 @@ function. Every route checks that the caller owns the applicant, like
 | POST | `/applicants/{id}/applications` | `queue_job` | A job's Auto Apply button: queues `{"job_id"}`. **Built** |
 | GET | `/applicants/{id}/applications` | `list_applications` | Live Activity and later the tracker. `?stage=` repeats. **Built** |
 | GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. **Built** |
+| GET | `/applicants/{id}/applications/{job_id}` | `get_application` | One application, as the list has it; 404 without one. Registered after `/next`. **Built** |
 | POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
 | POST | `/applicants/{id}/applications/{job_id}/tailor` | `prepare_application` | Make or remake the tailored resume. Counts toward the cap |
 
@@ -771,10 +774,10 @@ sample form (`test/sample-form.html`) needs a file input.
 Each step ships alone and is about one ticket.
 
 1. **Match**: `fetch_recommended` and `min_match` (done).
-2. **The queue** (done): `job_applications.stage`, `app/auto_apply/` and
-   `routers/auto_apply.py`. Next in this step: the Auto Apply button and
-   Start Auto Apply call the routes, and Live Activity reads
-   `GET .../applications` instead of the browser queue and `data.ts`.
+2. **The queue** (done): `job_applications.stage`, `app/auto_apply/`,
+   `routers/auto_apply.py`, and the webapp on them: the Auto Apply buttons,
+   Start Auto Apply and Live Activity (`frontend/docs/screens.md`, Auto
+   Apply). The browser queue and Live Activity's fixture are gone.
 3. **Extension: file upload**, tested on Greenhouse, Lever and Ashby. They
    host 87% of the job postings in the feed snapshot (`backend/data/feed.json`).
 4. **Extension: the runner**, the port, host permissions, and the overlay's

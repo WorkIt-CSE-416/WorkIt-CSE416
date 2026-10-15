@@ -27,8 +27,9 @@ import type { RunState } from "./auto-apply-panel";
  * listResumes() refetches it on every visit. It never writes that cache, which
  * holds a whole profile snapshot this section does not have.
  *
- * The button on the row's right starts and pauses auto apply. The state lives
- * in ./auto-apply-panel.tsx, since Live Activity's heading shows it too.
+ * The button on the row's right starts and pauses auto apply; Start queues a
+ * batch of matches. The state lives in ./auto-apply-panel.tsx, since Live
+ * Activity's heading shows it too.
  * Paused, Resume is the brand fill again; running, Pause steps back to the
  * bordered neutral, so the brand fill always marks the action that starts work.
  */
@@ -41,7 +42,16 @@ const RUN_BUTTON: Record<
   paused: { label: "Resume Auto Apply", variant: "default", Icon: Play },
 };
 
-export function ApplyingResume({ run, onToggle }: { run: RunState; onToggle: () => void }) {
+export function ApplyingResume({
+  run,
+  pending,
+  onToggle,
+}: {
+  run: RunState;
+  /** A batch is being queued: the button holds still until it lands. */
+  pending: boolean;
+  onToggle: () => void;
+}) {
   const cache = useProfileCache();
   const [resumes, setResumes] = useState<ResumeItem[] | null>(() => cache.read()?.resumes ?? null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -116,7 +126,7 @@ export function ApplyingResume({ run, onToggle }: { run: RunState; onToggle: () 
         <Button
           variant={button.variant}
           size="lg"
-          disabled={!primary}
+          disabled={!primary || pending}
           onClick={onToggle}
           className="w-full shrink-0 @lg/main:h-13 @lg/main:w-52"
         >

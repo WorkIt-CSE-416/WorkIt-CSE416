@@ -2,7 +2,6 @@ import { Flag } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { AutoApplyButton } from "@/components/auto-apply-button";
 import { CompanyLogo } from "@/components/company-logo";
 import { ExternalLinkIcon } from "@/components/icons";
 import type { JobPosting } from "@/components/job-detail/data";
@@ -17,7 +16,9 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
-import { ListingsError, listingFacts, queuedJobOf } from "../listing-card";
+import { getApplicationStage } from "../../auto-apply/applications";
+import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
+import { ListingsError, listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
 import { JobDescription } from "./description";
 import { AppliedButton, BackToJobs, ShareButton } from "./page-actions";
@@ -57,7 +58,11 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const [{ job, error }, applied] = await Promise.all([getJobListing(jobId), getApplied(jobId)]);
+  const [{ job, error }, applied, stage] = await Promise.all([
+    getJobListing(jobId),
+    getApplied(jobId),
+    getApplicationStage(jobId),
+  ]);
 
   if (error != null) {
     return (
@@ -96,7 +101,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             </IconButton>
             <ShareButton title={job.title} />
             <AskScoutButton id={job.id} title={job.title} company={job.company} />
-            <AutoApplyButton job={queuedJobOf(job)} />
+            <AutoApplyButton jobId={job.id} stage={stage} />
             <ButtonLink
               href={job.apply_url}
               target="_blank"

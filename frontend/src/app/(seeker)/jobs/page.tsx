@@ -14,6 +14,7 @@ import { ListingsError, ListingsSkeleton } from "./listing-card";
 import { filtersQuery, isFiltered, readFilters, type FeedFilters } from "./filter-query";
 import { getJobFacets, getJobListings, getJobLocations } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
+import { getApplicationStages } from "../auto-apply/applications";
 
 export const metadata: Metadata = {
   title: "Jobs",
@@ -35,7 +36,12 @@ export const metadata: Metadata = {
  * cover /jobs/[jobId].
  */
 async function Feed({ filters }: { filters: FeedFilters }) {
-  const { jobs, more, error } = await getJobListings(filters);
+  // The seeker's applications beside the first page, for the cards' Auto
+  // Apply buttons.
+  const [{ jobs, more, error }, stages] = await Promise.all([
+    getJobListings(filters),
+    getApplicationStages(),
+  ]);
 
   if (error != null)
     return <ListingsError error={error} retryHref={`/jobs${filtersQuery(filters)}`} />;
@@ -64,7 +70,7 @@ async function Feed({ filters }: { filters: FeedFilters }) {
           own. */}
       <h2 className="sr-only">Recommended Jobs</h2>
       {/* The first page, and a Load More for the rest (./feed-list). */}
-      <FeedList initial={jobs} more={more} query={filtersQuery(filters)} />
+      <FeedList initial={jobs} more={more} query={filtersQuery(filters)} stages={stages} />
     </>
   );
 }
