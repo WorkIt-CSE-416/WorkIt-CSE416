@@ -1031,31 +1031,43 @@ async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
     return await fetch_facets(db)
 
 
-@router.get("/recommended/{applicant_id}", response_model=list[ScoredJob])
-async def recommended_jobs(
-    applicant_id: uuid.UUID,
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0, le=100_000),
-    filters: JobFilters = Depends(read_filters),
-    account: AuthenticatedAccount = Depends(get_current_account),
-    db: AsyncSession = Depends(get_session),
-) -> list[ScoredJob]:
-    """Jobs scored against the applicant's default resume. Returns `match`
-    (0-100) and up to 3 `highlights`. Jobs without embeddings still appear,
-    scored on other components."""
-    assert_applicant_owns(account, applicant_id)
+class NoResume(Exception):
+    """The applicant has no default resume, or it never parsed: nothing to
+    score against. The route answers 404 with this message."""
 
+
+async def fetch_recommended(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    *,
+    filters: JobFilters = JobFilters(),
+    min_match: int = 0,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[ScoredJob]:
+    '''
+    the published scraped jobs scored against this applicant's default resume,
+    best first, with `match` (0-100) and up to 3 `highlights`. Jobs without
+    embeddings still appear, scored on the other components. Raises NoResume.
+
+    Checks no ownership: the caller has done that (the route, with
+    assert_applicant_owns). Auto apply calls this to find what to apply to
+    (auto-apply/architecture.md, section 7).
+
+    `min_match` leaves out jobs scored below it before `offset`, so a page
+    never comes back short with more matches behind it.
+    '''
     # Load the default resume
     profile = await db.get(Applicant_Profile, applicant_id)
     if profile is None or profile.default_resume_id is None:
-        raise HTTPException(404, "No default resume set")
+        raise NoResume("No default resume set")
 
     resume_row = (await db.execute(
         select(Resume).where(Resume.id == profile.default_resume_id)
         .options(undefer(Resume.embedding))
     )).scalar_one_or_none()
     if resume_row is None or resume_row.parsed_json is None:
-        raise HTTPException(404, "Resume not found or not parsed")
+        raise NoResume("Resume not found or not parsed")
 
     parsed = ParsedResume.model_validate(resume_row.parsed_json)
 
@@ -1142,9 +1154,33 @@ async def recommended_jobs(
             highlights=[Highlight(**h) for h in highlights],
         ))
 
-    # Sort by score descending, then apply offset/limit
+    # Drop those under min_match, sort by score descending, then offset/limit
+    scored = [s for s in scored if s.match >= min_match]
     scored.sort(key=lambda s: s.match, reverse=True)
     return scored[offset:offset + limit]
+
+
+
+
+@router.get("/recommended/{applicant_id}", response_model=list[ScoredJob])
+async def recommended_jobs(
+    applicant_id: uuid.UUID,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=100_000),
+    min_match: int = Query(0, ge=0, le=100),
+    filters: JobFilters = Depends(read_filters),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> list[ScoredJob]:
+    """Jobs scored against the applicant's default resume (fetch_recommended).
+    404 when there is no parsed default resume."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        return await fetch_recommended(
+            db, applicant_id, filters=filters, min_match=min_match, limit=limit, offset=offset
+        )
+    except NoResume as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 # Last, so the paths above ("/count", "/facets", "/locations", "/roles") are matched as

@@ -4,6 +4,7 @@ Postgres, which tests don't have, so the route is tested with its fetch stood
 in for, and the row-to-listing mapping on its own.
 """
 
+import asyncio
 import datetime
 import uuid
 from types import SimpleNamespace
@@ -13,11 +14,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy.dialects import postgresql
 
 from app.db import get_session
+from app.deps import get_current_account
 from app.main import app
 from app.models import dto
 from app.routers.jobs import (
     YEARLY,
     JobFilters,
+    NoResume,
+    fetch_recommended,
     location_options,
     matching,
     offered_in,
@@ -26,6 +30,7 @@ from app.routers.jobs import (
     season_of,
     to_listing,
 )
+from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
 from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import RoleResolver, raw_words
@@ -902,3 +907,84 @@ def test_the_named_paths_are_not_read_as_ids(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_listing", fetch)
     monkeypatch.setattr("app.routers.jobs.fetch_count", count)
     assert TestClient(app).get("/jobs/count").json() == {"jobs": 0}
+
+
+class _RecommendSession:
+    '''
+    the two reads fetch_recommended makes, stood in for: the profile and its
+    default resume, then the listed jobs with their scoring columns
+    '''
+
+    def __init__(self, rows, default_resume=True):
+        self.rows = rows
+        self.default_resume_id = uuid.uuid4() if default_resume else None
+        self.resume = SimpleNamespace(parsed_json={}, embedding=[0.0] * dto.EMBEDDING_DIMENSIONS)
+
+    async def get(self, model, key):
+        return SimpleNamespace(default_resume_id=self.default_resume_id)
+
+    async def execute(self, query):
+        if self.resume is not None:
+            resume, self.resume = self.resume, None
+            return SimpleNamespace(scalar_one_or_none=lambda: resume)
+        return SimpleNamespace(all=lambda: self.rows)
+
+
+SCORES = {"Strong": 82, "Borderline": 60, "Weak": 41}
+
+
+@pytest.fixture
+def scored_by_title(monkeypatch):
+    '''three listed jobs, each scored by its title, so a test reads what
+    fetch_recommended does with the scores, not the weights'''
+    monkeypatch.setattr(
+        "app.routers.jobs.title_fit", lambda title, titles, field: SCORES[title]
+    )
+    monkeypatch.setattr(
+        "app.routers.jobs.compute_score", lambda semantic, skill, title, elig, fresh: title
+    )
+    return [
+        SimpleNamespace(**{**vars(ROW), "id": uuid.uuid4(), "title": title, "semantic": 0.5,
+                           "skill_rank": 0.1, "_posted_at": ROW.posted_at})
+        for title in SCORES
+    ]
+
+
+def test_recommended_comes_best_first(scored_by_title):
+    jobs = asyncio.run(fetch_recommended(_RecommendSession(scored_by_title), uuid.uuid4()))
+    assert [j.match for j in jobs] == [82, 60, 41]
+
+
+def test_recommended_leaves_out_matches_under_min_match(scored_by_title):
+    jobs = asyncio.run(
+        fetch_recommended(_RecommendSession(scored_by_title), uuid.uuid4(), min_match=60)
+    )
+    assert [j.title for j in jobs] == ["Strong", "Borderline"]
+
+
+def test_recommended_needs_a_default_resume():
+    with pytest.raises(NoResume):
+        asyncio.run(fetch_recommended(_RecommendSession([], default_resume=False), uuid.uuid4()))
+
+
+def test_recommended_route_passes_min_match_and_answers_404(no_database, monkeypatch):
+    account = AuthenticatedAccount(
+        id=uuid.uuid4(),
+        email="seeker@example.com",
+        full_name="Sam Seeker",
+        account_type=AccountType.APPLICANT,
+        onboarding_completed=True,
+    )
+    app.dependency_overrides[get_current_account] = lambda: account
+    seen = {}
+
+    async def fetch(db, applicant_id, **kwargs):
+        seen.update(kwargs, applicant_id=applicant_id)
+        raise NoResume("No default resume set")
+
+    monkeypatch.setattr("app.routers.jobs.fetch_recommended", fetch)
+    url = f"/jobs/recommended/{account.id}"
+    res = TestClient(app).get(url, params={"min_match": 60})
+    assert (res.status_code, res.json()["detail"]) == (404, "No default resume set")
+    assert (seen["applicant_id"], seen["min_match"]) == (account.id, 60)
+    assert TestClient(app).get(url, params={"min_match": 101}).status_code == 422

@@ -151,8 +151,10 @@ with the failure it prevents.
   change to how jobs are scraped, imported, stored, served or filtered updates
   it alongside the `CLAUDE.md` beside the code.
 - `auto-apply/design.md` — the auto-apply proposal (KAN-223): match, tailor
-  the resume, fill with the extension, record. Nothing in it is built yet;
-  read it before starting any of its steps.
+  the resume, fill with the extension, record. `auto-apply/architecture.md`
+  — how the run works in the student's Chrome: the parts, their messages,
+  Chrome's limits, the build order. Only the Match step is built; read both
+  before starting any other step.
 - `docs/agents/` — configuration for the `mattpocock-skills` plugin; edit
   these files directly to change how the skills behave.
 

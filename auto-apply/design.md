@@ -3,10 +3,14 @@
 How WorkIt can take a student from "here are your matches" to "your
 application is filled in, review it and submit" with as few steps as possible.
 
-> **Status (2026-10-14).** A proposal for KAN-223. Nothing in this document is
-> built yet. It builds on `main` after the ATS autofiller (KAN-164, #115) and
-> job matching (KAN-139, #93). Each section names the code it depends on, so a
-> reader can check that it is still true.
+> **Status (2026-10-14).** A proposal for KAN-223. It builds on `main` after
+> the ATS autofiller (KAN-164, #115) and job matching (KAN-139, #93). Each
+> section names the code it depends on, so a reader can check that it is
+> still true.
+>
+> **Decided:** the run happens in the student's own Chrome, through the
+> extension. `architecture.md` has the parts, the messages and the build
+> order. **Built:** the Match step (4.1). Everything else is a plan.
 
 ## Terms
 
@@ -79,17 +83,19 @@ table, file upload in the extension, and any link from "this job posting" to
 
 ## 4. The pipeline, step by step
 
-### 4.1 Match
+### 4.1 Match (built)
 
-Use `GET /jobs/recommended/{applicant_id}` as it is. The queue builder adds two
-rules on top:
+Use `GET /jobs/recommended/{applicant_id}`. It scores job postings against the
+primary resume only. The queue builder adds two rules on top:
 
-- A minimum score (start at 60, tune on real data, like the matching weights).
+- A minimum score: `min_match=60`. Tune it on real data, like the matching
+  weights. Built: `fetch_recommended()` in `backend/app/routers/jobs.py`,
+  and the route's `?min_match=`.
 - Leave out job postings that already have an application for this student.
+  Not built: it is a `NOT EXISTS` on `applications`, added once that table
+  exists.
 
-No change to the matching code. The second rule is a `NOT EXISTS` on
-`applications`, added as a filter on the recommended query or in the service
-that calls it.
+The scoring code does not change.
 
 ### 4.2 Tailor
 
@@ -171,23 +177,22 @@ there. `frontend/docs/screens.md`, "Auto Apply", has the screen's rules.
 
 ### 4.5 Fill
 
-The student clicks **Fill** on an approved application (or **Fill next** to
-walk the queue). Then:
+The student clicks **Start Auto Apply** once. The extension's runner then
+walks the queue, one application at a time:
 
-1. The webapp sends the extension a message through `externally_connectable`:
-   `{ type: "fill/application", applicationId }`.
-2. The extension's background worker loads the application from the API: the
-   job posting's `apply_url` and the resume to attach.
-3. It opens `apply_url` in a new tab.
-4. It injects the content scripts it already has and runs the field engine.
-5. It attaches the PDF to the form's file input (section 6).
-6. The overlay shows what was filled, what failed and what was skipped, as
-   it does today.
-7. The student checks the form and clicks the hiring system's own Submit.
+1. It loads the next queued application from the API: the job posting's
+   `apply_url` and the resume to attach.
+2. It opens `apply_url` in the run's own window.
+3. It injects the content scripts it already has and runs the field engine.
+4. It attaches the PDF to the form's file input (section 6).
+5. The overlay shows what was filled, what failed and what was skipped, as
+   it does today, with **Submitted** and **Skip**.
+6. The student checks the form and clicks the hiring system's own Submit,
+   then **Submitted**. The runner opens the next application.
 
-The extension still never runs on a page by itself and never submits. The
-only change is who starts a fill: today the popup, after this also the
-webapp, after the student clicks.
+The extension never submits, and never runs on a page the run or the student
+did not open. `architecture.md` has the runner's states, its messages, and
+how it survives Chrome's limits.
 
 ### 4.6 Record
 
@@ -273,15 +278,13 @@ All in `autofiller_extension/`. Its `CLAUDE.md` records "adds no backend
 routes or schema". This design reverses that, so update that file in the same
 change.
 
-- **A new external message, `fill/application`**, handled in
-  `background.js`'s `onMessageExternal` listener, next to the status check.
+- **The runner and its port** from the Auto Apply page
+  (`architecture.md`, sections 3 and 4).
 - **Host permissions for hiring systems.** `activeTab` gives access only to
   the tab the student opened the popup on. A tab the extension opens itself
-  needs a host permission. Add the hiring systems' hosts
-  (`*.greenhouse.io`, `jobs.lever.co`, `*.myworkdayjobs.com`,
-  `jobs.ashbyhq.com`...) as `optional_host_permissions`, and request each one
-  the first time the student fills a form there. This keeps the install
-  prompt small.
+  needs a host permission. The prototype lists the hiring systems' hosts as
+  required; the Chrome Web Store version moves them to optional
+  (`architecture.md`, section 5.1).
 - **File upload.** Fetch the PDF from `GET .../resumes/{id}/file`, make a
   `File`, put it in a `DataTransfer`, set the file input's `files`, and send
   `input` and `change` events. Some hiring systems use a drop zone instead of
@@ -292,8 +295,8 @@ change.
   the autofill run.
 
 The session rules stay as they are: the extension reads the webapp's cookie
-and never refreshes it. The student starts a fill from a WorkIt tab, so the
-token is fresh.
+and never refreshes it. A run lasts longer than the one-hour token, so the
+Auto Apply tab keeps the session fresh (`architecture.md`, section 5.2).
 
 ## 7. API changes
 
@@ -308,7 +311,7 @@ the token's account owns the applicant, like `assert_applicant_owns`.
 | DELETE | `/applicants/{id}/applications/{app_id}` | Remove from the queue or tracker |
 | POST | `/applicants/{id}/applications/{app_id}/tailor` | Make (or remake) the tailored resume. Counts toward the daily cap |
 | POST | `/applicants/{id}/applications/{app_id}/runs` | The extension saves an autofill run |
-| POST | `/applicants/{id}/applications/suggest` | Add the top N new matches to the queue as `saved` (section 9.2) |
+| POST | `/applicants/{id}/applications/queue` | Start Auto Apply: add the matches at or above `min_match` that have no application yet, as `queued` (section 9.2) |
 
 Editing a tailored resume uses the resume `PUT` that exists. It must
 re-render the PDF when the row is a tailored resume.
@@ -361,8 +364,8 @@ gap.
 
 | Level | Consequence |
 |---|---|
-| **1. Student picks (build first)** | The student clicks "Add to queue" on a job posting. Lowest cost: only chosen postings are tailored |
-| **2. WorkIt suggests** | Once a day (or when the student opens the queue), `suggest` adds the top new matches as `saved`, not tailored. The student approves; approval starts tailoring. Same cost as level 1 |
+| 1. Student picks | The student clicks "Add to queue" on a job posting. Lowest cost: only chosen postings are tailored |
+| **2. WorkIt queues the matches (chosen)** | Start Auto Apply queues the matches at or above `min_match` that have no application yet. The run fills them one by one, and the student submits each. Tailoring, when built, is per application and counts toward its cap |
 | 3. Fully automatic | Ruled out by 9.1 |
 
 ### 9.3 Where tailoring runs
@@ -387,25 +390,17 @@ over those routes with no logic of its own, and can come later.
 
 ## 10. Build order
 
-Each step is about one ticket and ships alone.
+`architecture.md`, section 8, has the order for the run: match (done), the
+`applications` table, file upload, the runner, autofill runs, screening
+answers. Tailoring comes after, in this order:
 
-1. **`applications` table and its routes**, and the Applications screen
-   reading them instead of `data.ts`. Useful before any automation.
-2. **`autofill_answers`**, and the extension filling screening questions
-   from it.
-3. **Extension: file upload** of the default resume, and testing on
-   Greenhouse and Lever (today it is tested on Workday only).
-4. **Extension: `fill/application` from the webapp**, with optional host
-   permissions and `autofill_runs`.
-5. **Tailoring** in `scout/` with `ScriptedLLM` tests (grounding check,
+1. **Tailoring** in `scout/` with `ScriptedLLM` tests (grounding check,
    invalid JSON, quota), and the `tailor` route.
-6. **PDF render** and `resumes.tailored_from_id`.
-7. **Review screen** in the webapp.
-8. **`suggest`** (level 2).
-9. **MCP server**, if still wanted.
+2. **PDF render** and `resumes.tailored_from_id`.
+3. **Review** on the Auto Apply page.
+4. **MCP server**, if still wanted.
 
-Steps 1–4 make applying faster with no AI at all. Steps 5–7 add tailoring on
-top.
+The run makes applying faster with no AI at all. Tailoring adds to it.
 
 ## 11. Open questions
 

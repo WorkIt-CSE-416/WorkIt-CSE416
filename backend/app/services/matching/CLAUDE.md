@@ -105,6 +105,27 @@ Picks up to 3 reasons from a priority list: skills matched, title alignment,
 strong semantic fit (positive), then years mismatch and start term mismatch
 (negative). Positives sort before negatives.
 
+## Recommendations — `fetch_recommended()` and `GET /jobs/recommended/{applicant_id}`
+
+Both in `routers/jobs.py`. `fetch_recommended(db, applicant_id, filters=,
+min_match=, limit=, offset=)` does the work and returns `list[ScoredJob]`,
+best first; the route checks ownership and calls it. Python code that needs
+recommendations (auto apply's queue) calls the function, not the route. It
+checks no ownership itself, so its caller must.
+
+It scores against the **default resume only**
+(`applicant_profiles.default_resume_id`); no other resume or profile field
+counts. No default resume, or one that never parsed, raises `NoResume`,
+which the route answers as a 404.
+
+- **It scores every listed job each call, then sorts and slices.** Every
+  query parameter that narrows the list (the Jobs page's filters,
+  `min_match`) applies before `offset`, so a page never comes back short with
+  more matches behind it.
+- **`min_match` (0–100, default 0)** drops jobs scored below it. Auto apply
+  asks for 60 (`auto-apply/architecture.md`, section 7). It moves with the
+  weights: retune it when they change.
+
 ## Still open
 
 - **Applying the migration that creates the columns.** It's `4485d7a7a712`,
