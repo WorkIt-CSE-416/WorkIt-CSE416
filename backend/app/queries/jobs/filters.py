@@ -37,9 +37,7 @@ from app.models import dto
 from app.models.applications import Job_Application
 from app.models.job_roles import Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
-from app.services.postings import (
-    LISTED as LISTED,  # the seeker feed's rows; one rule for every route
-)
+from app.services.postings import LISTED  # noqa: F401 (re-export)
 from app.services.role_resolver import title_pattern
 
 
