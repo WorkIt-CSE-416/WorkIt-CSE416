@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
+import { RememberFeed } from "../jobs/[jobId]/page-actions";
 import { AutoApplyPanel } from "./auto-apply-panel";
 import { getActivity, getNow } from "./data";
 
@@ -35,6 +36,8 @@ export default function AutoApplyPage() {
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      {/* So a queued job's page goes back here, not to the feed. */}
+      <RememberFeed />
       <h1 className="text-heading text-ink">Auto Apply</h1>
       <p className="text-body text-ink-meta mt-1">
         Apply to the jobs that match you, with your resume filled in for you.

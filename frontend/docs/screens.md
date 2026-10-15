@@ -115,7 +115,9 @@ Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
 the job posting for the Auto Apply page and the button turns to Queued, off,
 so it is never queued twice (see Auto Apply, below). Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in
-sessionStorage).
+sessionStorage). Opened from the Auto Apply page, which renders
+`RememberFeed` too, it reads Back to Auto Apply and goes there: the last of
+the three pages visited wins.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and

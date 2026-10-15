@@ -10,13 +10,15 @@ import { IconButton } from "@/components/ui/icon-button";
 
 import { restoreScrollOn } from "../../scroll-memory";
 
-/** Where the feed was last seen this session, filters and all. */
+/** The list a job's page was last opened from this session: the feed, filters
+ *  and all, or the Auto Apply page. */
 const FEED_KEY = "workit:feed";
 
 /**
- * Remembers the feed's URL (/jobs or /search, with its filters and query) for
- * the session, so a job's page can go back to exactly that list. Rendered by
- * the feed pages; draws nothing. sessionStorage can be off (a private
+ * Remembers the list's URL (/jobs or /search, with its filters and query, or
+ * /auto-apply, whose rows open job pages too) for the session, so a job's
+ * page can go back to exactly that list. Rendered by those pages; the last
+ * one visited wins. Draws nothing. sessionStorage can be off (a private
  * window), so a failure just leaves "Back to Jobs" at plain /jobs.
  */
 export function RememberFeed() {
@@ -32,11 +34,11 @@ export function RememberFeed() {
   return null;
 }
 
-/** The feed URL remembered this session, if it is one; /jobs otherwise. */
+/** The list URL remembered this session, if it is one; /jobs otherwise. */
 function rememberedFeed(): string {
   try {
     const feed = sessionStorage.getItem(FEED_KEY);
-    if (feed && /^\/(jobs|search)(\?|$)/.test(feed)) return feed;
+    if (feed && /^\/(jobs|search|auto-apply)(\?|$)/.test(feed)) return feed;
   } catch {
     /* storage off: plain /jobs */
   }
@@ -46,9 +48,10 @@ function rememberedFeed(): string {
 const noSubscription = () => () => {};
 
 /** "Back to Jobs", to the feed the seeker came from with its filters still
- *  applied (RememberFeed), else /jobs, scrolled back to where they left it
+ *  applied (RememberFeed), else /jobs; "Back to Auto Apply" when they came
+ *  from there, scrolled back to where they left it
  *  (restoreScrollOn, ../../scroll-memory). The server renders /jobs and the
- *  browser swaps in the remembered list after hydration (useSyncExternalStore,
+ *  browser swaps in the remembered list and its label after hydration (useSyncExternalStore,
  *  as PostedDate does), so the two never disagree. Its arrow leans back the
  *  way it goes while hovered. */
 export function BackToJobs({ className }: { className?: string }) {
@@ -65,7 +68,7 @@ export function BackToJobs({ className }: { className?: string }) {
       className={className ?? "group/back mb-3"}
     >
       <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
-      Back to Jobs
+      {href.startsWith("/auto-apply") ? "Back to Auto Apply" : "Back to Jobs"}
     </ButtonLink>
   );
 }
