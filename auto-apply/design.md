@@ -1,3 +1,4 @@
+claude --resume d2180972-e5d7-437b-a797-fd1cd9f01e44 
 # Auto-apply: design
 
 How WorkIt can take a student from "here are your matches" to "your
