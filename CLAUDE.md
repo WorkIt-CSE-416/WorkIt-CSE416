@@ -162,7 +162,13 @@ with the failure it prevents.
   (`frontend/scripts/new-worktree.mjs`). A worktree missing them gets them
   with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
-  `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`.
+  `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
+  then `backend/scripts/fetch_tectonic.py` where the branch has it: without
+  that once-per-checkout step every resume showed "This Resume Isn't Loading
+  Right Now". It only warns on failure (a Mac needs `brew install tectonic`).
+  It warns when the copied `.env` has no `SCOUT_API_KEY`: the API would then
+  run Scout on a local Ollama instead of Groq without saying so. The key lives
+  only in the primary checkout's `.env`, never in a committed script.
   Setup starts no processes. Env files that `$SUPERSET_ROOT_PATH` has
   replace the copied ones; it can be a checkout with no `.env`, so the
   primary-checkout copy always runs first.

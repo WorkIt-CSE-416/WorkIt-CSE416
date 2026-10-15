@@ -153,6 +153,11 @@ are in `docs/auth.md`.
   export there is a browser-callable endpoint. Token helpers (`session.ts`)
   and Server-Component-only reads (`job-queries.ts`) live in `server-only`
   modules that action files import.
+- **The feed's reads send the viewer's token when there is one**
+  (`viewerToken` in `(seeker)/jobs/listings.ts`), so the API can leave out a
+  signed-in applicant's applied jobs. It answers null with no Supabase env
+  vars, so a fresh clone's feed still loads. Those reads never take
+  `revalidate`: Next would cache one applicant's list and serve it to all.
 - **Signup goes through `POST /auth/signup`**, not `supabase.auth.signUp()`,
   which can only write user-editable `user_metadata` and so cannot be trusted
   with the account type.

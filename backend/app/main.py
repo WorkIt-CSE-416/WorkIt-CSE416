@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.db import get_sessionmaker
+from app.routers.applications import router as applications_router
 from app.routers.assistant import router as assistant_router
 from app.routers.auth import router as auth_router
 from app.routers.avatars import router as avatar_router
@@ -34,6 +35,7 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(jobs_router)
+app.include_router(applications_router)
 app.include_router(resume_router)
 app.include_router(avatar_router)
 app.include_router(company_jobs_router)

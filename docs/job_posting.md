@@ -7,7 +7,7 @@ Tables:
   states them -- job_type, salary*, min_years_experience -- plus `start_term`
   ("Summer 2027"), an internship's start. With no pay stated, salary_currency
   and salary_period keep their defaults beside empty amounts, and GET /jobs
-  reports neither (`backend/app/routers/jobs.py`, `to_listing`).
+  reports neither (`backend/app/queries/jobs/listings.py`, `to_listing`).
   A posting can carry any number of role tags (see `job_role_tags`).
 - `job_roles`: the canonical job titles used as tags — "Software Engineer",
   "Mechanical Engineer", etc.

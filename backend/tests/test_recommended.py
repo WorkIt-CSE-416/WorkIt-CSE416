@@ -43,7 +43,7 @@ def gemini(monkeypatch):
         sent.extend(texts)
         return [VECTOR for _ in texts]
 
-    monkeypatch.setattr("app.routers.jobs.embed", embed)
+    monkeypatch.setattr("app.queries.jobs.recommendations.embed", embed)
     return sent
 
 

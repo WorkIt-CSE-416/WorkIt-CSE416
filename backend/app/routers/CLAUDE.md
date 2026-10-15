@@ -12,6 +12,18 @@ current when a route changes.
   never from a path parameter or body field. A path naming an `applicant_id`
   is checked against the token's account before anything else runs
   (`assert_applicant_owns` in `app/deps.py`).
+- **A public route that reads a token when sent depends on
+  `get_signed_in_applicant_id`** (`app/deps.py`; `read_filters` in `jobs.py`
+  does, so GET /jobs hides an applicant's applied jobs). It never 401s: a
+  missing, expired or company token gets the public answer, so a stale
+  session can't break a page anyone may read. Never use it to authorize a
+  write; that is `get_current_account`.
+- **A route stays the HTTP layer**: parameters, dependencies, auth checks and
+  status codes. What it asks the database goes in `app/queries/`,
+  pure parsing in `app/services/` (`backend/CLAUDE.md`, Code layout).
+  `jobs.py` is the model: its routes call `queries/jobs/`. A test stands in a
+  query where the route uses it (`app.routers.jobs.fetch_listings`), and one
+  a query calls where that query lives (`app.queries.jobs.search.role_resolver`).
 - **Database access is `Depends(get_session)`**, one session per request.
 - **Blocking work uses `asyncio.to_thread`**: the Supabase Storage SDK is
   synchronous, and Pillow image decoding is CPU-heavy. Pass the callable and

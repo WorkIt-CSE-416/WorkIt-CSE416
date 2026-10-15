@@ -447,7 +447,7 @@ async def test_recommendations_work_when_the_default_is_a_base_resume(student, m
     async def no_embedding(texts):
         return None
 
-    monkeypatch.setattr("app.routers.jobs.embed", no_embedding)
+    monkeypatch.setattr("app.queries.jobs.recommendations.embed", no_embedding)
     client, me = student
     applicant_id = uuid.UUID(me.split("/")[2])
     await _fill_bank(client, me)

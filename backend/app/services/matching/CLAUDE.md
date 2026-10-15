@@ -20,8 +20,8 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 
 | Component | How | Status |
 |---|---|---|
-| Semantic similarity | Nomic embeddings (Gemini in production) of the posting and of the experience bank, compared in Postgres (`1 - (job.embedding <=> bank.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
-| Skill overlap | Each distinct bank skill searched for in the posting on its own (`fts @@ plainto_tsquery(skill)`); the fraction found, never compared with other results | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Semantic similarity | Nomic embeddings (Gemini in production) of the posting and of the experience bank, compared in Postgres (`1 - (job.embedding <=> bank.embedding)`) | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
+| Skill overlap | Each distinct bank skill searched for in the posting on its own (`fts @@ plainto_tsquery(skill)`); the fraction found, never compared with other results | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
 | Title fit | Word overlap between the job title and the bank's Experience titles and first field of study, stop words removed | Built — `scoring.py` `title_fit()` |
 | Eligibility | Years of experience check; an additive part (1.0 / 0.5 / 0.0), never a gate | Built — `scoring.py` `eligibility()` |
 | Freshness | `max(0.7, 1.0 - 0.3 * days_old / 300)`, future dates count as today — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |

@@ -40,7 +40,7 @@ from app.config import ENV_FILE
 from app.db import get_session, get_sessionmaker
 from app.deps import get_current_account
 from app.models.resume import Resume
-from app.routers.jobs import fetch_listing
+from app.queries.jobs.listings import fetch_listing
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.bank import bank_response, load_bank
 from app.services.identity import load_identity

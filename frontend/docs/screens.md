@@ -98,6 +98,15 @@ only when there is more. Loaded pages are kept for a return (jobs/feed-pages.ts:
 was; a fresh arrival at the list's page (a sidebar link, a reload) drops them
 and starts at the first 50.
 
+Clearing the search field on /search with its cross (or Escape) ends the
+search: the page goes back to /jobs as the seeker last saw it, filters, Load
+More pages and scroll place and all (KAN-228, asked for 2026-10-13). A search
+from the top bar sends only ?q, so the filters set on /jobs before it come
+from RememberFeed's own copy of /jobs's address, not from /search's. Deleting
+the text by typing does not leave: the field's cross is told apart by its
+input event having no inputType (search/query-field.tsx), so backspacing to
+type a new search stays on the results.
+
 Every seeker page goes back to where it was scrolled on a return: the browser's
 Back or Forward, or "Back to Jobs" (restoreScrollOn). (seeker)/scroll-memory.tsx
 keeps each address's position, since the shell scrolls its <main> and not the
@@ -130,6 +139,13 @@ Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in
 sessionStorage).
+**Applied** (KAN-232), last in the header's actions, shows for a signed-in
+applicant only (`getApplied` answers null for anyone else). A click calls
+`markApplied` (`jobs/actions.ts`), and the button becomes "Applied at
+10/15/2026", the viewer's own day after hydration (`AppliedOn`). The job then
+leaves that applicant's feed, /search and count, because `listings.ts` sends
+their token with those reads (`viewerToken`) and the API filters on it. There
+is no undo yet.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and

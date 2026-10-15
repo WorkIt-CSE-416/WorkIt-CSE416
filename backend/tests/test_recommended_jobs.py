@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql.asyncpg import dialect
 
 from app.deps import AccountType
 from app.models.dto import bank_section
+from app.queries.jobs import recommendations
 from app.routers import jobs
 from app.services.bank import Bank, Entry
 from tests.test_jobs import ROW
@@ -28,7 +29,7 @@ def _bank(skills):
 
 def _setup(monkeypatch, skills, embedding):
     monkeypatch.setattr(jobs, "load_bank", AsyncMock(return_value=_bank(skills)))
-    monkeypatch.setattr(jobs, "load_identity", AsyncMock(return_value=SimpleNamespace(remove=lambda t: t)))
+    monkeypatch.setattr(recommendations, "load_identity", AsyncMock(return_value=SimpleNamespace(remove=lambda t: t)))
     return SimpleNamespace(embedding=embedding, updated_at=datetime.now(UTC))
 
 
@@ -71,7 +72,7 @@ def test_recommendation_vector_can_be_bound(monkeypatch, stored):
     vector = [0.125] * 768
     bank_row = _setup(monkeypatch, ["Python"], vector if stored else None)
     embed = AsyncMock(return_value=[vector])
-    monkeypatch.setattr(jobs, "embed", embed)
+    monkeypatch.setattr(recommendations, "embed", embed)
     bound_vectors = []
 
     async def execute(query):

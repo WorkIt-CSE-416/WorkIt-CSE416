@@ -18,10 +18,10 @@ import { listSentResumes } from "@/lib/sent-resume-actions";
 import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
 import { ListingsError, listingFacts } from "../listing-card";
-import { getJobListing, type JobListing } from "../listings";
+import { getApplied, getJobListing, type JobListing } from "../listings";
 import { ApplyButton } from "./apply-button";
 import { JobDescription } from "./description";
-import { BackToJobs, ShareButton } from "./page-actions";
+import { AppliedButton, BackToJobs, ShareButton } from "./page-actions";
 import { SentNote } from "./sent-note";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
@@ -54,16 +54,20 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * <name> on <date>" (./sent-note, story 98). Ask Scout asks
  * about this role, Share copies the page's link, and Tailor My Resume opens
  * Tailor (./tailor, KAN-217); it reads "Your Tailored Resume" once the
- * student has one for this posting (at most one each). Save and Report are still
+ * student has one for this posting (at most one each). Applied, last in the
+ * row, is a signed-in applicant's own record that they applied (KAN-232): it
+ * becomes "Applied at 10/15/2026" and the job leaves their feed; anyone else
+ * gets no Applied button. Save and Report are still
  * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const [{ job, error }, resumes, sent] = await Promise.all([
+  const [{ job, error }, resumes, sent, applied] = await Promise.all([
     getJobListing(jobId),
     listBuiltResumes(),
     listSentResumes(),
+    getApplied(jobId),
   ]);
   const tailored = resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false;
   // Newest first, so the first match is the last one sent to this posting.
@@ -121,6 +125,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
               applyUrl={job.apply_url}
               className="ml-auto shrink-0 @xl:ml-0"
             />
+            {applied && <AppliedButton jobId={job.id} appliedAt={applied.appliedAt} />}
           </>
         }
       />
