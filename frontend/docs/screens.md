@@ -281,7 +281,7 @@ the Calendar, which paints over the stretched one.
 /auto-apply (KAN-223) is where the seeker will apply in bulk. Its sidebar row
 sits between Jobs and Applications, in the order the work goes, and its page
 uses the same heading block as every seeker screen. The pipeline it grows
-into is `auto-apply/design.md` at the repo root.
+into is `auto-apply/architecture.md` at the repo root.
 
 **"Applying with Resume:" is its first section, and it is live**
 (`auto-apply/applying-resume.tsx`). It shows the seeker's primary resume
@@ -311,7 +311,8 @@ Applied stage's violet, so it reads the same as on the Applications board.
 The counts above the card use the same dot colours. Narrow, a row's badge and
 time drop under its text so the role keeps the width. The list is
 `aria-live="polite"` for when it updates for real; the statuses and the
-routes it will read are in `auto-apply/design.md`, sections 4 to 7.
+routes it will read are in `auto-apply/architecture.md`, "The run" and
+"API routes".
 
 ## Calendar
 

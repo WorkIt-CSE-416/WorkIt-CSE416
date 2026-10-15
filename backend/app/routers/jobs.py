@@ -1052,7 +1052,7 @@ async def fetch_recommended(
 
     Checks no ownership: the caller has done that (the route, with
     assert_applicant_owns). Auto apply calls this to find what to apply to
-    (auto-apply/architecture.md, section 7).
+    (auto-apply/architecture.md, "Match (built)").
 
     `min_match` leaves out jobs scored below it before `offset`, so a page
     never comes back short with more matches behind it.

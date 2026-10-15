@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 /**
  * /auto-apply — where the seeker sets up applying in bulk (KAN-223). The
- * pipeline it will grow into is `auto-apply/design.md` at the repo root:
+ * pipeline it will grow into is `auto-apply/architecture.md` at the repo root:
  * match, tailor the resume, fill the form with the extension, record.
  *
  * Two sections, under the heading block every seeker screen uses:

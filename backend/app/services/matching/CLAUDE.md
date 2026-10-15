@@ -123,7 +123,7 @@ which the route answers as a 404.
   `min_match`) applies before `offset`, so a page never comes back short with
   more matches behind it.
 - **`min_match` (0–100, default 0)** drops jobs scored below it. Auto apply
-  asks for 60 (`auto-apply/architecture.md`, section 7). It moves with the
+  asks for 60 (`auto-apply/architecture.md`, "Match (built)"). It moves with the
   weights: retune it when they change.
 
 ## Still open

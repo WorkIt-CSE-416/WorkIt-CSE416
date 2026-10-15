@@ -1,10 +1,10 @@
 import { cache } from "react";
 
 /**
- * Auto Apply's activity fixture: what the pipeline in `auto-apply/design.md`
+ * Auto Apply's activity fixture: what the pipeline in `auto-apply/architecture.md`
  * (repo root) is doing to each job posting, newest first. Nothing runs yet,
  * so every row is invented. When the applications and autofill-run routes
- * exist (the design's section 7), this file becomes the fetch, and
+ * exist (its "API routes"), this file becomes the fetch, and
  * `ActivityItem` is the shape it returns.
  *
  * THE TIMES ARE RELATIVE TO THE REQUEST, built by `getActivity` against

@@ -25,7 +25,7 @@ const RUN_LABEL: Record<RunState, string> = {
  *
  * NOTHING RUNS YET. The button only moves this state; no job is matched,
  * tailored or filled, and the feed is a fixture (./data.ts). Wiring it is
- * `auto-apply/design.md` at the repo root, sections 4 and 7.
+ * `auto-apply/architecture.md` at the repo root: the runner and its routes.
  */
 export function AutoApplyPanel({ children }: { children: ReactNode }) {
   const [run, setRun] = useState<RunState>("idle");
