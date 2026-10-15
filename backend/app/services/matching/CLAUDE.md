@@ -21,10 +21,10 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 | Component | How | Status |
 |---|---|---|
 | Semantic similarity | Nomic embeddings (Gemini in production) of the posting and of the experience bank, compared in Postgres (`1 - (job.embedding <=> bank.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
-| Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Skill overlap | Each distinct bank skill searched for in the posting on its own (`fts @@ plainto_tsquery(skill)`); the fraction found, never compared with other results | Built — `scoring.py`, queried in `routers/jobs.py` |
 | Title fit | Word overlap between the job title and the bank's Experience titles and first field of study, stop words removed | Built — `scoring.py` `title_fit()` |
-| Eligibility | Years of experience check; a multiplier (1.0 / 0.5 / 0.0) | Built — `scoring.py` `eligibility()` |
-| Freshness | `max(0.7, 1.0 - days_old / 300)` — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |
+| Eligibility | Years of experience check; an additive part (1.0 / 0.5 / 0.0), never a gate | Built — `scoring.py` `eligibility()` |
+| Freshness | `max(0.7, 1.0 - 0.3 * days_old / 300)`, future dates count as today — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |
 
 Nothing in this folder may assume what a software job is. Two consequences:
 
@@ -133,20 +133,26 @@ or recommendation request can retry later.
 Pure functions, no DB access. Weights: `W_SEMANTIC=0.45`, `W_SKILL=0.25`,
 `W_TITLE=0.15`, `W_ELIGIBILITY=0.15`. When no embedding exists, semantic
 weight is redistributed across the others. Final score is
-`round(weighted_sum * freshness * 100)`, clamped 0-100.
+`round(weighted_sum * freshness * 100)`, clamped 0-100. `compute_breakdown()`
+returns each part's weight and points too, sent as `score_breakdown`; equal
+scores sort by the unrounded score, then job id.
 
 ## Highlights — `highlights.py`
 
 Takes the bank's skill names and field of study. Picks up to 3 reasons from a
-priority list: skills matched, title alignment,
+priority list: the skills the posting mentions (only those), title alignment,
 strong semantic fit (positive), then years mismatch and start term mismatch
-(negative). Positives sort before negatives.
+(negative). Positives sort before negatives, and a negative is never cut by
+the cap of 3.
 
 ## Still open
 
 - **Applying the migration that creates the columns.** It's `4485d7a7a712`,
   and it goes on the shared database right after its PR merges, before the
   deployment is live (`../../models/CLAUDE.md` says why).
+- **Overlapping Experience dates count twice** in the bank's years of
+  experience (`bank_input.years_of_experience`). `scoring.experience_years()`
+  merges overlaps but reads a parsed resume, so the bank does not use it yet.
 - **Scoring weights and the freshness boost** are guesses until there is real
   data to tune them on.
 - **Grad date vs start term** is not compared yet. The bank's expected

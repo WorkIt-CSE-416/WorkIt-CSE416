@@ -1,0 +1,109 @@
+// The popup is a module script (popup.html's <script type="module">), so
+// unlike the content-script.js family it can use real imports — but it
+// still goes through chrome.runtime.sendMessage to reach auth.js/api.js
+// rather than importing them directly, because the service worker is
+// where state actually has to live (popup.js's own state is thrown away
+// every time the popup closes).
+
+import { DEV_WEB_URL, PROD_WEB_URL } from "../shared/config.js";
+
+const root = document.getElementById("root");
+
+// Injected in this exact order — lib-dom/lib-fill/lib-status/field-map
+// populate window.WIA, overlay.js reads from it, and content-script.js
+// (last) is the only one that expects everything above it to already
+// exist. See content-script.js's own comment for why these can't be ES
+// modules instead.
+const CONTENT_SCRIPT_FILES = [
+  "src/content/lib-dom.js",
+  "src/content/lib-fill.js",
+  "src/content/lib-status.js",
+  "src/content/field-map.js",
+  "src/content/overlay.js",
+  "src/content/content-script.js",
+];
+
+/** @param {{ type: string, [key: string]: any }} message */
+function sendMessage(message) {
+  return chrome.runtime.sendMessage(message);
+}
+
+/** Same dev-first, prod-fallback pattern as api.js's apiUrl(), independently
+ *  resolved here since this is just "which tab to open", not an API call —
+ *  popup.js still never talks to the backend or Supabase directly. */
+async function webappUrl() {
+  try {
+    const response = await fetch(DEV_WEB_URL, { signal: AbortSignal.timeout(1000) });
+    if (response.ok || response.type === "opaque") return DEV_WEB_URL;
+  } catch {
+    // dev server isn't running — fall through to prod
+  }
+  return PROD_WEB_URL;
+}
+
+function renderLoginView(errorText) {
+  const template = document.getElementById("login-template");
+  root.replaceChildren(template.content.cloneNode(true));
+
+  const errorEl = root.querySelector(".error");
+  if (errorText) {
+    errorEl.textContent = errorText;
+    errorEl.hidden = false;
+  }
+
+  root.querySelector("#open-webapp-button").addEventListener("click", async () => {
+    const base = await webappUrl();
+    chrome.tabs.create({ url: `${base}/login` });
+  });
+
+  root.querySelector("#recheck-button").addEventListener("click", () => init());
+}
+
+function renderSignedIn(profile) {
+  const template = document.getElementById("signed-in-template");
+  root.replaceChildren(template.content.cloneNode(true));
+
+  root.querySelector(".name").textContent = profile.full_name;
+  root.querySelector(".email").textContent = profile.email;
+  root.querySelector(".resume-status").textContent = profile.resume
+    ? "Resume on file"
+    : "No resume on file yet — add one in WorkIt first";
+
+  root.querySelector("#autofill-button").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = "Filling…";
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error("No active tab");
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_SCRIPT_FILES });
+      window.close(); // the on-page overlay takes over from here
+    } catch (error) {
+      button.textContent = "Autofill This Page";
+      button.disabled = false;
+      const hint = root.querySelector(".hint");
+      hint.textContent =
+        error instanceof Error && error.message.includes("Cannot access")
+          ? "Can't run on this page (browser settings or an extension gallery page)."
+          : "Something went wrong starting autofill. Try reloading the page.";
+    }
+  });
+}
+
+async function init() {
+  root.replaceChildren(Object.assign(document.createElement("p"), { className: "muted", textContent: "Checking…" }));
+
+  const response = await sendMessage({ type: "auth/status" });
+  if (!response.ok || !response.signedIn) {
+    renderLoginView();
+    return;
+  }
+  const profileResponse = await sendMessage({ type: "profile/get" });
+  if (!profileResponse.ok) {
+    renderLoginView(profileResponse.error);
+    return;
+  }
+  renderSignedIn(profileResponse.profile);
+}
+
+init();

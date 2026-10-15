@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WorkIt Autofiller</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="../../icons/icon.png" alt="" width="20" height="20" />
+      <span>WorkIt Autofiller</span>
+    </header>
+
+    <main id="root">
+      <p class="muted">Loading…</p>
+    </main>
+
+    <template id="login-template">
+      <p id="signed-out-message">Sign in to WorkIt to use the autofiller.</p>
+      <p class="error muted" hidden></p>
+      <button type="button" id="open-webapp-button">Sign In at WorkIt</button>
+      <button type="button" id="recheck-button" class="secondary">
+        I Signed In — Check Again
+      </button>
+      <p class="hint muted">
+        This extension has no sign-in of its own — it uses whichever WorkIt session is already
+        open in your browser, however you signed in (password, Google, or LinkedIn).
+      </p>
+    </template>
+
+    <template id="signed-in-template">
+      <div class="profile">
+        <p class="name"></p>
+        <p class="email muted"></p>
+        <p class="resume-status muted"></p>
+      </div>
+      <button type="button" id="autofill-button">Autofill This Page</button>
+      <p class="hint muted">
+        Fills from your WorkIt profile and resume. Never submits — review the form yourself before
+        clicking the real Submit button.
+      </p>
+    </template>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

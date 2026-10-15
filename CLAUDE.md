@@ -1,10 +1,10 @@
 # CLAUDE.md
 
 Repo-wide rules, always loaded. Each code folder below (`frontend/`,
-`backend/`, `scout/`, `scraper/`, `.github/`) has its own `CLAUDE.md` that
-loads on top of this one when you touch a file in it; read it before writing
-code there. A rule lives at the deepest level that fully contains it, with a
-pointer above rather than a copy.
+`backend/`, `scout/`, `scraper/`, `autofiller_extension/`, `.github/`) has its
+own `CLAUDE.md` that loads on top of this one when you touch a file in it;
+read it before writing code there. A rule lives at the deepest level that
+fully contains it, with a pointer above rather than a copy.
 
 ## Replies
 
@@ -33,6 +33,9 @@ none.
 - `scraper/` — the job-board scraper (KAN-55). Standard library only, never
   touches the database; runs with `python3 -m workit_scraper`, tests under
   `uvx pytest`.
+- `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
+  Chrome extension, no build step, no dependency manifest. Adds no backend
+  routes or schema; reads the same endpoints the webapp already has.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `docs/` — team prose that spans the repo (below).
 

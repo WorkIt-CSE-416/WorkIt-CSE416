@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.models import dto
 from app.models.dto import work_style
+from app.services.matching.scoring import ScoreBreakdown
 
 
 class JobListing(BaseModel):
@@ -137,6 +138,7 @@ class ScoredJob(JobListing):
     """A job listing with its match score and highlights."""
 
     match: int  # 0-100
+    score_breakdown: ScoreBreakdown
     highlights: list[Highlight] = []
 
 

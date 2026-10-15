@@ -98,6 +98,7 @@ from sqlalchemy import (
     select,
     update,
 )
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
@@ -127,7 +128,7 @@ from app.services.matching.bank_input import bank_text
 from app.services.matching.embeddings import embed
 from app.services.matching.highlights import generate_highlights
 from app.services.matching.scoring import (
-    compute_score,
+    compute_breakdown,
     eligibility,
     freshness,
     title_fit,
@@ -1046,9 +1047,11 @@ async def recommended_jobs(
     db: AsyncSession = Depends(get_session),
 ) -> list[ScoredJob]:
     """Jobs scored against the applicant's experience bank (never an uploaded
-    resume). Returns `match` (0-100) and up to 3 `highlights`. 404 while the
-    bank is empty. The bank embedding is made here when it is null, and jobs
-    without embeddings still appear, scored on the other components."""
+    resume). Returns `match` (0-100), its `score_breakdown` (effective
+    weights, component points before freshness, the final rounded score) and
+    up to 3 `highlights`. 404 while the bank is empty. The bank embedding is
+    made here when it is null, and jobs without embeddings still appear,
+    scored on the other components."""
     assert_applicant_owns(account, applicant_id)
 
     bank = await load_bank(db, applicant_id)
@@ -1080,8 +1083,9 @@ async def recommended_jobs(
             except Exception:
                 await db.rollback()
 
-    skill_names = bank_input.skills(bank)
-    skills_text = " ".join(skill_names)
+    # Deduplicate case-insensitively so repeated skills cannot change the score.
+    skills = list({s.strip().casefold(): s.strip()
+                   for s in bank_input.skills(bank) if s.strip()}.values())
 
     # Query with scoring columns
     score_columns = list(_COLUMNS)
@@ -1095,14 +1099,18 @@ async def recommended_jobs(
         semantic_col = literal(None).label("semantic")
     score_columns.append(semantic_col)
 
-    # FTS skill rank
-    if skills_text:
-        skill_rank_col = func.ts_rank(
-            Job_Post.fts, func.plainto_tsquery("english", skills_text)
-        ).label("skill_rank")
+    # Match skills independently, so partial coverage earns credit. This is
+    # independent of other results and remains stable when filters change.
+    if skills:
+        skill_matches = array([
+            case((Job_Post.fts.bool_op("@@")(
+                func.plainto_tsquery("english", skill)
+            ), literal(skill)), else_=None)
+            for skill in skills
+        ]).label("matched_skills")
     else:
-        skill_rank_col = literal(0.0).label("skill_rank")
-    score_columns.append(skill_rank_col)
+        skill_matches = literal(None).label("matched_skills")
+    score_columns.append(skill_matches)
 
     # posted_at for freshness
     score_columns.append(Job_Post.posted_at.label("_posted_at"))
@@ -1117,33 +1125,33 @@ async def recommended_jobs(
     graduation = bank_input.expected_graduation(bank)
 
     scored: list[ScoredJob] = []
-    # ponytail: normalize skill_rank by max across result set
-    max_skill_rank = max((r.skill_rank or 0 for r in rows), default=1.0) or 1.0
-
     for row in rows:
         semantic_val = row.semantic
-        skill_norm = min(1.0, (row.skill_rank or 0) / max_skill_rank) if max_skill_rank > 0 else 0.0
+        matched_skills = [skill for skill in (row.matched_skills or []) if skill is not None]
+        skill_norm = len(matched_skills) / len(skills) if skills else 0.0
         t_fit = title_fit(row.title, titles, field_of_study)
         days_old = (now - row._posted_at).total_seconds() / 86400 if row._posted_at else 30.0
         fresh = freshness(days_old)
         elig = eligibility(
             graduation, row.start_term, row.min_years_experience, years_exp
         )
-        score = compute_score(semantic_val, skill_norm, t_fit, elig, fresh)
+        breakdown = compute_breakdown(semantic_val, skill_norm, t_fit, elig, fresh)
         highlights = generate_highlights(
             row.title, row.min_years_experience, row.start_term,
-            skill_names, field_of_study, semantic_val, skill_norm, t_fit, elig,
+            skills, field_of_study, semantic_val, skill_norm, t_fit, elig,
+            matched_skills=matched_skills,
         )
 
         listing = to_listing(row)
         scored.append(ScoredJob(
             **listing.model_dump(),
-            match=score,
+            match=breakdown.final_score,
+            score_breakdown=breakdown,
             highlights=[Highlight(**h) for h in highlights],
         ))
 
     # Sort by score descending, then apply offset/limit
-    scored.sort(key=lambda s: s.match, reverse=True)
+    scored.sort(key=lambda s: (-s.match, -s.score_breakdown.score_before_rounding, s.id))
     return scored[offset:offset + limit]
 
 
