@@ -302,11 +302,23 @@ finished the contract: its code reads `job_role_tags` instead, and
 `824f0b2e3d84` drops both columns, applied only **after** that code is
 deployed (`backend/CLAUDE.md`, Commands).
 
+### 5.5 `job_applications`, one row per job posting an applicant applied to (KAN-232)
+
+An applicant id and a job posting id, with `applied_at`. The applicant writes
+it with the Applied button on the job posting's page (section 7.2). A join
+table, not an array of applicant ids on the job posting: the foreign keys keep
+both ids real, an apply never rewrites the row the import upserts, and more
+columns (a status, the resume sent) can join it later. Deleting the applicant
+or the job posting deletes its rows.
+
 ---
 
 ## 6. The API
 
-All public, no sign-in needed (they serve public job postings).
+All public, no sign-in needed (they serve public job postings). A signed-in
+applicant's token is read when sent: `GET /jobs`, `/jobs/count` and
+`/jobs/recommended` then leave out the job postings that applicant marked as
+applied. Without a token, or with a bad or company one, nothing is left out.
 
 | Endpoint | Returns |
 |---|---|
@@ -315,6 +327,8 @@ All public, no sign-in needed (they serve public job postings).
 | `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both, and an internship counts under job type `internship` only) |
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
+| `GET /jobs/{id}/applied` | Applicants only: when they marked it applied, or null |
+| `POST /jobs/{id}/applied` | Applicants only: marks it applied; a second mark keeps the first date |
 
 ### Filters (`GET /jobs` and `GET /jobs/count`)
 
@@ -365,6 +379,7 @@ can't be shown as matching a fact it never stated.
 | **Header** | The same facts as the card, and the company logo |
 | **About the Role** | The description, with headings and bullet lists recovered from the plain text |
 | **Actions** | Apply Now (the company's own page), Ask Scout, Share (copies the link). Save and Report aren't built yet. |
+| **Applied** | Signed-in applicants only, last in the header's actions (top right). A click records the job posting in `job_applications` and the button becomes "Applied at 10/15/2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
 | **Back to Jobs** | Returns to the list you came from, with its filters |
 
 ### 7.3 Coming back

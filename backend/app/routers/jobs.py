@@ -15,6 +15,10 @@ the seeker feed is its own change, with its own response shape.
 about, and looks it up with fetch_listing.
 
 Public on purpose: a list of public job postings says nothing about the caller.
+A signed-in applicant's token is still read when sent: GET /jobs, /jobs/count
+and /jobs/recommended then leave out the jobs that applicant marked as applied
+(job_applications, routers/applications.py). Without a token, or with one
+that isn't an applicant's, every job is listed (get_signed_in_applicant_id).
 
 ?location= narrows the feed to jobs offered in any of the places named, by
 their job_locations rows: a country code ("US") matches every job in that
@@ -101,8 +105,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
 from app.db import get_session
-from app.deps import assert_applicant_owns, get_current_account
+from app.deps import (
+    assert_applicant_owns,
+    get_current_account,
+    get_signed_in_applicant_id,
+)
 from app.models import dto
+from app.models.applications import Job_Application
 from app.models.dto import ParsedResume, job_post_status
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
@@ -307,6 +316,9 @@ class JobFilters:
     # the work_style column. Hybrid and onsite are the column alone.
     query_work_style_phrases: Sequence[str] = ()
     query_words: Sequence[str] = ()
+    # The signed-in applicant: the jobs they marked as applied are left out.
+    # None (signed out) lists them all.
+    applied_by: uuid.UUID | None = None
 
 
 # ?job_type=: the column's three, plus "internship" (see JobFilters.job_types).
@@ -462,6 +474,11 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
                 Job_Post.sponsorship == dto.visa_sponsorship.sponsors,
             )
         )
+    if filters.applied_by is not None:
+        clauses.append(~exists().where(
+            Job_Application.job_id == Job_Post.id,
+            Job_Application.applicant_id == filters.applied_by,
+        ))
     return clauses
 
 
@@ -774,6 +791,7 @@ async def read_filters(
     visa: Literal["sponsors", "not_ruled_out"] | None = None,
     # /search's words, read by the role resolver (JobFilters.query_roles).
     q: str | None = Query(None, max_length=200),
+    applicant_id: uuid.UUID | None = Depends(get_signed_in_applicant_id),
     db: AsyncSession = Depends(get_session),
 ) -> JobFilters:
     '''
@@ -816,6 +834,7 @@ async def read_filters(
         query_start_phrases=search.season_phrases,
         query_work_style_phrases=search.remote_phrases,
         query_words=search.words,
+        applied_by=applicant_id,
     )
 
 

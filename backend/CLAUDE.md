@@ -188,6 +188,11 @@ free tier). Render with a Dockerfile is the fallback.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.
+- **`5cc3189af108` (`job_applications`) goes on before the deploy that reads
+  it.** Every `GET /jobs` sent with an applicant's token queries that table, so
+  deploying first makes the Jobs page answer 500 for every signed-in
+  applicant. The new table is unused by the running code, so applying it early
+  is safe.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.

@@ -111,6 +111,13 @@ posting, Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in
 sessionStorage).
+**Applied** (KAN-232), last in the header's actions, shows for a signed-in
+applicant only (`getApplied` answers null for anyone else). A click calls
+`markApplied` (`jobs/actions.ts`), and the button becomes "Applied at
+10/15/2026", the viewer's own day after hydration (`AppliedOn`). The job then
+leaves that applicant's feed, /search and count, because `listings.ts` sends
+their token with those reads (`viewerToken`) and the API filters on it. There
+is no undo yet.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and

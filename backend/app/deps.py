@@ -146,6 +146,29 @@ async def get_verified_identity(
     return VerifiedIdentity(id=account_id, email=email, account_type=account_type, full_name=full_name)
 
 
+async def get_signed_in_applicant_id(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> uuid.UUID | None:
+    '''
+    For a public route that changes what it shows for a signed-in applicant
+    (GET /jobs hides the jobs they applied to): the token's applicant id, or
+    None for anyone else. Verified like get_current_account, but never 401s:
+    an expired or bad token, or a company account, just sees the public
+    answer, so a stale session can't break a page anyone may read. No profile
+    lookup: the id only narrows a query, and an id with no row narrows
+    nothing.
+    '''
+    if credentials is None:
+        return None
+    try:
+        claims = await decode_access_token(credentials.credentials)
+        if claims.get("app_metadata", {}).get("account_type") != AccountType.APPLICANT:
+            return None
+        return uuid.UUID(claims["sub"])
+    except (jwt.InvalidTokenError, ValueError):
+        return None
+
+
 def assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUID) -> None:
     """Shared ownership guard: the caller must be an applicant whose id matches
     the path. Used by resumes, avatars and profile endpoints."""
