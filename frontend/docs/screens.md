@@ -111,8 +111,9 @@ posting, Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. The card's own row has Not Interested, Save, Ask
 Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
 Now on the page and the card alike (`src/components/auto-apply-button.tsx`):
-Ask Scout's secondary design with the sidebar's Zap glyph, inert until the
-API can queue one job posting (`auto-apply/architecture.md`). Back to Jobs returns to the feed the seeker came from,
+Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
+the job posting for the Auto Apply page and the button turns to Queued, off,
+so it is never queued twice (see Auto Apply, below). Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in
 sessionStorage).
 A live card's location is the import's `location_label` where it has one
@@ -305,9 +306,15 @@ the action that starts work, so Pause is the bordered neutral. The button is
 52px tall and 208px wide beside the row, so the row does not shift between
 labels; on a phone it drops under the row at full width.
 
-**Live Activity is a fixture** (`auto-apply/data.ts`, timed against the
-request like the Applications fixture), one row per job posting the pipeline
-is working on, in one white card with rules between rows. Each status takes a
+**Live Activity is the seeker's queue over a fixture.** The job postings
+queued with Auto Apply on a job card or page come first, newest first, each
+Queued; the whole row opens the job posting's page, as on the Applications
+list. They are kept in the browser (`src/components/auto-apply-queue.tsx`,
+localStorage under the account's id, so the next account on the browser
+starts empty) until the API holds the queue; then Auto Apply becomes a POST
+and that file goes. The fixture's invented rows (`auto-apply/data.ts`, timed
+against the request like the Applications fixture) follow, and link nowhere.
+One row per job posting the pipeline is working on, in one white card with rules between rows. Each status takes a
 badge tone by its kind (`ui/badge.tsx`): Queued inert grey; Tailoring Resume
 and Autofilling `advanced` blue, their dot ringing three times; Needs Review
 and Couldn't Finish warning amber, as both wait on the seeker; Applied the

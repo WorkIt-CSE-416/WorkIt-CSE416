@@ -17,7 +17,7 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
-import { ListingsError, listingFacts } from "../listing-card";
+import { ListingsError, listingFacts, queuedJobOf } from "../listing-card";
 import { getJobListing, type JobListing } from "../listings";
 import { JobDescription } from "./description";
 import { BackToJobs, ShareButton } from "./page-actions";
@@ -47,8 +47,9 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
  * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
- * about this role, Share copies the page's link. Auto Apply, Save and Report
- * are still inert, as on the card (KAN-65 makes saving real). No match rail: nothing
+ * about this role, Share copies the page's link, Auto Apply queues it for the
+ * Auto Apply page, as on the card. Save and Report are still inert, as on the
+ * card (KAN-65 makes saving real). No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
@@ -92,7 +93,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             </IconButton>
             <ShareButton title={job.title} />
             <AskScoutButton id={job.id} title={job.title} company={job.company} />
-            <AutoApplyButton />
+            <AutoApplyButton job={queuedJobOf(job)} />
             <ButtonLink
               href={job.apply_url}
               target="_blank"

@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
-import { ActivityList } from "./activity-list";
 import { AutoApplyPanel } from "./auto-apply-panel";
 import { getActivity, getNow } from "./data";
 
@@ -21,13 +20,14 @@ export const metadata: Metadata = {
  *
  *   Applying with Resume   live: the primary resume, and the Start button
  *                          beside it (./applying-resume.tsx)
- *   Live Activity          a fixture (./data.ts): each job posting the
- *                          pipeline is working on and where it stands
- *                          (./activity-list.tsx)
+ *   Live Activity          the job postings the seeker queued with Auto
+ *                          Apply, over a fixture (./data.ts): each job
+ *                          posting the pipeline is working on and where it
+ *                          stands (./activity-list.tsx)
  *
- * The button and the feed's heading share whether it runs, so both sit in
- * the client ./auto-apply-panel.tsx; the feed is drawn here, on the server,
- * against the request's clock. A <div>, since SidebarInset is already the
+ * The button and the feed's heading share whether it runs, and the queue is
+ * read in the browser, so both sections sit in the client
+ * ./auto-apply-panel.tsx; the fixture and the request's clock are read here. A <div>, since SidebarInset is already the
  * <main>.
  */
 export default function AutoApplyPage() {
@@ -40,9 +40,7 @@ export default function AutoApplyPage() {
         Apply to the jobs that match you, with your resume filled in for you.
       </p>
 
-      <AutoApplyPanel>
-        <ActivityList items={getActivity()} now={now} />
-      </AutoApplyPanel>
+      <AutoApplyPanel items={getActivity()} now={now} />
     </div>
   );
 }

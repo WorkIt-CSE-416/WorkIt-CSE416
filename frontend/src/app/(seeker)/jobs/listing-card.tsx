@@ -95,7 +95,7 @@ export function ListingCard({ job }: { job: JobListing }) {
 
           <AskScoutButton id={job.id} title={job.title} company={job.company} />
 
-          <AutoApplyButton />
+          <AutoApplyButton job={queuedJobOf(job)} />
 
           {/* Leaves for the employer's own posting, so the glyph says so and
               a screen reader hears it. On a card under 384px (a phone) the
@@ -130,6 +130,19 @@ export function listingFacts(job: JobListing) {
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
     experienceLevel: formatExperienceLevel(job.experience_level),
     ...yearsOrStart(job),
+  };
+}
+
+/** What Auto Apply queues of a scraped role (@/components/auto-apply-queue):
+ *  what the Auto Apply page's row shows, and the id its link opens. Shared
+ *  with the role's own page, so the two queue the same thing. */
+export function queuedJobOf(job: JobListing) {
+  return {
+    id: job.id,
+    title: job.title,
+    company: job.company,
+    logoUrl: job.logo_url,
+    location: formatPlaces(job.location_label ?? job.location),
   };
 }
 

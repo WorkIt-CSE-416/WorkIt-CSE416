@@ -3,9 +3,11 @@ import { cache } from "react";
 /**
  * Auto Apply's activity fixture: what the pipeline in `auto-apply/architecture.md`
  * (repo root) is doing to each job posting, newest first. Nothing runs yet,
- * so every row is invented. When the applications and autofill-run routes
- * exist (its "API routes"), this file becomes the fetch, and
- * `ActivityItem` is the shape it returns.
+ * so every row is invented. The rows the seeker queued with a job card's
+ * Auto Apply are real, and come from the browser
+ * (@/components/auto-apply-queue), drawn above these by ./auto-apply-panel.
+ * When the applications and autofill-run routes exist (its "API routes"),
+ * this file becomes the fetch, and `ActivityItem` is the shape it returns.
  *
  * THE TIMES ARE RELATIVE TO THE REQUEST, built by `getActivity` against
  * `getNow` (both `cache()`d), so the feed always reads as current, the way
@@ -23,12 +25,16 @@ export type ActivityItem = {
   /** A job board's logo URL. The fixture has none, so tiles show initials,
    *  as Workday postings do. */
   logoUrl: string | null;
-  location: string;
+  /** Null when the job posting names no place. */
+  location: string | null;
   status: ActivityStatus;
   /** One line on what is happening or what went wrong. */
   detail: string;
   /** When the status last changed: an ISO instant. */
   at: string;
+  /** The job posting's own page; the whole row opens it. The fixture's
+   *  invented rows have none. */
+  href?: string;
 };
 
 const MINUTE = 60_000;

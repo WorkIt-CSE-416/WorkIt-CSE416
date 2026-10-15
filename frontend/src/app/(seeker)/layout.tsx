@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
+import { AutoApplyQueueProvider } from "@/components/auto-apply-queue";
 import { LogoLockup } from "@/components/logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { ScoutLauncher } from "@/components/scout/scout-buttons";
@@ -116,7 +117,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Every seeker screen is for a signed-in seeker, so the shell never draws
   // a signed-out state: no account, no shell. Verified claims rather than
   // /auth/me, so the check never waits on the API.
-  if (!(await getSessionUser())) redirect("/login");
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
 
   const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false";
 
@@ -230,12 +232,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               {/* Outlives a single page so My Profile renders at once on a
                   return visit; see profile-cache.tsx for why it lives here.
+                  The Auto Apply queue is keyed to this account, so the next
+                  person to sign in here gets their own.
                   The query the pages show, moved in place by their segmented
                   controls and the Calendar's arrows, is held by
                   ShallowRouting. */}
-              <ProfileCacheProvider>
-                <ShallowRouting>{children}</ShallowRouting>
-              </ProfileCacheProvider>
+              <AutoApplyQueueProvider accountId={user.id}>
+                <ProfileCacheProvider>
+                  <ShallowRouting>{children}</ShallowRouting>
+                </ProfileCacheProvider>
+              </AutoApplyQueueProvider>
             </div>
           </SidebarInset>
           {/* Puts a page back where it was scrolled on a return to it; the

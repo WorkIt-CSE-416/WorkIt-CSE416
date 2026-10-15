@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { CompanyLogo } from "@/components/company-logo";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -18,6 +20,9 @@ import type { ActivityItem, ActivityStatus } from "./data";
  *   tailoring, filling  advanced     in flight: WorkIt is doing the work
  *   review, failed      warning      halted, waiting on the seeker
  *   applied             brand        the Applied stage
+ *
+ * A row with an `href` (a job posting the seeker queued) is one link: its
+ * role, stretched over the row, as on the Applications list.
  *
  * A row in flight rings out from its dot, three times and then rests
  * (`animate-status-ping`, as the detail panel's next step does): a dot that
@@ -77,7 +82,10 @@ export function ActivityList({ items, now }: { items: ActivityItem[]; now: Date 
             return (
               <li
                 key={item.id}
-                className="animate-rise flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 @md/main:flex-nowrap"
+                className={cn(
+                  "animate-rise relative flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 @md/main:flex-nowrap",
+                  item.href && "hover:bg-hover transition-colors duration-150",
+                )}
                 style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
               >
                 <CompanyLogo
@@ -87,9 +95,18 @@ export function ActivityList({ items, now }: { items: ActivityItem[]; now: Date 
                 />
 
                 <div className="min-w-0 flex-1">
-                  <p className="text-label text-ink truncate">{item.role}</p>
+                  {item.href ? (
+                    <Link
+                      href={item.href}
+                      className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs transition-colors duration-150 after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+                    >
+                      {item.role}
+                    </Link>
+                  ) : (
+                    <p className="text-label text-ink truncate">{item.role}</p>
+                  )}
                   <p className="text-note text-ink-meta truncate">
-                    {item.company} · {item.location}
+                    {item.location ? `${item.company} · ${item.location}` : item.company}
                   </p>
                   <p className="text-note text-ink-muted mt-1 flex items-center gap-2">
                     <span
