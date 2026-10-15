@@ -20,13 +20,8 @@ GH = "https://job-boards.greenhouse.io/acme/jobs/"
 
 def test_takes_the_first_size_in_order():
     scored = [job(str(i), GH + str(i), title=f"Role {i}", match=100 - i) for i in range(15)]
-    batch = pick_batch(scored, set(), 10)
+    batch = pick_batch(scored, 10)
     assert [j.id for j in batch] == [str(i) for i in range(10)]
-
-
-def test_leaves_out_done_jobs():
-    scored = [job("1", GH + "1", title="A"), job("2", GH + "2", title="B"), job("3", GH + "3", title="C")]
-    assert [j.id for j in pick_batch(scored, {"2"}, 10)] == ["1", "3"]
 
 
 def test_one_per_company_and_title():
@@ -35,14 +30,9 @@ def test_one_per_company_and_title():
         job("2", GH + "2", company=" acme ", title="swe intern"),  # another office
         job("3", GH + "3", company="Acme", title="Data Intern"),
     ]
-    assert [j.id for j in pick_batch(scored, set(), 10)] == ["1", "3"]
-
-
-def test_done_role_keeps_its_other_offices_out():
-    scored = [job("1", GH + "1"), job("2", GH + "2")]
-    assert pick_batch(scored, {"1"}, 10) == []
+    assert [j.id for j in pick_batch(scored, 10)] == ["1", "3"]
 
 
 def test_size_zero_or_empty_input():
-    assert pick_batch([job("1", GH + "1")], set(), 0) == []
-    assert pick_batch([], set(), 10) == []
+    assert pick_batch([job("1", GH + "1")], 0) == []
+    assert pick_batch([], 10) == []

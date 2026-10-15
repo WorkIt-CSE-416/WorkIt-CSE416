@@ -9,8 +9,9 @@ built. It replaces the earlier `design.md`.
 > Chrome, through the WorkIt extension. No WorkIt server ever drives a
 > browser. The code is function based, in three layers, so that an MCP
 > server can expose it later. **Built:** the Match step's function ("Match
-> (built)", below) and the batch rule, `pick_batch` in
-> `backend/app/auto_apply/rules.py`. Everything else is a plan. The exact function names are a
+> (built)", below), the batch rule `pick_batch`
+> (`backend/app/auto_apply/rules.py`) and the layer-2 step `get_matches`
+> (`backend/app/auto_apply/pipeline.py`). Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
 
 ## Terms
@@ -167,7 +168,7 @@ Names are not final.
 | Layer | Function | Does |
 |---|---|---|
 | 1 | `fetch_recommended(db, applicant_id, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
-| 1, pure | `pick_batch(scored, done_job_ids, size)` | Drops job postings that already have an application, and duplicates; takes the first `size`. Every hiring system stays in. **Built** |
+| 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. Every hiring system stays in. **Built** |
 | 1 | `queue_applications(db, applicant_id, job_ids, resume_id)` | Saves them as `queued` |
 | 1 | `next_application(db, applicant_id)` | The next queued application, with its `apply_url` and resume |
 | 1, LLM | `tailor_resume(llm, parsed, job)` | A tailored `ParsedResume` (in `scout/`) |
@@ -176,7 +177,7 @@ Names are not final.
 | 1 | `store_tailored_resume(db, storage, …)` | Saves the PDF and the resume row |
 | 1 | `record_run(db, application_id, report)` | Saves one autofill result |
 | 1 | `set_stage(db, application_id, stage)` | `applied`, `skipped`, `needs_you` |
-| 2 | `get_matches` | `fetch_recommended` |
+| 2 | `get_matches(db, applicant_id, filters, min_match=60, size=10)` | `fetch_recommended`, with applied job postings left out by `JobFilters.applied_by` → `pick_batch`. **Built** |
 | 2 | `start_batch(db, applicant_id, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the application ids |
 | 2 | `prepare_application(db, llm, storage, application_id)` | `tailor_resume` → `check_grounding` → `render_resume_pdf` → `store_tailored_resume`. If any step fails, keep the primary resume; never block the fill |
 | 2 | `finish_application(db, application_id, decision, report)` | `record_run` → `set_stage` |
@@ -189,7 +190,7 @@ Webapp or AI agent: "start a batch of 10"
              checks the caller owns {id}, reads size=10
   Layer 2  start_batch(db, applicant_id, size=10)
              → fetch_recommended(...)          layer 1, query
-             → pick_batch(scored, done, 10)    layer 1, pure
+             → pick_batch(scored, 10)          layer 1, pure
              → queue_applications(...)         layer 1, write
              commits once, returns the 10 application ids
   Layer 3  returns the ids as JSON
@@ -260,7 +261,10 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    and ranks in one call. There is no separate "match the resume" step.
 2. **Leave out what is done.** Every job posting that already has an
    application for this student (queued, applied, skipped) stays out. Without
-   this, every click returns the same 10.
+   this, every click returns the same 10. Applied ones are left out today:
+   `get_matches` sets `JobFilters.applied_by`, the Jobs page's own filter over
+   `job_applications` (KAN-232), so they are never scored. Queued and skipped
+   ones join that filter when the queue has a table.
 3. **Freeze the batch at Start.** Pick the 10 once and save them as `queued`
    applications. New job postings arrive every 3 hours and scores change, so
    a list read during the run could change under it. A saved batch also lets
