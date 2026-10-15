@@ -5,6 +5,11 @@ job_role_tags.
     uv run python -m app.scripts.import_jobs                  the default feed
     uv run python -m app.scripts.import_jobs path/to/feed.json
     uv run python -m app.scripts.import_jobs --dry-run        do it all, then roll back
+    uv run python -m app.scripts.import_jobs --embeddings-only --embed-limit 100
+
+--embeddings-only skips the feed entirely and fills missing scraped-job
+vectors using DATABASE_URL. It never imports or closes postings. Omit
+--embed-limit to process all missing vectors; completed batches survive failures.
 
 The default feed is the one GET /jobs reads: scraper/feed.json when a local
 scraper run has written one, else data/feed.json (app/config.py).
@@ -511,15 +516,32 @@ async def _run(
         await engine.dispose()
 
 
+async def _run_embeddings_only(*, limit: int | None = None) -> int:
+    engine = get_engine()
+    try:
+        async with engine.connect() as conn:
+            return await _embed_jobs(conn, limit=limit)
+    finally:
+        await engine.dispose()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("feed", nargs="?", type=Path, help="feed.json to import (default: the one GET /jobs reads)")
     parser.add_argument("--dry-run", action="store_true", help="run every step, then roll back")
     parser.add_argument("--allow-mass-close", action="store_true", help="close however many jobs left the feed")
-    parser.add_argument("--embed-limit", type=int, help="embed at most this many jobs; still import the full feed")
+    parser.add_argument("--embed-limit", type=int, help="embed at most this many jobs; does not limit feed imports")
+    parser.add_argument("--embeddings-only", action="store_true", help="fill missing scraped-job vectors without reading or importing a feed")
     args = parser.parse_args(argv)
     if args.embed_limit is not None and args.embed_limit < 1:
         parser.error("--embed-limit must be a positive integer")
+
+    if args.embeddings_only:
+        if args.feed is not None or args.dry_run or args.allow_mass_close:
+            parser.error("--embeddings-only cannot be combined with a feed, --dry-run, or --allow-mass-close")
+        count = asyncio.run(_run_embeddings_only(limit=args.embed_limit))
+        print(f"embedded {count} scraped jobs; no feed imported")
+        return 0
 
     path = args.feed or get_settings().scraper_feed
     try:
