@@ -22,7 +22,9 @@ no pay, or no value for a filtered column, is left out by that filter, as one
 with no location is by ?location=.
 
 A signed-in applicant's applied jobs (job_applications, KAN-232) are left
-out by applied_by.
+out by applied_by; auto apply's matches leave out every job the applicant has
+an application for at any stage, queued or skipped too, by
+no_application_by.
 """
 
 import datetime
@@ -145,8 +147,13 @@ class JobFilters:
     query_work_style_phrases: Sequence[str] = ()
     query_words: Sequence[str] = ()
     # The signed-in applicant: the jobs they marked as applied are left out.
-    # None (signed out) lists them all.
+    # A job they only queued for auto apply stays in. None (signed out)
+    # lists them all.
     applied_by: uuid.UUID | None = None
+    # Auto apply's matches (auto_apply/pipeline.py): every job this applicant
+    # has an application for, at any stage, is left out, so a new batch
+    # never queues a job twice or one they skipped.
+    no_application_by: uuid.UUID | None = None
 
 
 INTERNSHIP = Job_Post.experience_level == dto.experience_level.internship
@@ -303,5 +310,11 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         clauses.append(~exists().where(
             Job_Application.job_id == Job_Post.id,
             Job_Application.applicant_id == filters.applied_by,
+            Job_Application.stage == dto.application_stage.applied,
+        ))
+    if filters.no_application_by is not None:
+        clauses.append(~exists().where(
+            Job_Application.job_id == Job_Post.id,
+            Job_Application.applicant_id == filters.no_application_by,
         ))
     return clauses

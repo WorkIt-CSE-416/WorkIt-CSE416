@@ -9,9 +9,11 @@ built. It replaces the earlier `design.md`.
 > Chrome, through the WorkIt extension. No WorkIt server ever drives a
 > browser. The code is function based, in three layers, so that an MCP
 > server can expose it later. **Built:** the Match step's function ("Match
-> (built)", below), the batch rule `pick_batch`
-> (`backend/app/auto_apply/rules.py`) and the layer-2 step `get_matches`
-> (`backend/app/auto_apply/pipeline.py`). Everything else is a plan. The exact function names are a
+> (built)", below), and the queue: `job_applications.stage`, the layer-1
+> and layer-2 functions in `backend/app/auto_apply/` and their routes in
+> `backend/app/routers/auto_apply.py` ("Data model", "API routes"). Nothing
+> calls the routes yet: the webapp and the extension are next. Everything
+> else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
 
 ## Terms
@@ -78,8 +80,10 @@ everything up to that click and nothing after it ("Decisions", below).
 | Auto Apply page | The primary resume, a Start button that only changes local state, and Live Activity over a fixture | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
 | Applications screen | UI only, over a fixture (`data.ts`) | `frontend/src/app/(seeker)/applications/` |
 
-**Missing:** the `applications` table, the batch, the runner, file upload in
-the extension, tailoring and the PDF renderer, and the MCP server.
+**Built since:** the queue (`job_applications.stage`) and its routes.
+**Missing:** the webapp and the extension calling them, the runner, file
+upload in the extension, `autofill_runs`, tailoring and the PDF renderer,
+and the MCP server.
 
 ---
 
@@ -169,18 +173,22 @@ Names are not final.
 |---|---|---|
 | 1 | `fetch_recommended(db, applicant_id, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
 | 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. Every hiring system stays in. **Built** |
-| 1 | `queue_applications(db, applicant_id, job_ids, resume_id)` | Saves them as `queued` |
-| 1 | `next_application(db, applicant_id)` | The next queued application, with its `apply_url` and resume |
+| 1 | `queue_applications(db, applicant_id, job_ids)` | Saves the open ones with no application yet as `queued`; answers which. **Built** |
+| 1 | `fetch_stage(db, applicant_id, job_id)` | The application's stage, or `None`. **Built** |
+| 1 | `fetch_applications(db, applicant_id, stages)` | The applications, newest first, each with its job posting's listing and `open`. **Built** |
+| 1 | `fetch_next_application(db, applicant_id)` | The oldest queued application whose job posting is open, with its `apply_url`. **Built** |
 | 1, LLM | `tailor_resume(llm, parsed, job)` | A tailored `ParsedResume` (in `scout/`) |
 | 1, pure | `check_grounding(base, tailored)` | Lists anything the model invented |
 | 1, pure | `render_resume_pdf(parsed, contact)` | PDF bytes |
 | 1 | `store_tailored_resume(db, storage, …)` | Saves the PDF and the resume row |
 | 1 | `record_run(db, application_id, report)` | Saves one autofill result |
-| 1 | `set_stage(db, application_id, stage)` | `applied`, `skipped`, `needs_you` |
-| 2 | `get_matches(db, applicant_id, filters, min_match=60, size=10)` | `fetch_recommended`, with applied job postings left out by `JobFilters.applied_by` → `pick_batch`. **Built** |
-| 2 | `start_batch(db, applicant_id, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the application ids |
+| 1 | `set_stage(db, applicant_id, job_id, stage)` | Moves it; `applied` also sets `applied_at`. **Built** |
+| 2 | `get_matches(db, applicant_id, filters, min_match=60, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
+| 2 | `start_batch(db, applicant_id, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
+| 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
+| 2 | `list_applications`, `next_application` | Thin: `fetch_applications`, `fetch_next_application`. **Built** |
 | 2 | `prepare_application(db, llm, storage, application_id)` | `tailor_resume` → `check_grounding` → `render_resume_pdf` → `store_tailored_resume`. If any step fails, keep the primary resume; never block the fill |
-| 2 | `finish_application(db, application_id, decision, report)` | `record_run` → `set_stage` |
+| 2 | `finish_application(db, applicant_id, job_id, outcome)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `set_stage`: submitted → `applied`, skipped → `skipped`, failed → `needs_you`. **Built**, without `record_run`, which waits for `autofill_runs` |
 
 ### 5.3 One step through all three layers
 
@@ -192,7 +200,7 @@ Webapp or AI agent: "start a batch of 10"
              → fetch_recommended(...)          layer 1, query
              → pick_batch(scored, 10)          layer 1, pure
              → queue_applications(...)         layer 1, write
-             commits once, returns the 10 application ids
+             commits once, returns the 10 job ids
   Layer 3  returns the ids as JSON
 ```
 
@@ -201,8 +209,10 @@ Webapp or AI agent: "start a batch of 10"
 ```
 backend/app/auto_apply/
     rules.py        layer 1, pure:  pick_batch
-    queries.py      layer 1, DB:    queue_applications, next_application, record_run, set_stage
-    pipeline.py     layer 2:        get_matches, start_batch, prepare_application, finish_application
+    queries.py      layer 1, DB:    queue_applications, fetch_stage, fetch_applications,
+                                    fetch_next_application, set_stage; later record_run
+    pipeline.py     layer 2:        get_matches, start_batch, queue_job, list_applications,
+                                    next_application, finish_application; later prepare_application
 backend/app/routers/auto_apply.py   layer 3: the routes. Every router lives in app/routers/
 scout/workit_scout/tailor.py        layer 1, LLM: tailor_resume, check_grounding
 the MCP server                      layer 3, later: its own small program that calls the routes
@@ -499,28 +509,35 @@ source of truth (root `CLAUDE.md`). Read `backend/app/models/CLAUDE.md` and
 `backend/alembic/CLAUDE.md` before writing it. Every new table's migration
 enables RLS with no policies.
 
-`backend/app/models/CLAUDE.md` already reserves two of these: "applications"
-as a later ticket, and "a separate `autofill_runs` table, not a column here"
-for autofill state. This design follows both.
+`backend/app/models/CLAUDE.md` reserves "a separate `autofill_runs` table,
+not a column here" for autofill state. This design follows it.
 
-### `applications`
+### `job_applications` (built)
 
-One row per student and job posting. It backs the Applications screen too, so
-its shape follows `tracker.ts`'s `Application`.
+The application is KAN-232's `job_applications` row, one per student and job
+posting (primary key `(applicant_id, job_id)`), not a second table: two
+tables would both say "this student applied to this job" and could
+disagree. Migration `c0467afe819c` added:
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | uuid | `gen_random_uuid()` |
-| `applicant_id` | uuid | FK `applicant_profiles.id`, CASCADE |
-| `job_id` | uuid | FK `job_postings.id`. CASCADE or SET NULL is open |
-| `stage` | enum | `saved`, `queued`, `needs_you`, `skipped`, `applied`, `interviewing`, `offer`, `rejected`, `withdrawn`. Name equals value (models `CLAUDE.md`, Enums). The stage checks in layer 2 read it |
-| `resume_id` | uuid null | FK `resumes.id`, SET NULL. The resume to attach: tailored or base |
-| `tailor_status` | enum | `none`, `pending`, `ready`, `approved`, `failed` |
-| `match` | smallint null | The score when the application was made, so the card does not change later |
-| `saved_on` | timestamptz | |
-| `applied_on` | timestamptz null | Set when the student clicks **Submitted** |
+| `stage` | enum `application_stage` | `queued`, `needs_you`, `skipped`, `applied`. Default `applied`, for the Applied button's older inserts; a queued insert names its stage and writes `applied_at` NULL. Rows from before are `applied` |
+| `created_at` | timestamptz | When the row was made: the queue's order |
+| `applied_at` | timestamptz **null** now | Set when the student clicks **Submitted** or the Applied button; `NULL` while queued. A CHECK keeps an `applied` row dated |
 
-`UNIQUE (applicant_id, job_id)`: one application per job posting.
+- **The Jobs page hides `applied` rows only** (`JobFilters.applied_by`). A
+  queued job stays on it; matches leave out every stage
+  (`JobFilters.no_application_by`).
+- **The Applied button turns a queued, skipped or needs_you row applied**
+  (`mark_applied`, an upsert); an applied row keeps its first date.
+- **A closed job posting keeps its application.** Closing is a status, not
+  a delete, so the row and the listing stay; `fetch_next_application` passes
+  over it and `GET .../applications` marks it `open: false`. Only a deleted
+  job posting deletes its rows (CASCADE).
+- **Later columns**, when their steps are built: `resume_id` (the resume to
+  attach, tailored or base), `tailor_status`, `match` (the score when
+  queued). The tracker's stages (`interviewing`, `offer`, `rejected`) are a
+  later ticket (models `CLAUDE.md`, Out of scope) and an `ALTER TYPE`.
 
 ### `autofill_runs`
 
@@ -569,13 +586,17 @@ function. Every route checks that the caller owns the applicant, like
 
 | Method | Path | Layer 2 | Does |
 |---|---|---|---|
-| GET | `/jobs/recommended/{id}` | `get_matches` | The matches. **Built** |
-| POST | `/applicants/{id}/auto-apply/batches` | `start_batch` | Queues a batch of 10 |
-| GET | `/applicants/{id}/applications` | — | The tracker and the queue. Filter by `stage` |
-| GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next |
-| PATCH | `/applicants/{id}/applications/{app_id}` | — | Change stage or resume; skip one |
-| POST | `/applicants/{id}/applications/{app_id}/tailor` | `prepare_application` | Make or remake the tailored resume. Counts toward the cap |
-| POST | `/applicants/{id}/applications/{app_id}/runs` | `finish_application` | The extension saves an autofill run and the student's decision |
+| GET | `/applicants/{id}/auto-apply/matches` | `get_matches` | The matches a batch would queue, with the Jobs page's filters. **Built** |
+| POST | `/applicants/{id}/auto-apply/batches` | `start_batch` | Queues a batch (`{"size": 10}`, at most 50); answers the job ids. **Built** |
+| POST | `/applicants/{id}/applications` | `queue_job` | A job's Auto Apply button: queues `{"job_id"}`. **Built** |
+| GET | `/applicants/{id}/applications` | `list_applications` | Live Activity and later the tracker. `?stage=` repeats. **Built** |
+| GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. **Built** |
+| POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
+| POST | `/applicants/{id}/applications/{job_id}/tailor` | `prepare_application` | Make or remake the tailored resume. Counts toward the cap |
+
+An application is named by its job id: the row's key is `(applicant_id,
+job_id)`, and the applicant is in the path. `/jobs/recommended/{id}` stays
+the Jobs page's route; it does not leave out queued jobs.
 
 **Tailoring is slow** (several seconds per model call). The `tailor` route
 can answer `202` and set `tailor_status = pending`, and the webapp polls the
@@ -750,8 +771,10 @@ sample form (`test/sample-form.html`) needs a file input.
 Each step ships alone and is about one ticket.
 
 1. **Match**: `fetch_recommended` and `min_match` (done).
-2. **`applications` table**, the rest of `app/auto_apply/` (`rules.py` is
-   done), and `start_batch` with its route. The Applications screen can read the table instead of `data.ts`.
+2. **The queue** (done): `job_applications.stage`, `app/auto_apply/` and
+   `routers/auto_apply.py`. Next in this step: the Auto Apply button and
+   Start Auto Apply call the routes, and Live Activity reads
+   `GET .../applications` instead of the browser queue and `data.ts`.
 3. **Extension: file upload**, tested on Greenhouse, Lever and Ashby. They
    host 87% of the job postings in the feed snapshot (`backend/data/feed.json`).
 4. **Extension: the runner**, the port, host permissions, and the overlay's
@@ -780,10 +803,9 @@ Each step ships alone and is about one ticket.
   work on every one? Test on Waymo and Jump Trading first.
 - **How many applications per batch, and per day?** A limit protects
   quality and the student's reputation with employers.
-- **When a job posting closes or is deleted**, does its application stay
-  (SET NULL on `job_id`, keep a copy of title and company) or go (CASCADE)?
-  The tracker needs the row after the job posting closes, so SET NULL plus a
-  copy is likely.
+- **When a job posting is deleted**, its application goes (CASCADE). A
+  closed one stays, which covers the scraped feed. Revisit if companies
+  delete their own job postings and the tracker must keep those rows.
 - **Detecting Submit**: each hiring system's confirmation page could replace
   the **Submitted** button, one hiring system at a time.
 - **Resume template**: one page or not; one fixed template, or the student

@@ -5,7 +5,8 @@ GET /jobs, /jobs/count and /jobs/recommended leave those jobs out for that
 applicant (queries/jobs/filters.py, JobFilters.applied_by).
 
 GET  /jobs/{job_id}/applied  {"applied_at": null} until the applicant marks it.
-POST /jobs/{job_id}/applied  marks it, and answers when. Marking it again
+POST /jobs/{job_id}/applied  marks it, and answers when. A job queued for
+                             auto apply becomes applied. Marking it again
                              keeps the first date: the day they applied
                              doesn't move.
 

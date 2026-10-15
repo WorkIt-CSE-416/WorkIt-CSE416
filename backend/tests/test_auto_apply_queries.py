@@ -1,0 +1,125 @@
+"""
+Auto apply's layer-1 queries and the stage-aware KAN-232 ones. They need
+Postgres, which tests don't have, so each is tested by the SQL it sends.
+"""
+
+import asyncio
+import uuid
+from unittest.mock import MagicMock
+
+from sqlalchemy.dialects import postgresql
+
+from app.auto_apply import queries
+from app.models.dto import application_stage
+from app.queries import applications
+from app.queries.jobs.filters import JobFilters, matching
+from tests.test_jobs import _sql
+
+APPLICANT = uuid.UUID("0b8e8f3c-6a0e-4f43-9d55-6c1d7b0d9a11")
+JOB = uuid.UUID("5a1d2c3e-0000-4000-8000-000000000001")
+
+
+class Recorder:
+    """A session that keeps every statement and answers nothing."""
+
+    def __init__(self, scalar=None):
+        self.sent = []
+        self.answer = scalar
+
+    async def _keep(self, statement, *args, **kwargs):
+        self.sent.append(statement)
+        result = MagicMock()
+        result.first.return_value = None
+        result.__iter__.return_value = iter([])
+        return result
+
+    execute = scalars = _keep
+
+    async def scalar(self, statement):
+        self.sent.append(statement)
+        return self.answer
+
+    async def commit(self):
+        pass
+
+    def sql(self, i=-1):
+        return str(self.sent[i].compile(dialect=postgresql.dialect()))
+
+
+def test_queue_inserts_only_listed_jobs_and_keeps_existing_rows():
+    db = Recorder()
+    asyncio.run(queries.queue_applications(db, APPLICANT, [JOB]))
+    sql = db.sql()
+    assert sql.startswith(
+        "INSERT INTO job_applications (applicant_id, job_id, stage, applied_at) SELECT"
+    )
+    assert "CAST(NULL AS TIMESTAMP WITH TIME ZONE)" in sql
+    assert "CAST(%(param_2)s AS application_stage)" in sql
+    assert "job_postings.company_id IS NULL" in sql
+    assert "job_postings.status = %(status_1)s" in sql
+    assert "ON CONFLICT (applicant_id, job_id) DO NOTHING" in sql
+    assert "RETURNING job_applications.job_id" in sql
+
+
+def test_queue_nothing_sends_nothing():
+    db = Recorder()
+    assert asyncio.run(queries.queue_applications(db, APPLICANT, [])) == set()
+    assert db.sent == []
+
+
+def test_next_is_the_oldest_queued_open_one():
+    db = Recorder()
+    assert asyncio.run(queries.fetch_next_application(db, APPLICANT)) is None
+    sql = db.sql()
+    assert "job_applications.stage = %(stage_1)s" in sql
+    assert "ORDER BY job_applications.created_at, job_applications.job_id" in sql
+    assert "LIMIT" in sql
+    assert db.sent[-1].compile().params["stage_1"] == application_stage.queued
+
+
+def test_one_application_is_this_applicants_for_this_job():
+    db = Recorder()
+    assert asyncio.run(queries.fetch_application(db, APPLICANT, JOB)) is None
+    sql = db.sql()
+    assert "job_applications.applicant_id = %(applicant_id_1)s::UUID" in sql
+    assert "job_applications.job_id = %(job_id_1)s::UUID" in sql
+
+
+def test_list_filters_by_stage_newest_first():
+    db = Recorder()
+    asyncio.run(queries.fetch_applications(db, APPLICANT, [application_stage.queued]))
+    sql = db.sql()
+    assert "job_applications.stage IN" in sql
+    assert "ORDER BY job_applications.created_at DESC" in sql
+
+
+def test_set_stage_applied_keeps_the_first_date():
+    db = Recorder()
+    asyncio.run(queries.set_stage(db, APPLICANT, JOB, application_stage.applied))
+    assert "applied_at=coalesce(job_applications.applied_at, now())" in db.sql()
+
+
+def test_set_stage_skipped_leaves_the_date():
+    db = Recorder()
+    asyncio.run(queries.set_stage(db, APPLICANT, JOB, application_stage.skipped))
+    assert "applied_at" not in db.sql()
+
+
+def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():
+    db = Recorder(scalar=JOB)  # the job is listed
+    asyncio.run(applications.mark_applied(db, APPLICANT, JOB))
+    sql = db.sql(1)  # after the "is it listed" read
+    assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = %(param_1)s" in sql
+    assert "WHERE job_applications.applied_at IS NULL" in sql
+
+
+def test_the_feed_hides_applied_jobs_only():
+    (clause,) = matching(JobFilters(applied_by=APPLICANT))
+    assert "job_applications.stage = 'applied'" in _sql(clause)
+
+
+def test_matches_hide_every_job_with_an_application():
+    (clause,) = matching(JobFilters(no_application_by=APPLICANT))
+    sql = _sql(clause)
+    assert sql.startswith("NOT (EXISTS (SELECT")
+    assert "stage" not in sql

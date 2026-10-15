@@ -12,9 +12,10 @@ import {
  * The job postings the seeker queued with Auto Apply, from a job card or a
  * job posting page, for the Auto Apply page's Live Activity to show.
  *
- * IT LIVES IN THE BROWSER UNTIL THE API HOLDS THE QUEUE. The `applications`
- * table and its routes (auto-apply/architecture.md, "API routes") replace
- * it; then Auto Apply becomes a POST and this file goes. Until then it is
+ * IT LIVES IN THE BROWSER UNTIL THE WEBAPP CALLS THE API'S QUEUE. The API
+ * holds it now (job_applications.stage, auto-apply/architecture.md, "API
+ * routes"); once Auto Apply POSTs to /applicants/{id}/applications and Live
+ * Activity reads it back, this file goes. Until then it is
  * kept in localStorage, so a reload and a return the next day still find it.
  *
  * ONE QUEUE PER ACCOUNT: the key carries the account id, which the seeker

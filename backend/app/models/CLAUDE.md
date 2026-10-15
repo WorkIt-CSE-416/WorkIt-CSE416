@@ -629,11 +629,13 @@ then contract: it must be applied only **after** the code that stopped
 reading and writing the columns is deployed (`../../CLAUDE.md`, Commands).
 Its downgrade puts the columns back empty; the old import refills them.
 
-## job_applications — the jobs an applicant applied to (KAN-232)
+## job_applications — each applicant's application to each job (KAN-232, KAN-223)
 
-`applications.py`: one row per (applicant, job), set by the Applied button
-(`routers/applications.py`); GET /jobs leaves those jobs out for that
-applicant (`JobFilters.applied_by`, a `NOT EXISTS`). Rules:
+`applications.py`: one row per (applicant, job). The Applied button
+(`routers/applications.py`) writes it `applied`; auto apply
+(`app/auto_apply/`) writes it `queued` and moves it on. GET /jobs leaves out
+that applicant's `applied` jobs (`JobFilters.applied_by`, a `NOT EXISTS`);
+auto apply's matches leave out every stage (`no_application_by`). Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants
@@ -644,9 +646,25 @@ applicant (`JobFilters.applied_by`, a `NOT EXISTS`). Rules:
   `job_applications_job_idx` serves "who applied to this job".
 - **CASCADE from both sides**: deleting the account or the job deletes the
   row. A closed job keeps its rows, since closing is a status, not a delete.
-- **A second mark keeps the first `applied_at`** (`ON CONFLICT DO NOTHING`).
-- A status, the resume sent or an undo are not built. A status becomes a
-  column here, not a second table.
+- **`stage` is the status** (`dto.application_stage`: `queued`,
+  `needs_you`, `skipped`, `applied`; `c0467afe819c`), a column here rather
+  than a second table, so one row is one application. `created_at` orders
+  the queue.
+- **`applied_at` is NULL until the applicant applies**, and the
+  `job_applications_applied_dated` CHECK keeps an `applied` row dated.
+- **The defaults (`stage` `applied`, `applied_at` `now()`) are for applied
+  inserts**, so the code from before stages kept working whichever came
+  first, the migration or the deploy. A queued insert must name both: its
+  stage, and `applied_at` NULL (`auto_apply/queries.py`), or the default
+  dates a job nobody applied to.
+- **The Applied button upserts**: a queued, skipped or needs_you row becomes
+  applied; an applied row keeps its first `applied_at` (`ON CONFLICT DO
+  UPDATE ... WHERE applied_at IS NULL`).
+- **Apply `c0467afe819c` right after merging.** Until then the deployed
+  code's queue routes and stage filters fail on the missing column; the
+  Applied button keeps working either way.
+- The resume sent and an undo are not built. The tracker's later stages
+  (interviewing, offer) are Out of scope below.
 
 ## Identity lives in auth.users
 
