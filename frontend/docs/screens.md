@@ -88,7 +88,7 @@ was; a fresh arrival at the list's page (a sidebar link, a reload) drops them
 and starts at the first 50.
 
 Every seeker page goes back to where it was scrolled on a return: the browser's
-Back or Forward, or "Back to Jobs" (restoreScrollOn). (seeker)/scroll-memory.tsx
+Back or Forward, or a job page's "Back" (restoreScrollOn). (seeker)/scroll-memory.tsx
 keeps each address's position, since the shell scrolls its <main> and not the
 window, so the browser can't; a page reached any other way starts at the top.
 
@@ -113,11 +113,11 @@ Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
 Now on the page and the card alike (`src/components/auto-apply-button.tsx`):
 Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
 the job posting for the Auto Apply page and the button turns to Queued, off,
-so it is never queued twice (see Auto Apply, below). Back to Jobs returns to the feed the seeker came from,
-filters and all (`RememberFeed` on /jobs and /search keeps it in
-sessionStorage). Opened from the Auto Apply page, which renders
-`RememberFeed` too, it reads Back to Auto Apply and goes there: the last of
-the three pages visited wins.
+so it is never queued twice (see Auto Apply, below). Back returns to the list the seeker came from: the feed, filters and all, or
+the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
+the last one visited in sessionStorage). It says only "Back", whatever the
+list: the server cannot read sessionStorage, so a label naming the list
+would change a moment after the page loads.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and

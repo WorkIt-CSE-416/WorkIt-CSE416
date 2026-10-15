@@ -8,7 +8,7 @@ import { forgetFeedPages } from "./jobs/feed-pages";
 /**
  * Puts a seeker page back where it was scrolled when the seeker comes back to
  * it: by the browser's Back or Forward, or by a link that means "back"
- * (restoreScrollOn, which "Back to Jobs" calls). A browser does this by
+ * (restoreScrollOn, which a job page's "Back" calls). A browser does this by
  * itself for a page that scrolls the window, but the seeker shell scrolls its
  * page panel instead (the <main>, ./layout.tsx), so without this every return
  * landed at the top: a seeker forty roles down the feed who opened one and
@@ -58,7 +58,7 @@ function remember(key: string, top: number) {
 }
 
 /** Has the next arrival at `href` scroll back to where it was: for a link
- *  that goes back by navigating forward ("Back to Jobs"), which the browser
+ *  that goes back by navigating forward (a job page's "Back"), which the browser
  *  doesn't count as Back. */
 export function restoreScrollOn(href: string) {
   try {
