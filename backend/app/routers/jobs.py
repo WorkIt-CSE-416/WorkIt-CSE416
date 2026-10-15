@@ -63,7 +63,20 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import StringConstraints
-from sqlalchemy import select
+from sqlalchemy import (
+    ColumnElement,
+    Row,
+    and_,
+    case,
+    distinct,
+    exists,
+    func,
+    literal,
+    literal_column,
+    or_,
+    select,
+)
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
@@ -95,6 +108,16 @@ from app.schemas.jobs import (
     JobRoleOption,
     ScoredJob,
 )
+from app.services.company_resolver import CompanyResolver
+from app.services.matching.highlights import generate_highlights
+from app.services.matching.scoring import (
+    compute_breakdown,
+    eligibility,
+    experience_years,
+    freshness,
+    title_fit,
+)
+from app.services.role_resolver import ALIASES, RoleResolver, raw_words, title_pattern
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -246,7 +269,8 @@ async def recommended_jobs(
 ) -> list[ScoredJob]:
     """Jobs scored against the applicant's default resume. Returns `match`
     (0-100) and up to 3 `highlights`. Jobs without embeddings still appear,
-    scored on other components."""
+    scored on other components. Includes score_breakdown with effective weights,
+    component points before freshness, and the final rounded score."""
     assert_applicant_owns(account, applicant_id)
 
     # Load the default resume
@@ -263,7 +287,91 @@ async def recommended_jobs(
 
     parsed = ParsedResume.model_validate(resume_row.parsed_json)
 
-    scored = await score_jobs(db, resume_row, parsed, filters)
+    # Embed resume on demand if missing
+    resume_embedding = resume_row.embedding
+    if resume_embedding is None:
+        from app.services.matching.embeddings import embed, resume_text
+        text = resume_text(parsed)
+        if text:
+            vectors = await embed([text])
+            if vectors:
+                resume_row.embedding = vectors[0]
+                resume_embedding = vectors[0]
+                try:
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+
+    # Deduplicate case-insensitively so repeated skills cannot change the score.
+    skills = list({s.skill_name.strip().casefold(): s.skill_name.strip()
+                   for s in parsed.skills if s.skill_name.strip()}.values())
+
+    # Query with scoring columns
+    score_columns = list(_COLUMNS)
+
+    # Semantic similarity: 1 - cosine_distance
+    if resume_embedding is not None:
+        semantic_col = (
+            literal(1.0) - Job_Post.embedding.cosine_distance(resume_embedding)
+        ).label("semantic")
+    else:
+        semantic_col = literal(None).label("semantic")
+    score_columns.append(semantic_col)
+
+    # Match skills independently, so partial coverage earns credit. This is
+    # independent of other results and remains stable when filters change.
+    if skills:
+        skill_matches = array([
+            case((Job_Post.fts.bool_op("@@")(
+                func.plainto_tsquery("english", skill)
+            ), literal(skill)), else_=None)
+            for skill in skills
+        ]).label("matched_skills")
+    else:
+        skill_matches = literal(None).label("matched_skills")
+    score_columns.append(skill_matches)
+
+    # posted_at for freshness
+    score_columns.append(Job_Post.posted_at.label("_posted_at"))
+
+    query = select(*score_columns).where(_LISTED, *matching(filters))
+    rows = (await db.execute(query)).all()
+
+    now = datetime.datetime.now(datetime.UTC)
+    resume_titles = [e.title for e in parsed.experience]
+    field_of_study = next(
+        (e.field_of_study for e in parsed.education if e.field_of_study), None
+    )
+    years_exp = experience_years(parsed.experience, today=now.date())
+
+    scored: list[ScoredJob] = []
+    for row in rows:
+        semantic_val = row.semantic
+        matched_skills = [skill for skill in (row.matched_skills or []) if skill is not None]
+        skill_norm = len(matched_skills) / len(skills) if skills else 0.0
+        t_fit = title_fit(row.title, resume_titles, field_of_study)
+        days_old = (now - row._posted_at).total_seconds() / 86400 if row._posted_at else 30.0
+        fresh = freshness(days_old)
+        elig = eligibility(
+            None, row.start_term, row.min_years_experience, years_exp
+        )
+        breakdown = compute_breakdown(semantic_val, skill_norm, t_fit, elig, fresh)
+        highlights = generate_highlights(
+            row.title, row.min_years_experience, row.start_term,
+            parsed, semantic_val, skill_norm, t_fit, elig,
+            matched_skills=matched_skills,
+        )
+
+        listing = to_listing(row)
+        scored.append(ScoredJob(
+            **listing.model_dump(),
+            match=breakdown.final_score,
+            score_breakdown=breakdown,
+            highlights=[Highlight(**h) for h in highlights],
+        ))
+
+    # Sort by score descending, then apply offset/limit
+    scored.sort(key=lambda s: (-s.match, -s.score_breakdown.score_before_rounding, s.id))
     return scored[offset:offset + limit]
 
 
