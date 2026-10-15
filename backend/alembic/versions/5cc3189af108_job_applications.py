@@ -1,7 +1,7 @@
 """job applications
 
 Revision ID: 5cc3189af108
-Revises: 824f0b2e3d84
+Revises: bb8c9c6dee0b
 Create Date: 2026-10-15 12:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '5cc3189af108'
-down_revision: Union[str, Sequence[str], None] = '824f0b2e3d84'
+down_revision: Union[str, Sequence[str], None] = 'bb8c9c6dee0b'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

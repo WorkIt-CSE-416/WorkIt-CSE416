@@ -534,7 +534,11 @@ free tier). Render with a Dockerfile is the fallback.
   it.** Every `GET /jobs` sent with an applicant's token queries that table, so
   deploying first makes the Jobs page answer 500 for every signed-in
   applicant. The new table is unused by the running code, so applying it early
-  is safe.
+  is safe. It comes after the resume builder's `bb8c9c6dee0b`, not before: the
+  shared database already held that chain when KAN-232 merged without its
+  table, so this order lets `upgrade head` still create it there. A local
+  database that applied `5cc3189af108` first reads the resume builder's tables
+  as applied; recreate it from `upgrade head`.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
