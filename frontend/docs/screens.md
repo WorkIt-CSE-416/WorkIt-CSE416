@@ -87,6 +87,15 @@ only when there is more. Loaded pages are kept for a return (jobs/feed-pages.ts:
 was; a fresh arrival at the list's page (a sidebar link, a reload) drops them
 and starts at the first 50.
 
+Clearing the search field on /search with its cross (or Escape) ends the
+search: the page goes back to /jobs as the seeker last saw it, filters, Load
+More pages and scroll place and all (KAN-228, asked for 2026-10-13). A search
+from the top bar sends only ?q, so the filters set on /jobs before it come
+from RememberFeed's own copy of /jobs's address, not from /search's. Deleting
+the text by typing does not leave: the field's cross is told apart by its
+input event having no inputType (search/query-field.tsx), so backspacing to
+type a new search stays on the results.
+
 Every seeker page goes back to where it was scrolled on a return: the browser's
 Back or Forward, or "Back to Jobs" (restoreScrollOn). (seeker)/scroll-memory.tsx
 keeps each address's position, since the shell scrolls its <main> and not the

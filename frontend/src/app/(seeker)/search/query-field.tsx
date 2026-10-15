@@ -1,9 +1,12 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type ChangeEventHandler } from "react";
 
 import { SearchField } from "@/components/ui/search-field";
+
+import { rememberedJobs } from "../jobs/[jobId]/page-actions";
+import { restoreScrollOn } from "../scroll-memory";
 
 /**
  * The job search field, holding the query this page was searched with. The
@@ -20,6 +23,13 @@ import { SearchField } from "@/components/ui/search-field";
  * shell stays mounted across a search, so the field the seeker just pressed
  * Enter in keeps its focus and caret while the results arrive, and leaving
  * /search clears it.
+ *
+ * Clearing it on /search with the field's cross (or Escape) ends the search:
+ * the page goes back to the Jobs list from before it, filters, Load More
+ * pages and scroll place and all, as "Back to Jobs" does (asked for
+ * 2026-10-13, KAN-228). Only the cross: it empties the field with an input
+ * event that has no inputType, which typing and deleting always carry, so
+ * backspacing to nothing to type a new search stays on the results.
  */
 export function QueryField({ id, autoFocus }: { id: string; autoFocus?: boolean }) {
   /* useSearchParams suspends on a prerendered route, and a build fails without
@@ -36,6 +46,7 @@ export function QueryField({ id, autoFocus }: { id: string; autoFocus?: boolean 
 function FieldWithQuery({ id, autoFocus }: { id: string; autoFocus?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const query = pathname === "/search" ? (searchParams.get("q") ?? "") : "";
 
   const [value, setValue] = useState(query);
@@ -50,7 +61,15 @@ function FieldWithQuery({ id, autoFocus }: { id: string; autoFocus?: boolean }) 
       id={id}
       autoFocus={autoFocus}
       value={value}
-      onChange={(event) => setValue(event.target.value)}
+      onChange={(event) => {
+        setValue(event.target.value);
+        const cleared = !(event.nativeEvent as InputEvent).inputType;
+        if (pathname === "/search" && event.target.value === "" && cleared) {
+          const jobs = rememberedJobs();
+          restoreScrollOn(jobs);
+          router.push(jobs);
+        }
+      }}
     />
   );
 }

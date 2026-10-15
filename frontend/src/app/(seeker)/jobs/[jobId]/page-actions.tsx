@@ -12,24 +12,41 @@ import { restoreScrollOn } from "../../scroll-memory";
 
 /** Where the feed was last seen this session, filters and all. */
 const FEED_KEY = "workit:feed";
+/** Where /jobs itself was last seen, for clearing a search (rememberedJobs). */
+const JOBS_KEY = "workit:jobs";
 
 /**
  * Remembers the feed's URL (/jobs or /search, with its filters and query) for
- * the session, so a job's page can go back to exactly that list. Rendered by
- * the feed pages; draws nothing. sessionStorage can be off (a private
- * window), so a failure just leaves "Back to Jobs" at plain /jobs.
+ * the session, so a job's page can go back to exactly that list, and /jobs's
+ * own on its own, so clearing a search can go back to the list from before
+ * it. Rendered by the feed pages; draws nothing. sessionStorage can be off (a
+ * private window), so a failure just leaves both at plain /jobs.
  */
 export function RememberFeed() {
   const pathname = usePathname();
   const query = useSearchParams().toString();
   useEffect(() => {
+    const href = query ? `${pathname}?${query}` : pathname;
     try {
-      sessionStorage.setItem(FEED_KEY, query ? `${pathname}?${query}` : pathname);
+      sessionStorage.setItem(FEED_KEY, href);
+      if (pathname === "/jobs") sessionStorage.setItem(JOBS_KEY, href);
     } catch {
       /* the back link falls back to /jobs */
     }
   }, [pathname, query]);
   return null;
+}
+
+/** /jobs as the seeker last saw it this session, filters and all; plain /jobs
+ *  if they haven't been there. */
+export function rememberedJobs(): string {
+  try {
+    const jobs = sessionStorage.getItem(JOBS_KEY);
+    if (jobs && /^\/jobs(\?|$)/.test(jobs)) return jobs;
+  } catch {
+    /* storage off: plain /jobs */
+  }
+  return "/jobs";
 }
 
 /** The feed URL remembered this session, if it is one; /jobs otherwise. */
