@@ -19,8 +19,8 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 
 | Component | How | Status |
 |---|---|---|
-| Semantic similarity | Nomic embeddings of the posting and of the resume's parsed sections, compared in Postgres (`1 - (job.embedding <=> resume.embedding)`) | Built — `scoring.py`, queried in `routers/jobs.py` |
-| Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `routers/jobs.py` |
+| Semantic similarity | Nomic embeddings of the posting and of the resume's parsed sections, compared in Postgres (`1 - (job.embedding <=> resume.embedding)`) | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
+| Skill overlap | The applicant's own listed skills searched for in each posting (`ts_rank(fts, plainto_tsquery(skills))`) normalized by max rank | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
 | Title fit | Word overlap between the job title and the applicant's titles and field of study, stop words removed | Built — `scoring.py` `title_fit()` |
 | Eligibility | Years of experience check; a multiplier (1.0 / 0.5 / 0.0) | Built — `scoring.py` `eligibility()` |
 | Freshness | `max(0.7, 1.0 - days_old / 300)` — newer postings rank higher, old ones don't drop below 70% | Built — `scoring.py` `freshness()` |
@@ -108,8 +108,10 @@ strong semantic fit (positive), then years mismatch and start term mismatch
 ## Recommendations — `fetch_recommended()` and `GET /jobs/recommended/{applicant_id}`
 
 Both in `routers/jobs.py`. `fetch_recommended(db, applicant_id, filters=,
-min_match=, limit=, offset=)` does the work and returns `list[ScoredJob]`,
-best first; the route checks ownership and calls it. Python code that needs
+min_match=, limit=, offset=)` loads the default resume, has
+`queries/jobs/recommendations.py`'s `score_jobs` score and sort the jobs,
+then applies `min_match` and the page; it returns `list[ScoredJob]`, best
+first. The route checks ownership and calls it. Python code that needs
 recommendations (auto apply's queue) calls the function, not the route. It
 checks no ownership itself, so its caller must.
 

@@ -295,7 +295,7 @@ assigns later. Never use it for Remote — that is `work_style` (above). A job
 remote from anywhere ("Remote", "Work Remotely") has `work_style = remote`
 and no `job_locations` rows: the resolver reads those words as no place, and
 the job board's location filter keeps such a job under every place
-(`unplaced_remote` in `routers/jobs.py`). Filing it under `ZZ` instead, as
+(`unplaced_remote` in `queries/jobs/filters.py`). Filing it under `ZZ` instead, as
 this said before, would have put it beside the roles in Peru and Colombia,
 hidden from a seeker picking United States all the same.
 The state is `ZZ-ZZ`, not `ZZ`, because the API requires a state code to be
@@ -629,6 +629,25 @@ then contract: it must be applied only **after** the code that stopped
 reading and writing the columns is deployed (`../../CLAUDE.md`, Commands).
 Its downgrade puts the columns back empty; the old import refills them.
 
+## job_applications — the jobs an applicant applied to (KAN-232)
+
+`applications.py`: one row per (applicant, job), set by the Applied button
+(`routers/applications.py`); GET /jobs leaves those jobs out for that
+applicant (`JobFilters.applied_by`, a `NOT EXISTS`). Rules:
+
+- **A join table, never an array of applicant ids on `job_postings`.**
+  Postgres can't foreign-key an array's elements, so deleted applicants
+  would linger in it; every apply would rewrite a job row the import also
+  upserts; and "jobs I applied to" would scan every job.
+- **The primary key `(applicant_id, job_id)`** stops a second row for one
+  job and serves the feed's filter, which leads with the applicant;
+  `job_applications_job_idx` serves "who applied to this job".
+- **CASCADE from both sides**: deleting the account or the job deletes the
+  row. A closed job keeps its rows, since closing is a status, not a delete.
+- **A second mark keeps the first `applied_at`** (`ON CONFLICT DO NOTHING`).
+- A status, the resume sent or an undo are not built. A status becomes a
+  column here, not a second table.
+
 ## Identity lives in auth.users
 
 Supabase Auth owns credentials (`../../CLAUDE.md`'s Auth section). **No table
@@ -685,8 +704,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 These belong to later tickets and should not be added here:
 
-- Jobs, applications, pipeline stages, interviews, offers, resume scores. ATS
-  clones model all of them; `../../../docs/job_posting.md` starts that work.
+- Pipeline stages, interviews, offers, resume scores. ATS clones model all of
+  them; `../../../docs/job_posting.md` starts that work. Jobs and the
+  applied mark (`job_applications`, above) exist now.
 - Resume storage and parsing — implemented in `resume.py` (model) and
   `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`
   for design rationale.

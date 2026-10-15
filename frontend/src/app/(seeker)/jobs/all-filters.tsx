@@ -677,7 +677,7 @@ function SearchPicker({
  *  the minimum for the career stage picked (hourly for internships, yearly for
  *  new grads, both otherwise) and leave the maximum open; the fields take any
  *  figures, either end left empty. A posting matches when its own pay range
- *  overlaps this one, whatever unit it was posted in (routers/jobs.py). */
+ *  overlaps this one, whatever unit it was posted in (backend queries/jobs/filters.py). */
 function SalaryPicker({
   levels,
   minPay,

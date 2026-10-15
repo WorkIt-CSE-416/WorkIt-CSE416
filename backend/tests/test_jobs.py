@@ -17,23 +17,16 @@ from app.db import get_session
 from app.deps import get_current_account
 from app.main import app
 from app.models import dto
-from app.routers.jobs import (
-    YEARLY,
-    JobFilters,
-    NoResume,
-    fetch_recommended,
-    location_options,
-    matching,
-    offered_in,
-    query_facts,
-    season_is_over,
-    season_of,
-    to_listing,
-)
+from app.queries.jobs.facets import location_options
+from app.queries.jobs.filters import YEARLY, JobFilters, matching, offered_in
+from app.queries.jobs.listings import to_listing
+from app.routers.jobs import NoResume, fetch_recommended
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
 from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import RoleResolver, raw_words
+from app.services.search_facts import query_facts
+from app.services.start_terms import season_is_over, season_of
 from tests.test_role_resolver import ROLES
 
 ROW = SimpleNamespace(
@@ -69,14 +62,14 @@ def no_database(monkeypatch):
     async def role_resolver(db):
         return resolver
 
-    monkeypatch.setattr("app.routers.jobs.role_resolver", role_resolver)
+    monkeypatch.setattr("app.queries.jobs.search.role_resolver", role_resolver)
     # The company names ?q= is read against; a fixed list, not the database's.
     companies = CompanyResolver(["Stripe", "Jump Trading", "Bedrock Robotics", "SpaceX", "Palantir"])
 
     async def company_resolver(db):
         return companies
 
-    monkeypatch.setattr("app.routers.jobs.company_resolver", company_resolver)
+    monkeypatch.setattr("app.queries.jobs.search.company_resolver", company_resolver)
     yield
     app.dependency_overrides.clear()
 
@@ -911,23 +904,19 @@ def test_the_named_paths_are_not_read_as_ids(no_database, monkeypatch):
 
 class _RecommendSession:
     '''
-    the two reads fetch_recommended makes, stood in for: the profile and its
-    default resume, then the listed jobs with their scoring columns
+    the two reads fetch_recommended makes before scoring, stood in for: the
+    profile, then its default resume
     '''
 
-    def __init__(self, rows, default_resume=True):
-        self.rows = rows
+    def __init__(self, default_resume=True):
         self.default_resume_id = uuid.uuid4() if default_resume else None
-        self.resume = SimpleNamespace(parsed_json={}, embedding=[0.0] * dto.EMBEDDING_DIMENSIONS)
+        self.resume = SimpleNamespace(parsed_json={}, embedding=None)
 
     async def get(self, model, key):
         return SimpleNamespace(default_resume_id=self.default_resume_id)
 
     async def execute(self, query):
-        if self.resume is not None:
-            resume, self.resume = self.resume, None
-            return SimpleNamespace(scalar_one_or_none=lambda: resume)
-        return SimpleNamespace(all=lambda: self.rows)
+        return SimpleNamespace(scalar_one_or_none=lambda: self.resume)
 
 
 SCORES = {"Strong": 82, "Borderline": 60, "Weak": 41}
@@ -935,36 +924,34 @@ SCORES = {"Strong": 82, "Borderline": 60, "Weak": 41}
 
 @pytest.fixture
 def scored_by_title(monkeypatch):
-    '''three listed jobs, each scored by its title, so a test reads what
-    fetch_recommended does with the scores, not the weights'''
-    monkeypatch.setattr(
-        "app.routers.jobs.title_fit", lambda title, titles, field: SCORES[title]
-    )
-    monkeypatch.setattr(
-        "app.routers.jobs.compute_score", lambda semantic, skill, title, elig, fresh: title
-    )
-    return [
-        SimpleNamespace(**{**vars(ROW), "id": uuid.uuid4(), "title": title, "semantic": 0.5,
-                           "skill_rank": 0.1, "_posted_at": ROW.posted_at})
-        for title in SCORES
+    '''three jobs as score_jobs returns them, best first, so a test reads
+    what fetch_recommended does with the scores, not the weights'''
+    jobs = [
+        SimpleNamespace(id=str(uuid.uuid4()), title=title, match=match)
+        for title, match in SCORES.items()
     ]
+
+    async def score_jobs(db, resume_row, parsed, filters):
+        return list(jobs)
+
+    monkeypatch.setattr("app.routers.jobs.score_jobs", score_jobs)
 
 
 def test_recommended_comes_best_first(scored_by_title):
-    jobs = asyncio.run(fetch_recommended(_RecommendSession(scored_by_title), uuid.uuid4()))
+    jobs = asyncio.run(fetch_recommended(_RecommendSession(), uuid.uuid4()))
     assert [j.match for j in jobs] == [82, 60, 41]
 
 
 def test_recommended_leaves_out_matches_under_min_match(scored_by_title):
     jobs = asyncio.run(
-        fetch_recommended(_RecommendSession(scored_by_title), uuid.uuid4(), min_match=60)
+        fetch_recommended(_RecommendSession(), uuid.uuid4(), min_match=60)
     )
     assert [j.title for j in jobs] == ["Strong", "Borderline"]
 
 
 def test_recommended_needs_a_default_resume():
     with pytest.raises(NoResume):
-        asyncio.run(fetch_recommended(_RecommendSession([], default_resume=False), uuid.uuid4()))
+        asyncio.run(fetch_recommended(_RecommendSession(default_resume=False), uuid.uuid4()))
 
 
 def test_recommended_route_passes_min_match_and_answers_404(no_database, monkeypatch):

@@ -18,9 +18,9 @@ import { cn } from "@/lib/cn";
 import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
 import { ListingsError, listingFacts, queuedJobOf } from "../listing-card";
-import { getJobListing, type JobListing } from "../listings";
+import { getApplied, getJobListing, type JobListing } from "../listings";
 import { JobDescription } from "./description";
-import { BackToJobs, ShareButton } from "./page-actions";
+import { AppliedButton, BackToJobs, ShareButton } from "./page-actions";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
@@ -48,13 +48,16 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  *
  * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
  * about this role, Share copies the page's link, Auto Apply queues it for the
- * Auto Apply page, as on the card. Save and Report are still inert, as on the
+ * Auto Apply page, as on the card. Applied, last in the row (the header's top
+ * right), is a signed-in applicant's own record that they applied (KAN-232):
+ * it becomes "Applied at 10/15/2026" and the job leaves their feed. Anyone
+ * else gets no Applied button. Save and Report are still inert, as on the
  * card (KAN-65 makes saving real). No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const { job, error } = await getJobListing(jobId);
+  const [{ job, error }, applied] = await Promise.all([getJobListing(jobId), getApplied(jobId)]);
 
   if (error != null) {
     return (
@@ -105,6 +108,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
               <ExternalLinkIcon className="size-4" />
               <span className="sr-only"> (opens in a new tab)</span>
             </ButtonLink>
+            {applied && <AppliedButton jobId={job.id} appliedAt={applied.appliedAt} />}
           </>
         }
       />

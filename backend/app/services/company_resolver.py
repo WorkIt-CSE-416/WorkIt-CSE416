@@ -1,7 +1,7 @@
 '''
 Finds the companies a search names: "jump trading quant intern" names Jump
 Trading. Pure: no database, no network. The API builds one CompanyResolver
-from the company names the listed jobs hold (routers/jobs.py,
+from the company names the listed jobs hold (queries/jobs/search.py,
 company_resolver) and refreshes it every few minutes, since an import every
 three hours adds and drops companies; there is no list to keep by hand and no
 table, as each job already has its company_name. docs/search.md has the

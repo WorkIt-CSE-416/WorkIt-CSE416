@@ -35,7 +35,7 @@ from app.db import get_session
 from app.deps import get_current_account
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
-from app.routers.jobs import fetch_listing
+from app.queries.jobs.listings import fetch_listing
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter(prefix="/scout", tags=["scout"])
