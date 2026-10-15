@@ -2,6 +2,7 @@ import { Flag } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { AutoApplyButton } from "@/components/auto-apply-button";
 import { CompanyLogo } from "@/components/company-logo";
 import { ExternalLinkIcon } from "@/components/icons";
 import type { JobPosting } from "@/components/job-detail/data";
@@ -46,8 +47,8 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
  * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
- * about this role, Share copies the page's link. Save and Report are still
- * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
+ * about this role, Share copies the page's link. Auto Apply, Save and Report
+ * are still inert, as on the card (KAN-65 makes saving real). No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
@@ -91,6 +92,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             </IconButton>
             <ShareButton title={job.title} />
             <AskScoutButton id={job.id} title={job.title} company={job.company} />
+            <AutoApplyButton />
             <ButtonLink
               href={job.apply_url}
               target="_blank"

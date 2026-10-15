@@ -1,12 +1,13 @@
-import { Ban, CloudOff, Zap } from "lucide-react";
+import { Ban, CloudOff } from "lucide-react";
 
+import { AutoApplyButton } from "@/components/auto-apply-button";
 import { AutofillBadge } from "@/components/autofill-badge";
 import { ExternalLinkIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { SaveButton } from "@/components/save-button";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
+import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
@@ -94,13 +95,7 @@ export function ListingCard({ job }: { job: JobListing }) {
 
           <AskScoutButton id={job.id} title={job.title} company={job.company} />
 
-          {/* Ask Scout's design, with the sidebar's Auto Apply glyph. Inert
-              until a single job posting can be queued (KAN-223,
-              auto-apply/architecture.md). */}
-          <Button variant="secondary" size="sm">
-            <Zap className="size-4" />
-            Auto Apply
-          </Button>
+          <AutoApplyButton />
 
           {/* Leaves for the employer's own posting, so the glyph says so and
               a screen reader hears it. On a card under 384px (a phone) the

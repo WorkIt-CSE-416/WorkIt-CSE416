@@ -109,9 +109,10 @@ list), and a description the scraper cut at 8,000 characters (it ends " …")
 says so and links to the whole posting. Apply Now leaves for the employer's
 posting, Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. The card's own row has Not Interested, Save, Ask
-Scout, Auto Apply and Apply Now; Auto Apply wears Ask Scout's secondary
-design with the sidebar's Zap glyph, and stays inert until the API can queue
-one job posting (`auto-apply/architecture.md`). Back to Jobs returns to the feed the seeker came from,
+Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
+Now on the page and the card alike (`src/components/auto-apply-button.tsx`):
+Ask Scout's secondary design with the sidebar's Zap glyph, inert until the
+API can queue one job posting (`auto-apply/architecture.md`). Back to Jobs returns to the feed the seeker came from,
 filters and all (`RememberFeed` on /jobs and /search keeps it in
 sessionStorage).
 A live card's location is the import's `location_label` where it has one
