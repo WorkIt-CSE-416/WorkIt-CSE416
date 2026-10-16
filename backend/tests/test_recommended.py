@@ -39,7 +39,7 @@ def gemini(monkeypatch):
     """Stands in for Gemini: records each text sent and answers one vector."""
     sent: list[str] = []
 
-    async def embed(texts):
+    async def embed(texts, *, timeout=None):
         sent.extend(texts)
         return [VECTOR for _ in texts]
 
