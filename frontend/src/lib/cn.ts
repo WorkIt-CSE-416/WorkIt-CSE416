@@ -46,6 +46,8 @@ const twMerge = extendTailwindMerge({
         "swing",
         "typing",
         "status-ping",
+        "arrive",
+        "leave",
       ],
     },
     classGroups: {
@@ -62,6 +64,7 @@ const twMerge = extendTailwindMerge({
             "heading",
             "display",
             "figure",
+            "hero",
           ],
         },
       ],
