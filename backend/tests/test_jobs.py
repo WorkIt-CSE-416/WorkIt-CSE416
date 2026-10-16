@@ -8,6 +8,7 @@ import asyncio
 import datetime
 import uuid
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,7 +21,7 @@ from app.models import dto
 from app.queries.jobs.facets import location_options
 from app.queries.jobs.filters import YEARLY, JobFilters, matching, offered_in
 from app.queries.jobs.listings import to_listing
-from app.routers.jobs import NoResume, fetch_recommended
+from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
 from app.services.company_resolver import CompanyResolver
@@ -902,21 +903,12 @@ def test_the_named_paths_are_not_read_as_ids(no_database, monkeypatch):
     assert TestClient(app).get("/jobs/count").json() == {"jobs": 0}
 
 
-class _RecommendSession:
-    '''
-    the two reads fetch_recommended makes before scoring, stood in for: the
-    profile, then its default resume
-    '''
+ACCOUNT = SimpleNamespace(id=uuid.uuid4())
 
-    def __init__(self, default_resume=True):
-        self.default_resume_id = uuid.uuid4() if default_resume else None
-        self.resume = SimpleNamespace(parsed_json={}, embedding=None)
 
-    async def get(self, model, key):
-        return SimpleNamespace(default_resume_id=self.default_resume_id)
-
-    async def execute(self, query):
-        return SimpleNamespace(scalar_one_or_none=lambda: self.resume)
+def _bank(empty=False):
+    '''a bank as load_bank returns it: one skill, or nothing at all'''
+    return SimpleNamespace(entries=[], skills=[] if empty else ["Python"])
 
 
 SCORES = {"Strong": 82, "Borderline": 60, "Weak": 41}
@@ -931,27 +923,27 @@ def scored_by_title(monkeypatch):
         for title, match in SCORES.items()
     ]
 
-    async def score_jobs(db, resume_row, parsed, filters):
+    async def score_jobs(db, account, bank, filters):
         return list(jobs)
 
+    monkeypatch.setattr("app.routers.jobs.load_bank", AsyncMock(return_value=_bank()))
     monkeypatch.setattr("app.routers.jobs.score_jobs", score_jobs)
 
 
 def test_recommended_comes_best_first(scored_by_title):
-    jobs = asyncio.run(fetch_recommended(_RecommendSession(), uuid.uuid4()))
+    jobs = asyncio.run(fetch_recommended(None, ACCOUNT))
     assert [j.match for j in jobs] == [82, 60, 41]
 
 
 def test_recommended_leaves_out_matches_under_min_match(scored_by_title):
-    jobs = asyncio.run(
-        fetch_recommended(_RecommendSession(), uuid.uuid4(), min_match=60)
-    )
+    jobs = asyncio.run(fetch_recommended(None, ACCOUNT, min_match=60))
     assert [j.title for j in jobs] == ["Strong", "Borderline"]
 
 
-def test_recommended_needs_a_default_resume():
-    with pytest.raises(NoResume):
-        asyncio.run(fetch_recommended(_RecommendSession(default_resume=False), uuid.uuid4()))
+def test_recommended_needs_a_bank(monkeypatch):
+    monkeypatch.setattr("app.routers.jobs.load_bank", AsyncMock(return_value=_bank(empty=True)))
+    with pytest.raises(EmptyBank):
+        asyncio.run(fetch_recommended(None, ACCOUNT))
 
 
 def test_recommended_route_passes_min_match_and_answers_404(no_database, monkeypatch):
@@ -965,13 +957,13 @@ def test_recommended_route_passes_min_match_and_answers_404(no_database, monkeyp
     app.dependency_overrides[get_current_account] = lambda: account
     seen = {}
 
-    async def fetch(db, applicant_id, **kwargs):
-        seen.update(kwargs, applicant_id=applicant_id)
-        raise NoResume("No default resume set")
+    async def fetch(db, account, **kwargs):
+        seen.update(kwargs, account=account)
+        raise EmptyBank("Your experience bank is empty")
 
     monkeypatch.setattr("app.routers.jobs.fetch_recommended", fetch)
     url = f"/jobs/recommended/{account.id}"
     res = TestClient(app).get(url, params={"min_match": 60})
-    assert (res.status_code, res.json()["detail"]) == (404, "No default resume set")
-    assert (seen["applicant_id"], seen["min_match"]) == (account.id, 60)
+    assert (res.status_code, res.json()["detail"]) == (404, "Your experience bank is empty")
+    assert (seen["account"], seen["min_match"]) == (account, 60)
     assert TestClient(app).get(url, params={"min_match": 101}).status_code == 422

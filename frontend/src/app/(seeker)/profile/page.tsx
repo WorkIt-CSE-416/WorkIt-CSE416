@@ -28,25 +28,14 @@ import { ResumeUpload } from "@/components/resume-upload";
 import {
   uploadResume,
   deleteResume,
-<<<<<<< HEAD
-  getParsedResume,
-=======
-  getResumeFileUrl,
->>>>>>> origin
   listResumes,
   setPrimaryResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
-<<<<<<< HEAD
-import { EMPTY_RESUME, ResumeEditDialog, type SectionKey } from "./resume-edit-dialog";
+import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { RESUME_ROW, ResumeRow } from "@/components/resume-row";
 import { previewResume } from "@/lib/preview-resume";
-import { ExperienceSection, SkillsSection } from "./resume-sections";
-=======
-import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { RESUME_ROW, ResumeRow } from "./resume-row";
->>>>>>> origin
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
 import { SEEKER_GUTTER } from "../gutter";

@@ -26,6 +26,7 @@ from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import fetch_recommended
 from app.schemas.applications import Application
+from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
 
 # The lowest score auto apply takes ("Match (built)"). It moves with the
@@ -56,7 +57,7 @@ class WrongStage(Exception):
 
 async def _matches(
     db: AsyncSession,
-    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount,
     filters: JobFilters,
     min_match: int,
     size: int,
@@ -64,10 +65,10 @@ async def _matches(
     """get_matches and start_batch's shared reading of the matches."""
     scored = await fetch_recommended(
         db,
-        applicant_id,
+        account,
         # Every job with an application at any stage stays out, so a batch
         # never queues a job twice, nor one the student skipped.
-        filters=dataclasses.replace(filters, no_application_by=applicant_id),
+        filters=dataclasses.replace(filters, no_application_by=account.id),
         min_match=min_match,
         # Every match, not a page: pick_batch drops repeats before it takes
         # `size`, and fetch_recommended scores every job whatever the limit.
@@ -78,7 +79,7 @@ async def _matches(
 
 async def get_matches(
     db: AsyncSession,
-    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount,
     *,
     filters: JobFilters = JobFilters(),
     min_match: int = MIN_MATCH,
@@ -91,15 +92,15 @@ async def get_matches(
 
     Leaves out every job posting the applicant has an application for (queued,
     skipped, needs_you or applied) and repeats of one company and title
-    (pick_batch). Raises NoResume (routers/jobs.py) when the applicant has no
-    parsed primary resume.
+    (pick_batch). Raises EmptyBank (routers/jobs.py) when the applicant's
+    experience bank is empty.
     """
-    return await _matches(db, applicant_id, filters, min_match, size)
+    return await _matches(db, account, filters, min_match, size)
 
 
 async def start_batch(
     db: AsyncSession,
-    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount,
     *,
     filters: JobFilters = JobFilters(),
     min_match: int = MIN_MATCH,
@@ -108,10 +109,10 @@ async def start_batch(
     """
     Start Auto Apply: queues the applicant's best `size` matches (as
     get_matches reads them) in one commit, and answers their job ids, best
-    first. Fewer when fewer matches are left. Raises NoResume.
+    first. Fewer when fewer matches are left. Raises EmptyBank.
     """
-    matches = await _matches(db, applicant_id, filters, min_match, size)
-    queued = await queue_applications(db, applicant_id, [uuid.UUID(m.id) for m in matches])
+    matches = await _matches(db, account, filters, min_match, size)
+    queued = await queue_applications(db, account.id, [uuid.UUID(m.id) for m in matches])
     await db.commit()
     return [m.id for m in matches if uuid.UUID(m.id) in queued]
 

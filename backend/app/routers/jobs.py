@@ -231,26 +231,41 @@ async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
     return await fetch_facets(db)
 
 
-@router.get("/recommended/{applicant_id}", response_model=list[ScoredJob])
-async def recommended_jobs(
-    applicant_id: uuid.UUID,
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0, le=100_000),
-    filters: JobFilters = Depends(read_filters),
-    account: AuthenticatedAccount = Depends(get_current_account),
-    db: AsyncSession = Depends(get_session),
-) -> list[ScoredJob]:
-    """Jobs scored against the applicant's experience bank (never an uploaded
-    resume). Returns `match` (0-100), its `score_breakdown` (effective
-    weights, component points before freshness, the final rounded score) and
-    up to 3 `highlights`. 404 while the bank is empty."""
-    assert_applicant_owns(account, applicant_id)
+class EmptyBank(Exception):
+    """The applicant's experience bank has no entries and no skills: nothing
+    to score against. The route answers 404 with this message."""
 
-    bank = await load_bank(db, applicant_id)
+
+async def fetch_recommended(
+    db: AsyncSession,
+    account: AuthenticatedAccount,
+    *,
+    filters: JobFilters = JobFilters(),
+    min_match: int = 0,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[ScoredJob]:
+    '''
+    the published scraped jobs scored against this applicant's experience bank
+    (never an uploaded resume), best first, with `match` (0-100), its
+    `score_breakdown` and up to 3 `highlights`. Raises EmptyBank.
+
+    Checks no ownership: the caller has done that (the route, with
+    assert_applicant_owns). Takes the account, not only its id, because the
+    bank's embedding text reads its identity (load_identity). Auto apply
+    calls this to find what to apply to (auto-apply/architecture.md, "Match
+    (built)").
+
+    `min_match` leaves out jobs scored below it before `offset`, so a page
+    never comes back short with more matches behind it.
+    '''
+    bank = await load_bank(db, account.id)
     if not bank.entries and not bank.skills:
-        raise HTTPException(404, "Your experience bank is empty")
+        raise EmptyBank("Your experience bank is empty")
 
     scored = await score_jobs(db, account, bank, filters)
+    # score_jobs sorts best first; drop those under min_match before offset
+    scored = [s for s in scored if s.match >= min_match]
     return scored[offset:offset + limit]
 
 
@@ -265,16 +280,16 @@ async def recommended_jobs(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> list[ScoredJob]:
-    """Jobs scored against the applicant's default resume (fetch_recommended),
-    each with score_breakdown: effective weights, component points before
-    freshness, and the final rounded score. 404 when there is no parsed
-    default resume."""
+    """Jobs scored against the applicant's experience bank (fetch_recommended).
+    Returns `match` (0-100), its `score_breakdown` (effective weights,
+    component points before freshness, the final rounded score) and up to 3
+    `highlights`. 404 while the bank is empty."""
     assert_applicant_owns(account, applicant_id)
     try:
         return await fetch_recommended(
-            db, applicant_id, filters=filters, min_match=min_match, limit=limit, offset=offset
+            db, account, filters=filters, min_match=min_match, limit=limit, offset=offset
         )
-    except NoResume as exc:
+    except EmptyBank as exc:
         raise HTTPException(404, str(exc)) from exc
 
 

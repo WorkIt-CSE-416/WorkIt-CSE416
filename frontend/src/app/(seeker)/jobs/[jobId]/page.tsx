@@ -50,48 +50,32 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * paragraphs, lists and subheadings from the text itself rather than sorting
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
-<<<<<<< HEAD
- * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
- * about this role, Share copies the page's link, Auto Apply queues it for the
- * Auto Apply page, as on the card. Applied, last in the row (the header's top
- * right), is a signed-in applicant's own record that they applied (KAN-232):
- * it becomes "Applied at 10/15/2026" and the job leaves their feed. Anyone
- * else gets no Applied button. Save and Report are still inert, as on the
- * card (KAN-65 makes saving real). No match rail: nothing
-=======
  * Its actions: Apply Now asks which resume to send, keeps it as a sent
  * resume linked to this posting, then leaves for the employer's posting
  * (./apply-button, KAN-220); once one is sent, the page says "You sent
  * <name> on <date>" (./sent-note, story 98). Ask Scout asks
- * about this role, Share copies the page's link, and Tailor My Resume opens
+ * about this role, Share copies the page's link, Auto Apply queues it for the
+ * Auto Apply page, as on the card, and Tailor My Resume opens
  * Tailor (./tailor, KAN-217); it reads "Your Tailored Resume" once the
  * student has one for this posting (at most one each). Applied, last in the
  * row, is a signed-in applicant's own record that they applied (KAN-232): it
  * becomes "Applied at 10/15/2026" and the job leaves their feed; anyone else
  * gets no Applied button. Save and Report are still
  * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
->>>>>>> origin
  * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-<<<<<<< HEAD
-  const [{ job, error }, applied, stage] = await Promise.all([
-    getJobListing(jobId),
-    getApplied(jobId),
-    getApplicationStage(jobId),
-  ]);
-=======
-  const [{ job, error }, resumes, sent, applied] = await Promise.all([
+  const [{ job, error }, resumes, sent, applied, stage] = await Promise.all([
     getJobListing(jobId),
     listBuiltResumes(),
     listSentResumes(),
     getApplied(jobId),
+    getApplicationStage(jobId),
   ]);
   const tailored = resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false;
   // Newest first, so the first match is the last one sent to this posting.
   const lastSent = sent.data?.find((s) => s.job_posting_id === job?.id) ?? null;
->>>>>>> origin
 
   if (error != null) {
     return (

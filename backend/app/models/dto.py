@@ -148,7 +148,6 @@ class job_post_status(enum.StrEnum):
     closed= "closed"
 
 
-<<<<<<< HEAD
 class application_stage(enum.StrEnum):
     '''
     where one applicant's application to one job stands (job_applications.stage).
@@ -162,7 +161,8 @@ class application_stage(enum.StrEnum):
     needs_you= "needs_you"
     skipped= "skipped"
     applied= "applied"
-=======
+
+
 # --- Experience bank enums (KAN-206) ---
 
 class bank_section(enum.StrEnum):
@@ -185,4 +185,3 @@ class entry_end_kind(enum.StrEnum):
     month= "month"
     present= "present"
     expected= "expected"
->>>>>>> origin

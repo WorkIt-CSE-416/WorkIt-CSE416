@@ -147,18 +147,18 @@ the cap of 3.
 
 ## Recommendations — `fetch_recommended()` and `GET /jobs/recommended/{applicant_id}`
 
-Both in `routers/jobs.py`. `fetch_recommended(db, applicant_id, filters=,
-min_match=, limit=, offset=)` loads the default resume, has
+Both in `routers/jobs.py`. `fetch_recommended(db, account, filters=,
+min_match=, limit=, offset=)` loads the experience bank, has
 `queries/jobs/recommendations.py`'s `score_jobs` score and sort the jobs,
 then applies `min_match` and the page; it returns `list[ScoredJob]`, best
 first. The route checks ownership and calls it. Python code that needs
 recommendations (auto apply's queue) calls the function, not the route. It
 checks no ownership itself, so its caller must.
 
-It scores against the **default resume only**
-(`applicant_profiles.default_resume_id`); no other resume or profile field
-counts. No default resume, or one that never parsed, raises `NoResume`,
-which the route answers as a 404.
+It scores against the **experience bank**, never an uploaded resume. It takes
+the account, not only its id, because the bank's embedding text reads the
+student's identity (`load_identity`). A bank with no entries and no skills
+raises `EmptyBank`, which the route answers as a 404.
 
 - **It scores every listed job each call, then sorts and slices.** Every
   query parameter that narrows the list (the Jobs page's filters,

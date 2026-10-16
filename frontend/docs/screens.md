@@ -126,9 +126,16 @@ The page is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-<<<<<<< HEAD
-says so and links to the whole posting. Apply Now leaves for the employer's
-posting, Ask Scout asks about the role, Share copies the page's link, Save
+says so and links to the whole posting. Apply Now (`[jobId]/apply-button.tsx`,
+KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
+to this posting and the uploaded resumes, with the tailored one, else the
+default, picked first. Apply keeps a sent resume linked to the posting, then
+shows Download Resume and Open the Posting (a link, so no popup blocker
+stops it). Apply Without a Resume leaves for the employer's posting at once.
+Once a resume is sent, the page reads "You sent <name> on <date>" under
+the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
+linked to this posting, its day in the viewer's zone.
+Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. The card's own row has Not Interested, Save, Ask
 Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
 Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
@@ -146,21 +153,6 @@ the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
 the last one visited in sessionStorage). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
 would change a moment after the page loads.
-=======
-says so and links to the whole posting. Apply Now (`[jobId]/apply-button.tsx`,
-KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
-to this posting and the uploaded resumes, with the tailored one, else the
-default, picked first. Apply keeps a sent resume linked to the posting, then
-shows Download Resume and Open the Posting (a link, so no popup blocker
-stops it). Apply Without a Resume leaves for the employer's posting at once.
-Once a resume is sent, the page reads "You sent <name> on <date>" under
-the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
-linked to this posting, its day in the viewer's zone.
-Ask Scout asks about the role, Share copies the page's link, Save
-and Report stay inert. Back to Jobs returns to the feed the seeker came from,
-filters and all (`RememberFeed` on /jobs and /search keeps it in
-sessionStorage).
->>>>>>> origin
 **Applied** (KAN-232), last in the header's actions, shows for a signed-in
 applicant only (`getApplied` answers null for anyone else). A click calls
 `markApplied` (`jobs/actions.ts`), and the button becomes "Applied at
@@ -414,44 +406,22 @@ link into the Calendar from anywhere else goes through `DayLink` in
 ## My Profile
 
 **Resume upload is wired.** The onboarding form (`onboarding/applicant`)
-<<<<<<< HEAD
-uploads on Continue, unreviewed. The seeker profile (`(seeker)/profile`)
-supports up to 5 resumes, newest first: on file select it calls
-`parseResume` (nothing saved), opens `resume-edit-dialog.tsx` on every
-section of the result, and only Save calls `uploadResume` with the file plus
-the edited `parsed_json`; Cancel discards it. When nothing was read and
-nothing typed, Save leaves `parsed_json` out, so the API parses the file
-itself and marks it `parse_failed` rather than "parsed". That dialog is a
-panel sliding in from the right over a darkened page, built from the
-vendored dialog's parts because the vendored Sheet's 10% overlay cannot be
-darkened from outside. A click on the darkened page does not close it — that
-would throw away every unsaved edit — but › and Escape do. Each resume row
-(`src/components/resume-row.tsx`, shared with the Auto Apply page) has an
-eye — a short-lived signed link from `getResumeFileUrl`, opened by
-`src/lib/preview-resume.ts`: a PDF opens in a new tab, opened inside the
-click so it is not blocked as a popup (if it is blocked anyway, the page says
-so rather than leaving it); a DOCX downloads — and a star that makes it
-primary (`setPrimaryResume`). The star and the delete are optional props, so
-a screen that only shows a resume leaves them out. All of these actions live in
-`src/lib/resume-actions.ts`, whose `ParsedResume` type mirrors the API's.
-The `ResumeUpload` component (`src/components/resume-upload.tsx`) is a pure
-dropzone + file preview — it knows nothing about upload logic or limits.
-=======
 uploads on Continue, then goes to intake, onboarding's next step (Experience
 Bank section). The seeker profile (`(seeker)/profile`) supports up to
 5 resumes, uploaded and base resumes together as the API counts them (its
 "n of 5" adds the bank page's base resumes; tailored ones are free),
 newest first: picking a file uploads it at once (`uploadResume`);
 the API reads it itself, and the client never sends parsed content. Each
-resume row (`resume-row.tsx`) has an eye — a short-lived signed link from
-`getResumeFileUrl`: a PDF opens in a new tab, opened inside the click so it
-is not blocked as a popup (if it is blocked anyway, the page says so rather
-than leaving the profile); a DOCX downloads — and a star that makes it
-primary (`setPrimaryResume`). All of these actions live in
-`src/lib/resume-actions.ts`. The `ResumeUpload` component
+resume row (`src/components/resume-row.tsx`, shared with the Auto Apply page)
+has an eye — a short-lived signed link from `getResumeFileUrl`, opened by
+`src/lib/preview-resume.ts`: a PDF opens in a new tab, opened inside the
+click so it is not blocked as a popup (if it is blocked anyway, the page says
+so rather than leaving it); a DOCX downloads — and a star that makes it
+primary (`setPrimaryResume`). The star and the delete are optional props, so
+a screen that only shows a resume leaves them out. All of these actions live
+in `src/lib/resume-actions.ts`. The `ResumeUpload` component
 (`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
 knows nothing about upload logic or limits.
->>>>>>> origin
 
 **Resume facts are not edited on My Profile** (KAN-211). The parsed-JSON
 editor (a review dialog after upload, and Work Experience and Skills cards

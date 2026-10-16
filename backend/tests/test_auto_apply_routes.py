@@ -13,7 +13,7 @@ from app.db import get_session
 from app.deps import get_current_account
 from app.main import app
 from app.models.dto import application_stage
-from app.routers.jobs import NoResume
+from app.routers.jobs import EmptyBank
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from tests.test_jobs import no_database  # noqa: F401
 
@@ -79,7 +79,7 @@ def test_batch_answers_the_queued_ids(client, monkeypatch):
     assert res.status_code == 200
     assert res.json() == {"queued": ["a", "b"]}
     (args, kwargs) = calls[0]
-    assert args[1] == APPLICANT and kwargs["size"] == 2
+    assert args[1].id == APPLICANT and kwargs["size"] == 2
 
 
 def test_batch_size_is_capped(client):
@@ -90,8 +90,8 @@ def test_batch_size_is_capped(client):
     ("start_batch", "post", "/auto-apply/batches", {}),
     ("get_matches", "get", "/auto-apply/matches", None),
 ])
-def test_no_resume_is_404(client, monkeypatch, name, method, path, body):
-    step(monkeypatch, name, raises=NoResume("No default resume set"))
+def test_empty_bank_is_404(client, monkeypatch, name, method, path, body):
+    step(monkeypatch, name, raises=EmptyBank("Your experience bank is empty"))
     assert client.request(method, BASE + path, json=body).status_code == 404
 
 

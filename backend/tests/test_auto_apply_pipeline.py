@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -12,6 +13,7 @@ from app.queries.jobs.filters import JobFilters
 from tests.test_auto_apply_rules import GH, job
 
 APPLICANT = uuid.uuid4()
+ACCOUNT = SimpleNamespace(id=APPLICANT)
 JOB = uuid.uuid4()
 
 
@@ -21,7 +23,7 @@ class FakeDB:
 
 
 def fake_recommended(scored, calls):
-    async def fetch_recommended(db, applicant_id, **kwargs):
+    async def fetch_recommended(db, account, **kwargs):
         calls.append(kwargs)
         return scored
     return fetch_recommended
@@ -39,7 +41,7 @@ def test_get_matches_leaves_out_every_job_with_an_application(monkeypatch):
     calls = []
     monkeypatch.setattr(pipeline, "fetch_recommended", fake_recommended([], calls))
 
-    asyncio.run(pipeline.get_matches(None, APPLICANT, filters=JobFilters(visa="sponsors")))
+    asyncio.run(pipeline.get_matches(None, ACCOUNT, filters=JobFilters(visa="sponsors")))
 
     (kwargs,) = calls
     assert kwargs["filters"].no_application_by == APPLICANT
@@ -56,7 +58,7 @@ def test_get_matches_drops_repeats_then_takes_size(monkeypatch):
     ]
     monkeypatch.setattr(pipeline, "fetch_recommended", fake_recommended(scored, []))
 
-    matches = asyncio.run(pipeline.get_matches(None, APPLICANT, size=2))
+    matches = asyncio.run(pipeline.get_matches(None, ACCOUNT, size=2))
 
     assert [j.id for j in matches] == ["1", "3"]
 
@@ -76,7 +78,7 @@ def test_start_batch_queues_the_matches_in_one_commit_best_first(monkeypatch):
     monkeypatch.setattr(pipeline, "queue_applications", queue_applications)
     db = FakeDB()
 
-    queued = asyncio.run(pipeline.start_batch(db, APPLICANT, size=3))
+    queued = asyncio.run(pipeline.start_batch(db, ACCOUNT, size=3))
 
     assert asked == [[uuid.UUID(i) for i in ids]]
     assert queued == [ids[0], ids[2]]  # in match order, not the set's

@@ -7,11 +7,11 @@ its result. The webapp, the extension and later an MCP server call these
 GET  /applicants/{id}/auto-apply/matches
      The best matches not yet queued or applied, best first, as ScoredJobs.
      ?size= (default 10) and the Jobs page's own filters (?location=, ?visa=...).
-     404 without a parsed primary resume.
+     404 while the experience bank is empty.
 POST /applicants/{id}/auto-apply/batches  {"size": 10}
      Start Auto Apply: queues that many matches, same filters. Answers
-     {"queued": [job ids]}, best first; fewer when fewer are left. 404 without
-     a parsed primary resume.
+     {"queued": [job ids]}, best first; fewer when fewer are left. 404 while
+     the experience bank is empty.
 POST /applicants/{id}/applications  {"job_id": ...}
      A job's Auto Apply button: queues one job posting. Answers its stage;
      a job that already has an application keeps that stage. 404 for a job
@@ -43,7 +43,7 @@ from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
-from app.routers.jobs import NoResume, read_filters
+from app.routers.jobs import EmptyBank, read_filters
 from app.schemas.applications import (
     Application,
     ApplicationStage,
@@ -69,8 +69,8 @@ async def get_matches(
     """The matches a batch would queue, without queueing them."""
     assert_applicant_owns(account, applicant_id)
     try:
-        return await pipeline.get_matches(db, applicant_id, filters=filters, size=size)
-    except NoResume as exc:
+        return await pipeline.get_matches(db, account, filters=filters, size=size)
+    except EmptyBank as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 
 
@@ -85,8 +85,8 @@ async def start_batch(
     """Queues a batch of the applicant's best matches."""
     assert_applicant_owns(account, applicant_id)
     try:
-        queued = await pipeline.start_batch(db, applicant_id, filters=filters, size=body.size)
-    except NoResume as exc:
+        queued = await pipeline.start_batch(db, account, filters=filters, size=body.size)
+    except EmptyBank as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return BatchQueued(queued=queued)
 

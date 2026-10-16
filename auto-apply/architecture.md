@@ -71,7 +71,7 @@ everything up to that click and nothing after it ("Decisions", below).
 | Piece | State | Where |
 |---|---|---|
 | Job postings | Scraped and imported every 3 hours, with `apply_url` and a full description | `scraper/`, `backend/app/scripts/import_jobs.py`, `docs/job-pipeline.md` |
-| Matching | `fetch_recommended()` scores job postings 0–100 against the primary resume, with up to 3 highlights and `min_match`. Also served as `GET /jobs/recommended/{applicant_id}` | `backend/app/routers/jobs.py`, `backend/app/services/matching/` |
+| Matching | `fetch_recommended()` scores job postings 0–100 against the experience bank, with up to 3 highlights and `min_match`. Also served as `GET /jobs/recommended/{applicant_id}` | `backend/app/routers/jobs.py`, `backend/app/services/matching/` |
 | Parsed resume | `ParsedResume`: education, experience, skills, projects, certifications. No name or contact details | `backend/app/models/dto.py`, `backend/app/models/resume.py` |
 | Resume file | Uploaded PDF in the `Resume` Storage bucket, served by `GET .../resumes/{id}/file` | `backend/app/routers/resumes.py` |
 | LLM access | One OpenAI-compatible client; the model is configuration; a daily cap per account | `scout/workit_scout/llm.py`, `settings.py`, `quota.py` |
@@ -173,7 +173,7 @@ Names are not final.
 
 | Layer | Function | Does |
 |---|---|---|
-| 1 | `fetch_recommended(db, applicant_id, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
+| 1 | `fetch_recommended(db, account, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
 | 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. Every hiring system stays in. **Built** |
 | 1 | `queue_applications(db, applicant_id, job_ids)` | Saves the open ones with no application yet as `queued`; answers which. **Built** |
 | 1 | `fetch_stage(db, applicant_id, job_id)` | The application's stage, or `None`. **Built** |
@@ -185,8 +185,8 @@ Names are not final.
 | 1 | `store_tailored_resume(db, storage, …)` | Saves the PDF and the resume row |
 | 1 | `record_run(db, application_id, report)` | Saves one autofill result |
 | 1 | `set_stage(db, applicant_id, job_id, stage)` | Moves it; `applied` also sets `applied_at`. **Built** |
-| 2 | `get_matches(db, applicant_id, filters, min_match=60, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
-| 2 | `start_batch(db, applicant_id, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
+| 2 | `get_matches(db, account, filters, min_match=60, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
+| 2 | `start_batch(db, account, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
 | 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
 | 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. **Built** |
 | 2 | `prepare_application(db, llm, storage, application_id)` | `tailor_resume` → `check_grounding` → `render_resume_pdf` → `store_tailored_resume`. If any step fails, keep the primary resume; never block the fill |
@@ -198,7 +198,7 @@ Names are not final.
 Webapp or AI agent: "start a batch of 10"
   Layer 3  POST /applicants/{id}/auto-apply/batches   (MCP tool: start_batch)
              checks the caller owns {id}, reads size=10
-  Layer 2  start_batch(db, applicant_id, size=10)
+  Layer 2  start_batch(db, account, size=10)
              → fetch_recommended(...)          layer 1, query
              → pick_batch(scored, 10)          layer 1, pure
              → queue_applications(...)         layer 1, write
@@ -246,11 +246,10 @@ runBatch()                       // parent: a loop, nothing else
 ## 6. Match (built)
 
 The run applies to the student's matches. Matching already exists and is
-reused: it scores every listed job posting against the **primary resume**
-(`default_resume_id`) and nothing else. It reads no other resume and no
-profile field.
+reused: it scores every listed job posting against the student's
+**experience bank** (KAN-212), never an uploaded resume.
 
-- **`fetch_recommended(db, applicant_id, min_match=60)`** in
+- **`fetch_recommended(db, account, min_match=60)`** in
   `backend/app/routers/jobs.py` returns the matches, best first, as
   `ScoredJob`s (a job listing plus `match` and `highlights`). It checks no
   ownership; its caller does.
@@ -258,8 +257,10 @@ profile field.
   list over HTTP. It checks that the token owns the applicant.
 - **`min_match`** (default 0) leaves out job postings scored below it, before
   the offset. Auto-apply starts at 60; tune it on real data.
-- No primary resume, or one that did not parse: the function raises
-  `NoResume`, and the route answers 404.
+- It takes the signed-in account, not only its id: the bank's embedding
+  text reads the student's identity (`load_identity`).
+- An empty experience bank (no entries, no skills): the function raises
+  `EmptyBank`, and the route answers 404.
 - **No screen shows the matches.** The Auto Apply page does not list them.
 
 The scoring and its weights are in `backend/app/services/matching/CLAUDE.md`.
