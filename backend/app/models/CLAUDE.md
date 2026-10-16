@@ -651,6 +651,42 @@ why. Rules that a change here must keep:
   change first: `test_read_query_leaves_names_alone` holds the company and
   keyword names that must pass through untouched.
 
+## Saved preferences — `preferences.py` (KAN-231)
+
+What onboarding asks, kept so the Jobs page can apply it as filters:
+
+- **`applicant_preferences`**, one row per applicant (primary key
+  `applicant_id`, CASCADE), holds the picks in **GET /jobs' own values**
+  (`remote`, `full_time`, `summer-2027`...), so the API hands a saved set back in
+  the query's names and the frontend turns it into filters with no
+  conversion. Lists are `text[] NOT NULL DEFAULT '{}'`: no pick is an empty
+  list, never NULL. Pay is stored as entered, per `pay_per`, and converted
+  to yearly only when GET /jobs filters on it.
+- **Text with CHECKs, not Postgres enums.** `experience_level` still holds
+  KAN-233's LEGACY levels (`internship`, `other`) until its contract step,
+  which no saved pick may name, and an enum value is a coordinated deploy.
+  The CHECKs mirror the values `routers/jobs.py` accepts; seasons are
+  checked by shape in the API only, as GET /jobs checks them. A new filter
+  value changes both.
+- **Roles are `applicant_job_roles` rows**, not a column, for their foreign
+  key to `job_roles` (RESTRICT, as above). The API checks the slugs first so a
+  bad one is a 422 that names it, not an `IntegrityError`.
+- **Places are `applicant_locations` rows, built like `job_locations`**: a
+  country, and the state when one was picked, with the same foreign keys and
+  `UNIQUE NULLS NOT DISTINCT`. `Place.from_code` (`services/location_resolver.py`)
+  turns a filter code into that row for both the Jobs page's location filter
+  and the preferences route, so the two cannot read "US-CA" differently. An
+  unknown code is a 422, as for roles.
+- **The GET is one query**: the row plus an `ARRAY(subquery)` for the roles
+  and one for the places, each `'{}'` when none.
+- **Date Posted is never saved**: a fixed "past 24 hours" would empty the
+  feed within days.
+- **Saving is finishing onboarding.** `PUT /applicants/{id}/preferences` sets
+  `onboarding_completed_at` once, in the same transaction.
+- **Their migration is `4c59715d02db`** (RLS on all three tables), on top of
+  `027620538860` (KAN-233's expand). It must be on the database before the
+  API that maps them deploys.
+
 ## job_postings holds company-posted and scraped jobs
 
 One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
