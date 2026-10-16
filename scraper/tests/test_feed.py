@@ -50,8 +50,14 @@ class TestRow:
     def test_labels_become_the_schemas_enum_values(self) -> None:
         row = feed_row(role())
         assert row["work_style"] == "onsite"
-        assert row["experience_level"] == "internship"
+        assert row["experience_level"] == "student"
         assert row["id"] == "https://jobs.ashbyhq.com/terranova/a8e5a8d2/application"
+
+    def test_an_internship_is_its_job_type_whatever_its_hours(self) -> None:
+        # KAN-233: the job type internship, for a student; hours it states
+        # stay in its facts, not on the card.
+        row = feed_row(role())
+        assert (row["job_type"], row["experience_level"]) == ("internship", "student")
 
     def test_new_grad_whatever_the_category(self) -> None:
         # Quora: "Software Engineer New Grad, Machine Learning Platform".

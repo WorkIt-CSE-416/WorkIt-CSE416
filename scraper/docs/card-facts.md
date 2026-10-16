@@ -59,8 +59,9 @@ every case in `tests/test_details.py` was seen in a real posting, except
   216 new-grad roles that state a type say full-time. A stated type always wins, so a
   part-time or contract posting is never turned full-time. It runs in `pick`, not
   `details.read`, so `--offline` applies it to stored postings with no re-read.
-  **An internship is never inferred:** the Jobs page shows "Internship" as every
-  internship's job type, whatever its hours (decided 2026-10-10: "Full-Time
+  **An internship is never inferred:** the feed row writes every internship as the
+  job type `internship` with the level `student` (KAN-233, `feed.py`), whatever its
+  hours (decided 2026-10-10: "Full-Time
   Internship" beside "Part-Time Internship" read as two kinds of internship), so a
   guessed full-time would show nowhere. Summer internships were filled for a day (71
   of 74 that state a type say full-time) before that decision.
