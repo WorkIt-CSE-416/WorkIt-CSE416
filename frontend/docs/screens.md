@@ -637,7 +637,8 @@ in Docs (suggested answers in the chat, not a banner).
   and it hid the walk's questions about the import). When no
   stop is left, the student picks from the chips.
 - **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
-  profile form's Continue leads there, then Finish leads to /dashboard. It
+  profile form's Continue leads there, then Finish leads to /jobs, the
+  Recommended view (KAN-231). It
   always walks, and its step bar shows the profile form as a done "Profile"
   step before the sections. It imports `Intake` from the bank route rather
   than promoting it to `src/components`: intake needs the bank's entry
