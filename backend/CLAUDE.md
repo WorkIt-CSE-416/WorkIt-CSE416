@@ -533,7 +533,10 @@ free tier). Render with a Dockerfile is the fallback.
   `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
-  `nomic-embed-text:v1.5`; see `app/services/matching/CLAUDE.md`.
+  `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
+  **Still open:** the deployed API has no Ollama, so until the Vercel project
+  sets `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations
+  score without the semantic part.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.

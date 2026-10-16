@@ -31,6 +31,18 @@ from app.services.matching.scoring import (
     title_fit,
 )
 
+# How many filtered jobs are scored per request. They are the nearest to the
+# bank by embedding (or the newest, with no vector), picked in SQL, so the
+# Python scoring below never runs over the whole feed.
+# ponytail: a fixed cap; a job ranked past it by semantic alone can't surface
+# on its skills or title. Raise it, or pre-score skills in SQL, if that bites.
+CANDIDATES = 500
+
+# The bank embed inside a request: short, so a missing or slow provider
+# degrades to scoring without the semantic part instead of hanging the
+# function (matching/CLAUDE.md).
+REQUEST_EMBED_SECONDS = 10.0
+
 
 async def _bank_embedding(db: AsyncSession, account: AuthenticatedAccount, bank: Bank) -> list[float] | None:
     """The bank's stored embedding, made and stored here when it is null.
@@ -41,7 +53,7 @@ async def _bank_embedding(db: AsyncSession, account: AuthenticatedAccount, bank:
     if bank_row is None or bank_row.embedding is not None:
         return bank_row.embedding if bank_row else None
     text = bank_text(bank, identity=await load_identity(db, account))
-    vectors = await embed([text]) if text else None
+    vectors = await embed([text], timeout=REQUEST_EMBED_SECONDS) if text else None
     if not vectors:
         return None
     # Only if the bank is unchanged since it was read: a change in
@@ -103,7 +115,23 @@ async def score_jobs(
     # posted_at for freshness
     score_columns.append(Job_Post.posted_at.label("_posted_at"))
 
-    query = select(*score_columns).where(LISTED, *matching(filters))
+    # Hard filters first, then the candidates nearest the bank, then the
+    # score. Ordered by the label, so the vector is bound once, not twice.
+    # NULLS LAST: Postgres sorts NULL first under DESC, so a job the import
+    # couldn't embed would otherwise crowd the real matches out of the cap.
+    # Newest next, so the jobs without a vector that do make it are fresh.
+    newest = Job_Post.posted_at.desc().nulls_last()
+    order = (
+        (semantic_col.desc().nulls_last(), newest)
+        if bank_embedding is not None
+        else (newest,)
+    )
+    query = (
+        select(*score_columns)
+        .where(LISTED, *matching(filters))
+        .order_by(*order, Job_Post.id)
+        .limit(CANDIDATES)
+    )
     rows = (await db.execute(query)).all()
 
     now = datetime.datetime.now(datetime.UTC)
