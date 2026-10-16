@@ -174,9 +174,9 @@ TypeScript shapes, zero persistence behind them:
 
 Most of these already line up with `backend/app/models/dto.py`'s enums
 backing `job_postings` — `JobType`, `WorkStyle`, `SalaryPeriod`,
-`JobPostStatus` match their backend counterparts value-for-value.
-`ExperienceLevel` doesn't: the frontend's third value is `"experienced"`,
-the backend's is `"other"`. `job_postings` isn't migrated or exposed yet
+`JobPostStatus` match their backend counterparts value-for-value, and since
+KAN-233 `ExperienceLevel` does too (`student`, `new_grad`, `experienced`;
+the backend's `"other"` became `"experienced"`). `job_postings` isn't migrated or exposed yet
 (see Data layer above), so none of this is actually connected — it's
 coincidental alignment (and one drift) between two hand-written shapes, not
 a shared contract.
