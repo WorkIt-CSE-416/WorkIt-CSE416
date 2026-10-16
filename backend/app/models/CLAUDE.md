@@ -209,13 +209,11 @@ expand then contract, and the recipe for the next one:
 2. **Deploy** code that writes only new values and reads both. Here every read
    of the two columns goes through `queries/jobs/legacy_levels.py`, and the
    enum keeps the old members marked LEGACY.
-3. **Contract** (migration B, after the deploy and one import): move the
+3. **Contract** (`aa97037c00e5`, after the deploy and one import): move the
    remaining rows, rebuild `experience_level` without the old values, then
-   delete `legacy_levels.py` and the LEGACY members.
-
-**Until step 3 lands, never write `internship` or `other` as a level**: the
-company form's schema refuses them, and the import's `JobListing` takes the new
-values only.
+   deploy the code without `legacy_levels.py` and the LEGACY members. Apply
+   it before that deploy: the code of step 2 reads the new values alone fine,
+   but the code after it can't read an old one.
 
 ## A new column reaches the database before the model that maps it
 
@@ -662,9 +660,9 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
   conversion. Lists are `text[] NOT NULL DEFAULT '{}'`: no pick is an empty
   list, never NULL. Pay is stored as entered, per `pay_per`, and converted
   to yearly only when GET /jobs filters on it.
-- **Text with CHECKs, not Postgres enums.** `experience_level` still holds
-  KAN-233's LEGACY levels (`internship`, `other`) until its contract step,
-  which no saved pick may name, and an enum value is a coordinated deploy.
+- **Text with CHECKs, not Postgres enums.** Changing an enum's values is a
+  coordinated deploy (KAN-233 took an expand and a contract step), while a
+  CHECK changes in one migration.
   The CHECKs mirror the values `routers/jobs.py` accepts; seasons are
   checked by shape in the API only, as GET /jobs checks them. A new filter
   value changes both.

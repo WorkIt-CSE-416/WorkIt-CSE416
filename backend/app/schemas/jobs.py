@@ -49,8 +49,7 @@ class JobListing(BaseModel):
     company: str
     apply_url: str
     # Who the job is for (KAN-233): a student (every internship), a new grad,
-    # or someone with experience. Narrower than the shared enum on purpose:
-    # its LEGACY members are never written, and to_listing reads them as these.
+    # or someone with experience.
     experience_level: Literal["student", "new_grad", "experienced"]
     # Stated by the posting, else inferred by the scraper from the company's other
     # postings or, for a posting that names a place and no alternative, On site

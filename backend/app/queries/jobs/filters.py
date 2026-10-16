@@ -39,7 +39,6 @@ from app.models import dto
 from app.models.applications import Job_Application
 from app.models.job_roles import Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
-from app.queries.jobs.legacy_levels import IS_INTERNSHIP, stored_levels
 from app.services.location_resolver import Place
 from app.services.postings import LISTED  # noqa: F401 (re-export)
 from app.services.role_resolver import title_pattern
@@ -101,8 +100,7 @@ class JobFilters:
     # job matches when it is tagged with any of them (job_role_tags).
     roles: Sequence[str] = ()
     levels: Sequence[str] = ()
-    # "internship" is a job type of its own (KAN-233); job_type_matches reads
-    # the rows an older import wrote as the level too, until migration B.
+    # "internship" is a job type of its own (KAN-233).
     job_types: Sequence[str] = ()
     posted_since: datetime.datetime | None = None
     # Yearly figures in US dollars: ?min_pay=45&pay_per=hour is 93,600. A
@@ -156,19 +154,10 @@ class JobFilters:
 
 def job_type_matches(job_types: Sequence[str]) -> ColumnElement[bool]:
     '''
-    a job of any of these types. "internship" is a job type of its own
-    (KAN-233); until migration B moves the rows that still state it as an
-    experience level, IS_INTERNSHIP reads both spellings, and full_time and
-    the rest leave such a row out as they always have (an old internship's
-    stated hours aren't its job type)
+    a job of any of these types; an internship is a job type of its own
+    (KAN-233), so this is a plain match
     '''
-    either: list[ColumnElement[bool]] = []
-    if "internship" in job_types:
-        either.append(IS_INTERNSHIP)
-    kinds = [t for t in job_types if t != "internship"]
-    if kinds:
-        either.append(and_(~IS_INTERNSHIP, Job_Post.job_type.in_(kinds)))
-    return or_(*either)
+    return Job_Post.job_type.in_(job_types)
 
 
 def yearly_pay(end: Literal["top", "bottom"] = "top") -> ColumnElement[float]:
@@ -254,7 +243,7 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.roles:
         clauses.append(tagged_with(filters.roles))
     if filters.levels:
-        clauses.append(Job_Post.experience_level.in_(stored_levels(filters.levels)))
+        clauses.append(Job_Post.experience_level.in_(filters.levels))
     if filters.job_types:
         clauses.append(job_type_matches(filters.job_types))
     if filters.posted_since is not None:
@@ -281,7 +270,7 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         said = filters.query_role_words.get(slug)
         clauses.append(or_(tagged_with([slug]), title_says(said)) if said else tagged_with([slug]))
     if filters.query_levels:
-        clauses.append(Job_Post.experience_level.in_(stored_levels(filters.query_levels)))
+        clauses.append(Job_Post.experience_level.in_(filters.query_levels))
     if filters.query_work_styles:
         clauses.append(or_(
             Job_Post.work_style.in_(filters.query_work_styles),
