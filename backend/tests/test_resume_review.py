@@ -1,25 +1,22 @@
-"""Review-before-save: /parse writes nothing, and upload stores the reviewed copy."""
+"""The uploaded resumes list and file links. The parse preview, the
+reviewed-copy upload and the parsed-JSON edit were retired in KAN-211:
+an upload is now imported into the experience bank."""
 
-import json
 import uuid
-from io import BytesIO
 
 import pytest
-from docx import Document
 from fastapi.testclient import TestClient
 
 from app.db import get_session
 from app.deps import get_current_account
 from app.main import app
 from app.models.dto import ResumeStatus
-from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.routers import resumes
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 APPLICANT = uuid.uuid4()
 URL = f"/applicants/{APPLICANT}/resumes"
-DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 class FakeStorage:
@@ -99,72 +96,6 @@ def fakes(monkeypatch):
     return TestClient(app), storage, session
 
 
-def _resume_file():
-    doc = Document()
-    for line in ["EXPERIENCE", "Acme Corp  Jan 2023 - Present", "Backend Engineer"]:
-        doc.add_paragraph(line)
-    buf = BytesIO()
-    doc.save(buf)
-    return {"file": ("resume.docx", buf.getvalue(), DOCX)}
-
-
-def test_parse_returns_parsed_json_without_saving(fakes):
-    client, storage, session = fakes
-    res = client.post(f"{URL}/parse", files=_resume_file())
-    assert res.status_code == 200
-    assert "experience" in res.json()["parsed_json"]
-    assert storage.uploads == [] and session.added == []
-
-
-def test_upload_stores_the_reviewed_copy_instead_of_reparsing(fakes):
-    client, storage, session = fakes
-    reviewed = {"skills": [{"skill_name": "Python", "category": None}]}
-    res = client.post(
-        URL, files=_resume_file(), data={"parsed_json": json.dumps(reviewed)}
-    )
-    assert res.status_code == 200
-    body = res.json()
-    assert body["parsed_json"]["skills"] == reviewed["skills"]
-    assert body["parsed_json"]["experience"] == []
-    assert body["raw_text"].startswith("EXPERIENCE")
-    assert len(storage.uploads) == 1 and len(session.added) == 1
-
-
-def test_upload_rejects_invalid_reviewed_json_before_storing(fakes):
-    client, storage, session = fakes
-    res = client.post(
-        URL,
-        files=_resume_file(),
-        data={"parsed_json": '{"experience": [{"title": "x"}]}'},
-    )
-    assert res.status_code == 422
-    assert storage.uploads == [] and session.added == []
-
-
-def test_patch_replaces_parsed_json_of_an_owned_resume(fakes):
-    client, _, session = fakes
-    resume_id = uuid.uuid4()
-    session.row = Resume(
-        id=resume_id,
-        applicant_id=APPLICANT,
-        parsed_json={"skills": [{"skill_name": "Old", "category": None}]},
-        status=ResumeStatus.parse_failed,
-    )
-    edited = {"skills": [{"skill_name": "Python", "category": "Languages"}]}
-    res = client.put(f"{URL}/{resume_id}", json=edited)
-    assert res.status_code == 200
-    assert session.row.parsed_json["skills"] == edited["skills"]
-    assert session.row.status == ResumeStatus.parsed
-    assert session.commits == 1
-
-
-def test_patch_404s_when_the_resume_is_not_the_applicants(fakes):
-    client, _, session = fakes
-    res = client.put(f"{URL}/{uuid.uuid4()}", json={})
-    assert res.status_code == 404
-    assert session.commits == 0
-
-
 def test_list_marks_only_the_default_resume(fakes):
     client, _, session = fakes
     session.rows = [
@@ -175,17 +106,6 @@ def test_list_marks_only_the_default_resume(fakes):
     res = client.get(URL)
     assert res.status_code == 200
     assert [r["is_default"] for r in res.json()] == [False, True]
-
-
-def test_set_default_points_the_profile_at_the_resume(fakes):
-    client, _, session = fakes
-    resume_id = uuid.uuid4()
-    session.row = Resume(id=resume_id, applicant_id=APPLICANT)
-    session.profile = Applicant_Profile(id=APPLICANT)
-    res = client.put(f"{URL}/{resume_id}/default")
-    assert res.status_code == 200
-    assert session.profile.default_resume_id == resume_id
-    assert session.commits == 1
 
 
 @pytest.mark.parametrize(
@@ -207,13 +127,3 @@ def test_file_url_shows_a_pdf_and_downloads_a_docx_by_name(fakes, path, name, op
     assert res.status_code == 200
     assert res.json()["url"] == f"https://storage.example/{path}"
     assert storage.signed == [(path, options)]
-
-
-def test_patch_rejects_oversized_content_without_saving(fakes):
-    client, _, session = fakes
-    resume_id = uuid.uuid4()
-    session.row = Resume(id=resume_id, applicant_id=APPLICANT)
-    huge = {"skills": [{"skill_name": "x" * 1000}] * 300}  # ~300 KB of JSON
-    res = client.put(f"{URL}/{resume_id}", json=huge)
-    assert res.status_code == 413
-    assert session.commits == 0

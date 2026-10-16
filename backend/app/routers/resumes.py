@@ -1,17 +1,20 @@
-"""Resumes under /applicants/{applicant_id}/resumes: upload, list, edit, delete.
+"""Resumes under /applicants/{applicant_id}/resumes: upload, list, delete.
 
 Upload (POST) extracts text from a PDF or DOCX and parses it into structured
-JSON. `POST .../parse` returns the parse with no Storage or database write, for
-the profile's review dialog; upload then takes the reviewed copy as a
-`parsed_json` form field instead of parsing again. `GET .../{resume_id}`
-returns one resume's `parsed_json` (the list omits it). `PUT .../{resume_id}`
-replaces it with a full `ParsedResume`: a section left out comes back empty,
-which is why it is a PUT and not a PATCH. That body and upload's `parsed_json`
-are client-supplied, so both are capped at `MAX_PARSED_JSON_BYTES` (413).
-`PUT .../{resume_id}/default` makes it the primary resume
-(`applicant_profiles.default_resume_id`; the list reports it as `is_default`).
+JSON (`parsed_json`), always from the file: the client never sends parsed
+content, and nothing edits it afterwards (KAN-211 retired the profile's
+parsed-JSON editor; resume facts are edited in the experience bank, which
+import fills from `raw_text`). `GET .../{resume_id}` returns one resume's
+`parsed_json` (the list omits it).
+`PUT .../{resume_id}/default` makes it the default resume
+(`applicant_profiles.default_resume_id`; the list reports it as `is_default`),
+clearing a base resume that was the default. Upload answers 409 when the
+student already has 5 resumes, uploaded and base resumes together
+(`app/services/built_resumes.py`).
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
 download under the original filename for a DOCX.
+`DELETE .../{resume_id}` removes the row, and its stored file unless a sent
+resume still uses it (`app/services/sent_resumes.py`, KAN-208).
 """
 import asyncio
 import logging
@@ -22,8 +25,7 @@ import zipfile
 from datetime import UTC, datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
-from pydantic import ValidationError
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +35,7 @@ from app.models.dto import ParsedResume, ResumeStatus
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
+from app.services import built_resumes, sent_resumes
 from app.utils.resume_parser import count_sections, parse_resume
 
 router = APIRouter()
@@ -146,16 +149,12 @@ BUCKET = "Resume"
 # The preview link is opened the moment it is made; this only has to outlast
 # the browser's PDF viewer loading a 5 MB file.
 FILE_URL_TTL_SECONDS = 5 * 60
-# Reviewed and edited resume content comes from the client, so its size is
-# capped where it is accepted; a long real resume is a few KB of JSON. Checked
-# on the whole document rather than per field, so parser output is unaffected.
-MAX_PARSED_JSON_BYTES = 256 * 1024
 PDF_MAGIC = b"%PDF"
 DOCX_MAGIC = b"PK\x03\x04"
 
 
 async def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
-    """Size and type checks shared by parse and upload. Returns the bytes,
+    """Size and type checks for an upload. Returns the bytes,
     extension and MIME type."""
     # check size metadata
     if file.size is not None and file.size > MAX_SIZE:
@@ -180,11 +179,6 @@ async def _extract(contents: bytes, ext: str) -> str | None:
     return await asyncio.to_thread(extract, contents)
 
 
-def _reject_oversized(parsed: ParsedResume) -> None:
-    if len(parsed.model_dump_json().encode()) > MAX_PARSED_JSON_BYTES:
-        raise HTTPException(413, "Resume details are too long")
-
-
 def _safe_parse(raw_text: str | None) -> ParsedResume | None:
     if not raw_text:
         return None
@@ -195,45 +189,24 @@ def _safe_parse(raw_text: str | None) -> ParsedResume | None:
         return None
 
 
-@router.post("/applicants/{applicant_id}/resumes/parse")
-async def parse_resume_preview(
-    applicant_id: uuid.UUID,
-    file: UploadFile,
-    account: AuthenticatedAccount = Depends(get_current_account),
-):
-    """Parse without saving, so the applicant can review and edit the result
-    before it is stored. Touches neither Storage nor the database."""
-    assert_applicant_owns(account, applicant_id)
-    contents, ext, _ = await _read_upload(file)
-    parsed = _safe_parse(await _extract(contents, ext))
-    return {"parsed_json": parsed.model_dump(mode="json") if parsed else None}
-
-
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
 
-# TODO: Reinforce the 5 resume limit rule in the backend
 @router.post("/applicants/{applicant_id}/resumes")
 async def upload_resume(
     applicant_id: uuid.UUID,
     file: UploadFile,
-    # The applicant's reviewed copy of the /parse result. When present it is
-    # stored instead of re-parsing; onboarding omits it and gets the parser's.
-    parsed_json: str | None = Form(None),
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session)
 ):
     assert_applicant_owns(account, applicant_id)
 
-    reviewed = None
-    if parsed_json is not None:
-        try:
-            reviewed = ParsedResume.model_validate_json(parsed_json)
-        except ValidationError as exc:
-            raise HTTPException(422, "Invalid resume details") from exc
-        _reject_oversized(reviewed)
-
     contents, ext, mime = await _read_upload(file)
+    # Before the Storage upload, so a rejected sixth leaves no file behind
+    try:
+        await built_resumes.check_room(session, applicant_id)
+    except built_resumes.ResumeLimitReached as exc:
+        raise HTTPException(409, str(exc))
 
     resume_id = uuid.uuid4()
     storage_path = f"{applicant_id}/{resume_id}{ext}"
@@ -256,7 +229,7 @@ async def upload_resume(
 
     # raw_text always comes from the file, never from the client
     raw_text = await _extract(contents, ext)
-    parsed = reviewed if reviewed is not None else _safe_parse(raw_text)
+    parsed = _safe_parse(raw_text)
 
     # Resume ORM object
     resume = Resume(
@@ -361,31 +334,6 @@ async def get_resume(
     return {"id": str(resume.id), "parsed_json": resume.parsed_json}
 
 
-@router.put("/applicants/{applicant_id}/resumes/{resume_id}")
-async def update_resume(
-    applicant_id: uuid.UUID,
-    resume_id: uuid.UUID,
-    body: ParsedResume,
-    account: AuthenticatedAccount = Depends(get_current_account),
-    session: AsyncSession = Depends(get_session),
-):
-    """Replace the parsed content with the applicant's edits from the profile.
-    The whole ParsedResume is sent, so one entry's edit is a full replace."""
-    assert_applicant_owns(account, applicant_id)
-    _reject_oversized(body)
-    resume = await _get_owned_resume(session, applicant_id, resume_id)
-    resume.parsed_json = body.model_dump(mode="json")
-    resume.embedding = None  # re-embed on next scoring request
-    resume.status = ResumeStatus.parsed
-    try:
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        logger.exception("Failed to update resume", extra={"resume_id": str(resume_id)})
-        raise HTTPException(500, "Failed to save resume changes")
-    return {"id": str(resume.id), "parsed_json": resume.parsed_json}
-
-
 @router.put("/applicants/{applicant_id}/resumes/{resume_id}/default")
 async def set_default_resume(
     applicant_id: uuid.UUID,
@@ -393,14 +341,12 @@ async def set_default_resume(
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
-    """Make this the applicant's primary resume. It is a pointer on the profile
-    (default_resume_id, ON DELETE SET NULL), so deleting the resume clears it."""
+    """Make this the applicant's default resume. It is a pointer on the profile
+    (default_resume_id, ON DELETE SET NULL), so deleting the resume clears it;
+    a base resume that was the default stops being it."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
-    profile = await session.get(Applicant_Profile, applicant_id)
-    if profile is None:
-        raise HTTPException(404, "Applicant not found")
-    profile.default_resume_id = resume.id
+    await built_resumes.set_default(session, applicant_id, uploaded_id=resume.id)
     try:
         await session.commit()
     except Exception:
@@ -460,6 +406,11 @@ async def delete_resume(
     except Exception:
         await session.rollback()
         raise HTTPException(500, "Failed to delete resume record")
+
+    # A sent resume that points at this file keeps it (KAN-208); deleting
+    # that sent resume later removes the file once nothing uses it.
+    if await sent_resumes.file_in_use(session, storage_path):
+        return {"detail": "Resume deleted"}
 
     # DB succeeded — now remove the file from Storage
     # If this fails the file is orphaned, but no data is lost

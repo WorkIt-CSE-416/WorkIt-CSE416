@@ -9,9 +9,17 @@
 
 export type ScoutMessage = { role: "user" | "assistant"; content: string };
 
-export type ScoutEvent = { type: "text"; delta: string } | { type: "error"; message: string };
+export type ScoutEvent =
+  | { type: "text"; delta: string }
+  | { type: "error"; message: string }
+  // The turn's last line: Scout uses left today, after this turn counted (or not).
+  | { type: "usage"; uses_left: number };
 
-export async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<ScoutEvent> {
+/** Any NDJSON stream's events; intake's route speaks the same lines plus its
+ *  own (`(seeker)/bank/intake.tsx`), so the event type is the caller's. */
+export async function* readEvents<E = ScoutEvent>(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<E> {
   const reader = body.getReader();
   // stream: true holds back a multi-byte character split across two chunks.
   const decoder = new TextDecoder();
@@ -22,7 +30,7 @@ export async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenera
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
-    for (const line of lines) if (line.trim()) yield JSON.parse(line) as ScoutEvent;
+    for (const line of lines) if (line.trim()) yield JSON.parse(line) as E;
   }
-  if (buffer.trim()) yield JSON.parse(buffer) as ScoutEvent;
+  if (buffer.trim()) yield JSON.parse(buffer) as E;
 }

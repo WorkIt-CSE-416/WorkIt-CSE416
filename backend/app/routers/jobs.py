@@ -63,9 +63,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import StringConstraints
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import undefer
 
 from app.db import get_session
 from app.deps import (
@@ -74,9 +72,6 @@ from app.deps import (
     get_signed_in_applicant_id,
 )
 from app.models import dto
-from app.models.dto import ParsedResume
-from app.models.profiles import Applicant_Profile
-from app.models.resume import Resume
 from app.queries.jobs.facets import (
     fetch_facets,
     fetch_location_options,
@@ -95,6 +90,7 @@ from app.schemas.jobs import (
     JobRoleOption,
     ScoredJob,
 )
+from app.services.bank import load_bank
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -244,27 +240,17 @@ async def recommended_jobs(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> list[ScoredJob]:
-    """Jobs scored against the applicant's default resume. Returns `match`
-    (0-100) and up to 3 `highlights`. Jobs without embeddings still appear,
-    scored on other components. Includes score_breakdown with effective weights,
-    component points before freshness, and the final rounded score."""
+    """Jobs scored against the applicant's experience bank (never an uploaded
+    resume). Returns `match` (0-100), its `score_breakdown` (effective
+    weights, component points before freshness, the final rounded score) and
+    up to 3 `highlights`. 404 while the bank is empty."""
     assert_applicant_owns(account, applicant_id)
 
-    # Load the default resume
-    profile = await db.get(Applicant_Profile, applicant_id)
-    if profile is None or profile.default_resume_id is None:
-        raise HTTPException(404, "No default resume set")
+    bank = await load_bank(db, applicant_id)
+    if not bank.entries and not bank.skills:
+        raise HTTPException(404, "Your experience bank is empty")
 
-    resume_row = (await db.execute(
-        select(Resume).where(Resume.id == profile.default_resume_id)
-        .options(undefer(Resume.embedding))
-    )).scalar_one_or_none()
-    if resume_row is None or resume_row.parsed_json is None:
-        raise HTTPException(404, "Resume not found or not parsed")
-
-    parsed = ParsedResume.model_validate(resume_row.parsed_json)
-
-    scored = await score_jobs(db, resume_row, parsed, filters)
+    scored = await score_jobs(db, account, bank, filters)
     return scored[offset:offset + limit]
 
 

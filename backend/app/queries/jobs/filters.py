@@ -35,13 +35,10 @@ from sqlalchemy import ColumnElement, and_, case, exists, func, literal_column, 
 
 from app.models import dto
 from app.models.applications import Job_Application
-from app.models.dto import job_post_status
 from app.models.job_roles import Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
+from app.services.postings import LISTED  # noqa: F401 (re-export)
 from app.services.role_resolver import title_pattern
-
-# The rows the seeker feed is made of: scraped, and published.
-LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
 
 
 def unplaced_remote() -> ColumnElement[bool]:

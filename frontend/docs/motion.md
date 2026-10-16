@@ -82,7 +82,8 @@ moving at `/design-kit/motion`. The rules:
   because of timeout in DOM update"). Neither is a bug. Check one in a
   visible window, or watch the `view-transition-class` React sets.
 - **Scout's panel slides in; the page does not get squeezed.** It stays
-  mounted, inert while closed. Opening makes its 396px of room in one step, so
+  mounted, inert while closed. Opening makes its 396px of room (460px while a
+  page such as the Experience Bank holds it) in one step, so
   the page lays itself out once and then settles into place (a 32px glide and
   fade, `scout-page-in` in `globals.css`), while the panel slides in from the
   window's edge on transform alone (360ms). Closing gives the room back at

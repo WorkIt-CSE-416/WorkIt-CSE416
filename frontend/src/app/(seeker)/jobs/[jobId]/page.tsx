@@ -1,9 +1,8 @@
-import { Flag } from "lucide-react";
+import { Flag, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CompanyLogo } from "@/components/company-logo";
-import { ExternalLinkIcon } from "@/components/icons";
 import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { NOT_LISTED } from "@/components/job-posting-card";
@@ -12,14 +11,18 @@ import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Section } from "@/components/ui/section";
+import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
+import { listSentResumes } from "@/lib/sent-resume-actions";
 
 import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
 import { ListingsError, listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
+import { ApplyButton } from "./apply-button";
 import { JobDescription } from "./description";
 import { AppliedButton, BackToJobs, ShareButton } from "./page-actions";
+import { SentNote } from "./sent-note";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
@@ -45,17 +48,30 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * paragraphs, lists and subheadings from the text itself rather than sorting
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
- * Its actions: Apply Now leaves for the employer's posting, Ask Scout asks
- * about this role, Share copies the page's link. Applied, last in the row
- * (the header's top right), is a signed-in applicant's own record that they
- * applied (KAN-232): it becomes "Applied at 10/15/2026" and the job leaves
- * their feed. Anyone else gets no Applied button. Save and Report are still
+ * Its actions: Apply Now asks which resume to send, keeps it as a sent
+ * resume linked to this posting, then leaves for the employer's posting
+ * (./apply-button, KAN-220); once one is sent, the page says "You sent
+ * <name> on <date>" (./sent-note, story 98). Ask Scout asks
+ * about this role, Share copies the page's link, and Tailor My Resume opens
+ * Tailor (./tailor, KAN-217); it reads "Your Tailored Resume" once the
+ * student has one for this posting (at most one each). Applied, last in the
+ * row, is a signed-in applicant's own record that they applied (KAN-232): it
+ * becomes "Applied at 10/15/2026" and the job leaves their feed; anyone else
+ * gets no Applied button. Save and Report are still
  * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const [{ job, error }, applied] = await Promise.all([getJobListing(jobId), getApplied(jobId)]);
+  const [{ job, error }, resumes, sent, applied] = await Promise.all([
+    getJobListing(jobId),
+    listBuiltResumes(),
+    listSentResumes(),
+    getApplied(jobId),
+  ]);
+  const tailored = resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false;
+  // Newest first, so the first match is the last one sent to this posting.
+  const lastSent = sent.data?.find((s) => s.job_posting_id === job?.id) ?? null;
 
   if (error != null) {
     return (
@@ -95,20 +111,26 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             <ShareButton title={job.title} />
             <AskScoutButton id={job.id} title={job.title} company={job.company} />
             <ButtonLink
-              href={job.apply_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              size="lg"
-              className="ml-auto shrink-0 @xl:ml-0"
+              href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+              variant="secondary"
+              size="sm"
+              className="shrink-0"
             >
-              Apply Now
-              <ExternalLinkIcon className="size-4" />
-              <span className="sr-only"> (opens in a new tab)</span>
+              <Sparkles className="size-4" />
+              {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
             </ButtonLink>
+            <ApplyButton
+              jobId={job.id}
+              title={job.title}
+              applyUrl={job.apply_url}
+              className="ml-auto shrink-0 @xl:ml-0"
+            />
             {applied && <AppliedButton jobId={job.id} appliedAt={applied.appliedAt} />}
           </>
         }
       />
+
+      {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
 
       <Section title="About the Role">
         {/* The card names one place and how many more; here, all of them. */}

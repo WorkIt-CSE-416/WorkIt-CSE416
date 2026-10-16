@@ -4,6 +4,170 @@ Defines the `resumes` table and its structured content tables. KAN-50
 explicitly deferred resume work (line 257: "Leave resume storage and parsing
 to Brian's separate work"), so this doc owns the full resume domain.
 
+## The experience bank replaces the content tables (KAN-206)
+
+The `resume_*` content tables below were never built; an uploaded resume
+keeps its parser output in `resumes.parsed_json`. Resume facts now live in
+the **experience bank** (terms: `GLOSSARY.md`), stored once per student and
+not per resume, so a built resume is a live view of it (ADR 0001):
+
+```
+applicant_profiles
+  ├── experience_banks   one row per student: the bank embedding and when it was made
+  ├── bank_entries       one per job, degree, project, club role, award or certification
+  │     └── bank_bullets the entry's lines, in order, in their original wording
+  └── bank_skills        a plain list, each with an optional group
+        └── bank_skill_links  the entries that show the skill (none is fine)
+```
+
+- **Six entry sections, not seven.** Skills is the seventh section, but a
+  skill is its own row (`bank_skills`), so the `bank_section` enum has six
+  values.
+- **One entry shape for every section.** Title (required), organization,
+  location, start month, and an end that is a month, Present or expected.
+  The few fields one section needs are columns on the same row and stay null
+  elsewhere: Education's degree, field of study, GPA and scale, coursework
+  and honors; Projects' link; Certifications' issuer; Awards' one date.
+  `backend/app/schemas/bank.py` decides which section owns which field.
+- **Months are dates on the first of the month**, sent as `YYYY-MM`: a
+  resume shows a month, never a day.
+- **The embedding moves to the bank row.** A null embedding means "remake it
+  on the next recommendations request", so every change to an entry, bullet
+  or skill sets it back to null. The recommender and Scout read the bank
+  (KAN-212); `resumes.embedding` is no longer mapped and is dropped once that
+  code is deployed (expand, then contract).
+- **The duplicate check matches section, title and organization, ignoring
+  case.** It warns and never blocks: two real roles may share a title.
+- **A skill links to the entries that show it** (KAN-216), so Tailor can
+  show the skill with proof. A skill with no links is fine: one learned on
+  one's own. Links do not clear the embedding, whose text never pairs a
+  skill with an entry.
+- **A bullet variant is another wording kept beside the original**
+  (`bank_bullet_variants`, KAN-217), never in its place. It belongs to a
+  job posting (made by Tailor) or to one built resume (typed on it, the
+  editor), never both. The same wording for the same bullet is stored
+  once and reused. Variants never reach the embedding. The rules live in
+  `backend/app/services/bank.py` and `tailor.py`.
+- **Typing on a bullet in the editor makes a local variant** (KAN-218):
+  at most one per bullet and built resume, updated in place as the student
+  types, and deleted when they type the original back. The bank's bullet
+  never changes there; an entry's title, organization, location, GPA,
+  coursework and honors typed in the editor do change the bank, so those
+  facts match on every resume. The header's name, phone and links typed
+  there change the profile, for the same reason.
+  Rules: `backend/app/services/built_resumes.py`'s `update_choices`.
+- **The bank page shows the original wording only** (settled in KAN-218,
+  the spec's open question for slice 7). Local wording stays on its
+  resume: the bank lists what the student did, once, and a resume's
+  wording is a choice of that resume. Making a local wording the original
+  is still edited by hand in the bank's own bullet field.
+
+### Import fills the bank from an upload (KAN-211)
+
+An uploaded resume reaches the bank only through **import**: the heuristic
+parser reads the upload's stored text again, and the API returns draft
+entries that the student checks and saves one by one or with "Save all".
+Import writes nothing itself. A draft that matches a bank entry (the
+duplicate check) shows "Already in your bank" and "Save all" skips it. The
+parser reads all seven sections, Leadership & Activities and Awards
+included. The profile page's parsed-JSON editor is gone, so the bank is the
+only place to edit resume facts; `resumes.parsed_json` is now the parser's
+own output, never edited, and stays only until the recommender and Scout
+read the bank.
+
+**Model parsing** (KAN-222): when the parser finds no entries, the API reads
+the upload with AI instead, and "Read It Again with AI" on the drafts asks
+for that reading on purpose. The model gets the text with identity data
+removed, and each entry it returns is checked against the entry schema. It
+costs one AI reading a day (the parsing cap), counted only when it works.
+
+## Built resumes (KAN-207)
+
+A built resume is a choice over the bank, never a copy of it (ADR 0001):
+
+```
+applicant_profiles
+  └── built_resumes            name, template id, optional job posting
+        ├── built_resume_entries   entry: shown, position in its section, GPA and coursework toggles
+        ├── built_resume_bullets   bullet: shown, position in its entry, variant (null: the original)
+        └── built_resume_skills    skill: shown, position
+```
+
+- **No text on a built resume.** The view (`backend/app/services/resume_view.py`)
+  joins the choices to the bank's current text, so a fix in the bank shows
+  everywhere. A bullet choice may name a variant (`variant_id`), whose
+  text then shows in place of the original; deleting the variant brings
+  the original back (`ON DELETE SET NULL`).
+- **No choice row, not on the resume.** Generate writes a row for everything
+  in the bank at that moment; what is added later waits in the editor's tray
+  instead of appearing on old resumes. Bullets and skills follow the same
+  rule as entries, so a bullet added to an entry already on a resume waits
+  too. A copy of an entry (same section, title, organization and months)
+  gets a row with `shown` false, so it waits in the tray as well.
+- **Base or tailored by `job_posting_id`.** Null is a base resume. A posting
+  has at most one tailored resume per student (a unique key; NULLs distinct).
+  Deleting the posting deletes its tailored resume; sent resumes keep their
+  own file.
+- **Tailor makes the tailored resume** (KAN-217). A run proposes changes
+  and saves nothing; Done copies the starting resume's choices (the
+  tailored one if it exists, else the newest base resume), applies the
+  accepted changes and saves them on the posting's one tailored resume.
+  Tailor changes only what shows, the order, which variant shows and which
+  skills show. Every wording passes the truth-rule check twice: when the
+  model proposes it and when the student approves it.
+- **The limit is 5 uploaded plus base resumes.** Tailored and sent resumes
+  do not count. The API checks before writing, on Generate and on upload.
+- **The default resume is one of two pointers.** It was
+  `applicant_profiles.default_resume_id`, a foreign key to `resumes`, and it
+  can now be a base resume too. A single id column could not keep a foreign
+  key to two tables, and a type column with no foreign key would leave a
+  dangling id when a resume is deleted. So a second nullable column,
+  `default_built_resume_id` → `built_resumes.id`, sits beside it, both
+  `ON DELETE SET NULL`, with a check that at most one is set. Setting one
+  clears the other. Deleting the default leaves no default, as before.
+- **The template id is stored, not the template.** `jakes` is the only one;
+  a second template is its own slice. The Word file is one plain layout with
+  no id.
+
+## Sent resumes (KAN-208)
+
+A sent resume is the exact file a student downloaded or applied with, kept
+unchanged. Built resumes are live views, so without it there would be no
+record of what an employer actually received.
+
+```
+applicant_profiles
+  └── sent_resumes   storage path, name then, time, optional job posting, content hash
+        ├─ built_resume_id     → built_resumes  (ON DELETE SET NULL)
+        └─ uploaded_resume_id  → resumes        (ON DELETE SET NULL)
+```
+
+- **The file is stored, not re-rendered.** A PDF download renders once and
+  puts the PDF in the `Resume` bucket at `{applicant}/sent/{id}.pdf`. A bank
+  fix, a template change or a renderer upgrade never changes it.
+- **Repeats merge by a hash taken before rendering**: the view, the template
+  id and the header's identity text (sha256). The same hash for the same
+  built resume (and the same job posting, null for a download) returns the
+  last sent resume, with no render and no upload, so the Sent list stays
+  short. The name is not in the hash: it is not printed on the page.
+- **The sources are a record, not an owner.** Deleting the built or uploaded
+  resume nulls the link and keeps the sent resume, with the name it had.
+  At most one source is set (`sent_resumes_one_source`).
+- **An uploaded resume's file can outlive it.** Applying with an uploaded
+  resume (KAN-220) writes a row that points at that resume's own file, with
+  no hash. Deleting the uploaded resume keeps the file while a sent resume
+  uses it; deleting the last such sent resume removes it.
+- **Apply keeps a sent resume linked to the posting** (KAN-220). On the
+  Jobs page posting detail, Apply Now asks for a resume (a base resume, the
+  one tailored to that posting, or an uploaded resume), keeps it, and then
+  offers the file and the employer's page. A plain download and an Apply
+  of the same content are separate sent resumes: repeats merge only within
+  one posting. Linking the application in the Applications tracker waits
+  for the tracker's API.
+- **Only the PDF is kept.** The Word download is not a sent resume yet.
+
+The rest of this file is the original design for uploaded resumes.
+
 ## Relationship to KAN-50 tables
 
 ```
@@ -25,8 +189,8 @@ the first upload — correct onboarding order (contact info first, then resume).
 
 1. User uploads a file (PDF, DOCX, etc.) → stored at `resumes.storage_path`.
 2. Parser extracts text → `resumes.raw_text`, structured output → `resumes.parsed_json`, status → `parsed`.
-3. Parsed data is written into the content tables below as a draft.
-4. User reviews and edits the pre-filled entries in the UI.
+3. (Superseded: the content tables were never built. Import turns the
+   upload into bank drafts the student reviews; see above.)
 
 ## Re-upload behavior
 
@@ -261,7 +425,7 @@ CREATE INDEX resume_certifications_resume_idx ON resume_certifications (resume_i
   a UI section exists for them. Until then, they fit in
   `resume_education.description` or `resume_experience.description`.
 - **Embeddings / vector columns** for AI matching. Belongs to a future
-  matching/ATS ticket, not the base schema.
+  matching or hiring-system ticket, not the base schema.
 - **`resume_summary`** field. Already covered by `applicant_profiles.headline`
   and `resumes.raw_text`. Add if the UI needs an editable summary per resume.
 

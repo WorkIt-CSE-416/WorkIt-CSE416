@@ -1,6 +1,7 @@
 """
-Embeddings: resumes and job postings as vectors, so they can be compared by
-meaning in any field.
+Embeddings: experience banks and job postings as vectors, so they can be
+compared by meaning in any field. What a bank is embedded from is
+`bank_input.bank_text`.
 """
 
 import logging
@@ -10,12 +11,15 @@ from collections.abc import Sequence
 import httpx  # general Python library for sending HTTP requests
 
 from app.config import get_settings
-from app.models.dto import EMBEDDING_DIMENSIONS, ParsedResume
+from app.models.dto import EMBEDDING_DIMENSIONS
 
 logger = logging.getLogger(__name__)
 
-# Gemini stays fixed for production; local Ollama models are configurable.
-# Stored vectors carry model_key() so different embedding spaces stay distinct.
+# Every writer that shares a database must use one provider and model:
+# vectors from different models can't be compared, even at equal
+# dimensions. Gemini stays fixed for production; local Ollama models are
+# configurable, and model_key() names the space a vector came from.
+# Changing the model or DIMENSIONS means re-embedding every job and bank.
 MODEL = "gemini-embedding-001"
 
 DIMENSIONS = EMBEDDING_DIMENSIONS
@@ -28,21 +32,6 @@ _URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:batchEm
 def job_text(title: str, description: str | None) -> str:
     '''what a posting is embedded from: its title, then its description'''
     return f"{title}\n\n{description or ''}".strip()
-
-
-def resume_text(resume: ParsedResume) -> str:
-    '''
-    what a resume is embedded from: its parsed sections, never the raw text,
-    which carries the name, email, phone and links
-    '''
-    lines = [
-        ("Skills: " + ", ".join(s.skill_name for s in resume.skills)) if resume.skills else "",
-        *(f"{e.title} at {e.company_name}. {e.description or ''}" for e in resume.experience),
-        *(f"{p.project_name}. {p.description or ''}" for p in resume.projects),
-        *(" ".join(filter(None, (e.degree, e.field_of_study))) for e in resume.education),
-        *(c.cert_name for c in resume.certifications),
-    ]
-    return "\n".join(line.strip() for line in lines if line.strip())
 
 
 def model_key() -> str:

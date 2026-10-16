@@ -28,6 +28,9 @@ type ScoutState = {
    *  so follow-ups ("what should I learn first?") keep that job in view. */
   jobId: string | null;
   error: string | null;
+  /** A page that holds the panel (scout-takeover.tsx): its header, shown in
+   *  place of Scout's own while its content replaces the chat. */
+  takeover: { title: string; subtitle: string } | null;
 };
 
 const MAX_HISTORY = 40;
@@ -37,6 +40,7 @@ const INITIAL: ScoutState = {
   reply: null,
   jobId: null,
   error: null,
+  takeover: null,
 };
 
 let state = INITIAL;
@@ -64,6 +68,16 @@ export function useScout(): ScoutState {
 
 export function setScoutOpen(open: boolean) {
   update({ open });
+}
+
+/** A page takes the panel over (scout-takeover.tsx). The returned release
+ *  gives it back only while this takeover still holds it, so one page
+ *  leaving never clears another that took the panel after it. */
+export function takeOverScout(takeover: NonNullable<ScoutState["takeover"]>) {
+  update({ takeover });
+  return () => {
+    if (state.takeover === takeover) update({ takeover: null });
+  };
 }
 
 /** The bar's launcher, where focus goes back to when the panel closes. */
@@ -100,7 +114,7 @@ export async function sendToScout(text: string) {
       for await (const event of readEvents(res.body)) {
         if (event.type === "error") {
           error = event.message;
-        } else {
+        } else if (event.type === "text") {
           reply += event.delta;
           update({ reply });
         }

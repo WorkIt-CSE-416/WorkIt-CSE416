@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -28,28 +28,24 @@ import { ResumeUpload } from "@/components/resume-upload";
 import {
   uploadResume,
   deleteResume,
-  getParsedResume,
   getResumeFileUrl,
   listResumes,
-  parseResume,
   setPrimaryResume,
-  updateParsedResume,
-  type ParsedResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
-import { EMPTY_RESUME, ResumeEditDialog, type SectionKey } from "./resume-edit-dialog";
+import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { RESUME_ROW, ResumeRow } from "./resume-row";
-import { ExperienceSection, SkillsSection } from "./resume-sections";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
 import { SEEKER_GUTTER } from "../gutter";
 import { useProfileCache } from "../profile-cache";
 
 /**
- * The profile screen. Resumes, the profile photo, Work Experience/Skills and
- * identity fields are all live. The last two render one resume's parsed
- * content (shownResume) and save edits back to it. Name, headline, email and
+ * The profile screen. Resumes, the profile photo and identity fields are all
+ * live. Resume facts are not edited here: they live in the experience bank
+ * (/bank), which an upload fills through import (KAN-211 removed the parsed-
+ * JSON editor that used to sit here). Name, headline, email and
  * phone come from the applicant_profiles table via getProfile(). A return
  * visit renders the last visit's data at once
  * (../profile-cache.tsx) and refetches it behind the scenes. The autofill
@@ -70,9 +66,8 @@ import { useProfileCache } from "../profile-cache";
  *                   (one row per resume, up to five) has no column beside it
  *                   to fall out of step with. Inside, the rows take the wide
  *                   track and the dropzone the narrow one
- *   the rest        open sections under plain headings: Work Experience in
- *                   the wide column, Skills and Application Settings in the
- *                   narrow one, which come out within a line of each other
+ *   the rest        open sections under plain headings: Experience Bank in
+ *                   the wide column, Application Settings in the narrow one
  *
  * Each open section's actions sit at the top right of its heading, as a
  * Dashboard section's "View All" does (./section-action.tsx).
@@ -86,12 +81,9 @@ import { useProfileCache } from "../profile-cache";
  * failed resume list holds the first row's place in grey rather than red, so
  * a list that did not load is not mistaken for one with nothing in it.
  */
+// The API's limit: uploaded plus base resumes, together (tailored ones are
+// free). The count below adds the base resumes, so it matches the API's 409.
 const MAX_RESUMES = 5;
-
-/** The resume Work Experience and Skills show: the primary one, else the newest. */
-function shownResume(resumes: ResumeItem[]) {
-  return resumes.find((r) => r.is_default) ?? resumes[0];
-}
 
 export default function ProfilePage() {
   // The last visit's data, if any, read once. A return visit renders it at
@@ -108,34 +100,15 @@ export default function ProfilePage() {
 
   // Resume items. `uploading` is the name of the file in flight, or null.
   const [resumeList, setResumeList] = useState<ResumeItem[]>(cached?.resumes ?? []);
+  // Base resumes made on the bank page count toward the same 5.
+  const [baseCount, setBaseCount] = useState(0);
+  const resumeCount = resumeList.length + baseCount;
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(cached !== null);
   // A failed list hides the "2 of 5" count: "0 of 5" would say there are none.
   const [listFailed, setListFailed] = useState(false);
-  // A parsed file waiting on the review dialog; nothing is saved until Save.
-  const [pending, setPending] = useState<{ file: File; parsed: ParsedResume | null } | null>(null);
-  // The shown resume's parsed content (shownResume), which Work Experience and
-  // Skills show and edit. null when there is no resume.
-  const [profile, setProfile] = useState<{ id: string; parsed: ParsedResume } | null>(
-    cached?.shown ?? null,
-  );
-  // While the sections' content loads (the first time, or after a switch),
-  // they say so rather than "Upload a resume", and keep their editors shut.
-  const [profileLoading, setProfileLoading] = useState(cached === null);
-  // Star and delete clicks that may move the sections to another resume,
-  // still in flight. The editors stay shut from the click, not just from the
-  // content load that follows: one opened in between saves onto the wrong
-  // resume. A count, so a second quick switch is not unlocked by the first.
-  const [switching, setSwitching] = useState(0);
-  // The list and shown resume as last rendered, for code that carries on after
-  // an await or runs from the mount effect: the values it closed over are the
-  // ones from the render it started in.
-  const latest = useRef({ resumeList, shownId: profile?.id });
-  useEffect(() => {
-    latest.current = { resumeList, shownId: profile?.id };
-  });
 
   // The resume the delete dialog asks about. It outlives `confirmOpen` so the
   // filename does not vanish while the dialog fades out.
@@ -178,20 +151,10 @@ export default function ProfilePage() {
   // photo upload's blob: preview (revoked afterwards) is on screen, and not
   // after a failed load, which would show the next visit an empty profile.
   useEffect(() => {
-    if (loaded && !profileLoading && !avatarBusy && !loadFailed) {
-      cache.write({ resumes: resumeList, shown: profile, avatarUrl, applicantProfile });
+    if (loaded && !avatarBusy && !loadFailed) {
+      cache.write({ resumes: resumeList, avatarUrl, applicantProfile });
     }
-  }, [
-    cache,
-    loaded,
-    profileLoading,
-    avatarBusy,
-    loadFailed,
-    resumeList,
-    profile,
-    avatarUrl,
-    applicantProfile,
-  ]);
+  }, [cache, loaded, avatarBusy, loadFailed, resumeList, avatarUrl, applicantProfile]);
 
   async function handleAvatarSelect(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -243,35 +206,6 @@ export default function ProfilePage() {
     router.refresh();
   }
 
-  async function loadProfile(resume: ResumeItem | undefined) {
-    // While the sections switch to another resume, their editors stay shut:
-    // one opened on the outgoing resume would save its entries onto this one.
-    // A refresh of the same resume (a return visit) leaves them usable.
-    if (resume?.id !== latest.current.shownId) setProfileLoading(true);
-    try {
-      if (!resume) {
-        setProfile(null);
-        return;
-      }
-      const { parsed, error } = await getParsedResume(resume.id);
-      if (error) {
-        setLoadFailed(true);
-        // A failed switch must not leave the outgoing resume on screen, still
-        // editable: after a delete, that is the resume that no longer exists.
-        // A failed refresh of the same resume keeps what is shown.
-        if (resume.id !== latest.current.shownId) setProfile(null);
-        return;
-      }
-      // A resume that failed to parse can still be filled in by hand.
-      setProfile({ id: resume.id, parsed: parsed ?? EMPTY_RESUME });
-    } catch {
-      setLoadFailed(true);
-      if (resume && resume.id !== latest.current.shownId) setProfile(null);
-    } finally {
-      setProfileLoading(false);
-    }
-  }
-
   // Load the resumes — on a return visit, a background refresh of the cache.
   // A failed load keeps whatever a return visit already shows. No guard is
   // needed against this landing after a change made meanwhile: Next runs
@@ -281,35 +215,25 @@ export default function ProfilePage() {
     function fail() {
       setLoadFailed(true);
       setListFailed(true);
-      setProfileLoading(false);
     }
-    listResumes()
-      .then(({ resumes, error }) => {
-        if (error) return fail();
+    Promise.all([listResumes(), listBuiltResumes()])
+      .then(([{ resumes, error }, built]) => {
+        if (error || built.error) return fail();
         setResumeList(resumes);
-        loadProfile(shownResume(resumes));
+        setBaseCount((built.data ?? []).filter((r) => r.job_posting_id == null).length);
       })
       .catch(fail)
       .finally(() => setLoaded(true));
   }, []);
 
-  // One entry added, edited or removed on the profile: replace that section
-  // and save the whole parsed resume back.
-  async function handleSectionChange(section: SectionKey, entries: object[]) {
-    if (!profile) return "Upload a resume first.";
-    const parsed = { ...profile.parsed, [section]: entries } as ParsedResume;
-    const { error } = await updateParsedResume(profile.id, parsed);
-    if (error) return error;
-    setProfile({ id: profile.id, parsed });
-    return null;
-  }
-
-  // Parses without saving: the review dialog opens on the result, and only its
-  // Save uploads the file. `uploading` names the file while it is being read.
+  // Uploads at once: the API reads the file itself. The student checks what
+  // it read by importing it into the experience bank, not here.
   async function handleResumeFileAdd(file: File) {
-    if (!loaded || uploading !== null || pending) return;
-    if (resumeList.length >= MAX_RESUMES) {
-      setResumeError(`You can keep up to ${MAX_RESUMES} resumes. Remove one to add another.`);
+    if (!loaded || uploading !== null) return;
+    if (resumeCount >= MAX_RESUMES) {
+      setResumeError(
+        `You can keep up to ${MAX_RESUMES} resumes, uploaded and base resumes together. Remove one to add another.`,
+      );
       return;
     }
     setResumeError(null);
@@ -318,48 +242,19 @@ export default function ProfilePage() {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const { parsed, error } = await parseResume(fd);
-      if (error) {
-        setResumeError(error);
-        return;
-      }
-      setPending({ file, parsed });
+      const { resume, error } = await uploadResume(fd);
+      if (error) return setResumeError(error);
+      // Functional: another action may have changed the list meanwhile.
+      if (resume) setResumeList((prev) => [resume, ...prev]);
     } catch {
-      setResumeError("Could not read the resume. Refresh the page and try again.");
+      setResumeError("Could not upload the resume. Refresh the page and try again.");
     } finally {
       setUploading(null);
     }
   }
 
-  // Sends the file again with the applicant's edits; the API stores those
-  // instead of re-parsing.
-  async function handleReviewSave(edited: ParsedResume): Promise<string | null> {
-    if (!pending) return null;
-    const fd = new FormData();
-    fd.append("file", pending.file);
-    // Nothing read and nothing typed: let the API parse the file itself, so
-    // the resume is marked parse_failed rather than "parsed".
-    if (pending.parsed || Object.values(edited).some((entries) => entries.length > 0)) {
-      fd.append("parsed_json", JSON.stringify(edited));
-    }
-    const { resume, error } = await uploadResume(fd);
-    if (error) return error;
-    if (resume) {
-      // Functional updates throughout: another action may have changed the
-      // list while this one was awaiting the server.
-      setResumeList((prev) => [resume, ...prev]);
-      // The sections switch to the new resume only when no primary outranks it.
-      if (!resumeList.some((r) => r.is_default)) {
-        setProfile({ id: resume.id, parsed: resume.parsed_json ?? edited });
-      }
-    }
-    setPending(null);
-    return null;
-  }
-
   async function handleMakePrimary(resumeId: string) {
     setResumeError(null);
-    setSwitching((n) => n + 1);
     try {
       const { error } = await setPrimaryResume(resumeId);
       if (error) {
@@ -367,11 +262,8 @@ export default function ProfilePage() {
         return;
       }
       setResumeList((prev) => prev.map((r) => ({ ...r, is_default: r.id === resumeId })));
-      if (profile?.id !== resumeId) await loadProfile(resumeList.find((r) => r.id === resumeId));
     } catch {
       setResumeError("Could not update the resume. Refresh the page and try again.");
-    } finally {
-      setSwitching((n) => n - 1);
     }
   }
 
@@ -410,9 +302,6 @@ export default function ProfilePage() {
     if (deletingId) return;
     setResumeError(null);
     setDeletingId(resumeId);
-    const shownAtClick = latest.current.shownId;
-    const movesSections = !shownAtClick || resumeId === shownAtClick;
-    if (movesSections) setSwitching((n) => n + 1);
     try {
       const { error } = await deleteResume(resumeId);
       if (error) {
@@ -420,18 +309,11 @@ export default function ProfilePage() {
         return;
       }
       setResumeList((prev) => prev.filter((r) => r.id !== resumeId));
-      // Also when nothing is shown yet: the first load has not landed, so the
-      // deleted resume may be the one about to be.
-      const { resumeList: current, shownId } = latest.current;
-      if (!shownId || resumeId === shownId) {
-        await loadProfile(shownResume(current.filter((r) => r.id !== resumeId)));
-      }
     } catch {
       // The server action call itself failed
       // or the page came back from the back-forward cache with stale action IDs.
       setResumeError("Could not remove the resume. Refresh the page and try again.");
     } finally {
-      if (movesSections) setSwitching((n) => n - 1);
       // Without this a thrown call leaves deletingId set, and every later
       // click returns early without doing anything.
       setDeletingId(null);
@@ -575,7 +457,7 @@ export default function ProfilePage() {
             action={
               loaded && !listFailed ? (
                 <Badge variant="tag" pill>
-                  {resumeList.length} of {MAX_RESUMES}
+                  {resumeCount} of {MAX_RESUMES}
                 </Badge>
               ) : undefined
             }
@@ -583,7 +465,8 @@ export default function ProfilePage() {
             Resume
           </SectionHeading>
           <p className="text-body text-ink-meta mt-1">
-            Keep a version for each kind of role you apply to, up to {MAX_RESUMES}.
+            Keep a version for each kind of role you apply to, up to {MAX_RESUMES}, counting the
+            base resumes you make in your experience bank.
           </p>
         </div>
 
@@ -598,20 +481,6 @@ export default function ProfilePage() {
             <p role="alert" className="text-meta text-danger mt-2">
               {resumeError}
             </p>
-          )}
-          {pending && (
-            <ResumeEditDialog
-              title="Review Your Resume"
-              description={
-                pending.parsed
-                  ? `Check what we read from ${pending.file.name} and fix anything we got wrong before saving.`
-                  : `We couldn't read any sections from ${pending.file.name}. Add them below, or save it as is.`
-              }
-              parsed={pending.parsed}
-              saveLabel="Save Resume"
-              onSave={handleReviewSave}
-              onCancel={() => setPending(null)}
-            />
           )}
         </div>
 
@@ -643,7 +512,7 @@ export default function ProfilePage() {
               <PdfIcon className="size-5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-label text-ink truncate">{uploading}</p>
-                <p className="text-note text-ink-meta">Reading…</p>
+                <p className="text-note text-ink-meta">Uploading…</p>
               </div>
             </div>
           )}
@@ -684,34 +553,22 @@ export default function ProfilePage() {
         </Dialog>
       </Card>
 
-      {/* Settings comes last in the DOM, so a phone reaches it after Resume,
-          Experience and Skills. Both tracks have a zero minimum, so a long
-          line truncates instead of widening its column past the screen.
-
-          Both sections are keyed by the shown resume: a switch the page did
-          not start (a background refresh, after another tab changed the
-          primary) remounts them, which closes an editor still open on the
-          outgoing resume rather than letting it save onto the incoming one.
-          With no content and resumes on the list, the content failed to
-          load, so the sections say so instead of "Upload a resume". */}
+      {/* Settings comes last in the DOM, so a phone reaches it after Resume
+          and the Experience Bank. Both tracks have a zero minimum, so a long
+          line truncates instead of widening its column past the screen. */}
       <div className="mt-10 grid grid-cols-1 items-start gap-10 @3xl/main:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <ExperienceSection
-          key={profile?.id}
-          parsed={profile?.parsed ?? null}
-          loading={profileLoading || switching > 0}
-          failed={listFailed || resumeList.length > 0}
-          onChange={handleSectionChange}
-        />
+        <section aria-labelledby="bank">
+          <SectionHeading id="bank">Experience Bank</SectionHeading>
+          <p className="text-body text-ink-meta mt-1">
+            Your jobs, projects, clubs and skills live in your experience bank, where you edit them.
+            Import an uploaded resume there to fill it in one go.
+          </p>
+          <ButtonLink href="/bank" variant="secondary" className="mt-4">
+            Open Experience Bank
+          </ButtonLink>
+        </section>
 
         <div className="flex flex-col gap-10">
-          <SkillsSection
-            key={profile?.id}
-            parsed={profile?.parsed ?? null}
-            loading={profileLoading || switching > 0}
-            failed={listFailed || resumeList.length > 0}
-            onChange={handleSectionChange}
-          />
-
           <section aria-labelledby="settings">
             <SectionHeading id="settings">Application Settings</SectionHeading>
 

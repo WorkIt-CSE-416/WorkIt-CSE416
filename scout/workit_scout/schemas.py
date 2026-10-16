@@ -44,15 +44,21 @@ class JobFacts(BaseModel):
 
 class ResumeFacts(BaseModel):
     """
-    What Scout may say about the user, one line per item. Parsed sections only
-    — never a name, email, phone or link: the production model is a free tier
-    that may train on prompts, so contact details must never reach it.
+    What Scout may say about the user: their experience bank, one line per
+    entry, and their skills. Never a name, email, phone or link: the
+    production model is a free tier that may train on prompts, so identity
+    data must never reach it. `has_upload` says whether an uploaded resume
+    waits to be imported, for the empty-bank wording.
     """
 
     skills: list[str] = []
     experience: list[str] = []
     education: list[str] = []
     projects: list[str] = []
+    leadership: list[str] = []
+    awards: list[str] = []
+    certifications: list[str] = []
+    has_upload: bool = False
 
 
 class TextEvent(BaseModel):
@@ -69,4 +75,14 @@ class ErrorEvent(BaseModel):
     message: str
 
 
-ScoutEvent = Annotated[TextEvent | ErrorEvent, Field(discriminator="type")]
+class UsageEvent(BaseModel):
+    """The turn's last line: Scout uses the student has left today. The API
+    adds it after counting the turn; a turn that failed did not count."""
+
+    type: Literal["usage"] = "usage"
+    uses_left: int
+
+
+ScoutEvent = Annotated[
+    TextEvent | ErrorEvent | UsageEvent, Field(discriminator="type")
+]

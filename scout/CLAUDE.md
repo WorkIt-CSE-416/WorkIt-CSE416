@@ -11,8 +11,9 @@ and the panel is `frontend/src/components/scout/`.
 So Scout's brain can be found, read and reused apart from the API — a nightly
 job that emails match summaries could install it too. The price is one rule:
 **this package never imports the backend** (`app.*`). It has no database, no
-settings and no HTTP; the API's router reads `SCOUT_*`, authenticates, applies
-the daily cap and hands Scout a model and a conversation. backend/CLAUDE.md
+settings and no HTTP; the API's router reads `SCOUT_*`, authenticates, checks
+and counts the student's daily uses (`backend/app/services/usage.py`) and hands
+Scout a model, the student's identity fields and a conversation. backend/CLAUDE.md
 records this as the one exception to "nothing outside backend/ is imported".
 
 There is no venv here: the backend installs the package, so everything runs
@@ -32,13 +33,13 @@ install time.
 
 | file | owns |
 |---|---|
-| `settings.py` | `SCOUT_*`: the model endpoints and the daily cap |
-| `llm.py` | the one place `openai` is imported; fallback between endpoints |
+| `settings.py` | `SCOUT_*`: the endpoint chain |
+| `llm.py` | the one place `openai` is imported; the endpoint chain, streamed and structured calls, identity-data removal on every call |
 | `prompt.py` | the frozen system prompt and the facts block after it |
 | `agent.py` | one turn: prompt + conversation in, events out |
 | `schemas.py` | the wire format (`ChatRequest`, `ScoutEvent`) and the facts types |
-| `facts.py` | a resume's `parsed_json` and a `feed.json` row as Scout's facts; the privacy boundary |
-| `quota.py` | the per-account daily cap |
+| `facts.py` | the experience bank and a `feed.json` row as Scout's facts; the privacy boundary |
+| `identity.py` | identity-data removal: `remove_identity`, run on all text bound for a model |
 | `testing.py` | `ScriptedLLM`, the fake model both test suites use |
 
 ## Scout is free for every user — that decides the design
@@ -50,9 +51,13 @@ the KAN-138 plan; the rules that follow from it are these:
 - **The model is configuration, never code.** `llm.py` is the only file that
   imports `openai`, and it talks to any OpenAI-compatible endpoint named by the
   `SCOUT_*` settings in `settings.py`. Swapping providers is an env change.
-- **A daily per-account cap** (`SCOUT_DAILY_TURNS`, `quota.py`) stops one
-  script from spending a free tier. It lives in memory and resets on restart,
-  which errs toward letting people in.
+- **Daily uses are counted in the database, not here** (KAN-210). The API's
+  `app/services/usage.py` holds each feature's cap per student and share of
+  the daily pool (`AI_*` env settings, `backend/CLAUDE.md`), and counts a use
+  only when the call succeeds. Scout's turn counts only when it ends with no
+  `error` event; its last NDJSON line is a `usage` event with the uses left.
+  The old in-memory `DailyQuota` is gone: it reset on every restart and
+  counted a turn before the call, so a failed turn cost the student a use.
 - **Replies are short.** The prompt asks for under 80 words, one answer
   sentence and at most three bullets — "two to four sentences, or a few
   bullets" produced 150-word replies on Gemini Flash-Lite. `agent.MAX_REPLY_CHARS`
@@ -62,31 +67,68 @@ the KAN-138 plan; the rules that follow from it are these:
 - **Formatting is `**bold**` and `- ` bullets, nothing else.** The panel's
   `reply-text.tsx` renders exactly those, so widen the prompt's list and that
   component together or the panel shows raw markdown again.
-- **Only parsed resume fields ever reach a model** — never a name, email,
-  phone, link or the raw resume text. The production model is a free tier that
-  may train on prompts. `facts.py` enforces it.
+- **Only the experience bank's sections and skills ever reach a model as
+  facts** — never a name, email, phone, link or an uploaded resume's text.
+  The production model is a free tier that may train on prompts. `facts.py`
+  enforces it.
 
 ## Which model, where
 
-| Where | Model | Settings |
-| --- | --- | --- |
-| Laptops (default) | Qwen 3.5 4B on Ollama, $0, nothing leaves the machine | none — the defaults point at `http://localhost:11434/v1` |
-| Production | `gemini-3.5-flash-lite` on Gemini's free API tier (about 500–1,500 requests a day per project; AI Studio shows the live quota) | `SCOUT_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `SCOUT_MODEL`, `SCOUT_API_KEY`, `SCOUT_REASONING_EFFORT=minimal`, `SCOUT_DAILY_TURNS=20`, set on the `workit-api` Vercel project |
-| Production fallback | none, on purpose: Scout stays $0. When Gemini's daily quota runs out, users see the out-of-quota message until it resets. Groq's free tier (`https://api.groq.com/openai/v1`, `openai/gpt-oss-20b`, effort `low`) is the free option if one is ever needed | `SCOUT_FALLBACK_*` |
+The model is an **endpoint chain**: `SCOUT_ENDPOINTS`, a JSON list tried in
+order, each item `{"base_url", "model", "api_key"?, "reasoning_effort"?}`.
+Unset, the chain is one endpoint named by `SCOUT_BASE_URL`, `SCOUT_MODEL`,
+`SCOUT_API_KEY` and `SCOUT_REASONING_EFFORT`, whose defaults are a local
+Ollama. `SCOUT_FALLBACK_*` and `SCOUT_DAILY_TURNS` were removed in KAN-210 and
+are now ignored; a deploy that still sets them has no fallback until
+`SCOUT_ENDPOINTS` is set.
+
+| Where | Chain |
+| --- | --- |
+| Laptops (default) | Qwen 3.5 4B on Ollama, $0, nothing leaves the machine; nothing to set |
+| Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` on the `workit-api` Vercel project |
+| At launch (spec) | DeepInfra `gpt-oss-120b`, then Groq, with a $50 a month spend limit |
+| Laptops testing on hosted models | Groq `openai/gpt-oss-120b`, then Groq `openai/gpt-oss-20b` (effort `low`), then Gemini `gemini-3.5-flash-lite` once a key is added; as `SCOUT_ENDPOINTS` in the root `.env`. Each Groq model has its own daily quota, so the 20b doubles the free room |
+
+**Production differs from the spec** (checked 2026-10-14 with `vercel env
+pull`): `workit-api` sets no `SCOUT_ENDPOINTS`, only `SCOUT_BASE_URL`,
+`SCOUT_MODEL` and `SCOUT_API_KEY` for Gemini `gemini-3.5-flash-lite` alone,
+with no fallback. Its key is a Vercel Sensitive variable, so a pull shows
+`[SENSITIVE]`, not the value; a laptop needs its own key from AI Studio.
+Training on prompts is acceptable to the team (2026-10-14), since identity
+data is removed on every call, so Gemini's and Z.ai's free tiers are open
+choices.
+
+**Z.ai `GLM-4.7-Flash` is not in the chain.** It joins only after a person
+checks its console limits, its terms (may it train on prompts?) and the fixed
+test set. Still open. If it passes, add it as the second item of
+`SCOUT_ENDPOINTS` (an OpenAI-compatible base URL, `https://api.z.ai/api/paas/v4/`
+at the time of writing; confirm in its console); no code change.
 
 Set up a laptop with `ollama pull qwen3.5:4b` (about 3.5 GB; use
 `qwen3.5:9b` on 16 GB+ machines, which is noticeably better at tool calls).
 Ollama must be running, or Scout answers "offline".
 
-`SCOUT_REASONING_EFFORT` is per endpoint because providers disagree: Ollama's
+`reasoning_effort` is per endpoint because providers disagree: Ollama's
 Qwen takes `none` (thinking off, so replies start at once); Gemini and GPT-5
-reject `none` and want `minimal`. Never send `tool_choice` — Ollama does not
-support it.
+reject `none` and want `minimal`. It is sent only when set. Never send
+`tool_choice`: Ollama does not support it, and a test checks the request body.
+
+## Structured output
+
+`LLM.complete_json(messages, Schema, identity=...)` is the non-streaming call
+every model feature that needs data (Intake, Tailor, model parsing, the
+editor assistant) uses. It sends `response_format` with the Pydantic schema's JSON schema, not strict
+(providers disagree on which schemas strict mode accepts), and checks the
+reply with `Schema.model_validate_json`. A reply that fails the check raises
+`InvalidReply` and is not repaired or retried down the chain: the caller
+decides whether to ask again, and it does not count as a use. No text reaches
+the student before it returns, so a 429, 5xx or dead endpoint moves down the
+whole chain.
 
 ## How a failure behaves
 
-`LLM.stream` tries the primary, and moves to the fallback only when the
-primary is rate-limited (429), erroring (5xx) or unreachable **before it has
+`LLM.stream` tries the chain in order, and moves to the next endpoint only
+when one is rate-limited (429), erroring (5xx) or unreachable **before it has
 sent any text**. Once text has reached the user a retry would repeat it, so a
 failure mid-reply ends the reply with an `error` event. A 4xx other than 429 is
 misconfiguration — wrong key, model name or parameter — and is not retried; the
@@ -98,20 +140,62 @@ server log says which endpoint failed. Every failure reaches the panel as one
 Each turn the API hands `agent.run` two sets of facts, rendered by
 `prompt.facts()` into a "What you know" block after the frozen system prompt:
 
-- **The resume** — the applicant's default resume if it parsed, else their
-  newest parsed one, its stored `parsed_json` mapped by `facts.resume_facts`.
-  It takes JSON data, not the API's `ParsedResume`, so this package still
-  never imports the backend. That mapping is the privacy boundary: skills,
-  experience, education and projects cross it; names, contact details, links
-  and raw text never do.
+- **The experience bank** (KAN-212) — the bank as `GET
+  /applicants/{id}/bank` returns it, mapped by `facts.bank_facts` to one short
+  line per entry (title, organization or school, years, original bullets,
+  cut at 300 characters) in all six entry sections, plus the skills. It takes
+  JSON data, not the API's classes, so this package still never imports the
+  backend. That mapping is the privacy boundary: links (a project's
+  included), locations and bullet variants never cross it, and there is
+  **no fallback to an uploaded resume**. For an empty bank the block says so
+  and says whether an upload exists (`ResumeFacts.has_upload`), so Scout can
+  point at import instead of guessing. The block keeps the heading "The
+  user's resume" because the frozen prompt's grounding rules name it so.
 - **The job** — when the panel sends a `job_id` (an "Ask Scout" click, and every
   message after it), the feed's row for it, description included. Descriptions
   come from the scraper (`scraper/CLAUDE.md`, "A posting's own page is read once").
 
 The prompt makes that block the only truth: no claim about the user that their
-resume does not state, none about the job that the posting does not state. A
-missing resume or description is said in the block, not left blank, so the
-model has nothing to fill in.
+resume does not state, none about the job that the posting does not state. An
+empty bank or a missing description is said in the block, not left blank, so
+the model has nothing to fill in.
+
+## Identity data never reaches a model
+
+Identity data (`GLOSSARY.md`: name, email, phone, street address, links) is
+removed by one function, `identity.remove_identity`, and only there (KAN-205).
+It takes text and the profile's identity fields (`name`, `email`, `phone`,
+`links`) and returns the text with `[name]`, `[email]`, `[phone]` and `[link]`
+placeholders. It also catches any email, URL or phone by pattern, so a former
+address or a friend's link goes too. Rules:
+
+- **Every model call's text passes through it, inside the provider seam.**
+  `LLM.stream` and `LLM.complete_json` take a required `identity=` (an
+  `identity.Identity`: name, email, phone, links) and run every message,
+  system prompt included, through `Identity.remove` before any endpoint sees
+  it. So no feature can forget it; a caller with no profile passes
+  `Identity()`, which still removes any email, URL or phone by pattern. The
+  API's Scout route builds it from the applicant's profile. Never add a second
+  copy of these patterns elsewhere; widen this function and its tests.
+- **A bare host's last label starts with a letter** (".com", ".io"). Without
+  that, "GPA: 3.81/4.00" matched as a host with a path, and the model read
+  every GPA as `[link]`.
+- **Placeholders are never swapped back.** The function returns only text;
+  nothing keeps a map from placeholder to value. A reply that needs the
+  student's name shows the placeholder or is filled by the page, not the model.
+- **Model text that is saved or shown is checked for placeholders first**,
+  with `identity.placeholders_in` over the one `PLACEHOLDERS` list. A model
+  that saw de-identified text can echo `[link]` back, and a saved
+  `[link]` replaces the student's real wording for good. Tailor, intake,
+  import's model reading and the editor assistant's "Make it shorter" all
+  call it; a new feature that keeps model text does too. Never copy the
+  list.
+- **Patterns err toward removing.** A phone is any run of 10 to 15 digits in
+  groups, so years, date ranges and counts survive; a bare host counts as a
+  link only with a path (`github.com/jd`), so `Node.js` and `ASP.NET` survive.
+  Each part of the name is removed in any case, even when it is also a word.
+- **Street address has no placeholder yet.** The spec names four placeholders
+  only; an address typed into free text is not caught. Still open.
 
 ## Rules for changing Scout
 
@@ -128,12 +212,27 @@ model has nothing to fill in.
   BFCL-V4, the 9B 66.1). When a task's data is known up front — "ask about this
   job" — load it into the prompt instead of making the model call a tool for it.
 - **New event types** go in `workit_scout/schemas.py` and
-  `frontend/src/components/scout/stream.ts` together.
+  `frontend/src/components/scout/stream.ts` together. Intake's extra
+  `draft` line is the backend's (`app/schemas/intake.py`) and the bank
+  page's (`(seeker)/bank/intake.tsx`), since its draft is the bank's entry
+  schema, which this package may not import.
+- **Intake reuses this package's model, not its prompt.** Its frozen prompt
+  and turn live in the backend (`app/services/intake.py`), for the same
+  reason. Its chat UI reuses the panel's bubble, typing dots and composer
+  (`components/scout/chat.tsx`): change them with both callers in mind.
 
 ## Tests
 
-`tests/test_scout.py` runs Scout against `ScriptedLLM`: fallback on 429 and on a
-dead endpoint, no fallback on misconfiguration or mid-reply, the reply cap, the
-grounding rules, the facts block (resume, job, and the wording when either is
-missing), the daily cap and the privacy mapping (`facts.py`). The API's
-side — the route and the feed — is `backend/tests/test_scout.py`. None need a network or Ollama.
+`tests/test_scout.py` runs Scout against `ScriptedLLM`, which takes one script
+per endpoint in the chain (`ScriptedLLM(rate_limited(), ["reply"])`), records
+every prompt as the model received it, and joins a script's pieces as the
+answer to a structured call. It covers: moving down the chain on 429, 5xx and
+a dead endpoint, no move on misconfiguration or mid-reply, the structured call
+(checked object, chain, rejected replies, no identity data), the request body
+(a JSON schema, never `tool_choice`), the chain read from env, the reply cap,
+the grounding rules, the facts block and the privacy mapping (`facts.py`).
+`tests/test_identity.py` tests `remove_identity` directly: each profile field,
+each pattern, and text with no identity data, which must come back unchanged.
+The API's side, the route, the daily uses and the prompt sent through it, is
+`backend/tests/test_scout.py` on the real-Postgres test database. None need a
+network or Ollama.

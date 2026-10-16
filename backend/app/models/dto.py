@@ -7,7 +7,7 @@ from datetime import date
 from pydantic import BaseModel as PydanticBase
 
 # The size of every stored embedding: job_postings.embedding and
-# resumes.embedding are vector(768), and embedding.py asks Gemini for this
+# experience_banks.embedding are vector(768), and embeddings.py asks Gemini for this
 # size. Changing it takes a migration and re-embedding everything.
 EMBEDDING_DIMENSIONS = 768
 
@@ -27,6 +27,8 @@ class Education(PydanticBase):
     degree: str | None = None
     field_of_study: str | None = None
     gpa: float | None = None
+    # the "4.00" of "GPA: 3.81/4.00"
+    gpa_scale: float | None = None
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
@@ -46,6 +48,8 @@ class Skill(PydanticBase):
 class Project(PydanticBase):
     project_name: str
     url: str | None = None
+    # the tools after the name: "Maze Robot | C++, Python"
+    technologies: list[str] = []
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
@@ -54,12 +58,22 @@ class Certification(PydanticBase):
     cert_name: str
     issuer: str | None = None
 
+_Date = date  # the field below is named "date", which hides the type
+
+class Award(PydanticBase):
+    title: str
+    issuer: str | None = None
+    date: _Date | None = None
+
 class ParsedResume(PydanticBase):
     education: list[Education] = []
     experience: list[Experience] = []
     skills: list[Skill] = []
     projects: list[Project] = []
     certifications: list[Certification] = []
+    # Leadership & Activities: the same shape as a job (KAN-211)
+    leadership: list[Experience] = []
+    awards: list[Award] = []
 
 
 # size range for company
@@ -132,3 +146,27 @@ class job_post_status(enum.StrEnum):
     # added by 1ea834081a48; ALTER TYPE, not an edit here, is what changes the column
     paused= "paused"
     closed= "closed"
+
+
+# --- Experience bank enums (KAN-206) ---
+
+class bank_section(enum.StrEnum):
+    '''
+    the section an experience bank entry belongs to. Skills, the seventh
+    section, is its own table (bank_skills), so it has no member here.
+    '''
+    education= "education"
+    experience= "experience"
+    projects= "projects"
+    leadership= "leadership"
+    awards= "awards"
+    certifications= "certifications"
+
+class entry_end_kind(enum.StrEnum):
+    '''
+    how an entry ends: on a month, ongoing ("Present"), or on a month still
+    to come ("Expected May 2027"). Present has no end month; the others do.
+    '''
+    month= "month"
+    present= "present"
+    expected= "expected"

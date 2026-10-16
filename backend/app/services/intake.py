@@ -1,0 +1,466 @@
+"""
+Intake (KAN-213): WorkIt asks about one thing at a time and fills a draft
+entry from the student's own words. One turn here: the frozen prompt, the
+card as it is, and this entry's chat in; the model's checked reply out.
+
+No database and no HTTP: the route loads the identity, checks and counts the
+daily uses, and streams the result. Nothing said here is stored.
+"""
+
+import datetime
+import json
+import re
+from collections.abc import Sequence
+
+from pydantic import ValidationError
+from workit_scout.identity import Identity, placeholders_in
+from workit_scout.llm import INVALID, LLM, InvalidReply
+from workit_scout.schemas import ChatMessage
+
+from app.models.dto import bank_section
+from app.schemas.intake import IntakeDraft, IntakeReply
+from app.services.bank import Bank, Entry, copy_key
+
+# Follow-up questions for each entry (spec). Counted from the chat the browser
+# sends, which starts afresh with every entry; the opening question is not
+# one (follow_ups).
+MAX_FOLLOW_UPS = 3
+
+# Said instead of a fourth question when the model asks one anyway.
+READY = "That's everything a resume needs. It looks ready to save, or tell me more to add."
+WRAP_UP = "That's all I need. Check the card, fix anything I got wrong, and save it."
+
+SECTION_NAMES = {
+    bank_section.education: "Education",
+    bank_section.experience: "Experience",
+    bank_section.projects: "Projects",
+    bank_section.leadership: "Leadership & Activities",
+    bank_section.awards: "Awards",
+    bank_section.certifications: "Certifications",
+}
+
+# What "title" and "organization" hold in each section, as the card labels
+# them. Without it a model puts the school in the organization.
+FIELD_MEANINGS = {
+    bank_section.education: ("the school, such as a university", "a college or department in it"),
+    bank_section.experience: ("the job title", "the company"),
+    bank_section.projects: ("the project name", "the team or course"),
+    bank_section.leadership: ("the role", "the club or organization"),
+    bank_section.awards: ("the award", "who gave it"),
+    bank_section.certifications: ("the certification", "the organization"),
+}
+
+# One frozen string, so providers can cache it as a prefix. What varies per
+# turn (the section, the card, the questions left) goes in a message after it.
+# Wording still open: tune it against scripts/intake_test_set.py.
+SYSTEM_PROMPT = """\
+You are WorkIt's intake helper. A student is telling you about one thing they \
+did, for one section of their resume. You fill a draft resume entry from their \
+words and ask about what is missing.
+
+Answer with JSON only: {"reply": ..., "draft": ..., "done": ...}.
+- "reply": your next line to the student. One short, friendly sentence, and at \
+most one question. No markdown.
+- "draft": the whole entry so far. Start from the current draft below and keep \
+every field in it, including what the student typed into the card themselves, \
+unless the student corrects it in the chat.
+- "done": true when you have no more questions.
+
+The truth rule: put only what the student said into the draft. Never invent a \
+title, organization, date, number, tool or result. Leave a field empty \
+(null, or "" for the title) when they have not said it. You may reword what \
+they said into resume style, but not add to it.
+
+One answer often holds several facts: put each in its own field, using what \
+title and organization hold in this section (given below). "Treasurer of the \
+Robotics Club" is title "Treasurer" and organization "Robotics Club". \
+"PennyWise, a budgeting app for my CSE 316 class" is title "PennyWise", \
+organization "CSE 316" and a bullet about the budgeting app. "I was a research \
+assistant in Professor Lee's lab" is title "Research Assistant" and \
+organization "Professor Lee's lab". A title is a name or a role, never a whole \
+sentence, and a role said in lowercase or in passing is still the title.
+
+Fields:
+- Months are "YYYY-MM". end_kind is "month" (ended), "present" (still going, \
+no end_month) or "expected" (an expected end, such as graduation).
+- bullets: what they did, one short line each, starting with a past-tense verb \
+("Built", "Led"), or a present-tense one for something ongoing. At most five. \
+Write them as soon as the student says what they did or what came of it, the \
+first answer included, rather than asking for a bullet.
+- Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
+Projects only: link. Certifications only: issuer. Awards only: award_date, in \
+place of start and end. Leave other sections' fields empty.
+- Text like [name], [email], [phone] or [link] stands for something removed \
+for privacy. Never put it in the draft.
+
+Questions: ask only about the facts the turn lists as still missing, in that \
+order. Every other field is optional in that section: fill it when the student \
+says it, never ask for it. Ask for a date in plain words ("What month and \
+year?"), never in a format like YYYY-MM. Fill the draft from everything the \
+student has said before you ask: a fact said in passing ("a research assistant \
+in the AI lab") is said, so never ask for it again. Never ask for something already in the \
+draft. If the student says they don't know or want to skip, accept it and move on. When \
+no questions are left, say the entry looks ready to save and set done to true.
+"""
+
+# The facts intake asks for in each section, in the order it asks: what
+# application forms take, plus what a resume line needs. Greenhouse requires
+# a school's degree, discipline and start and end months, and a job's
+# company, title, start and end (or "current"); Workday and the autofill
+# extension also read a GPA. No form asks for a project's, club role's or
+# award's dates, so intake does not (frontend/docs/screens.md, Experience Bank).
+_NEEDS = {
+    bank_section.education: ("title", "degree", "field_of_study", "dates", "gpa"),
+    bank_section.experience: ("title", "organization", "dates", "bullets"),
+    bank_section.projects: ("title", "bullets"),
+    bank_section.leadership: ("title", "organization", "bullets"),
+    bank_section.awards: ("title",),
+    bank_section.certifications: ("title", "organization"),
+}
+
+
+def _has(draft: IntakeDraft | None, fact: str) -> bool:
+    if draft is None:
+        return False
+    if fact == "dates":
+        # A start, and an end or "still going", as application forms take them.
+        ended = draft.end_month is not None or draft.end_kind == "present"
+        return draft.start_month is not None and ended
+    return not _empty(getattr(draft, fact))
+
+
+# Facts intake asks for but a resume can go without: the student may decline
+# one, and a card lacking it still counts as complete, so a declined GPA is
+# not asked for again.
+_OPTIONAL = frozenset({"gpa"})
+
+
+def _complete(section: bank_section, draft: IntakeDraft | None) -> bool:
+    return all(_has(draft, fact) for fact in _NEEDS[section] if fact not in _OPTIONAL)
+
+
+def _context(section: bank_section, draft: IntakeDraft | None, asked: int) -> str:
+    left = max(0, MAX_FOLLOW_UPS - asked)
+    current = draft.model_dump(mode="json") if draft else {"section": section.value}
+    title, organization = FIELD_MEANINGS[section]
+    needs = _NEEDS[section]
+    have = [fact for fact in needs if _has(draft, fact)]
+    missing = [fact for fact in needs if not _has(draft, fact)]
+    return (
+        f"Section: {SECTION_NAMES[section]} (section value \"{section.value}\").\n"
+        f"In this section, title is {title} and organization is {organization}.\n"
+        + (f"The draft already has: {', '.join(have)}. Never ask about these.\n" if have else "")
+        + (
+            f"Still missing: {', '.join(missing)}. Ask about these, in this order, "
+            "except one the student declined, and about nothing else.\n"
+            if missing
+            else "Nothing a resume needs is missing. Ask for no other field: you may ask "
+            "one question about what came of the work, or say the entry looks ready "
+            "and set done to true.\n"
+        )
+        + f"Questions you may still ask for this entry: {left}."
+        + (" Ask none: set done to true." if left == 0 else "")
+        + f"\nCurrent draft:\n{json.dumps(current)}"
+    )
+
+
+# The end of an entry is one fact in three fields, kept or dropped together
+# so the draft never breaks the entry's end rule.
+_DATES = ("start_month", "end_month", "end_kind")
+
+
+def _empty(value: object) -> bool:
+    return value is None or value == "" or value == []
+
+
+def _keep_filled(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
+    """A field the card had that the model sends back empty keeps the card's
+    value. The prompt says to keep every field, but a live model dropped an
+    imported entry's company and dates while it added a bullet, and saving
+    that visit would erase them. A correction changes a value, never blanks it."""
+    if old is None:
+        return new
+    fixes = {
+        name: getattr(old, name)
+        for name, value in new
+        if name not in _DATES and _empty(value) and not _empty(getattr(old, name))
+    }
+    if all(_empty(getattr(new, name)) for name in _DATES):
+        fixes.update({name: getattr(old, name) for name in _DATES})
+    return new.model_copy(update=fixes) if fixes else new
+
+
+_MONTH_NAMES = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+_SAID_MONTH = re.compile(
+    r"\b(?P<name>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+(?P<year>(?:19|20)\d\d)\b"
+    r"|\b(?P<iso_year>(?:19|20)\d\d)-(?P<iso_month>0[1-9]|1[0-2])\b"
+    r"|\b(?P<slash_month>0?[1-9]|1[0-2])/(?P<slash_year>(?:19|20)\d\d)\b",
+    re.IGNORECASE,
+)
+_STILL_GOING = re.compile(r"\b(still|present|currently|ongoing|right now)\b", re.IGNORECASE)
+
+
+def _said_months(said: str) -> list[datetime.date]:
+    months = []
+    for m in _SAID_MONTH.finditer(said):
+        if m["name"]:
+            year, month = int(m["year"]), _MONTH_NAMES.index(m["name"].lower()) + 1
+        elif m["iso_year"]:
+            year, month = int(m["iso_year"]), int(m["iso_month"])
+        else:
+            year, month = int(m["slash_year"]), int(m["slash_month"])
+        months.append(datetime.date(year, month, 1))
+    return months
+
+
+def _fill_dates(section: bank_section, draft: IntakeDraft, said: str) -> IntakeDraft:
+    """The draft with the dates the student's line plainly gives and the
+    model left out: a smaller model in the chain dropped "I started in
+    August 2023" one turn in three and asked again. Only an unambiguous
+    reading counts: one month for the one missing part, two for both, or a
+    job still going. Anything else stays the model's to ask about."""
+    if "dates" not in _NEEDS[section] or _has(draft, "dates"):
+        return draft
+    months = _said_months(said)
+    has_end = draft.end_month is not None or draft.end_kind == "present"
+    fill: dict[str, object] = {}
+    if draft.start_month is None and has_end:
+        if len(months) == 1 and (draft.end_month is None or months[0] < draft.end_month):
+            fill = {"start_month": months[0]}
+    elif draft.start_month is None:
+        if len(months) == 2:
+            fill = {"start_month": months[0], "end_month": months[1], "end_kind": "month"}
+    elif _STILL_GOING.search(said) and not months:
+        fill = {"end_month": None, "end_kind": "present"}
+    elif len(months) == 1 and months[0] >= draft.start_month:
+        kind = "expected" if months[0] > datetime.datetime.now(datetime.UTC).date() else "month"
+        fill = {"end_month": months[0], "end_kind": kind}
+    if not fill:
+        return draft
+    try:
+        return IntakeDraft.model_validate({**draft.model_dump(), **fill})
+    except ValidationError:
+        return draft
+
+
+# "I was a backend intern at Initech", "I served as the treasurer of the
+# Robotics Club": the role between the verb and "at", "for" or "of".
+_SAID_ROLE = re.compile(
+    r"\b(?:i was|i'm|i am|i worked as|worked as|i served as|served as)\s+(?:an?|the)\s+"
+    r"(?P<role>[a-z][a-z0-9&/+-]*(?:\s+[a-z0-9&/+-]+){0,4}?)\s+(?:at|for|with|of|in)\b",
+    re.IGNORECASE,
+)
+# Sections whose title is a role, so a role phrase names it.
+_ROLE_TITLED = (bank_section.experience, bank_section.leadership)
+
+
+def _fill_title(section: bank_section, draft: IntakeDraft, said: str) -> IntakeDraft:
+    """The draft with the role the student's line names as its title, when
+    the model left the title empty: told "I was a backend intern at
+    Initech", a live model filled the company and asked for the title."""
+    if section not in _ROLE_TITLED or draft.title:
+        return draft
+    found = _SAID_ROLE.search(said)
+    if found is None:
+        return draft
+    title = " ".join(w[:1].upper() + w[1:] for w in found["role"].split())
+    return draft.model_copy(update={"title": title})
+
+
+_ASKS_DATES = re.compile(r"\b(when|month|year|start|end|finish|graduat)", re.IGNORECASE)
+
+
+def _keep_withheld(new: IntakeDraft, old: IntakeDraft | None) -> IntakeDraft:
+    """The model saw the card with identity data replaced by placeholders, so
+    a field it echoes back as "[link]" keeps the card's own value. Placeholders
+    are never swapped back into the card."""
+    fixes = {
+        name: getattr(old, name) if old else None
+        for name, value in new
+        if isinstance(value, str) and placeholders_in(value)
+    }
+    return new.model_copy(update=fixes) if fixes else new
+
+
+# The sections a named activity is looked up in. A school (Education), an
+# award or a certification has no club, dates and bullets to lend a role.
+_LENDERS = (bank_section.experience, bank_section.projects, bank_section.leadership)
+
+# Words too common to say which entry the student means.
+_GENERIC = frozenset(
+    [
+        "the", "and", "for", "with", "from", "was", "were", "our", "its", "this", "that", "lead",
+        "leader", "member", "intern", "engineer", "engineering", "software", "developer", "research",
+        "researcher", "assistant", "team", "club", "society", "student", "students", "university",
+        "college", "school", "project", "projects", "president", "officer", "head", "chair",
+    ]
+)
+
+# A matched entry's facts, each group only into a card that lacks all of it.
+# The dates go as one, like _keep_filled's.
+_FROM_BANK = (("organization",), ("location",), _DATES, ("bullets",))
+
+# Asked after a bank match, in place of the model's line: the model wrote it
+# before the copy and may ask for what the card now holds.
+_ASK = {
+    "title": "What was {title}?",
+    "organization": "What was {organization}?",
+    "dates": "What month and year did it start and end?",
+    "bullets": "What did you do there, and what came of it?",
+    "degree": "What degree is it?",
+    "field_of_study": "What are you studying?",
+    "gpa": "What is your GPA? Say skip to leave it off.",
+    "award_date": "What month and year did you win it?",
+}
+
+
+def _words(text: str | None) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", (text or "").lower()) if len(w) > 2} - _GENERIC
+
+
+def bank_match(said: str, bank: Bank) -> Entry | None:
+    """The bank entry the student's line names, or None. An entry matches
+    when the line holds a telling word of its title and one of its
+    organization (when it has telling words in one). A title with none
+    ("hi") never matches, or "my robotics team" would find any entry at a
+    robotics club on its organization alone. So "the IEEE
+    Micromouse lead" finds the project "Micromouse" at "Stony Brook IEEE",
+    and "an internship at Google" never finds another company's "Software
+    Engineer Intern". When several match, the one sharing the most telling
+    words with the line wins: "the autonomous maze navigation robot" shares
+    four with "Autonomous Maze Navigation Robot" and one ("robot") with "CNN-
+    Powered Object Detection Robot", which made it a two-way guess that
+    filled nothing. A tie is still a guess, unless the tied entries are
+    copies (`copy_key`, as an import saved "as new" leaves): those are one
+    entry, and the one with the most bullets lends."""
+    heard = _words(said)
+    scored: list[tuple[int, Entry]] = []
+    for entry in bank.entries:
+        if entry.row.section not in _LENDERS:
+            continue
+        title = _words(entry.row.title)
+        parts = [w for w in (title, _words(entry.row.organization)) if w]
+        if title and all(part & heard for part in parts):
+            scored.append((sum(len(part & heard) for part in parts), entry))
+    if not scored:
+        return None
+    best = max(score for score, _ in scored)
+    found = [e for score, e in scored if score == best]
+    same = {copy_key(e.row) for e in found}
+    return max(found, key=lambda e: len(e.bullets)) if len(same) == 1 else None
+
+
+def _from_bank(draft: IntakeDraft, entry: Entry, card: IntakeDraft | None) -> IntakeDraft:
+    """The draft with the entry's facts in its empty fields. A group the
+    section cannot take (it fails the entry schema) is skipped. Bullets go
+    in when the card had none before this turn, over any the model wrote
+    this turn: the student named the entry, so its own bullets beat the
+    model's from a line speech input misheard ("Thomas Mays navigation
+    robot" for "autonomous maze navigation robot")."""
+    lent = {
+        "organization": entry.row.organization,
+        "location": entry.row.location,
+        "start_month": entry.row.start_month,
+        "end_month": entry.row.end_month,
+        "end_kind": entry.row.end_kind,
+        "bullets": [b.text for b in entry.bullets],
+    }
+    for group in _FROM_BANK:
+        before = card if group == ("bullets",) else draft
+        if before is not None and not all(_empty(getattr(before, name)) for name in group):
+            continue
+        if all(_empty(lent[name]) for name in group):
+            continue
+        try:
+            draft = IntakeDraft.model_validate(
+                {**draft.model_dump(), **{name: lent[name] for name in group}}
+            )
+        except ValidationError:
+            pass
+    return draft
+
+
+def _next_question(section: bank_section, draft: IntakeDraft) -> str | None:
+    """The question for the first fact the draft still lacks, or None."""
+    missing = [fact for fact in _NEEDS[section] if not _has(draft, fact)]
+    if not missing:
+        return None
+    title, organization = FIELD_MEANINGS[section]
+    return _ASK[missing[0]].format(title=title, organization=organization)
+
+
+def _after_match(section: bank_section, draft: IntakeDraft, entry: Entry) -> str:
+    """WorkIt's line once the card took an entry's facts: what it used, then
+    the first fact still missing, if any."""
+    found = f"I filled in what your bank has on {entry.row.title}."
+    question = _next_question(section, draft)
+    return f"{found} {question or 'It looks ready to save, or tell me more to add.'}"
+
+
+def follow_ups(messages: Sequence[ChatMessage]) -> int:
+    """The questions asked since the student first spoke. An assistant line
+    before that is the opening question ("Tell me about a project"), which
+    is not one of the MAX_FOLLOW_UPS."""
+    first = next((i for i, m in enumerate(messages) if m.role == "user"), len(messages))
+    return sum(m.role == "assistant" for m in messages[first:])
+
+
+async def turn(
+    section: bank_section,
+    messages: Sequence[ChatMessage],
+    draft: IntakeDraft | None,
+    llm: LLM,
+    *,
+    identity: Identity,
+    bank: Bank | None = None,
+) -> IntakeReply:
+    """One turn. Raises `ScoutUnavailable` (or its `InvalidReply`) when no
+    model answers or the answer fails the schema; nothing then counts."""
+    asked = follow_ups(messages)
+    prompt = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": _context(section, draft, asked)},
+        *({"role": m.role, "content": m.content} for m in messages),
+    ]
+    answer = await llm.complete_json(prompt, IntakeReply, identity=identity)
+    if answer.draft.section != section:
+        # Validated as some other kind of entry: the card cannot take it.
+        raise InvalidReply(INVALID)
+    answer.draft = _keep_filled(_keep_withheld(answer.draft, draft), draft)
+    # The code reads a month or a role the model dropped from the student's
+    # line, and then writes the next question itself: the model's line asked
+    # for it again. So does a model line asking for dates the card holds.
+    said = messages[-1].content if messages[-1].role == "user" else ""
+    dated = _fill_title(section, _fill_dates(section, answer.draft, said), said)
+    asks_held_dates = (
+        "dates" in _NEEDS[section]
+        and _has(dated, "dates")
+        and "?" in answer.reply
+        and _ASKS_DATES.search(answer.reply) is not None
+    )
+    if dated != answer.draft or asks_held_dates:
+        question = _next_question(section, dated)
+        answer = answer.model_copy(
+            update={"draft": dated, "reply": question or READY, "done": question is None}
+        )
+    # The code, not the model, finds and copies a bank entry the student
+    # named: told to copy from a bank in its context, a live model took the
+    # club and left the dates, and asked to name a match it never did. This
+    # way the bank also costs no tokens.
+    entry = bank_match(messages[-1].content, bank) if bank and messages[-1].role == "user" else None
+    if entry is not None:
+        filled = _from_bank(answer.draft, entry, draft)
+        if filled != answer.draft:
+            answer = answer.model_copy(update={
+                "draft": filled,
+                "reply": _after_match(section, filled, entry),
+                "done": _complete(section, filled),
+            })
+    if not answer.done and _complete(section, draft) and _complete(section, answer.draft):
+        # The card had every fact a resume needs before this turn too. The
+        # model had its turn to ask what came of the work; a small model
+        # then kept asking for facts the card held, so the code ends it.
+        return answer.model_copy(update={"reply": READY, "done": True})
+    if asked >= MAX_FOLLOW_UPS and not answer.done:
+        answer = answer.model_copy(update={"reply": WRAP_UP, "done": True})
+    return answer

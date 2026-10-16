@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CircleUserRound,
   LayoutDashboard,
+  Library,
   SquareKanban,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -39,6 +40,9 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * somewhere they visit once, and a click of depth is the wrong price for
  * that. "My" is what separates it from an employer's profile, which the
  * company shell also has to name.
+ *
+ * Experience Bank sits just above My Profile: both hold what the seeker
+ * brings to a hunt, and the bank is where resume facts are kept (KAN-206).
  */
 const GROUPS: SidebarNavGroup[] = [
   {
@@ -48,6 +52,7 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
       { href: "/applications", label: "Applications", Icon: SquareKanban },
       { href: "/calendar", label: "Calendar", Icon: CalendarDays },
+      { href: "/bank", label: "Experience Bank", Icon: Library },
       { href: "/profile", label: "My Profile", Icon: CircleUserRound },
     ],
   },

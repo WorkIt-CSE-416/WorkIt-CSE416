@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { SparkleIcon } from "@/components/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,17 @@ export function AskScoutButton(job: { id: string; title: string; company: string
       />
       <TooltipContent>Ask Scout whether this role fits you</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** A page's own way into the panel, for a page that has taken it over
+ *  (scout-takeover.tsx) and wants the way in on the page too. Opens only. */
+export function OpenScoutButton({ children }: { children: ReactNode }) {
+  return (
+    <Button size="sm" onClick={() => setScoutOpen(true)}>
+      <SparkleIcon className="size-4" />
+      {children}
+    </Button>
   );
 }
 

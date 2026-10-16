@@ -1,16 +1,17 @@
 "use client";
 
-import { ArrowUp, MessageCircle, Mic, SlidersHorizontal, Star } from "lucide-react";
+import { MessageCircle, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ArrowRightIcon, CloseIcon, SparkleIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
+import { Composer, Message, Typing } from "./chat";
 import { ReplyText } from "./reply-text";
 import { closeScout, sendToScout, useScout } from "./scout-store";
+import { SCOUT_SLOT_ID } from "./scout-takeover";
 import type { ScoutMessage } from "./stream";
-import { useSpeechInput } from "./use-speech-input";
 
 /**
  * Scout's panel, after JobRight's Orion: a header, a welcome, a card of what
@@ -49,9 +50,16 @@ import { useSpeechInput } from "./use-speech-input";
  * surface. Every icon-only control carries a tooltip (ui/icon-button.tsx),
  * Send included: it is aria-disabled rather than disabled while there is
  * nothing to send, so its tooltip can still say why.
+ *
+ * A PAGE CAN TAKE THE PANEL OVER (scout-takeover.tsx): the Experience Bank
+ * puts intake here. Its content renders into the slot below in place of the
+ * chat, under its own title, and the panel widens from 384px to 448px so an
+ * entry card fits beside nothing. Scout's conversation is kept, not shown,
+ * and comes back on any other page.
  */
 export function ScoutPanel() {
-  const { open, messages, reply, error } = useScout();
+  const { open, messages, reply, error, takeover } = useScout();
+  const width = takeover ? "md:w-112" : "md:w-96";
   const answering = reply !== null;
   // "closed" only once it has been open, so a page load does not play the
   // page's settle for a panel nobody opened.
@@ -73,9 +81,13 @@ export function ScoutPanel() {
   // answer an "Ask Scout" click is waiting for.
   useEffect(() => {
     if (open && window.matchMedia("(min-width: 48rem)").matches) {
-      input.current?.focus({ preventScroll: true });
+      // A takeover's own message box when a page holds the panel.
+      const box = takeover
+        ? document.getElementById(SCOUT_SLOT_ID)?.querySelector("textarea")
+        : input.current;
+      box?.focus({ preventScroll: true });
     }
-  }, [open]);
+  }, [open, takeover]);
 
   // The streaming reply sits in the thread at the index its finished message
   // will take, so React keeps the same bubble when it lands rather than
@@ -107,13 +119,14 @@ export function ScoutPanel() {
         // edge (the row clips it at the window's).
         "md:visible md:static md:inset-auto md:z-auto md:translate-y-0 md:opacity-100",
         "md:relative md:shrink-0",
-        open ? "md:ml-3 md:w-96" : "md:ml-0 md:w-0",
+        open ? cn("md:ml-3", width) : "md:ml-0 md:w-0",
       )}
     >
       <div
         className={cn(
           "bg-panel flex h-full flex-col",
-          "md:border-rail-border md:rounded-shell md:shadow-panel md:absolute md:inset-y-0 md:right-0 md:w-96 md:border",
+          "md:border-rail-border md:rounded-shell md:shadow-panel md:absolute md:inset-y-0 md:right-0 md:border",
+          width,
           // Slides from just past the window's edge into the room made for it.
           "md:transition-[opacity,translate] md:delay-0",
           open
@@ -129,8 +142,10 @@ export function ScoutPanel() {
             <SparkleIcon className="size-4" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-subtitle text-ink font-semibold">Scout</h2>
-            <p className="text-note text-ink-meta">Your job search assistant</p>
+            <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
+            <p className="text-note text-ink-meta">
+              {takeover?.subtitle ?? "Your job search assistant"}
+            </p>
           </div>
           <IconButton
             label="Close Scout"
@@ -141,41 +156,48 @@ export function ScoutPanel() {
           </IconButton>
         </header>
 
-        {/* The conversation fades out under the header and above the
+        {/* A takeover's content; empty and hidden while Scout has the panel. */}
+        <div id={SCOUT_SLOT_ID} className={takeover ? "flex min-h-0 flex-1 flex-col" : "hidden"} />
+
+        {!takeover && (
+          <>
+            {/* The conversation fades out under the header and above the
             composer rather than being ruled off from them. */}
-        <div
-          ref={log}
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-4"
-        >
-          <Bubble>Hi, I&apos;m Scout! You&apos;ve just unlocked your chat with me.</Bubble>
-          <Suggestions onPick={sendToScout} disabled={answering} />
+            <div
+              ref={log}
+              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-4"
+            >
+              <Bubble>Hi, I&apos;m Scout! You&apos;ve just unlocked your chat with me.</Bubble>
+              <Suggestions onPick={sendToScout} disabled={answering} />
 
-          {thread.map((message, i) => (
-            <Message key={i} role={message.role}>
-              {message.role === "user" ? (
-                message.content
-              ) : message.content ? (
-                <ReplyText text={message.content} />
-              ) : (
-                <Typing />
+              {thread.map((message, i) => (
+                <Message key={i} role={message.role}>
+                  {message.role === "user" ? (
+                    message.content
+                  ) : message.content ? (
+                    <ReplyText text={message.content} />
+                  ) : (
+                    <Typing />
+                  )}
+                </Message>
+              ))}
+
+              {error && (
+                <p role="alert" className="text-note text-danger animate-fade px-1">
+                  {error}
+                </p>
               )}
-            </Message>
-          ))}
+            </div>
 
-          {error && (
-            <p role="alert" className="text-note text-danger animate-fade px-1">
-              {error}
-            </p>
-          )}
-        </div>
-
-        {/* A screen reader hears each finished reply once, not every word as
+            {/* A screen reader hears each finished reply once, not every word as
             it streams in. */}
-        <p aria-live="polite" className="sr-only">
-          {!answering && last?.role === "assistant" ? last.content : ""}
-        </p>
+            <p aria-live="polite" className="sr-only">
+              {!answering && last?.role === "assistant" ? last.content : ""}
+            </p>
 
-        <Composer onSend={sendToScout} answering={answering} input={input} />
+            <Composer onSend={sendToScout} answering={answering} input={input} />
+          </>
+        )}
       </div>
     </aside>
   );
@@ -254,129 +276,5 @@ function Suggestion({
       </span>
       <ArrowRightIcon className="text-ink-subtle group-hover/task:text-ink ease-glide size-4 shrink-0 transition-[color,translate] duration-200 group-hover/task:translate-x-0.5" />
     </button>
-  );
-}
-
-/** A bubble rises in as it arrives. The sender's corner is squared, the way
- *  a chat draws who spoke. */
-function Message({ role, children }: { role: ScoutMessage["role"]; children: ReactNode }) {
-  const mine = role === "user";
-  return (
-    <div
-      className={cn(
-        "text-body animate-rise max-w-[85%] rounded-2xl px-4 py-2.5",
-        // The user's own text keeps its line breaks; Scout's are ReplyText's paragraphs.
-        mine
-          ? "bg-brand text-on-brand self-end rounded-br-md whitespace-pre-wrap"
-          : "bg-surface text-ink self-start rounded-bl-md",
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** Three dots while Scout works out its first words. */
-function Typing() {
-  return (
-    <span role="status" className="flex h-6 items-center gap-1">
-      <span className="sr-only">Scout is thinking</span>
-      {[0, 1, 2].map((dot) => (
-        <span
-          key={dot}
-          aria-hidden="true"
-          className="bg-ink-subtle animate-typing size-1.5 rounded-full"
-          style={{ animationDelay: `${dot * 150}ms` }}
-        />
-      ))}
-    </span>
-  );
-}
-
-function Composer({
-  onSend,
-  answering,
-  input,
-}: {
-  onSend: (text: string) => void;
-  answering: boolean;
-  input: React.RefObject<HTMLTextAreaElement | null>;
-}) {
-  const [draft, setDraft] = useState("");
-  const speech = useSpeechInput((text) => setDraft((d) => (d ? `${d} ${text}` : text)));
-  const empty = !draft.trim();
-  const blocked = answering || empty;
-
-  function submit() {
-    if (blocked) return;
-    onSend(draft);
-    setDraft("");
-  }
-
-  return (
-    <form
-      className="shrink-0 px-3 pt-1 pb-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-    >
-      {/* A grey field like the bar's search, turning white with the brand
-          ring while it is being typed in. */}
-      <div className="bg-app hover:bg-hover focus-within:bg-panel focus-within:hover:bg-panel focus-within:ring-brand-ring rounded-2xl p-3 transition-[background-color,box-shadow] duration-150 focus-within:ring-2">
-        <textarea
-          ref={input}
-          aria-label="Message Scout"
-          placeholder="Ask me anything..."
-          rows={2}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            // Enter sends; Shift+Enter is a new line, as in every chat box.
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          className="text-body text-ink placeholder:text-ink-meta w-full resize-none bg-transparent outline-none"
-        />
-        <div className="flex items-center justify-end gap-2">
-          {speech.supported && (
-            <IconButton
-              label={speech.listening ? "Stop dictating" : "Dictate a message"}
-              className={cn(
-                "relative size-8 rounded-full after:hidden",
-                speech.listening
-                  ? "bg-brand text-on-brand hover:text-on-brand"
-                  : "hover:bg-panel text-ink-meta",
-              )}
-              onClick={speech.toggle}
-            >
-              {/* While it listens, a ring breathes around it, like a
-                  recording light. */}
-              {speech.listening && (
-                <span
-                  aria-hidden="true"
-                  className="ring-brand/40 absolute inset-0 animate-pulse rounded-full ring-4"
-                />
-              )}
-              <Mic className="size-4" />
-            </IconButton>
-          )}
-          <IconButton
-            label="Send"
-            tooltip={
-              answering ? "Scout is still answering" : empty ? "Type a message to send" : "Send"
-            }
-            type="submit"
-            variant="brand"
-            aria-disabled={blocked}
-            className="size-8 border-0 aria-disabled:cursor-default aria-disabled:opacity-40"
-          >
-            <ArrowUp className="size-4" />
-          </IconButton>
-        </div>
-      </div>
-    </form>
   );
 }

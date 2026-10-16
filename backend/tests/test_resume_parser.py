@@ -16,7 +16,9 @@ from app.utils.resume_parser import parse_resume
 FIXTURES = Path(__file__).parent / "fixtures"
 
 # education: (institution, degree, field_of_study, gpa, end_date)
-# experience: (company, title, location, start_date, end_date, bullet_count)
+# experience and leadership: (organization, title, location, start_date, end_date, bullet_count)
+# awards: (title, issuer, date)
+# A fixture without "leadership" or "awards" keys expects those sections empty.
 EXPECTED = {
     # Google Docs export: pipes in the school line, a second role with no company line
     "google_docs_single_column.txt": {
@@ -83,6 +85,59 @@ EXPECTED = {
         "projects": ["WorkIt | Full Stack Recruiting Platform", "Stony Brook Academic Advising Bot"],
         "skill_count": 18,
     },
+    # Leadership & Activities in the Company+Dates / Title+Location layout;
+    # Awards one per line as "Award – Issuer  Date", one with a year only
+    "leadership_and_awards_single_column.txt": {
+        "education": [
+            ("Riverside State University", "B.S", "Mechanical Engineering", 3.62, "2027-05-01"),
+        ],
+        "experience": [
+            ("Harbor Robotics", "Mechanical Engineering Intern", "Portland, OR", "2026-06-01", "2026-08-01", 2),
+        ],
+        "leadership": [
+            ("Society of Women Engineers", "Vice President", "Riverside, CA", "2025-09-01", None, 2),
+            ("Formula SAE Racing Team", "Suspension Lead", "Riverside, CA", "2024-09-01", "2025-05-01", 1),
+        ],
+        "awards": [
+            ("Dean's List", "Riverside State University", "2025-12-01"),
+            ("First Place, Regional Design Competition", "ASME", "2025-04-01"),
+            ("Merit Scholarship", None, "2024-01-01"),
+        ],
+        "projects": [],
+        "skill_count": 6,
+    },
+    # "LEADERSHIP EXPERIENCE" is not Experience; "HONORS & AWARDS" as bullets
+    # split by "|"
+    "pipe_layout_leadership_honors.txt": {
+        "education": [
+            ("Northfield University", "Bachelor of Science", "Computer Science", None, "2027-12-01"),
+        ],
+        "experience": [],
+        "leadership": [
+            ("Coding Club", "President", "Chicago, IL", "2025-08-01", None, 2),
+            ("Northfield University Learning Center", "Peer Tutor", "Chicago, IL", "2025-01-01", "2025-05-01", 1),
+        ],
+        "awards": [
+            ("Hackathon Winner, Best Use of Data", "HackNorth", "2025-10-01"),
+            ("President's Scholarship", "Northfield University", "2025-08-01"),
+        ],
+        "projects": ["Budget Buddy"],
+        "skill_count": 3,
+    },
+    # Jake's Resume from LaTeX: "Expected Graduation:" beside the school, a
+    # wrapped coursework bullet, undated "Name| tools" projects, a wrapped
+    # skills line, and PDF gaps after bold phrases
+    "jakes_undated_projects.txt": {
+        "education": [
+            ("Lakeview University", "Bachelor of Science", "Computer Science", 3.62, "2027-05-01"),
+        ],
+        "experience": [
+            ("Harbor Transit", "Software Engineer Intern", None, "2025-06-01", "2025-08-01", 2),
+            ("Riverside Robotics Lab", "Undergraduate Researcher", None, "2024-12-01", "2025-05-01", 1),
+        ],
+        "projects": ["Line Following Robot", "Plant Disease Classifier", "Arm Control Demo"],
+        "skill_count": 11,
+    },
 }
 
 
@@ -108,6 +163,12 @@ def test_parses_fixture(fixture):
          _bullet_count(e.description))
         for e in parsed.experience
     ] == expected["experience"]
+    assert [
+        (e.company_name, e.title, e.location, _iso(e.start_date), _iso(e.end_date),
+         _bullet_count(e.description))
+        for e in parsed.leadership
+    ] == expected.get("leadership", [])
+    assert [(a.title, a.issuer, _iso(a.date)) for a in parsed.awards] == expected.get("awards", [])
     assert [p.project_name for p in parsed.projects] == expected["projects"]
     assert len(parsed.skills) == expected["skill_count"]
 
@@ -115,6 +176,34 @@ def test_parses_fixture(fixture):
 def test_every_fixture_has_expectations():
     # A fixture dropped in without expectations would silently test nothing
     assert {p.name for p in FIXTURES.glob("*.txt")} == set(EXPECTED)
+
+
+def test_jakes_layout_details():
+    parsed = parse_resume((FIXTURES / "jakes_undated_projects.txt").read_text(encoding="utf-8"))
+    school = parsed.education[0]
+    assert school.gpa_scale == 4.0
+    # the wrapped second line of coursework stays with the first
+    assert school.description == (
+        "Relevant Coursework: Data Structures & Algorithms, Discrete Mathematics, Graph Theory, "
+        "Linear Algebra, Operating Systems, Compilers, Probability & Statistics"
+    )
+    assert [p.technologies for p in parsed.projects] == [
+        ["C++", "CMake", "Raspberry Pi"], ["Python", "PyTorch"], ["C++", "CUDA"],
+    ]
+    # a PDF gap after a bold phrase is one space; a missing-glyph tilde is "~"
+    assert parsed.projects[0].description.splitlines()[0].startswith("Programmed a Raspberry Pi to")
+    assert "from~90ms" in parsed.projects[2].description
+    # the wrapped "Concepts" line keeps its group
+    assert [(s.skill_name, s.category) for s in parsed.skills[-2:]] == [
+        ("Machine Learning", "Concepts"), ("Agile", "Concepts"),
+    ]
+
+
+def test_project_subtitle_after_bar_stays_in_the_name():
+    parsed = parse_resume("Projects\nWorkIt | Recruiting Platform\n• Built it.\n")
+    assert [(p.project_name, p.technologies) for p in parsed.projects] == [
+        ("WorkIt | Recruiting Platform", []),
+    ]
 
 
 def test_leading_minus_sign_is_not_a_bullet_marker():

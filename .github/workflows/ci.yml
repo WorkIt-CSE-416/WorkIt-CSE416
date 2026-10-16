@@ -26,11 +26,36 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # The real-Postgres tests (backend/tests/conftest.py) create their own
+    # database here and migrate it to head before the first one runs. The
+    # image ships pgvector, which the migrations install.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54330:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:54330/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --locked
       - run: uv run ruff check .
+      # Real Tectonic for the template text test (KAN-204). The cache key
+      # follows the pinned version and the fixed resume, so a change to
+      # either warms again; a miss only costs the ~1 minute download.
+      - uses: actions/cache@v4
+        with:
+          path: backend/vendor
+          key: tectonic-${{ hashFiles('backend/scripts/fetch_tectonic.py', 'backend/app/services/resume_render/*.py', 'backend/app/services/resume_render/*.tex') }}
+      - run: python3 scripts/fetch_tectonic.py
       - run: uv run pytest
       # Scout's package (../scout) is installed here, so it is linted and tested here.
       - run: uv run ruff check ../scout

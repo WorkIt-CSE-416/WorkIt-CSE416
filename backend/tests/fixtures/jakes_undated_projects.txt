@@ -1,0 +1,35 @@
+Education
+Lakeview University  Expected Graduation: May 2027
+Bachelor of Science, Computer Science  GPA: 3.62/4.00
+
+• Relevant Coursework: Data Structures & Algorithms, Discrete Mathematics, Graph Theory, Linear Algebra,
+Operating Systems, Compilers, Probability & Statistics
+Experience
+Harbor Transit  June 2025 – Aug 2025
+Software Engineer Intern
+
+• Cut report load time 40% by caching route queries in a C# service.
+
+• Wrote a Python load tester that sent 300+ requests across 8 threads, finding 4
+unhandled errors in the fleet REST API; containerized with Docker.
+Riverside Robotics Lab  Dec 2024 – May 2025
+Undergraduate Researcher
+
+• Authored paper  on a speech-to-text pipeline for lab demos using Python.
+Projects
+Line Following Robot| C++, CMake, Raspberry Pi
+
+• Programmed a Raspberry Pi  to follow a taped line using two IR sensors.
+
+• Tuned a PID loop in C++, cutting lap time by 30%.
+Plant Disease Classifier| Python, PyTorch
+
+• Trained a CNN  on 2,000+ leaf images, reaching 91% accuracy.
+Arm Control Demo| C++, CUDA
+
+• Moved inference onto CUDA, reducing latency from∼90ms to <40 ms.
+Skills
+Programming Languages: Python, C++, C#, Java
+Tools: Git, Docker, Linux
+Concepts: Backend Development, Robotics Engineering,
+Machine Learning, Agile

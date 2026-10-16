@@ -31,12 +31,14 @@ it.
 ```
 uv sync                                        install deps from the lock
 uv run uvicorn app.main:app --reload           dev server on :8000
-uv run pytest                                  the tests in tests/
+uv run pytest                                  the tests in tests/ (database tests: Tests against real Postgres)
 uv run ruff check .                            lint (CI runs it)
 uv run alembic revision --autogenerate -m msg  write a migration
 uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
+uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
+python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
 Migrations: read `alembic/CLAUDE.md` before writing one; it has the offline
@@ -83,12 +85,62 @@ module docstring has the steps.
   for one layout has broken another more than once. Fixtures are real resumes
   cut to start at the first section header, so no contact details are
   committed.
-- **A test that calls the resume routes monkeypatches `resumes.get_supabase`.**
-  The router calls it directly rather than through `Depends`, so a dependency
-  override misses it and the test uploads to the real bucket.
-- **The import's database half needs Postgres**, which CI lacks. Test it on a
-  throwaway local Postgres 15+ (`job_locations` uses `NULLS NOT DISTINCT`);
-  `alembic/CLAUDE.md` has the recipe.
+- **A test that calls the resume routes monkeypatches `resumes.get_supabase`**
+  (and `sent_resumes.get_supabase` for sent resumes). The routers call it
+  directly rather than through `Depends`, so a dependency override misses it
+  and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
+  `storage` fixture is the pattern: an in-memory bucket that records uploads
+  and removals.
+- **The import's database half is barely tested.** Only its clearing of
+  cached keywords is (`tests/test_keyword_match.py`, which runs
+  `import_feed` on `get_engine()`, the pattern for more); the rest can get
+  tests the same way through the `database` fixture below.
+
+### Tests against real Postgres
+
+A test that reads or writes tables asks for the `database` fixture
+(`tests/conftest.py`). It runs against a local Postgres with pgvector, never
+Supabase. Start the container once; it can stay up between runs:
+
+```
+docker run -d --name workit-test-db -e POSTGRES_PASSWORD=postgres -p 54330:5432 pgvector/pgvector:pg15
+uv run pytest
+```
+
+- **Each run makes its own database** (`workit_test_<random>`) on that
+  container, creates the `auth.users` stub, migrates it to head through
+  Alembic, and drops it at the end. Parallel runs from several worktrees share
+  the container but never a table. `TEST_DATABASE_URL` points at another server
+  (default `postgresql://postgres:postgres@localhost:54330/postgres`).
+- **The test database gets Supabase's search path** (`"$user", public,
+  extensions`). pgvector lives in `extensions`, so without it a cosine
+  query (`<=>`) fails with "operator does not exist", which production never
+  sees (KAN-212).
+- **Nothing reaches Supabase.** `conftest.py` sets `DATABASE_URL` and
+  `DIRECT_URL` to the test database before the app reads them (exported
+  variables beat the root `.env`), and refuses a `TEST_DATABASE_URL` whose host
+  is not localhost. The app's own `get_session` uses the test database, so do
+  not override it in these tests.
+- **Without the container, database tests skip** with a message saying how to
+  start it; the rest run. In CI (`CI` set) they fail instead, so a broken
+  service never passes as green. CI's backend job runs the same image as a
+  service (`../.github/CLAUDE.md`).
+- **Cleanup:** after each test, every table the migrations left empty is
+  truncated, `auth.users` included. Seeded tables (`job_roles`, `locations`)
+  keep their rows; a test that changes a seeded row must put it back.
+- **Write them `async def` with `pytestmark = pytest.mark.anyio`** (anyio's
+  pytest plugin comes with FastAPI; no pytest-asyncio). Call the API through
+  `httpx.AsyncClient(transport=httpx.ASGITransport(app=app))`, which shares the
+  test's event loop with the session. `database` yields an
+  `async_sessionmaker`: seed with `async with database() as s:`, and
+  `s.commit()` so the API's own session sees the rows.
+- **Override `get_current_account`, not the token.** It verifies against
+  Supabase's keys; return an `AuthenticatedAccount` for a seeded row. A
+  profile row needs its `auth.users` row first. `tests/test_database_smoke.py`
+  is the pattern.
+- **A failed migration fails every database test.** The chain runs from
+  scratch on each run, so a migration that only works on top of the shared
+  database's history shows up here first.
 
 ## Code layout
 
@@ -110,7 +162,288 @@ Find files with a directory listing; these are the rules for where code goes.
   it in 1,179 lines, which every jobs change had to read whole.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
-  matching: `app/services/matching/CLAUDE.md`.
+  matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
+  Tectonic): `app/services/resume_render/CLAUDE.md`. A service that reads or
+  writes rows (the experience bank, `services/bank.py`) takes the caller's
+  session, flushes and never commits, so the router owns the transaction and
+  one request can make many changes atomically (an import saving many
+  entries).
+- **The experience bank is written only through `services/bank.py`.** It
+  holds the ownership scoping, the duplicate check and the clearing of the
+  bank embedding on every entry, bullet or skill change (a skill link is
+  not one: the embedding text never says which skill goes with which
+  entry); a route or script
+  that writes `bank_*` rows itself leaves the recommender on a stale
+  embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+- **The recommender and Scout read the bank, never an uploaded resume**
+  (KAN-212). `GET /jobs/recommended` scores against the bank and its
+  embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
+  the bank's API shape (`routers/bank.py`'s `bank_response`) through
+  `workit_scout.facts`. An uploaded resume only feeds import.
+- **A student reaches only the postings the Jobs page lists**
+  (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
+  and Done), the keyword match and Apply load a posting through
+  `postings.listed`, so a company's draft or a closed posting answers 404
+  and its text never reaches a model. The one exception: a tailored
+  resume's keyword match against its own posting, which still works after
+  the posting closes. A route that loads a `Job_Post` by id alone skips
+  this check.
+- **Identity fields load through `app/services/identity.py`**
+  (`load_identity`), for Scout's model seam and the bank embedding alike.
+  A resume's header prints them from `built_resumes.load_header_identity`
+  (`resume_render.HeaderIdentity`): display, never model input, so the
+  two names stay apart.
+- **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
+  re-reads an uploaded resume's stored `raw_text` with the heuristic parser
+  and returns draft entries and skills (`services/bank_import.py` maps them,
+  pure); the student saves each through the bank's own routes. It re-parses
+  rather than reading `parsed_json`, so a resume uploaded before the parser
+  learned a section still imports it. A draft must already be a valid
+  `POST /entries` body: the mapper clips text to the field limits and drops
+  dates that do not fit together rather than send a draft that answers 422.
+- **Model parsing** (KAN-222) is import's `read_with_ai: true`, and its
+  fallback when the parser finds no entries. It counts a `PARSING` use only
+  when the reading succeeds; the response always carries `read_by` and
+  `uses_left`. An asked-for reading answers 429 at the limit and 503 when the
+  model fails; the fallback stays quiet and keeps the parser's reading. The
+  prompt and checks are in `services/bank_import.py`; the rules are in
+  `app/utils/CLAUDE.md`, "The model upgrade path". Tests:
+  `tests/test_bank_import.py` (checked drafts, no identity data in the
+  prompt, an invalid or failed reply counts nothing, the cap and the share).
+- **Every resume feature reads the built resume view**
+  (`app/services/resume_view.py`, KAN-207): one pure function from the bank
+  and a built resume's choices to what the resume shows. The PDF, the Word
+  file, Tailor, the sent resume's hash and the editor read that shape; a rule
+  about what shows goes there, never into one reader. Built resumes are
+  written only through `services/built_resumes.py`.
+- **The editor writes a resume's choices in one PATCH**
+  (`.../built-resumes/{rid}/choices`, KAN-218): hide, show, move (the
+  client renumbers the siblings), the GPA and coursework toggles, typed
+  wording and a wording switch, all saved together. Every id is checked
+  against the applicant's bank first (404, nothing written). A tray item
+  with no row gets one at the end of its siblings, and an entry brings its
+  row-less bullets. Typed wording is the resume's one local variant
+  (`bank_bullet_variants.built_resume_id`); typing the original back
+  deletes it; another resume's local variant is never offered. Fit to One
+  Page is `POST .../fit` (`fit_to_one_page`, order from
+  `resume_view.fit_order`), which renders between rounds, so it is slow
+  (two to six renders, about 0.3 s each) and its tests need Tectonic. It cuts in steps
+  (`FIT_STEPS`): coursework, then bullets past a cap per entry, then the
+  bottom entries of a section, each step across every section before the
+  next goes deeper. Never cut one section to one-line entries before the
+  others give anything: the first rule did, and a long resume came back a
+  list of one-line entries. Once it fits, it shows the last round's cuts
+  again one at a time while the page still fits (`FIT_PUT_BACK`):
+  `lines_over` runs short (a resume 7 lines over was still 6 over after
+  about 8 lines were hidden), and without it a test resume lost 3 items
+  it had room for. Undo sends the response's `undo` body. Tests:
+  `tests/test_resume_editor.py`.
+- **Every download is a sent resume** (KAN-208): `POST
+  /applicants/{id}/sent-resumes` renders through `services/sent_resumes.py`,
+  which hashes the view, template and header text first and returns the last
+  sent resume on a repeat for the same built resume. `format: "docx"`
+  keeps the Word file the same way (its hash adds the format, so a PDF and
+  a Word file of one resume are two sent resumes; a built resume only).
+  `GET .../render` and `.../docx` return the file unkept: the editor's
+  preview and the tests read them, and no download button calls them. The service takes the
+  Storage client from the router and flushes, never commits; when a new row's
+  commit fails, the router removes the uploaded file. **Apply** (KAN-220) is
+  the same POST with `job_posting_id` and exactly one of `built_resume_id`
+  or `uploaded_resume_id` (422 otherwise; 404 for a posting the Jobs page
+  does not list). An uploaded resume makes no new file, so a failed commit must not
+  remove its file: the router removes only a built sent resume's. **A stored file
+  is removed only when `file_in_use` says no row needs it**: the uploaded
+  resume delete and the sent resume delete both check it, because a sent
+  resume can point at an uploaded resume's file.
+- **The resume limit is 5, uploaded plus base resumes**
+  (`services/built_resumes.py`'s `check_room`, called by Generate and by
+  upload before anything is written; 409 with the reason). Tailored and sent
+  resumes do not count.
+- **Every model feature counts its daily uses through `app/services/usage.py`**
+  (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
+  it succeeds, so a failed or rejected call costs the student nothing.
+  What a failure says comes from one `services/ai_messages.AIMessages`
+  per route (its own spent, offline and lost lines; the mapping from
+  `ScoutUnavailable` is shared). Routes under `/applicants/{id}` check the
+  path with `deps.owned_applicant`, or `assert_applicant_owns` when they
+  also need the account.
+  `count_use` flushes and never commits, like every service: the router
+  commits it with the request's other writes (Tailor's generated base
+  resume, the keyword cache), and a route that forgets the commit counts
+  nothing (`tests/test_usage.py`). Each
+  route returns the uses left (Scout: a final `usage` NDJSON line). The limits
+  are `AI_*` settings in `app/config.py`: a cap per student and a share of
+  `AI_DAILY_POOL` per feature, per UTC day, defaults from the spec. The counts
+  live in `ai_usage_counters` (one row per account, or the pool with a NULL
+  account, per feature and day). Never count in memory: a restart or a second
+  Vercel instance resets it. Check-then-count can overshoot by one under
+  concurrent requests, on purpose; it errs toward the student.
+- **Intake** (KAN-213) is `routers/intake.py` (`POST /intake/turn`) over
+  `services/intake.py`, which holds its frozen system prompt. It uses
+  Scout's model chain (`get_llm`) and `LLM.complete_json` with the bank's
+  entry schema (`schemas/intake.py`'s `IntakeDraft` is `EntryCreate` with an
+  optional title), and stores nothing said: the browser sends this entry's
+  chat and the card, edits included, every turn. Rules, each with a test in
+  `tests/test_intake.py`: at most `MAX_FOLLOW_UPS` (3) questions per entry,
+  counted from the assistant lines the browser sends after the student
+  first speaks (an opening question before that is not a follow-up;
+  the bank page keeps its opener out of the chat it sends anyway), and a fourth question
+  is replaced by a fixed wrap-up line; a reply that fails the schema, or
+  drafts another section, is an `error` line and does not count; a field
+  the model echoes as an identity placeholder (`[link]`) keeps the card's
+  value; each turn's context says what `title` and `organization` hold in
+  the section (`FIELD_MEANINGS`, matching the card's labels), because
+  without it a live model put the university in Education's organization.
+  The prompt also says one answer can fill several fields, with examples:
+  gpt-oss-120b put all of "PennyWise, a budgeting app for my CSE 316 class"
+  in the title, and asked a student who had said "I was a research
+  assistant in Professor Smith's AI lab" for their title and organization.
+  The test set's `title=` cases check the split.
+  The context also lists the facts the section needs (`_NEEDS`) that the
+  card has ("never ask about these") and lacks ("ask about these, and
+  about nothing else"). `_NEEDS` is what application forms take plus what a
+  resume line needs (2026-10-14): Greenhouse requires a school's degree,
+  discipline and start and end months, and a job's company, title, start
+  and end or "current", so "dates" means a start and an end or "present".
+  No hiring system asks for a project's, club role's or award's dates, so
+  intake does not; `frontend/src/app/(seeker)/bank/sections.ts` keeps the
+  same list for the bank's warnings and visits. The system prompt asks only
+  the listed facts ("every other field is optional, never ask for it"):
+  it used to order every section's questions as title, organization, dates,
+  so a live model asked a finished project for its team. It also writes
+  bullets from the first answer that says what the student did, rather
+  than asking for one. Education's include the GPA, so a school imported without one gets asked
+  for it. The GPA is optional (`_OPTIONAL`): a card without one still counts
+  as complete, so after the student declines it the `READY` guard below
+  ends the visit instead of asking again. Two code
+  guards back the prompt, each with a test, because the local 4B model
+  ignored it: a field the card had that the reply blanks keeps the card's
+  value (`_keep_filled`, the three end-date fields as one), so saving a
+  visit to an imported entry cannot erase it; and when the card had every
+  needed fact before the turn and still has them, the reply becomes the
+  fixed `READY` line with `done`, so the model gets one turn to ask what
+  came of the work and no more. The draft reads a `null` list as empty and
+  a blank text field as `null` (`IntakeDraft`'s validators): Groq's
+  gpt-oss-120b sent `"coursework": null` and `"organization": ""` on most
+  leadership turns, and each failed the whole turn as "the wrong shape".
+  For the same reason a blank list item (`"bullets": [""]`) is dropped, and
+  an `end_kind` of `month` or `expected` with no `end_month` becomes no
+  end: "summer 2024" got both.
+  **The code reads a month the model drops** (`_fill_dates`, for sections
+  that need dates): when the card still lacks its dates after the reply, a
+  month and year in the student's latest line ("August 2023", "Aug 2025",
+  "2023-08", "8/2023") fills them if the reading is unambiguous: one month
+  for the one missing part (a start earlier than the end, an end not before
+  the start, "expected" when it is in the future), two for both, or "still"
+  or "currently" for a job still going. A lone month on an undated entry
+  stays the model's to ask about, since it could be either end. When the
+  code fills the dates, or the card holds them and the model's line still
+  asks a date question, the line becomes the next missing fact's `_ASK`
+  question, or `READY`. Groq's gpt-oss-20b, the chain's second model,
+  dropped "I started in August 2023" one turn in three and asked "What
+  month and year did you start?" again; it and Gemini also asked for an end
+  the card already had (2026-10-14). `_fill_title` does the same for a
+  role said in passing, in Experience and Leadership only ("I was a backend
+  intern at Initech", "I served as the treasurer of the Robotics Club"),
+  when the model leaves the title empty: a live model filled Initech and
+  asked "What was your official title for that role?" (2026-10-14).
+  **A line that names a bank entry fills the card from it** (`bank_match`,
+  `_from_bank`): the route loads the student's bank, and when the latest
+  line holds a telling word of an Experience, Projects or Leadership
+  entry's title and of its organization ("the IEEE Micromouse lead" finds
+  the project "Micromouse" at "Stony Brook IEEE"), that entry's
+  organization, location, dates and bullets go into the card's empty
+  fields, and WorkIt's line becomes "I filled in what your bank has on …"
+  plus the first fact still missing. When several match, the one sharing
+  the most telling words with the line wins (a tie fills nothing): "robot"
+  in both "Autonomous Maze Navigation Robot" and "CNN-Powered Object
+  Detection Robot" made "the autonomous maze navigation robot" a guess
+  that filled nothing (2026-10-14). A
+  word list (`_GENERIC`) keeps "intern" or "club" from matching alone. An
+  entry whose title has no telling word never matches: a leadership entry
+  titled "hi" at "Stony Brook Robotics Club" matched "for my robotics team"
+  in a project's visit and put the club on the project. Copies (same
+  section, title and organization, as an import saved "as new" leaves)
+  match as one entry: a bank holding "Autonomous Maze Navigation Robot"
+  twice filled nothing. The matched entry's bullets go in when the card had
+  none before the turn, over any the model wrote that turn: speech input
+  heard "Thomas Mays navigation robot", the model wrote a bullet from it,
+  and that bullet kept the bank's out (2026-10-14).
+  **The code matches, not the model, on purpose**: given the bank in its
+  context, gpt-oss-120b copied the club and left the dates, and told to
+  name the matching entry's number it never did. Code matching also keeps
+  the bank out of the prompt, which matters on Groq's free tier (8,000
+  tokens a minute for gpt-oss-120b).
+  **The reply is NDJSON like Scout's, but not streamed token by
+  token, on purpose**: the draft is one JSON object that must pass the
+  schema and the section check, and a fourth question is swapped for the
+  wrap-up line, all before the student reads a word. Streaming the reply
+  first would show text that a rejected answer then contradicts, and lose
+  the chain's failover once text has gone out. The reply is one short
+  sentence, so the wait is the model's, not the stream's. **The prompt wording is still open**: tune it with
+  `app.scripts.intake_test_set` against a live model, and re-run that
+  script before a new endpoint joins the chain.
+- **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
+  over `services/keywords.py`: a job posting's keywords, extracted once by
+  the model and cached on the posting with a hash of its description, and
+  the pure count of those the built resume view shows (text and skills,
+  whole words, ignoring case). **Only an extraction spends a use, and it
+  counts under `TAILOR`**; a cached match is free, for every student. Tailor
+  (KAN-217) reads them through the same `keywords.ensure` (the cache, else
+  an extraction stored on the posting) and counts its run once, not once
+  more for the extraction. Which use an extraction spends stays in each
+  router. Tests:
+  `tests/test_keyword_match.py` (the cache, its clearing by the import and
+  by the hash, an invalid or failed reply counts nothing, the cap).
+- **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
+  A run (`POST .../tailor`) proposes changes and saves nothing but the
+  count; Done (`POST .../tailor/done`) saves the accepted ones on the
+  posting's one tailored resume, approved wordings as bullet variants for
+  the posting. Rules, each with a test in `tests/test_tailor.py`:
+  - **The truth rule is one pure function**, `services/truth_rule.py`'s
+    `invented` (tested directly, `tests/test_truth_rule.py`): a wording
+    with a number or tool in neither its original bullet nor the bank's
+    skills is dropped from the proposals and refused (422) at Done, since
+    the browser can send any text. Change what counts as a tool there and
+    nowhere else.
+  - **A missing keyword that is nowhere in the bank is a question**
+    ("Have you used X?"), never words. Yes adds the skill through the
+    bank's own routes and shows it, with no AI call.
+  - **The model sees handles (b1, e1), never ids**, and no links: an
+    entry's link field is left out and the seam removes identity data.
+    Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
+    bullets: the best 40 go to the model, and the rank proposes each
+    entry's bullet order. A posting with no description is read by its
+    title, with `weak_match`.
+  - **An entry brought back is never a copy of one shown** (`bank.py`'s
+    `copy_key`: section, title and organization ignoring case, and the
+    same months, which Generate and intake's bank match also use), and it takes its date-order place among its
+    section's shown entries (`_bring_back`), not the end. A change names
+    its entry with the organization ("Software Intern, Acme"). An import
+    saved "as new" left a second Software Engineer Intern at Clever Devices
+    off a resume; Tailor offered "Bring back: Software Engineer Intern",
+    showed the job twice below an older one, and ran to 2 pages
+    (2026-10-14).
+  - **One run is one `TAILOR` use**, counted after the model answers and
+    the proposals are built; a keyword extraction inside the run is not a
+    second use. A run with no base resume generates one first (saved with
+    the count; the 5-resume limit applies).
+- **The editor assistant** (KAN-221) is `routers/assistant.py` (`POST
+  .../built-resumes/{rid}/assistant`) over `services/assistant.py`. The
+  model only **reads** the student's message into one action (fit, hide,
+  move_up, move_down, shorter, none); the editor applies it through the
+  choices PATCH or Fit, so the route saves nothing but the count. **Every
+  line the student reads is the service's fixed text**, never the model's,
+  so the assistant cannot reword by talking. The only model text that
+  reaches the student is a "Make it shorter" wording, and only when it is
+  shorter than what the resume shows, `truth_rule.invented` finds
+  nothing against that wording, the bank's original and the skills, and
+  it holds no identity placeholder (`placeholders_in`); else the answer is
+  `none`. It saves only when the student uses it (as typed
+  wording). One `ASSISTANT` use per answered message (cap 10, share 10%:
+  on top of the spec's four shares, which already fill the pool, so a busy
+  day can overshoot the pool by that much). Tests:
+  `tests/test_editor_assistant.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -174,9 +507,10 @@ Find files with a directory listing; these are the rules for where code goes.
   the next, and queries fail intermittently under load, never in development.
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
   they raise `TypeError: Invalid argument(s)`.
-- **Still open: CI has no migration gates.** `alembic heads` returning more
-  than one, and `alembic check` failing on model drift, would each have caught
-  the 2026-09-21 breakage (`alembic/CLAUDE.md`).
+- **CI runs the whole migration chain** on an empty Postgres before the
+  database tests, so two heads or a broken migration fail the PR. **Still
+  open:** `alembic check` (model drift) is not a CI gate yet
+  (`alembic/CLAUDE.md`).
 
 ## Deployment
 
@@ -188,7 +522,8 @@ free tier). Render with a Dockerfile is the fallback.
 
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
-  model, where"); without `SCOUT_*` every Scout reply is "offline". **Never
+  model, where"); without `SCOUT_*` every Scout reply is "offline". The
+  `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
   `nomic-embed-text:v1.5`; see `app/services/matching/CLAUDE.md`.
@@ -199,10 +534,32 @@ free tier). Render with a Dockerfile is the fallback.
   it.** Every `GET /jobs` sent with an applicant's token queries that table, so
   deploying first makes the Jobs page answer 500 for every signed-in
   applicant. The new table is unused by the running code, so applying it early
-  is safe.
+  is safe. It comes after the resume builder's `bb8c9c6dee0b`, not before: the
+  shared database already held that chain when KAN-232 merged without its
+  table, so this order lets `upgrade head` still create it there. A local
+  database that applied `5cc3189af108` first reads the resume builder's tables
+  as applied; recreate it from `upgrade head`.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
+- **Apply `bb8c9c6dee0b` with or after KAN-202's review fixes.** It only
+  changes two foreign keys (no column the code maps), so either order
+  works. Before it, a hard-deleted posting still cascades to tailored
+  resumes and their bullet variants.
+- **Apply `f2b8d6c4a913` before deploying KAN-217.** It adds
+  `bank_bullet_variants` and `built_resume_bullets.variant_id`, which the
+  model maps, so Generate's inserts fail on a database without it.
+- **Apply `e1c4a7b9d215` before deploying KAN-215.** It adds
+  `job_postings.keywords` and `keywords_hash`, which the model maps, so
+  company job creation and the feed import fail on a database without them.
+- **Apply `5753545063f3` before deploying KAN-207.** It adds
+  `applicant_profiles.default_built_resume_id`, which the model maps, so the
+  new code's signup INSERT fails on a database without it
+  (`app/models/CLAUDE.md`, "A new column reaches the database...").
+- **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
+  checked) and warms its cache into `vendor/`, which the function bundles.
+  A build that cannot fetch it fails rather than shipping without TeX
+  (`app/services/resume_render/CLAUDE.md`).
 - **`../scout` is bundled as a non-editable path source.** uv copies it into
   site-packages at build time; an editable install would point at a folder the
   function lacks.
