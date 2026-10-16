@@ -8,6 +8,17 @@ changing it.
 
 ## Jobs page, /search and filters
 
+**/jobs has two views (KAN-231).** Recommended, the default, is the jobs the
+filters keep, scored against the seeker's experience bank and best first
+(`GET /jobs/recommended/{id}`, which takes the same filters as `GET /jobs`),
+with the match rail showing each score and its highlights. With an empty bank
+it shows the plain feed under the same filters, below the bank prompt. All Jobs
+(`?view=all`) is the plain feed. **Saved preferences apply on a fresh visit
+only**: bare /jobs redirects to `?view=recommended` plus the saved filters,
+where the row shows them checked; from then on the URL is the truth, so Clear
+All clears rather than bringing the saved ones back. Load More pages whichever
+view drew the list (`FeedList`'s `source`).
+
 /jobs and /search filter on the server by the query (/search's ?q= is read by
 the API's role resolver: roles, a typo corrected, then text and company):
 ?location= (repeated ISO

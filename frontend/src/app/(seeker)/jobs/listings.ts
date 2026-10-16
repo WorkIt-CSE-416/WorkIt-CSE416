@@ -6,7 +6,7 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 import { getAccessToken, getApplicantSession } from "@/lib/session";
 
-import type { ExperienceLevel, JobType, WorkStyle } from "./data";
+import type { ExperienceLevel, Highlight, JobType, WorkStyle } from "./data";
 import {
   feedQuery,
   filtersFromPreferences,
@@ -74,6 +74,11 @@ export type JobListing = {
   /** What the posting says about visas (KAN-168): it sponsors, it doesn't, or
    *  US citizens only. Null when it says nothing, which is most postings. */
   sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
+  /** WorkIt's score against the seeker's resume, 0-100, and why: only on
+   *  the Recommended view (`getRecommendedPage`), whose API adds them. The
+   *  card's match rail draws its placeholder without them. */
+  match?: number;
+  highlights?: Highlight[];
 };
 
 export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";
@@ -127,6 +132,30 @@ export async function getFeedPage(query: string, offset: number): Promise<FeedPa
   if (offset > 0) params.set("offset", String(offset));
   try {
     const res = await apiGet(`/jobs?${params}`, (await viewerToken()) ?? undefined);
+    if (!res.ok) return { jobs: null, more: false, error: await extractErrorMessage(res) };
+    const jobs = (await res.json()) as JobListing[];
+    return { jobs: jobs.slice(0, PAGE_SIZE), more: jobs.length > PAGE_SIZE, error: null };
+  } catch {
+    return { jobs: null, more: false, error: "Could not reach the server." };
+  }
+}
+
+/**
+ * One page of the Recommended view (KAN-231): the jobs these filters keep,
+ * scored against the seeker's experience bank and best first, from GET
+ * /jobs/recommended/{id}, which takes the same filters as GET /jobs.
+ * `query` is feedQuery's. Null when the bank is empty (the API's 404): the
+ * page then shows the plain feed under the same filters, below BankPrompt.
+ */
+export async function getRecommendedPage(query: string, offset: number): Promise<FeedPage | null> {
+  await connection();
+  const params = new URLSearchParams(query);
+  params.set("limit", String(PAGE_SIZE + 1));
+  if (offset > 0) params.set("offset", String(offset));
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiGet(`/jobs/recommended/${id}?${params}`, token);
+    if (res.status === 404) return null;
     if (!res.ok) return { jobs: null, more: false, error: await extractErrorMessage(res) };
     const jobs = (await res.json()) as JobListing[];
     return { jobs: jobs.slice(0, PAGE_SIZE), more: jobs.length > PAGE_SIZE, error: null };
