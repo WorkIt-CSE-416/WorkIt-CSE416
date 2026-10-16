@@ -65,7 +65,7 @@ minimum; a posting matches when its own range overlaps it, compared as yearly
 figures in USD.
 
 Location, Role and Start Date in the panel are one picker (SearchPicker in
-jobs/all-filters.tsx; Role's specialties indented under their category, as a
+components/filter-controls.tsx, shared with onboarding; Role's specialties indented under their category, as a
 country's states are, and named whole, "Mechanical Engineering", since a search
 lists them alone): a search field whose checklist opens only from the field and
 floats over the panel like a dropdown (it never pushes the sections down; it
