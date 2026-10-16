@@ -14,7 +14,8 @@ from app.models import dto
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
-from app.queries.jobs.filters import INTERNSHIP, LISTED, unplaced_remote
+from app.queries.jobs.filters import LISTED, unplaced_remote
+from app.queries.jobs.legacy_levels import JOB_TYPE_NOW, LEVEL_NOW
 from app.schemas.jobs import FacetCount, JobFacets, JobLocationOption, JobRoleOption
 from app.services.start_terms import season_is_over, season_of, season_order
 
@@ -137,12 +138,10 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
     return JobFacets(
         work_style=await by(Job_Post.work_style),
         role=await fetch_role_options(db, with_jobs_only=True),
-        experience=await by(Job_Post.experience_level),
-        # As the page shows them: internships count under "internship" alone.
-        job_type=[
-            *await by(Job_Post.job_type, ~INTERNSHIP),
-            *[f for f in await by(Job_Post.experience_level) if f.value == "internship"],
-        ],
+        # Counted as the new values (KAN-233), so a row still holding an old
+        # one counts where its filter option finds it.
+        experience=await by(LEVEL_NOW),
+        job_type=await by(JOB_TYPE_NOW),
         posted_within=[FacetCount(value=str(d), jobs=n) for d, n in zip((1, 7, 30), posted)],
         visa=[
             FacetCount(value="sponsors", jobs=sponsors),

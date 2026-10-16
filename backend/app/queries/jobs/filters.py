@@ -39,6 +39,7 @@ from app.models import dto
 from app.models.applications import Job_Application
 from app.models.job_roles import Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
+from app.queries.jobs.legacy_levels import IS_INTERNSHIP, stored_levels
 from app.services.postings import LISTED  # noqa: F401 (re-export)
 from app.services.role_resolver import title_pattern
 
@@ -99,9 +100,8 @@ class JobFilters:
     # job matches when it is tagged with any of them (job_role_tags).
     roles: Sequence[str] = ()
     levels: Sequence[str] = ()
-    # "internship" is every internship, whatever its hours: the Jobs page shows
-    # that as an internship's job type, so full_time and the rest match only
-    # the roles that aren't internships (KAN-171).
+    # "internship" is a job type of its own (KAN-233); job_type_matches reads
+    # the rows an older import wrote as the level too, until migration B.
     job_types: Sequence[str] = ()
     posted_since: datetime.datetime | None = None
     # Yearly figures in US dollars: ?min_pay=45&pay_per=hour is 93,600. A
@@ -153,22 +153,20 @@ class JobFilters:
     no_application_by: uuid.UUID | None = None
 
 
-INTERNSHIP = Job_Post.experience_level == dto.experience_level.internship
-
-
 def job_type_matches(job_types: Sequence[str]) -> ColumnElement[bool]:
     '''
-    a job of any of these types, as the Jobs page shows them: "internship" is
-    every internship, and full_time, part_time and contract are those types
-    among the jobs that aren't internships (an internship states its hours, if
-    at all, in a field the page doesn't show)
+    a job of any of these types. "internship" is a job type of its own
+    (KAN-233); until migration B moves the rows that still state it as an
+    experience level, IS_INTERNSHIP reads both spellings, and full_time and
+    the rest leave such a row out as they always have (an old internship's
+    stated hours aren't its job type)
     '''
     either: list[ColumnElement[bool]] = []
     if "internship" in job_types:
-        either.append(INTERNSHIP)
+        either.append(IS_INTERNSHIP)
     kinds = [t for t in job_types if t != "internship"]
     if kinds:
-        either.append(and_(~INTERNSHIP, Job_Post.job_type.in_(kinds)))
+        either.append(and_(~IS_INTERNSHIP, Job_Post.job_type.in_(kinds)))
     return or_(*either)
 
 
@@ -255,7 +253,7 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.roles:
         clauses.append(tagged_with(filters.roles))
     if filters.levels:
-        clauses.append(Job_Post.experience_level.in_(filters.levels))
+        clauses.append(Job_Post.experience_level.in_(stored_levels(filters.levels)))
     if filters.job_types:
         clauses.append(job_type_matches(filters.job_types))
     if filters.posted_since is not None:
@@ -282,7 +280,7 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         said = filters.query_role_words.get(slug)
         clauses.append(or_(tagged_with([slug]), title_says(said)) if said else tagged_with([slug]))
     if filters.query_levels:
-        clauses.append(Job_Post.experience_level.in_(filters.query_levels))
+        clauses.append(Job_Post.experience_level.in_(stored_levels(filters.query_levels)))
     if filters.query_work_styles:
         clauses.append(or_(
             Job_Post.work_style.in_(filters.query_work_styles),

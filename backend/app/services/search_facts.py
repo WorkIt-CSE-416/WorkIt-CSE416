@@ -1,6 +1,6 @@
 """
 The facts a search's words name that have columns (query_facts): "intern" is
-the internship level, "remote" the work style, "summer 2027" the start term.
+the student level (every internship, KAN-233), "remote" the work style, "summer 2027" the start term.
 queries/jobs/search.py reads ?q= with it, and docs/search.md has the design.
 Pure: no database.
 """
@@ -18,9 +18,9 @@ from app.services.start_terms import MONTHS, SEASONS, season_of
 # filter rather than looked for in the text (query_facts). Each phrase is in
 # words as raw_words splits them: "co-op" is "co op", "on-site" "on site".
 _LEVEL_WORDS = {
-    ("intern",): "internship", ("interns",): "internship",
-    ("internship",): "internship", ("internships",): "internship",
-    ("co", "op"): "internship", ("coop",): "internship", ("co", "ops"): "internship",
+    ("intern",): "student", ("interns",): "student",
+    ("internship",): "student", ("internships",): "student",
+    ("co", "op"): "student", ("coop",): "student", ("co", "ops"): "student",
     ("new", "grad"): "new_grad", ("new", "grads"): "new_grad", ("newgrad",): "new_grad",
     ("new", "graduate"): "new_grad", ("new", "graduates"): "new_grad",
     ("early", "career"): "new_grad", ("entry", "level"): "new_grad",
