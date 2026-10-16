@@ -31,8 +31,9 @@ current when a route changes.
   `await asyncio.to_thread(client.storage.from_(BUCKET).upload, path, contents, opts)`.
 - **Validate at the boundary.** File type and size checks run before any
   upload or database write. Read with `file.read(MAX_SIZE + 1)` so an
-  oversized file is never loaded whole. Client-supplied JSON stored as-is
-  (a resume's `parsed_json`) is size-capped too.
+  oversized file is never loaded whole. Client-supplied JSON stored as-is is
+  size-capped too; a resume's `parsed_json` is no longer client-supplied
+  (KAN-211), only the parser's output.
 - **Clean up on failure.** If the commit fails after a Storage upload, the
   endpoint deletes the orphaned file before returning the error.
 - **Storage buckets are made in the dashboard, not by migrations.** A new

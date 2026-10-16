@@ -4,6 +4,7 @@ from datetime import date
 import ftfy  # fix broken unicode
 
 from app.models.dto import (
+    Award,
     Certification,
     Education,
     Experience,
@@ -27,7 +28,11 @@ DATE_RANGE_RE = re.compile(
     rf'(?:({MONTH})\s+)?{YEAR}\s*[–\-—]\s*(Present|Current|Now|(?:({MONTH})\s+)?{YEAR})',
     re.IGNORECASE,
 )
-EXPECTED_RE = re.compile(rf'Expected\s+({MONTH})\s+{YEAR}', re.IGNORECASE)
+# "Expected May 2027", "Expected Graduation: May 2027", "Anticipated Grad Date May 2027"
+EXPECTED_RE = re.compile(
+    rf'(?:Expected|Anticipated)(?:\s+(?:Graduation|Grad\.?)(?:\s+Date)?)?\s*:?\s*({MONTH})\s+{YEAR}',
+    re.IGNORECASE,
+)
 # Bare "Month Year" ending a line or a "|" field — no range, no "Expected"
 BARE_DATE_RE = re.compile(rf'({MONTH})\s+{YEAR}\s*(?=\||$)', re.IGNORECASE | re.MULTILINE)
 
@@ -35,20 +40,26 @@ SECTION_RE = re.compile(
     r'^\s*('
     r'Education|'
     r'(?:Work\s+|Professional\s+)?Experience|'
+    r'(?:Leadership(?:\s+Experience)?|Extracurricular\s+Activities|Extracurriculars|'
+    r'(?:Campus\s+)?Involvement)(?:\s+(?:&|and)\s+\w+)?|'
     r'(?:Personal\s+|Academic\s+)?Projects?|'
     r'(?:Technical\s+)?Skills(?:\s+(?:&|and)\s+\w+)?|Technologies|'
     r'Activities(?:\s+(?:&|and)\s+\w+)?|Interests|'
     r'Certifications?\s*(?:&\s*Licenses)?|Licenses|'
     r'Summary|(?:Career\s+)?Objective|Profile|'
-    r'Awards?|Honors?'
+    r'(?:Awards?|Honors?)(?:\s+(?:&|and)\s+(?:Awards?|Honors?))?'
     r')\s*$',
     re.MULTILINE | re.IGNORECASE,
 )
 
-GPA_RE = re.compile(r'GPA[:\s]*(\d+(?:\.\d+)?)', re.IGNORECASE)
+# "GPA: 3.81/4.00" gives the scale too
+GPA_RE = re.compile(r'GPA[:\s]*(\d+(?:\.\d+)?)(?:\s*/\s*(\d+(?:\.\d+)?))?', re.IGNORECASE)
 DEGREE_RE = re.compile(
     # A.A./A.S. need the dot, or the word "as" would count as a degree
-    r'\b(B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|Bachelor|Master|Associate|Doctorate|'
+    r'\b(B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|'
+    # the whole "Bachelor of Science", not just "Bachelor"
+    r"(?:Bachelor|Master)(?:'?s)?(?:\s+of\s+(?:Applied\s+Science|Fine\s+Arts|Business\s+Administration|"
+    r'Science|Arts|Engineering|Technology))?|Associate|Doctorate|'
     r'(?:High\s+School\s+)?Diploma|GED)\b',
     re.IGNORECASE,
 )
@@ -99,6 +110,9 @@ def parse_resume(raw_text: str) -> ParsedResume | None:
         skills=_parse_skills(sections.get("skills", "")),
         projects=_parse_projects(sections.get("projects", "")),
         certifications=_parse_certifications(sections.get("certifications", "")),
+        # club roles read like jobs: organization, role, dates, bullets
+        leadership=_parse_experience(sections.get("leadership", "")),
+        awards=_parse_awards(sections.get("awards", "")),
     )
 
 def count_sections(text: str) -> int:
@@ -111,6 +125,8 @@ def _clean_text(text: str) -> str:
     # use library to clean up text
     text = ftfy.fix_text(text)
     text = re.sub(r'[▪●◦·]', '•', text)
+    # U+223C TILDE OPERATOR, which resume fonts often lack: "∼120ms"
+    text = text.replace('∼', '~')
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
@@ -131,6 +147,11 @@ def _split_sections(text: str) -> dict[str, str]:
 
 def _normalize_header(header: str) -> str:
     h = header.strip().lower()
+    # before "experience": "Leadership Experience" is not a job section
+    if any(w in h for w in ("leadership", "activit", "extracurricular", "involvement")):
+        return "leadership"
+    if "award" in h or "honor" in h:
+        return "awards"
     if "experience" in h:
         return "experience"
     if "education" in h:
@@ -305,7 +326,8 @@ def _bullets(lines: list[str]) -> str | None:
         else:
             # Text before the first marker has nothing to continue: keep it
             parts.append(stripped)
-    return "\n".join(parts) if parts else None
+    # a run of spaces inside a line is a PDF gap (after a bold phrase), not wording
+    return "\n".join(re.sub(r'\s{2,}', ' ', p) for p in parts) if parts else None
 
 
 def _parse_education(text: str) -> list[Education]:
@@ -335,6 +357,7 @@ def _parse_education(text: str) -> list[Education]:
         # GPA
         gpa_m = GPA_RE.search(all_text)
         gpa = float(gpa_m.group(1)) if gpa_m else None
+        gpa_scale = float(gpa_m.group(2)) if gpa_m and gpa_m.group(2) else None
 
         # Degree
         deg_m = DEGREE_RE.search(all_text)
@@ -352,7 +375,8 @@ def _parse_education(text: str) -> list[Education]:
             # "B.S. in Computer Science", "Bachelor of Science in X", "B.S., X"
             m = DEGREE_FIELD_RE.search(all_text)
             if m and m.group(1).strip():
-                field = m.group(1).strip()
+                # "Computer Science  GPA: 3.81/4.00": the field ends at a PDF gap or the GPA
+                field = re.split(r'\s{2,}|\s*\bGPA\b', m.group(1).strip(), flags=re.IGNORECASE)[0].strip() or None
 
         # Description: coursework + other non-header lines
         desc_parts: list[str] = []
@@ -362,11 +386,14 @@ def _parse_education(text: str) -> list[Education]:
                 desc_parts.append(stripped)
             elif BULLET_RE.match(stripped):
                 desc_parts.append(BULLET_RE.sub("", stripped).strip())
-        desc = "\n".join(desc_parts) if desc_parts else None
+            elif desc_parts and (desc_parts[-1].endswith(",") or stripped[0].islower()):
+                # a PDF-wrapped coursework or bullet line
+                desc_parts[-1] += " " + stripped
+        desc = "\n".join(re.sub(r'\s{2,}', ' ', d) for d in desc_parts) if desc_parts else None
 
         results.append(Education(
             institution=inst, degree=degree, field_of_study=field,
-            gpa=gpa, end_date=end, description=desc,
+            gpa=gpa, gpa_scale=gpa_scale, end_date=end, description=desc,
         ))
     return results
 
@@ -469,18 +496,25 @@ def _parse_skills(text: str) -> list[Skill]:
     if not text.strip():
         return []
     results: list[Skill] = []
+    category: str | None = None
+    wrapped = False  # the line above ended in a comma: this line continues its list
     for line in text.splitlines():
         line = line.strip()
         if not line:
             continue
-        if ":" in line:
-            category, rest = line.split(":", 1)
-            category = BULLET_RE.sub("", category).strip()
+        if ":" in line or (wrapped and category):
+            if ":" in line:
+                category, rest = line.split(":", 1)
+                category = BULLET_RE.sub("", category).strip()
+            else:
+                rest = line
+            wrapped = line.endswith(",")
             for s in rest.split(","):
                 name = s.strip()
                 if name:
                     results.append(Skill(skill_name=name, category=category))
         else:
+            category, wrapped = None, False
             line = BULLET_RE.sub("", line).strip()
             # two-column skill lists put several bullets on one line
             for s in re.split(r'[,•]', line):
@@ -493,7 +527,7 @@ def _parse_skills(text: str) -> list[Skill]:
 def _parse_projects(text: str) -> list[Project]:
     if not text.strip():
         return []
-    entries = _split_entries(text)
+    entries = [part for entry in _split_entries(text) for part in _split_undated_projects(entry)]
     results: list[Project] = []
     for lines in entries:
         if not lines:
@@ -503,7 +537,20 @@ def _parse_projects(text: str) -> list[Project]:
         first = lines[0]
         start, end = _parse_date_range(first)
         name = BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", first)).strip().rstrip(",").rstrip("–—-").strip()
-        name = re.sub(r'\s*\(.*?\)\s*$', '', name).strip()
+        technologies: list[str] = []
+        # "Name | C++, Python": a list after the bar is the tools. A single phrase
+        # there is a subtitle ("WorkIt | Recruiting Platform") and stays in the name.
+        head, bar, tools = name.partition("|")
+        if bar and "," in re.sub(r'\(.*?\)', '', tools) and not URL_RE.search(tools):
+            name = head.strip()
+            technologies = [t.strip() for t in tools.split(",") if t.strip()]
+        # "Name (C++, Python)"
+        paren = re.search(r'\s*\((.*?)\)\s*$', name)
+        if paren:
+            if "," in paren.group(1):
+                technologies = technologies or [t.strip() for t in paren.group(1).split(",") if t.strip()]
+            name = name[:paren.start()].strip()
+        name = re.sub(r'\s{2,}', ' ', name)
         if not name:
             name = first.strip()
 
@@ -515,13 +562,35 @@ def _parse_projects(text: str) -> list[Project]:
                 url = url_m.group(0)
                 break
 
-        desc = _bullets(lines[1:])
+        # a line that is only the link is the url above, not a bullet
+        desc = _bullets([ln for ln in lines[1:] if not URL_RE.fullmatch(ln.strip())])
 
         results.append(Project(
-            project_name=name, url=url,
+            project_name=name, url=url, technologies=technologies,
             start_date=start, end_date=end, description=desc,
         ))
     return results
+
+
+def _split_undated_projects(lines: list[str]) -> list[list[str]]:
+    """Undated projects give `_split_entries` no date to split on, so one
+    entry can hold several. Where bullets carry markers, a plain line is a
+    new project's name when it holds a "|" ("Robot | C++, Python") or opens
+    a new sentence after a finished bullet; a PDF-wrapped bullet line does
+    neither."""
+    if not any(BULLET_RE.match(ln) for ln in lines):
+        return [lines]
+    out: list[list[str]] = []
+    for i, ln in enumerate(lines):
+        starts = i > 0 and not BULLET_RE.match(ln) and _is_header_line(ln) and (
+            "|" in ln or lines[i - 1].rstrip().endswith("."))
+        if starts and out and any(BULLET_RE.match(x) for x in out[-1]):
+            out.append([ln])
+        elif out:
+            out[-1].append(ln)
+        else:
+            out.append([ln])
+    return out
 
 
 def _parse_certifications(text: str) -> list[Certification]:
@@ -538,4 +607,29 @@ def _parse_certifications(text: str) -> list[Certification]:
         issuer = parts[1].strip() if len(parts) > 1 else None
         if cert_name:
             results.append(Certification(cert_name=cert_name, issuer=issuer))
+    return results
+
+
+# A year alone ends an award line ("Merit Scholarship  2024")
+YEAR_ONLY_RE = re.compile(r'(?<![\d–\-])\b(\d{4})\s*$')
+
+
+def _parse_awards(text: str) -> list[Award]:
+    """One award per line: "Award – Issuer  Date" or "Award | Issuer | Date";
+    the issuer and the date are optional."""
+    results: list[Award] = []
+    for line in text.splitlines():
+        line = BULLET_RE.sub("", line.strip()).strip()
+        if not line:
+            continue
+        _, when = _parse_date_range(line)
+        rest = _strip_dates(line)
+        year = YEAR_ONLY_RE.search(rest)
+        if when is None and year:
+            when = date(int(year.group(1)), 1, 1)
+        if year:
+            rest = rest[:year.start()].strip().rstrip(",|–—-").strip()
+        parts = [p.strip() for p in re.split(r'\s*[|–—]\s*|\s+-\s+', rest, maxsplit=1)]
+        if parts[0]:
+            results.append(Award(title=parts[0], issuer=parts[1] if len(parts) > 1 and parts[1] else None, date=when))
     return results

@@ -2,18 +2,20 @@
 
 ## Scoring calibration
 
-- Weights remain provisional: semantic 45%, resume-skill coverage 25%, title
+- Weights remain provisional: semantic 45%, bank-skill coverage 25%, title
   overlap 15%, experience fit 15%. A match is a ranking score, not a probability.
 - Skills match independently via English full-text search. Coverage is matched
-  distinct resume skills / distinct nonblank resume skills, never normalized
+  distinct bank skills / distinct nonblank bank skills, never normalized
   against other results. Filtering must not change a retained job's skill score.
-  This measures resume-skill coverage, not coverage of all job requirements.
+  This measures bank-skill coverage, not coverage of all job requirements.
   English tokenization/stemming does not reliably distinguish C, C++, and C#;
   multiword skills require all their searchable words, not an exact phrase.
-- Experience is the union of dated intervals, with missing ends treated as
+- `experience_years()` takes the union of dated intervals, with missing ends treated as
   ongoing through today. Missing starts contribute no duration; overlaps count
   once. Parsed dates are estimates, so experience fit remains an additive signal,
-  not an exclusion gate. Graduation eligibility is not inferred from start term.
+  not an exclusion gate. The recommender reads the bank's years from
+  `bank_input.years_of_experience()`, which does not merge overlaps yet
+  (CLAUDE.md, Still open). Graduation eligibility is not inferred from start term.
 - Freshness falls from 1.0 to 0.7 across 300 days and cannot boost future dates.
 - Skill highlights name only matched skills; experience warnings must survive
   the three-highlight cap. Equal integer scores use unrounded score then job ID

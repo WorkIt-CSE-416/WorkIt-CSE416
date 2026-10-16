@@ -71,6 +71,15 @@ on purpose: Postgres respells defaults, so it reports phantom changes).
 `configure_context()` is shared by offline and online modes so they cannot
 drift: add new settings there, not to one path.
 
+## env.py keeps existing loggers
+
+`fileConfig(..., disable_existing_loggers=False)`. The test suite runs the
+migrations in `tests/conftest.py` after collection has imported the app, and
+`fileConfig`'s default disables every logger made before it. Then a test
+that checks a log line with `caplog` sees nothing, but only when it runs
+after a database test (`test_import_embeddings.py` failed that way when
+main's embedding import met KAN-203's real-Postgres tests).
+
 ## env.py imports app.models
 
 A model that no import reaches is absent from `Base.metadata`, and autogenerate
@@ -109,7 +118,7 @@ Read every generated migration before applying it. Autogenerate does **not**
 emit:
 
 - `CREATE EXTENSION` — this schema needs `ltree` and `pg_trgm`
-- new enum values — `ALTER TYPE ... ADD VALUE`, and there are nine enums
+- new enum values — `ALTER TYPE ... ADD VALUE`, and there are eleven enums
 - index operator classes — `gin_trgm_ops`, used on two tables
 - anything `ltree` — no native type, so it needs a `TypeDecorator`
 - **a `use_alter=True` foreign key** — see below, this one bit us
@@ -122,11 +131,12 @@ TABLE` to add it back. The column and its index exist, the FK silently does
 not, and **`alembic check` does not catch it** — a missing constraint is not
 model drift it knows how to see.
 
-`applicant_profiles.default_resume_id` → `resumes.id` is the cycle in this
+`applicant_profiles.default_resume_id` → `resumes.id` is a cycle in this
 schema, and `dee263a84adb` carries a hand-added `op.create_foreign_key()` at
 the end of `upgrade()` because of it. The matching `drop_constraint()` must be
 the *first* statement in `downgrade()`, or dropping `resumes` fails while
-`applicant_profiles` still references it.
+`applicant_profiles` still references it. `default_built_resume_id` →
+`built_resumes.id` (`5753545063f3`) is the second, written the same way.
 
 Catch this class of bug with the offline `--sql` check above. If a FK you
 expect is missing from the output, it will be missing from the database too.
@@ -258,13 +268,15 @@ imports every migration needs there rather than by hand in each one.
 
 ## Multi-team
 
-Two CI gates are worth adding; CI (`../../.github/CLAUDE.md`) runs neither yet.
+Two CI gates matter. CI (`../../.github/CLAUDE.md`) has the first: the
+backend tests run `upgrade head` on an empty Postgres (`../CLAUDE.md`, "Tests
+against real Postgres"). The second is still open.
 
 - **`alembic heads` must return exactly one.** Two branches off one revision
   each adding a migration produces two heads, and `upgrade head` then fails for
-  everyone. The `down_revision` git conflict this causes is a feature: resolve
-  it by re-parenting one revision, never by picking a side.
-- **`alembic check`** fails when models contain changes no migration captures —
+  everyone, CI included. The `down_revision` git conflict this causes is a
+  feature: resolve it by re-parenting one revision, never by picking a side.
+- **`alembic check`** (not in CI yet) fails when models contain changes no migration captures —
   the defect that otherwise detonates in a teammate's environment rather than
   the author's.
 

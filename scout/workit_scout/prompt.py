@@ -2,7 +2,7 @@
 Scout's system prompt, and the facts appended after it.
 
 SYSTEM_PROMPT is one frozen string so providers can cache it as a prefix; what
-varies per request — the user's resume, the job — is rendered by `facts()` and
+varies per request — the user's experience bank, the job — is rendered by `facts()` and
 goes after it, never spliced in.
 """
 
@@ -35,9 +35,16 @@ their account. Only if the user asks about either, say so in one sentence; \
 never bring it up yourself.
 """
 
-NO_RESUME = (
-    "The user has not uploaded a resume, so you know nothing about their background. "
-    "Suggest uploading one on their profile when it would help."
+EMPTY_BANK = (
+    "The user's experience bank is empty, so you know nothing about their background."
+)
+NO_UPLOAD = (
+    "They have not uploaded a resume either. Suggest adding what they have done "
+    "on the Experience Bank page when it would help."
+)
+UPLOAD_WAITING = (
+    "They have uploaded a resume but have not imported it. Suggest importing it "
+    "on the Experience Bank page when it would help."
 )
 
 
@@ -46,19 +53,22 @@ def _section(title: str, lines: list[str]) -> str:
 
 
 def facts(resume: ResumeFacts | None, job: JobFacts | None) -> str:
+    resume = resume or ResumeFacts()
     parts = ["# What you know", "## The user's resume"]
-    if resume is None:
-        parts.append(NO_RESUME)
+    sections = [
+        _section("Skills", resume.skills),
+        _section("Experience", resume.experience),
+        _section("Education", resume.education),
+        _section("Projects", resume.projects),
+        _section("Leadership & Activities", resume.leadership),
+        _section("Awards", resume.awards),
+        _section("Certifications", resume.certifications),
+    ]
+    stated = "\n\n".join(s for s in sections if s)
+    if stated:
+        parts.append("From their experience bank:\n\n" + stated)
     else:
-        sections = [
-            _section("Skills", resume.skills),
-            _section("Experience", resume.experience),
-            _section("Education", resume.education),
-            _section("Projects", resume.projects),
-        ]
-        parts.append(
-            "\n\n".join(s for s in sections if s) or "The resume could not be read."
-        )
+        parts.append(f"{EMPTY_BANK} {UPLOAD_WAITING if resume.has_upload else NO_UPLOAD}")
 
     if job is not None:
         stated = [

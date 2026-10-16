@@ -63,9 +63,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import StringConstraints
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import undefer
 
 from app.db import get_session
 from app.deps import (
@@ -74,9 +72,6 @@ from app.deps import (
     get_signed_in_applicant_id,
 )
 from app.models import dto
-from app.models.dto import ParsedResume
-from app.models.profiles import Applicant_Profile
-from app.models.resume import Resume
 from app.queries.jobs.facets import (
     fetch_facets,
     fetch_location_options,
@@ -95,6 +90,7 @@ from app.schemas.jobs import (
     JobRoleOption,
     ScoredJob,
 )
+from app.services.bank import load_bank
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -235,49 +231,26 @@ async def list_facets(db: AsyncSession = Depends(get_session)) -> JobFacets:
     return await fetch_facets(db)
 
 
-class NoResume(Exception):
-    """The applicant has no default resume, or it never parsed: nothing to
-    score against. The route answers 404 with this message."""
-
-
-async def fetch_recommended(
-    db: AsyncSession,
+@router.get("/recommended/{applicant_id}", response_model=list[ScoredJob])
+async def recommended_jobs(
     applicant_id: uuid.UUID,
-    *,
-    filters: JobFilters = JobFilters(),
-    min_match: int = 0,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=100_000),
+    filters: JobFilters = Depends(read_filters),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
 ) -> list[ScoredJob]:
-    '''
-    the published scraped jobs scored against this applicant's default resume,
-    best first, with `match` (0-100) and up to 3 `highlights`. Jobs without
-    embeddings still appear, scored on the other components. Raises NoResume.
+    """Jobs scored against the applicant's experience bank (never an uploaded
+    resume). Returns `match` (0-100), its `score_breakdown` (effective
+    weights, component points before freshness, the final rounded score) and
+    up to 3 `highlights`. 404 while the bank is empty."""
+    assert_applicant_owns(account, applicant_id)
 
-    Checks no ownership: the caller has done that (the route, with
-    assert_applicant_owns). Auto apply calls this to find what to apply to
-    (auto-apply/architecture.md, "Match (built)").
+    bank = await load_bank(db, applicant_id)
+    if not bank.entries and not bank.skills:
+        raise HTTPException(404, "Your experience bank is empty")
 
-    `min_match` leaves out jobs scored below it before `offset`, so a page
-    never comes back short with more matches behind it.
-    '''
-    # Load the default resume
-    profile = await db.get(Applicant_Profile, applicant_id)
-    if profile is None or profile.default_resume_id is None:
-        raise NoResume("No default resume set")
-
-    resume_row = (await db.execute(
-        select(Resume).where(Resume.id == profile.default_resume_id)
-        .options(undefer(Resume.embedding))
-    )).scalar_one_or_none()
-    if resume_row is None or resume_row.parsed_json is None:
-        raise NoResume("Resume not found or not parsed")
-
-    parsed = ParsedResume.model_validate(resume_row.parsed_json)
-
-    scored = await score_jobs(db, resume_row, parsed, filters)
-    # score_jobs sorts best first; drop those under min_match before offset
-    scored = [s for s in scored if s.match >= min_match]
+    scored = await score_jobs(db, account, bank, filters)
     return scored[offset:offset + limit]
 
 

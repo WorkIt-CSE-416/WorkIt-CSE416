@@ -213,6 +213,91 @@ Run `alembic upgrade head` right after merging, before the new deployment is
 live. A column whose value the database supplies (`Computed`, a
 `server_default`) is left out of inserts and is not affected.
 
+## The experience bank
+
+`bank.py` holds the bank row, entries, bullets and skills (KAN-206). The
+design rationale is in `../../../docs/resume.md`, "The experience bank";
+the rules every write follows are in `../services/bank.py`. Invariants a
+change here must keep:
+
+- **`bank_section` has six values, not seven.** Skills is a section to the
+  student but its own table. Adding a section is an `ALTER TYPE ... ADD
+  VALUE` and a coordinated deploy (above).
+- **`experience_banks` has one row per applicant, made by the first bank
+  change** (an upsert in `clear_embedding`), not at signup. A missing row
+  reads as "no embedding yet". Its `embedding` is the only applicant vector
+  the recommender reads (KAN-212).
+- **Section fields are plain nullable columns on `bank_entries`**, not a
+  JSONB blob, so later queries (graduation date, Tailor's text search) read
+  them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section
+  owns which; the database only checks the end (`bank_entries_end_check`).
+- **A skill name appears once per applicant, ignoring case**
+  (`bank_skills_applicant_name_key` on `lower(name)`), so Tailor's "Have you
+  used X?" and import can look a skill up by name.
+- **Bullet positions are 0..n-1 within an entry.** The service renumbers on
+  every move and delete; there is no unique constraint on them, because a
+  reorder would then have to dodge its own rows mid-update.
+- **`bank_skill_links` joins a skill to an entry of the same applicant**
+  (KAN-216), keyed by the pair, cascading from either side. The table has
+  no applicant column, so it cannot check that both sides share an owner:
+  `services/bank.py`'s `link_skill` does, and a link written any other way
+  can join two students' rows.
+
+## Built resumes
+
+`built_resume.py` (KAN-207): a built resume and its choice rows. Rationale in
+`../../../docs/resume.md`, "Built resumes"; what shows is
+`../services/resume_view.py`. Invariants:
+
+- **Choice rows hold no text.** `built_resume_entries`, `_bullets` and
+  `_skills` say only whether a bank item shows, its position and (entries)
+  the GPA and coursework toggles; the words always come from the bank (ADR
+  0001). Never copy bank text onto a built resume.
+- **No choice row means not on the resume**, for entries, bullets and skills
+  alike, so what is added to the bank after Generate waits in the tray.
+  Deleting a bank item cascades to its choice rows.
+- **A base resume has no `job_posting_id`; a tailored one has one**, unique
+  per applicant and posting (`built_resumes_applicant_posting_key`; NULLs are
+  distinct, so base resumes are many). Only base resumes count toward the
+  limit of 5 (`../services/built_resumes.py`).
+- **The default resume is two pointers, at most one set.**
+  `applicant_profiles.default_resume_id` (an uploaded resume) and
+  `default_built_resume_id` (a base resume), each `ON DELETE SET NULL`, with
+  the check `applicant_profiles_one_default_resume`. One column could not
+  carry a foreign key to two tables; setting one clears the other
+  (`set_default`). Code that reads "the default" checks both: a base default
+  leaves `default_resume_id` null. The recommender and Scout read neither:
+  they read the experience bank (KAN-212).
+- **A bullet choice may name a variant** (`variant_id`, KAN-217), whose
+  text the view shows in place of the original; `ON DELETE SET NULL`
+  brings the original back. The table cannot check that the variant
+  belongs to the choice's bullet: Tailor's Done makes or reuses the
+  variant for that bullet itself, and whatever writes `variant_id` next
+  (the editor) must do the same.
+- **`bank_bullet_variants` has two owners, at most one set**: a job posting
+  (Tailor) or a built resume (a local variant, at most one per bullet and
+  resume, `bank_bullet_variants_local_key`), with the check
+  `bank_bullet_variants_one_owner_check`. Neither set is allowed and reads
+  as a variant of the bank's own.
+- **`default_built_resume_id` is a mapped column on `applicant_profiles`**,
+  so every signup INSERT names it: migration `5753545063f3` is applied
+  before the code deploys (above, "A new column reaches the database...").
+
+## Sent resumes
+
+`sent_resume.py` (KAN-208): the exact file a student downloaded or applied
+with. Rationale in `../../../docs/resume.md`, "Sent resumes". Invariants:
+
+- **A row never changes after it is written**, and its file is never
+  overwritten. The API lists and deletes sent resumes, never edits them.
+- **`built_resume_id`, `uploaded_resume_id` and `job_posting_id` are
+  `ON DELETE SET NULL`**: the record outlives its source. At most one source
+  is set (`sent_resumes_one_source`).
+- **`storage_path` may be shared** with an uploaded resume or another sent
+  resume, so a file is removed only when no row uses it
+  (`../services/sent_resumes.py`'s `file_in_use`). `content_hash` is null on
+  a row from an uploaded resume.
+
 ## Locations — countries, states, and the resolver
 
 ### The tables
@@ -599,6 +684,13 @@ searching company-posted jobs by employer needs a join or a copied name.
 **Job matching adds three columns (KAN-139):**
 - **`job_postings.embedding` and `resumes.embedding`** hold embedding vectors,
   `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
+  **`resumes.embedding` is no longer mapped** (KAN-212 moved the embedding to
+  `experience_banks`): the column stays in the database until a contract
+  migration drops it, written and applied only after the code that stopped
+  mapping it is deployed, as with `824f0b2e3d84` below. Until then
+  `alembic revision --autogenerate` proposes `drop_column('resumes',
+  'embedding')`: delete that line from any migration that is not the drop
+  itself, or the drop ships before the deploy and old code's inserts fail.
 - **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
   and description (weighted D), so anything that ranks with `ts_rank` puts a
   title match first (search itself doesn't rank: `@@` ignores weights), with
@@ -616,6 +708,16 @@ searching company-posted jobs by employer needs a join or a copied name.
   maps it", above).
 
 What writes them, and why, is `../services/matching/CLAUDE.md`.
+
+**Tailor's keywords are cached on the posting (KAN-215).** `keywords` (JSONB,
+at most 20 `{"keyword", "kind"}`) and `keywords_hash` (the SHA-256 of the
+description they came from), both `deferred`, from `e1c4a7b9d215`. A hash
+that differs from the description's means stale, so a company's edit is
+caught with no extra code; the feed import also clears both when it changes
+a description, so a stale list never sits in the table. Only
+`services/keywords.py` reads or writes them. Apply the migration before the
+deploy: the model maps them, so company job creation fails on a database
+without them (above).
 
 **`job_postings.role_category` and `job_postings.roles` are gone
 (`824f0b2e3d84`).** They held the scraper's role keys: `role_category` one of
@@ -722,9 +824,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 These belong to later tickets and should not be added here:
 
-- Pipeline stages, interviews, offers, resume scores. ATS clones model all of
-  them; `../../../docs/job_posting.md` starts that work. Jobs and the
-  applied mark (`job_applications`, above) exist now.
+- Pipeline stages, interviews, offers, resume scores. Hiring-system clones
+  model all of them; `../../../docs/job_posting.md` starts that work. Jobs and
+  the applied mark (`job_applications`, above) exist now.
 - Resume storage and parsing — implemented in `resume.py` (model) and
   `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`
   for design rationale.

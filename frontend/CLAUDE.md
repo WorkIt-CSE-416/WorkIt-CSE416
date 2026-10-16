@@ -98,9 +98,26 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,
   `addTransitionType`): the App Router runs React canary and `@types/react`'s
   stable entry lacks them.
+- **A page can take Scout's panel over** with `components/scout/
+  scout-takeover.tsx`: its children portal into the panel in place of
+  Scout's chat while the page is mounted, so the bar's Scout button opens
+  the page's assistant. The Experience Bank puts intake there. Open it only
+  on a click (the panel's rule), never on page load; a link a student
+  clicked to get here may open it once, then drop its query param.
 - **The company table (`app/company/table.tsx`) is TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
   `node_modules/@tanstack/react-table/skills`, not a blog post.
+- **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
+  page only** (KAN-209), through `import("pdfjs-dist")` inside an effect in
+  `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
+  290 KB worker, which every other page would otherwise pay for, and its
+  module touches browser globals, so a top-level import breaks the server
+  render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url)`, which Turbopack emits as a static file. After a build,
+  only the editor route's client manifest names the pdf.js chunk.
+  `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
+  lockfile when pdf.js was added; they were put back by hand. Check the
+  lockfile diff for removals after adding any dependency.
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
@@ -159,6 +176,29 @@ are in `docs/auth.md`.
   layout, never a module variable**: sign-out leaving the shell is what drops
   it, and a module variable would show one account's resumes to the next
   person in that tab.
+- **Resume facts are edited in the experience bank only** (KAN-211). No
+  screen edits an uploaded resume's `parsed_json`; an upload reaches the bank
+  through import's drafts (`(seeker)/bank/import-card.tsx`). Two editors of
+  the same facts drift apart, and built resumes read the bank.
+  "Read It Again with AI" (KAN-222) shows only while the import response's
+  `uses_left` is above 0, and a failed AI reading keeps the shown drafts.
+- **Applicant server actions call the API through `applicantCall`**
+  (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
+  GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
+  throws. A new action file under `/applicants/{id}` wraps it with its own
+  base path rather than copying the fetch.
+- **A built resume's download goes through `sendBuiltResume`**
+  (`lib/sent-resume-actions.ts`, KAN-208), PDF or Word (`"docx"`), never
+  `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
+  downloads the file. A download cancelled at the missing-character warning
+  deletes the sent resume it just made (`created`), so the "Sent" list holds
+  only files the student took. Apply on the posting detail goes through
+  `applyWithResume` (KAN-220) and keeps its sent resume: the student is
+  told it is in the Sent list, so it is never deleted behind their back.
+- **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
+  (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
+  `account-menu.tsx` and on the login page, which an expired session also
+  reaches. A draft stored under any other key outlives sign-out.
 - **To test a page behind sign-in, use the shared test account**:
   `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` in the root `.env`. It is a
   normal applicant with test data only, on the one shared Supabase project, so
@@ -171,8 +211,9 @@ are in `docs/auth.md`.
 ## Screens, design and motion
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
-  posting page and card, seeker Dashboard, Auto Apply, Applications, Calendar, My Profile,
-  Scout's panel, company screens), read its section in `docs/screens.md`.
+  posting page and card, seeker Dashboard, Applications, Calendar, My Profile,
+  the Experience Bank, Scout's panel, company screens), read its section in
+  `docs/screens.md`.
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.

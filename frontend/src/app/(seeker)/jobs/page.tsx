@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { RememberFeed } from "./[jobId]/page-actions";
+import { BankPrompt } from "./bank-prompt";
 import { FeedHeader } from "./feed-header";
 import { FeedList } from "./feed-list";
 import { FeedTransition, PendingFeed } from "./feed-transition";
@@ -101,6 +102,12 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
         >
           <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
         </FeedHeader>
+
+        {/* An empty bank's prompt to fill or import (./bank-prompt). Its own
+            boundary with no fallback, so the feed never waits on it. */}
+        <Suspense fallback={null}>
+          <BankPrompt />
+        </Suspense>
 
         {/* Keyed by the filters, so a new pick shows the skeleton straight
             away instead of holding the old list until the narrowed one

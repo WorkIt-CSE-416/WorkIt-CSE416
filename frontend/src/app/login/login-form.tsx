@@ -1,11 +1,12 @@
 "use client";
 
 import { CircleAlert } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 
 import { ArrowRightIcon, LockIcon, MailIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
+import { clearLocalDrafts } from "@/lib/local-drafts";
 
 import { signIn, type LoginState } from "./actions";
 
@@ -18,6 +19,8 @@ const INITIAL_STATE: LoginState = { error: null, email: "" };
  */
 export function LoginForm({ formId }: { formId: string }) {
   const [state, formAction, pending] = useActionState(signIn, INITIAL_STATE);
+  // Sign-out and an expired session both land here: no draft outlives them.
+  useEffect(clearLocalDrafts, []);
 
   // The error never says which field was wrong (see actions.ts), so it marks
   // both and both point at it.

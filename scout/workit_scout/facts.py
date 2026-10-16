@@ -2,68 +2,78 @@
 The API's records as Scout's facts: what Scout is allowed to say it knows.
 
 Both inputs are JSON-shaped data, never the API's classes (this package never
-imports the backend): a resume's stored `parsed_json` and a `feed.json` row.
-The private models below name only the fields Scout reads and ignore the rest.
+imports the backend): the experience bank as `GET /applicants/{id}/bank`
+returns it, and a `feed.json` row. The private models below name only the
+fields Scout reads and ignore the rest.
 
-This is also the privacy boundary: only parsed resume sections cross it — a
-name, email, phone, link or the raw resume text never does, because the
-production model is a free tier that may train on prompts.
+This is also the privacy boundary: only the bank's sections, original bullets
+and skills cross it. A link (a project's included), a location, bullet
+variants and the uploaded resume never do. Scout reads the bank only, with no
+fallback to an uploaded resume (KAN-212).
 """
 
 from collections.abc import Mapping
-from datetime import date
 from typing import Any
 
 from pydantic import BaseModel
 
 from workit_scout.schemas import JobFacts, ResumeFacts
 
-# A resume line is a summary, not the whole bullet list: enough for Scout to
-# match on, short enough that ten of them stay cheap.
+# An entry is one short line, not its whole bullet list: enough for Scout to
+# match on, short enough that twenty of them stay cheap.
 MAX_LINE_CHARS = 300
 
 LEVEL = {"internship": "Internship", "new_grad": "New grad"}
 WORK_STYLE = {"remote": "Remote", "hybrid": "Hybrid", "onsite": "On site"}
 
 
-class _Education(BaseModel):
-    institution: str
+class _Bullet(BaseModel):
+    text: str
+
+
+class _Entry(BaseModel):
+    # No `link` or `location`: a link is identity data, and neither helps Scout.
+    section: str
+    title: str
+    organization: str | None = None
+    start_month: str | None = None
+    end_month: str | None = None
+    end_kind: str | None = None
     degree: str | None = None
     field_of_study: str | None = None
     gpa: float | None = None
-    start_date: date | None = None
-    end_date: date | None = None
-
-
-class _Experience(BaseModel):
-    company_name: str
-    title: str
-    start_date: date | None = None
-    end_date: date | None = None
-    description: str | None = None
+    issuer: str | None = None
+    award_date: str | None = None
+    bullets: list[_Bullet] = []
 
 
 class _Skill(BaseModel):
-    skill_name: str
+    name: str
 
 
-class _Project(BaseModel):
-    # No `url`: a link is contact-adjacent and useless to Scout.
-    project_name: str
-    description: str | None = None
-
-
-class _Resume(BaseModel):
-    education: list[_Education] = []
-    experience: list[_Experience] = []
+class _Bank(BaseModel):
+    entries: list[_Entry] = []
     skills: list[_Skill] = []
-    projects: list[_Project] = []
 
 
-def _span(start: date | None, end: date | None) -> str:
-    if not start and not end:
-        return ""
-    return f" ({start.year if start else '?'}–{end.year if end else 'present'})"
+def _year(month: str | None) -> str | None:
+    return month[:4] if month else None
+
+
+def _span(e: _Entry) -> str:
+    """ " (2023–2027)", " (2025–present)", " (2024)", or "" when undated."""
+    start = _year(e.start_month)
+    if e.end_kind == "present":
+        end = "present"
+    elif e.end_kind == "expected" and e.end_month:
+        end = f"expected {_year(e.end_month)}"
+    else:
+        end = _year(e.end_month or e.award_date)
+    if start and end:
+        return f" ({start}–{end})"
+    if start or end:
+        return f" ({start or end})"
+    return ""
 
 
 def _line(head: str, detail: str | None) -> str:
@@ -75,32 +85,39 @@ def _line(head: str, detail: str | None) -> str:
     )
 
 
-def _education(e: _Education) -> str:
-    """ "BS in CS at Stony Brook (2023–2027), GPA 3.7", leaving out what is unknown."""
-    study = " ".join(
-        part
-        for part in (e.degree, e.field_of_study and f"in {e.field_of_study}")
-        if part
-    )
-    where = f"{study} at {e.institution}" if study else e.institution
-    gpa = f", GPA {e.gpa}" if e.gpa else ""
-    return _line(f"{where}{_span(e.start_date, e.end_date)}{gpa}", None)
+def _head(e: _Entry) -> str:
+    """ "BS in CS at Stony Brook (2023–expected 2027), GPA 3.7",
+    "Intern at Acme (2025–present)", leaving out what is unknown."""
+    if e.section == "education":
+        study = " ".join(
+            part for part in (e.degree, e.field_of_study and f"in {e.field_of_study}") if part
+        )
+        where = f"{study} at {e.title}" if study else e.title
+        gpa = f", GPA {e.gpa:g}" if e.gpa else ""
+        return f"{where}{_span(e)}{gpa}"
+    if e.section == "certifications":
+        return f"{e.title}{f' from {e.issuer}' if e.issuer else ''}{_span(e)}"
+    return f"{e.title}{f' at {e.organization}' if e.organization else ''}{_span(e)}"
 
 
-def resume_facts(parsed_json: Mapping[str, Any]) -> ResumeFacts:
-    """A resume's stored parsed_json, cut down to what Scout may see."""
-    parsed = _Resume.model_validate(parsed_json)
+def bank_facts(bank: Mapping[str, Any], *, has_upload: bool) -> ResumeFacts:
+    """A bank, as the bank API returns it, cut down to what Scout may see:
+    one line per entry, in the bank's order. `has_upload` says whether the
+    student has an uploaded resume, so an empty bank can point at import."""
+    parsed = _Bank.model_validate(bank)
+    lines: dict[str, list[str]] = {}
+    for e in parsed.entries:
+        detail = " ".join(b.text for b in e.bullets) or None
+        lines.setdefault(e.section, []).append(_line(_head(e), detail))
     return ResumeFacts(
-        skills=[s.skill_name for s in parsed.skills],
-        experience=[
-            _line(
-                f"{e.title} at {e.company_name}{_span(e.start_date, e.end_date)}",
-                e.description,
-            )
-            for e in parsed.experience
-        ],
-        education=[_education(e) for e in parsed.education],
-        projects=[_line(p.project_name, p.description) for p in parsed.projects],
+        skills=[s.name for s in parsed.skills],
+        education=lines.get("education", []),
+        experience=lines.get("experience", []),
+        projects=lines.get("projects", []),
+        leadership=lines.get("leadership", []),
+        awards=lines.get("awards", []),
+        certifications=lines.get("certifications", []),
+        has_upload=has_upload,
     )
 
 
