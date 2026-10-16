@@ -4,10 +4,17 @@ import { connection } from "next/server";
 
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
-import { getAccessToken } from "@/lib/session";
+import { getAccessToken, getApplicantSession } from "@/lib/session";
 
 import type { ExperienceLevel, JobType, WorkStyle } from "./data";
-import { feedQuery, NO_FILTERS, PAGE_SIZE, type FeedFilters } from "./filter-query";
+import {
+  feedQuery,
+  filtersFromPreferences,
+  NO_FILTERS,
+  PAGE_SIZE,
+  type FeedFilters,
+  type SavedPreferences,
+} from "./filter-query";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
@@ -125,6 +132,20 @@ export async function getFeedPage(query: string, offset: number): Promise<FeedPa
     return { jobs: jobs.slice(0, PAGE_SIZE), more: jobs.length > PAGE_SIZE, error: null };
   } catch {
     return { jobs: null, more: false, error: "Could not reach the server." };
+  }
+}
+
+/** The seeker's saved preferences as the feed's filters, or null when they
+ *  have saved none or the API can't say: the Recommended view's starting
+ *  filters (./page). */
+export async function getSavedFilters(): Promise<FeedFilters | null> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiGet(`/applicants/${id}/preferences`, token);
+    if (!res.ok) return null;
+    return filtersFromPreferences((await res.json()) as SavedPreferences);
+  } catch {
+    return null;
   }
 }
 
