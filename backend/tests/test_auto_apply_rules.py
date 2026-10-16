@@ -8,7 +8,7 @@ from app.services.matching.scoring import compute_breakdown
 def job(id: str, url: str, company: str = "Acme", title: str = "SWE Intern", match: int = 90) -> ScoredJob:
     return ScoredJob(
         id=id, title=title, company=company, apply_url=url,
-        experience_level="internship", work_style=None, location=None,
+        experience_level="student", job_type="internship", work_style=None, location=None,
         posted_at=None, logo_url=None, match=match,
         score_breakdown=compute_breakdown(None, 0.0, 0.0, 0.0, 1.0),
     )

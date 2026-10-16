@@ -66,7 +66,7 @@ def _listing(**changes) -> JobListing:
         "title": "Robot Software Intern",
         "company": "Rhoda AI",
         "apply_url": "https://jobs.example/1",
-        "experience_level": "internship",
+        "experience_level": "student",
         "work_style": None,
         "location": "Mountain View",
         "posted_at": None,

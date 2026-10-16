@@ -35,6 +35,8 @@ ROW = SimpleNamespace(
     title="Robot Software Intern",
     company_name="Rhoda AI",
     apply_url="https://jobs.example/1",
+    # An internship as an import before KAN-233 wrote it: the level, with no
+    # job type. to_listing reads it as the new values.
     experience_level=dto.experience_level.internship,
     work_style=dto.work_style.hybrid,
     location_raw="Mountain View, CA",
@@ -82,7 +84,7 @@ def test_row_becomes_the_feed_shape():
         "title": "Robot Software Intern",
         "company": "Rhoda AI",
         "apply_url": "https://jobs.example/1",
-        "experience_level": "internship",
+        "experience_level": "student",
         "work_style": dto.work_style.hybrid,
         "location": "Mountain View, CA",
         "location_label": "Mountain View, CA",
@@ -90,7 +92,7 @@ def test_row_becomes_the_feed_shape():
         "posted_at": "2026-10-06T02:42:06+00:00",
         "logo_url": None,
         "description": "ROS nodes.",
-        "job_type": None,
+        "job_type": dto.job_type.internship,
         "salary": None,
         "salary_min": 40.0,
         "salary_max": 46.0,
