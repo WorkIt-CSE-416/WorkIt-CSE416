@@ -7,11 +7,11 @@
  * `job_role_tags`) rather than the original mockup-only fields. Two things the
  * schema has no column for, flagged rather than guessed at:
  *
- * - `jobType`: the schema enum is only `full_time` / `part_time` / `contract`.
- *   The original mock had "Contract to hire" for Verdant, which doesn't fit
- *   any of the three — mapped to `contract` here, losing that nuance.
- * - `experienceLevel`: the schema enum is `internship` / `new_grad` /
- *   `experienced` — there is no junior/mid/senior/staff ladder. Every posting
+ * - `jobType`: the schema enum is `full_time` / `part_time` / `contract` /
+ *   `internship` (KAN-233). The original mock had "Contract to hire" for
+ *   Verdant, which doesn't fit — mapped to `contract` here, losing that nuance.
+ * - `experienceLevel`: the schema enum is `student` / `new_grad` /
+ *   `experienced` (KAN-233) — there is no junior/mid/senior/staff ladder. Every posting
  *   below reads as `experienced`, which is a real gap (a Staff and a Mid-level
  *   role are indistinguishable at the enum), not an oversight in this fixture.
  *   `minYearsExperience` is the only thing left to tell them apart.
@@ -36,8 +36,8 @@
  * inert, as they are on search and on the applications board.
  */
 
-export type JobType = "full_time" | "part_time" | "contract";
-export type ExperienceLevel = "internship" | "new_grad" | "experienced";
+export type JobType = "full_time" | "part_time" | "contract" | "internship";
+export type ExperienceLevel = "student" | "new_grad" | "experienced";
 export type WorkStyle = "remote" | "hybrid" | "onsite";
 export type SalaryPeriod = "year" | "hour";
 export type JobPostStatus = "draft" | "published" | "closed";

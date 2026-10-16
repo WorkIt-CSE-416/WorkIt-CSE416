@@ -15,8 +15,8 @@ export type JobPayload = {
   status: "draft" | "published";
   title: string;
   description: string;
-  jobType: "full_time" | "part_time" | "contract";
-  experienceLevel: "internship" | "new_grad" | "other";
+  jobType: "full_time" | "part_time" | "contract" | "internship";
+  experienceLevel: "student" | "new_grad" | "experienced";
   minYearsExperience: number | null;
   workStyle: "remote" | "hybrid" | "onsite";
   /** Null when the posting names no location. */
