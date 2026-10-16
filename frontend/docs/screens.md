@@ -2,9 +2,9 @@
 
 How each screen behaves and why: the Jobs page and its filters, the job
 posting page and card, the seeker Dashboard, Applications, the Calendar, My
-Profile (resumes, photo), the Experience Bank, Scout's panel, and the
-company screens. Read the
-section for a screen before changing it.
+Profile (resumes, photo), the Experience Bank, Scout's panel, applicant
+onboarding, and the company screens. Read the section for a screen before
+changing it.
 
 ## Jobs page, /search and filters
 
@@ -404,9 +404,8 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 ## My Profile
 
-**Resume upload is wired.** The onboarding form (`onboarding/applicant`)
-uploads on Continue, then goes to intake, onboarding's next step (Experience
-Bank section). The seeker profile (`(seeker)/profile`) supports up to
+**Resume upload is wired.** Onboarding asks for a resume in intake, its
+second step (Experience Bank section), not in the wizard. The seeker profile (`(seeker)/profile`) supports up to
 5 resumes, uploaded and base resumes together as the API counts them (its
 "n of 5" adds the bank page's base resumes; tailored ones are free),
 newest first: picking a file uploads it at once (`uploadResume`);
@@ -813,6 +812,60 @@ as a prop. `stream.ts` mirrors the API's NDJSON events, which
 the session's token. `reply-text` renders a reply's **bold** and "- " bullets,
 the prompt's whole formatting vocabulary, with no markdown library (a reply
 stays escaped text otherwise).
+
+## Applicant onboarding
+
+/onboarding/applicant is a two-step wizard (KAN-231), outside both shells:
+Scout asks each step's question on a lavender left half
+(`onboarding/applicant/story-panel.tsx`, a band across the top below lg) and
+the fields answer it on the right, with Back and Next pinned to the foot.
+From lg the screen is one window tall and only the right column scrolls, with
+its scrollbar's room kept on every step: when the page scrolled, only the
+long step 1 grew a scrollbar, and the panel and form shifted against step 2.
+Step 1 is Role, Job Type and Workplace (all required) and Location; step 2 is
+Salary Range and Visa Sponsorship (both optional), with Continue in place of
+Next. Intake (KAN-214) is onboarding's next step, so the wizard has no resume
+step of its own: intake uploads and imports one into the experience bank,
+which matching reads. Preference Tags, free-text skills, were dropped
+(KAN-231): the feed has no filter for them.
+
+**The left half moves, from lg.** Above the question a showcase
+(`onboarding/applicant/showcase.tsx`) cycles three scenes on one clock: a
+mock screen (a matched job, a resume, the applications board) with the
+notification that screen would send tucked over its corner. A scene glides
+in, its notification follows a beat later, and both leave together while the
+next arrives (`--animate-arrive` and `--animate-leave`), so the change is a
+crossfade. Two clocks, one per part, drifted out of step. The scenes are
+scaled as a whole to fill the room the panel leaves (up to 1.8x), so a tall
+window gets a big picture; under 0.85x the stage hides and leaves the room to
+the question. Scout types a line in a chat bubble on every step. It is all
+decoration over made-up data, so it is aria-hidden, and it holds still under
+reduced motion.
+
+**Its answers are the Jobs page's filters.** Every question takes `FeedFilters` and the options in `jobs/filter-query.ts`, and Role,
+Location and Salary use All Filters' own pickers
+(`components/filter-controls.tsx`), so saving the answers can later fill the
+feed's filters with no translation. A fixed choice is a `ChoiceTile`
+(./choice-tile.tsx): a box for any-of, a dot for one-of.
+
+**It sets larger than the app.** Each step is one question with the screen to
+itself, so the question is `text-hero` (40px) from lg, and the shared pickers
+take `size="lg"` (taller fields); All Filters keeps their default size. The
+right side has three type sizes at every width: 20px for each section title,
+16px for every answer (tiles, chips, pills, typed text) and 14px for every note
+beside one. `text-subtitle`, the answers' size, carries a 600 weight of its
+own, so each answer sets its weight; without it the typed salary and search
+text came out semibold.
+
+**Continue saves the answers (KAN-231)** as the seeker's preferences (`PUT
+/applicants/{id}/preferences`, which also marks onboarding complete), then
+opens intake (KAN-214), whose Finish opens /jobs: the Recommended view applies
+the saved filters and scores what they keep against the bank just filled. A
+failed save leaves the seeker on the page to retry. Date Posted is not asked:
+a saved "past 24 hours" would empty the feed within days. Sign-in sends an
+applicant here until they finish (`docs/auth.md`); a finished one coming back
+from intake's "Back to Profile" finds the wizard filled with their saved
+answers, and Continue saves the edits.
 
 ## Company screens
 
