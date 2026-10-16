@@ -3,7 +3,11 @@
 Delete with app/queries/jobs/legacy_levels.py once migration B has moved them.
 """
 
+import datetime
+import uuid
+
 import pytest
+from pydantic import ValidationError
 
 from app.models import dto
 from app.queries.jobs.legacy_levels import (
@@ -13,6 +17,7 @@ from app.queries.jobs.legacy_levels import (
     level_now,
     stored_levels,
 )
+from app.schemas.company_jobs import JobPosting, JobPostingCreate
 
 L, T = dto.experience_level, dto.job_type
 
@@ -49,3 +54,32 @@ def test_the_facets_count_old_rows_under_the_new_values():
         " OR job_postings.experience_level = 'internship') THEN 'internship'"
     ) in sql(JOB_TYPE_NOW)
 
+
+def _posting(**changes):
+    now = datetime.datetime.now(datetime.UTC)
+    fields = {
+        "id": uuid.uuid4(), "company_id": uuid.uuid4(), "posted_by_recruiter_id": None,
+        "title": "Intern", "description": "x", "job_type": T.full_time,
+        "experience_level": L.internship, "min_years_experience": None,
+        "work_style": dto.work_style.onsite, "salary": 20.0, "salary_min": None,
+        "salary_max": None, "salary_currency": "USD",
+        "salary_period": dto.salary_period.hour,
+        "status": dto.job_post_status.published, "closes_at": None,
+        "created_at": now, "updated_at": now,
+    }
+    return JobPosting(**{**fields, **changes})
+
+
+def test_a_company_job_saved_before_reads_as_the_new_values():
+    old = _posting()
+    assert (old.job_type, old.experience_level) == (T.internship, L.student)
+    assert _posting(experience_level=L.other).experience_level == L.experienced
+
+
+@pytest.mark.parametrize("level", ["internship", "other"])
+def test_the_company_form_never_writes_an_old_level(level):
+    with pytest.raises(ValidationError):
+        JobPostingCreate(
+            title="Intern", description="x", jobType="internship",
+            experienceLevel=level, workStyle="onsite", salary=20, salaryPeriod="hour",
+        )
