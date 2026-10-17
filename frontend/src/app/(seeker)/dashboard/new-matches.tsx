@@ -59,7 +59,7 @@ export async function NewMatches({ className }: { className?: string }) {
       <SectionHeader
         id="new-matches"
         title="New Matches"
-        link={{ href: "/jobs", text: "All Jobs" }}
+        link={{ href: "/jobs?view=all", text: "All Jobs" }}
       />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 
@@ -155,7 +155,7 @@ export function NewMatchesSkeleton({ className }: { className?: string }) {
       <SectionHeader
         id="new-matches"
         title="New Matches"
-        link={{ href: "/jobs", text: "All Jobs" }}
+        link={{ href: "/jobs?view=all", text: "All Jobs" }}
       />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 

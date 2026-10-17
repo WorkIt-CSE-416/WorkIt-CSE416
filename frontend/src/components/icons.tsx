@@ -292,6 +292,10 @@ export function UploadIcon({ className }: IconProps) {
   return <Upload aria-hidden className={className} />;
 }
 
+export function FileIcon({ className }: IconProps) {
+  return <FileText aria-hidden className={className} />;
+}
+
 export function TrashIcon({ className }: IconProps) {
   return <Trash2 aria-hidden className={className} />;
 }

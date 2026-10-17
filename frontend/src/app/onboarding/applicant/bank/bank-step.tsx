@@ -8,8 +8,10 @@ import { TextLink } from "@/components/ui/text-link";
 import { getBank, type Section } from "@/lib/bank-actions";
 
 /** Intake as an onboarding step: it always walks, and the step bar shows the
- *  profile form as a step already done. Finish leaves for the Dashboard; the
- *  unsaved draft stays in the browser for the bank page to pick up. */
+ *  profile form as a step already done. Finish opens the Jobs page, whose
+ *  Recommended view scores the jobs the saved preferences keep against the
+ *  bank just filled (KAN-231); the unsaved draft stays in the browser for the
+ *  bank page to pick up. */
 export function BankStep({ initial }: { initial: Section[] }) {
   const [filled, setFilled] = useState(initial);
 
@@ -24,7 +26,7 @@ export function BankStep({ initial }: { initial: Section[] }) {
       <Intake filled={filled} onSaved={reload} walk lead="Profile" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <TextLink href="/onboarding/applicant">Back to Profile</TextLink>
-        <ButtonLink href="/dashboard" size="lg">
+        <ButtonLink href="/jobs" size="lg">
           Finish
         </ButtonLink>
       </div>

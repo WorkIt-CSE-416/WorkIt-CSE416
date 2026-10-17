@@ -54,20 +54,9 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
 
   const account_type = account.account_type;
   if (account_type === "applicant") {
-    // KAN-141: onboarding is skipped for faster prototyping. The backend still
-    // reports onboarding_completed; restore this block to route on it again.
-    // if (!account.onboarding_completed)
-    // {
-    //   redirect(`/onboarding/${account.account_type}`);
-    // }
-    // else
-    // {
-    //   redirect(`/dashboard`)
-    // }
-    // A returning applicant lands on the Dashboard, the seeker's home. A new
-    // account goes to /profile instead (signup/actions.ts and the OAuth
-    // callback's choose-account-type step), in onboarding's place.
-    redirect(`/dashboard`);
+    // Onboarding until it is finished (KAN-231 saves it, which sets
+    // onboarding_completed), then the Dashboard, the seeker's home.
+    redirect(account.onboarding_completed ? "/dashboard" : "/onboarding/applicant");
   }
   redirect(`/company`);
 }

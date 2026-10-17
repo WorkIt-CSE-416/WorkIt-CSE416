@@ -120,11 +120,6 @@ class experience_level(enum.StrEnum):
     student= "student"
     new_grad= "new_grad"
     experienced= "experienced"
-    # LEGACY until migration B moves the rows that still hold them; read
-    # only, through queries/jobs/legacy_levels.py, and never written. PR 2
-    # deletes both members with that module.
-    internship= "internship"
-    other= "other"
 
 class work_style(enum.StrEnum):
     remote= "remote"

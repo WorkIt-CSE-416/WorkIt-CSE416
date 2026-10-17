@@ -444,7 +444,7 @@ async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch)
 
 
 async def test_recommendations_work_when_the_default_is_a_base_resume(student, monkeypatch):
-    async def no_embedding(texts):
+    async def no_embedding(texts, *, timeout=None):
         return None
 
     monkeypatch.setattr("app.queries.jobs.recommendations.embed", no_embedding)
