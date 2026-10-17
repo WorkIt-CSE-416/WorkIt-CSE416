@@ -23,6 +23,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from workit_scraper import details
+
 #: Text before the first heading.
 INTRO = "intro"
 
@@ -238,7 +240,7 @@ def split(text: str | None) -> tuple[Section, ...]:
         # A benefits list names pay among its perks ("Life assurance worth 4x your
         # annual salary", "Competitive pay"): those are items, not a Pay heading,
         # which kept the company pitch after one under Pay. A real amount reaches
-        # Pay by what it says, wherever it sits (`_moved`).
+        # Pay by what it says, wherever it sits (`_sorted_lines`).
         in_perks = opens == "pay" and key == "benefits"
         if opens is None or opens == key or just_opened or in_perks:
             lines.append(line)
@@ -251,30 +253,103 @@ def split(text: str | None) -> tuple[Section, ...]:
     return tuple(sections)
 
 
+#: An equal-opportunity line (fix 3): boilerplate wherever it sits, dropped even
+#: from a kept section. Export control is not here: "must be eligible to access
+#: U.S. export-controlled technology" is a requirement a student has to meet.
+_EEO = re.compile(
+    r"equal (employment )?opportunit|without regard to|regardless of (race|sex|gender|age)|"
+    r"affirmative action|reasonable accommodations?|e-verify",
+    re.I,
+)
+
+#: A perk with a price ("$250 monthly lunch stipend", "$20/pay period cell phone
+#: reimbursement"), which the pay reader takes for pay. Moved to Pay only when the
+#: line also speaks of pay itself, as "$25/hour plus a $2,000 monthly housing
+#: stipend" does.
+_PERK = re.compile(r"stipend|reimburse|allowance", re.I)
+_PAY_WORDS = re.compile(
+    r"salary|pay (range|rate)|base pay|hourly|per hour|an hour|/\s?h(ou)?r|annual(ly)?|"
+    r"compensation|wage",
+    re.I,
+)
+
+_KEPT_KEYS = {key for key, _ in KEPT}
+
+#: The kept sections that say what the job is. A description with none of them is
+#: kept whole: its pay or its details alone are not a description.
+_ABOUT_THE_JOB = {INTRO, "role", "responsibilities", "requirements", "preferred"}
+
+
+def _states_pay(line: str) -> bool:
+    """Whether a line states the job's pay: the card's reader finds an amount, and
+    the line is not a perk with a price."""
+    if details.pay(line) is None:
+        return False
+    return not _PERK.search(line) or bool(_PAY_WORDS.search(line))
+
+
+def _sorted_lines(sections: tuple[Section, ...]) -> list[tuple[str, str]]:
+    """Every line as (section, line), each sorted by what it says (fix 3).
+
+    Headings decide most lines, but a line can say something its section is not
+    about, and then it moves:
+
+    - **A line stating pay goes to Pay**, from any section, a left-out one too.
+      Tenstorrent's "Compensation for all interns … ranges from $50/hr - $70/hr"
+      sat under its hiring timelines with no heading of its own. It is the card's
+      own reader (`details.pay`), so the card and the Pay section agree on what
+      pay is; a funding round it declines stays where it was, and so does a perk
+      with a price (`_PERK`) unless the line also speaks of pay.
+    - **An equal-opportunity line is dropped**, even from a kept section, as its
+      own heading's section would be.
+    """
+    lines = []
+    for section in sections:
+        for line in section.text.split("\n"):
+            if not line.strip():
+                continue
+            if section.key in _KEPT_KEYS and _EEO.search(line):
+                continue
+            if section.key != "pay" and _states_pay(line):
+                # Without a label that names another section ("Comprehensive
+                # Benefits: The salary range is…"), or the next read would
+                # split it off and the stored text would change again.
+                inline = _INLINE.match(line)
+                labelled = heading(inline.group(1)) if inline else None
+                lines.append(("pay", inline.group(2) if labelled not in (None, "pay") else line))
+                continue
+            lines.append((section.key, line))
+    return lines
+
+
 def kept(text: str | None) -> str | None:
     """The description as WorkIt stores it: the `KEPT` sections in `KEPT`'s order,
-    each under its fixed heading, the rest left out.
+    each under its fixed heading, the rest left out, each line where it belongs by
+    what it says (`_sorted_lines`).
 
     Sections of one kind are joined, in the order written: SpaceX states its
     requirements, then the pay, then the export-control requirement. A line that is
     only one of `KEPT`'s headings is dropped from the text, so the backend never
     reads it as the start of a section.
 
-    A description that keeps nothing is kept whole. That is a posting whose every
-    heading names a left-out section, which means its headings were misread, not
-    that it says nothing about the job.
+    A description that keeps nothing about the job itself (no intro, Overview,
+    Responsibilities, Requirements or Preferred Qualifications) is kept whole. That
+    is a posting whose every heading names a left-out section, which means its
+    headings were misread, not that it says nothing about the job.
     """
-    sections = split(text)
+    lines = _sorted_lines(split(text))
+    # Nothing about the job itself kept means the headings were misread: Bose's
+    # whole posting sits under "About Bose", and storing its pay line alone would
+    # lose the rest. The posting is then kept whole.
+    if not any(at in _ABOUT_THE_JOB for at, _ in lines):
+        return text or None
     parts = []
     for key, head in KEPT:
-        lines = [
+        body = "\n".join(
             line
-            for section in sections
-            if section.key == key
-            for line in section.text.split("\n")
-            if line.strip().rstrip(":").strip().casefold() not in _KEPT_HEADINGS
-        ]
-        body = "\n".join(lines).strip()
+            for at, line in lines
+            if at == key and line.strip().rstrip(":").strip().casefold() not in _KEPT_HEADINGS
+        ).strip()
         if body:
             parts.append(f"{head}\n{body}" if head else body)
-    return "\n".join(parts) or text or None
+    return "\n".join(parts)

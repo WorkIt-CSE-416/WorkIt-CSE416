@@ -164,6 +164,11 @@ section is kept or left out.
   posting's whole benefits list vanished.
 - **Facts still come from the whole text.** `details.read` runs before
   anything is left out, so a pay line under Benefits still reaches the card.
+- **Headings decide most lines, what a line says decides the rest**
+  (`_sorted_lines`): an inline "Overview: …" label moves its own line, a pay
+  sentence goes to Pay from any section, an equal-opportunity line is dropped.
+  Re-run the heading audit and `kept(kept(text)) == kept(text)` on the whole feed
+  after any change (`docs/sections.md`, "Fixes after the first review").
 
 ## Filter changes need a real title
 
