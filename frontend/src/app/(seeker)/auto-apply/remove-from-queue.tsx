@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useRef, useTransition } from "react";
 
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
@@ -19,6 +19,10 @@ import { dequeueJob, queueJob } from "./actions";
  * Only queued rows have a cross: a later stage is a record, not a plan. It
  * sits above the row's stretched link (`relative z-10`), so a click removes
  * and never opens the job posting. A failure says so in a toast too.
+ *
+ * One removal per row at a time (`busy`, a ref): `disabled={pending}` only
+ * lands on the next render, so a fast double click sent two removals, and
+ * the second one's 404 counts as done, so it raised a second toast.
  */
 export function RemoveFromQueue({
   jobId,
@@ -32,6 +36,7 @@ export function RemoveFromQueue({
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
+  const busy = useRef(false);
 
   async function undo() {
     const result = await queueJob(jobId);
@@ -48,25 +53,31 @@ export function RemoveFromQueue({
       tooltip="Remove from queue"
       className="relative z-10 size-7"
       disabled={pending}
-      onClick={() =>
+      onClick={() => {
+        if (busy.current) return;
+        busy.current = true;
         start(async () => {
-          const result = await dequeueJob(jobId);
-          if (result.error) {
-            toast.show({ message: result.error });
-            return;
+          try {
+            const result = await dequeueJob(jobId);
+            if (result.error) {
+              toast.show({ message: result.error });
+              return;
+            }
+            router.refresh();
+            toast.show({
+              message: (
+                <>
+                  <span className="font-medium">{role}</span> from{" "}
+                  <span className="font-medium">{company}</span> is removed from Auto Apply.
+                </>
+              ),
+              action: { label: "Undo", onClick: undo },
+            });
+          } finally {
+            busy.current = false;
           }
-          router.refresh();
-          toast.show({
-            message: (
-              <>
-                <span className="font-medium">{role}</span> from{" "}
-                <span className="font-medium">{company}</span> is removed from Auto Apply.
-              </>
-            ),
-            action: { label: "Undo", onClick: undo },
-          });
-        })
-      }
+        });
+      }}
     >
       <X aria-hidden className="size-4" />
     </IconButton>

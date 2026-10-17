@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useRef, useState, useTransition, type ReactNode } from "react";
 
 import { SectionHeading } from "@/components/ui/section-heading";
 import { openNextApplication } from "@/lib/autofill-extension";
@@ -42,29 +42,38 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
   const [run, setRun] = useState<RunState>("idle");
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
   const [pending, start] = useTransition();
+  // One batch at a time: `pending` disables the button a render late, so a
+  // fast double click on Start queued two batches.
+  const queueing = useRef(false);
 
   function toggle() {
     if (run !== "idle") {
       setRun(run === "running" ? "paused" : "running");
       return;
     }
+    if (queueing.current) return;
+    queueing.current = true;
     start(async () => {
-      const result = await startBatch();
-      if (result.error != null) {
-        setNote({ text: result.error, error: true });
-        return;
+      try {
+        const result = await startBatch();
+        if (result.error != null) {
+          setNote({ text: result.error, error: true });
+          return;
+        }
+        setRun("running");
+        router.refresh();
+        const queued =
+          result.queued === 0
+            ? "No new matches to queue."
+            : `Queued ${result.queued} ${result.queued === 1 ? "job" : "jobs"}.`;
+        const opened = await openNextApplication();
+        setNote({
+          text: `${queued} ${openedNote(opened)}`,
+          error: !opened.opened && opened.reason !== "queue_empty",
+        });
+      } finally {
+        queueing.current = false;
       }
-      setRun("running");
-      router.refresh();
-      const queued =
-        result.queued === 0
-          ? "No new matches to queue."
-          : `Queued ${result.queued} ${result.queued === 1 ? "job" : "jobs"}.`;
-      const opened = await openNextApplication();
-      setNote({
-        text: `${queued} ${openedNote(opened)}`,
-        error: !opened.opened && opened.reason !== "queue_empty",
-      });
     });
   }
 

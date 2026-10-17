@@ -1,7 +1,7 @@
 "use client";
 
 import { AppWindow, Zap } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { CheckIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,9 @@ export function AutoApplyButton({
   const [stage, setStage] = useState(saved);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  // One click at a time: `disabled={pending}` lands a render late, so a
+  // fast double click queued twice, raising two toasts and two opens.
+  const busy = useRef(false);
   const inBrowser = useRunnerJob() === jobId;
 
   if (stage && stage !== "queued") {
@@ -122,32 +125,38 @@ export function AutoApplyButton({
         // A toggle: pressed while queued, and the hover says what a click does.
         aria-pressed={queued}
         title={queued ? "Remove from the queue" : undefined}
-        onClick={() =>
+        onClick={() => {
+          if (busy.current) return;
+          busy.current = true;
           start(async () => {
-            if (queued) {
-              const result = await dequeueJob(jobId);
+            try {
+              if (queued) {
+                const result = await dequeueJob(jobId);
+                setError(result.error);
+                if (!result.error) setStage(null);
+                return;
+              }
+              const result = await queueJob(jobId);
               setError(result.error);
-              if (!result.error) setStage(null);
-              return;
+              if (!result.stage) return;
+              setStage(result.stage);
+              if (result.stage === "queued") {
+                void openInBrowser();
+                toast.show({
+                  message: (
+                    <>
+                      <span className="font-medium">{title}</span> from{" "}
+                      <span className="font-medium">{company}</span> is queued for Auto Apply.
+                    </>
+                  ),
+                  action: { label: "Undo", onClick: undo },
+                });
+              }
+            } finally {
+              busy.current = false;
             }
-            const result = await queueJob(jobId);
-            setError(result.error);
-            if (!result.stage) return;
-            setStage(result.stage);
-            if (result.stage === "queued") {
-              void openInBrowser();
-              toast.show({
-                message: (
-                  <>
-                    <span className="font-medium">{title}</span> from{" "}
-                    <span className="font-medium">{company}</span> is queued for Auto Apply.
-                  </>
-                ),
-                action: { label: "Undo", onClick: undo },
-              });
-            }
-          })
-        }
+          });
+        }}
       >
         {queued ? <CheckIcon className="size-4" /> : <Zap className="size-4" />}
         {queued ? STAGE_LABEL.queued : "Auto Apply"}

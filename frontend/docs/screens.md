@@ -415,7 +415,10 @@ Applied stage's violet, so it reads the same as on the Applications board.
 The counts above the card use the same dot colours. A queued row has a cross
 beside its badge (`auto-apply/remove-from-queue.tsx`) that takes the job out
 of the queue and refreshes the route; it sits above the row's link, so the
-click never opens the job posting. No other stage has one. A toast then says
+click never opens the job posting. No other stage has one. The cross, a
+job's Auto Apply and Start each take one click at a time (a ref set on
+the click): `disabled={pending}` lands a render late, so a fast double
+click once sent two removals and showed the removal toast twice. A toast then says
 "<role> from <company> is removed from Auto Apply." with Undo, which queues
 the job again (`queueJob`): it comes back as a new queued row at the top,
 since the queue orders by when a job was queued. A failure, of either the
