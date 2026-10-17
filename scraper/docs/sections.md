@@ -173,6 +173,18 @@ Of the 171 postings still with pay on the card and no Pay section, 79 have no "$
 in their text at all: the hiring system sent the pay as a field (Ashby, Lever).
 The job page shows the card's pay under Pay for those (fix 5).
 
+**Fix 4, pay ranges read whole** (`details.py`, `docs/card-facts.md`). "$50/hr -
+$70/hr", "$30CAD to $45CAD" and "between $45 and $65" each read as their low end,
+so Tenstorrent's card said "$50/hr". 16 of 1,094 cards now show their whole range.
+
+**Fix 5, every core section shown** (the job page,
+`frontend/src/app/(seeker)/jobs/[jobId]/description.tsx`, `withCoreSections`). A
+sectioned description always shows Overview, Responsibilities, Requirements and
+Pay; a missing one says why as far as WorkIt can tell (pay from the listing, past
+the 8,000-character cut, or no heading for it in the posting), never that the
+posting lacks it. Checking it found that "Internship Information" belongs to
+Details, not Overview.
+
 ## What WorkIt keeps (decided 2026-10-17)
 
 Xiang asked for this to be decided before anything was dropped, because dropped
