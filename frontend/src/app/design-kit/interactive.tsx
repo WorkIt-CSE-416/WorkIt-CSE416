@@ -161,8 +161,8 @@ export function ToastSpecimen() {
           toast.show({
             message: (
               <>
-                <span className="font-medium">Software Engineer Intern</span> from Acme is removed
-                from Auto Apply.
+                <span className="font-medium">Software Engineer Intern</span> from{" "}
+                <span className="font-medium">Acme</span> is removed from Auto Apply.
               </>
             ),
             action: {

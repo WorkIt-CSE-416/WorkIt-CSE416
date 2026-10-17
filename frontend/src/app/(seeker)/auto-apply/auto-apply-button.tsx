@@ -103,8 +103,8 @@ export function AutoApplyButton({
               toast.show({
                 message: (
                   <>
-                    <span className="font-medium">{title}</span> from {company} is queued for Auto
-                    Apply.
+                    <span className="font-medium">{title}</span> from{" "}
+                    <span className="font-medium">{company}</span> is queued for Auto Apply.
                   </>
                 ),
                 action: { label: "Undo", onClick: undo },

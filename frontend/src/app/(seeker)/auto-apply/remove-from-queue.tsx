@@ -59,8 +59,8 @@ export function RemoveFromQueue({
           toast.show({
             message: (
               <>
-                <span className="font-medium">{role}</span> from {company} is removed from Auto
-                Apply.
+                <span className="font-medium">{role}</span> from{" "}
+                <span className="font-medium">{company}</span> is removed from Auto Apply.
               </>
             ),
             action: { label: "Undo", onClick: undo },
