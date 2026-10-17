@@ -491,3 +491,25 @@ class TestLinesSortedByWhatTheySay:
         )
 
         assert kept(text) == text
+
+
+class TestHeadingVoice:
+    """A heading in the company's voice opens no section about the reader."""
+
+    @pytest.mark.parametrize(
+        ("line", "key"),
+        [
+            # Perpay's: "make an impact" filed its products as Responsibilities.
+            ("Products we’ve built to make an impact:", None),
+            ("Our values", "company"),
+            # "we" headings that still ask for the reader, each seen on the feed.
+            ("What we look for", "requirements"),
+            ("We're looking for someone who has", "requirements"),
+            ("The student we’re looking for", "requirements"),
+            ("Qualifications we value", "requirements"),
+            ("We’re excited about you because you…", "requirements"),
+            ("What you will learn with us", "responsibilities"),
+        ],
+    )
+    def test_who_a_heading_addresses_decides(self, line: str, key: str | None) -> None:
+        assert heading(line) == key
