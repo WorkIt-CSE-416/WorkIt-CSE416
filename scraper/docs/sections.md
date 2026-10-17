@@ -140,8 +140,11 @@ already reads short title-case lines as headings
 (`frontend/src/app/(seeker)/jobs/[jobId]/description.tsx`).
 
 **The headings are part of the feed's contract.** The backend finds the parts
-matching reads by these exact lines. Rename one in `KEPT` and in `job_text` in
-the same change, or every posting quietly embeds its whole description again.
+matching reads by these exact lines, and the job posting page draws an icon
+beside each one (`SECTION_ICONS` in
+`frontend/src/app/(seeker)/jobs/[jobId]/description.tsx`). Rename one in `KEPT`,
+in `job_text` and in `SECTION_ICONS` in the same change, or every posting
+quietly embeds its whole description again and the section loses its icon.
 
 Measured on the snapshot: the stored text is 29.7% smaller (median 4,596 to 3,122
 characters), and 97.1% of postings carry at least one section matching reads.

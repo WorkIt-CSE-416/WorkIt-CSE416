@@ -122,8 +122,10 @@ _MAX_WORDS = 9
 #:
 #: THE HEADINGS ARE PART OF THE FEED'S CONTRACT. The backend finds the parts job
 #: matching reads by these exact lines (backend/app/services/matching/
-#: embeddings.py, `job_text`), so a heading renamed here alone makes every job
-#: embed its whole description again. The intro has none: it comes first.
+#: embeddings.py, `job_text`), and the job posting page draws each one's icon
+#: (frontend .../jobs/[jobId]/description.tsx, `SECTION_ICONS`), so a heading
+#: renamed here alone makes every job embed its whole description again and
+#: loses its icon. The intro has none: it comes first.
 KEPT: tuple[tuple[str, str | None], ...] = (
     (INTRO, None),
     ("role", "Overview"),
