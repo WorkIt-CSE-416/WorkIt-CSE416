@@ -1,0 +1,116 @@
+# Description sections (KAN-229)
+
+`workit_scraper/sections.py` splits a job posting's description into the sections
+its headings name. This file has the measurements behind its patterns and rules,
+and the decision still open about which sections WorkIt keeps.
+
+## Why split at all
+
+A description is stored as one block of plain text, cut at `DESCRIPTION_CHARS`
+(8,000). Three readers want less than all of it:
+
+1. **Storage.** About a third of a description is the company's pitch, the
+   benefits list, legal notices and how to apply. None of it says what the job is.
+2. **Job matching.** The posting's embedding reads the description. Benefits and
+   EEO text are the same in every posting from one company, so they pull its
+   postings together whatever the role.
+3. **The cut.** The cut keeps the start of the text. A long company intro pushes
+   the requirements past it, which is why `DESCRIPTION_CHARS` grew from 3,000.
+   Cutting only the kept sections keeps more requirements for the same size.
+
+## The sections
+
+| Key | What it holds | Example headings |
+|---|---|---|
+| `intro` | Text before the first heading | (none) |
+| `company` | The company's pitch, mission, values | Who we are, About Stripe |
+| `role` | What the role and team are | About the role, Position Overview |
+| `responsibilities` | What the student will do | What you'll do, Key Responsibilities |
+| `requirements` | What the student must have | Requirements, What we're looking for |
+| `preferred` | What is nice to have | Preferred Qualifications, Bonus Points |
+| `pay` | The pay, in words | Compensation, Hourly PhD Pay |
+| `benefits` | Perks and benefits | What we offer, Life at Palantir |
+| `logistics` | Location, dates, schedule | Work Schedule, Internship Details |
+| `apply` | How to apply, the interview steps | Interview Process |
+| `legal` | EEO, export control, privacy, fraud notices | EEO Statement, #LI-Hybrid |
+
+The order of `SECTIONS` decides headings two sections could claim. Each choice
+has a test in `tests/test_sections.py`:
+
+- legal before pay: "Pay Transparency Disclosure" is a notice.
+- benefits before pay: "Compensation & Benefits" opens the perks list.
+- preferred before requirements: "Preferred Qualifications".
+- responsibilities before role: "Role and Responsibilities".
+- "About <name>" is the company only after every role pattern failed, so "About
+  the role" stays the role.
+
+## How a heading is told from content
+
+A heading is a short line (60 characters, 9 words at most), starts with a capital,
+does not end with a period, holds no comma unless it ends with a colon, and names a
+section. Two rules then keep a list's items in their list:
+
+- **A heading of the section already open is content.** Under Benefits, "Commuter
+  benefits" is an item.
+- **A heading needs a line of content before another can open.** On the
+  2026-10-16 feed, 147 headings sat straight after another heading. Nearly all
+  were that list's first item: "What we offer" then "Market competitive
+  compensation structure" is a benefits list, not an empty benefits section and a
+  pay one. Before this rule, that posting lost its whole benefits section.
+
+The first patterns missed plain "Responsibilities", the most common heading in the
+feed (227 postings), because `\bresponsibilit\b` needs a word boundary the word
+does not have. A heading audit, every heading counted by section plus every
+unmatched short line seen four or more times, is how that and the rest were found.
+Run one again before changing a pattern.
+
+## Measurements
+
+The committed snapshot, `backend/data/feed.json` on 2026-10-16: 1,094 postings with
+a description, already cut at 8,000 characters.
+
+| | |
+|---|---|
+| Responsibilities or requirements found | 95.4% |
+| Both found | 71.4% |
+| No heading at all (one intro) | 0.9% |
+
+| Section | In postings | Share of all text |
+|---|---|---|
+| intro | 57.1% | 14.4% |
+| company | 50.4% | 13.0% |
+| role | 57.8% | 12.4% |
+| responsibilities | 77.1% | 14.2% |
+| requirements | 89.7% | 17.5% |
+| preferred | 45.2% | 6.5% |
+| pay | 29.1% | 3.1% |
+| benefits | 47.2% | 11.4% |
+| logistics | 16.4% | 2.7% |
+| apply | 9.1% | 0.8% |
+| legal | 21.2% | 4.1% |
+
+Dropping company, benefits, legal and apply stores 30.8% less text: the median
+posting goes from 4,596 to 3,083 characters. Dropping the intro too would reach
+43.7%, but the intro holds the role's summary in postings that have no "About the
+role" heading.
+
+## Still open: what WorkIt keeps
+
+Xiang asked for this to be decided before anything is dropped, because dropped text
+is gone for search, matching, Scout and Tailor. The splitter is not wired into the
+`Page`, `feed.json` or the database yet. The proposal:
+
+- **Keep:** intro, role, responsibilities, requirements, preferred, pay, logistics.
+- **Drop:** company, benefits, legal, apply.
+- **Matching's embedding reads:** role, responsibilities, requirements, preferred.
+
+Pay and visa sponsorship are already read from the whole description before the cut
+(`details.py`), so dropping a section never loses a card fact. Search's full-text
+index, Scout's facts, Tailor and the keyword match read the stored description, so
+each loses what is dropped.
+
+Wiring it in is a change on both sides of the feed contract (`scraper/CLAUDE.md`,
+"feed.json is the backend's only view of us"): the `Page` holds the sections, a
+`PAGE_VERSION` bump re-reads stored pages, `feed.row()` and
+`backend/app/schemas/jobs.py` gain the field, and the backend's migration goes to
+`main` in its own PR before anyone applies it.

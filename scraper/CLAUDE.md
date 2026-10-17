@@ -144,6 +144,21 @@ real posting and the measurements behind them.
 - **`sponsorship`'s four values are part of the feed's contract** with
   `backend/app/schemas/jobs.py`: a new value is a change on both sides.
 
+## Description sections
+
+`sections.split` reads a description into its sections by their headings: role,
+responsibilities, requirements, preferred, pay, benefits, legal and the rest
+(KAN-229). Read `docs/sections.md` before changing a pattern or a rule: it has the
+measurements and the heading audit that found the misses.
+
+- **A short line that names a section is not always a heading.** List items do
+  it ("Commuter benefits", "Competitive salary"), so a heading of the open
+  section, or one straight after a heading, is content. Without that, one
+  posting's whole benefits list vanished.
+- **Not wired in yet.** No `Page`, feed row or table holds sections. Which
+  sections WorkIt keeps and which it drops is still open (`docs/sections.md`,
+  "Still open"); wiring it in changes the feed contract and needs a migration.
+
 ## Filter changes need a real title
 
 `shortlist.py` is where a bug is most silent: a loose pattern fills the page
