@@ -338,3 +338,57 @@ class TestInlineLabels:
             ("requirements", "A CS degree"),
             ("apply", "A resume"),
         ]
+
+
+class TestHeadingVariants:
+    """Fix 2: headings the 2026-10-17 audit found unread, each seen in real postings."""
+
+    @pytest.mark.parametrize(
+        ("line", "key"),
+        [
+            ("USA Hiring Timelines", "logistics"),
+            ("Hybrid from one of our office locations:", "logistics"),
+            ("What You Might Do", "responsibilities"),
+            ("What you might work on:", "responsibilities"),
+            ("WHAT YOU'LL ACHIEVE:", "responsibilities"),
+            ("YOUR MISSION", "responsibilities"),
+            ("What sets you apart", "preferred"),
+            ("Profile:", "requirements"),
+            ("WHY HARVEY", "company"),
+            ("Why Fospha", "company"),
+            ("Health & Wellness", "benefits"),
+            ("What Celonis can offer you:", "benefits"),
+            ("A NOTE ON AI", "legal"),
+            ("Background Checks", "legal"),
+            ("Massachusetts Applicants:", "legal"),
+            ("REFERRAL INSTRUCTIONS", "apply"),
+        ],
+    )
+    def test_an_audited_heading_opens_its_section(self, line: str, key: str) -> None:
+        assert heading(line) == key
+
+    @pytest.mark.parametrize(
+        ("line", "key"),
+        [
+            # "Why" a company, but not the role or the perks.
+            ("Why this role", "role"),
+            ("Why join us?", "benefits"),
+        ],
+    )
+    def test_why_is_the_company_only_when_it_names_one(self, line: str, key: str) -> None:
+        assert heading(line) == key
+
+    def test_insurance_in_a_requirement_is_not_a_benefits_heading(self) -> None:
+        # An insurance-industry posting's requirement, which a loose "insurance"
+        # would have read as the start of a benefits list.
+        assert heading("Knowledge of insurance claims") is None
+
+    def test_a_benefits_item_that_names_pay_stays_in_the_list(self) -> None:
+        # Fospha's perks: "salary" in an item kept the company pitch under Pay.
+        text = (
+            "Benefits\n25 days' annual leave\nLife assurance worth 4x your annual salary\n"
+            "Why Fospha\nReal production impact from day one."
+        )
+
+        assert [s.key for s in split(text)] == ["benefits", "company"]
+        assert kept(text) == text  # nothing kept, so the whole text stays

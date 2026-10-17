@@ -34,19 +34,26 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     (
         "legal",
         r"eeo|equal (employment )?opportunit\w*|e-verify|export control|accommodations?|"
-        r"fraud|scams?|privacy|disclaimer|background check|affirmative action|"
+        r"fraud|scams?|privacy|disclaimer|background checks?|affirmative action|"
         r"pay transparency|legal|compliance|diversity|inclusion|belonging|"
-        r"verify communications|terms of service|vevraa|li-(remote|hybrid|onsite)",
+        r"verify communications|terms of service|vevraa|li-(remote|hybrid|onsite|dnp)|"
+        r"a note on ai|use of artificial intelligence|other notices|\w+ applicants$",
     ),
     (
         "apply",
         r"how to apply|to apply|application (process|journey|timeline)|"
-        r"interview process|next steps|hiring process|what is next",
+        r"interview process|next steps|hiring process|what is next|recruitment process|"
+        r"referral instructions",
     ),
     (
         "benefits",
         r"benefits?|perks|what we offer|we offer|total rewards|why you.ll love|why join|"
-        r"life at|what you.ll (get|gain)|what makes working|in it for you",
+        r"life at|what you.ll (get|gain)|what makes working|in it for you|"
+        # Whole headings only: "insurance" or "retirement" anywhere in a line
+        # would read "Knowledge of insurance claims" in a requirements list as
+        # a benefits heading and drop the rest of the list.
+        r"^health (&|and) wellness$|^(flexible pto|paid time off)$|can offer you|"
+        r"we.ll bring to|taking care of our team",
     ),
     (
         "pay",
@@ -56,7 +63,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     (
         "preferred",
         r"preferred|nice[ -]to[ -]haves?|bonus( points)?|desired|good to have|extra credit|"
-        r"stand out|we prefer",
+        r"stand out|we prefer|desirable|sets you apart",
     ),
     (
         "requirements",
@@ -64,17 +71,21 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         r"what you bring|what (we.re|we are) looking for|what we look for|who you are|"
         r"you have|must[ -]haves?|what we (require|need|value)|eligibility|"
         r"skills( and experience)?|about you|what you.ll need|what you need|"
-        r"to be successful|^experience$|qualities that make|looking for someone",
+        r"to be successful|^experience$|qualities that make|looking for someone|"
+        r"^profile$|^(work )?authorization$|the student we.re looking for",
     ),
     (
         "responsibilities",
         r"responsibilit\w*|what you.ll (do|be doing|work on)|what you will (do|be doing)|"
         r"duties|essential functions|your impact|make an impact|day[ -]to[ -]day|"
-        r"in this role|you will|example projects|what you.ll learn|what you will learn",
+        r"in this role|you will|example projects|what you.ll learn|what you will learn|"
+        r"what you (might|may|could) (do|work on)|the work you.ll do|what you.ll achieve|"
+        r"what you.ll actually do|^your mission$|major objectives",
     ),
     (
         "logistics",
-        r"location|work arrangement|(work )?schedule|dates|timeline|duration|start date|"
+        r"locations?|work arrangement|(work )?schedules?|dates?|timelines?|duration|"
+        r"start dates?|available terms|"
         r"program details|internship details|logistics|additional information|"
         r"what to expect|offer deadline|visa sponsorship|^details$",
     ),
@@ -82,7 +93,8 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         "company",
         r"about (us|the company)|company (overview|description)|who we are|"
         r"our (mission|story|company|values|principles|culture)|shared values|how we work|"
-        r"world-changing company|what we do",
+        r"world-changing company|what we do|core values|our commitments|"
+        r"^why (?!this |join |work )[\w&.'’ -]{2,30}\??$",
     ),
     (
         "role",
@@ -96,7 +108,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         r"(role|position|team|internship|program) (summary|overview|description)|"
         r"job (summary|overview)|why this role|the role entails|role at a glance|"
         r"the team and culture|^(the |our )?internship$|internship (program|information)|"
-        r"the opportunity|project details|"
+        r"the opportunity|project details|subteam for this role|program highlights|"
         r"tech(nology|nical)? stack|technologies we use",
     ),
     # "About Stripe": a company's own name. Last, so "About the role" is the role.
@@ -223,7 +235,12 @@ def split(text: str | None) -> tuple[Section, ...]:
             continue
         opens = heading(line)
         just_opened = head is not None and not started
-        if opens is None or opens == key or just_opened:
+        # A benefits list names pay among its perks ("Life assurance worth 4x your
+        # annual salary", "Competitive pay"): those are items, not a Pay heading,
+        # which kept the company pitch after one under Pay. A real amount reaches
+        # Pay by what it says, wherever it sits (`_moved`).
+        in_perks = opens == "pay" and key == "benefits"
+        if opens is None or opens == key or just_opened or in_perks:
             lines.append(line)
             started = started or bool(line.strip())
             continue
