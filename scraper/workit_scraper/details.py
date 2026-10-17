@@ -145,11 +145,22 @@ _NUMBER = (
 )
 _CODE = r"(USD|EUR|GBP|CAD|AUD|SGD|CHF)"
 _RANGE_TO = r"\s*(?:-|–|—|to)\s*"
+# What may sit between a range's low end and its "-" or "to": its unit
+# (Tenstorrent's "$50/hr - $70/hr" read as $50 alone) or its currency code
+# (Cadence's "$30CAD to $45CAD"). Non-capturing, so `_candidates`' groups hold.
+_LOW_END = (
+    r"(?:\s?(?:USD|EUR|GBP|CAD|AUD|SGD|CHF))?"
+    r"(?:\s*(?:/\s*(?:h(?:ou)?r|w(?:ee)?k|mo(?:nth)?|y(?:ea)?r)\b|per\s+(?:hour|week|month|year|annum)))?"
+)
 _PAY = re.compile(
     rf"(?:(?<![A-Za-z])(CA|AU|US|C|A|S)(?=\$))?([$€£])\s?{_NUMBER}"
-    rf"(?:{_RANGE_TO}(?:[A-Z]{{0,2}}[$€£])?\s?{_NUMBER})?"
+    rf"(?:{_LOW_END}{_RANGE_TO}(?:[A-Z]{{0,2}}[$€£])?\s?{_NUMBER})?"
     r"(?P<tail>[^.\n]{0,40})",
 )
+# "between $45 and $65/hour" (Toyota Research Institute) is a range; "and" alone is
+# not one ("$40/hr and a $2,000 stipend"), so it is read as "to" only after
+# "between".
+_BETWEEN = re.compile(r"\bbetween(\s+[$€£]?\s?[\d.,]+\s?[kK]?(?:\s?[A-Z]{3})?)\s+and\s+", re.I)
 # The same with a currency code instead of a symbol: "800 USD monthly",
 # "34.000 - 38.000 EUR", "USD 110,000 - 140,000".
 _PAY_CODE = re.compile(
@@ -254,7 +265,7 @@ def _candidates(text: str):
 
 def pay(text: str | None) -> Pay | None:
     """The first amount the description offers as pay for this role."""
-    text = text or ""
+    text = _BETWEEN.sub(r"between\1 to ", text or "")
     for start, currency, (low, low_k), (high, high_k), tail in _candidates(text):
         if _NOT_PAY.match(tail):
             continue

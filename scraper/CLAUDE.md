@@ -92,8 +92,8 @@ boards are read over several runs: `docs/workday.md`.
 
 ## A posting's own page is read once, and only for kept postings
 
-A posting's own text is one value, `providers.Page`: the description (cut to
-`DESCRIPTION_CHARS` for Scout), the card's `details.Facts`, and on Greenhouse
+A posting's own text is one value, `providers.Page`: the description (its kept
+sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
 Recruitee send it with the board's list. Greenhouse, Workable, BambooHR and
 Workday do not (`providers.JOB_URL`): Greenhouse's `content=true` would send
@@ -143,6 +143,36 @@ real posting and the measurements behind them.
   filled ones. That caught three regressions.
 - **`sponsorship`'s four values are part of the feed's contract** with
   `backend/app/schemas/jobs.py`: a new value is a change on both sides.
+
+## Description sections
+
+A stored description is its kept sections under fixed headings (KAN-229):
+`providers._page` stores `cap(sections.kept(full))`. `sections.split` reads a
+description into role, responsibilities, requirements, preferred, pay, benefits,
+legal and the rest by its headings, and `kept` keeps the intro, Overview,
+Responsibilities, Requirements, Preferred Qualifications, Pay and Details, in
+that order. Read `docs/sections.md` before changing a pattern, a rule or `KEPT`:
+it has the measurements, the heading audit that found the misses, and why each
+section is kept or left out.
+
+- **`KEPT`'s headings are part of the feed's contract.** The backend's
+  `job_text` finds what matching reads by those exact lines; rename one on
+  both sides in the same change.
+- **A short line that names a section is not always a heading.** List items do
+  it ("Commuter benefits", "Competitive salary"), so a heading of the open
+  section, or one straight after a heading, is content. Without that, one
+  posting's whole benefits list vanished.
+- **Facts still come from the whole text.** `details.read` runs before
+  anything is left out, so a pay line under Benefits still reaches the card.
+- **Headings decide most lines, what a line says decides the rest**
+  (`_sorted_lines`): an inline "Overview: …" label moves its own line, a pay
+  sentence goes to Pay from any section, an equal-opportunity line is dropped.
+  Re-run the heading audit and `kept(kept(text)) == kept(text)` on the whole feed
+  after any change (`docs/sections.md`, "Fixes after the first review").
+- **Correctness is scored against a gold test set** (`tests/test_sections_gold.py`,
+  50 hand-checked postings): run its report after any change. Its floors only
+  ever go up; a change that lowers a score is a regression even if it fixes the
+  posting it was written for.
 
 ## Filter changes need a real title
 
@@ -255,6 +285,9 @@ page. The backend's `app/scripts/import_jobs.py` loads it into `job_postings`;
 the backend imports none of this package. So **`feed.row()` is the whole
 contract**: its fields match `backend/app/schemas/jobs.py`, a field is added in
 both or neither, and a new column needs its migration.
+
+`description` has a format too: the kept sections under `sections.KEPT`'s
+headings, which the backend's matching reads by name (Description sections).
 
 Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's
 labels. `feed.WORK_STYLE` is indexed, not `.get`: a new label should fail the

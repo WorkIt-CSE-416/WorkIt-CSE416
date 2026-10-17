@@ -191,7 +191,14 @@ Visa sponsorship has three answers, or none when the job posting doesn't say:
 | `no_sponsorship` | It says it doesn't, or needs US work authorization |
 | `citizens_only` | It needs US citizenship (often for a security clearance) |
 
-Long descriptions are cut at 8,000 characters, ending in " …".
+A description keeps only what says what the job is (KAN-229). The scraper finds
+its headings ("What you'll do", "Who you are", "Benefits") and stores the intro,
+then Overview, Responsibilities, Requirements, Preferred Qualifications, Pay
+and Details, in that order and under those fixed headings. The company's pitch,
+benefits, legal notices and how to apply are left out: about 30% of the text. The
+facts above are read from the whole text first, so leaving text out never loses
+one. Then a long description is cut at 8,000 characters, ending in " …". The
+rules and the measurements are in `scraper/docs/sections.md`.
 
 ---
 
@@ -227,7 +234,7 @@ table. Scraped ones have no `company_id`.
 | Column | Holds |
 |---|---|
 | `title`, `company_name`, `apply_url`, `company_logo_url` | What the card shows; `apply_url` is unique |
-| `description` | The full text, for the job posting's page and Scout |
+| `description` | The kept sections under their fixed headings (section 3), for the job posting's page, search and Scout |
 | `location_raw` | The location as the company job board wrote it |
 | `location_label` | The card's version, "San Francisco, CA", written by the import (section 5.2) |
 | `work_style` | `remote`, `hybrid`, `onsite`, or empty |
@@ -238,7 +245,7 @@ table. Scraped ones have no `company_id`.
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
-| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Recommended view ranks by them (KAN-231) |
+| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Recommended view ranks by them (KAN-231). The embedding reads the title, Overview (or the intro when there is none), Responsibilities, Requirements and Preferred Qualifications (KAN-229) |
 | `keywords`, `keywords_hash` | Tailor's keywords (KAN-215): at most 20, each required or preferred, read from the description by the model the first time a student's resume is matched against the job posting, with a hash of the description they came from. A new description makes them stale, and the import clears them |
 
 ### 5.2 `job_locations`, one row per place a job posting is in
