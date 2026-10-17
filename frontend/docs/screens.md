@@ -137,7 +137,10 @@ the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
 Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. The card's own row has Not Interested, Save, Ask
-Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
+Scout, Auto Apply and Apply Now. Auto Apply shows only on a job posting the
+API marks `auto_apply` (its hiring system is one auto apply fills:
+Greenhouse for now, `backend/app/auto_apply/hosts.py`); every other job
+posting has no Auto Apply at all. It sits between Ask Scout and Apply
 Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
 Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
 the job posting through the API (`POST /applicants/{id}/applications`, the

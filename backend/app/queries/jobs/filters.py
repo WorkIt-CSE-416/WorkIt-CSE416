@@ -35,12 +35,18 @@ from typing import Literal
 
 from sqlalchemy import ColumnElement, and_, case, exists, func, literal_column, or_
 
+from app.auto_apply.hosts import AUTO_APPLY_URL_PATTERN
 from app.models import dto
 from app.models.applications import Job_Application
 from app.models.job_roles import Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.queries.jobs.legacy_levels import IS_INTERNSHIP, stored_levels
 from app.services.postings import LISTED  # noqa: F401 (re-export)
+
+# A job posting auto apply takes: its apply_url is on a hiring system the
+# extension fills (app/auto_apply/hosts.py, where JobListing.auto_apply
+# reads the same pattern). The matches and every queueing require it.
+AUTO_APPLY_SUPPORTED = Job_Post.apply_url.op("~*")(AUTO_APPLY_URL_PATTERN)
 from app.services.role_resolver import title_pattern
 
 
@@ -151,6 +157,9 @@ class JobFilters:
     # has an application for, at any stage, is left out, so a new batch
     # never queues a job twice or one they skipped.
     no_application_by: uuid.UUID | None = None
+    # Auto apply's matches too: only job postings on a hiring system the
+    # extension fills (AUTO_APPLY_SUPPORTED).
+    auto_apply_only: bool = False
 
 
 def job_type_matches(job_types: Sequence[str]) -> ColumnElement[bool]:
@@ -312,4 +321,6 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
             Job_Application.job_id == Job_Post.id,
             Job_Application.applicant_id == filters.no_application_by,
         ))
+    if filters.auto_apply_only:
+        clauses.append(AUTO_APPLY_SUPPORTED)
     return clauses

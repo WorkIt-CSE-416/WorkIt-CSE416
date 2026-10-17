@@ -324,6 +324,13 @@ applicant's token is read when sent: `GET /jobs`, `/jobs/count` and
 `/jobs/recommended` then leave out the job postings that applicant marked as
 applied (stage `applied`; a job only queued for auto apply stays in). Without a token, or with a bad or company one, nothing is left out.
 
+Every job posting the API sends carries `auto_apply`: true when its
+`apply_url` is on a hiring system auto apply can fill, which is Greenhouse
+only for now (any `greenhouse.io` host; a company's own page with
+`?gh_jid=` does not count). It is worked out from the URL, never stored. The
+Auto Apply button shows only where it is true, and auto apply's matches and
+queue take only those job postings (`backend/app/auto_apply/hosts.py`).
+
 | Endpoint | Returns |
 |---|---|
 | `GET /jobs` | A page of published job postings, newest first, without descriptions |
@@ -372,6 +379,7 @@ can't be shown as matching a fact it never stated.
 | **Applying a filter** | The list dims at once while the narrowed list loads. |
 | **Load More** | The first 50 job postings, then a button adding 50 more with the same filters, until "That's every role that matches." |
 | **Search** | The words go to the API (`q`), so a search covers every job posting, not only the first 50. |
+| **Auto Apply on a card** | Only on a job posting whose `auto_apply` is true (Greenhouse for now; section 6). Its page shows it on the same rule. |
 | **Location on a card** | The import's label where there is one ("San Francisco, CA" for "SF"), else the raw text tidied ("Philadelphia, PA"). Several places read "Austin, TX +3 more", with every place listed on the job posting's page. `placesOf` in `jobs/format.ts`. |
 | **Pinned header** | The title and filters stay at the top while the list scrolls; on a phone only the filter row stays. |
 

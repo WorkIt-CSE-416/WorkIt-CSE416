@@ -67,6 +67,10 @@ export type JobListing = {
   /** What the posting says about visas (KAN-168): it sponsors, it doesn't, or
    *  US citizens only. Null when it says nothing, which is most postings. */
   sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
+  /** Whether auto apply takes it: its apply_url is on a hiring system the
+   *  extension fills (Greenhouse for now; the API's
+   *  `app/auto_apply/hosts.py` decides). Auto Apply shows only where true. */
+  auto_apply: boolean;
 };
 
 export type ListingSalaryPeriod = "hour" | "week" | "month" | "year";

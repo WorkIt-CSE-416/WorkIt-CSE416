@@ -103,7 +103,10 @@ export function ListingCard({
 
           <AskScoutButton id={job.id} title={job.title} company={job.company} />
 
-          <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
+          {/* Only where auto apply can fill the form (Greenhouse for now). */}
+          {job.auto_apply && (
+            <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
+          )}
 
           {/* Leaves for the employer's own posting, so the glyph says so and
               a screen reader hears it. On a card under 384px (a phone) the

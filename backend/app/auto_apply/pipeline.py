@@ -83,8 +83,11 @@ async def _matches(
         db,
         account,
         # Every job with an application at any stage stays out, so a batch
-        # never queues a job twice, nor one the student skipped.
-        filters=dataclasses.replace(filters, no_application_by=account.id),
+        # never queues a job twice, nor one the student skipped; and only
+        # job postings the extension can fill come in (hosts.py).
+        filters=dataclasses.replace(
+            filters, no_application_by=account.id, auto_apply_only=True
+        ),
         min_match=min_match,
         # Every match, not a page: pick_batch drops repeats before it takes
         # `size`, and fetch_recommended scores every job whatever the limit.
@@ -106,9 +109,10 @@ async def get_matches(
     Jobs page's own listing (title, company, logo, apply_url...) plus `match`
     and `highlights`. Reads only; start_batch queues them.
 
-    Leaves out every job posting the applicant has an application for (queued,
-    skipped, needs_you or applied) and repeats of one company and title
-    (pick_batch). Raises EmptyBank (routers/jobs.py) when the applicant's
+    Only job postings on a hiring system auto apply fills (Greenhouse for
+    now, app/auto_apply/hosts.py). Leaves out every job posting the
+    applicant has an application for (queued, skipped, needs_you or applied)
+    and repeats of one company and title (pick_batch). Raises EmptyBank (routers/jobs.py) when the applicant's
     experience bank is empty.
     """
     return await _matches(db, account, filters, min_match, size)
@@ -140,14 +144,15 @@ async def queue_job(
     A job's Auto Apply button: queues this one job posting, and answers its
     stage. A job that already has an application keeps it, and answers that
     stage: a second click changes nothing. Raises NotFound for a job posting
-    that isn't open.
+    that isn't open, or isn't on a hiring system auto apply fills
+    (queue_applications saves neither).
     """
     if await queue_applications(db, applicant_id, [job_id]):
         await db.commit()
         return application_stage.queued
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
-        raise NotFound("That job isn't open any more.")
+        raise NotFound("That job isn't open, or Auto Apply can't fill its hiring system yet.")
     return stage
 
 

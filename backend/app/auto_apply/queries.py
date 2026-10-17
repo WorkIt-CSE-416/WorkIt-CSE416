@@ -35,7 +35,7 @@ from app.models.dto import application_stage
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
-from app.queries.jobs.filters import LISTED
+from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
 from app.schemas.applications import Application
 
@@ -44,10 +44,11 @@ async def queue_applications(
     db: AsyncSession, applicant_id: uuid.UUID, job_ids: Sequence[uuid.UUID]
 ) -> set[uuid.UUID]:
     """
-    Saves as queued each of `job_ids` that is listed (open, scraped) and has
-    no application of this applicant yet; answers the ones it queued. One
-    with an application at any stage keeps it: queueing never moves an
-    applied or skipped job back.
+    Saves as queued each of `job_ids` that is listed (open, scraped), is on a
+    hiring system auto apply fills (AUTO_APPLY_SUPPORTED), and has no
+    application of this applicant yet; answers the ones it queued. One with
+    an application at any stage keeps it: queueing never moves an applied or
+    skipped job back.
     """
     if not job_ids:
         return set()
@@ -60,7 +61,7 @@ async def queue_applications(
         cast(literal(application_stage.queued, stage_type), stage_type),
         # Not applied yet: NULL in place of the column's now() default.
         cast(null(), DateTime(timezone=True)),
-    ).where(Job_Post.id.in_(job_ids), LISTED)
+    ).where(Job_Post.id.in_(job_ids), LISTED, AUTO_APPLY_SUPPORTED)
     queued = await db.scalars(
         insert(Job_Application)
         .from_select(["applicant_id", "job_id", "stage", "applied_at"], listed)

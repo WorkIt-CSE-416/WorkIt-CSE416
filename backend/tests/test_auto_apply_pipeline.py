@@ -50,6 +50,7 @@ def test_get_matches_leaves_out_every_job_with_an_application(monkeypatch):
 
     (kwargs,) = calls
     assert kwargs["filters"].no_application_by == APPLICANT
+    assert kwargs["filters"].auto_apply_only  # Greenhouse only
     assert kwargs["filters"].visa == "sponsors"  # the caller's filters still apply
     assert kwargs["min_match"] == pipeline.MIN_MATCH
 

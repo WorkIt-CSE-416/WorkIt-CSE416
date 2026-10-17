@@ -1,5 +1,8 @@
 """Tests for auto apply's batch rules: pure functions, no DB."""
 
+import pytest
+
+from app.auto_apply.hosts import auto_apply_supported
 from app.auto_apply.rules import pick_batch
 from app.schemas.jobs import ScoredJob
 from app.services.matching.scoring import compute_breakdown
@@ -36,3 +39,31 @@ def test_one_per_company_and_title():
 def test_size_zero_or_empty_input():
     assert pick_batch([job("1", GH + "1")], 0) == []
     assert pick_batch([], 10) == []
+
+
+# --- which job postings auto apply takes ---
+
+@pytest.mark.parametrize("url", [
+    "https://job-boards.greenhouse.io/acme/jobs/1",
+    "https://boards.greenhouse.io/acme/jobs/1?gh_jid=1",
+    "https://job-boards.eu.greenhouse.io/imc/jobs/1",
+    "HTTPS://Boards.Greenhouse.IO/acme",
+    "https://greenhouse.io/acme",
+])
+def test_auto_apply_takes_greenhouse(url):
+    assert auto_apply_supported(url)
+    assert ScoredJob.model_validate(job("1", url).model_dump()).auto_apply
+
+
+@pytest.mark.parametrize("url", [
+    "https://jobs.ashbyhq.com/acme/1/application",
+    "https://jobs.lever.co/acme/1",
+    # A company's own careers page that embeds Greenhouse: not its form.
+    "https://stripe.com/jobs/search?gh_jid=8257892",
+    "https://example.com/?next=https://boards.greenhouse.io/acme",
+    "https://greenhouse.io.example.com/acme",
+    "https://notgreenhouse.io/acme",
+])
+def test_auto_apply_leaves_out_other_hosts(url):
+    assert not auto_apply_supported(url)
+    assert not job("1", url).auto_apply

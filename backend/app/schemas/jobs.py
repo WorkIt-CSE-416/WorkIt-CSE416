@@ -14,8 +14,9 @@ so `id` there is the row's UUID; in feed.json it is the apply URL. The import
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
+from app.auto_apply.hosts import auto_apply_supported
 from app.models import dto
 from app.models.dto import work_style
 from app.services.matching.scoring import ScoreBreakdown
@@ -76,6 +77,15 @@ class JobListing(BaseModel):
     # resolves from the title (KAN-155). The scraper's own "roles" keys in
     # feed.json (KAN-172) are ignored, as any key this model doesn't declare
     # is, so a new scraper key never fails the import.
+
+    # Whether auto apply takes this job posting: its apply_url is on a hiring
+    # system the extension fills (app/auto_apply/hosts.py). Worked out from
+    # apply_url, never stored or parsed, so feed.json has no such key; the
+    # Jobs page shows Auto Apply only where it is true.
+    @computed_field
+    @property
+    def auto_apply(self) -> bool:
+        return auto_apply_supported(self.apply_url)
 
 
 class JobLocationOption(BaseModel):

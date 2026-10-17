@@ -192,7 +192,8 @@ Names are not final.
 | Layer | Function | Does |
 |---|---|---|
 | 1 | `fetch_recommended(db, account, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
-| 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. Every hiring system stays in. **Built** |
+| 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. **Built** |
+| 1, pure | `auto_apply_supported(apply_url)` (`hosts.py`) | Whether the host is a hiring system auto apply fills: Greenhouse for now. `AUTO_APPLY_SUPPORTED` in `queries/jobs/filters.py` is the same rule in SQL, required by the matches and `queue_applications`. **Built** |
 | 1 | `queue_applications(db, applicant_id, job_ids)` | Saves the open ones with no application yet as `queued`; answers which. **Built** |
 | 1 | `fetch_stage(db, applicant_id, job_id)` | The application's stage, or `None`. **Built** |
 | 1 | `fetch_applications(db, applicant_id, stages)` | The applications, newest first, each with its job posting's listing and `open`. **Built** |
@@ -307,9 +308,17 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    location, visa or start date. Pass the student's preferences as
    `filters=`, or let them set filters on the Auto Apply page.
 5. **Keep one job posting per company and title.** Some roles are listed
-   once per office. The batch does not filter by hiring system: a job
-   posting the extension cannot fill (Workday, a company's own site) is
-   queued like any other, and its fill fails to `needs_you` ("The run").
+   once per office.
+6. **Only hiring systems the extension fills: Greenhouse, for now.** The
+   matches, a batch and a job's Auto Apply button take a job posting only
+   when its `apply_url` host is a `greenhouse.io` one
+   (`backend/app/auto_apply/hosts.py`, the one list; the SQL condition and
+   `JobListing.auto_apply` both read it). A company's own careers page that
+   embeds Greenhouse (`?gh_jid=`) stays out: the run would land on the
+   company's page, not the form. Add a hiring system there once its fill
+   works. This reverses an earlier choice to queue every hiring system and
+   let unfillable ones fail to `needs_you`: a student saw a Workday or
+   Ashby job queued that the run could only fail.
 
 Why 10: the student checks each form before Submit, so 10 applications take
 about 10 to 30 minutes. A small batch also limits the harm of a bad fill.
@@ -775,6 +784,7 @@ gap.
 | Where tailoring runs | **Never in the run.** The student tailors with Tailor, one job posting at a time | In the run, per application: 2 Tailor runs a day, and nobody reviews the changes. A scheduled batch: tailors matches nobody looks at |
 | What the Auto Apply page shows | **Resume List**: every resume the student has, with the pick rule under it | One primary resume: no application is sure to get it, and matching does not read it |
 | Which resume the run attaches | **Tailored, else the default resume** (Apply's order), kept as a sent resume | A new `job_applications.resume_id`: a second record of what the sent resume already says |
+| Which job postings auto apply takes | **Only hiring systems the extension fills** (Greenhouse for now, "The batch") | Every one, failing the rest to `needs_you`: the queue filled with jobs the run could only fail |
 | Where the run happens | **The student's Chrome** ("Where the run happens") | Our servers |
 | How the code is shaped | **Three layers**, so MCP is a thin adapter | One function per screen: an agent could not reuse it |
 | What we charge for | **The auto-apply action**, for every caller | Charging MCP access only: users would call the routes directly |

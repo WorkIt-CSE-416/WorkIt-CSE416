@@ -172,7 +172,14 @@ Find files with a directory listing; these are the rules for where code goes.
   resume step (`prepare_resume`) keeps the file through
   `services/sent_resumes.py`, never Storage or the renderer itself, so a
   resume auto apply sends is a sent resume under Apply's rules (the repeat
-  hash, the file kept while a row uses it).
+  hash, the file kept while a row uses it). **Which job postings it takes is
+  one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
+  and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
+  `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
+  which the Jobs page reads to show the button. One pattern serves both, so
+  they agree; the Python form is tested against URLs, the SQL form only by
+  the SQL it sends (on 2026-10-17 the two agreed on all 13,308 listed jobs
+  in the dev database).
   matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
   Tectonic): `app/services/resume_render/CLAUDE.md`. A service that reads or
   writes rows (the experience bank, `services/bank.py`) takes the caller's
