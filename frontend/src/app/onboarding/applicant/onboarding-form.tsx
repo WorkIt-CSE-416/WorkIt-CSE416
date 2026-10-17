@@ -239,7 +239,17 @@ function RoleStep({
               pressed={answers.jobTypes.includes(o.value)}
               onClick={() => {
                 const jobTypes = toggle(answers.jobTypes, o.value);
-                set(jobTypes.includes("internship") ? { jobTypes } : { jobTypes, startTerms: [] });
+                const units = payUnits(jobTypes);
+                // The salary's unit starts on the one these job types fit
+                // (interns /hr), and a typed range keeps its own. It is set
+                // here, not forced on the picker, so the /hr /yr toggle can
+                // still change it and the unit saved is the one shown.
+                const unset = answers.minPay == null && answers.maxPay == null;
+                set({
+                  jobTypes,
+                  ...(units.length === 1 && unset ? { payPer: units[0] } : {}),
+                  ...(jobTypes.includes("internship") ? {} : { startTerms: [] }),
+                });
               }}
             >
               {o.label}
@@ -295,7 +305,6 @@ function RoleStep({
 
 function PriorityStep({ answers, set }: StepProps) {
   const units = payUnits(answers.jobTypes);
-  const payPer = units.length === 1 && answers.minPay == null ? units[0] : answers.payPer;
 
   return (
     <>
@@ -306,7 +315,7 @@ function PriorityStep({ answers, set }: StepProps) {
           presets={PAY_OPTIONS}
           minPay={answers.minPay}
           maxPay={answers.maxPay}
-          payPer={payPer}
+          payPer={answers.payPer}
           onChange={(minPay, maxPay, per) => set({ minPay, maxPay, payPer: per })}
         />
       </Field>
