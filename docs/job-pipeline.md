@@ -305,12 +305,15 @@ deployed (`backend/CLAUDE.md`, Commands).
 
 ### 5.5 `job_applications`, one row per job posting an applicant applied to (KAN-232)
 
-An applicant id and a job posting id, with `applied_at`. The applicant writes
-it with the Applied button on the job posting's page (section 7.2). A join
-table, not an array of applicant ids on the job posting: the foreign keys keep
-both ids real, an apply never rewrites the row the import upserts, and more
-columns (a status, the resume sent) can join it later. Deleting the applicant
-or the job posting deletes its rows.
+An applicant id and a job posting id, with a `stage`, `created_at` and
+`applied_at`. The applicant writes an `applied` row with the Applied button
+on the job posting's page (section 7.2). Auto apply writes `queued` rows and
+moves them to `applied`, `skipped` or `needs_you`
+(`auto-apply/architecture.md`, "Data model"); `applied_at` stays empty until
+the applicant applies. A join table, not an array of applicant ids on the job
+posting: the foreign keys keep both ids real, an apply never rewrites the row
+the import upserts, and more columns (the resume sent) can join it later.
+Deleting the applicant or the job posting deletes its rows.
 
 ---
 
@@ -319,7 +322,7 @@ or the job posting deletes its rows.
 All public, no sign-in needed (they serve public job postings). A signed-in
 applicant's token is read when sent: `GET /jobs`, `/jobs/count` and
 `/jobs/recommended` then leave out the job postings that applicant marked as
-applied. Without a token, or with a bad or company one, nothing is left out.
+applied (stage `applied`; a job only queued for auto apply stays in). Without a token, or with a bad or company one, nothing is left out.
 
 | Endpoint | Returns |
 |---|---|
@@ -329,7 +332,7 @@ applied. Without a token, or with a bad or company one, nothing is left out.
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
 | `GET /jobs/{id}/applied` | Applicants only: when they marked it applied, or null |
-| `POST /jobs/{id}/applied` | Applicants only: marks it applied; a second mark keeps the first date |
+| `POST /jobs/{id}/applied` | Applicants only: marks it applied, a queued one too; a second mark keeps the first date |
 
 ### Filters (`GET /jobs` and `GET /jobs/count`)
 

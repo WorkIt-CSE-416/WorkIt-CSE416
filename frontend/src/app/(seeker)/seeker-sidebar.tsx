@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Library,
   SquareKanban,
+  Zap,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -30,6 +31,9 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * (and, on a phone, the bar's magnifier), and a row beside that field would
  * be a second, contradictory way to reach it.
  *
+ * Auto Apply sits between Jobs and Applications, in the order the work goes:
+ * find the jobs, apply to them, track what was sent.
+ *
  * Calendar sits after Applications, as the same applications read by date.
  * Its glyph is CalendarDays, not Calendar: the plain calendar is the
  * Interviewing stage's glyph (../stage-colors.ts), and a nav row wearing it
@@ -50,6 +54,7 @@ const GROUPS: SidebarNavGroup[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
+      { href: "/auto-apply", label: "Auto Apply", Icon: Zap },
       { href: "/applications", label: "Applications", Icon: SquareKanban },
       { href: "/calendar", label: "Calendar", Icon: CalendarDays },
       { href: "/bank", label: "Experience Bank", Icon: Library },

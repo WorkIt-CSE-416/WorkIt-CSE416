@@ -28,14 +28,14 @@ import { ResumeUpload } from "@/components/resume-upload";
 import {
   uploadResume,
   deleteResume,
-  getResumeFileUrl,
   listResumes,
   setPrimaryResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { RESUME_ROW, ResumeRow } from "./resume-row";
+import { RESUME_ROW, ResumeRow } from "@/components/resume-row";
+import { previewResume } from "@/lib/preview-resume";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
 import { SEEKER_GUTTER } from "../gutter";
@@ -269,33 +269,9 @@ export default function ProfilePage() {
 
   async function handlePreview(resume: ResumeItem) {
     setResumeError(null);
-    // A PDF opens in a new tab, and that tab is opened here, inside the click:
-    // one opened after the await below is a popup, which browsers block. A
-    // DOCX link downloads, so it needs no tab and leaves this page in place.
-    const tab = resume.storage_path.endsWith(".pdf") ? window.open("", "_blank") : null;
-    let url: string | null = null;
-    let error: string | null = null;
-    try {
-      ({ url, error } = await getResumeFileUrl(resume.id));
-    } catch {
-      error = "Could not open the resume. Refresh the page and try again.";
-    }
-    if (!url) {
-      tab?.close();
-      setResumeError(error ?? "Could not open the resume.");
-      return;
-    }
-    if (tab) {
-      tab.opener = null;
-      tab.location.href = url;
-    } else if (resume.storage_path.endsWith(".pdf")) {
-      // The tab was blocked. Swapping the profile for the PDF would be worse.
-      setResumeError(
-        "Your browser blocked the preview tab. Allow pop-ups for this site, then try again.",
-      );
-    } else {
-      window.location.assign(url);
-    }
+    // No await before this call: it opens the PDF's tab inside the click.
+    const error = await previewResume(resume);
+    if (error) setResumeError(error);
   }
 
   async function handleRemove(resumeId: string) {

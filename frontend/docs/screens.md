@@ -108,7 +108,7 @@ input event having no inputType (search/query-field.tsx), so backspacing to
 type a new search stays on the results.
 
 Every seeker page goes back to where it was scrolled on a return: the browser's
-Back or Forward, or "Back to Jobs" (restoreScrollOn). (seeker)/scroll-memory.tsx
+Back or Forward, or a job page's "Back" (restoreScrollOn). (seeker)/scroll-memory.tsx
 keeps each address's position, since the shell scrolls its <main> and not the
 window, so the browser can't; a page reached any other way starts at the top.
 
@@ -136,9 +136,23 @@ Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
 Ask Scout asks about the role, Share copies the page's link, Save
-and Report stay inert. Back to Jobs returns to the feed the seeker came from,
-filters and all (`RememberFeed` on /jobs and /search keeps it in
-sessionStorage).
+and Report stay inert. The card's own row has Not Interested, Save, Ask
+Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
+Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
+Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
+the job posting through the API (`POST /applicants/{id}/applications`, the
+server action `queueJob`), and the button turns to the stage it answers
+(Queued; or Skipped, Needs You, Applied for a job that already had an
+application), off, so it is never queued twice. Its first state comes from
+the server: the job's page reads its one application (`GET
+.../applications/{job_id}`), and /jobs and /search read every application
+once beside the first page (`getApplicationStages`) and hand the stages to
+each card, Load More's too. A stale one is harmless: a click answers the real
+stage. Back returns to the list the seeker came from: the feed, filters and all, or
+the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
+the last one visited in sessionStorage). It says only "Back", whatever the
+list: the server cannot read sessionStorage, so a label naming the list
+would change a moment after the page loads.
 **Applied** (KAN-232), last in the header's actions, shows for a signed-in
 applicant only (`getApplied` answers null for anyone else). A click calls
 `markApplied` (`jobs/actions.ts`), and the button becomes "Applied at
@@ -311,6 +325,58 @@ server to draw them again. A card or row is one link: its role, stretched
 over it. Its next step is a second, `relative` link to that week on
 the Calendar, which paints over the stretched one.
 
+## Auto Apply
+
+/auto-apply (KAN-223) is where the seeker will apply in bulk. Its sidebar row
+sits between Jobs and Applications, in the order the work goes, and its page
+uses the same heading block as every seeker screen. The pipeline it grows
+into is `auto-apply/architecture.md` at the repo root.
+
+**"Applying with Resume:" is its first section, and it is live**
+(`auto-apply/applying-resume.tsx`). It shows the seeker's primary resume
+(`is_default`) in My Profile's own row (`src/components/resume-row.tsx`) with
+only the eye, and a Change link to My Profile, where resumes are chosen and
+deleted. Only the primary, never My Profile's fallback to the newest: the
+matching reads the primary alone, so a seeker without one is asked to star
+one. It is a client component reading `listResumes()` like My Profile, and
+starts from My Profile's cache when the shell has one, without writing to it.
+
+**The button beside the resume starts and pauses auto apply.** Start Auto
+Apply queues a batch of the seeker's best matches through the API (`POST
+.../auto-apply/batches`, the server action `startBatch`: 10, leaving out
+every job they already have an application for), says how many under the
+row, and refreshes the route so Live Activity lists them; an error (no
+primary resume) shows there in red instead. Then Pause and Resume, which
+only move the state: nothing fills a form until the extension's runner
+exists. It is off until there is a primary resume, and while a batch is
+queueing. The state (`idle`, `running`, `paused`) is held in
+`auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
+Started, Live (a green dot that rings out) or Paused; a return visit starts
+idle, so Start queues another batch. The brand fill marks
+the action that starts work, so Pause is the bordered neutral. The button is
+52px tall and 208px wide beside the row, so the row does not shift between
+labels; on a phone it drops under the row at full width.
+
+**Live Activity is live: the seeker's applications from the API**
+(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), newest
+first, drawn on the server against the request's clock. Each stored stage is
+a row (`activityOf` in `auto-apply/activity-list.tsx`): queued Queued,
+needs_you Couldn't Finish, skipped Skipped, applied Applied. The whole row
+opens the job posting's page, as on the Applications list, while the posting
+is open; a closed one says so and links nowhere. None yet is an empty state
+pointing at Start and the jobs' Auto Apply; a failed read says so, never a
+fixture. One row per job posting, in one white card with rules between rows. Each status takes a
+badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Tailoring Resume
+and Autofilling `advanced` blue, their dot ringing three times; Needs Review
+and Couldn't Finish warning amber, as both wait on the seeker; Applied the
+Applied stage's violet, so it reads the same as on the Applications board.
+The counts above the card use the same dot colours. Narrow, a row's badge and
+time drop under its text so the role keeps the width. The list is
+`aria-live="polite"`. Tailoring Resume, Autofilling and Needs Review are the
+runner's live states, kept for when the extension reports them; the
+statuses and the routes are in `auto-apply/architecture.md`, "The run" and
+"API routes".
+
 ## Calendar
 
 **The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
@@ -346,12 +412,14 @@ Bank section). The seeker profile (`(seeker)/profile`) supports up to
 "n of 5" adds the bank page's base resumes; tailored ones are free),
 newest first: picking a file uploads it at once (`uploadResume`);
 the API reads it itself, and the client never sends parsed content. Each
-resume row (`resume-row.tsx`) has an eye — a short-lived signed link from
-`getResumeFileUrl`: a PDF opens in a new tab, opened inside the click so it
-is not blocked as a popup (if it is blocked anyway, the page says so rather
-than leaving the profile); a DOCX downloads — and a star that makes it
-primary (`setPrimaryResume`). All of these actions live in
-`src/lib/resume-actions.ts`. The `ResumeUpload` component
+resume row (`src/components/resume-row.tsx`, shared with the Auto Apply page)
+has an eye — a short-lived signed link from `getResumeFileUrl`, opened by
+`src/lib/preview-resume.ts`: a PDF opens in a new tab, opened inside the
+click so it is not blocked as a popup (if it is blocked anyway, the page says
+so rather than leaving it); a DOCX downloads — and a star that makes it
+primary (`setPrimaryResume`). The star and the delete are optional props, so
+a screen that only shows a resume leaves them out. All of these actions live
+in `src/lib/resume-actions.ts`. The `ResumeUpload` component
 (`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
 knows nothing about upload logic or limits.
 

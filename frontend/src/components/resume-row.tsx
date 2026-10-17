@@ -9,8 +9,9 @@ import { cn } from "@/lib/cn";
 import type { ResumeItem } from "@/lib/resume-actions";
 
 /** One resume row. The loading placeholder, the in-flight upload and the
- *  empty list (in ./page.tsx) are the same 52px box, so the list does not
- *  jump when the real row arrives. */
+ *  empty list (in My Profile's page.tsx and the Auto Apply page's
+ *  applying-resume.tsx) are the same 52px box, so nothing jumps when the
+ *  real row arrives. */
 export const RESUME_ROW =
   "border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2";
 
@@ -43,18 +44,22 @@ const ROW_ACTION = "rounded-control hover:bg-hover size-8";
  * others it appears while the row is hovered or the star has keyboard focus.
  * A touch screen has no hover, so there those stars stay visible. A hidden
  * star still holds its place, so nothing shifts when it appears.
+ *
+ * My Profile passes every action. A screen that only shows a resume (the
+ * Auto Apply page) passes onPreview alone: the primary's star still marks
+ * it, but there is no star to click and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
-  deleting: boolean;
+  deleting?: boolean;
   onPreview: () => void;
-  onMakePrimary: () => void;
-  onDelete: () => void;
+  onMakePrimary?: () => void;
+  onDelete?: () => void;
 };
 
 export function ResumeRow({
   resume,
-  deleting,
+  deleting = false,
   onPreview,
   onMakePrimary,
   onDelete,
@@ -83,17 +88,19 @@ export function ResumeRow({
             <span className="sr-only">Primary resume</span>
           </span>
         ) : (
-          <IconButton
-            label={`Make ${name} your primary resume`}
-            tooltip="Make primary"
-            className={cn(
-              ROW_ACTION,
-              "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
-            )}
-            onClick={onMakePrimary}
-          >
-            <Star aria-hidden className="size-4" />
-          </IconButton>
+          onMakePrimary && (
+            <IconButton
+              label={`Make ${name} your primary resume`}
+              tooltip="Make primary"
+              className={cn(
+                ROW_ACTION,
+                "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+              )}
+              onClick={onMakePrimary}
+            >
+              <Star aria-hidden className="size-4" />
+            </IconButton>
+          )
         )}
         <IconButton
           label={`${action} ${name}`}
@@ -103,15 +110,17 @@ export function ResumeRow({
         >
           <Eye aria-hidden className="size-4" />
         </IconButton>
-        <IconButton
-          label={`Delete ${name}`}
-          tooltip="Delete"
-          className={cn(ROW_ACTION, "hover:text-danger")}
-          disabled={deleting}
-          onClick={onDelete}
-        >
-          <TrashIcon className="size-4" />
-        </IconButton>
+        {onDelete && (
+          <IconButton
+            label={`Delete ${name}`}
+            tooltip="Delete"
+            className={cn(ROW_ACTION, "hover:text-danger")}
+            disabled={deleting}
+            onClick={onDelete}
+          >
+            <TrashIcon className="size-4" />
+          </IconButton>
+        )}
       </div>
     </div>
   );

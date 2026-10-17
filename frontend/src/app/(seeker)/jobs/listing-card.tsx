@@ -20,6 +20,8 @@ import {
   formatSalary,
   formatWorkStyle,
 } from "./format";
+import type { ApplicationStage } from "../auto-apply/actions";
+import { AutoApplyButton } from "../auto-apply/auto-apply-button";
 import type { JobListing } from "./listings";
 import { MatchRail } from "./match-rail";
 
@@ -63,7 +65,14 @@ import { MatchRail } from "./match-rail";
  * The card opens the role's own page, /jobs/[jobId] (KAN-73), which shows
  * its description; Apply Now leaves for the employer's own posting.
  */
-export function ListingCard({ job }: { job: JobListing }) {
+export function ListingCard({
+  job,
+  stage,
+}: {
+  job: JobListing;
+  /** The seeker's application for it, for its Auto Apply button; null: none. */
+  stage: ApplicationStage | null;
+}) {
   return (
     <JobPostingCard
       job={{
@@ -77,8 +86,8 @@ export function ListingCard({ job }: { job: JobListing }) {
       rail={<MatchRail score={null} highlights={[]} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
-         too many. All four sit at the row's right end, as on the mock cards:
-         the quick verdicts first, then the two steps toward applying. */
+         too many. All five sit at the row's right end, as on the mock cards:
+         the quick verdicts first, then the three steps toward applying. */
       actions={
         <>
           <IconButton
@@ -93,6 +102,8 @@ export function ListingCard({ job }: { job: JobListing }) {
           <SaveButton title={job.title} />
 
           <AskScoutButton id={job.id} title={job.title} company={job.company} />
+
+          <AutoApplyButton jobId={job.id} stage={stage} />
 
           {/* Leaves for the employer's own posting, so the glyph says so and
               a screen reader hears it. On a card under 384px (a phone) the
@@ -201,6 +212,7 @@ export function ListingsSkeleton() {
                   <div className="border-border-subtle mt-3 flex justify-end gap-2 border-t pt-3">
                     <Skeleton className="size-8" />
                     <Skeleton className="size-8" />
+                    <Skeleton className="h-8 w-28" />
                     <Skeleton className="h-8 w-28" />
                     <Skeleton className="h-8 w-24" />
                   </div>

@@ -13,6 +13,7 @@ import { RememberFeed } from "../jobs/[jobId]/page-actions";
 import { FeedHeader } from "../jobs/feed-header";
 import { FeedTransition, PendingFeed } from "../jobs/feed-transition";
 import { JobFilters } from "../jobs/filters";
+import { getApplicationStages } from "../auto-apply/applications";
 import { FeedList } from "../jobs/feed-list";
 import { ListingsError, ListingsSkeleton } from "../jobs/listing-card";
 import {
@@ -102,7 +103,8 @@ async function Results({
   query: string;
   filters: FeedFilters;
 }) {
-  const { jobs, more, error } = await results;
+  // The seeker's applications, for the cards' Auto Apply buttons (as /jobs).
+  const [{ jobs, more, error }, stages] = await Promise.all([results, getApplicationStages()]);
 
   if (error != null) {
     const retry = new URLSearchParams([["q", query], ...filterEntries(filters)]);
@@ -133,7 +135,7 @@ async function Results({
       {/* The level between the page's h1 and each card's h3, as on /jobs. */}
       <h2 className="sr-only">Search Results</h2>
       {/* The first page of matches, and a Load More for the rest. */}
-      <FeedList initial={jobs} more={more} query={feedQuery(filters, query)} />
+      <FeedList initial={jobs} more={more} query={feedQuery(filters, query)} stages={stages} />
     </>
   );
 }

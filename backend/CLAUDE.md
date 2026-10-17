@@ -162,6 +162,13 @@ Find files with a directory listing; these are the rules for where code goes.
   it in 1,179 lines, which every jobs change had to read whole.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
+  matching: `app/services/matching/CLAUDE.md`.
+- **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2, in three
+  files by kind: `rules.py` pure (no session), `queries.py` database, and
+  `pipeline.py` the steps that call them. Unlike a service, its functions may
+  take a session; its routes still go in `app/routers/`. Read
+  `../auto-apply/architecture.md`, "The function layers", before adding one:
+  a layer-2 step that skips a layer-1 check lets any caller skip it.
   matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
   Tectonic): `app/services/resume_render/CLAUDE.md`. A service that reads or
   writes rows (the experience bank, `services/bank.py`) takes the caller's

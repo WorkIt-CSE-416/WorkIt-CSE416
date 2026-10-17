@@ -17,6 +17,8 @@ import { listSentResumes } from "@/lib/sent-resume-actions";
 
 import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
+import { getApplicationStage } from "../../auto-apply/applications";
+import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
 import { ListingsError, listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
 import { ApplyButton } from "./apply-button";
@@ -52,7 +54,8 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * resume linked to this posting, then leaves for the employer's posting
  * (./apply-button, KAN-220); once one is sent, the page says "You sent
  * <name> on <date>" (./sent-note, story 98). Ask Scout asks
- * about this role, Share copies the page's link, and Tailor My Resume opens
+ * about this role, Share copies the page's link, Auto Apply queues it for the
+ * Auto Apply page, as on the card, and Tailor My Resume opens
  * Tailor (./tailor, KAN-217); it reads "Your Tailored Resume" once the
  * student has one for this posting (at most one each). Applied, last in the
  * row, is a signed-in applicant's own record that they applied (KAN-232): it
@@ -63,11 +66,12 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const [{ job, error }, resumes, sent, applied] = await Promise.all([
+  const [{ job, error }, resumes, sent, applied, stage] = await Promise.all([
     getJobListing(jobId),
     listBuiltResumes(),
     listSentResumes(),
     getApplied(jobId),
+    getApplicationStage(jobId),
   ]);
   const tailored = resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false;
   // Newest first, so the first match is the last one sent to this posting.
@@ -110,6 +114,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
             </IconButton>
             <ShareButton title={job.title} />
             <AskScoutButton id={job.id} title={job.title} company={job.company} />
+            <AutoApplyButton jobId={job.id} stage={stage} />
             <ButtonLink
               href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
               variant="secondary"

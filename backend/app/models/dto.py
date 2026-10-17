@@ -148,6 +148,21 @@ class job_post_status(enum.StrEnum):
     closed= "closed"
 
 
+class application_stage(enum.StrEnum):
+    '''
+    where one applicant's application to one job stands (job_applications.stage).
+    Auto apply moves it (auto-apply/architecture.md, "The run"): queued by a
+    batch or a job's Auto Apply button, then applied when the student clicks
+    Submitted, skipped when they click Skip, needs_you when the fill failed.
+    The Applied button sets applied straight away. A new value is an
+    ALTER TYPE and a coordinated deploy (models/CLAUDE.md)
+    '''
+    queued= "queued"
+    needs_you= "needs_you"
+    skipped= "skipped"
+    applied= "applied"
+
+
 # --- Experience bank enums (KAN-206) ---
 
 class bank_section(enum.StrEnum):

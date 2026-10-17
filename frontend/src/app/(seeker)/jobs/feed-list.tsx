@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { loadMoreJobs } from "./actions";
 import { keep, readKept, subscribe } from "./feed-pages";
 import { PAGE_SIZE } from "./filter-query";
+import type { ApplicationStage } from "../auto-apply/actions";
 import { ListingCard } from "./listing-card";
 import type { JobListing } from "./listings";
 
@@ -39,10 +40,14 @@ export function FeedList({
   initial,
   more: initialMore,
   query,
+  stages,
 }: {
   initial: JobListing[];
   more: boolean;
   query: string;
+  /** The seeker's applications by job id, read once with the first page; a
+   *  Load More page's cards look theirs up here too. */
+  stages: Record<string, ApplicationStage>;
 }) {
   // The server renders the first page alone; the browser adds the kept
   // pages, if this list has any, as it hydrates.
@@ -110,7 +115,7 @@ export function FeedList({
             style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
             className="animate-rise"
           >
-            <ListingCard job={job} />
+            <ListingCard job={job} stage={stages[job.id] ?? null} />
           </li>
         ))}
         {loaded.map((job, i) => (
@@ -121,7 +126,7 @@ export function FeedList({
             style={{ animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }}
             className="animate-rise"
           >
-            <ListingCard job={job} />
+            <ListingCard job={job} stage={stages[job.id] ?? null} />
           </li>
         ))}
       </ul>
