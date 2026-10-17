@@ -29,9 +29,36 @@ _MAX_CHARS = 6000   # NOTE: MAX CHARACTER ON EMBED. Need to consider increasing 
 _URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:batchEmbedContents"
 
 
+# The headings the scraper stores a description under (KAN-229,
+# scraper/workit_scraper/sections.py `KEPT`), each alone on its line. Part of
+# the feed's contract: renamed on one side only, every posting embeds its
+# whole description again. Matching reads the role and what it asks for; the
+# intro (often the company's pitch), the pay and the details are left out.
+_MATCHED_HEADINGS = frozenset(
+    {"About the Role", "Responsibilities", "Requirements", "Preferred Qualifications"}
+)
+_OTHER_HEADINGS = frozenset({"Pay", "Details"})
+
+
+def _matched_part(description: str) -> str | None:
+    '''the text under the matched headings, or None when it has none: a
+    posting stored before KAN-229, or one the scraper kept whole'''
+    lines: list[str] = []
+    reading = False
+    for line in description.split("\n"):
+        if line in _MATCHED_HEADINGS or line in _OTHER_HEADINGS:
+            reading = line in _MATCHED_HEADINGS
+        elif reading:
+            lines.append(line)
+    return "\n".join(lines).strip() or None
+
+
 def job_text(title: str, description: str | None) -> str:
-    '''what a posting is embedded from: its title, then its description'''
-    return f"{title}\n\n{description or ''}".strip()
+    '''what a posting is embedded from: its title, then its role,
+    responsibilities, requirements and preferred qualifications, or its whole
+    description when it has none of them'''
+    body = _matched_part(description) if description else None
+    return f"{title}\n\n{body or description or ''}".strip()
 
 
 def model_key() -> str:

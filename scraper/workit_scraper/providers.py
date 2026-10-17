@@ -34,6 +34,7 @@ from datetime import UTC, date, datetime, timedelta
 from html.parser import HTMLParser
 
 from workit_scraper import details, web
+from workit_scraper.sections import kept
 
 TIMEOUT_S = 25
 
@@ -53,7 +54,8 @@ DESCRIPTION_CHARS = 8000
 #: 11: a Workday posting's requisition number (`Page.requisition`). 12: pay with
 #: cents ("$61,900.00 to $141,000.00") read as the whole range, not its low end.
 #: 13: pay words as whole words ("quota-based" is not "base"), and a sentence's own.
-PAGE_VERSION = 13
+#: 14: the description keeps only its kept sections, under fixed headings (KAN-229).
+PAGE_VERSION = 14
 
 
 class BoardNotFound(Exception):
@@ -367,13 +369,14 @@ def _page(
     offices: tuple[str, ...] = (),
     requisition: str | None = None,
 ) -> Page:
-    """A Page from a posting's whole text: facts read first, description cut after."""
+    """A Page from a posting's whole text: facts read from all of it first, then the
+    description is its kept sections (`sections.kept`), cut after."""
     facts = details.read(
         title, full, stated_type=stated_type, stated_style=stated_style, stated_pay=stated_pay
     )
     return Page(
         version=PAGE_VERSION,
-        description=cap(full),
+        description=cap(kept(full)),
         facts=facts,
         offices=offices,
         requisition=requisition,

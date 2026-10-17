@@ -69,9 +69,18 @@ Nothing in this folder may assume what a software job is. Two consequences:
   (name, email, phone, address, links). That is Scout's rule
   (`../../../../scout/CLAUDE.md`), because Gemini's free tier may train on what
   it receives. `bank_input.bank_text()` is where that boundary lives (below).
+- **A posting is embedded from its title and the sections that say what the
+  job is** (`job_text`, KAN-229): About the Role, Responsibilities,
+  Requirements and Preferred Qualifications. The scraper stores a description
+  under those fixed headings, each alone on its line, with the company's
+  pitch, benefits and legal text already left out
+  (`../../../../scraper/docs/sections.md`). The intro, Pay and Details are
+  stored but not embedded. A description without those headings (stored
+  before KAN-229, or one the scraper kept whole) is embedded whole. **The
+  headings are part of the feed's contract**: renamed in the scraper alone,
+  every posting quietly embeds its whole description again.
 - **Texts are cut to 6,000 characters**, since the model reads about 2,048
-  tokens. A posting loses its tail, which is mostly benefits and legal
-  boilerplate.
+  tokens.
 
 ## When things are embedded
 

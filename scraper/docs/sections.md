@@ -94,23 +94,44 @@ posting goes from 4,596 to 3,083 characters. Dropping the intro too would reach
 43.7%, but the intro holds the role's summary in postings that have no "About the
 role" heading.
 
-## Still open: what WorkIt keeps
+## What WorkIt keeps (decided 2026-10-17)
 
-Xiang asked for this to be decided before anything is dropped, because dropped text
-is gone for search, matching, Scout and Tailor. The splitter is not wired into the
-`Page`, `feed.json` or the database yet. The proposal:
+Xiang asked for this to be decided before anything was dropped, because dropped
+text is gone for search, matching, Scout and Tailor.
 
-- **Keep:** intro, role, responsibilities, requirements, preferred, pay, logistics.
-- **Drop:** company, benefits, legal, apply.
-- **Matching's embedding reads:** role, responsibilities, requirements, preferred.
+- **Kept, in this order, under these headings** (`sections.KEPT`): the intro (no
+  heading), About the Role, Responsibilities, Requirements, Preferred
+  Qualifications, Pay, Details. Sections of one kind are joined in the order
+  written, so SpaceX's export-control rule joins its other requirements.
+- **Left out:** company, benefits, legal, apply.
+- **Matching's embedding reads:** About the Role, Responsibilities,
+  Requirements and Preferred Qualifications
+  (`backend/app/services/matching/embeddings.py`, `job_text`).
 
-Pay and visa sponsorship are already read from the whole description before the cut
-(`details.py`), so dropping a section never loses a card fact. Search's full-text
-index, Scout's facts, Tailor and the keyword match read the stored description, so
-each loses what is dropped.
+`providers._page` stores `cap(kept(full))`: the card's facts are read from the
+whole text first, so a pay line under Benefits still reaches the card. Search's
+full-text index, Scout, Tailor and the keyword match read the stored description,
+so none of them sees the left-out text any more.
 
-Wiring it in is a change on both sides of the feed contract (`scraper/CLAUDE.md`,
-"feed.json is the backend's only view of us"): the `Page` holds the sections, a
-`PAGE_VERSION` bump re-reads stored pages, `feed.row()` and
-`backend/app/schemas/jobs.py` gain the field, and the backend's migration goes to
-`main` in its own PR before anyone applies it.
+Two guards keep the format readable by the backend, each with a test:
+
+- **A line that is only a kept heading is dropped from the text**, so the backend
+  never reads a content line as the start of a section.
+- **A description that keeps nothing is kept whole.** Every heading naming a
+  left-out section means the headings were misread. Measured: 2 of 1,094.
+
+`Job Description`, the heading Workday puts over a whole posting, opens no
+section; without that, Bose's company pitch was filed as About the Role.
+
+No migration: the format lives inside the `description` column, and the job page
+already reads short title-case lines as headings
+(`frontend/src/app/(seeker)/jobs/[jobId]/description.tsx`).
+
+**The headings are part of the feed's contract.** The backend finds the parts
+matching reads by these exact lines. Rename one in `KEPT` and in `job_text` in
+the same change, or every posting quietly embeds its whole description again.
+
+Measured on the snapshot: the stored text is 29.7% smaller (median 4,596 to 3,145
+characters), and 97.2% of postings carry at least one section matching reads.
+`PAGE_VERSION` 14 re-reads stored Greenhouse, Workable, BambooHR and Workday pages
+once, so the whole feed moves to the new format on the next live run.
