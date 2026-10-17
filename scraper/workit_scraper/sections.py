@@ -105,6 +105,12 @@ SECTIONS: tuple[tuple[str, str], ...] = (
 
 _PATTERNS = tuple((key, re.compile(rf"\b({words})\b", re.I)) for key, words in SECTIONS)
 
+#: A label and its text on one line: "Overview: This is the team that…" (KAN-229
+#: fix 1). The label may follow a bullet and must start with a capital; the text
+#: must follow a colon and a space, so "To apply, please submit the following:" and
+#: a time like "9:00" are not one.
+_INLINE = re.compile(r"^[\s*#•·\-–—]*([A-Z][^:\n]{1,58}):\s+(\S.*)$")
+
 #: A heading over the whole posting, not a section: Workday opens most descriptions
 #: with "Job Description", then "ABOUT BOSE". It is skipped, so it neither opens a
 #: section nor swallows the heading after it as its first item.
@@ -182,11 +188,23 @@ def split(text: str | None) -> tuple[Section, ...]:
       sat straight after another; nearly all were that list's first item.
 
     A heading with nothing under it at all, at the very end, is left out.
+
+    **An inline label moves only its own line** (fix 1): "Overview: This is the team
+    that…" puts its text under the label's section, then the section that was open
+    carries on. A label inside a list ("Location: Austin, TX" among the duties)
+    covers itself alone, so the lines after it stay where they were. A label naming
+    the open section is content, like any heading of the open section. On the
+    2026-10-16 feed, 406 such lines were read as plain text, 316 postings had one,
+    and Tenstorrent's role summary sat in the intro this way.
     """
     if not text:
         return ()
     sections: list[Section] = []
     key, head, lines = INTRO, None, []
+    # Whether the open section has held a line yet: a heading straight after its
+    # own heading is its first item. True again after an inline label hands it
+    # back, which is not a fresh heading.
+    started = False
 
     def close() -> None:
         body = "\n".join(lines).strip()
@@ -196,13 +214,22 @@ def split(text: str | None) -> tuple[Section, ...]:
     for line in text.split("\n"):
         if _WRAPPER.match(line.strip().strip("*#•·-–— ").rstrip(":").strip()):
             continue
+        inline = _INLINE.match(line)
+        labelled = heading(inline.group(1)) if inline else None
+        if labelled is not None and labelled != key:
+            close()
+            sections.append(Section(labelled, inline.group(1).strip(), inline.group(2).strip()))
+            lines, started = [], True
+            continue
         opens = heading(line)
-        just_opened = head is not None and not any(part.strip() for part in lines)
+        just_opened = head is not None and not started
         if opens is None or opens == key or just_opened:
             lines.append(line)
+            started = started or bool(line.strip())
             continue
         close()
         key, head, lines = opens, line.strip().strip("*#•·-–— ").rstrip(":").strip(), []
+        started = False
     close()
     return tuple(sections)
 
