@@ -23,6 +23,7 @@ from app.auto_apply.queries import (
     fetch_stage,
     pick_resume,
     queue_applications,
+    remove_queued,
     set_stage,
 )
 from app.auto_apply.rules import pick_batch
@@ -148,6 +149,23 @@ async def queue_job(
     if stage is None:
         raise NotFound("That job isn't open any more.")
     return stage
+
+
+async def dequeue_job(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> None:
+    """
+    Takes a queued job posting out of the queue: its application goes, and
+    the job is as it was before it was queued (no stage; the next batch may
+    pick it again). Raises NotFound when there is no application, WrongStage
+    when it is past queued: a needs_you, skipped or applied one is a record
+    of what happened, not a plan.
+    """
+    if await remove_queued(db, applicant_id, job_id):
+        await db.commit()
+        return
+    stage = await fetch_stage(db, applicant_id, job_id)
+    if stage is None:
+        raise NotFound("That job isn't in your queue.")
+    raise WrongStage(f"That application is {stage}, so it is no longer in the queue.")
 
 
 async def list_applications(

@@ -200,6 +200,8 @@ Names are not final.
 | 2 | `get_matches(db, account, filters, min_match=60, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
 | 2 | `start_batch(db, account, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
 | 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
+| 1 | `remove_queued(db, applicant_id, job_id)` | Deletes the application only while it is `queued`, in one statement, so a fill that finishes it meanwhile is never undone. **Built** |
+| 2 | `dequeue_job(db, applicant_id, job_id)` | The Auto Apply button's second click and Live Activity's cross: `remove_queued`, one commit; the job has no application again, so a later batch may pick it. `NotFound` without one, `WrongStage` past queued. **Built** |
 | 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. **Built** |
 | 2 | `prepare_resume(db, storage, applicant_id, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`; none, `NotFound`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting → one commit → the sent resume and a 5-minute link, or `None` with no resume. Never tailors. **Built** |
 | 2 | `finish_application(db, applicant_id, job_id, outcome)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `set_stage`: submitted → `applied`, skipped → `skipped`, failed → `needs_you`. **Built**, without `record_run`, which waits for `autofill_runs` |
@@ -224,8 +226,8 @@ Webapp or AI agent: "start a batch of 10"
 backend/app/auto_apply/
     rules.py        layer 1, pure:  pick_batch
     queries.py      layer 1, DB:    queue_applications, fetch_stage, fetch_application, fetch_applications,
-                                    fetch_next_application, set_stage, pick_resume; later record_run
-    pipeline.py     layer 2:        get_matches, start_batch, queue_job, list_applications,
+                                    fetch_next_application, set_stage, remove_queued, pick_resume; later record_run
+    pipeline.py     layer 2:        get_matches, start_batch, queue_job, dequeue_job, list_applications,
                                     get_application, next_application, finish_application, prepare_resume
 backend/app/routers/auto_apply.py   layer 3: the routes. Every router lives in app/routers/
 the MCP server                      layer 3, later: its own small program that calls the routes
@@ -617,6 +619,7 @@ function. Every route checks that the caller owns the applicant, like
 | GET | `/applicants/{id}/auto-apply/matches` | `get_matches` | The matches a batch would queue, with the Jobs page's filters. **Built** |
 | POST | `/applicants/{id}/auto-apply/batches` | `start_batch` | Queues a batch (`{"size": 10}`, at most 50); answers the job ids. **Built** |
 | POST | `/applicants/{id}/applications` | `queue_job` | A job's Auto Apply button: queues `{"job_id"}`. **Built** |
+| DELETE | `/applicants/{id}/applications/{job_id}` | `dequeue_job` | Takes a queued job out of the queue; 204. 404 with no application, 409 past queued. **Built** |
 | GET | `/applicants/{id}/applications` | `list_applications` | Live Activity and later the tracker. `?stage=` repeats. **Built** |
 | GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. **Built** |
 | GET | `/applicants/{id}/applications/{job_id}` | `get_application` | One application, as the list has it; 404 without one. Registered after `/next`. **Built** |
@@ -646,7 +649,7 @@ becomes the parent of the layer-2 steps.** So:
 2. **Expose few tools.** A short list is easier for an agent to use well.
    Suggested: `get_matches` (read only), `start_batch(size)` (queues and
    returns at once), `get_batch_status` (each application's stage; the agent
-   polls it), `skip_application(id)`.
+   polls it), `skip_application(id)`, `dequeue_job(id)`.
 3. **Not one "do everything" tool.** Tailoring takes a model call and the
    student's review per job posting. The student fills and submits
    in Chrome over many minutes, and a tool cannot wait for that. And the

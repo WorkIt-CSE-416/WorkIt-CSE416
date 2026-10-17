@@ -19,6 +19,7 @@ from sqlalchemy import (
     Uuid,
     and_,
     cast,
+    delete,
     func,
     literal,
     null,
@@ -149,6 +150,22 @@ async def fetch_next_application(
         )
     ).first()
     return _to_application(row) if row else None
+
+
+async def remove_queued(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> bool:
+    """Deletes this application if it is still queued; answers whether it
+    did. The stage is in the same statement, so a fill that finishes it in
+    between is never undone."""
+    removed = await db.scalar(
+        delete(Job_Application)
+        .where(
+            Job_Application.applicant_id == applicant_id,
+            Job_Application.job_id == job_id,
+            Job_Application.stage == application_stage.queued,
+        )
+        .returning(Job_Application.job_id)
+    )
+    return removed is not None
 
 
 async def set_stage(

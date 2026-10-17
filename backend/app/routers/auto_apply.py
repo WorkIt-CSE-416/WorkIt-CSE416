@@ -25,6 +25,10 @@ GET  /applicants/{id}/applications/next
 GET  /applicants/{id}/applications/{job_id}
      The application for one job posting, as the list has it. 404 when the
      applicant has none.
+DELETE /applicants/{id}/applications/{job_id}
+     Takes a queued job posting out of the queue (the Auto Apply button's
+     second click, Live Activity's cross): 204, and the job has no
+     application again. 404 with no application, 409 when it is past queued.
 POST /applicants/{id}/applications/{job_id}/resume
      The resume to attach, before the fill: the one tailored to the job
      posting, else the default resume, kept as a sent resume linked to the
@@ -43,7 +47,7 @@ Applicant accounts only, and only their own id (assert_applicant_owns).
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply import pipeline
@@ -155,6 +159,24 @@ async def get_application(
         return await pipeline.get_application(db, applicant_id, job_id)
     except pipeline.NotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.delete("/applications/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def dequeue_job(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> Response:
+    """Takes one queued job posting out of the queue."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        await pipeline.dequeue_job(db, applicant_id, job_id)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except pipeline.WrongStage as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/applications/{job_id}/resume", response_model=SentResumeDownload | None)

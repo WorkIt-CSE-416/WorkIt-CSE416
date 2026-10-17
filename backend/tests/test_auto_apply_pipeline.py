@@ -323,3 +323,31 @@ def test_a_failed_commit_removes_only_a_new_file(monkeypatch, uploaded, removed)
         asyncio.run(pipeline.prepare_resume(db, storage, APPLICANT, JOB))
     db.rollback.assert_awaited_once()
     assert storage.removed == ([row.storage_path] if removed else [])
+
+
+# --- dequeue_job ---
+
+def test_dequeue_job_removes_a_queued_one_and_commits(monkeypatch):
+    monkeypatch.setattr(pipeline, "remove_queued", AsyncMock(return_value=True))
+    db = FakeDB()
+
+    asyncio.run(pipeline.dequeue_job(db, APPLICANT, JOB))
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("stage", "error"),
+    [
+        (None, pipeline.NotFound),
+        (application_stage.needs_you, pipeline.WrongStage),
+        (application_stage.applied, pipeline.WrongStage),
+    ],
+)
+def test_dequeue_job_leaves_anything_past_queued(monkeypatch, stage, error):
+    monkeypatch.setattr(pipeline, "remove_queued", AsyncMock(return_value=False))
+    fake_stage(monkeypatch, stage)
+    db = FakeDB()
+
+    with pytest.raises(error):
+        asyncio.run(pipeline.dequeue_job(db, APPLICANT, JOB))
+    db.commit.assert_not_awaited()

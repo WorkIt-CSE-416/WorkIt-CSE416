@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { CheckIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 
-import { queueJob, type ApplicationStage } from "./actions";
+import { dequeueJob, queueJob, type ApplicationStage } from "./actions";
 
 /** What the button says once the job posting has an application. */
 const STAGE_LABEL: Record<ApplicationStage, string> = {
@@ -23,8 +23,11 @@ const STAGE_LABEL: Record<ApplicationStage, string> = {
  * queueJob), and the Auto Apply page lists it in Live Activity.
  *
  * `stage` is the application the server read as it drew the page (null:
- * none). With one, the button names its stage and is off, so a job is never
- * queued twice. A stale `stage` is harmless: a click answers the real one.
+ * none). With one, the button names its stage. Queued is a toggle: a second
+ * click takes the job out of the queue (dequeueJob) and the button reads
+ * Auto Apply again. Any later stage is off: needs you, skipped and applied
+ * are what happened, not a plan, so the button never undoes them. A stale
+ * `stage` is harmless: a click answers the real one.
  */
 export function AutoApplyButton({
   jobId,
@@ -37,7 +40,7 @@ export function AutoApplyButton({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
-  if (stage) {
+  if (stage && stage !== "queued") {
     return (
       <Button variant="secondary" size="sm" disabled>
         <CheckIcon className="size-4" />
@@ -46,6 +49,7 @@ export function AutoApplyButton({
     );
   }
 
+  const queued = stage === "queued";
   return (
     <>
       {error && (
@@ -57,16 +61,25 @@ export function AutoApplyButton({
         variant="secondary"
         size="sm"
         disabled={pending}
+        // A toggle: pressed while queued, and the hover says what a click does.
+        aria-pressed={queued}
+        title={queued ? "Remove from the queue" : undefined}
         onClick={() =>
           start(async () => {
+            if (queued) {
+              const result = await dequeueJob(jobId);
+              setError(result.error);
+              if (!result.error) setStage(null);
+              return;
+            }
             const result = await queueJob(jobId);
             setError(result.error);
             if (result.stage) setStage(result.stage);
           })
         }
       >
-        <Zap className="size-4" />
-        Auto Apply
+        {queued ? <CheckIcon className="size-4" /> : <Zap className="size-4" />}
+        {queued ? STAGE_LABEL.queued : "Auto Apply"}
       </Button>
     </>
   );

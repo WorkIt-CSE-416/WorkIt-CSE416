@@ -69,6 +69,7 @@ def step(monkeypatch, name, result=None, raises=None):
         ("get", f"/applications/{JOB}", None),
         ("post", f"/applications/{JOB}/finish", {"outcome": "skipped"}),
         ("post", f"/applications/{JOB}/resume", None),
+        ("delete", f"/applications/{JOB}", None),
     ],
 )
 def test_every_route_is_the_owners_only(client, method, path, body):
@@ -186,3 +187,18 @@ def test_resume_is_null_without_one(client, monkeypatch, storage):
 def test_resume_errors(client, monkeypatch, storage, raises, status):
     step(monkeypatch, "prepare_resume", raises=raises)
     assert client.post(BASE + f"/applications/{JOB}/resume").status_code == status
+
+
+def test_dequeue_answers_204(client, monkeypatch):
+    calls = step(monkeypatch, "dequeue_job", None)
+    res = client.delete(BASE + f"/applications/{JOB}")
+    assert (res.status_code, res.content) == (204, b"")
+    assert calls[0][0][1:] == (APPLICANT, JOB)
+
+
+@pytest.mark.parametrize(
+    ("raises", "status"), [(pipeline.NotFound("none"), 404), (pipeline.WrongStage("applied"), 409)]
+)
+def test_dequeue_errors(client, monkeypatch, raises, status):
+    step(monkeypatch, "dequeue_job", raises=raises)
+    assert client.delete(BASE + f"/applications/{JOB}").status_code == status

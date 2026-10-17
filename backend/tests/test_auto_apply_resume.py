@@ -114,3 +114,23 @@ async def test_a_finished_application_gets_no_resume(student, storage, database)
 
     assert (await client.post(f"{me}/applications/{job}/resume")).status_code == 409
     assert (await client.post(f"{me}/applications/{uuid.uuid4()}/resume")).status_code == 404
+
+
+async def test_a_queued_job_can_leave_the_queue_and_come_back(student, storage, database):
+    client, me = student
+    job = await _queued(client, me, database)
+
+    assert (await client.delete(f"{me}/applications/{job}")).status_code == 204
+    assert (await client.get(f"{me}/applications/{job}")).status_code == 404
+    assert (await client.delete(f"{me}/applications/{job}")).status_code == 404
+    again = await client.post(f"{me}/applications", json={"job_id": job})
+    assert again.json()["stage"] == "queued"
+
+    # An applied one is a record, not a plan: it stays. (Read through the
+    # finish and the refusal: the seeded posting has no experience level,
+    # which the listing a GET answers with needs.)
+    done = await client.post(f"{me}/applications/{job}/finish", json={"outcome": "submitted"})
+    assert done.json()["stage"] == "applied"
+    refused = await client.delete(f"{me}/applications/{job}")
+    assert (refused.status_code, refused.json()["detail"]) == (
+        409, "That application is applied, so it is no longer in the queue.")

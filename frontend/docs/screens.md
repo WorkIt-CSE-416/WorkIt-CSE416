@@ -143,7 +143,10 @@ Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
 the job posting through the API (`POST /applicants/{id}/applications`, the
 server action `queueJob`), and the button turns to the stage it answers
 (Queued; or Skipped, Needs You, Applied for a job that already had an
-application), off, so it is never queued twice. Its first state comes from
+application). Queued is a toggle (`aria-pressed`): a second click takes the
+job out of the queue (`DELETE .../applications/{job_id}`, `dequeueJob`) and
+the button reads Auto Apply again. The other stages are off: they record what
+happened, so the button never undoes them. Its first state comes from
 the server: the job's page reads its one application (`GET
 .../applications/{job_id}`), and /jobs and /search read every application
 once beside the first page (`getApplicationStages`) and hand the stages to
@@ -382,7 +385,10 @@ badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Tailorin
 and Autofilling `advanced` blue, their dot ringing three times; Needs Review
 and Couldn't Finish warning amber, as both wait on the seeker; Applied the
 Applied stage's violet, so it reads the same as on the Applications board.
-The counts above the card use the same dot colours. Narrow, a row's badge and
+The counts above the card use the same dot colours. A queued row has a cross
+beside its badge (`auto-apply/remove-from-queue.tsx`) that takes the job out
+of the queue and refreshes the route; it sits above the row's link, so the
+click never opens the job posting. No other stage has one. Narrow, a row's badge and
 time drop under its text so the role keeps the width. The list is
 `aria-live="polite"`. Tailoring Resume, Autofilling and Needs Review are the
 runner's live states, kept for when the extension reports them; the

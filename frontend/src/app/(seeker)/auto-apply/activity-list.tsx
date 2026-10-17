@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatPlaces } from "../jobs/format";
 import type { ApplicationStage } from "./actions";
 import type { Application } from "./applications";
+import { RemoveFromQueue } from "./remove-from-queue";
 
 /** Where one application stands in the pipeline. The order a job moves
  *  through: queued, tailoring, filling, then review or failed, then applied
@@ -75,7 +76,9 @@ export function activityOf(application: Application): ActivityItem {
  *   applied             brand        the Applied stage
  *
  * A row with an `href` (its job posting is still open) is one link: its
- * role, stretched over the row, as on the Applications list.
+ * role, stretched over the row, as on the Applications list. A queued row
+ * also has a cross beside its badge that takes it out of the queue
+ * (./remove-from-queue.tsx), above the link; no other stage has one.
  *
  * A row in flight rings out from its dot, three times and then rests
  * (`animate-status-ping`, as the detail panel's next step does): a dot that
@@ -184,7 +187,12 @@ export function ActivityList({ items, now }: { items: ActivityItem[]; now: Date 
                     own under the text, lined up with it past the logo (32px
                     and the 12px gap), so the role keeps the row's width. */}
                 <div className="flex w-full shrink-0 items-center gap-2 pl-11 @md/main:w-auto @md/main:flex-col @md/main:items-end @md/main:gap-1.5 @md/main:pl-0">
-                  <Badge tone={status.tone}>{status.label}</Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge tone={status.tone}>{status.label}</Badge>
+                    {item.status === "queued" && (
+                      <RemoveFromQueue jobId={item.id} role={item.role} />
+                    )}
+                  </div>
                   <span className="text-note text-ink-meta">{ago(item.at, now)}</span>
                 </div>
               </li>
