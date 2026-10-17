@@ -144,8 +144,9 @@ export async function getFeedPage(query: string, offset: number): Promise<FeedPa
  * One page of the Recommended view (KAN-231): the jobs these filters keep,
  * scored against the seeker's experience bank and best first, from GET
  * /jobs/recommended/{id}, which takes the same filters as GET /jobs.
- * `query` is feedQuery's. Null when the bank is empty (the API's 404): the
- * page then shows the plain feed under the same filters, below BankPrompt.
+ * `query` is feedQuery's. Null when the bank is empty (the API's 404) or
+ * the account is not an applicant's (403, a company account): the page then
+ * shows the plain feed under the same filters, below BankPrompt.
  */
 export async function getRecommendedPage(query: string, offset: number): Promise<FeedPage | null> {
   await connection();
@@ -155,7 +156,7 @@ export async function getRecommendedPage(query: string, offset: number): Promise
   try {
     const { id, token } = await getApplicantSession();
     const res = await apiGet(`/jobs/recommended/${id}?${params}`, token);
-    if (res.status === 404) return null;
+    if (res.status === 404 || res.status === 403) return null;
     if (!res.ok) return { jobs: null, more: false, error: await extractErrorMessage(res) };
     const jobs = (await res.json()) as JobListing[];
     return { jobs: jobs.slice(0, PAGE_SIZE), more: jobs.length > PAGE_SIZE, error: null };

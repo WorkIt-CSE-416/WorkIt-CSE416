@@ -12,7 +12,8 @@ changing it.
 filters keep, scored against the seeker's experience bank and best first
 (`GET /jobs/recommended/{id}`, which takes the same filters as `GET /jobs`),
 with the match rail showing each score and its highlights. With an empty bank
-it shows the plain feed under the same filters, below the bank prompt. All Jobs
+it shows the plain feed under the same filters, below the bank prompt, and so
+does a company account, which the API refuses (403). All Jobs
 (`?view=all`) is the plain feed. **Saved preferences apply on a fresh visit
 only**: bare /jobs redirects to `?view=recommended` plus the saved filters,
 where the row shows them checked; from then on the URL is the truth, so Clear
