@@ -23,8 +23,8 @@
  *   rather than a string — with "is this remote" split out entirely into
  *   `workStyle`.
  * - `Employment Type`'s old four options conflated `job_type` and
- *   `experience_level` — "Internship" is not a job type in the schema, it is
- *   an experience level. Split into `jobType` and `experienceLevel` below.
+ *   `experience_level`. Split into `jobType` (how it is set up, Internship
+ *   among them since KAN-233) and `experienceLevel` (who it is for) below.
  * - Salary gained a `salaryType` (exact figure vs. range), `currency`, and
  *   `salaryPeriod`, matching the schema's `salary`/`salary_min`/`salary_max` +
  *   `salary_currency` + `salary_period` rather than assuming a USD/year range.
@@ -47,8 +47,8 @@ export const DEPARTMENTS = [
   "People",
 ] as const;
 
-export const JOB_TYPES = ["Full-Time", "Part-Time", "Contract"] as const;
-export const EXPERIENCE_LEVELS = ["Internship", "New Grad", "Experienced"] as const;
+export const JOB_TYPES = ["Full-Time", "Part-Time", "Contract", "Internship"] as const;
+export const EXPERIENCE_LEVELS = ["Student", "New Grad", "Experienced"] as const;
 export const WORK_STYLES = ["Remote", "Hybrid", "On-Site"] as const;
 export const SALARY_TYPES = ["Exact Figure", "Range"] as const;
 export const SALARY_PERIODS = ["Year", "Hour"] as const;

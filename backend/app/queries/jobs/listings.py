@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.jobs import Job_Post
 from app.queries.jobs.filters import LISTED, JobFilters, matching
+from app.queries.jobs.legacy_levels import job_type_now, level_now
 from app.schemas.jobs import JobListing
 
 LISTING_COLUMNS = (
@@ -52,14 +53,15 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
         title=row.title,
         company=row.company_name,
         apply_url=row.apply_url,
-        experience_level=row.experience_level.value,
+        # As the new values (KAN-233), for a row an older import wrote.
+        experience_level=level_now(row.experience_level).value,
         work_style=row.work_style,
         location=row.location_raw,
         location_label=row.location_label,
         posted_at=row.posted_at.isoformat() if row.posted_at else None,
         logo_url=row.company_logo_url,
         description=description,
-        job_type=row.job_type,
+        job_type=job_type_now(row.job_type, row.experience_level),
         min_years_experience=row.min_years_experience,
         start_term=row.start_term,
         sponsorship=row.sponsorship,

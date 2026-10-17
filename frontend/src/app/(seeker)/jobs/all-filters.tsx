@@ -41,6 +41,7 @@ import {
   JOB_TYPE_OPTIONS,
   NO_FILTERS,
   PAY_OPTIONS,
+  payUnits,
   seasonLabel,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
@@ -237,7 +238,7 @@ function PanelBody({
         <Section Icon={CoinIcon} label="Salary">
           <SalaryPicker
             key={`pay-${cleared}`}
-            levels={draft.levels}
+            jobTypes={draft.jobTypes}
             minPay={draft.minPay}
             maxPay={draft.maxPay}
             payPer={draft.payPer}
@@ -674,26 +675,25 @@ function SearchPicker({
 }
 
 /** Pay as a range, in US dollars, by the hour or the year. The presets fill
- *  the minimum for the career stage picked (hourly for internships, yearly for
- *  new grads, both otherwise) and leave the maximum open; the fields take any
+ *  the minimum for the job types picked (payUnits: hourly for internships,
+ *  yearly for the rest, both for a mix or none) and leave the maximum open; the fields take any
  *  figures, either end left empty. A posting matches when its own pay range
  *  overlaps this one, whatever unit it was posted in (backend queries/jobs/filters.py). */
 function SalaryPicker({
-  levels,
+  jobTypes,
   minPay,
   maxPay,
   payPer,
   onChange,
 }: {
-  levels: FeedFilters["levels"];
+  jobTypes: FeedFilters["jobTypes"];
   minPay: number | null;
   maxPay: number | null;
   payPer: PayPer;
   onChange: (minPay: number | null, maxPay: number | null, payPer: PayPer) => void;
 }) {
   const id = useId();
-  const units: PayPer[] =
-    levels.length === 1 ? (levels[0] === "internship" ? ["hour"] : ["year"]) : ["hour", "year"];
+  const units = payUnits(jobTypes);
   const [minText, setMinText] = useState(minPay != null ? String(minPay) : "");
   const [maxText, setMaxText] = useState(maxPay != null ? String(maxPay) : "");
   const parse = (text: string) => {

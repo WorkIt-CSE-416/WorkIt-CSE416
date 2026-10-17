@@ -168,15 +168,15 @@ The rule everywhere: **use the hiring system's own field first, then the
 description's text, and never guess.** A missing fact stays empty rather than
 filled with a likely value. The two exceptions are rules measured on the live
 feed to be nearly always right: work style falls back to "On site", and job type
-to full-time for new-grad roles. An internship's job type is always shown as
-"Internship", whatever its hours.
+to full-time for new-grad roles. An internship's job type is always
+`internship`, for the level `student`, whatever hours it states (KAN-233).
 
 | Fact | Where it comes from | How often a job posting states it |
 |---|---|---|
 | Location | The company job board's location text | Almost always |
 | Work style (remote, hybrid, on-site) | The hiring system's field (Ashby, Lever, Workable, BambooHR, and Workday where the company fills it in); on Greenhouse, a location that says "Remote"; else the description | About 97% |
-| Experience level | The title (internship or new grad) | Always |
-| Job type | Every internship: "Internship". Otherwise the hiring system's field, else the description, else full-time for a new-grad role (all 216 new-grad job postings that state one say full-time) | Always, for internships and new-grad roles |
+| Experience level | The title: `student` for an internship, else `new_grad` (`experienced` exists for the roles the scraper will keep later) | Always |
+| Job type | Every internship: `internship`. Otherwise the hiring system's field, else the description, else full-time for a new-grad role (all 216 new-grad job postings that state one say full-time) | Always, for internships and new-grad roles |
 | Pay | The description ("$40-$50/hr"), never a funding amount | About 60% |
 | Start date | The description ("Summer 2027") | Most internships |
 | Years of experience | The description ("2+ years") | Some new-grad roles |
@@ -231,7 +231,7 @@ table. Scraped ones have no `company_id`.
 | `location_raw` | The location as the company job board wrote it |
 | `location_label` | The card's version, "San Francisco, CA", written by the import (section 5.2) |
 | `work_style` | `remote`, `hybrid`, `onsite`, or empty |
-| `experience_level` | `internship` or `new_grad` |
+| `experience_level` | `student` (every internship) or `new_grad`; `experienced` when the scraper keeps such roles |
 | `job_type` | `full_time`, `part_time`, `contract`, or empty |
 | `salary_min`, `salary_max`, `salary_currency`, `salary_period` | Pay as a range, with its period (hour, week, month, year) |
 | `start_term` | As the job posting says it, like "Summer 2027" |
@@ -328,7 +328,7 @@ applied (stage `applied`; a job only queued for auto apply stays in). Without a 
 |---|---|
 | `GET /jobs` | A page of published job postings, newest first, without descriptions |
 | `GET /jobs/count` | How many job postings match, for "Show 128 Jobs" and /search's count |
-| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both, and an internship counts under job type `internship` only) |
+| `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both) |
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
 | `GET /jobs/{id}/applied` | Applicants only: when they marked it applied, or null |
@@ -343,8 +343,8 @@ with **and**.
 |---|---|---|
 | `location` | `US`, `US-CA` | A place row there, **or a remote job posting that names no place** (it can be done from anywhere) |
 | `work_style` | `remote` | That work style |
-| `experience` | `internship` | That level |
-| `job_type` | `full_time`, `internship` | That type. `internship` is every internship; the other types match only job postings that aren't internships, as the cards show them |
+| `experience` | `student`, `new_grad`, `experienced` | That level |
+| `job_type` | `full_time`, `internship` | That type; every internship is `internship` (KAN-233) |
 | `role` | `software_engineer`, `civil_engineer` | A job posting tagged with that `job_roles` role in `job_role_tags` (section 5.3, KAN-155). Before KAN-155 this read the scraper's `roles` keys |
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
@@ -366,7 +366,7 @@ can't be shown as matching a fact it never stated.
 | Piece | How it works |
 |---|---|
 | **Filters live in the address** | `/jobs?work_style=remote&role=quant`. A reload or a shared link keeps them. A value the API would refuse is dropped, not shown as an error. |
-| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract, as the cards show it (section 3.2). |
+| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract (section 3.2). |
 | **All Filters** | One panel with every option as chips, or a search picker for the long lists: Location, Start Date, and Role, whose specialties ("Mechanical Engineering", "Security & IT") sit indented under their category. Changes are a draft until "Show N Jobs", whose number is counted live. |
 | **Counts beside options** | From `/jobs/facets` and `/jobs/locations`, cached for 5 minutes (they only change when an import runs). |
 | **Applying a filter** | The list dims at once while the narrowed list loads. |

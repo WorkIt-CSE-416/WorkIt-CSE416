@@ -104,15 +104,26 @@ class profile_status(enum.StrEnum):
 
 class job_type(enum.StrEnum):
     '''
-    employment type of a job posting
+    how a job is set up. An internship is one of them (KAN-233), not an
+    experience level: its hours, when a posting states them, aren't kept
     '''
     full_time= "full_time"
     part_time= "part_time"
     contract= "contract"
+    internship= "internship"
 
 class experience_level(enum.StrEnum):
-    internship= "internship"
+    '''
+    who a job is for (KAN-233): a student (every internship), a new grad, or
+    someone with experience
+    '''
+    student= "student"
     new_grad= "new_grad"
+    experienced= "experienced"
+    # LEGACY until migration B moves the rows that still hold them; read
+    # only, through queries/jobs/legacy_levels.py, and never written. PR 2
+    # deletes both members with that module.
+    internship= "internship"
     other= "other"
 
 class work_style(enum.StrEnum):

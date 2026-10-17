@@ -181,7 +181,7 @@ async def test_another_students_match_reads_the_same_cache(student, database, us
 def _listing(description: str) -> JobListing:
     return JobListing(
         id=APPLY_URL, title="Backend Intern", company="Acme", apply_url=APPLY_URL,
-        experience_level="internship", work_style="onsite", location="Austin, TX",
+        experience_level="student", job_type="internship", work_style="onsite", location="Austin, TX",
         posted_at="2026-10-06T02:42:06+00:00", logo_url=None, description=description,
     )
 

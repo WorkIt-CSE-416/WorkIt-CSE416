@@ -13,6 +13,7 @@ const JOB_TYPE_LABEL: Record<JobType, string> = {
   full_time: "Full-Time",
   part_time: "Part-Time",
   contract: "Contract",
+  internship: "Internship",
 };
 
 const WORK_STYLE_LABEL: Record<WorkStyle, string> = {
@@ -22,9 +23,9 @@ const WORK_STYLE_LABEL: Record<WorkStyle, string> = {
 };
 
 const EXPERIENCE_LABEL: Record<ExperienceLevel, string> = {
-  // "Intern", as Jobright prints the level: the job type beside it already
-  // reads "Internship".
-  internship: "Intern",
+  // Every internship's level (KAN-233); its job type beside it reads
+  // "Internship".
+  student: "Student",
   new_grad: "New Grad",
   experienced: "Experienced",
 };

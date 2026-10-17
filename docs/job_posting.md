@@ -33,8 +33,9 @@ directly on `job_postings`.
 
 ## Enumerated types
 ```sql
-CREATE TYPE job_type         AS ENUM ('full_time', 'part_time', 'contract');
-CREATE TYPE experience_level AS ENUM ('internship', 'new_grad', 'experienced');
+-- KAN-233: an internship is a job type; levels are who the job is for.
+CREATE TYPE job_type         AS ENUM ('full_time', 'part_time', 'contract', 'internship');
+CREATE TYPE experience_level AS ENUM ('student', 'new_grad', 'experienced');
 CREATE TYPE work_style       AS ENUM ('remote', 'hybrid', 'onsite');
 CREATE TYPE salary_period    AS ENUM ('year', 'hour', 'week', 'month');
 -- week and month (7c2e9a41d5b3): scraped internships often pay that way, and the

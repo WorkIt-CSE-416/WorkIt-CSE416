@@ -17,6 +17,7 @@ from uuid import UUID
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from app.models import dto
+from app.queries.jobs.legacy_levels import job_type_now, level_now
 
 # Money is >= 0 here so a bad figure is a 422 naming the field, rather than an
 # IntegrityError from the salary_non_negative constraint. allow_inf_nan=False
@@ -38,7 +39,13 @@ class JobPostingCreate(BaseModel):
     description: str = Field(min_length=1)
 
     job_type: dto.job_type = Field(alias="jobType")
-    experience_level: dto.experience_level = Field(alias="experienceLevel")
+    # The current levels only: the enum's LEGACY members are never written
+    # (queries/jobs/legacy_levels.py).
+    experience_level: Literal[
+        dto.experience_level.student,
+        dto.experience_level.new_grad,
+        dto.experience_level.experienced,
+    ] = Field(alias="experienceLevel")
     min_years_experience: int | None = Field(None, alias="minYearsExperience", ge=0, le=50)
     work_style: dto.work_style = Field(alias="workStyle")
 
@@ -152,3 +159,12 @@ class JobPosting(BaseModel):
     closes_at: datetime.datetime | None
     created_at: datetime.datetime
     updated_at: datetime.datetime
+
+    @model_validator(mode="after")
+    def _current_levels(self) -> "JobPosting":
+        # A job saved before KAN-233 reads as the new values: an internship
+        # level is the internship job type for a student, `other` is
+        # experienced (queries/jobs/legacy_levels.py, gone after migration B).
+        self.job_type = job_type_now(self.job_type, self.experience_level)
+        self.experience_level = level_now(self.experience_level)
+        return self

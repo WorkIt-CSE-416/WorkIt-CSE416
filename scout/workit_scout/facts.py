@@ -23,7 +23,8 @@ from workit_scout.schemas import JobFacts, ResumeFacts
 # match on, short enough that twenty of them stay cheap.
 MAX_LINE_CHARS = 300
 
-LEVEL = {"internship": "Internship", "new_grad": "New grad"}
+# Who a job is for (KAN-233); every internship is a student job.
+LEVEL = {"student": "Student (internship)", "new_grad": "New grad", "experienced": "Experienced"}
 WORK_STYLE = {"remote": "Remote", "hybrid": "Hybrid", "onsite": "On site"}
 
 
