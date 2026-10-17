@@ -71,6 +71,11 @@ module docstring has the steps.
   `a70c641b2f99`, merge and deploy, then `uv run alembic upgrade head`. A plain
   `upgrade head` before the deploy takes the live Jobs page and the scheduled
   import down.
+- **KAN-233's contract is two migrations around one deploy.** Apply
+  `aa97037c00e5` (moves the rows), merge and deploy, then `uv run alembic
+  upgrade head` for `188c8c2d7c14` (drops the old levels). `188c8c2d7c14`
+  before the deploy fails every Experience filter and count on the live Jobs
+  page (`app/models/CLAUDE.md`, KAN-233).
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).
@@ -544,7 +549,10 @@ free tier). Render with a Dockerfile is the fallback.
   `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
-  `nomic-embed-text:v1.5`; see `app/services/matching/CLAUDE.md`.
+  `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
+  **Still open:** the deployed API has no Ollama, so until the Vercel project
+  sets `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations
+  score without the semantic part.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.

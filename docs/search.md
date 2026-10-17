@@ -441,19 +441,25 @@ it (`backend/alembic/CLAUDE.md`).
   with GIN indexes answers in milliseconds. Another engine is another service
   to deploy and another copy of the jobs to keep in sync with every import.
 - **The role list as a frontend constant or a shared JSON file.** It would be
-  two copies on two deploys, with no foreign key behind either one.
-  `EXPERTISE_SUGGESTIONS` in the onboarding form is one of these today, and is
-  replaced by `GET /jobs/roles` later.
+  two copies on two deploys, with no foreign key behind either one. The
+  onboarding form's Role picker reads the list from `GET /jobs/facets`.
 - **Resolving with embeddings (nearest role vector).** It may become a
   fallback for titles no alias catches, but it is not needed to start. It
   would put a Gemini call in the import's role step, and its mistakes are
   harder to see than a missing alias.
 
+## Done since
+
+- **Onboarding (KAN-231):** the applicant picks roles from the Role filter's
+  list, stored in `applicant_job_roles (applicant_id → applicant_profiles ON
+  DELETE CASCADE, role_slug → job_roles ON DELETE RESTRICT)`, the planned
+  `profile_job_roles` named for the table it hangs off. Places are
+  `applicant_locations` rows, built like `job_locations`. The rest of the
+  answers are one `applicant_preferences` row, and the Jobs page applies them
+  all as hard filters.
+
 ## Later (not this work)
 
-- **Onboarding:** the applicant picks roles from `GET /jobs/roles`, stored in
-  `profile_job_roles (profile_id → profiles ON DELETE CASCADE, role_slug →
-  job_roles)`. The onboarding form is not touched until then.
 - **Recommendations:** jobs tagged with one of the applicant's picked roles
   rank first, ahead of matching's score. How that combines with the scorer is
   for `matching/CLAUDE.md` to decide.
@@ -470,6 +476,6 @@ it (`backend/alembic/CLAUDE.md`).
 - **Symbols:** the `english` parser reads "C++" and "C#" as "c". Searching for
   them needs a title `ILIKE` fallback, or a different parser for those terms.
 - **Removing a role:** `job_role_tags` refuses it (RESTRICT) while any job is
-  tagged, so a removal deletes the tags first. Once `profile_job_roles`
-  exists, decide what happens to applicants who picked it, or hide the role
-  with an `active` flag instead of deleting it.
+  tagged, so a removal deletes the tags first. `applicant_job_roles` refuses
+  it the same way while any applicant picked the role: decide what happens to
+  them, or hide the role with an `active` flag instead of deleting it.

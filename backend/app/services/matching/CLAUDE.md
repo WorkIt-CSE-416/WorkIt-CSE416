@@ -85,7 +85,10 @@ Nothing in this folder may assume what a software job is. Two consequences:
   provider goes down mid-run, the next scheduled run picks up the rest.
 - **Banks: on demand.** `GET /jobs/recommended/{applicant_id}` embeds the
   bank when `experience_banks.embedding` is NULL, and stores it with
-  `embedded_at`. Every entry, bullet or skill change sets it back to NULL
+  `embedded_at`. That call has a 10-second timeout
+  (`REQUEST_EMBED_SECONDS` in `queries/jobs/recommendations.py`, not the
+  import's 120), so a provider that is down or absent costs seconds and the
+  request scores without the semantic part rather than hanging the function. Every entry, bullet or skill change sets it back to NULL
   (`services/bank.py`), so the bank routes never call Gemini themselves, and
   applicants who never open recommendations never cost a call.
 - **A stale vector is never stored.** The write is conditional on the bank
@@ -114,6 +117,17 @@ the recommender reads changed; the scoring did not.
 - **The expected graduation date** is the latest end month on any Education
   entry, past or expected. It is computed and passed to `eligibility()`,
   which does not compare it yet (Still open).
+
+## Candidates
+
+`GET /jobs/recommended` applies `GET /jobs`' filters (`matching()` in
+`queries/jobs/filters.py`), the hard-filter stage, then `score_jobs`
+(`queries/jobs/recommendations.py`) scores at most `CANDIDATES` (500) of what
+is left: the nearest to the bank by embedding, ordered in SQL with jobs that
+have no vector last, or the newest when the bank has no vector. Python scoring never runs over
+the whole feed. The cost of the cap: a job ranked past it by semantic alone
+can't surface on its skills or title. The Jobs page's Recommended view sends
+the seeker's saved preferences (KAN-231) as those filters.
 
 ## The columns
 

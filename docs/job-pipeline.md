@@ -238,7 +238,7 @@ table. Scraped ones have no `company_id`.
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
-| `embedding`, `fts` | For job matching (KAN-139), not used by the Jobs page yet |
+| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Recommended view ranks by them (KAN-231) |
 | `keywords`, `keywords_hash` | Tailor's keywords (KAN-215): at most 20, each required or preferred, read from the description by the model the first time a student's resume is matched against the job posting, with a hash of the description they came from. A new description makes them stale, and the import clears them |
 
 ### 5.2 `job_locations`, one row per place a job posting is in

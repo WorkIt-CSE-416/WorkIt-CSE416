@@ -158,6 +158,18 @@ class Place:
     country: str
     state: str | None = None
 
+    @classmethod
+    def from_code(cls, code: str) -> "Place":
+        """A filter's place code as a row: "US" a country, "US-CA" a state in
+        it (states.code holds the whole "US-CA"). GET /jobs' location filter
+        and saved preferences both read codes this way."""
+        return cls(code[:2], code if "-" in code else None)
+
+    @property
+    def code(self) -> str:
+        """The place code a filter uses: the state's, else the country's."""
+        return self.state or self.country
+
 
 @dataclass(frozen=True)
 class Resolution:
