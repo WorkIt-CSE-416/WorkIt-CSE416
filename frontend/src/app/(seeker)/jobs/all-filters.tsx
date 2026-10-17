@@ -1,5 +1,6 @@
 "use client";
 
+import { Zap } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   Suspense,
@@ -280,6 +281,19 @@ function PanelBody({
             ))}
           </Section>
         </div>
+
+        {/* Under the sidebar's Auto Apply glyph, as on a job's Auto Apply
+            button. One chip: on, only the job postings that button shows
+            on (Greenhouse for now); off, every job posting. */}
+        <Section Icon={Zap} label="Auto Apply">
+          <Chip
+            pressed={draft.autoApply}
+            count={countOf("auto_apply", "true")}
+            onClick={() => set({ autoApply: !draft.autoApply })}
+          >
+            Auto Apply Supported
+          </Chip>
+        </Section>
       </div>
 
       <div className="border-border-subtle flex items-center justify-between gap-3 border-t px-5 py-3">

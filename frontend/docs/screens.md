@@ -13,7 +13,7 @@ the API's role resolver: roles, a typo corrected, then text and company):
 ?location= (repeated ISO
 codes, US or US-CA), ?work_style=, ?role=, ?experience=, ?job_type= (repeated),
 ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or year),
-?start_term= (seasons) and ?visa=, GET /jobs' own names. jobs/filter-query.ts
+?start_term= (seasons), ?visa= and ?auto_apply=true, GET /jobs' own names. jobs/filter-query.ts
 reads and writes them for the pages and the row alike, dropping any value the
 API would refuse, so a stale link narrows by what was valid instead of erroring.
 
@@ -50,7 +50,12 @@ KAN-172 link's "data_ai/ml" is dropped, not sent.
 
 All Filters opens one panel (jobs/all-filters.tsx) with every facet's options in
 view as chips, or a search picker for the long lists, and no facet popups inside
-it (they landed left or right of their button by the room). Its picks are a
+it (they landed left or right of their button by the room). Its last section,
+Auto Apply (the Zap glyph a job's Auto Apply button wears), has one chip,
+Auto Apply Supported: on, the feed shows only the job postings auto apply can
+fill, the ones with an Auto Apply button (Greenhouse for now, `?auto_apply=true`,
+counted by GET /jobs/facets' `auto_apply`); off, every job posting. Like Visa,
+it is in All Filters only (asked for 2026-10-17). Its picks are a
 draft until "Show N Jobs", which counts the draft as it changes (GET /jobs/count
 via jobs/actions.ts). Applying a filter dims the feed at once (jobs/feed-
 transition.tsx: the row and the feed share one transition), since the narrowed

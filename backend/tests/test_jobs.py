@@ -761,6 +761,23 @@ def test_route_rejects_an_unknown_visa_option(no_database):
     assert TestClient(app).get("/jobs?visa=maybe").status_code == 422
 
 
+@pytest.mark.parametrize(("query", "only"), [("", False), ("?auto_apply=true", True)])
+def test_route_reads_auto_apply_supported(no_database, monkeypatch, query, only):
+    seen = []
+
+    async def fetch(db, limit, filters, offset=0):
+        seen.append(filters)
+        return []
+
+    monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
+    assert TestClient(app).get(f"/jobs{query}").status_code == 200
+    (filters,) = seen
+    assert filters.auto_apply_only is only
+    # Greenhouse's hosts only, the rule auto apply's matches use too.
+    clauses = [_sql(c) for c in matching(filters)]
+    assert any("apply_url ~*" in c for c in clauses) is only
+
+
 @pytest.mark.parametrize(
     ("term", "season"),
     [
@@ -802,6 +819,7 @@ def test_route_lists_facets(no_database, monkeypatch):
             JobRoleOption(value="quantitative_analyst", label="Quantitative Analyst", jobs=41),
         ],
         experience=[], job_type=[], posted_within=[], visa=[], start_term=[],
+        auto_apply=[FacetCount(value="true", jobs=1851)],
     )
 
     async def fetch(db):
@@ -815,6 +833,7 @@ def test_route_lists_facets(no_database, monkeypatch):
         {"value": "software_engineer", "label": "Software Engineer", "jobs": 957},
         {"value": "quantitative_analyst", "label": "Quantitative Analyst", "jobs": 41},
     ]
+    assert body["auto_apply"] == [{"value": "true", "jobs": 1851}]
 
 
 def test_route_lists_every_role(no_database, monkeypatch):

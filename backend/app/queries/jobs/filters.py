@@ -157,8 +157,9 @@ class JobFilters:
     # has an application for, at any stage, is left out, so a new batch
     # never queues a job twice or one they skipped.
     no_application_by: uuid.UUID | None = None
-    # Auto apply's matches too: only job postings on a hiring system the
-    # extension fills (AUTO_APPLY_SUPPORTED).
+    # Only job postings on a hiring system the extension fills
+    # (AUTO_APPLY_SUPPORTED): auto apply's matches always, and the Jobs
+    # page's "Auto Apply Supported" filter (?auto_apply=true).
     auto_apply_only: bool = False
 
 

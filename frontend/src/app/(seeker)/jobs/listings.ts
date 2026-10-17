@@ -177,9 +177,10 @@ export type JobRoleOption = FacetCount & { label: string };
 /** Every filter option's count across the whole feed (not narrowed by the
  *  other filters), and the start terms postings name, in calendar order.
  *  `role` is also the Role filter's options: the roles that tag a job, in
- *  the database's order, with their names. */
+ *  the database's order, with their names. `auto_apply` has one option,
+ *  "true": the job postings auto apply can fill. */
 export type JobFacets = Record<
-  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
+  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term" | "auto_apply",
   FacetCount[]
 > & { role: JobRoleOption[] };
 
@@ -191,6 +192,7 @@ const NO_FACETS: JobFacets = {
   posted_within: [],
   visa: [],
   start_term: [],
+  auto_apply: [],
 };
 
 /** The filter row's counts and Start Date options. Empty when the API can't be

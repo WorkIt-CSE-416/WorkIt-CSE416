@@ -14,7 +14,7 @@ from app.models import dto
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
-from app.queries.jobs.filters import LISTED, unplaced_remote
+from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED, unplaced_remote
 from app.queries.jobs.legacy_levels import JOB_TYPE_NOW, LEVEL_NOW
 from app.schemas.jobs import FacetCount, JobFacets, JobLocationOption, JobRoleOption
 from app.services.start_terms import season_is_over, season_of, season_order
@@ -126,13 +126,15 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
             for d in (1, 7, 30)
         )).where(LISTED)
     )).one()
-    sponsors, not_ruled_out = (await db.execute(
+    sponsors, not_ruled_out, supported = (await db.execute(
         select(
             func.count().filter(Job_Post.sponsorship == dto.visa_sponsorship.sponsors),
             func.count().filter(or_(
                 Job_Post.sponsorship.is_(None),
                 Job_Post.sponsorship == dto.visa_sponsorship.sponsors,
             )),
+            # All Filters' Auto Apply Supported (filters.py).
+            func.count().filter(AUTO_APPLY_SUPPORTED),
         ).where(LISTED)
     )).one()
     return JobFacets(
@@ -148,6 +150,7 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
             FacetCount(value="not_ruled_out", jobs=not_ruled_out),
         ],
         start_term=_season_counts(await by(Job_Post.start_term), now.date()),
+        auto_apply=[FacetCount(value="true", jobs=supported)],
     )
 
 

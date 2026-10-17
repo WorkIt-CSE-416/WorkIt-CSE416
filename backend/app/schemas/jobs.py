@@ -137,6 +137,8 @@ class JobFacets(BaseModel):
     posted_within: list[FacetCount]
     visa: list[FacetCount]
     start_term: list[FacetCount]
+    # One option, "true": the job postings auto apply can fill (?auto_apply=true).
+    auto_apply: list[FacetCount]
 
 
 class Highlight(BaseModel):
