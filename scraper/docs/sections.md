@@ -110,12 +110,16 @@ dates, pay and legal text inside Responsibilities, its pay was a sentence under 
 heading, and the card read "$50/hr - $70/hr" as $50. Each fix below was measured
 on the 2026-10-16 snapshot with the same script, and each number is cumulative.
 
-| | Before | Fix 1 |
-|---|---|---|
-| Pay on the card but no Pay section | 342 of 621 | 285 |
-| Inline labels read as plain text | 406 | 106 (each names its own section) |
-| Legal text inside a kept section | 218 | 202 |
-| Unstable on a second pass | 1 | 0 |
+| | Before | Fix 1 | Fix 2 |
+|---|---|---|---|
+| Pay on the card but no Pay section | 342 of 621 | 285 | 337 |
+| Inline labels read as plain text | 406 | 106 | 114 |
+| Legal text inside a kept section | 218 | 202 | 174 |
+| Missing Responsibilities | 23% | 23% | 20% |
+| Unstable on a second pass | 1 | 0 | 0 |
+
+The inline labels left are each in the section they name, so they are content on
+purpose.
 
 **Fix 1, inline labels.** "Overview: This is the team that…" puts its text under
 the label's section, and the section that was open carries on after that one line
@@ -124,6 +128,24 @@ the duties goes to Details and the duties after it stay. The most common moves a
 Location (72), Compensation (32), Duration (25) and Start Date (24); "- Bonus:
 Experience with Typescript" items in a requirements list go to Preferred, which is
 what those postings mean by it.
+
+**Fix 2, heading variants.** A second heading audit (every short, title-like
+line followed by text that names no section, counted) found plurals and phrasings
+the patterns missed: "USA Hiring Timelines", "Hybrid from one of our office
+locations", "What You Might Do", "YOUR MISSION", "What sets you apart", "Why
+Harvey", "A Note on AI", "Referral Instructions" and more, each now in `SECTIONS`
+with a test. Two rules came with them:
+
+- **A loose word is a whole heading only.** "insurance" or "retirement" anywhere
+  in a line would read "Knowledge of insurance claims" in an insurance posting's
+  requirements as a benefits heading and drop the rest of the list, so only
+  "Health & Wellness", "Paid Time Off" and the like count. "Why <name>" is the
+  company except "Why this role" and "Why join us".
+- **A pay-sounding line inside a benefits list is an item.** Fospha's "Life
+  assurance worth 4x your annual salary" opened a Pay section, and the company
+  pitch after it was kept as pay. That rule is why "pay on the card but no Pay
+  section" rose to 337 at fix 2: real amounts inside "Compensation & Benefits"
+  lists reach Pay through fix 3 instead.
 
 ## What WorkIt keeps (decided 2026-10-17)
 
