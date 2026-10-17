@@ -54,7 +54,8 @@ DESCRIPTION_CHARS = 8000
 #: 11: a Workday posting's requisition number (`Page.requisition`). 12: pay with
 #: cents ("$61,900.00 to $141,000.00") read as the whole range, not its low end.
 #: 13: pay words as whole words ("quota-based" is not "base"), and a sentence's own.
-#: 14: the description keeps only its kept sections, under fixed headings (KAN-229).
+#: 14: the description keeps only its kept sections, under fixed headings, and a pay
+#: range whose low end carries its unit ("$50/hr - $70/hr") reads whole (KAN-229).
 PAGE_VERSION = 14
 
 
