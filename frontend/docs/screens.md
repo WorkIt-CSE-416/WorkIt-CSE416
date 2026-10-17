@@ -146,7 +146,11 @@ server action `queueJob`), and the button turns to the stage it answers
 application). Queued is a toggle (`aria-pressed`): a second click takes the
 job out of the queue (`DELETE .../applications/{job_id}`, `dequeueJob`) and
 the button reads Auto Apply again. The other stages are off: they record what
-happened, so the button never undoes them. Its first state comes from
+happened, so the button never undoes them. A new queueing raises a toast
+(`components/ui/toast.tsx`), "<title> from <company> is queued for Auto
+Apply.", with Undo, which takes the job out again (`dequeueJob`) and turns
+the button back to Auto Apply: Live Activity's cross and Undo, the other way
+round. A failed Undo says so in a toast and leaves the button Queued. Its first state comes from
 the server: the job's page reads its one application (`GET
 .../applications/{job_id}`), and /jobs and /search read every application
 once beside the first page (`getApplicationStages`) and hand the stages to

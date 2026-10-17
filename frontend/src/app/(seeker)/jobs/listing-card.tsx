@@ -103,7 +103,7 @@ export function ListingCard({
 
           <AskScoutButton id={job.id} title={job.title} company={job.company} />
 
-          <AutoApplyButton jobId={job.id} stage={stage} />
+          <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
 
           {/* Leaves for the employer's own posting, so the glyph says so and
               a screen reader hears it. On a card under 384px (a phone) the
