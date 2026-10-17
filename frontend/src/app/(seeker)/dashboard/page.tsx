@@ -59,7 +59,7 @@ const PLACE = {
  *   Activity, two columns wide                    Waiting (a column per verdict)
  *
  * The first number is the one filled tile. Next Up is a reminder: its
- * commitment in violet over one filled pill. The tiles are placed by row and
+ * commitment in violet over one filled button. The tiles are placed by row and
  * column (PLACE above). From @3xl/main they pair up two by two; stacked, the
  * numbers come first, then Next Up.
  *
@@ -122,8 +122,10 @@ export default async function DashboardPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           <RangeSwitch />
-          <ButtonLink href="/jobs" size="lg" shape="pill">
-            <SearchIcon className="size-4" />
+          {/* sm, as every page header's action, and the height of the range
+              switch beside it. It was a large pill until KAN-251. */}
+          <ButtonLink href="/jobs" size="sm">
+            <SearchIcon />
             Find Jobs
           </ButtonLink>
         </div>

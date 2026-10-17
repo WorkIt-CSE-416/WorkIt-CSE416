@@ -1,4 +1,3 @@
-import { FilterChip } from "@/components/ui/filter-chip";
 import { SearchField } from "@/components/ui/search-field";
 import { TextField } from "@/components/ui/text-field";
 
@@ -33,11 +32,6 @@ export default function FormsPage() {
         </Row>
         <Row name="<ResumeUpload>" role="Dropzone and file preview; the caller does the upload">
           <ResumeUploadSpecimen />
-        </Row>
-        <Row name="<FilterChip>" role="Toggle in a filter rail">
-          <FilterChip label="Remote" active />
-          <FilterChip label="Full-Time" />
-          <FilterChip label="Internship" />
         </Row>
       </div>
     </KitPage>

@@ -19,7 +19,6 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ClockIcon,
-  CloseIcon,
   CoinIcon,
   LevelIcon,
   PinIcon,
@@ -30,6 +29,7 @@ import {
 } from "@/components/icons";
 import { Dialog, DialogContent, DialogTitle } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
+import { Chip, RemovableChip } from "@/components/ui/chip";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
@@ -176,20 +176,20 @@ function PanelBody({
         <div className="grid gap-x-6 sm:grid-cols-2">
           <Section Icon={BriefcaseIcon} label="Job Type">
             {JOB_TYPE_OPTIONS.map((o) => (
-              <Chip
+              <Option
                 key={o.value}
                 pressed={draft.jobTypes.includes(o.value)}
                 count={countOf("job_type", o.value)}
                 onClick={() => set({ jobTypes: toggle(draft.jobTypes, o.value, JOB_TYPE_OPTIONS) })}
               >
                 {o.label}
-              </Chip>
+              </Option>
             ))}
           </Section>
 
           <Section Icon={workStyleIcon("onsite")} label="Workplace">
             {WORKPLACE_OPTIONS.map((o) => (
-              <Chip
+              <Option
                 key={o.value}
                 Icon={workStyleIcon(o.value)}
                 pressed={draft.workStyles.includes(o.value)}
@@ -199,29 +199,32 @@ function PanelBody({
                 }
               >
                 {o.label}
-              </Chip>
+              </Option>
             ))}
           </Section>
 
           <Section Icon={LevelIcon} label="Experience">
             {EXPERIENCE_OPTIONS.map((o) => (
-              <Chip
+              <Option
                 key={o.value}
                 pressed={draft.levels.includes(o.value)}
                 count={countOf("experience", o.value)}
                 onClick={() => set({ levels: toggle(draft.levels, o.value, EXPERIENCE_OPTIONS) })}
               >
                 {o.label}
-              </Chip>
+              </Option>
             ))}
           </Section>
 
           <Section Icon={ClockIcon} label="Date Posted">
-            <Chip pressed={draft.postedWithin == null} onClick={() => set({ postedWithin: null })}>
+            <Option
+              pressed={draft.postedWithin == null}
+              onClick={() => set({ postedWithin: null })}
+            >
               Any Time
-            </Chip>
+            </Option>
             {DATE_POSTED_OPTIONS.map((o) => (
-              <Chip
+              <Option
                 key={o.value}
                 pressed={draft.postedWithin === o.value}
                 count={countOf("posted_within", o.value)}
@@ -230,7 +233,7 @@ function PanelBody({
                 }
               >
                 {o.label}
-              </Chip>
+              </Option>
             ))}
           </Section>
         </div>
@@ -269,14 +272,14 @@ function PanelBody({
 
           <Section Icon={VisaIcon} label="Visa">
             {VISA_OPTIONS.map((o) => (
-              <Chip
+              <Option
                 key={o.value}
                 pressed={draft.visa === o.value}
                 count={countOf("visa", o.value)}
                 onClick={() => set({ visa: draft.visa === o.value ? null : o.value })}
               >
                 {o.label}
-              </Chip>
+              </Option>
             ))}
           </Section>
         </div>
@@ -370,9 +373,10 @@ function Section({
   );
 }
 
-/** One option: a pill that is pressed or not, with its job count after the
- *  label. Pressed is the brand's tint, as a picked facet button is in the row. */
-function Chip({
+/** One option: a choice Chip (ui/chip.tsx), pressed or not, with its job
+ *  count after the label. Pressed is the brand's tint, as a picked facet
+ *  button is in the row. Its own pill until KAN-251, at 12px type. */
+function Option({
   pressed,
   count,
   Icon,
@@ -386,25 +390,15 @@ function Chip({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        "text-note focus-visible:ring-brand-ring inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-medium transition-[background-color,border-color,color,scale] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-96",
-        pressed
-          ? "border-brand bg-brand-tint text-brand"
-          : "border-border bg-panel text-ink hover:bg-well",
-      )}
-    >
-      {Icon && <Icon className={cn("size-3.5 shrink-0", !pressed && "text-ink-meta")} />}
+    <Chip pressed={pressed} onClick={onClick}>
+      {Icon && <Icon className={cn("size-3.5", !pressed && "text-ink-meta")} />}
       {children}
       {count != null && (
         <span className={cn("tabular-nums", pressed ? "text-brand/70" : "text-ink-meta")}>
           {count.toLocaleString("en-US")}
         </span>
       )}
-    </button>
+    </Chip>
   );
 }
 
@@ -652,19 +646,10 @@ function SearchPicker({
           {values.map((value) => {
             const name = byValue.get(value)?.label ?? value;
             return (
-              <li
-                key={value}
-                className="border-brand bg-brand-tint text-brand text-note inline-flex h-8 items-center gap-1 rounded-full border pr-1 pl-3 font-medium"
-              >
-                {name}
-                <button
-                  type="button"
-                  aria-label={`Remove ${name}`}
-                  onClick={() => toggle(value)}
-                  className="hover:bg-brand/10 focus-visible:ring-brand-ring flex size-6 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-90"
-                >
-                  <CloseIcon className="size-3.5" />
-                </button>
+              <li key={value}>
+                <RemovableChip removeLabel={`Remove ${name}`} onRemove={() => toggle(value)}>
+                  {name}
+                </RemovableChip>
               </li>
             );
           })}
@@ -714,7 +699,7 @@ function SalaryPicker({
           {PAY_OPTIONS[unit].map((o) => {
             const checked = minPay === o.value && maxPay == null && payPer === unit;
             return (
-              <Chip
+              <Option
                 key={o.value}
                 pressed={checked}
                 onClick={() => {
@@ -724,7 +709,7 @@ function SalaryPicker({
                 }}
               >
                 {o.label}
-              </Chip>
+              </Option>
             );
           })}
         </div>

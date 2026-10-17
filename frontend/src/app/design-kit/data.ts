@@ -39,7 +39,7 @@ export const SECTIONS = {
   buttons: {
     slug: "buttons",
     title: "Buttons",
-    note: "One component, shadcn's variant and size names, WorkIt's measured styling. Each variant has a natural size, so most call sites pass only a variant.",
+    note: "A button acts and is a rounded rectangle; a chip is a choice and is a pill. One Button and one Chip, each with fixed sizes: a call site places them but never changes their height, padding, radius or type size (a lint rule refuses it).",
   },
   forms: {
     slug: "forms",
@@ -464,5 +464,24 @@ export const BUTTON_VARIANTS = [
   { variant: "link", note: "UNMEASURED" },
 ] as const;
 
-export const BUTTON_SIZES = ["inline", "xs", "sm", "default", "lg"] as const;
+/** Each size and when to use it (KAN-251). Pick by role, never by look. */
+export const BUTTON_SIZES = [
+  { size: "inline", note: "A text action inside a line, no box: Clear Filters, Download Anyway" },
+  { size: "xs", note: "UNMEASURED; no screen uses it for a boxed action" },
+  { size: "sm", note: "36px. An action in a card, a row, a page's header or a panel" },
+  { size: "default", note: "42px, a text field's height. An action in a form or a dialog" },
+  { size: "lg", note: "48px. The one main action of a page, or the sign-in card's" },
+] as const;
+
+/** The chip's roles (ui/chip.tsx). A pill is always a chip, never a button. */
+export const CHIP_VARIANTS = [
+  { variant: "choice", pressed: false, note: "A filter or a toggle, off" },
+  { variant: "choice", pressed: true, note: "The same, on (aria-pressed)" },
+  {
+    variant: "suggestion",
+    pressed: undefined,
+    note: "An answer offered: WorkIt's replies, a skill to add",
+  },
+  { variant: "primary", pressed: undefined, note: "The one suggestion most people take: Use This" },
+] as const;
 export const BUTTON_ICON_SIZES = ["icon-xs", "icon-sm", "icon", "icon-lg"] as const;

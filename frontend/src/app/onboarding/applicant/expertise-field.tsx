@@ -2,7 +2,8 @@
 
 import { useState, type KeyboardEvent } from "react";
 
-import { CloseIcon } from "@/components/icons";
+import { PlusIcon } from "@/components/icons";
+import { Chip, RemovableChip } from "@/components/ui/chip";
 import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
@@ -68,20 +69,12 @@ export function ExpertiseField({
   return (
     <div className="flex flex-col gap-2.5">
       {values.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5">
+        <ul className="flex flex-wrap gap-2">
           {values.map((value) => (
             <li key={value}>
-              <span className="bg-brand-tint text-ink-muted text-note inline-flex items-center gap-1 rounded-full py-1 pr-1.5 pl-2.5">
+              <RemovableChip removeLabel={`Remove ${value}`} onRemove={() => remove(value)}>
                 {value}
-                <button
-                  type="button"
-                  aria-label={`Remove ${value}`}
-                  onClick={() => remove(value)}
-                  className="hover:bg-brand/10 focus-visible:ring-brand-ring rounded-full p-0.5 focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  <CloseIcon className="size-3" />
-                </button>
-              </span>
+              </RemovableChip>
             </li>
           ))}
         </ul>
@@ -98,16 +91,14 @@ export function ExpertiseField({
       />
 
       {remaining.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        // Suggestion Chips (ui/chip.tsx), as WorkIt's other offered answers
+        // are; they were 26px pills of their own until KAN-251.
+        <div className="flex flex-wrap gap-2">
           {remaining.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              onClick={() => commit(suggestion)}
-              className="border-border-subtle text-ink-meta hover:border-brand hover:text-brand text-note focus-visible:ring-brand-ring rounded-full border px-2.5 py-1 focus-visible:ring-2 focus-visible:outline-none"
-            >
-              + {suggestion}
-            </button>
+            <Chip key={suggestion} variant="suggestion" onClick={() => commit(suggestion)}>
+              <PlusIcon />
+              {suggestion}
+            </Chip>
           ))}
         </div>
       )}

@@ -108,7 +108,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
               label={`Report ${job.title}`}
               tooltip="Report"
               variant="outline"
-              className="size-8 shrink-0"
+              className="size-9 shrink-0"
             >
               <Flag className="size-4" />
             </IconButton>

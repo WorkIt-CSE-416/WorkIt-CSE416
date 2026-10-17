@@ -132,10 +132,12 @@ export function RangePicker() {
                 <li key={preset.label}>
                   <Button
                     variant="ghost"
-                    size="xs"
+                    size="sm"
                     aria-pressed={isActive}
+                    // A boxed ghost is a rounded rectangle already; the row
+                    // sets only its width and colours (KAN-251).
                     className={cn(
-                      "text-note w-full justify-start rounded-[6px] px-2.5 py-1.5",
+                      "w-full justify-start",
                       isActive
                         ? "bg-selected text-brand-ink"
                         : "text-ink-meta hover:bg-hover hover:text-ink",

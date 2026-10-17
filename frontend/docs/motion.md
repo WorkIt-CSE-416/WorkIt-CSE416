@@ -18,10 +18,11 @@ moving at `/design-kit/motion`. The rules:
   always shorter than the entrance after it, so the old thing is gone before
   the new one asks to be looked at.
 - **Every control answers the pointer.** A button presses to 98%, an icon
-  button or a calendar arrow to 90%, a segment to 96%, and a card that is one
-  whole target lifts 2px onto `--shadow-lift` and settles on the press. The
-  presses live in `ui/button.tsx`, `ui/icon-button.tsx` and
-  `ui/segmented-control.tsx`, so a new control gets one by using them. A
+  button or a calendar arrow to 90%, a segment or a chip to 96%, and a card
+  that is one whole target lifts 2px onto `--shadow-lift` and settles on the
+  press (the welcome page's two choices are such cards). The presses live in
+  `ui/button.tsx`, `ui/icon-button.tsx`, `ui/segmented-control.tsx` and
+  `ui/chip.tsx`, so a new control gets one by using them. A
   colour change eases rather than snaps, an underline fades in
   (`decoration-transparent` to `decoration-current`) rather than appearing,
   and an arrow leans 2px the way its link goes while the link is hovered.

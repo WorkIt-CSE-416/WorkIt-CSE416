@@ -3,12 +3,12 @@
 import { Check } from "lucide-react";
 
 import type { Skill } from "@/lib/bank-actions";
+import { Chip } from "@/components/ui/chip";
 import { FIELD_LABEL } from "@/components/ui/text-field";
-import { cn } from "@/lib/cn";
 
 /**
  * "Skills Used Here" in the entry editor (KAN-216): one toggle per bank
- * skill, pressed when the skill is linked to this entry. It only edits the
+ * skill, a choice Chip pressed when the skill is linked to this entry. It only edits the
  * list of ids; the caller turns the difference into link and unlink calls
  * when the entry saves. A skill with no linked entry is fine (one learned
  * on one's own), so nothing here is required.
@@ -30,23 +30,16 @@ export function SkillLinksField({
         {skills.map((skill) => {
           const linked = value.includes(skill.id);
           return (
-            <button
+            <Chip
               key={skill.id}
-              type="button"
-              aria-pressed={linked}
+              pressed={linked}
               onClick={() =>
                 onChange(linked ? value.filter((v) => v !== skill.id) : [...value, skill.id])
               }
-              className={cn(
-                "text-note focus-visible:ring-brand-ring bg-panel inline-flex min-h-8 items-center gap-1 rounded-full border px-3 py-1 font-medium focus-visible:ring-2 focus-visible:outline-none",
-                linked
-                  ? "border-brand text-brand"
-                  : "border-border-subtle text-ink-meta hover:text-ink",
-              )}
             >
-              {linked && <Check className="size-3" aria-hidden />}
+              {linked && <Check aria-hidden />}
               {skill.name}
-            </button>
+            </Chip>
           );
         })}
       </div>
