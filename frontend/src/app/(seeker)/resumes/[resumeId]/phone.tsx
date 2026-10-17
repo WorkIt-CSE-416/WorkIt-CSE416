@@ -160,7 +160,7 @@ export function PhoneEditor({
         <div className="flex items-center gap-2">
           <Link
             href="/resumes"
-            aria-label="Back to My Resumes"
+            aria-label="Back to Resumes"
             className="text-ink -ml-2 flex size-11 items-center justify-center rounded-full"
           >
             <ArrowLeft className="size-5" />

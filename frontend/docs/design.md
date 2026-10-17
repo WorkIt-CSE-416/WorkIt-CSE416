@@ -57,7 +57,7 @@ strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
 The seeker panel holds only the search (Dashboard, Jobs, Auto Apply,
-Applications, Calendar, Experience Bank, My Resumes, My Profile), with no
+Applications, Calendar, Resumes & Experiences, My Profile), with no
 caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
@@ -177,7 +177,7 @@ shadcn docs composes without edits and still looks like WorkIt.
 Every variant at a size is one box (sm 32px, default 36px, lg 42px), and the
 Button sizes its glyphs to keep it so: an icon with no `size-*` class is
 16px (14px at `inline` and `xs`). Lucide's own 24px stretched about 30 sm
-buttons to 38px, so My Resumes stood taller than Fill With Scout beside it
+buttons to 38px, so the bank's My Resumes button stood taller than Fill With Scout beside it
 (KAN-249); give an icon a size only when it must differ.
 `shadcn/button.tsx` is a re-export pointing back at it, and an ESLint rule keeps
 app code on the canonical path — likewise for `badge` and `card`, which are not

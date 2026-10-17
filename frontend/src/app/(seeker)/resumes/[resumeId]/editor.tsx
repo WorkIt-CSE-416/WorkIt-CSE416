@@ -785,7 +785,7 @@ function LineActions({
       )}
       {!typed(line) && (
         <span className="text-note text-ink-meta">
-          Change this in the <TextLink href="/bank">Experience Bank</TextLink>.
+          Change this in <TextLink href="/bank">Experiences</TextLink>.
         </span>
       )}
     </>

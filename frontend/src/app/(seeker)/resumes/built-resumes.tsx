@@ -22,11 +22,14 @@ import {
   type SentResume,
 } from "@/lib/sent-resume-actions";
 
+import { ResumesHeader } from "./header";
 import { openDownload, SentResumes } from "./sent-resumes";
 
 /**
- * My Resumes' two cards: the base resumes (KAN-207), then Sent (KAN-208).
- * Generate makes a base resume from the whole bank in Jake's Resume, and
+ * The Resumes view of Resumes & Experiences: its header, with Generate
+ * Resume beside the switcher, then two cards, the base resumes (KAN-207)
+ * and Sent (KAN-208). The header is drawn here because Generate changes
+ * this component's list. Generate makes a base resume from the whole bank in Jake's Resume, and
  * each downloads as a PDF or a Word file. A PDF whose text has characters
  * the font cannot draw shows a warning first; the student downloads anyway
  * or fixes the bank. The 5-resume limit is the API's: its refusal shows as
@@ -72,38 +75,50 @@ export function BuiltResumes({
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-4">
-      <Card as="section" aria-labelledby="resumes-base">
-        <div className="flex items-baseline justify-between gap-3">
+    <>
+      {/* The view's primary action sits beside the switcher, as Fill With
+          Scout does on Experiences; it was the Base Resumes card's own. */}
+      <ResumesHeader
+        view="resumes"
+        action={
+          <Button size="sm" onClick={generate} disabled={generating}>
+            <FileText /> {generating ? "Generating…" : "Generate Resume"}
+          </Button>
+        }
+      />
+      <div className="mt-4 flex flex-col gap-4">
+        <Card as="section" aria-labelledby="resumes-base">
           <h2 id="resumes-base" className="text-subtitle text-ink">
             Base Resumes
           </h2>
-          <Button size="sm" onClick={generate} disabled={generating}>
-            <FileText /> {generating ? "Generating…" : "Generate"}
-          </Button>
-        </div>
-        <p className="text-note text-ink-meta mt-1">
-          A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
-          every resume.
-        </p>
-        {error && (
-          <p role="alert" className="text-note text-danger mt-2">
-            {error}
+          <p className="text-note text-ink-meta mt-1">
+            A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
+            every resume.
           </p>
-        )}
-        {/* Says what fills it, as the Sent card does. */}
-        {resumes.length === 0 ? (
-          <p className="text-note text-ink-muted mt-2">Resumes you generate show here.</p>
-        ) : (
-          <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-            {resumes.map((resume) => (
-              <ResumeRow key={resume.id} resume={resume} reload={reload} reloadSent={reloadSent} />
-            ))}
-          </ul>
-        )}
-      </Card>
-      <SentResumes sent={sent} reload={reloadSent} />
-    </div>
+          {error && (
+            <p role="alert" className="text-note text-danger mt-2">
+              {error}
+            </p>
+          )}
+          {/* Says what fills it, as the Sent card does. */}
+          {resumes.length === 0 ? (
+            <p className="text-note text-ink-muted mt-2">Resumes you generate show here.</p>
+          ) : (
+            <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
+              {resumes.map((resume) => (
+                <ResumeRow
+                  key={resume.id}
+                  resume={resume}
+                  reload={reload}
+                  reloadSent={reloadSent}
+                />
+              ))}
+            </ul>
+          )}
+        </Card>
+        <SentResumes sent={sent} reload={reloadSent} />
+      </div>
+    </>
   );
 }
 

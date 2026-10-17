@@ -10,7 +10,7 @@ import { formatDate } from "@/lib/format-date";
 import { deleteSentResume, sentResumeFileUrl, type SentResume } from "@/lib/sent-resume-actions";
 
 /**
- * The Sent card on My Resumes (KAN-208): every resume the student
+ * The Sent card on the Resumes view (KAN-208): every resume the student
  * downloaded, newest first, each the exact file sent. A sent resume
  * downloads again or is deleted, never edited. The list is owned by
  * `BuiltResumes`, whose PDF and Word downloads add to it.

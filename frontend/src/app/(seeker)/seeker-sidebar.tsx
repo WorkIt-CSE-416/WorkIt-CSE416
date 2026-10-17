@@ -6,7 +6,6 @@ import {
   CircleUserRound,
   FileText,
   LayoutDashboard,
-  Library,
   SquareKanban,
   Zap,
 } from "lucide-react";
@@ -46,11 +45,12 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * that. "My" is what separates it from an employer's profile, which the
  * company shell also has to name.
  *
- * Experience Bank sits just above My Profile: both hold what the seeker
- * brings to a hunt, and the bank is where resume facts are kept (KAN-206).
- * My Resumes sits between them, after the bank its resumes are made from
- * (KAN-249). Its glyph is FileText, the one on Generate and on the bank's
- * My Resumes button.
+ * Resumes & Experiences sits just above My Profile: both hold what the
+ * seeker brings to a hunt. It is one row for two views, Resumes (/resumes)
+ * and Experiences (/bank, where resume facts are kept, KAN-206), lit on
+ * either (`also`) and on the resume editor under /resumes. They were two
+ * rows, Experience Bank and My Resumes, until KAN-249 merged them behind one
+ * switcher. Its glyph is FileText, the one on Generate Resume.
  */
 const GROUPS: SidebarNavGroup[] = [
   {
@@ -61,8 +61,7 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/auto-apply", label: "Auto Apply", Icon: Zap },
       { href: "/applications", label: "Applications", Icon: SquareKanban },
       { href: "/calendar", label: "Calendar", Icon: CalendarDays },
-      { href: "/bank", label: "Experience Bank", Icon: Library },
-      { href: "/resumes", label: "My Resumes", Icon: FileText },
+      { href: "/resumes", also: ["/bank"], label: "Resumes & Experiences", Icon: FileText },
       { href: "/profile", label: "My Profile", Icon: CircleUserRound },
     ],
   },

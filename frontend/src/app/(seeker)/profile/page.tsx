@@ -100,7 +100,7 @@ export default function ProfilePage() {
 
   // Resume items. `uploading` is the name of the file in flight, or null.
   const [resumeList, setResumeList] = useState<ResumeItem[]>(cached?.resumes ?? []);
-  // Base resumes on My Resumes count toward the same 5.
+  // Base resumes (the Resumes view) count toward the same 5.
   const [baseCount, setBaseCount] = useState(0);
   const resumeCount = resumeList.length + baseCount;
   const [resumeError, setResumeError] = useState<string | null>(null);
@@ -442,7 +442,7 @@ export default function ProfilePage() {
           </SectionHeading>
           <p className="text-body text-ink-meta mt-1">
             Keep a version for each kind of role you apply to, up to {MAX_RESUMES}, counting the
-            base resumes on My Resumes.
+            base resumes you generate.
           </p>
         </div>
 
@@ -530,17 +530,17 @@ export default function ProfilePage() {
       </Card>
 
       {/* Settings comes last in the DOM, so a phone reaches it after Resume
-          and the Experience Bank. Both tracks have a zero minimum, so a long
+          and Experiences. Both tracks have a zero minimum, so a long
           line truncates instead of widening its column past the screen. */}
       <div className="mt-10 grid grid-cols-1 items-start gap-10 @3xl/main:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section aria-labelledby="bank">
-          <SectionHeading id="bank">Experience Bank</SectionHeading>
+          <SectionHeading id="bank">Experiences</SectionHeading>
           <p className="text-body text-ink-meta mt-1">
-            Your jobs, projects, clubs and skills live in your experience bank, where you edit them.
-            Import an uploaded resume there to fill it in one go.
+            Your jobs, projects, clubs and skills live in Experiences, where you edit them. Import
+            an uploaded resume there to fill it in one go.
           </p>
           <ButtonLink href="/bank" variant="secondary" className="mt-4">
-            Open Experience Bank
+            Open Experiences
           </ButtonLink>
         </section>
 

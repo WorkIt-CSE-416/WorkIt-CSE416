@@ -22,10 +22,10 @@ export async function BankPrompt() {
   return (
     <Card as="section" aria-labelledby="jobs-bank-prompt" className="mt-4">
       <h2 id="jobs-bank-prompt" className="text-subtitle text-ink">
-        {hasUpload ? "Import Your Resume" : "Fill Your Experience Bank"}
+        {hasUpload ? "Import Your Resume" : "Add Your Experiences"}
       </h2>
       <p className="text-body text-ink-meta mt-1">
-        Your experience bank is empty, so WorkIt cannot match roles to you yet.{" "}
+        You have no experiences yet, so WorkIt cannot match roles to you.{" "}
         {hasUpload
           ? "Import your uploaded resume in one click: you check each entry before it is saved."
           : "Upload a resume to import, or tell WorkIt about one thing you did."}

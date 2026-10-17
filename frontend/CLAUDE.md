@@ -212,7 +212,7 @@ are in `docs/auth.md`.
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
   posting page and card, seeker Dashboard, Applications, Calendar, My Profile,
-  the Experience Bank, My Resumes, Scout's panel, company screens), read its
+  Resumes & Experiences, Scout's panel, company screens), read its
   section in `docs/screens.md`.
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read

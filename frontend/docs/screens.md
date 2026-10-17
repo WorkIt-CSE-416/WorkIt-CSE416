@@ -2,7 +2,7 @@
 
 How each screen behaves and why: the Jobs page and its filters, the job
 posting page and card, the seeker Dashboard, Applications, the Calendar, My
-Profile (resumes, photo), the Experience Bank, My Resumes, Scout's panel,
+Profile (resumes, photo), Resumes & Experiences, Scout's panel,
 and the company screens. Read the
 section for a screen before changing it.
 
@@ -17,7 +17,8 @@ codes, US or US-CA), ?work_style=, ?role=, ?experience=, ?job_type= (repeated),
 reads and writes them for the pages and the row alike, dropping any value the
 API would refuse, so a stale link narrows by what was valid instead of erroring.
 
-An empty experience bank gets a card above the /jobs feed
+An empty experience bank gets a card above the /jobs feed, "Add Your
+Experiences" or, with an upload, "Import Your Resume"
 (`jobs/bank-prompt.tsx`, stories 22 and 102): with an uploaded resume,
 "Import Your Resume" opens `/bank?import=1`, which starts the bank page's
 import at once (one click; the student still checks each draft); with
@@ -408,7 +409,7 @@ link into the Calendar from anywhere else goes through `DayLink` in
 uploads on Continue, then goes to intake, onboarding's next step (Experience
 Bank section). The seeker profile (`(seeker)/profile`) supports up to
 5 resumes, uploaded and base resumes together as the API counts them (its
-"n of 5" adds the base resumes on My Resumes; tailored ones are free),
+"n of 5" adds the base resumes; tailored ones are free),
 newest first: picking a file uploads it at once (`uploadResume`);
 the API reads it itself, and the client never sends parsed content. Each
 resume row (`src/components/resume-row.tsx`, shared with the Auto Apply page)
@@ -425,7 +426,7 @@ knows nothing about upload logic or limits.
 **Resume facts are not edited on My Profile** (KAN-211). The parsed-JSON
 editor (a review dialog after upload, and Work Experience and Skills cards
 editing the primary resume's `parsed_json`) is gone, so the experience bank
-is the only place to edit resume facts. In its place an "Experience Bank"
+is the only place to edit resume facts. In its place an "Experiences"
 section links to `/bank`, where import turns an upload into drafts. Do not
 bring back an editor of `parsed_json`: two places to edit the same facts
 drift apart, and the bank is what built resumes read.
@@ -451,19 +452,36 @@ signed URL valid for an hour — so it is fetched per page load, never stored.
 fetches it per render (`(seeker)/account-status.tsx`); the company bar still
 shows initials.
 
-## Experience Bank
+## Resumes & Experiences
 
-`(seeker)/bank` (KAN-206), a sidebar row above My Resumes and My Profile.
-The experience bank is where resume facts are kept, once (`GLOSSARY.md`),
-and the only place they are edited: My Profile keeps the uploads and links
-here.
+One sidebar row, above My Profile, for one page in two views (KAN-249):
+**Resumes** (`/resumes`, the row's link) and **Experiences** (`/bank`, the
+experience bank). Both draw one header (`resumes/header.tsx`), laid out as
+the Dashboard's is: the view's own title and line on the left ("Resumes",
+"Experiences"), and at the top right, level with the foot of that block, a
+segmented switcher between the two views and then the view's primary
+action, Generate Resume or Fill With Scout; on a narrow page the controls
+wrap under the title. A shared "Resumes & Experiences" title on both views
+said less about where the student was. The views stay two routes, so every link to either still
+lands (the Jobs page's `/bank?import=1` included), and the switcher is plain
+links, since each view reads its own data on the server; the sidebar row is
+lit on both (`also` in `app-sidebar.tsx`) and in the editor under
+`/resumes`. They were two pages and two rows, Experience Bank and My
+Resumes, each with a button pointing at the other; a student building a
+resume went back and forth between them. "Experiences" is the name students
+see for the experience bank; the glossary term stays.
 
-**Layout, top to bottom**: the title with My Resumes (a link to `/resumes`)
-and Fill With Scout, then the section cards and Skills. The page is the
-filled-out bank itself. The resumes it makes moved to their own page in
-KAN-249 (My Resumes, below). At the foot of the bank, as settled on
-2026-10-13, a student editing entries scrolled past every section to reach
-a resume, and the page read as two pages in one.
+## Experiences (`/bank`)
+
+`(seeker)/bank` (KAN-206). The experience bank is where resume facts are
+kept, once (`GLOSSARY.md`), and the only place they are edited: My Profile
+keeps the uploads and links here.
+
+**Layout, top to bottom**: the shared header (above) with Fill With Scout,
+then the section cards and Skills. The page is the filled-out bank itself.
+The resumes it makes moved out in KAN-249 (Resumes, below). At the foot of
+the bank, as settled on 2026-10-13, a student editing entries scrolled past
+every section to reach a resume, and the page read as two pages in one.
 
 **Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
 Scout button or Fill With Scout opens it. On this page the panel shows
@@ -683,10 +701,9 @@ in Docs (suggested answers in the chat, not a banner).
   step before the sections. It imports `Intake` from the bank route rather
   than promoting it to `src/components`: intake needs the bank's entry
   editor and sections, which stay with the bank page.
-- **The page title stays "Experience Bank"** on the bank page and the
-  onboarding step (settled for now in KAN-214, per the spec's "kept for
-  now"); the glossary term stays either way. **Still open:** the name
-  students see.
+- **Students see "Experiences"** (KAN-249), on the bank's view and as the
+  onboarding step's title; it was "Experience Bank" from KAN-214 until
+  then. The glossary term stays "experience bank".
 
 ### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
 
@@ -709,14 +726,15 @@ in Docs (suggested answers in the chat, not a banner).
   shows it on the tailored resume, and offers to link it to an entry.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
-## My Resumes
+## Resumes (`/resumes`)
 
-`(seeker)/resumes` (KAN-249), a sidebar row between Experience Bank and My
-Profile: the resumes the bank makes, in two cards, Base Resumes then Sent.
-They sat in one "Your Resumes" card at the foot of the bank page until
-KAN-249; the spec's "the resumes page" now means this page. The editor
-lives under it (`/resumes/[resumeId]`), so the sidebar keeps My Resumes
-marked there and the phone editor's back arrow lands here. The page needs
+`(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
+resumes the bank makes, in two cards, Base Resumes then Sent, under the
+shared header with Generate Resume (it was the Base Resumes card's own
+Generate). They sat in one "Your Resumes" card at the foot of the bank page
+until KAN-249; the spec's "the resumes page" now means this view. The
+editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
+lit there and the phone editor's back arrow lands here. The page needs
 the resume list and the Sent list: if either fails it shows "Your Resumes
 Aren't Loading Right Now" and a Try Again link. Uploaded resumes stay on My
 Profile.
@@ -779,7 +797,7 @@ the profile (the header's fields), and shows the error state if any fails.
   profile. `model.ts`'s codecs say how each field reads and saves; a
   detail line shows its printed label ("GPA: 3.81/4.00"), so the field
   covers the whole line. Dates and the degree line are built from several
-  fields, so they are not typed here: the bar links to the Experience Bank.
+  fields, so they are not typed here: the bar links to Experiences.
   The email is the sign-in address and is not typed either. A contact the
   profile lacks has no line to click, so selecting the header puts "Add
   Phone" and the next missing link in the bar. Picking a wording (bar or
@@ -833,7 +851,7 @@ the profile (the header's fields), and shows the error state if any fails.
   the seeker shell, **sized to `window.visualViewport`** (height, moved down
   by its offset): the iOS keyboard covers the layout viewport instead of
   shrinking it, so a layout sized to the window would put the sheet behind
-  the keyboard. A back arrow goes to the Experience Bank. The first paint
+  the keyboard. A back arrow goes to the Resumes view. The first paint
   is the desktop layout (the server cannot know the width), then a phone
   switches. Manual checks on a real iPhone: the sheet stays above the
   keyboard, and the field does not zoom; and the render time on cellular
