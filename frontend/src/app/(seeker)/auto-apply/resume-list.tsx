@@ -20,12 +20,14 @@ import type { RunState } from "./auto-apply-panel";
  * "Resume List" at the top of the Auto Apply page: every resume the seeker
  * has, since auto apply picks one per application, never one for the whole
  * run (`auto-apply/architecture.md`, "The resume"): the resume tailored to
- * that job posting, else the default base resume, else the primary uploaded
- * resume. The note under the heading says so.
+ * that job posting, else the default resume (POST .../applications/{job_id}/
+ * resume, pick_resume). The note under the heading says so. The default is
+ * one resume, built or uploaded: starring one clears the other, so at most
+ * one row says Default. With resumes but no default, a second note says to
+ * star one, since the run then attaches none.
  *
  * Built resumes come first, in the API's order with the default moved to
- * the top, then uploaded resumes with the primary first, so the list reads in
- * the order the pick tries them. A built resume opens in the resume editor,
+ * the top, then uploaded resumes, the default first. A built resume opens in the resume editor,
  * as on the bank page; it never downloads here, since every download keeps a
  * sent resume (frontend/CLAUDE.md). An uploaded one previews in a new tab
  * (previewResume). Choosing, building and deleting resumes stays on the bank
@@ -112,6 +114,7 @@ export function ResumeList({
   const builtRows = defaultFirst(built ?? []);
   const uploadedRows = defaultFirst((uploaded ?? []).filter((r) => r.storage_path));
   const count = builtRows.length + uploadedRows.length;
+  const hasDefault = builtRows.some((r) => r.is_default) || uploadedRows.some((r) => r.is_default);
   const someFailed = (builtFailed && built === null) || (uploadedFailed && uploaded === null);
 
   const button = RUN_BUTTON[run];
@@ -134,8 +137,7 @@ export function ResumeList({
             </SectionLink>
           </div>
           <p className="text-note text-ink-meta mt-1">
-            Each application gets the resume tailored to its job, else your default resume, else
-            your primary upload.
+            Each application gets the resume tailored to its job, else your default resume.
           </p>
         </div>
 
@@ -172,6 +174,12 @@ export function ResumeList({
                 </p>
               </div>
             </div>
+          )}
+          {count > 0 && !hasDefault && !someFailed && (
+            <p className="text-note text-ink-meta mt-2">
+              None is your default yet, so a job with no tailored resume gets none. Star one in your
+              Experience Bank or on My Profile.
+            </p>
           )}
           {count > 0 && someFailed && (
             <p role="alert" className="text-note text-ink-meta mt-2">
@@ -241,7 +249,7 @@ function UploadedRow({ resume, onPreview }: { resume: ResumeItem; onPreview: () 
         <p className="text-label text-ink truncate">{name}</p>
         <p className="text-note text-ink-meta">{uploadedOn(resume.created_at)}</p>
       </div>
-      {resume.is_default && <Badge>Primary</Badge>}
+      {resume.is_default && <Badge>Default</Badge>}
       <Button
         variant="secondary"
         size="sm"

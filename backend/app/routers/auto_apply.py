@@ -25,6 +25,14 @@ GET  /applicants/{id}/applications/next
 GET  /applicants/{id}/applications/{job_id}
      The application for one job posting, as the list has it. 404 when the
      applicant has none.
+POST /applicants/{id}/applications/{job_id}/resume
+     The resume to attach, before the fill: the one tailored to the job
+     posting, else the default resume, kept as a sent resume linked to the
+     job posting. Answers SentResumeDownload (`url`: a 5-minute download
+     link), or null when there is no such resume. A repeat with unchanged
+     content answers the same sent resume. 404 with no application or a
+     closed job posting, 409 when it isn't queued or needs_you, 503 when the
+     PDF cannot be made, 502 when Storage refuses the file.
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
      needs_you. 404 with no application, 409 when it isn't queued or
@@ -39,7 +47,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply import pipeline
-from app.db import get_session
+from app.db import get_session, get_supabase
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
@@ -54,6 +62,8 @@ from app.schemas.applications import (
 )
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
+from app.schemas.sent_resume import SentResumeDownload
+from app.services.resume_render import TectonicUnavailable
 
 router = APIRouter(prefix="/applicants/{applicant_id}", tags=["auto-apply"])
 
@@ -145,6 +155,29 @@ async def get_application(
         return await pipeline.get_application(db, applicant_id, job_id)
     except pipeline.NotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.post("/applications/{job_id}/resume", response_model=SentResumeDownload | None)
+async def prepare_resume(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> SentResumeDownload | None:
+    """The resume one application attaches, kept as a sent resume, or null."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        return await pipeline.prepare_resume(db, get_supabase().storage, applicant_id, job_id)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except pipeline.WrongStage as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except TectonicUnavailable as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "The resume's PDF could not be made. Try again."
+        ) from exc
+    except pipeline.FileFailed as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
 
 @router.post("/applications/{job_id}/finish", response_model=ApplicationStage)

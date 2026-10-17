@@ -168,7 +168,11 @@ Find files with a directory listing; these are the rules for where code goes.
   `pipeline.py` the steps that call them. Unlike a service, its functions may
   take a session; its routes still go in `app/routers/`. Read
   `../auto-apply/architecture.md`, "The function layers", before adding one:
-  a layer-2 step that skips a layer-1 check lets any caller skip it.
+  a layer-2 step that skips a layer-1 check lets any caller skip it. Its
+  resume step (`prepare_resume`) keeps the file through
+  `services/sent_resumes.py`, never Storage or the renderer itself, so a
+  resume auto apply sends is a sent resume under Apply's rules (the repeat
+  hash, the file kept while a row uses it).
   matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
   Tectonic): `app/services/resume_render/CLAUDE.md`. A service that reads or
   writes rows (the experience bank, `services/bank.py`) takes the caller's

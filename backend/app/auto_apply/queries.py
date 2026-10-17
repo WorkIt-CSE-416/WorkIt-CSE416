@@ -5,19 +5,35 @@ checks no ownership and never commits: the layer-2 step that calls it owns
 the transaction.
 
 The queue is the applicant's job_applications rows: `stage` says where each
-stands (dto.application_stage), `created_at` orders them.
+stands (dto.application_stage), `created_at` orders them. pick_resume reads
+the resume rows, never writes them.
 """
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 
-from sqlalchemy import DateTime, Select, Uuid, cast, func, literal, null, select, update
+from sqlalchemy import (
+    DateTime,
+    Select,
+    Uuid,
+    and_,
+    cast,
+    func,
+    literal,
+    null,
+    select,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
+from app.models.built_resume import Built_Resume
 from app.models.dto import application_stage
 from app.models.jobs import Job_Post
+from app.models.profiles import Applicant_Profile
+from app.models.resume import Resume
 from app.queries.jobs.filters import LISTED
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
 from app.schemas.applications import Application
@@ -151,3 +167,51 @@ async def set_stage(
         )
         .values(**values)
     )
+
+
+@dataclass(frozen=True)
+class ResumeChoice:
+    """The resume an application sends: exactly one of the two ids."""
+
+    built_resume_id: uuid.UUID | None = None
+    uploaded_resume_id: uuid.UUID | None = None
+
+
+async def pick_resume(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> ResumeChoice | None:
+    """
+    The resume to attach to this applicant's application for this job
+    (auto-apply/architecture.md, "Picking the resume"): the one tailored to
+    the job posting, else the default resume, a base or an uploaded one
+    (set_default keeps one pointer, never both). None when there is neither,
+    or the default upload has no stored file: the form is filled without one.
+    """
+    tailored = await db.scalar(
+        select(Built_Resume.id).where(
+            Built_Resume.applicant_id == applicant_id,
+            Built_Resume.job_posting_id == job_id,
+        )
+    )
+    if tailored is not None:
+        return ResumeChoice(built_resume_id=tailored)
+    default = (
+        await db.execute(
+            select(Applicant_Profile.default_built_resume_id, Resume.id.label("uploaded_id"))
+            .outerjoin(
+                Resume,
+                and_(
+                    Resume.id == Applicant_Profile.default_resume_id,
+                    Resume.storage_path.is_not(None),
+                ),
+            )
+            .where(Applicant_Profile.id == applicant_id)
+        )
+    ).first()
+    if default is None:
+        return None
+    if default.default_built_resume_id is not None:
+        return ResumeChoice(built_resume_id=default.default_built_resume_id)
+    if default.uploaded_id is not None:
+        return ResumeChoice(uploaded_resume_id=default.uploaded_id)
+    return None

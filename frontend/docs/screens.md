@@ -335,12 +335,14 @@ into is `auto-apply/architecture.md` at the repo root.
 **"Resume List" is its first section, and it is live**
 (`auto-apply/resume-list.tsx`). It lists every resume the seeker has, not
 one: auto apply picks a resume per application (the one tailored to that job
-posting, else the default base resume, else the primary uploaded resume;
+posting, else the default resume, `POST .../applications/{job_id}/resume`;
 `auto-apply/architecture.md`, "The resume"), and a note under the heading
-says so. Built resumes (`listBuiltResumes()`) come first, then uploaded ones
-(`listResumes()`), each with its default or primary first, so the list reads
-in the order the pick tries them. Each row is My Profile's 52px box
-(`RESUME_ROW`) with Default, Primary, Tailored or Posting closed badges. A
+says so. The default is one resume, built or uploaded (starring one clears
+the other), so one row at most says Default; with resumes but no default, a
+second note says to star one, since the run then attaches none. Built
+resumes (`listBuiltResumes()`) come first, then uploaded ones
+(`listResumes()`), each list's default first. Each row is My Profile's 52px
+box (`RESUME_ROW`) with Default, Tailored or Posting closed badges. A
 built resume's Open goes to the resume editor, as on the bank page; it never
 downloads here, since every download keeps a sent resume. An uploaded one
 previews or downloads (`previewResume`). Manage goes to the bank page's

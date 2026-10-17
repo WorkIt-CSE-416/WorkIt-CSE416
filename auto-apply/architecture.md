@@ -16,8 +16,10 @@ built. It replaces the earlier `design.md`.
 > Apply queues a batch, and Live Activity lists the applications. The
 > resume builder on `main` (KAN-181, 207, 208, 217, 220) built the resume
 > side: base resumes from the experience bank, Tailor, the PDF render and
-> sent resumes. The run reuses them ("The resume"). Next: the resume step's
-> backend, then the extension's file upload. Everything else is a plan. The exact function names are a
+> sent resumes. The run reuses them ("The resume"), and the resume step's
+> backend is built: `pick_resume`, `prepare_resume` and `POST
+> .../applications/{job_id}/resume`. Next: the extension's file upload.
+> Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
 
 ## Terms
@@ -29,9 +31,10 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 | **Hiring system** | Software a company uses to collect applications (an ATS): Greenhouse, Lever, Workday |
 | **Job posting** | One open job, and its `job_postings` row. `apply_url` is the page on the hiring system where the student applies |
 | **Experience bank** | The student's entries, bullets and skills (`backend/app/services/bank.py`). Matching, base resumes and Tailor read it |
-| **Base resume** | A resume built from the experience bank (`built_resumes` with no `job_posting_id`, KAN-207). The **default resume** is the one the student starred (`applicant_profiles.default_built_resume_id`) |
+| **Base resume** | A resume built from the experience bank (`built_resumes` with no `job_posting_id`, KAN-207). Its default is `applicant_profiles.default_built_resume_id` |
 | **Tailored resume** | A built resume for one job posting (`built_resumes.job_posting_id`), made with Tailor (KAN-217). At most one per job posting |
-| **Uploaded resume** | A file the student uploaded (`resumes`). The **primary uploaded resume** is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
+| **Uploaded resume** | A file the student uploaded (`resumes`). Its default is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
+| **Default resume** | The one resume the student starred, a base or an uploaded one: My Profile calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two |
 | **Sent resume** | The exact file a student downloaded or applied with, kept in `sent_resumes` (KAN-208). With `job_posting_id` it records what went to that job posting (Apply, KAN-220) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
@@ -190,7 +193,7 @@ Names are not final.
 | 1 | `fetch_stage(db, applicant_id, job_id)` | The application's stage, or `None`. **Built** |
 | 1 | `fetch_applications(db, applicant_id, stages)` | The applications, newest first, each with its job posting's listing and `open`. **Built** |
 | 1 | `fetch_next_application(db, applicant_id)` | The oldest queued application whose job posting is open, with its `apply_url`. **Built** |
-| 1 | `pick_resume(db, applicant_id, job_id)` | The resume to attach: tailored to this job posting, else the default base resume, else the primary uploaded resume, else `None` ("The resume") |
+| 1 | `pick_resume(db, applicant_id, job_id)` | The resume to attach: tailored to this job posting, else the default resume, else `None` ("The resume"). **Built** |
 | 1 | `sent_resumes.send_built`, `send_uploaded` | Keep the file as a sent resume linked to the job posting; unchanged content returns the last one. **Built** (KAN-208, KAN-220) |
 | 1 | `record_run(db, application_id, report)` | Saves one autofill result |
 | 1 | `set_stage(db, applicant_id, job_id, stage)` | Moves it; `applied` also sets `applied_at`. **Built** |
@@ -198,7 +201,7 @@ Names are not final.
 | 2 | `start_batch(db, account, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
 | 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
 | 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. **Built** |
-| 2 | `prepare_resume(db, storage, account, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting. Returns the sent resume and a 5-minute link, or `None` with no resume. Never tailors |
+| 2 | `prepare_resume(db, storage, applicant_id, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`; none, `NotFound`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting → one commit → the sent resume and a 5-minute link, or `None` with no resume. Never tailors. **Built** |
 | 2 | `finish_application(db, applicant_id, job_id, outcome)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `set_stage`: submitted → `applied`, skipped → `skipped`, failed → `needs_you`. **Built**, without `record_run`, which waits for `autofill_runs` |
 
 ### 5.3 One step through all three layers
@@ -221,9 +224,9 @@ Webapp or AI agent: "start a batch of 10"
 backend/app/auto_apply/
     rules.py        layer 1, pure:  pick_batch
     queries.py      layer 1, DB:    queue_applications, fetch_stage, fetch_application, fetch_applications,
-                                    fetch_next_application, set_stage; later pick_resume, record_run
+                                    fetch_next_application, set_stage, pick_resume; later record_run
     pipeline.py     layer 2:        get_matches, start_batch, queue_job, list_applications,
-                                    get_application, next_application, finish_application; later prepare_resume
+                                    get_application, next_application, finish_application, prepare_resume
 backend/app/routers/auto_apply.py   layer 3: the routes. Every router lives in app/routers/
 the MCP server                      layer 3, later: its own small program that calls the routes
 ```
@@ -498,17 +501,19 @@ made one with Tailor.
 
 1. **The resume tailored to this job posting.** The student made it for this
    job posting and reviewed every change.
-2. **The default base resume.** It is built from the experience bank, the
-   same facts matching scored.
-3. **The primary uploaded resume.** A student who never built a resume still
-   applies with their own file.
-4. **None.** The run fills the form without a resume, and the overlay says
+2. **The default resume.** The one the student starred, a base resume or an
+   uploaded file. There is only one: starring a resume clears the other
+   kind's pointer. An uploaded default with no stored file counts as none.
+3. **None.** The run fills the form without a resume, and the overlay says
    "No resume attached", so the student can attach one by hand. The
    application does not go to `needs_you`: the rest of the form is filled.
 
 This is Apply's order (11.1), so a job posting gets the same resume from
-the Apply button and from auto apply. The run never generates a base resume:
-that is slow, and it counts toward the 5-resume limit.
+the Apply button and from auto apply. Apply then falls back to the first
+resume in its list; the run does not guess, so a student with resumes but no
+default gets none, and the Resume List says to star one. The run never
+generates a base resume: that is slow, and it counts toward the 5-resume
+limit.
 
 ### 11.4 Keeping the file
 
@@ -616,7 +621,7 @@ function. Every route checks that the caller owns the applicant, like
 | GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. **Built** |
 | GET | `/applicants/{id}/applications/{job_id}` | `get_application` | One application, as the list has it; 404 without one. Registered after `/next`. **Built** |
 | POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
-| POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 409 when not queued or needs_you |
+| POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 404 with no application or a closed job posting, 409 when not queued or needs_you, 503 when the PDF cannot be made, 502 when Storage refuses the file. **Built** |
 
 An application is named by its job id: the row's key is `(applicant_id,
 job_id)`, and the applicant is in the path. `/jobs/recommended/{id}` stays
@@ -762,7 +767,7 @@ gap.
 | How the queue fills | **WorkIt queues a batch of matches** at Start | The student picks each one: slower. Fully automatic: ruled out by the row above |
 | Where tailoring runs | **Never in the run.** The student tailors with Tailor, one job posting at a time | In the run, per application: 2 Tailor runs a day, and nobody reviews the changes. A scheduled batch: tailors matches nobody looks at |
 | What the Auto Apply page shows | **Resume List**: every resume the student has, with the pick rule under it | One primary resume: no application is sure to get it, and matching does not read it |
-| Which resume the run attaches | **Tailored, else the default, else the primary uploaded resume** (Apply's order), kept as a sent resume | A new `job_applications.resume_id`: a second record of what the sent resume already says |
+| Which resume the run attaches | **Tailored, else the default resume** (Apply's order), kept as a sent resume | A new `job_applications.resume_id`: a second record of what the sent resume already says |
 | Where the run happens | **The student's Chrome** ("Where the run happens") | Our servers |
 | How the code is shaped | **Three layers**, so MCP is a thin adapter | One function per screen: an agent could not reuse it |
 | What we charge for | **The auto-apply action**, for every caller | Charging MCP access only: users would call the routes directly |
@@ -792,8 +797,9 @@ Each step ships alone and is about one ticket.
    `routers/auto_apply.py`, and the webapp on them: the Auto Apply buttons,
    Start Auto Apply and Live Activity (`frontend/docs/screens.md`, Auto
    Apply). The browser queue and Live Activity's fixture are gone.
-3. **The resume (backend)**: `pick_resume`, `prepare_resume` and the
-   `resume` route, with tests. No migration, and no extension needed.
+3. **The resume (backend)** (done): `pick_resume`, `prepare_resume` and the
+   `resume` route, with tests (`backend/tests/test_auto_apply_resume.py` on
+   real Postgres). No migration.
 4. **Extension: file upload**, tested on Greenhouse, Lever and Ashby. They
    host 87% of the job postings in the feed snapshot (`backend/data/feed.json`).
 5. **Extension: the runner**, the port, host permissions, and the overlay's

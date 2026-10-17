@@ -5,12 +5,15 @@ Each is safe to call alone: it checks the stage it needs and owns its
 transaction. None checks ownership: the layer-3 route that calls it does.
 """
 
+import asyncio
 import dataclasses
+import logging
 import sys
 import uuid
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply.queries import (
@@ -18,6 +21,7 @@ from app.auto_apply.queries import (
     fetch_applications,
     fetch_next_application,
     fetch_stage,
+    pick_resume,
     queue_applications,
     set_stage,
 )
@@ -28,6 +32,12 @@ from app.routers.jobs import fetch_recommended
 from app.schemas.applications import Application
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
+from app.schemas.sent_resume import SentResumeDownload, SentResumeResponse
+from app.services import sent_resumes
+from app.services.bank import NotFound as ResumeNotFound
+from app.services.resume_render import TectonicUnavailable
+
+logger = logging.getLogger(__name__)
 
 # The lowest score auto apply takes ("Match (built)"). It moves with the
 # matching weights: retune it when they change.
@@ -53,6 +63,11 @@ class NotFound(Exception):
 class WrongStage(Exception):
     """The application is not in the stage this step needs. The message names
     the step to call first. The route answers 409."""
+
+
+class FileFailed(Exception):
+    """Storage refused the resume's file or its link. Nothing was kept. The
+    route answers 502."""
 
 
 async def _matches(
@@ -184,3 +199,78 @@ async def finish_application(
     await set_stage(db, applicant_id, job_id, new)
     await db.commit()
     return new
+
+
+async def prepare_resume(
+    db: AsyncSession, storage: Any, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> SentResumeDownload | None:
+    """
+    The resume one application sends, ready to attach: pick_resume's choice
+    (the resume tailored to the job posting, else the default) kept as a sent
+    resume linked to the job posting, as Apply keeps one, with a link that
+    downloads it for 5 minutes. None when the student has no such resume:
+    the form is filled without one. Never tailors.
+
+    Only a queued or needs_you application gets one: raises NotFound when
+    there is none or its job posting closed, WrongStage when it is skipped or
+    applied. A repeat with unchanged content returns the same sent resume, so
+    a run that starts again keeps nothing new. Raises TectonicUnavailable
+    when the PDF cannot be made, FileFailed when Storage refuses it.
+    """
+    stage = await fetch_stage(db, applicant_id, job_id)
+    if stage is None:
+        raise NotFound("No application for that job. Queue it first.")
+    if stage not in FINISHABLE:
+        raise WrongStage(
+            f"That application is {stage}, so it gets no resume. Queue a new job instead."
+        )
+    choice = await pick_resume(db, applicant_id, job_id)
+    if choice is None:
+        return None
+
+    try:
+        if choice.built_resume_id is not None:
+            sent = await sent_resumes.send_built(
+                db, storage, applicant_id, choice.built_resume_id, job_posting_id=job_id
+            )
+        else:
+            sent = await sent_resumes.send_uploaded(
+                db, applicant_id, choice.uploaded_resume_id, job_posting_id=job_id
+            )
+    except ResumeNotFound as exc:
+        # The job posting closed (or its resume went) after the pick.
+        raise NotFound("That job isn't open any more.") from exc
+    except (SQLAlchemyError, TectonicUnavailable):
+        raise
+    except Exception as exc:
+        logger.exception("Storage upload of an auto apply resume failed")
+        raise FileFailed("The resume could not be saved. Try again.") from exc
+
+    if sent.created:
+        try:
+            await db.commit()
+        except SQLAlchemyError:
+            await db.rollback()
+            # An uploaded resume's file is not this row's to remove.
+            if sent.row.uploaded_resume_id is None:
+                await _remove_file(storage, sent.row.storage_path)
+            raise
+
+    try:
+        url = await sent_resumes.file_url(storage, sent.row)
+    except Exception as exc:
+        logger.exception("Failed to sign an auto apply resume's URL")
+        raise FileFailed("The resume's link could not be made. Try again.") from exc
+    return SentResumeDownload(
+        **SentResumeResponse.from_row(sent.row).model_dump(),
+        url=url,
+        missing_characters=list(sent.missing_characters),
+    )
+
+
+async def _remove_file(storage: Any, path: str) -> None:
+    # After a failed commit: a failure here orphans a file but loses no record.
+    try:
+        await asyncio.to_thread(storage.from_(sent_resumes.BUCKET).remove, [path])
+    except Exception:
+        logger.exception("Failed to remove an auto apply resume file", extra={"storage_path": path})

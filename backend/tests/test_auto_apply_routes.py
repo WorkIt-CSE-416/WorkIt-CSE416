@@ -4,6 +4,8 @@ calls one layer-2 step and maps its errors. The steps are faked: no DB.
 """
 
 import uuid
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,6 +17,8 @@ from app.main import app
 from app.models.dto import application_stage
 from app.routers.jobs import EmptyBank
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.schemas.sent_resume import SentResumeDownload
+from app.services.resume_render import TectonicUnavailable
 from tests.test_jobs import no_database  # noqa: F401
 
 APPLICANT = uuid.UUID("0b8e8f3c-6a0e-4f43-9d55-6c1d7b0d9a11")
@@ -64,6 +68,7 @@ def step(monkeypatch, name, result=None, raises=None):
         ("get", "/applications/next", None),
         ("get", f"/applications/{JOB}", None),
         ("post", f"/applications/{JOB}/finish", {"outcome": "skipped"}),
+        ("post", f"/applications/{JOB}/resume", None),
     ],
 )
 def test_every_route_is_the_owners_only(client, method, path, body):
@@ -140,3 +145,44 @@ def test_finish_a_finished_one_is_409(client, monkeypatch):
 def test_finish_reads_only_known_outcomes(client):
     res = client.post(BASE + f"/applications/{JOB}/finish", json={"outcome": "sent"})
     assert res.status_code == 422
+
+
+@pytest.fixture
+def storage(monkeypatch):
+    """The Supabase client the resume route hands to its step."""
+    client = SimpleNamespace(storage=object())
+    monkeypatch.setattr("app.routers.auto_apply.get_supabase", lambda: client)
+    return client.storage
+
+
+def test_resume_answers_the_kept_resume_and_its_link(client, monkeypatch, storage):
+    sent = SentResumeDownload(
+        id=uuid.uuid4(), name="General SWE", built_resume_id=uuid.uuid4(), uploaded_resume_id=None,
+        job_posting_id=JOB, created_at=datetime.now(UTC), format="pdf",
+        url="https://storage.test/x.pdf", missing_characters=[],
+    )
+    calls = step(monkeypatch, "prepare_resume", sent)
+    res = client.post(BASE + f"/applications/{JOB}/resume")
+    assert res.status_code == 200
+    assert (res.json()["url"], res.json()["job_posting_id"]) == (sent.url, str(JOB))
+    assert calls[0][0][1:] == (storage, APPLICANT, JOB)
+
+
+def test_resume_is_null_without_one(client, monkeypatch, storage):
+    step(monkeypatch, "prepare_resume", None)
+    res = client.post(BASE + f"/applications/{JOB}/resume")
+    assert (res.status_code, res.json()) == (200, None)
+
+
+@pytest.mark.parametrize(
+    ("raises", "status"),
+    [
+        (pipeline.NotFound("none"), 404),
+        (pipeline.WrongStage("applied"), 409),
+        (TectonicUnavailable("no TeX"), 503),
+        (pipeline.FileFailed("bucket"), 502),
+    ],
+)
+def test_resume_errors(client, monkeypatch, storage, raises, status):
+    step(monkeypatch, "prepare_resume", raises=raises)
+    assert client.post(BASE + f"/applications/{JOB}/resume").status_code == status
