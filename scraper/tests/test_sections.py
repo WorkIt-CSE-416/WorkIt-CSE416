@@ -351,6 +351,8 @@ class TestHeadingVariants:
         ("line", "key"),
         [
             ("USA Hiring Timelines", "logistics"),
+            # TensorWave's: its dates and hours, which a role pattern filed as Overview.
+            ("Internship Information", "logistics"),
             ("Hybrid from one of our office locations:", "logistics"),
             ("What You Might Do", "responsibilities"),
             ("What you might work on:", "responsibilities"),
