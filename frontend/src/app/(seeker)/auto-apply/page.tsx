@@ -28,7 +28,8 @@ export const metadata: Metadata = {
  *                          queues a batch of matches
  *                          (./resume-list.tsx, ./auto-apply-panel.tsx)
  *   Live Activity          the seeker's applications from the API
- *                          (./applications.ts), newest first: each job
+ *                          (./applications.ts), in queue order (oldest
+ *                          first, the API's list reversed): each job
  *                          posting queued with a batch or a job's Auto Apply
  *                          button, and where it stands (./activity-list.tsx;
  *                          ./live-activity.tsx adds the one open in the
@@ -67,7 +68,10 @@ export default async function AutoApplyPage() {
             Start Auto Apply to queue your best matches, or click Auto Apply on any job.
           </EmptyState>
         ) : (
-          <LiveActivity items={applications.map(activityOf)} now={now} />
+          // Queue order, oldest first: the API answers newest first, but the
+          // job the extension opens next belongs at the top and a newly
+          // queued one joins at the bottom.
+          <LiveActivity items={[...applications].reverse().map(activityOf)} now={now} />
         )}
       </AutoApplyPanel>
     </div>

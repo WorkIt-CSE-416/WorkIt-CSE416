@@ -64,7 +64,8 @@ export function activityOf(application: Application): ActivityItem {
 
 /**
  * Live Activity's feed: one row per job posting the pipeline is working on,
- * newest change first, in one white card with rules between rows, the frame
+ * in the order the page gives (queue order: the oldest queued first, the
+ * newest at the bottom), in one white card with rules between rows, the frame
  * the Applications list and the company Dashboard's Recent Applicants use.
  *
  * COLOURS FOLLOW THE BADGE TONES' KINDS (ui/badge.tsx), and Applied keeps its

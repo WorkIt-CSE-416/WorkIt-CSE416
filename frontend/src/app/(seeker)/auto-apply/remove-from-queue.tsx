@@ -14,7 +14,8 @@ import { dequeueJob, queueJob } from "./actions";
  * (dequeueJob), refreshes the route so the server draws the list without
  * it, and raises a toast with Undo (components/ui/toast.tsx). Undo queues
  * the job again (queueJob), so it comes back as a new queued row, at the
- * top: the queue orders by when a job was queued, and this is a new queueing.
+ * bottom: the queue orders by when a job was queued, and this is a new
+ * queueing.
  *
  * Only queued rows have a cross: a later stage is a record, not a plan. It
  * sits above the row's stretched link (`relative z-10`), so a click removes

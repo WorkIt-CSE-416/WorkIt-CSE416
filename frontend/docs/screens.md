@@ -415,8 +415,11 @@ row's (a grid), so nothing shifts between labels; on a phone it drops under
 the list at full width.
 
 **Live Activity is live: the seeker's applications from the API**
-(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), newest
-first, drawn on the server against the request's clock. Each stored stage is
+(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), in
+queue order: the oldest queued first, the job the extension opens next, and
+a newly queued one at the bottom (asked for 2026-10-17). The API answers
+newest first and the page reverses it, so the API's order stays as other
+callers know it. Drawn on the server against the request's clock. Each stored stage is
 a row (`activityOf` in `auto-apply/activity-list.tsx`): queued Queued,
 needs_you Couldn't Finish, skipped Skipped, applied Applied. The queued
 job open in the extension's window reads Working in Browser instead
@@ -440,8 +443,8 @@ job's Auto Apply and Start each take one click at a time (a ref set on
 the click): `disabled={pending}` lands a render late, so a fast double
 click once sent two removals and showed the removal toast twice. A toast then says
 "<role> from <company> is removed from Auto Apply." with Undo, which queues
-the job again (`queueJob`): it comes back as a new queued row at the top,
-since the queue orders by when a job was queued. A failure, of either the
+the job again (`queueJob`): it comes back as a new queued row at the
+bottom, since the queue orders by when a job was queued. A failure, of either the
 removal or the Undo, is a toast too. Narrow, a row's badge and
 time drop under its text so the role keeps the width. The list is
 `aria-live="polite"`. Tailoring Resume, Autofilling and Needs Review are the
