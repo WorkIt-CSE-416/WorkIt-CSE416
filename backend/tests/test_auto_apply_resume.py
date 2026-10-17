@@ -35,8 +35,13 @@ def storage(monkeypatch):
     return fake
 
 
+# Auto apply queues only job postings on a hiring system it fills
+# (app/auto_apply/hosts.py): Greenhouse for now.
+GREENHOUSE = "https://job-boards.greenhouse.io/acme/jobs/1"
+
+
 async def _queued(client, me, database) -> str:
-    posting = await _seed_posting(database)
+    posting = await _seed_posting(database, GREENHOUSE)
     res = await client.post(f"{me}/applications", json={"job_id": posting})
     assert (res.status_code, res.json()["stage"]) == (200, "queued"), res.text
     return posting
@@ -134,3 +139,17 @@ async def test_a_queued_job_can_leave_the_queue_and_come_back(student, storage, 
     refused = await client.delete(f"{me}/applications/{job}")
     assert (refused.status_code, refused.json()["detail"]) == (
         409, "That application is applied, so it is no longer in the queue.")
+
+
+@pytest.mark.parametrize("url", [
+    "https://jobs.lever.co/acme/1",
+    # A company's own careers page embedding Greenhouse: not its form.
+    "https://stripe.com/jobs/search?gh_jid=1",
+])
+async def test_a_job_auto_apply_cannot_fill_is_never_queued(student, database, url):
+    client, me = student
+    posting = await _seed_posting(database, url)
+
+    res = await client.post(f"{me}/applications", json={"job_id": posting})
+    assert res.status_code == 404, res.text
+    assert (await client.get(f"{me}/applications/{posting}")).status_code == 404

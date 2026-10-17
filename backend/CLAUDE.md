@@ -96,6 +96,12 @@ module docstring has the steps.
   and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
+- **An auto apply test seeds a Greenhouse `apply_url`** (`_seed_posting(database,
+  url)` in `tests/test_sent_resumes.py`): the queue refuses every other host
+  (`app/auto_apply/hosts.py`) with a 404. The Greenhouse-only rule broke six
+  database tests that seeded `example.com`; they skip without the local
+  container, so only CI caught it (2026-10-17). Run them with the container
+  up before pushing a change to auto apply's queue.
 - **The import's database half is barely tested.** Only its clearing of
   cached keywords is (`tests/test_keyword_match.py`, which runs
   `import_feed` on `get_engine()`, the pattern for more); the rest can get
