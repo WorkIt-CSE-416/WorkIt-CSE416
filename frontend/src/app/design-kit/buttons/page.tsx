@@ -61,7 +61,7 @@ export default function ButtonsPage() {
 
       <Group
         title="Chips"
-        note="One size: 36px, 13px type, a 14px glyph. A chip's colour comes from its role; only a stage filter paints its own pressed tint, since a stage owns its colour."
+        note="Two sizes: default 36px with 13px type, and lg 42px with 16px type for a screen whose question the chips are (onboarding). A 14px glyph in both. A chip's colour comes from its role; only a stage filter paints its own pressed tint, since a stage owns its colour."
       >
         {CHIP_VARIANTS.map(({ variant, pressed, note }) => (
           <Row
@@ -76,6 +76,12 @@ export default function ButtonsPage() {
             </Chip>
           </Row>
         ))}
+        <Row name='<Chip size="lg">' role="42px, 16px type: onboarding's answers">
+          <Chip size="lg" pressed>
+            <CheckIcon /> Remote
+          </Chip>
+          <Chip size="lg">Hybrid</Chip>
+        </Row>
         <Row name="<ChipLink pressed>" role="A filter kept in the URL; says it is on in words">
           <ChipLink href="/design-kit/buttons" pressed>
             Interviewing

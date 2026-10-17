@@ -194,8 +194,10 @@ sign-in card. The three were 32, 36 and 42px until KAN-251 and read as
 thin; the chip, the small segmented control and the icon buttons beside sm
 buttons (Save, Not Interested, Report, the Calendar's arrows) went to 36px
 with them.
-There is exactly one Chip, `ui/chip.tsx`, at one size (36px, an sm button's
-height, so they line up in a row): `choice` with `pressed` for filters and
+There is exactly one Chip, `ui/chip.tsx`, at two sizes: `default` (36px, an
+sm button's height, so they line up in a row) and `lg` (42px, a default
+button's and a text field's height, 16px type) for a screen where the chips
+are the question itself, onboarding's filter steps. Its roles: `choice` with `pressed` for filters and
 toggles, `suggestion` for an offered answer, `primary` for the one most
 people take, and `ChipLink` for a filter kept in the URL. **A call site
 never changes a button's or chip's box**: a `no-restricted-syntax` rule in
