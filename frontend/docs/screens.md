@@ -332,30 +332,41 @@ sits between Jobs and Applications, in the order the work goes, and its page
 uses the same heading block as every seeker screen. The pipeline it grows
 into is `auto-apply/architecture.md` at the repo root.
 
-**"Applying with Resume:" is its first section, and it is live**
-(`auto-apply/applying-resume.tsx`). It shows the seeker's primary resume
-(`is_default`) in My Profile's own row (`src/components/resume-row.tsx`) with
-only the eye, and a Change link to My Profile, where resumes are chosen and
-deleted. Only the primary, never My Profile's fallback to the newest: the
-matching reads the primary alone, so a seeker without one is asked to star
-one. It is a client component reading `listResumes()` like My Profile, and
-starts from My Profile's cache when the shell has one, without writing to it.
+**"Resume List" is its first section, and it is live**
+(`auto-apply/resume-list.tsx`). It lists every resume the seeker has, not
+one: auto apply picks a resume per application (the one tailored to that job
+posting, else the default base resume, else the primary uploaded resume;
+`auto-apply/architecture.md`, "The resume"), and a note under the heading
+says so. Built resumes (`listBuiltResumes()`) come first, then uploaded ones
+(`listResumes()`), each with its default or primary first, so the list reads
+in the order the pick tries them. Each row is My Profile's 52px box
+(`RESUME_ROW`) with Default, Primary, Tailored or Posting closed badges. A
+built resume's Open goes to the resume editor, as on the bank page; it never
+downloads here, since every download keeps a sent resume. An uploaded one
+previews or downloads (`previewResume`). Manage goes to the bank page's
+Your Resumes, and the empty state names the bank and My Profile. Uploaded
+resumes start from My Profile's cache when the shell has one, without
+writing to it; a list that fails keeps what loaded and says the rest didn't.
+It replaced "Applying with Resume", which showed the primary uploaded resume
+alone because matching read it then; matching reads the experience bank now
+(KAN-212).
 
 **The button beside the resume starts and pauses auto apply.** Start Auto
 Apply queues a batch of the seeker's best matches through the API (`POST
 .../auto-apply/batches`, the server action `startBatch`: 10, leaving out
 every job they already have an application for), says how many under the
-row, and refreshes the route so Live Activity lists them; an error (no
-primary resume) shows there in red instead. Then Pause and Resume, which
+row, and refreshes the route so Live Activity lists them; an error (an empty
+experience bank) shows there in red instead. Then Pause and Resume, which
 only move the state: nothing fills a form until the extension's runner
-exists. It is off until there is a primary resume, and while a batch is
+exists. It is off until the list has a resume, and while a batch is
 queueing. The state (`idle`, `running`, `paused`) is held in
 `auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
 Started, Live (a green dot that rings out) or Paused; a return visit starts
 idle, so Start queues another batch. The brand fill marks
 the action that starts work, so Pause is the bordered neutral. The button is
-52px tall and 208px wide beside the row, so the row does not shift between
-labels; on a phone it drops under the row at full width.
+52px tall and 208px wide beside the list, its top level with the first
+row's (a grid), so nothing shifts between labels; on a phone it drops under
+the list at full width.
 
 **Live Activity is live: the seeker's applications from the API**
 (`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), newest

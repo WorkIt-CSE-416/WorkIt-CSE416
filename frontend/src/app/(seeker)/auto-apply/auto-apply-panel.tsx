@@ -7,7 +7,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 import { startBatch } from "./actions";
-import { ApplyingResume } from "./applying-resume";
+import { ResumeList } from "./resume-list";
 
 /** Whether auto apply is on: never started, running, or paused after a run. */
 export type RunState = "idle" | "running" | "paused";
@@ -20,7 +20,7 @@ const RUN_LABEL: Record<RunState, string> = {
 
 /**
  * The page's two sections, and the one piece of state they share: the button
- * beside the resume starts and pauses auto apply, and Live Activity's heading
+ * beside the resume list starts and pauses auto apply, and Live Activity's heading
  * says which it is. `children` is Live Activity's list, drawn on the server
  * (./page.tsx) and passed through, since this half is a client component.
  *
@@ -63,7 +63,7 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <ApplyingResume run={run} pending={pending} onToggle={toggle} />
+      <ResumeList run={run} pending={pending} onToggle={toggle} />
 
       {note && (
         <p

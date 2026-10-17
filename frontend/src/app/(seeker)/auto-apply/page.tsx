@@ -18,13 +18,14 @@ export const metadata: Metadata = {
 /**
  * /auto-apply — where the seeker sets up applying in bulk (KAN-223). The
  * pipeline it grows into is `auto-apply/architecture.md` at the repo root:
- * match, tailor the resume, fill the form with the extension, record.
+ * match, pick the resume, fill the form with the extension, record.
  *
  * Two sections, under the heading block every seeker screen uses:
  *
- *   Applying with Resume   the primary resume, and Start Auto Apply beside
- *                          it, which queues a batch of matches
- *                          (./applying-resume.tsx, ./auto-apply-panel.tsx)
+ *   Resume List            every resume, since each application gets its
+ *                          own pick, and Start Auto Apply beside it, which
+ *                          queues a batch of matches
+ *                          (./resume-list.tsx, ./auto-apply-panel.tsx)
  *   Live Activity          the seeker's applications from the API
  *                          (./applications.ts), newest first: each job
  *                          posting queued with a batch or a job's Auto Apply

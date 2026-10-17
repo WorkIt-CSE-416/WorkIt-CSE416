@@ -87,7 +87,7 @@ everything up to that click and nothing after it ("Decisions", below).
 | Privacy boundary | Identity fields (name, contact details, links) never reach a model: the seam removes them | `backend/app/services/identity.py`, `scout/` |
 | Form filling | Chrome extension, started from its popup. Fills text fields, dropdowns and repeated sections. Never submits | `autofiller_extension/` |
 | Webapp ↔ extension link | `externally_connectable`. Today it only answers "installed and signed in?" | `frontend/src/lib/autofill-extension.ts` |
-| Auto Apply page | "Applying with Resume" (the primary uploaded resume: out of date, see "The resume"), Start Auto Apply, and Live Activity from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
+| Auto Apply page | "Resume List" (every resume the student has, with the pick rule under it), Start Auto Apply, and Live Activity from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
 | Applications screen | UI only, over a fixture (`data.ts`) | `frontend/src/app/(seeker)/applications/` |
 
 **Built since:** the queue (`job_applications.stage`), its routes, and the
@@ -256,7 +256,11 @@ runBatch()                       // parent: a loop, nothing else
 
 The run applies to the student's matches. Matching already exists and is
 reused: it scores every listed job posting against the student's
-**experience bank** (KAN-212), never an uploaded resume.
+**experience bank** (KAN-212) and its embedding. It reads no resume at all,
+uploaded or built. So matching and the resume are separate: the bank decides
+which job postings a batch gets, and "The resume" decides what file each
+application sends. A student with an empty bank cannot start a batch, even
+with resumes.
 
 - **`fetch_recommended(db, account, min_match=60)`** in
   `backend/app/routers/jobs.py` returns the matches, best first, as
@@ -527,9 +531,8 @@ as Apply does:
 - **Tailor before Start.** Live Activity links each queued application to
   its job posting's Tailor screen, so the student tailors the ones that
   matter, within the daily limit, before the run.
-- **Show the pick.** The Auto Apply page shows the resume each application
-  will get (`pick_resume`, read only). "Applying with Resume" shows the
-  primary uploaded resume today, which matching no longer reads.
+- **Show the pick per application.** Live Activity names the resume each
+  queued application will get (`pick_resume`, read only).
 
 ---
 
@@ -758,6 +761,7 @@ gap.
 | Who clicks Submit | **The student**, on every application. Each costs one review and one click; no wrong application goes out unseen | The extension: reverses the rule in `autofiller_extension/CLAUDE.md`; CAPTCHAs and bot detection make it fail often; hiring systems' terms prohibit it; a wrong answer reaches an employer under the student's name and cannot be undone |
 | How the queue fills | **WorkIt queues a batch of matches** at Start | The student picks each one: slower. Fully automatic: ruled out by the row above |
 | Where tailoring runs | **Never in the run.** The student tailors with Tailor, one job posting at a time | In the run, per application: 2 Tailor runs a day, and nobody reviews the changes. A scheduled batch: tailors matches nobody looks at |
+| What the Auto Apply page shows | **Resume List**: every resume the student has, with the pick rule under it | One primary resume: no application is sure to get it, and matching does not read it |
 | Which resume the run attaches | **Tailored, else the default, else the primary uploaded resume** (Apply's order), kept as a sent resume | A new `job_applications.resume_id`: a second record of what the sent resume already says |
 | Where the run happens | **The student's Chrome** ("Where the run happens") | Our servers |
 | How the code is shaped | **Three layers**, so MCP is a thin adapter | One function per screen: an agent could not reuse it |
@@ -768,7 +772,7 @@ gap.
 | Folder | Change |
 |---|---|
 | `backend/` | `app/auto_apply/` (layers 1 and 2), `routers/auto_apply.py` (layer 3); `pick_resume`, `prepare_resume` and the `resume` route; the tables in "Data model"; later the API-key check and usage |
-| `frontend/` | Auto Apply page: the port to the runner, Start and Pause wired to it, the session keep-alive; "Applying with Resume" from `pick_resume`; later a Tailor link per queued application and the API-key settings |
+| `frontend/` | Auto Apply page: the port to the runner, Start and Pause wired to it, the session keep-alive; later the resume each application gets and a Tailor link per queued application and the API-key settings |
 | `autofiller_extension/` | The runner; `onConnectExternal` for the port; `fill/start` in the content script; file upload; **Submitted** and **Skip** in the overlay; host permissions. Its `CLAUDE.md` changes too: it says the extension adds no backend routes, which stops being true |
 | MCP server (new, later) | The tools in "MCP access and billing", each calling one route |
 
