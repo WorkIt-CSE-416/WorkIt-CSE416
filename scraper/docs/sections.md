@@ -53,7 +53,7 @@ section. Two rules then keep a list's items in their list:
 - **A heading of the section already open is content.** Under Benefits, "Commuter
   benefits" is an item.
 - **A heading needs a line of content before another can open.** On the
-  2026-10-16 feed, 147 headings sat straight after another heading. Nearly all
+  2026-10-16 feed, 138 headings sat straight after another heading. Nearly all
   were that list's first item: "What we offer" then "Market competitive
   compensation structure" is a benefits list, not an empty benefits section and a
   pay one. Before this rule, that posting lost its whole benefits section.
@@ -72,27 +72,35 @@ a description, already cut at 8,000 characters.
 | | |
 |---|---|
 | Responsibilities or requirements found | 95.4% |
-| Both found | 71.4% |
-| No heading at all (one intro) | 0.9% |
+| Both found | 71.5% |
+| No heading at all (one intro) | 1.1% |
 
 | Section | In postings | Share of all text |
 |---|---|---|
-| intro | 57.1% | 14.4% |
-| company | 50.4% | 13.0% |
-| role | 57.8% | 12.4% |
-| responsibilities | 77.1% | 14.2% |
-| requirements | 89.7% | 17.5% |
+| intro | 58.0% | 14.7% |
+| company | 50.3% | 13.0% |
+| role | 55.0% | 11.9% |
+| responsibilities | 77.1% | 14.3% |
+| requirements | 89.8% | 17.5% |
 | preferred | 45.2% | 6.5% |
-| pay | 29.1% | 3.1% |
+| pay | 29.2% | 3.1% |
 | benefits | 47.2% | 11.4% |
-| logistics | 16.4% | 2.7% |
-| apply | 9.1% | 0.8% |
+| logistics | 16.0% | 2.6% |
+| apply | 9.1% | 0.9% |
 | legal | 21.2% | 4.1% |
 
-Dropping company, benefits, legal and apply stores 30.8% less text: the median
-posting goes from 4,596 to 3,083 characters. Dropping the intro too would reach
-43.7%, but the intro holds the role's summary in postings that have no "About the
+Leaving out company, benefits, legal and apply stores 29.7% less text: the median
+posting goes from 4,596 to 3,122 characters. Leaving out the intro too would reach
+44.1%, but the intro holds the role's summary in postings that have no "About the
 role" heading.
+
+**The role's loose words count only as a whole heading or in a fixed phrase.**
+"Role", "The Team", "Overview" and "Summary" alone are headings; anywhere in a
+line they matched bullets ("Document your methods and share findings with the
+team"), and each such false heading swallowed the real heading after it under the
+rule above. Tightening them cost role 57.8% to 55.0% of postings, and made the
+stored format read back the same on a second pass for all but 1 of 1,094 postings
+(from 7). Re-run that check after changing a pattern: `kept(kept(text)) == kept(text)`.
 
 ## What WorkIt keeps (decided 2026-10-17)
 
@@ -135,7 +143,7 @@ already reads short title-case lines as headings
 matching reads by these exact lines. Rename one in `KEPT` and in `job_text` in
 the same change, or every posting quietly embeds its whole description again.
 
-Measured on the snapshot: the stored text is 29.7% smaller (median 4,596 to 3,145
-characters), and 97.2% of postings carry at least one section matching reads.
+Measured on the snapshot: the stored text is 29.7% smaller (median 4,596 to 3,122
+characters), and 97.1% of postings carry at least one section matching reads.
 `PAGE_VERSION` 14 re-reads stored Greenhouse, Workable, BambooHR and Workday pages
 once, so the whole feed moves to the new format on the next live run.

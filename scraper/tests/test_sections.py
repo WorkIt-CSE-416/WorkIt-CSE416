@@ -246,6 +246,14 @@ class TestKept:
 
         assert kept(whole) == whole
 
+    @pytest.mark.parametrize("text", [SPACEX_SHAPED, ROBINHOOD_SHAPED])
+    def test_the_stored_format_reads_back_the_same(self, text: str) -> None:
+        # Every KEPT heading is one the splitter reads, so formatting twice
+        # changes nothing: a bare "Pay" once fell into the section before it.
+        once = kept(text)
+
+        assert kept(once) == once
+
     def test_no_text_keeps_nothing(self) -> None:
         assert kept(None) is None
         assert kept("") is None
