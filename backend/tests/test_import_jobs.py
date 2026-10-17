@@ -6,6 +6,7 @@ docstring says what it does."""
 import datetime
 
 import pytest
+from pydantic import ValidationError
 
 from app.models import dto
 from app.schemas.jobs import JobListing
@@ -29,7 +30,8 @@ def role_resolver():
 def listing(url, location="Austin, TX", **overrides):
     fields = {
         "id": url, "title": "SWE Intern", "company": "Acme", "apply_url": url,
-        "experience_level": "internship", "work_style": "onsite", "location": location,
+        "experience_level": "student", "job_type": "internship", "work_style": "onsite",
+        "location": location,
         "posted_at": "2026-10-06T02:42:06+00:00", "logo_url": None,
     }
     return JobListing(**{**fields, **overrides})
@@ -43,13 +45,13 @@ def test_row_shape(resolver, role_resolver):
         "company_name": "Acme",
         "company_logo_url": None,
         "description": None,
-        "experience_level": dto.experience_level.internship,
+        "experience_level": dto.experience_level.student,
         "work_style": dto.work_style.onsite,
         "location_raw": "Austin, TX",
         "location_label": "Austin, TX",
         "posted_at": datetime.datetime(2026, 10, 6, 2, 42, 6, tzinfo=datetime.UTC),
         "status": dto.job_post_status.published,
-        "job_type": None,
+        "job_type": dto.job_type.internship,
         "min_years_experience": None,
         "start_term": None,
         "sponsorship": None,
@@ -66,12 +68,12 @@ def test_row_shape(resolver, role_resolver):
 def test_card_facts_are_kept(resolver, role_resolver):
     # Strada's internship: "$7.5K per month".
     prepared = prepare([listing(
-        "https://x/1", job_type="full_time", start_term="Summer 2027", min_years_experience=1,
+        "https://x/1", start_term="Summer 2027", min_years_experience=1,
         salary=7500, salary_currency="USD", salary_period="month",
     )], resolver, role_resolver)
     row = prepared.rows[0]
     assert (row["job_type"], row["start_term"], row["min_years_experience"]) == (
-        dto.job_type.full_time, "Summer 2027", 1)
+        dto.job_type.internship, "Summer 2027", 1)
     assert (row["salary"], row["salary_currency"], row["salary_period"]) == (
         7500, "USD", dto.salary_period.month)
 
@@ -169,3 +171,11 @@ def test_a_duplicate_url_takes_the_first_title_s_roles(resolver, role_resolver):
 ])
 def test_parse_posted_at(value, expected):
     assert parse_posted_at(value) == expected
+
+
+def test_a_feed_from_before_kan_233_is_refused():
+    # An internship as the level is what the old scraper wrote. The import
+    # takes the new values only, so an old feed fails loudly rather than
+    # writing a value migration B is about to remove.
+    with pytest.raises(ValidationError):
+        listing("https://x/1", experience_level="internship")

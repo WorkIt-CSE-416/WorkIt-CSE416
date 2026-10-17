@@ -60,7 +60,7 @@ jobs/listings.ts), not refetched per change. Each facet button wears the glyph
 the job card draws for its fact (Date Posted a clock, since the card's calendar
 is the start date), and inside a popup only Workplace's options carry glyphs,
 the card's own three. Salary is a range, "$ 30 /hr – $ 50 /hr", either end open,
-with presets (hourly for internships, yearly for new grads) that fill the
+with presets (hourly when only internships are picked, yearly when none are, `payUnits`) that fill the
 minimum; a posting matches when its own range overlaps it, compared as yearly
 figures in USD.
 
@@ -185,14 +185,13 @@ fact stops at its column's edge. A title is whole on hover; a fact
 isn't, on a card that opens its job posting's page, since the card's click
 layer sits over the facts (the job posting's page shows every fact whole). An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
-2027"). **An internship's job type is "Internship"**, whatever hours its
-posting states, as Jobright shows it (KAN-171, decided 2026-10-10: "Full-Time
-Internship" beside "Part-Time Internship" read as two kinds of internship).
-Any other role's is how the job is set up (Full-Time, Part-Time, Contract).
-The Job Type filter offers Internship too, and the API matches Full-Time and
-the rest only among roles that aren't internships, so a card never reads
-"Internship" under a Full-Time filter: that mismatch is why KAN-170 had
-taken "Internship" out of the slot. Scraped pay
+2027"). **An internship's job type is "Internship" and its level
+"Student"**, whatever hours its posting states, as Jobright shows it (decided
+2026-10-10: "Full-Time Internship" beside "Part-Time Internship" read as two
+kinds of internship). Since KAN-233 the data says so too: `job_type` holds
+`internship` and `experience_level` `student`, so the card prints the
+columns as they are and the Job Type filter is a plain match. Any other role's
+job type is how it is set up (Full-Time, Part-Time, Contract). Scraped pay
 always arrives as a min/max range, and `formatSalary` prints one whose ends
 meet as a single amount. The match rail is its placeholder
 (`score={null}`: an empty ring and "Score Coming Soon") until matching

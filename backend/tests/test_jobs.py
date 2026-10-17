@@ -35,6 +35,8 @@ ROW = SimpleNamespace(
     title="Robot Software Intern",
     company_name="Rhoda AI",
     apply_url="https://jobs.example/1",
+    # An internship as an import before KAN-233 wrote it: the level, with no
+    # job type. to_listing reads it as the new values.
     experience_level=dto.experience_level.internship,
     work_style=dto.work_style.hybrid,
     location_raw="Mountain View, CA",
@@ -82,7 +84,7 @@ def test_row_becomes_the_feed_shape():
         "title": "Robot Software Intern",
         "company": "Rhoda AI",
         "apply_url": "https://jobs.example/1",
-        "experience_level": "internship",
+        "experience_level": "student",
         "work_style": dto.work_style.hybrid,
         "location": "Mountain View, CA",
         "location_label": "Mountain View, CA",
@@ -90,7 +92,7 @@ def test_row_becomes_the_feed_shape():
         "posted_at": "2026-10-06T02:42:06+00:00",
         "logo_url": None,
         "description": "ROS nodes.",
-        "job_type": None,
+        "job_type": dto.job_type.internship,
         "salary": None,
         "salary_min": 40.0,
         "salary_max": 46.0,
@@ -160,8 +162,8 @@ def test_route_reads_the_search_words(no_database, monkeypatch):
 
 @pytest.mark.parametrize(("q", "roles", "levels", "styles", "words"), [
     # a role, a fact, and a word left for the text or the company's name
-    ("swe intern stripe", ["software_engineer"], ["internship"], [], []),
-    ("stripe intern", [], ["internship"], [], []),
+    ("swe intern stripe", ["software_engineer"], ["student"], [], []),
+    ("stripe intern", [], ["student"], [], []),
     ("machine learning", ["ai_ml_engineer"], [], [], []),
     # a typo is corrected before it is read (read_query)
     ("sofware engineer google", ["software_engineer"], [], [], ["google"]),
@@ -169,9 +171,9 @@ def test_route_reads_the_search_words(no_database, monkeypatch):
     ("ml software engineer", ["ai_ml_engineer", "software_engineer"], [], [], []),
     # a fact counts though a role's alias used its word: "marketing intern"
     # is the marketing role and an internship both
-    ("marketing intern", ["marketing_specialist"], ["internship"], [], []),
+    ("marketing intern", ["marketing_specialist"], ["student"], [], []),
     ("software engineer new grad remote", ["software_engineer"], ["new_grad"], ["remote"], []),
-    ("data scientist co-op hybrid", ["data_scientist"], ["internship"], ["hybrid"], []),
+    ("data scientist co-op hybrid", ["data_scientist"], ["student"], ["hybrid"], []),
 ])
 def test_a_search_is_read_in_its_three_parts(no_database, monkeypatch, q, roles, levels, styles, words):
     seen = []
@@ -192,18 +194,18 @@ def test_a_search_is_read_in_its_three_parts(no_database, monkeypatch, q, roles,
 
 @pytest.mark.parametrize(("q", "companies", "roles", "levels", "words"), [
     # a company by whole name, then the rest as before
-    ("jump trading quant intern", ["Jump Trading"], ["quantitative_analyst"], ["internship"], []),
+    ("jump trading quant intern", ["Jump Trading"], ["quantitative_analyst"], ["student"], []),
     # a name keeps its words: not the robotics role
     ("bedrock robotics", ["Bedrock Robotics"], [], [], []),
     ("robotics", [], ["robotics_engineer"], [], []),
     # a typo in what the other parts left, corrected to the one name close to it
-    ("strpe intern", ["Stripe"], [], ["internship"], []),
+    ("strpe intern", ["Stripe"], [], ["student"], []),
     ("palntir software engineer", ["Palantir"], ["software_engineer"], [], []),
     ("jump tradng", ["Jump Trading"], [], [], []),
     # two companies: either
     ("stripe palantir", ["Palantir", "Stripe"], [], [], []),
     # an ordinary word is no company: left for the text and company names
-    ("react intern", [], [], ["internship"], ["react"]),
+    ("react intern", [], [], ["student"], ["react"]),
 ])
 def test_a_search_names_companies(no_database, monkeypatch, q, companies, roles, levels, words):
     seen = []
@@ -247,7 +249,7 @@ def test_a_search_s_year_is_a_start_term(no_database, monkeypatch):
     assert list(filters.query_start_terms) == ["Summer 2027", "January 2027", "2027"]
     # ...and the year as typed, for a title that says it.
     assert list(filters.query_start_phrases) == ["2027"]
-    assert list(filters.query_levels) == ["internship"] and list(filters.query_words) == []
+    assert list(filters.query_levels) == ["student"] and list(filters.query_words) == []
 
 
 def test_a_search_s_remote_and_season_reach_the_title_too(no_database, monkeypatch):
@@ -274,13 +276,13 @@ def test_a_search_s_remote_and_season_reach_the_title_too(no_database, monkeypat
 @pytest.mark.parametrize(("q", "levels", "styles", "seasons", "left"), [
     ("summer 2027", [], [], ["summer-2027"], []),
     ("2027 summer", [], [], ["summer-2027"], []),          # either order
-    ("fall 2026 internship", ["internship"], [], ["fall-2026"], []),
-    ("co-op on-site", ["internship"], ["onsite"], [], []),  # punctuation is gone
+    ("fall 2026 internship", ["student"], [], ["fall-2026"], []),
+    ("co-op on-site", ["student"], ["onsite"], [], []),  # punctuation is gone
     ("new grads in person", ["new_grad"], ["onsite"], [], []),
     ("entry level", ["new_grad"], [], [], []),
     # a season with no year names no season, as season_of reads one
     ("summer", [], [], [], ["summer"]),
-    ("stripe interns remote", ["internship"], ["remote"], [], ["stripe"]),
+    ("stripe interns remote", ["student"], ["remote"], [], ["stripe"]),
     # a misspelt month or season beside a year is the one it is close to
     ("summe 2027", [], [], ["summer-2027"], []),
     ("janury 2027", [], [], ["winter-2027"], []),
@@ -293,7 +295,7 @@ def test_a_search_s_remote_and_season_reach_the_title_too(no_database, monkeypat
     ("junior 2027", [], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], ["junior"]),
     # a search's own word is never a season's typo: "intern" and "writer"
     # (a role alias's) are each 0.8 or more from "winter"
-    ("intern 2027", ["internship"], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], []),
+    ("intern 2027", ["student"], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], []),
     ("writer 2027", [], [], ["winter-2027", "spring-2027", "summer-2027", "fall-2027", "2027"], ["writer"]),
 ])
 def test_query_facts(q, levels, styles, seasons, left):
@@ -370,12 +372,12 @@ def test_a_season_no_posting_names_still_matches_a_title():
 
 def test_a_search_s_facts_narrow_their_own_columns():
     filters = JobFilters(
-        query_levels=["internship"],
+        query_levels=["student"],
         query_work_styles=[dto.work_style.remote],
         query_start_terms=["Summer 2027"],
     )
     assert [_sql(c) for c in matching(filters)] == [
-        "job_postings.experience_level IN ('internship')",
+        "job_postings.experience_level IN ('student', 'internship')",
         "job_postings.work_style IN ('remote')",
         "job_postings.start_term IN ('Summer 2027')",
     ]
@@ -512,7 +514,7 @@ def test_route_reads_every_filter(no_database, monkeypatch):
     monkeypatch.setattr("app.routers.jobs.fetch_listings", fetch)
     params = [
         ("work_style", "remote"), ("work_style", "hybrid"),
-        ("experience", "internship"),
+        ("experience", "student"),
         ("job_type", "full_time"),
         ("posted_within", "7"),
         ("min_pay", "45"), ("pay_per", "hour"),
@@ -520,7 +522,7 @@ def test_route_reads_every_filter(no_database, monkeypatch):
     assert TestClient(app).get("/jobs", params=params).status_code == 200
     (filters,) = seen
     assert list(filters.work_styles) == [dto.work_style.remote, dto.work_style.hybrid]
-    assert list(filters.levels) == ["internship"]
+    assert list(filters.levels) == ["student"]
     assert list(filters.job_types) == [dto.job_type.full_time]
     # $45 an hour is a full-time year's 2,080 hours of it.
     assert filters.min_yearly_pay == 45 * 2080
@@ -544,7 +546,7 @@ def test_a_yearly_minimum_is_taken_as_given(no_database, monkeypatch):
     "query",
     [
         "work_style=anywhere",
-        "experience=experienced",  # the feed holds intern and new-grad roles only
+        "experience=internship",  # a job type since KAN-233, not a level
         "job_type=freelance",
         "posted_within=0",
         "min_pay=-5",
@@ -585,22 +587,34 @@ def test_each_filter_narrows_its_own_column():
         "job_postings.work_style IN ('onsite')",
         "job_postings.experience_level IN ('new_grad')",
         (
-            "job_postings.experience_level != 'internship'"
+            "NOT (job_postings.job_type = 'internship'"
+            " OR job_postings.experience_level = 'internship')"
             " AND job_postings.job_type IN ('part_time', 'contract')"
         ),
     ]
 
 
 def test_internship_is_a_job_type_of_its_own():
-    # The Jobs page shows "Internship" as every internship's job type, so the
-    # filter's Internship is every internship, and Full-Time is only the rest.
+    # An internship is the job type internship (KAN-233). Until migration B
+    # moves the rows an older import wrote, one may still say it as the
+    # experience level, so the filter reads both, and Full-Time and the rest
+    # leave either out as they always have (legacy_levels.py).
+    either = (
+        "job_postings.job_type = 'internship'"
+        " OR job_postings.experience_level = 'internship'"
+    )
     (clause,) = matching(JobFilters(job_types=["internship"]))
-    assert _sql(clause) == "job_postings.experience_level = 'internship'"
+    assert _sql(clause) == either
     (clause,) = matching(JobFilters(job_types=["full_time", "internship"]))
     assert _sql(clause) == (
-        "job_postings.experience_level = 'internship'"
-        " OR job_postings.experience_level != 'internship'"
-        " AND job_postings.job_type IN ('full_time')"
+        f"{either} OR NOT ({either}) AND job_postings.job_type IN ('full_time')"
+    )
+
+
+def test_a_level_matches_its_old_spelling_too():
+    (clause,) = matching(JobFilters(levels=["student", "experienced"]))
+    assert _sql(clause) == (
+        "job_postings.experience_level IN ('student', 'internship', 'experienced', 'other')"
     )
 
 

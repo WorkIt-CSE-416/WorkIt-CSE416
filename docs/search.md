@@ -371,7 +371,7 @@ workplace, experience and posted filters the same way: each one narrows.
      would be a stored tag. Checked on 2026-10-11 against 40 company,
      keyword and city names: none changed.
   2. **The facts it names that have columns** (`query_facts`): "intern",
-     "internship", "co-op" are the internship experience level; "new grad",
+     "internship", "co-op" are the `student` level (every internship, KAN-233); "new grad",
      "early career", "entry level" are `new_grad`; "remote", "hybrid",
      "onsite"/"on-site"/"in person" the work style; "summer 2027" (either
      order, or a month: "january 2027" is Winter) a start season, and a bare

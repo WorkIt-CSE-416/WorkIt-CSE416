@@ -195,6 +195,28 @@ edit. That window has closed — `dee263a84adb` created all nine types on
 domain does not grow with the product. For anything that will, a lookup table
 costs a join and saves the coordination.
 
+### KAN-233: internship is a job type, levels are who the job is for
+
+`job_type` gained `internship`, and `experience_level` became `student`,
+`new_grad` and `experienced` (from `internship`, `new_grad` and `other`).
+Every internship is `job_type = internship` with `experience_level =
+student`; the hours an internship states aren't kept, as the cards never
+showed them (KAN-171). It is the first enum change made with no downtime,
+expand then contract, and the recipe for the next one:
+
+1. **Expand** (`027620538860`, before the deploy): `ADD VALUE` the new values
+   only, in an autocommit block. The running code never meets them.
+2. **Deploy** code that writes only new values and reads both. Here every read
+   of the two columns goes through `queries/jobs/legacy_levels.py`, and the
+   enum keeps the old members marked LEGACY.
+3. **Contract** (migration B, after the deploy and one import): move the
+   remaining rows, rebuild `experience_level` without the old values, then
+   delete `legacy_levels.py` and the LEGACY members.
+
+**Until step 3 lands, never write `internship` or `other` as a level**: the
+company form's schema refuses them, and the import's `JobListing` takes the new
+values only.
+
 ## A new column reaches the database before the model that maps it
 
 `deferred=True` keeps a column out of reads, not writes. On an ORM INSERT,

@@ -28,9 +28,10 @@ class JobListing(BaseModel):
     title: str
     company: str
     apply_url: str
-    # Narrower than the shared `experience_level` enum on purpose: the scraper
-    # keeps intern and new-grad roles only, and the type says so.
-    experience_level: Literal["internship", "new_grad"]
+    # Who the job is for (KAN-233): a student (every internship), a new grad,
+    # or someone with experience. Narrower than the shared enum on purpose:
+    # its LEGACY members are never written, and to_listing reads them as these.
+    experience_level: Literal["student", "new_grad", "experienced"]
     # Stated by the posting, else inferred by the scraper from the company's other
     # postings or, for a posting that names a place and no alternative, On site
     # (scraper/CLAUDE.md). None when neither applies.
@@ -52,8 +53,9 @@ class JobListing(BaseModel):
     # the posting never states it: the scraper reads the job board's own fields
     # first, then the whole description, and infers only by measured rules
     # (job_type full_time for a silent new-grad role; scraper/CLAUDE.md).
-    # The Jobs page shows "Internship" as an internship's job type whatever
-    # this holds. Defaulted so an older feed.json still parses.
+    # An internship is the job type internship (KAN-233), so its hours, when
+    # a posting states them, aren't kept. Defaulted so an older feed.json
+    # still parses.
     job_type: dto.job_type | None = None
     # One amount, or a min and max when the posting gives a range.
     salary: float | None = None

@@ -32,9 +32,9 @@ export type JobListing = {
   title: string;
   company: string;
   apply_url: string;
-  /** Exactly the API's `Literal["internship", "new_grad"]` — the scraper keeps
-   *  intern and new-grad roles only. */
-  experience_level: Exclude<ExperienceLevel, "experienced">;
+  /** Who the job is for, the API's `Literal["student", "new_grad",
+   *  "experienced"]` (KAN-233); every internship is a student job. */
+  experience_level: ExperienceLevel;
   work_style: WorkStyle | null;
   location: string | null;
   /** The card's version, "San Francisco, CA", where the import placed a US
@@ -45,8 +45,8 @@ export type JobListing = {
   /** The rest of the card, named after `job_postings`' columns. Null when the
    *  posting never states it — the scraper reads the board's own fields, then
    *  the description, and infers only by measured rules (job type Full-Time
-   *  for a silent new-grad role). An internship's card shows "Internship" as
-   *  its job type whatever this says (listing-card.tsx). */
+   *  for a silent new-grad role). Every internship is `internship`, whatever
+   *  hours its posting states (KAN-233). */
   job_type: JobType | null;
   /** One amount, or `salary_min`/`salary_max` for a range; all null when the
    *  posting states no pay. */

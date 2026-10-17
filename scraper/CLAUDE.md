@@ -132,7 +132,9 @@ real posting and the measurements behind them.
   facts: a pattern change needs a live run and a `PAGE_VERSION` bump.
 - **Only two facts are inferred, each by a measured rule:** work style
   (`shortlist._work_style`) and job type (`shortlist._job_type`: a silent
-  new-grad role is full-time; an internship's type is never inferred).
+  new-grad role is full-time; an internship's type is never inferred). The feed
+  row then writes every internship as the job type `internship` for the level
+  `student` (KAN-233, `feed.py`), so its stated hours stay in its facts.
 - **Every case in `tests/test_details.py` was seen in a real posting**, except
   `TestConstructedGuards`, which keeps review-built sentences no live posting
   said.

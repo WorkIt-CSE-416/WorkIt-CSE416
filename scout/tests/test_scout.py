@@ -382,3 +382,10 @@ def test_job_facts_use_readable_labels():
         "On site",
         "D",
     )
+
+
+def test_a_student_job_reads_as_an_internship():
+    # KAN-233: every internship is a student job; the job's facts carry no job
+    # type, so the level says it.
+    row = {"title": "SWE Intern", "company": "Acme", "experience_level": "student"}
+    assert job_facts(row).experience_level == "Student (internship)"

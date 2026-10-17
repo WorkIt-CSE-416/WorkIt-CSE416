@@ -133,7 +133,7 @@ export function listingFacts(job: JobListing) {
     location:
       formatPlaces(job.location_label ?? job.location) ??
       (job.work_style === "remote" ? null : NOT_LISTED),
-    jobType: jobType(job),
+    jobType: job.job_type ? formatJobType(job.job_type) : NOT_LISTED,
     salary: salary(job),
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
     experienceLevel: formatExperienceLevel(job.experience_level),
@@ -141,20 +141,9 @@ export function listingFacts(job: JobListing) {
   };
 }
 
-/** "Internship" for every internship (KAN-171, as Jobright does), else how
- *  the job is set up. The Job Type filter matches the same way, so a
- *  Full-Time filter never returns a card that says "Internship". */
-function jobType(job: JobListing) {
-  // Every internship reads "Internship", whatever hours its posting states:
-  // "Full-Time Internship" beside "Part-Time Internship" read as two kinds of
-  // internship (decided 2026-10-10).
-  if (job.experience_level === "internship") return "Internship";
-  return job.job_type ? formatJobType(job.job_type) : NOT_LISTED;
-}
-
 /** An internship shows when it starts; any other role its minimum years. */
 function yearsOrStart(job: JobListing) {
-  if (job.experience_level === "internship") {
+  if (job.job_type === "internship") {
     return {
       minYearsExperience: null,
       startTerm: job.start_term ? `Start in ${job.start_term}` : NOT_LISTED,

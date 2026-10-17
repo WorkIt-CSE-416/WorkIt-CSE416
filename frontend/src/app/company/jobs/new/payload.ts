@@ -14,19 +14,21 @@ import {
  * keeps its labels as values (see the top of ./data.ts), so this is the one
  * place the two vocabularies meet.
  *
- * "Experienced" maps to `other` because that is the stored enum value; renaming
- * it is a coordinated migration (backend/app/models/CLAUDE.md), not an edit.
+ * The values are the API's since KAN-233: an internship is a job type, and
+ * the levels are student, new_grad and experienced. The API reads a job saved
+ * before then as these too, so the reverse maps need nothing older.
  */
 const JOB_TYPE = {
   "Full-Time": "full_time",
   "Part-Time": "part_time",
   Contract: "contract",
+  Internship: "internship",
 } as const satisfies Record<string, JobPayload["jobType"]>;
 
 const EXPERIENCE_LEVEL = {
-  Internship: "internship",
+  Student: "student",
   "New Grad": "new_grad",
-  Experienced: "other",
+  Experienced: "experienced",
 } as const satisfies Record<string, JobPayload["experienceLevel"]>;
 
 const WORK_STYLE = {

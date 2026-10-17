@@ -40,7 +40,7 @@ export type JobPosting = {
    *  authored as labels. */
   jobType: string;
   workStyle: string;
-  /** "Experienced", "Internship" — the label, formatted the same way the seeker
+  /** "Experienced", "Student" — the label, formatted the same way the seeker
    *  feed's card formats it, so the two never describe the same posting two
    *  different ways. */
   level: string;
@@ -193,9 +193,9 @@ const COMPANY_EXTRAS: Record<string, CompanyExtra> = {
     ],
   },
   j3: {
-    jobType: "Full-Time",
+    jobType: "Internship",
     salary: "$28/hr",
-    level: "Internship",
+    level: "Student",
     starts: "Summer 2027",
     companyAbout: COMPANY.about[0],
     about:

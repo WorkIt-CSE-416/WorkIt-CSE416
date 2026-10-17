@@ -478,7 +478,8 @@ class TestFeed:
 
     def test_unstated_stays_null(self) -> None:
         row = self.role(Facts())
-        assert row["job_type"] is None
+        # An internship's job type is internship, stated or not (KAN-233).
+        assert row["job_type"] == "internship"
         assert row["salary"] is None and row["salary_currency"] is None
         assert row["min_years_experience"] is None
 

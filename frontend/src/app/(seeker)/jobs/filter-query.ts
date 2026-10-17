@@ -18,7 +18,7 @@ import type { JobType, WorkStyle } from "./data";
  * not "Jobs aren't loading" with a Try Again that fails the same way.
  */
 
-export type Level = "internship" | "new_grad";
+export type Level = "student" | "new_grad" | "experienced";
 export type PayPer = "hour" | "year";
 export type Visa = "sponsors" | "not_ruled_out";
 
@@ -59,8 +59,9 @@ export const NO_FILTERS: FeedFilters = {
 
 /* Each facet's options, in the words ./format prints on the cards, so a
  * filter never names a value no card can carry. Job type and experience offer
- * the API's own values, plus "internship" as a job type (every internship,
- * KAN-171), and the feed holds no "Experienced" roles. Date posted and salary are thresholds,
+ * the API's own values: an internship is a job type, for a student (KAN-233).
+ * The scraper keeps no experienced roles yet, so that option counts none for
+ * now. Date posted and salary are thresholds,
  * so those facets take one pick (`multiple` in ./filters); no pick is "any",
  * which is why neither list spells it out. Industry has no data behind it
  * and is not offered. */
@@ -83,18 +84,27 @@ const ROLE = /^[a-z][a-z0-9_]{0,63}$/;
 /** As the API caps ?role=. */
 const MAX_ROLES = 60;
 
-/** The career stage. Internship is also a job type (JOB_TYPE_OPTIONS): the
- *  card shows it there, so both filters offer it. */
+/** Who a job is for (KAN-233): a student (every internship), a new grad, or
+ *  someone with experience. */
 export const EXPERIENCE_OPTIONS: { value: Level; label: string }[] = [
-  { value: "internship", label: "Internship" },
+  { value: "student", label: "Student" },
   { value: "new_grad", label: "New Grad" },
+  { value: "experienced", label: "Experienced" },
 ];
 
-/** A job type as the card shows it: how a job is set up, and "Internship" for
- *  every internship whatever its hours (KAN-171, as Jobright does). The API
- *  matches Full-Time and the rest among the jobs that aren't internships, so
- *  a card never says "Internship" under a Full-Time filter. */
-export type JobTypeKey = JobType | "internship";
+/** How a job is set up. An internship is one of them (KAN-233), whatever
+ *  hours its posting states, so a card never says "Internship" under a
+ *  Full-Time filter. */
+export type JobTypeKey = JobType;
+
+/** Which pay units a salary filter offers for these job types: hourly when
+ *  only internships are wanted, yearly when none are, both otherwise. Shared
+ *  by All Filters and onboarding. */
+export function payUnits(jobTypes: readonly JobTypeKey[]): PayPer[] {
+  const interns = jobTypes.includes("internship");
+  if (interns && jobTypes.length === 1) return ["hour"];
+  return interns || jobTypes.length === 0 ? ["hour", "year"] : ["year"];
+}
 
 export const JOB_TYPE_OPTIONS: { value: JobTypeKey; label: string }[] = [
   { value: "full_time", label: "Full-Time" },

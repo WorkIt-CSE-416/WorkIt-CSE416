@@ -31,13 +31,15 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "title": role.title,
         "company": role.company,
         "apply_url": role.apply_url,
-        "experience_level": "internship" if Tag.INTERN in role.tags else "new_grad",
+        # Who it is for, and how it is set up (KAN-233): an internship is the
+        # job type internship for a student, whatever hours it states.
+        "experience_level": "student" if Tag.INTERN in role.tags else "new_grad",
         "work_style": WORK_STYLE[role.facts.work_style] if role.facts.work_style else None,
         "location": role.location_label or None,
         "posted_at": role.posted_at,
         "logo_url": logos.get(role.board_key),
         "description": role.description,
-        "job_type": role.facts.job_type,
+        "job_type": "internship" if Tag.INTERN in role.tags else role.facts.job_type,
         **salary(role),
         "min_years_experience": role.facts.min_years,
         "start_term": role.facts.start_term,

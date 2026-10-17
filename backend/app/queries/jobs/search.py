@@ -14,7 +14,7 @@ What a request names, read against the database: ?q= in its parts
    (title_says, whole words): "software" finds "Embedded Software Engineer", tagged
    embedded_engineer, as well as every software_engineer job;
 2. the facts it names that have columns (query_facts): "intern" is the
-   internship experience level, "new grad" new_grad, "remote" / "hybrid" /
+   student level (every internship, KAN-233), "new grad" new_grad, "remote" / "hybrid" /
    "onsite" the work style, "summer 2027" or a bare "2027" the start term.
    Read from the whole query, so "marketing intern" is the marketing role
    and internships both. Like the filters they echo, each hides a job that
