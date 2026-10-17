@@ -477,6 +477,23 @@ class TestLinesSortedByWhatTheySay:
 
         assert kept(text) == "Responsibilities\nShip kernels"
 
+    def test_an_inline_label_whose_text_reads_as_a_heading_keeps_its_label(self) -> None:
+        # Blue Origin: stored without its label, the text read back as a legal
+        # heading and the requirement vanished on a second pass.
+        line = "Required for all positions: Blue’s Standard Background Check"
+        text = f"Benefits\nA 401(k) match\n{line}\nRequirements\nA CS degree"
+
+        assert kept(text) == f"Requirements\n{line}\nA CS degree"
+        assert kept(kept(text)) == kept(text)
+
+    def test_a_label_naming_the_open_section_is_content_whatever_the_line_reads_as(
+        self,
+    ) -> None:
+        line = "Required for all positions: Standard Background Check"
+        text = f"Requirements\nA CS degree\n{line}"
+
+        assert kept(text) == text
+
     def test_an_export_control_section_is_kept_as_requirements(self) -> None:
         # K2 Space's order: under legal, the ITAR rule left the job page entirely.
         text = (
