@@ -158,12 +158,21 @@ stops it). Apply Without a Resume leaves for the employer's posting at once.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
-**The header's actions are one row under the title at every width**
-(KAN-250, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply, Tailor My
-Resume and Apply Now. Beside the title, eight controls took the row's width,
-the title wrapped a word a line, the posted date ran under the buttons and
-the logo was squeezed to an empty sliver. The row wraps on a phone rather than
-overflowing, and the logo never shrinks. The "…" menu
+**The job's actions sit in one bar with Back, pinned at the top from md**
+(`[jobId]/action-bar.tsx`, 2026-10-17): Back on the left; Save, a "…" menu,
+Ask Scout, Auto Apply, Tailor My Resume and Apply Now on the right, so a
+seeker can apply or tailor from anywhere in a long posting. It is drawn as the
+Jobs page's pinned header is: the panel's white across the side gutters, and a
+hairline once the description is under it. Below md it scrolls away: there the
+actions wrap to three rows beside Back, about 158px held over a phone screen.
+The actions first sat beside the title, where eight controls squeezed it to a
+word a line, ran the posted date under the buttons and the logo to an empty
+sliver (KAN-246); then under the title, where they scrolled away. The header
+card below holds only who is hiring, the title and the facts, and its logo
+never shrinks. **Its facts are laid out as the card's** (`JobFacts`): two fixed
+rows of three, an unstated fact leaving its slot empty, two columns under
+448px of card. Two columns with empty facts left out made the six move from
+job to job. The "…" menu
 (`MoreActions`, `[jobId]/page-actions.tsx`) holds Copy Link, which copies the
 page's link and says "Link copied" under the menu for a moment, floating so no
 button moves, and Report. Save stays a button: it is the one Save control on

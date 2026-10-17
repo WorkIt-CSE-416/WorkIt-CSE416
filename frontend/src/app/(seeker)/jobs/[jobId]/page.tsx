@@ -20,6 +20,7 @@ import { getApplicationStage } from "../../auto-apply/applications";
 import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
 import { ListingsError, listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
+import { JobActionBar } from "./action-bar";
 import { ApplyButton } from "./apply-button";
 import { JobDescription } from "./description";
 import { AppliedNote, BackToJobs, MoreActions } from "./page-actions";
@@ -49,10 +50,12 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * paragraphs, lists and subheadings from the text itself rather than sorting
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
- * Its actions, in one row (KAN-250): Save, then the "…" menu (Copy Link
+ * Its actions sit in one bar with Back, held at the top of the page from md
+ * while the description scrolls (./action-bar): Save, the "…" menu (Copy Link
  * and Report, ./page-actions), Ask Scout, Auto Apply (queues it for the Auto
  * Apply page, as on the card), Tailor My Resume (./tailor, KAN-217; "Your
  * Tailored Resume" once the student has one for this posting) and Apply Now.
+ * The header card below holds only who is hiring, the title and the facts.
  * Apply Now asks which resume to send, keeps it as a sent resume linked to
  * this posting, then leaves for the employer's posting (./apply-button,
  * KAN-220); once one is sent, the page says "You sent <name> on <date>"
@@ -90,7 +93,32 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <BackToJobs />
+      {/* Back and the job's actions, held at the top while the description
+          scrolls under them (./action-bar). */}
+      <JobActionBar>
+        {/* Outlined like the feed card's icon actions. */}
+        <SaveButton title={job.title} />
+        <MoreActions title={job.title} />
+        <AskScoutButton id={job.id} title={job.title} company={job.company} />
+        <AutoApplyButton jobId={job.id} stage={stage} />
+        <ButtonLink
+          href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
+        >
+          <Sparkles className="size-4" />
+          {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
+        </ButtonLink>
+        <ApplyButton
+          jobId={job.id}
+          title={job.title}
+          applyUrl={job.apply_url}
+          canMarkApplied={applied != null}
+          applied={applied?.appliedAt != null}
+          className="shrink-0"
+        />
+      </JobActionBar>
 
       <JobDetailHeader
         posting={toPosting(job)}
@@ -98,35 +126,6 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
         // initials when it has none.
         tile={
           <CompanyLogo name={job.company} src={job.logo_url} className="text-meta size-8 rounded" />
-        }
-        // Under the title at every width: beside it, six controls squeezed the
-        // title to a word a line (KAN-246).
-        actionsBelow
-        actions={
-          <>
-            {/* Outlined like the feed card's icon actions. */}
-            <SaveButton title={job.title} />
-            <MoreActions title={job.title} />
-            <AskScoutButton id={job.id} title={job.title} company={job.company} />
-            <AutoApplyButton jobId={job.id} stage={stage} />
-            <ButtonLink
-              href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-              variant="secondary"
-              size="sm"
-              className="shrink-0"
-            >
-              <Sparkles className="size-4" />
-              {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
-            </ButtonLink>
-            <ApplyButton
-              jobId={job.id}
-              title={job.title}
-              applyUrl={job.apply_url}
-              canMarkApplied={applied != null}
-              applied={applied?.appliedAt != null}
-              className="shrink-0"
-            />
-          </>
         }
       />
 
