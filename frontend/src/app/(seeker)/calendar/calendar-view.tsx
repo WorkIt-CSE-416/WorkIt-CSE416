@@ -92,7 +92,7 @@ export function CalendarView({
 
 /**
  * The header's three controls, drawn alike so they read as one group: the
- * bar's grey circles (../bar.ts) at 32px, the arrows round and Today a pill
+ * bar's grey circles (../bar.ts) at 36px, an sm button's height (KAN-251), the arrows round and Today a pill
  * in the same fill. Today was a brand outline once, after the reference,
  * where it stood alone; beside two grey buttons it read as a different kind
  * of thing, and its violet made a step back to today look like the page's
@@ -103,10 +103,10 @@ export function CalendarView({
  * does.
  */
 const CONTROL =
-  "bg-app text-ink-meta hover:bg-selected hover:text-ink focus-visible:ring-brand-ring flex h-8 items-center justify-center rounded-full transition-[color,background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none";
+  "bg-app text-ink-meta hover:bg-selected hover:text-ink focus-visible:ring-brand-ring flex h-9 items-center justify-center rounded-full transition-[color,background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none";
 const ARROW = cn(
   CONTROL,
-  "w-8 active:scale-90 [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide",
+  "w-9 active:scale-90 [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide",
 );
 const TODAY = cn(CONTROL, "text-label px-3.5 font-medium active:scale-95");
 

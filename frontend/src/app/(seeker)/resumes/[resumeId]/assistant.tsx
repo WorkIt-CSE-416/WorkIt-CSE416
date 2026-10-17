@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Composer, Message, Typing, WorkItMark } from "@/components/scout/chat";
+import { Chip } from "@/components/ui/chip";
 import { IconButton } from "@/components/ui/icon-button";
 import { askAssistant, type AssistantLine } from "@/lib/assistant-actions";
 import type { Bank } from "@/lib/bank-actions";
@@ -216,12 +217,12 @@ export function Assistant({
                     </span>
                     {!m.done && (
                       <span className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => settle(i, true)} className={FILLED}>
+                        <Chip variant="primary" onClick={() => settle(i, true)}>
                           Use This
-                        </button>
-                        <button type="button" onClick={() => settle(i, false)} className={CHIP}>
+                        </Chip>
+                        <Chip variant="suggestion" onClick={() => settle(i, false)}>
                           Keep Mine
-                        </button>
+                        </Chip>
                       </span>
                     )}
                   </>
@@ -246,24 +247,24 @@ export function Assistant({
         {!answering && (
           <div className="flex flex-wrap gap-2 pl-10.5">
             {line?.kind === "bullet" && (
-              <button type="button" className={CHIP} onClick={() => send("Make it shorter")}>
+              <Chip variant="suggestion" onClick={() => send("Make it shorter")}>
                 Make it shorter
-              </button>
+              </Chip>
             )}
             {line && (
-              <button type="button" className={CHIP} onClick={() => chip("Hide it", "hide")}>
+              <Chip variant="suggestion" onClick={() => chip("Hide it", "hide")}>
                 Hide it
-              </button>
+              </Chip>
             )}
             {line && line.kind !== "skill" && (
-              <button type="button" className={CHIP} onClick={() => chip("Move it up", "move_up")}>
+              <Chip variant="suggestion" onClick={() => chip("Move it up", "move_up")}>
                 Move it up
-              </button>
+              </Chip>
             )}
             {!line && pageCount > 1 && (
-              <button type="button" className={CHIP} onClick={() => chip("Fit to one page", "fit")}>
+              <Chip variant="suggestion" onClick={() => chip("Fit to one page", "fit")}>
                 Fit to one page
-              </button>
+              </Chip>
             )}
           </div>
         )}
@@ -298,8 +299,3 @@ export function Assistant({
     </aside>
   );
 }
-
-const CHIP =
-  "text-label bg-panel text-brand ring-brand-pale hover:bg-brand-tint focus-visible:ring-brand-ring min-h-9 rounded-full px-3.5 py-1.5 ring-1 transition-colors focus-visible:ring-2 focus-visible:outline-none";
-const FILLED =
-  "text-label bg-brand text-on-brand focus-visible:ring-brand-ring min-h-9 rounded-full px-3.5 py-1.5 focus-visible:ring-2 focus-visible:outline-none";

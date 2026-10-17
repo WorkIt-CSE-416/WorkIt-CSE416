@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
  * the job was saved. One component means one look, one label and one state
  * per job.
  *
- * Bordered at 32px, the `sm` button height, so it lines up with the actions
+ * Bordered at 36px, the `sm` button height, so it lines up with the actions
  * beside it. Saved is a filled bookmark in brand, a step deeper on hover
  * rather than the outline button's ink, which would read as the save undone.
  * The label names the job for a screen reader, which meets the button without
@@ -32,7 +32,7 @@ export function SaveButton({
   return (
     <IconButton
       variant="outline"
-      className={cn("size-8 shrink-0", saved && "text-brand hover:text-brand-hover", className)}
+      className={cn("size-9 shrink-0", saved && "text-brand hover:text-brand-hover", className)}
       label={saved ? `Remove ${title} from saved` : `Save ${title}`}
       tooltip={saved ? "Remove from saved" : "Save"}
     >

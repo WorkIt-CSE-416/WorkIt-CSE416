@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
 import { ResumeUpload } from "@/components/resume-upload";
+import { RemovableChip } from "@/components/ui/chip";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import {
   Dialog,
@@ -182,6 +183,29 @@ export function AccountMenuSpecimen() {
           </span>
         </span>
       </AccountMenu>
+    </>
+  );
+}
+
+/** Picked values the student can take back; a cross removes one, and the
+ *  last one gone brings them all back so the specimen never stays empty. */
+export function RemovableChipSpecimen() {
+  const all = ["Boston, MA", "Remote", "New York, NY"];
+  const [picked, setPicked] = useState(all);
+  return (
+    <>
+      {picked.map((value) => (
+        <RemovableChip
+          key={value}
+          removeLabel={`Remove ${value}`}
+          onRemove={() => {
+            const rest = picked.filter((v) => v !== value);
+            setPicked(rest.length ? rest : all);
+          }}
+        >
+          {value}
+        </RemovableChip>
+      ))}
     </>
   );
 }

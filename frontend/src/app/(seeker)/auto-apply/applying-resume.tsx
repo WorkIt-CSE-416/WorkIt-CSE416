@@ -80,10 +80,12 @@ export function ApplyingResume({
 
   return (
     <section aria-labelledby="applying-resume" className="mt-6 max-w-2xl">
-      {/* The button stands beside the row, its bottom on the row's and as tall
-          (52px), so the two read as one control strip. Its width is fixed
-          (208px, the widest label's) so the row does not shift when Start
-          becomes Pause. On a phone it drops under the row at full width. */}
+      {/* The button stands beside the row, its bottom on the row's, so the
+          two read as one control strip. It is lg (42px), the page's one main
+          action: stretched to the row's 52px it was the largest button in
+          the app (KAN-251). Its width is fixed (208px, the widest label's)
+          so the row does not shift when Start becomes Pause. On a phone it
+          drops under the row at full width. */}
       <div className="flex flex-col gap-3 @lg/main:flex-row @lg/main:items-end">
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-4">
@@ -128,9 +130,9 @@ export function ApplyingResume({
           size="lg"
           disabled={!primary || pending}
           onClick={onToggle}
-          className="w-full shrink-0 @lg/main:h-13 @lg/main:w-52"
+          className="w-full shrink-0 @lg/main:w-52"
         >
-          <button.Icon aria-hidden className="size-4" />
+          <button.Icon aria-hidden />
           {button.label}
         </Button>
       </div>

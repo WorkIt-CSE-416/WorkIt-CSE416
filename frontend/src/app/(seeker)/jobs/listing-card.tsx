@@ -96,7 +96,7 @@ export function ListingCard({
             label={`Not interested in ${job.title}`}
             tooltip="Not interested"
             variant="outline"
-            className="size-8"
+            className="size-9"
           >
             <Ban className="size-4" />
           </IconButton>
