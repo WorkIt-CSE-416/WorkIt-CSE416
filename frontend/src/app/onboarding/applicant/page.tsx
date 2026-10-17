@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 
 import { seasonLabel } from "@/app/(seeker)/jobs/filter-query";
@@ -30,6 +31,7 @@ export const metadata: Metadata = {
  * empty when the API is down, and its picker then says nothing matches.
  */
 export default async function ApplicantOnboardingPage() {
+  await connection();
   if (!(await getSessionUser())) redirect("/login");
   const account = await getCurrentAccount();
   if (account?.account_type === "company") redirect("/onboarding/company");
