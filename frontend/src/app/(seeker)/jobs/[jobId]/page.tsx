@@ -147,7 +147,12 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
           <p className="text-body text-ink mt-3">Open in {places.join(" · ")}.</p>
         )}
         {job.description ? (
-          <JobDescription text={job.description} company={job.company} applyUrl={job.apply_url} />
+          <JobDescription
+            text={job.description}
+            company={job.company}
+            applyUrl={job.apply_url}
+            pay={text(listingFacts(job).salary) || null}
+          />
         ) : (
           <p className="text-body text-ink-meta mt-3">
             This posting has no description here. Apply Now opens it on {job.company}&apos;s site.

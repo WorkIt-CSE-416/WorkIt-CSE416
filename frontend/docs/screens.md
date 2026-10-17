@@ -175,7 +175,19 @@ Qualifications, Pay, Details) draws an icon beside it in brand purple
 (`SECTION_ICONS`; Pay reuses the salary fact's coin). All Filters' section
 icons stay grey: there they label controls, here they mark where to read.
 Section titles are 16px bold with a 20px icon, a step under "About the
-Role"; an employer's subheading is 14px semibold. In such a
+Role"; an employer's subheading is 14px semibold. List bullets are ink, like
+the text. **A sectioned description always shows Overview, Responsibilities,
+Requirements and Pay** (`withCoreSections`, KAN-229 fix 5); Preferred
+Qualifications and Details only when the posting has them. A missing core
+section says why, as far as WorkIt can tell: pay the hiring system sent as a
+field shows as the card's pay "(from <company>'s listing, not the posting's
+text)"; a description cut at 8,000 characters says the section may be further
+down; anything else says the posting doesn't list it under its own heading. All
+three link to the full posting. It never says a posting lacks something, since
+the text may hold it in a paragraph the scraper could not place. A fixed
+heading always reads as a heading, even straight before an employer's own
+("Requirements" then "Required Qualifications"), which the two-in-a-row rule
+read as list items. In such a
 description, any other heading the employer wrote is a smaller subheading with
 no icon; a description stored before KAN-229 draws its headings as before.
 Apply Now (`[jobId]/apply-button.tsx`,
