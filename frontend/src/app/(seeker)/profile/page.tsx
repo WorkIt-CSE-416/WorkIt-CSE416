@@ -100,7 +100,7 @@ export default function ProfilePage() {
 
   // Resume items. `uploading` is the name of the file in flight, or null.
   const [resumeList, setResumeList] = useState<ResumeItem[]>(cached?.resumes ?? []);
-  // Base resumes made on the bank page count toward the same 5.
+  // Base resumes on My Resumes count toward the same 5.
   const [baseCount, setBaseCount] = useState(0);
   const resumeCount = resumeList.length + baseCount;
   const [resumeError, setResumeError] = useState<string | null>(null);
@@ -442,7 +442,7 @@ export default function ProfilePage() {
           </SectionHeading>
           <p className="text-body text-ink-meta mt-1">
             Keep a version for each kind of role you apply to, up to {MAX_RESUMES}, counting the
-            base resumes you make in your experience bank.
+            base resumes on My Resumes.
           </p>
         </div>
 

@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CircleUserRound,
+  FileText,
   LayoutDashboard,
   Library,
   SquareKanban,
@@ -47,6 +48,9 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  *
  * Experience Bank sits just above My Profile: both hold what the seeker
  * brings to a hunt, and the bank is where resume facts are kept (KAN-206).
+ * My Resumes sits between them, after the bank its resumes are made from
+ * (KAN-249). Its glyph is FileText, the one on Generate and on the bank's
+ * My Resumes button.
  */
 const GROUPS: SidebarNavGroup[] = [
   {
@@ -58,6 +62,7 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/applications", label: "Applications", Icon: SquareKanban },
       { href: "/calendar", label: "Calendar", Icon: CalendarDays },
       { href: "/bank", label: "Experience Bank", Icon: Library },
+      { href: "/resumes", label: "My Resumes", Icon: FileText },
       { href: "/profile", label: "My Profile", Icon: CircleUserRound },
     ],
   },

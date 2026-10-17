@@ -140,8 +140,8 @@ export function ApplyButton({
                   Your Resume Is Ready
                 </DialogTitle>
                 <DialogDescription>
-                  WorkIt kept &ldquo;{sent.name}&rdquo; in your Sent list, linked to {title}.
-                  Download it, then attach it on the employer&apos;s page.
+                  WorkIt kept &ldquo;{sent.name}&rdquo; in your Sent list on My Resumes, linked to{" "}
+                  {title}. Download it, then attach it on the employer&apos;s page.
                 </DialogDescription>
               </DialogHeader>
               {sent.missing_characters.length > 0 && (
