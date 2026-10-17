@@ -1,5 +1,6 @@
 "use client";
 
+import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Suspense,
@@ -7,6 +8,7 @@ import {
   use,
   useEffect,
   useOptimistic,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -18,12 +20,21 @@ import {
   ClockIcon,
   FilterIcon,
   LevelIcon,
+  levelIcon,
   PinIcon,
   RoleIcon,
+  SearchIcon,
   workStyleIcon,
 } from "@/components/icons";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxTrigger,
+} from "@/components/shadcn/combobox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Button, buttonClasses } from "@/components/ui/button";
+import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import {
   Select,
   SelectCheckboxItem,
@@ -38,7 +49,9 @@ import {
   EXPERIENCE_OPTIONS,
   FILTER_KEYS,
   filterEntries,
+  isFiltered,
   JOB_TYPE_OPTIONS,
+  NO_FILTERS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "./filter-query";
@@ -70,11 +83,12 @@ import type { JobFacets, JobLocationOption } from "./listings";
  * same fact (Location's pin, Salary's coin, Job Type's briefcase, Experience's
  * mortarboard), so the row and the card read as one vocabulary. Date Posted
  * takes a clock, not the card's calendar, which there means the start date,
- * and Role, a fact the card doesn't print, takes shapes of its own.
+ * and Role, a fact the card doesn't print, takes a person in a suit of its own.
  * Inside a popup an option has a glyph only where it differs by option:
  * Workplace's building, two arrows and house, exactly as the card picks them
- * (workStyleIcon). The same briefcase on every Job Type row would say nothing
- * the button doesn't. Glyphs are ink-meta, as on the card, and brand once the
+ * (workStyleIcon), and Experience's backpack, mortarboard and check badge
+ * (levelIcon, KAN-252). The same briefcase on every Job Type row would say
+ * nothing the button doesn't. Glyphs are ink-meta, as on the card, and brand once the
  * facet is in use, with its label.
  *
  * Location is a Popover rather than a Select, for its two panels
@@ -143,10 +157,12 @@ function FacetTrigger({
   );
 }
 
-type Option = { value: string; label: string; Icon?: Glyph; count?: ReactNode };
+type Option = { value: string; label: string; Icon?: Glyph };
 
 /** The list shared by every facet's popup: checkbox rows where a facet takes
- *  several picks, the vendored check-mark rows where it takes one. */
+ *  several picks, the vendored check-mark rows where it takes one. Options are
+ *  medium weight, as the buttons above them are, and carry no job count
+ *  (both KAN-252): at body weight the list read thin beside the row. */
 function FacetPopup({ options, multiple }: { options: readonly Option[]; multiple: boolean }) {
   const Item = multiple ? SelectCheckboxItem : SelectItem;
 
@@ -154,13 +170,21 @@ function FacetPopup({ options, multiple }: { options: readonly Option[]; multipl
     // Below the button and level with its left edge, like every popup in the
     // row. Base UI's default lays the list over the button so the picked row
     // sits on it, which put each facet's list somewhere different.
-    <SelectContent alignItemWithTrigger={false} align="start">
+    //
+    // As wide as its longest option, never narrower than the button and never
+    // wider than the screen, as Location's popover is. The vendored list is
+    // the button's width, which wrapped Role's options onto up to four lines
+    // and pushed "Infrastructure Engineer"'s checkbox out of view (KAN-252).
+    <SelectContent
+      alignItemWithTrigger={false}
+      align="start"
+      className="w-max max-w-[calc(100vw-2rem)] min-w-(--anchor-width)"
+    >
       {options.map((option) => (
-        <Item key={option.value} value={option.value}>
+        <Item key={option.value} value={option.value} className="font-medium">
           <span className="flex items-center gap-2">
             {option.Icon && <option.Icon className="text-ink-meta size-4 shrink-0" />}
             {option.label}
-            {option.count}
           </span>
         </Item>
       ))}
@@ -258,14 +282,11 @@ function placesFrom(ticks: readonly string[]): string[] {
  *  marks the country whose states the other panel lists. */
 function CheckRow({
   label,
-  count,
   checked,
   current = false,
   onToggle,
 }: {
   label: string;
-  /** How many jobs the option holds, after the label. */
-  count?: number;
   checked: boolean;
   current?: boolean;
   onToggle: () => void;
@@ -277,14 +298,11 @@ function CheckRow({
       aria-checked={checked}
       onClick={onToggle}
       className={cn(
-        "hover:bg-accent focus-visible:bg-accent text-body flex w-full items-center justify-between gap-3 rounded-md py-1 pr-1.5 pl-2 text-left outline-hidden",
+        "hover:bg-accent focus-visible:bg-accent text-body flex w-full items-center justify-between gap-3 rounded-md py-1 pr-1.5 pl-2 text-left font-medium outline-hidden",
         current && "bg-accent",
       )}
     >
-      <span>
-        {label}
-        {count != null && <JobCount n={count} />}
-      </span>
+      <span>{label}</span>
       <span
         aria-hidden
         className={cn(
@@ -376,11 +394,10 @@ function LocationFacet({
       >
         <div role="group" aria-label="Countries" className="flex min-w-40 flex-col">
           <PanelHeading>Country</PanelHeading>
-          {countries.map(({ code, label, jobs }) => (
+          {countries.map(({ code, label }) => (
             <CheckRow
               key={code}
               label={label}
-              count={jobs}
               checked={ticks.includes(code)}
               current={code === shown}
               onToggle={() => toggleCountry(code)}
@@ -405,11 +422,10 @@ function LocationFacet({
               aria-label={`States in ${countries.find(({ code }) => code === shown)?.label}`}
               className="flex max-h-72 flex-col overflow-y-auto overscroll-contain"
             >
-              {statesOf(shown).map(({ code, label, jobs }) => (
+              {statesOf(shown).map(({ code, label }) => (
                 <CheckRow
                   key={code}
                   label={label}
-                  count={jobs}
                   checked={ticks.includes(code)}
                   onToggle={() => toggleState(code)}
                 />
@@ -444,9 +460,16 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
 }
 
 /** Role once GET /jobs/facets has answered: the `job_roles` that tag a job,
- *  in the database's order, each with its count (KAN-155). Its options come
- *  with the counts, so unlike the other facets it waits on them, as Location
- *  waits on its places. */
+ *  in the database's order (KAN-155). Its options come from there, so unlike
+ *  the other facets it waits on them, as Location waits on its places.
+ *
+ *  A COMBOBOX WITH ITS SEARCH FIELD IN THE POPUP, not the other facets'
+ *  Select (KAN-252): forty-odd roles were too many to scroll through for one,
+ *  so typing narrows the list, as the panel's Role picker does. A Select
+ *  cannot: one whose rows come and go undoes an untick (LocationFacet says
+ *  how), and Base UI's Combobox is the filterable Select. Everything else is
+ *  the other facets': the same button, the same checkbox rows (check-row),
+ *  FacetPopup's width, and a pick leaves the popup open for the next. */
 function RoleFacetOptions({
   facets,
   values,
@@ -458,20 +481,72 @@ function RoleFacetOptions({
   onChange: (values: string[]) => void;
   className?: string;
 }) {
-  const options = use(facets).role.map((o) => ({
-    value: o.value,
-    label: o.label,
-    count: <JobCount n={o.jobs} />,
-  }));
+  const roles = use(facets).role;
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  // Set by a pick and cleared once the press is handled (below).
+  const picked = useRef(false);
+  const byValue = new Map(roles.map((r) => [r.value, r]));
+  const labelOf = (value: string) => byValue.get(value)?.label ?? value;
+
   return (
-    <Facet
-      Icon={RoleIcon}
-      label="Role"
-      options={options}
-      values={values}
-      onChange={onChange}
-      className={className}
-    />
+    <Combobox
+      items={roles.map((r) => r.value)}
+      itemToStringLabel={labelOf}
+      multiple
+      // In the list's order, whatever order they were ticked in.
+      value={values}
+      onValueChange={(next: string[]) => {
+        picked.current = true;
+        queueMicrotask(() => (picked.current = false));
+        onChange(roles.map((r) => r.value).filter((v) => next.includes(v)));
+      }}
+      // A pick while searching keeps the search, as the panel's picker does,
+      // so "engineer" stays narrowed while you tick three of them. Base UI
+      // empties the field on that press; every other clear (closing) stands,
+      // and each open starts with an empty field.
+      inputValue={query}
+      onInputValueChange={(next, details) => {
+        if (details.reason === "input-clear" && picked.current) return;
+        setQuery(next);
+      }}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setQuery("");
+      }}
+    >
+      <ComboboxTrigger className={facetTriggerClasses(values.length, open, className)}>
+        <FacetLabel Icon={RoleIcon} label="Role" active={values.length > 0 && !open} />
+        {values.length > 0 && <span className="sr-only">, {values.length} selected</span>}
+      </ComboboxTrigger>
+      <ComboboxContent
+        sideOffset={4}
+        className="w-max max-w-[calc(100vw-2rem)] min-w-(--anchor-width)"
+      >
+        {/* The panel's Role picker's field (SearchPicker), at the top of
+            the popup and focused when it opens. */}
+        <div className="border-border focus-within:ring-brand-ring m-1 flex h-9 items-center gap-2 rounded-md border px-2.5 focus-within:ring-2">
+          <SearchIcon className="text-ink-meta size-4 shrink-0" />
+          <ComboboxPrimitive.Input
+            aria-label="Search roles"
+            placeholder="Search roles"
+            className="text-body text-ink placeholder:text-ink-meta min-w-0 flex-1 bg-transparent outline-none"
+          />
+        </div>
+        <ComboboxEmpty className="text-ink-meta text-body py-3">No roles match</ComboboxEmpty>
+        {/* overscroll-contain: the list's own scroll stops at its ends
+            instead of moving the page behind it. */}
+        <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-contain p-1 empty:p-0">
+          {(value: string) => (
+            <ComboboxPrimitive.Item key={value} value={value} className={checkRowClasses}>
+              {labelOf(value)}
+              <CheckRowBox />
+            </ComboboxPrimitive.Item>
+          )}
+        </ComboboxPrimitive.List>
+      </ComboboxContent>
+    </Combobox>
   );
 }
 
@@ -494,68 +569,19 @@ function RoleFacet(props: Parameters<typeof RoleFacetOptions>[0]) {
   );
 }
 
-/** A job count after an option's label, in the row's quiet grey. Counts are
- *  across the whole feed, not narrowed by the other filters (GET
- *  /jobs/facets), so they say how big an option is, not how many of the
- *  current results it holds. */
-function JobCount({ n }: { n: number }) {
-  return <span className="text-ink-meta ml-1.5 tabular-nums">{n.toLocaleString("en-US")}</span>;
-}
-
-type FacetGroup = keyof JobFacets;
-
-/** An option's count once GET /jobs/facets has answered; nothing until then,
- *  or for a value the feed holds none of, so the row never waits on it. */
-function OptionCount({
-  facets,
-  group,
-  value,
-}: {
-  facets: Promise<JobFacets>;
-  group: FacetGroup;
-  value: string;
-}) {
-  return (
-    <Suspense fallback={null}>
-      <OptionCountValue facets={facets} group={group} value={value} />
-    </Suspense>
-  );
-}
-
-function OptionCountValue({
-  facets,
-  group,
-  value,
-}: {
-  facets: Promise<JobFacets>;
-  group: FacetGroup;
-  value: string;
-}) {
-  const n = use(facets)[group].find((c) => c.value === value)?.jobs;
-  return n == null ? null : <JobCount n={n} />;
-}
-
-/** A facet's static options with their counts beside them. */
-function counted(
-  options: readonly { value: string | number; label: string }[],
-  facets: Promise<JobFacets>,
-  group: FacetGroup,
-): Option[] {
-  return options.map((o) => ({
-    value: String(o.value),
-    label: o.label,
-    count: <OptionCount facets={facets} group={group} value={String(o.value)} />,
-  }));
+/** A facet's fixed options as the popup's. */
+function optionsOf(options: readonly { value: string | number; label: string }[]): Option[] {
+  return options.map((o) => ({ value: String(o.value), label: o.label }));
 }
 
 const hasPlaces = (places: JobLocationOption[]) => places.length > 0;
-const hasCounts = (counts: JobFacets) => counts.work_style.length > 0;
+const hasFacets = (facets: JobFacets) => facets.work_style.length > 0;
 
 /** The first of a series of promises that resolves with data, held from then
- *  on; until one has, the latest. The row's places and counts don't change
+ *  on; until one has, the latest. The row's places and roles don't change
  *  with the filters, so once they've loaded, the promise each later render
- *  hands down would only re-suspend Location and blank the counts while the
- *  same figures load again. But a first load that failed (the API down, an
+ *  hands down would only re-suspend Location and Role while the same lists
+ *  load again. But a first load that failed (the API down, an
  *  empty answer) mustn't stick for the visit: Next caches only good answers,
  *  so a later render's promise is worth taking until one comes back filled. */
 function useHeldOnceFilled<T>(latest: Promise<T>, filled: (value: T) => boolean): Promise<T> {
@@ -586,17 +612,17 @@ export function JobFilters({
   filters,
 }: {
   locations: Promise<JobLocationOption[]>;
-  /** Every option's count and the Start Date options, still loading. */
+  /** GET /jobs/facets: the Role and Start Date options, still loading. */
   facets: Promise<JobFacets>;
   filters: FeedFilters;
 }) {
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
-  // The first page's places and counts, kept for as long as the row is on
+  // The first page's places and roles, kept for as long as the row is on
   // screen. They don't depend on the filters, so the promises each filter
-  // change's render hands down again would only re-suspend Location and blank
-  // every count while the same figures load a second time.
+  // change's render hands down again would only re-suspend Location and Role
+  // while the same lists load a second time.
   const locations = useHeldOnceFilled(locationsLoading, hasPlaces);
-  const facets = useHeldOnceFilled(facetsLoading, hasCounts);
+  const facets = useHeldOnceFilled(facetsLoading, hasFacets);
   const startFeedTransition = useFeedTransition();
   const router = useRouter();
   const pathname = usePathname();
@@ -619,13 +645,15 @@ export function JobFilters({
     });
   }
 
+  const filtered = isFiltered(shown);
+
   /** One facet's change, the others as they stand. */
   const set = (change: Partial<FeedFilters>) => apply({ ...shown, ...change });
 
   // The row's facets, each given the width classes its place in the row needs.
   const facet = {
-    // The job_roles that tag a job (KAN-155), from GET /jobs/facets. The
-    // panel's search picker offers the same list, found by typing.
+    // The job_roles that tag a job (KAN-155), from GET /jobs/facets, found
+    // by typing here as in the panel's search picker (KAN-252).
     role: (className: string) => (
       <RoleFacet
         facets={facets}
@@ -638,7 +666,7 @@ export function JobFilters({
       <Facet
         Icon={BriefcaseIcon}
         label="Job Type"
-        options={counted(JOB_TYPE_OPTIONS, facets, "job_type")}
+        options={optionsOf(JOB_TYPE_OPTIONS)}
         values={shown.jobTypes}
         onChange={(values) => set({ jobTypes: values as FeedFilters["jobTypes"] })}
         className={className}
@@ -648,7 +676,7 @@ export function JobFilters({
       <Facet
         Icon={workStyleIcon("onsite")}
         label="Workplace"
-        options={counted(WORKPLACE_OPTIONS, facets, "work_style").map((o) => ({
+        options={optionsOf(WORKPLACE_OPTIONS).map((o) => ({
           ...o,
           Icon: workStyleIcon(o.value),
         }))}
@@ -661,7 +689,7 @@ export function JobFilters({
       <Facet
         Icon={LevelIcon}
         label="Experience"
-        options={counted(EXPERIENCE_OPTIONS, facets, "experience")}
+        options={optionsOf(EXPERIENCE_OPTIONS).map((o) => ({ ...o, Icon: levelIcon(o.value) }))}
         values={shown.levels}
         onChange={(values) => set({ levels: values as FeedFilters["levels"] })}
         className={className}
@@ -671,7 +699,7 @@ export function JobFilters({
       <Facet
         Icon={ClockIcon}
         label="Date Posted"
-        options={counted(DATE_POSTED_OPTIONS, facets, "posted_within")}
+        options={optionsOf(DATE_POSTED_OPTIONS)}
         values={shown.postedWithin != null ? [String(shown.postedWithin)] : []}
         onChange={([value]) => set({ postedWithin: value != null ? Number(value) : null })}
         multiple={false}
@@ -692,11 +720,14 @@ export function JobFilters({
     <>
       {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
           and All Filters stays a normal button at every width. Each facet is
-          144px and the button about 110, so the row fits them on one line
-          from these widths of row (the page's @container, so an open sidebar
-          or Scout counts): Location and All Filters anywhere, then Role from
-          448px, Workplace 672, Experience 768, Date Posted 896 and Job Type
-          1024.
+          144px, All Filters 101 and Clear Filters 93, so the row fits them on
+          one line from these widths of row (the page's @container, so an open
+          sidebar or Scout counts): Location and All Filters anywhere, then
+          Role from 512px, Workplace 672, Experience 816, Date Posted 976 and
+          Job Type 1120. Those leave room for Clear Filters whether or not it
+          shows, so a pick never pushes a facet out of the row or All Filters
+          onto a second line (KAN-252; without it they were 448, 672, 768, 896
+          and 1024).
           Role sits second, beside Location (KAN-171): with every field in
           one feed (KAN-172), which kind of role is the first thing a
           seeker narrows by, and software and engineering are half of it
@@ -708,17 +739,26 @@ export function JobFilters({
           left one wide bar where four filters had fit. The panel holds
           every facet, and Salary and Start Date, which the row has no room for. */}
       {facet.location("w-36")}
-      {facet.role("hidden w-36 @md:flex")}
+      {facet.role("hidden w-36 @lg:flex")}
       {facet.workplace("hidden w-36 @2xl:flex")}
-      {facet.experience("hidden w-36 @3xl:flex")}
-      {facet.datePosted("hidden w-36 @4xl:flex")}
-      {facet.jobType("hidden w-36 @5xl:flex")}
+      {facet.experience("hidden w-36 @min-[51rem]:flex")}
+      {facet.datePosted("hidden w-36 @min-[61rem]:flex")}
+      {facet.jobType("hidden w-36 @min-[70rem]:flex")}
 
+      {/* Every pick off in one press (KAN-252), shown only while there is
+          one: the panel's Clear All, without opening the panel. It keeps ?view
+          and ?q as every pick does, so the Recommended view stays itself
+          rather than bringing the saved preferences back. */}
+      {filtered && (
+        <Button variant="ghost" size="sm" onClick={() => apply(NO_FILTERS)} className="ml-auto">
+          Clear Filters
+        </Button>
+      )}
       <Button
         variant="secondary"
         size="sm"
         onClick={() => setAllFiltersOpen(true)}
-        className="ml-auto"
+        className={cn(!filtered && "ml-auto")}
       >
         <FilterIcon className="size-4" />
         All Filters
