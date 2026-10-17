@@ -2,11 +2,23 @@
 
 How each screen behaves and why: the Jobs page and its filters, the job
 posting page and card, the seeker Dashboard, Applications, the Calendar, My
-Profile (resumes, photo), Resumes & Experiences, Scout's panel,
-and the company screens. Read the
-section for a screen before changing it.
+Profile (resumes, photo), Resumes & Experiences, Scout's panel, applicant
+onboarding, and the company screens. Read the section for a screen before
+changing it.
 
 ## Jobs page, /search and filters
+
+**/jobs has two views (KAN-231).** Recommended, the default, is the jobs the
+filters keep, scored against the seeker's experience bank and best first
+(`GET /jobs/recommended/{id}`, which takes the same filters as `GET /jobs`),
+with the match rail showing each score and its highlights. With an empty bank
+it shows the plain feed under the same filters, below the bank prompt, and so
+does a company account, which the API refuses (403). All Jobs
+(`?view=all`) is the plain feed. **Saved preferences apply on a fresh visit
+only**: bare /jobs redirects to `?view=recommended` plus the saved filters,
+where the row shows them checked; from then on the URL is the truth, so Clear
+All clears rather than bringing the saved ones back. Load More pages whichever
+view drew the list (`FeedList`'s `source`).
 
 /jobs and /search filter on the server by the query (/search's ?q= is read by
 the API's role resolver: roles, a typo corrected, then text and company):
@@ -66,7 +78,7 @@ minimum; a posting matches when its own range overlaps it, compared as yearly
 figures in USD.
 
 Location, Role and Start Date in the panel are one picker (SearchPicker in
-jobs/all-filters.tsx; Role's specialties indented under their category, as a
+components/filter-controls.tsx, shared with onboarding; Role's specialties indented under their category, as a
 country's states are, and named whole, "Mechanical Engineering", since a search
 lists them alone): a search field whose checklist opens only from the field and
 floats over the panel like a dropdown (it never pushes the sections down; it
@@ -405,9 +417,8 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 ## My Profile
 
-**Resume upload is wired.** The onboarding form (`onboarding/applicant`)
-uploads on Continue, then goes to intake, onboarding's next step (Experience
-Bank section). The seeker profile (`(seeker)/profile`) supports up to
+**Resume upload is wired.** Onboarding asks for a resume in intake, its
+second step (Experience Bank section), not in the wizard. The seeker profile (`(seeker)/profile`) supports up to
 5 resumes, uploaded and base resumes together as the API counts them (its
 "n of 5" adds the base resumes; tailored ones are free),
 newest first: picking a file uploads it at once (`uploadResume`);
@@ -696,7 +707,8 @@ in Docs (suggested answers in the chat, not a banner).
   and it hid the walk's questions about the import). When no
   stop is left, the student picks from the chips.
 - **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
-  profile form's Continue leads there, then Finish leads to /dashboard. It
+  profile form's Continue leads there, then Finish leads to /jobs, the
+  Recommended view (KAN-231). It
   always walks, and its step bar shows the profile form as a done "Profile"
   step before the sections. It imports `Intake` from the bank route rather
   than promoting it to `src/components`: intake needs the bank's entry
@@ -896,6 +908,66 @@ as a prop. `stream.ts` mirrors the API's NDJSON events, which
 the session's token. `reply-text` renders a reply's **bold** and "- " bullets,
 the prompt's whole formatting vocabulary, with no markdown library (a reply
 stays escaped text otherwise).
+
+## Applicant onboarding
+
+/onboarding/applicant is a two-step wizard (KAN-231), outside both shells:
+Scout asks each step's question on a lavender left half
+(`onboarding/applicant/story-panel.tsx`, a band across the top below lg) and
+the fields answer it on the right, with Back and Next pinned to the foot.
+From lg the screen is one window tall and only the right column scrolls, with
+its scrollbar's room kept on every step: when the page scrolled, only the
+long step 1 grew a scrollbar, and the panel and form shifted against step 2.
+Step 1 is Role, Job Type and Workplace (all required), and Experience,
+Start Date and Location; step 2 is Salary Range and Visa Sponsorship (both
+optional), with Continue in place of Next. Start Date shows only once
+Internship is picked, and unpicking Internship clears it: a saved season keeps
+only the jobs that name one, which a new-grad role rarely does. Intake (KAN-214) is onboarding's next step, so the wizard has no resume
+step of its own: intake uploads and imports one into the experience bank,
+which matching reads. Preference Tags, free-text skills, were dropped
+(KAN-231): the feed has no filter for them.
+
+**The left half moves, from lg.** Above the question a showcase
+(`onboarding/applicant/showcase.tsx`) cycles three scenes on one clock: a
+mock screen (a matched job, a resume, the applications board) with the
+notification that screen would send tucked over its corner. A scene glides
+in, its notification follows a beat later, and both leave together while the
+next arrives (`--animate-arrive` and `--animate-leave`), so the change is a
+crossfade. Two clocks, one per part, drifted out of step. The scenes are
+scaled as a whole to fill the room the panel leaves (up to 1.8x), so a tall
+window gets a big picture; under 0.85x the stage hides and leaves the room to
+the question. Scout types a line in a chat bubble on every step. It is all
+decoration over made-up data, so it is aria-hidden, and it holds still under
+reduced motion.
+
+**Its answers are the Jobs page's filters.** Every question takes
+`FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
+Start Date and Salary use All Filters' own pickers
+(`components/filter-controls.tsx`), so the saved answers fill the feed's
+filters with no translation. They share All Filters' rules too, from
+`filter-query.ts`: `payUnits` picks the salary's units from the job types,
+and `statesNarrowCountries` saves United States and California as
+California. A fixed choice is a `ChoiceTile`
+(./choice-tile.tsx): a box for any-of, a dot for one-of.
+
+**It sets larger than the app.** Each step is one question with the screen to
+itself, so the question is `text-hero` (40px) from lg, and the shared pickers
+take `size="lg"` (taller fields); All Filters keeps their default size. The
+right side has three type sizes at every width: 20px for each section title,
+16px for every answer (tiles, chips, pills, typed text) and 14px for every note
+beside one. `text-subtitle`, the answers' size, carries a 600 weight of its
+own, so each answer sets its weight; without it the typed salary and search
+text came out semibold.
+
+**Continue saves the answers (KAN-231)** as the seeker's preferences (`PUT
+/applicants/{id}/preferences`, which also marks onboarding complete), then
+opens intake (KAN-214), whose Finish opens /jobs: the Recommended view applies
+the saved filters and scores what they keep against the bank just filled. A
+failed save leaves the seeker on the page to retry. Date Posted is not asked:
+a saved "past 24 hours" would empty the feed within days. Sign-in sends an
+applicant here until they finish (`docs/auth.md`); a finished one coming back
+from intake's "Back to Profile" finds the wizard filled with their saved
+answers, and Continue saves the edits.
 
 ## Company screens
 

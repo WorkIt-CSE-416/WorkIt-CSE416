@@ -63,7 +63,6 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import StringConstraints
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
@@ -89,29 +88,15 @@ from app.schemas.jobs import (
     JobListing,
     JobLocationOption,
     JobRoleOption,
+    JobTypeKey,
+    PlaceCode,
+    RoleSlug,
     ScoredJob,
+    SeasonKey,
 )
 from app.services.bank import load_bank
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
-
-# A Start Date option: "summer-2027", or a year, "2027".
-SeasonKey = Annotated[
-    str, StringConstraints(pattern=r"^((winter|spring|summer|fall)-)?20[0-9]{2}$")
-]
-
-
-# A country ("US") or a state ("US-CA"). Only the shape is checked: a code no
-# job uses matches nothing, which is the right answer for it.
-PlaceCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}(-[A-Z0-9]{1,3})?$")]
-
-# A job_roles slug ("software_engineer"). Only the shape is checked, as for a
-# place: a slug no job is tagged with matches nothing. The seed's
-# job_roles_slug_shape CHECK holds the same pattern, capped here.
-RoleSlug = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
-
-# ?job_type=: the column's four, internship among them (KAN-233).
-JobTypeKey = Literal["full_time", "part_time", "contract", "internship"]
 
 
 async def read_filters(

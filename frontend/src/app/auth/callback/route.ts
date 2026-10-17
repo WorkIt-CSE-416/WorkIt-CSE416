@@ -69,9 +69,15 @@ export async function GET(request: NextRequest) {
   }
 
   // A returning sign-in: the same destination login/actions.ts sends a
-  // password account to, the Dashboard for an applicant. A first sign-in
-  // went to choose-account-type above, which sends an applicant to /profile
-  // in onboarding's place (KAN-141: applicant onboarding is skipped for now).
-  const destination = oauthStatus.account?.account_type === "company" ? "/company" : "/dashboard";
+  // password account to, onboarding for an applicant who hasn't finished it
+  // and the Dashboard after. A first sign-in went to choose-account-type
+  // above, which starts an applicant on onboarding.
+  const account = oauthStatus.account;
+  const destination =
+    account?.account_type === "company"
+      ? "/company"
+      : account && !account.onboarding_completed
+        ? "/onboarding/applicant"
+        : "/dashboard";
   return NextResponse.redirect(`${origin}${destination}`);
 }

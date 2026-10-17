@@ -61,7 +61,9 @@ import { MatchRail } from "./match-rail";
  *                          intern for years
  *   uploaded_at            `posted_at`, when the board dated it
  *
- * The match rail is its placeholder (score null): nothing scores a role yet.
+ * The match rail shows the role's score and highlights on the Recommended
+ * view, which scores against the seeker's resume, and its placeholder
+ * (score null) everywhere else.
  * The card opens the role's own page, /jobs/[jobId] (KAN-73), which shows
  * its description; Apply Now leaves for the employer's own posting.
  */
@@ -83,7 +85,7 @@ export function ListingCard({
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
         ...listingFacts(job),
       }}
-      rail={<MatchRail score={null} highlights={[]} />}
+      rail={<MatchRail score={job.match ?? null} highlights={job.highlights ?? []} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
          too many. All five sit at the row's right end, as on the mock cards:

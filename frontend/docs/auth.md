@@ -10,14 +10,14 @@ signup or OAuth path.
   `GET /auth/me` with the new access token to learn the account type and
   onboarding state, and redirects off that: an applicant to
   `/onboarding/applicant` until onboarded and `/dashboard` after, a company
-  account always to `/company`. **Skipped for now (KAN-141):** the applicant
-  onboarding check is commented out in both `login/actions.ts` and
-  `signup/actions.ts`. A new applicant (signup, or a first Google/LinkedIn
-  sign-in through `/signup/choose-account-type`) goes straight to `/profile`
-  in onboarding's place; a returning one (login, or a returning OAuth sign-in
-  in `auth/callback/route.ts`) lands on `/dashboard`, the seeker's home. The
-  API still reports `onboarding_completed` and the onboarding screen still
-  works by URL; uncomment those blocks to turn it back on. Companies skip the onboarding check because
+  account always to `/company`. A new applicant (signup, or a first
+  Google/LinkedIn sign-in through `/signup/choose-account-type`) always starts
+  on onboarding; a returning one (login, or a returning OAuth sign-in in
+  `auth/callback/route.ts`) goes there until `onboarding_completed`, then to
+  `/dashboard`. Saving onboarding's answers (`PUT
+  /applicants/{id}/preferences`) is what sets it (KAN-231, which ended
+  KAN-141's skip). The onboarding page lets a finished applicant back in,
+  from intake's "Back to Profile", with their saved answers filled in. Companies skip the onboarding check because
   nothing sets their `onboarding_completed_at` yet, so it would send every
   company login to the `/onboarding/company` stub — restore it when company
   onboarding is built. If the account type doesn't match the tab the user

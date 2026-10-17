@@ -79,9 +79,8 @@ export async function chooseAccountType(
   await supabase.auth.refreshSession();
 
   if (account.account_type === "applicant") {
-    // KAN-141: onboarding is skipped for faster prototyping, same as
-    // signup/actions.ts and login/actions.ts.
-    redirect("/profile");
+    // A first OAuth sign-in is a new account: onboarding first, as signup.
+    redirect("/onboarding/applicant");
   } else {
     redirect("/company");
   }

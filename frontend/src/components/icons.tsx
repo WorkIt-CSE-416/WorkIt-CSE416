@@ -16,6 +16,7 @@ import {
   Clock,
   Ellipsis,
   ExternalLink,
+  FileText,
   Globe,
   GraduationCap,
   House,
@@ -261,6 +262,10 @@ export function LockIcon({ className }: IconProps) {
 
 export function UploadIcon({ className }: IconProps) {
   return <Upload aria-hidden className={className} />;
+}
+
+export function FileIcon({ className }: IconProps) {
+  return <FileText aria-hidden className={className} />;
 }
 
 export function TrashIcon({ className }: IconProps) {
