@@ -97,6 +97,19 @@ export const EXPERIENCE_OPTIONS: { value: Level; label: string }[] = [
  *  Full-Time filter. */
 export type JobTypeKey = JobType;
 
+/** A picked state narrows its country: United States and California is
+ *  California, the same rule as the row's Location (ticksFrom/placesFrom in
+ *  ./filters), so the two give one feed for the same picks. All Filters'
+ *  Apply and onboarding's save both pass their picks through it. */
+export function statesNarrowCountries(filters: FeedFilters): FeedFilters {
+  return {
+    ...filters,
+    places: filters.places.filter(
+      (p) => p.includes("-") || !filters.places.some((q) => q.startsWith(`${p}-`)),
+    ),
+  };
+}
+
 /** Which pay units a salary filter offers for these job types: hourly when
  *  only internships are wanted, yearly when none are, both otherwise. Shared
  *  by All Filters and onboarding. */
@@ -228,6 +241,55 @@ export function filterEntries(filters: FeedFilters): [string, string][] {
     ...filters.startTerms.map((t): [string, string] => ["start_term", t]),
     ...(filters.visa != null ? [["visa", filters.visa] as [string, string]] : []),
   ];
+}
+
+/**
+ * A seeker's saved preferences as the API holds them (KAN-231,
+ * backend/app/schemas/preferences.py): GET /jobs' own query names, so they
+ * map to and from `FeedFilters` with the readers above. Date Posted is never
+ * saved, since a fixed "past 24 hours" would empty the feed within days.
+ */
+export type SavedPreferences = {
+  location: string[];
+  work_style: string[];
+  role: string[];
+  experience: string[];
+  job_type: string[];
+  min_pay: number | null;
+  max_pay: number | null;
+  pay_per: PayPer;
+  start_term: string[];
+  visa: Visa | null;
+};
+
+/** To the cent, as the API stores pay (numeric(12,2)), so a typed
+ *  "100000.555" is saved rather than refused. */
+const cents = (n: number | null) => (n == null ? null : Math.round(n * 100) / 100);
+
+/** The filters as the body PUT /applicants/{id}/preferences takes. */
+export function preferencesBody(filters: FeedFilters): SavedPreferences {
+  return {
+    location: filters.places,
+    work_style: filters.workStyles,
+    role: filters.roles,
+    experience: filters.levels,
+    job_type: filters.jobTypes,
+    min_pay: cents(filters.minPay),
+    max_pay: cents(filters.maxPay),
+    pay_per: filters.payPer,
+    start_term: filters.startTerms,
+    visa: filters.visa,
+  };
+}
+
+/** Saved preferences as filters, read through readFilters like any query,
+ *  so a saved value the feed no longer offers is dropped, not sent. */
+export function filtersFromPreferences(saved: SavedPreferences): FeedFilters {
+  const params: Params = {};
+  for (const [key, value] of Object.entries(saved)) {
+    if (value != null) params[key] = Array.isArray(value) ? value : String(value);
+  }
+  return readFilters(params);
 }
 
 /** `?location=US-CA&work_style=remote`, or "" for no filters. */

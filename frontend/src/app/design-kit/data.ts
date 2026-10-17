@@ -269,6 +269,7 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
     cls: "text-figure",
     role: "Seeker Dashboard tile figures, 36px medium",
   },
+  { token: "--text-hero", cls: "text-hero", role: "Onboarding question from lg, 40px regular" },
 ];
 
 /** The faces themselves come from next/font in app/layout.tsx. */
@@ -417,6 +418,18 @@ export const ANIMATIONS: {
     cls: "animate-status-ping",
     demo: "ping",
     role: "A dot calling for a look, three pings then rest: the detail panel's Next step",
+  },
+  {
+    token: "--animate-arrive",
+    cls: "animate-arrive",
+    demo: "card",
+    role: "A whole scene gliding in over the last: onboarding's showcase slides",
+  },
+  {
+    token: "--animate-leave",
+    cls: "animate-leave",
+    demo: "card",
+    role: "That scene leaving in place, on the exit curve, while the next arrives",
   },
   {
     token: "--animate-typing",

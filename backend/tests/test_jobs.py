@@ -35,15 +35,13 @@ ROW = SimpleNamespace(
     title="Robot Software Intern",
     company_name="Rhoda AI",
     apply_url="https://jobs.example/1",
-    # An internship as an import before KAN-233 wrote it: the level, with no
-    # job type. to_listing reads it as the new values.
-    experience_level=dto.experience_level.internship,
+    experience_level=dto.experience_level.student,
     work_style=dto.work_style.hybrid,
     location_raw="Mountain View, CA",
     location_label="Mountain View, CA",
     posted_at=datetime.datetime(2026, 10, 6, 2, 42, 6, tzinfo=datetime.UTC),
     company_logo_url=None,
-    job_type=None,
+    job_type=dto.job_type.internship,
     min_years_experience=None,
     start_term="Summer 2027",
     sponsorship=dto.visa_sponsorship.sponsors,
@@ -377,7 +375,7 @@ def test_a_search_s_facts_narrow_their_own_columns():
         query_start_terms=["Summer 2027"],
     )
     assert [_sql(c) for c in matching(filters)] == [
-        "job_postings.experience_level IN ('student', 'internship')",
+        "job_postings.experience_level IN ('student')",
         "job_postings.work_style IN ('remote')",
         "job_postings.start_term IN ('Summer 2027')",
     ]
@@ -586,36 +584,14 @@ def test_each_filter_narrows_its_own_column():
     assert sql == [
         "job_postings.work_style IN ('onsite')",
         "job_postings.experience_level IN ('new_grad')",
-        (
-            "NOT (job_postings.job_type = 'internship'"
-            " OR job_postings.experience_level = 'internship')"
-            " AND job_postings.job_type IN ('part_time', 'contract')"
-        ),
+        "job_postings.job_type IN ('part_time', 'contract')",
     ]
 
 
 def test_internship_is_a_job_type_of_its_own():
-    # An internship is the job type internship (KAN-233). Until migration B
-    # moves the rows an older import wrote, one may still say it as the
-    # experience level, so the filter reads both, and Full-Time and the rest
-    # leave either out as they always have (legacy_levels.py).
-    either = (
-        "job_postings.job_type = 'internship'"
-        " OR job_postings.experience_level = 'internship'"
-    )
-    (clause,) = matching(JobFilters(job_types=["internship"]))
-    assert _sql(clause) == either
+    # An internship is the job type internship (KAN-233), a plain match.
     (clause,) = matching(JobFilters(job_types=["full_time", "internship"]))
-    assert _sql(clause) == (
-        f"{either} OR NOT ({either}) AND job_postings.job_type IN ('full_time')"
-    )
-
-
-def test_a_level_matches_its_old_spelling_too():
-    (clause,) = matching(JobFilters(levels=["student", "experienced"]))
-    assert _sql(clause) == (
-        "job_postings.experience_level IN ('student', 'internship', 'experienced', 'other')"
-    )
+    assert _sql(clause) == "job_postings.job_type IN ('full_time', 'internship')"
 
 
 def test_route_reads_internship_as_a_job_type(no_database, monkeypatch):

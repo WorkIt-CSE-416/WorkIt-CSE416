@@ -11,14 +11,17 @@ import { cn } from "@/lib/cn";
  * the shape alone says which is which.
  *
  *   choice      a filter or a toggle; `pressed` turns it on (aria-pressed)
- *   suggestion  an answer offered: WorkIt's replies in the chat, a skill or
- *               an expertise to add
+ *   suggestion  an answer offered: WorkIt's replies in the chat, a section
+ *               to start
  *   primary     the one suggestion most people take ("Use This")
  *
- * ONE SIZE. 36px tall, an sm Button's height, so a chip and a button on one
- * row line up; 13px label type and a 14px glyph (an icon with no `size-*`
- * class takes it, as in Button). Before this, five screens drew their own
- * pill at 28, 30 or 32px, in two type sizes, with four pressed looks.
+ * TWO SIZES. `default` is 36px tall, an sm Button's height, so a chip and a
+ * button on one row line up; 13px label type and a 14px glyph (an icon with
+ * no `size-*` class takes it, as in Button). `lg` is 42px, a default
+ * Button's and a text field's height, with 16px type, for a screen where the
+ * chips are the question itself (onboarding, KAN-231). Before this, five
+ * screens drew their own pill at 28, 30 or 32px, in two type sizes, with four
+ * pressed looks, and onboarding's large pills were 40px.
  *
  * It presses to 96% like a segment (docs/motion.md), and its colours ease
  * over 150ms. A caller passes `className` for layout only; a stage filter is
@@ -26,7 +29,7 @@ import { cn } from "@/lib/cn";
  * colour, docs/design.md).
  */
 export const chipVariants = cva(
-  "text-label focus-visible:ring-brand-ring inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 font-medium whitespace-nowrap transition-[background-color,border-color,color,scale] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-96 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+  "focus-visible:ring-brand-ring inline-flex shrink-0 items-center gap-1.5 rounded-full border font-medium whitespace-nowrap transition-[background-color,border-color,color,scale] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-96 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
   {
     variants: {
       variant: {
@@ -35,6 +38,10 @@ export const chipVariants = cva(
         primary: "bg-brand text-on-brand hover:bg-brand-hover border-transparent",
       },
       pressed: { true: "", false: "" },
+      size: {
+        default: "text-label h-9 px-3.5",
+        lg: "text-subtitle h-10.5 px-4",
+      },
     },
     compoundVariants: [
       {
@@ -44,7 +51,7 @@ export const chipVariants = cva(
       },
       { variant: "choice", pressed: true, class: "border-brand bg-brand-tint text-brand" },
     ],
-    defaultVariants: { variant: "choice", pressed: false },
+    defaultVariants: { variant: "choice", pressed: false, size: "default" },
   },
 );
 
@@ -54,18 +61,18 @@ type ChipStyle = Omit<VariantProps<typeof chipVariants>, "pressed"> & {
   className?: string;
 };
 
-export function chipClasses({ variant, pressed, className }: ChipStyle = {}) {
-  return cn(chipVariants({ variant, pressed: pressed ?? false }), className);
+export function chipClasses({ variant, pressed, size, className }: ChipStyle = {}) {
+  return cn(chipVariants({ variant, pressed: pressed ?? false, size }), className);
 }
 
 type ChipProps = ChipStyle & Omit<ComponentProps<"button">, "className">;
 
-export function Chip({ variant, pressed, className, ...props }: ChipProps) {
+export function Chip({ variant, pressed, size, className, ...props }: ChipProps) {
   return (
     <button
       type="button"
       aria-pressed={pressed}
-      className={chipClasses({ variant, pressed, className })}
+      className={chipClasses({ variant, pressed, size, className })}
       {...props}
     />
   );
@@ -74,21 +81,24 @@ export function Chip({ variant, pressed, className, ...props }: ChipProps) {
 type ChipLinkProps = ChipStyle & Omit<ComponentProps<typeof Link>, "className">;
 
 /** A picked value the student can take back: a pressed choice with a cross,
- *  the Jobs page's location picks and onboarding's expertise. The chip is
+ *  the place, role and season picks of All Filters and onboarding
+ *  (components/filter-controls.tsx). The chip is
  *  not a button; its cross is, and the cross names what it removes. The two
  *  were 32px and 26px pills of their own until KAN-251. */
 export function RemovableChip({
   removeLabel,
   onRemove,
+  size,
   children,
 }: {
   /** The cross's accessible name: "Remove Boston, MA". */
   removeLabel: string;
   onRemove: () => void;
+  size?: ChipStyle["size"];
   children: ReactNode;
 }) {
   return (
-    <span className={cn(chipVariants({ pressed: true }), "gap-1 pr-1.5 active:scale-100")}>
+    <span className={cn(chipVariants({ pressed: true, size }), "gap-1 pr-1.5 active:scale-100")}>
       {children}
       <button
         type="button"
@@ -105,6 +115,6 @@ export function RemovableChip({
 /** A chip that goes somewhere: a filter kept in the URL. A link cannot be
  *  aria-pressed, so a pressed one says it is on in words of its own (the
  *  Applications stage chips add a hidden ", filter on"). */
-export function ChipLink({ variant, pressed, className, ...props }: ChipLinkProps) {
-  return <Link className={chipClasses({ variant, pressed, className })} {...props} />;
+export function ChipLink({ variant, pressed, size, className, ...props }: ChipLinkProps) {
+  return <Link className={chipClasses({ variant, pressed, size, className })} {...props} />;
 }

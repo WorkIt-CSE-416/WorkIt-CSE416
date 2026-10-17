@@ -82,7 +82,10 @@ export default function ButtonsPage() {
           </ChipLink>
           <ChipLink href="/design-kit/buttons">Offer</ChipLink>
         </Row>
-        <Row name="<RemovableChip>" role="A picked value with a cross: location picks, expertise">
+        <Row
+          name="<RemovableChip>"
+          role="A picked value with a cross: the place, role and season picks"
+        >
           <RemovableChipSpecimen />
         </Row>
         <Row name="<FilterChip>" role="A facet with a menu behind it, then a cross once applied">
