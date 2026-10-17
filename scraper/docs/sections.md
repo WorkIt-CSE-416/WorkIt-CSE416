@@ -185,6 +185,50 @@ the 8,000-character cut, or no heading for it in the posting), never that the
 posting lacks it. Checking it found that "Internship Information" belongs to
 Details, not Overview.
 
+## The gold test set (2026-10-17)
+
+The numbers above count whether a section was found, not whether its content is
+right: Perpay "had" Responsibilities filled with its company pitch. So the parser
+is now scored against `tests/fixtures/sections_gold.json`: 50 real postings, one
+per company (46 at random from the 2026-10-16 feed, plus Tenstorrent, Perpay,
+TensorWave and Neuralink), every line labeled with its section by what it says,
+under `docs/sections-gold-guide.md`. The labels were drafted blind by five
+model-assisted labelers from that guide and spot-checked by hand; 169 of 1,726
+lines were marked unsure, so read a disagreement as a question about the label
+too. `tests/test_sections_gold.py` scores where each line shows on the job page
+and fails if a change makes it worse.
+
+**First scores** (with the heading-voice rule below):
+
+| | |
+|---|---|
+| Lines shown where they belong | 80.3% |
+
+| Heading | Shown there but belong elsewhere | Belong there but shown elsewhere |
+|---|---|---|
+| Overview | 35% | 49% |
+| Responsibilities | 18% | 6% |
+| Requirements | 11% | 21% |
+| Preferred Qualifications | 27% | 15% |
+| Pay | 20% | 38% |
+| Details | 7% | 52% |
+
+The largest errors: role text under a company heading is dropped (37 lines), and
+company text shows as Overview (30) or Responsibilities (24); requirements show
+under Preferred (28) or are dropped (20); pay lines are dropped (17). Headings
+alone cannot fix these, since the employer's heading is often the wrong one for
+its own text. That is the case for reading lines by meaning (a model, only for
+the postings the rules are unsure of), measured against this set first.
+
+**The heading-voice rule.** A heading in the company's voice ("we", "our", "us")
+opens no section about the reader (Responsibilities, Requirements, Preferred)
+unless it asks for the reader: "What we look for", "We're looking for someone
+who has", "Qualifications we value" (`_COMPANY_VOICE`, `_READER_WE`). Perpay's
+"Products we've built to make an impact" matched "make an impact" and filed its
+products, office and hiring event as Responsibilities. On the whole feed it
+changes only Perpay's five postings; on the gold set, wrong lines under
+Responsibilities fall from 20.3% to 18.4% and the total from 79.9% to 80.3%.
+
 ## What WorkIt keeps (decided 2026-10-17)
 
 Xiang asked for this to be decided before anything was dropped, because dropped

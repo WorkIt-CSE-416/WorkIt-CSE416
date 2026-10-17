@@ -119,6 +119,20 @@ SECTIONS: tuple[tuple[str, str], ...] = (
 
 _PATTERNS = tuple((key, re.compile(rf"\b({words})\b", re.I)) for key, words in SECTIONS)
 
+#: The sections that speak to the reader about the job: their headings say "you"
+#: ("What you'll do", "Who you are") or name the list ("Requirements").
+_ABOUT_THE_READER = {"responsibilities", "requirements", "preferred"}
+#: A heading in the company's voice. One cannot open those sections: Perpay's
+#: "Products we've built to make an impact" matched "make an impact" and filed the
+#: company's products, its office and its hiring event as Responsibilities.
+_COMPANY_VOICE = re.compile(r"\b(we|we.ve|we.re|we.ll|our|ours|us)\b", re.I)
+#: The headings in "we" that still speak about the reader.
+_READER_WE = re.compile(
+    r"look(ing)? for|excited about you|qualifications we|qualities we|"
+    r"we (require|need|value|expect|prefer)|we.d (love|like)|like to see|with us",
+    re.I,
+)
+
 #: A label and its text on one line: "Overview: This is the team that…" (KAN-229
 #: fix 1). The label may follow a bullet and must start with a capital; the text
 #: must follow a colon and a space, so "To apply, please submit the following:" and
@@ -172,7 +186,9 @@ def heading(line: str) -> str | None:
 
     A heading is short, starts with a capital, and does not end like a sentence. A
     comma means a list item ("Medical, dental, and vision insurance") unless the line
-    ends with a colon, as "To apply, please submit the following:" does.
+    ends with a colon, as "To apply, please submit the following:" does. A heading in
+    the company's voice ("we", "our") opens no section about the reader
+    (`_COMPANY_VOICE`) unless it asks for the reader ("What we're looking for").
     """
     stripped = line.strip()
     name = stripped.strip("*#•·-–— ").rstrip(":").strip()
@@ -182,10 +198,68 @@ def heading(line: str) -> str | None:
         return None
     if name.endswith((".", ";")) or ("," in name and not stripped.endswith(":")):
         return None
+    company_voice = _COMPANY_VOICE.search(name) and not _READER_WE.search(name)
     for key, pattern in _PATTERNS:
+        if key in _ABOUT_THE_READER and company_voice:
+            continue
         if pattern.search(name):
             return key
     return None
+
+
+@dataclass(frozen=True, slots=True)
+class _Line:
+    """One input line as the walk read it (`_walk`)."""
+
+    #: Its position in the text's lines.
+    index: int
+    #: The section it belongs to.
+    key: str
+    #: The heading of that section as written; None for the intro.
+    head: str | None
+    #: Its content: the line itself, an inline label's text alone, or "" for a
+    #: heading line.
+    text: str
+    #: It opened its section: a heading line.
+    opens: bool = False
+    #: It is an inline label ("Overview: …"), a section of its own one line long.
+    inline: bool = False
+
+
+def _walk(text: str) -> list[_Line]:
+    """Every line but a whole-posting wrapper, each with the section it belongs to,
+    by the rules `split` describes. The one pass both `split` and `labels` read."""
+    walked: list[_Line] = []
+    key, head = INTRO, None
+    # Whether the open section has held a line yet: a heading straight after its
+    # own heading is its first item. True again after an inline label hands it
+    # back, which is not a fresh heading.
+    started = False
+    for index, line in enumerate(text.split("\n")):
+        if _WRAPPER.match(line.strip().strip("*#•·-–— ").rstrip(":").strip()):
+            continue
+        inline = _INLINE.match(line)
+        labelled = heading(inline.group(1)) if inline else None
+        if labelled is not None and labelled != key:
+            label, rest = inline.group(1).strip(), inline.group(2).strip()
+            walked.append(_Line(index, labelled, label, rest, inline=True))
+            started = True
+            continue
+        opens = heading(line)
+        just_opened = head is not None and not started
+        # A benefits list names pay among its perks ("Life assurance worth 4x your
+        # annual salary", "Competitive pay"): those are items, not a Pay heading,
+        # which kept the company pitch after one under Pay. A real amount reaches
+        # Pay by what it says, wherever it sits (`_sorted_lines`).
+        in_perks = opens == "pay" and key == "benefits"
+        if opens is None or opens == key or just_opened or in_perks:
+            walked.append(_Line(index, key, head, line))
+            started = started or bool(line.strip())
+            continue
+        key, head = opens, line.strip().strip("*#•·-–— ").rstrip(":").strip()
+        walked.append(_Line(index, key, head, "", opens=True))
+        started = False
+    return walked
 
 
 def split(text: str | None) -> tuple[Section, ...]:
@@ -215,40 +289,23 @@ def split(text: str | None) -> tuple[Section, ...]:
         return ()
     sections: list[Section] = []
     key, head, lines = INTRO, None, []
-    # Whether the open section has held a line yet: a heading straight after its
-    # own heading is its first item. True again after an inline label hands it
-    # back, which is not a fresh heading.
-    started = False
 
     def close() -> None:
         body = "\n".join(lines).strip()
         if body:
             sections.append(Section(key, head, body))
 
-    for line in text.split("\n"):
-        if _WRAPPER.match(line.strip().strip("*#•·-–— ").rstrip(":").strip()):
-            continue
-        inline = _INLINE.match(line)
-        labelled = heading(inline.group(1)) if inline else None
-        if labelled is not None and labelled != key:
+    for line in _walk(text):
+        if line.inline:
+            # Its own one-line section; the open one carries on after it.
             close()
-            sections.append(Section(labelled, inline.group(1).strip(), inline.group(2).strip()))
-            lines, started = [], True
-            continue
-        opens = heading(line)
-        just_opened = head is not None and not started
-        # A benefits list names pay among its perks ("Life assurance worth 4x your
-        # annual salary", "Competitive pay"): those are items, not a Pay heading,
-        # which kept the company pitch after one under Pay. A real amount reaches
-        # Pay by what it says, wherever it sits (`_sorted_lines`).
-        in_perks = opens == "pay" and key == "benefits"
-        if opens is None or opens == key or just_opened or in_perks:
-            lines.append(line)
-            started = started or bool(line.strip())
-            continue
-        close()
-        key, head, lines = opens, line.strip().strip("*#•·-–— ").rstrip(":").strip(), []
-        started = False
+            sections.append(Section(line.key, line.head, line.text))
+            lines = []
+        elif line.opens:
+            close()
+            key, head, lines = line.key, line.head, []
+        else:
+            lines.append(line.text)
     close()
     return tuple(sections)
 
@@ -288,6 +345,38 @@ def _states_pay(line: str) -> bool:
     return not _PERK.search(line) or bool(_PAY_WORDS.search(line))
 
 
+def _settled(key: str, line: str) -> tuple[str, str]:
+    """(section, text) for a content line once what it says has had its say: a
+    line stating pay goes to Pay, an equal-opportunity line to legal (left out),
+    anything else stays in `key`. See `_sorted_lines`."""
+    if key in _KEPT_KEYS and _EEO.search(line):
+        return "legal", line
+    if key != "pay" and _states_pay(line):
+        # Without a label that names another section ("Comprehensive Benefits:
+        # The salary range is…"), or the next read would split it off and the
+        # stored text would change again.
+        inline = _INLINE.match(line)
+        labelled = heading(inline.group(1)) if inline else None
+        return "pay", inline.group(2) if labelled not in (None, "pay") else line
+    return key, line
+
+
+def labels(text: str | None) -> list[str | None]:
+    """Each of the text's lines' final section, by position: a heading line its
+    section's, a content line where it is stored or left out (`_settled`), and
+    None for a blank line or a whole-posting wrapper. What the gold test set
+    scores (tests/test_sections_gold.py)."""
+    if not text:
+        return []
+    found: list[str | None] = [None] * len(text.split("\n"))
+    for line in _walk(text):
+        if line.opens:
+            found[line.index] = line.key
+        elif line.text.strip():
+            found[line.index] = _settled(line.key, line.text)[0]
+    return found
+
+
 def _sorted_lines(sections: tuple[Section, ...]) -> list[tuple[str, str]]:
     """Every line as (section, line), each sorted by what it says (fix 3).
 
@@ -303,23 +392,12 @@ def _sorted_lines(sections: tuple[Section, ...]) -> list[tuple[str, str]]:
     - **An equal-opportunity line is dropped**, even from a kept section, as its
       own heading's section would be.
     """
-    lines = []
-    for section in sections:
-        for line in section.text.split("\n"):
-            if not line.strip():
-                continue
-            if section.key in _KEPT_KEYS and _EEO.search(line):
-                continue
-            if section.key != "pay" and _states_pay(line):
-                # Without a label that names another section ("Comprehensive
-                # Benefits: The salary range is…"), or the next read would
-                # split it off and the stored text would change again.
-                inline = _INLINE.match(line)
-                labelled = heading(inline.group(1)) if inline else None
-                lines.append(("pay", inline.group(2) if labelled not in (None, "pay") else line))
-                continue
-            lines.append((section.key, line))
-    return lines
+    return [
+        _settled(section.key, line)
+        for section in sections
+        for line in section.text.split("\n")
+        if line.strip()
+    ]
 
 
 def kept(text: str | None) -> str | None:

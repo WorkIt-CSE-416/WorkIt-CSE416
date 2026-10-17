@@ -169,6 +169,10 @@ section is kept or left out.
   sentence goes to Pay from any section, an equal-opportunity line is dropped.
   Re-run the heading audit and `kept(kept(text)) == kept(text)` on the whole feed
   after any change (`docs/sections.md`, "Fixes after the first review").
+- **Correctness is scored against a gold test set** (`tests/test_sections_gold.py`,
+  50 hand-checked postings): run its report after any change. Its floors only
+  ever go up; a change that lowers a score is a regression even if it fixes the
+  posting it was written for.
 
 ## Filter changes need a real title
 
