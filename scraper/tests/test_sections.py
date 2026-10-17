@@ -157,6 +157,20 @@ class TestSplit:
         assert "Commuter benefits" in benefits.text
         assert not any(s.key == "pay" for s in split(ROBINHOOD_SHAPED))
 
+    def test_a_heading_ending_in_a_colon_opens_its_section_straight_after_another(
+        self,
+    ) -> None:
+        # Wade Trim: the company's pitch was stored, and embedded, as a
+        # preferred qualification.
+        text = (
+            "Requirements\nA civil engineering degree\n"
+            "Preferred Qualifications\n"
+            "About Wade Trim:\nWade Trim is committed to infrastructure."
+        )
+
+        assert kept(text) == "Requirements\nA civil engineering degree"
+        assert kept(kept(text)) == kept(text)
+
     def test_a_preferred_list_keeps_an_item_that_names_requirements(self) -> None:
         sections = split("We prefer:\nStrong communication skills\nExperience with Go")
 

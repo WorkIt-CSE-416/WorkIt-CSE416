@@ -262,7 +262,11 @@ def _walk(text: str) -> list[_Line]:
         # whole line reads as: under Requirements, "Required for all positions:
         # ... Background Check" is a requirement, not a legal heading.
         opens = None if labelled is not None else heading(line)
-        just_opened = head is not None and not started
+        # A line ending in a colon is a heading even there: items rarely end in
+        # one, and J&J's empty "Required Skills:" then "Preferred Skills:", or
+        # Wade Trim's "Preferred Qualifications" then "About Wade Trim:", filed
+        # the second heading's section under the first.
+        just_opened = head is not None and not started and not line.strip().endswith(":")
         # A benefits list names pay among its perks ("Life assurance worth 4x your
         # annual salary", "Competitive pay"): those are items, not a Pay heading,
         # which kept the company pitch after one under Pay. A real amount reaches
@@ -289,7 +293,8 @@ def split(text: str | None) -> tuple[Section, ...]:
       straight after one is its first item: "What we offer" then "Market competitive
       compensation structure" is a benefits list that starts with pay, not an empty
       benefits section and a pay one. Measured on the 2026-10-16 feed, 138 headings
-      sat straight after another; nearly all were that list's first item.
+      sat straight after another; nearly all were that list's first item. A line
+      ending in a colon still opens its own section: it is a heading, not an item.
 
     A heading with nothing under it at all, at the very end, is left out.
 
