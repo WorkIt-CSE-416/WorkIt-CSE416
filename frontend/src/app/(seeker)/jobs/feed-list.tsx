@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from
 
 import { Button } from "@/components/ui/button";
 
-import { loadMoreJobs } from "./actions";
+import { loadMoreJobs, loadMoreRecommended } from "./actions";
 import { keep, readKept, subscribe } from "./feed-pages";
 import { PAGE_SIZE } from "./filter-query";
 import type { ApplicationStage } from "../auto-apply/actions";
@@ -32,6 +32,10 @@ import type { JobListing } from "./listings";
  * so an import landing between two loads can shift one role into the next
  * page, and it would otherwise show twice.
  *
+ * `source` picks what Load More asks: the plain feed, or the Recommended
+ * view's scored jobs (KAN-231). Their `query` strings differ (the page
+ * adds `view=recommended`), so kept pages never cross from one to the other.
+ *
  * After a load, focus moves to the first new role's title, where the button
  * was, so a keyboard carries on reading down the list instead of starting
  * over at the top when the button leaves. A live region says how many came.
@@ -41,6 +45,7 @@ export function FeedList({
   more: initialMore,
   query,
   stages,
+  source = "feed",
 }: {
   initial: JobListing[];
   more: boolean;
@@ -48,6 +53,7 @@ export function FeedList({
   /** The seeker's applications by job id, read once with the first page; a
    *  Load More page's cards look theirs up here too. */
   stages: Record<string, ApplicationStage>;
+  source?: "feed" | "recommended";
 }) {
   // The server renders the first page alone; the browser adds the kept
   // pages, if this list has any, as it hydrates.
@@ -78,7 +84,10 @@ export function FeedList({
     // for a job posting by the time it answers (review, 2026-10-10).
     const path = window.location.pathname;
     start(async () => {
-      const page = await loadMoreJobs(query, offset);
+      const page = await (source === "recommended" ? loadMoreRecommended : loadMoreJobs)(
+        query,
+        offset,
+      );
       if (page.error != null) {
         setError("Couldn't load more roles. Try again in a moment.");
         return;

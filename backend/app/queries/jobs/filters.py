@@ -40,6 +40,7 @@ from app.models.applications import Job_Application
 from app.models.job_roles import Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.queries.jobs.legacy_levels import IS_INTERNSHIP, stored_levels
+from app.services.location_resolver import Place
 from app.services.postings import LISTED  # noqa: F401 (re-export)
 from app.services.role_resolver import title_pattern
 
@@ -67,10 +68,10 @@ def offered_in(places: Iterable[str]):
     country, serves it
     '''
     clauses = [
-        and_(Job_Location.country == code[:2], Job_Location.state == code)
-        if "-" in code
-        else Job_Location.country == code
-        for code in places
+        and_(Job_Location.country == p.country, Job_Location.state == p.state)
+        if p.state
+        else Job_Location.country == p.country
+        for p in map(Place.from_code, places)
     ]
     return or_(
         exists().where(Job_Location.job_id == Job_Post.id, or_(*clauses)),
