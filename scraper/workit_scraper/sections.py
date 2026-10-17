@@ -51,7 +51,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     (
         "pay",
         r"salary|compensation|pay range|base pay|pay rate|hourly (rate|range|pay)|\w+ pay|"
-        r"wage|estimated (starting )?(salary|pay)",
+        r"wage|estimated (starting )?(salary|pay)|^pay$",
     ),
     (
         "preferred",
@@ -76,7 +76,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         "logistics",
         r"location|work arrangement|(work )?schedule|dates|timeline|duration|start date|"
         r"program details|internship details|logistics|additional information|"
-        r"what to expect|offer deadline|visa sponsorship",
+        r"what to expect|offer deadline|visa sponsorship|^details$",
     ),
     (
         "company",
@@ -86,10 +86,17 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     ),
     (
         "role",
+        # The loose words ("role", "team", "overview", "summary") count only as the
+        # whole heading or in a fixed phrase: "Document your methods and share
+        # findings with the team" and "Experience or exposure in a test or
+        # automation role" are bullets, and each once swallowed the real heading
+        # after it.
         r"about (the|this) (role|position|job|team|opportunity|internship|program)|"
-        r"the role|role|job (summary|overview)|overview|"
-        r"position (summary|overview)|summary|the team|team description|the opportunity|"
-        r"the internship|internship (overview|program)|your role|project details|"
+        r"^(the |your )?role$|^(the |our )?team$|^overview$|^summary$|"
+        r"(role|position|team|internship|program) (summary|overview|description)|"
+        r"job (summary|overview)|why this role|the role entails|role at a glance|"
+        r"the team and culture|^(the |our )?internship$|internship (program|information)|"
+        r"the opportunity|project details|"
         r"tech(nology|nical)? stack|technologies we use",
     ),
     # "About Stripe": a company's own name. Last, so "About the role" is the role.
@@ -169,7 +176,7 @@ def split(text: str | None) -> tuple[Section, ...]:
     - A heading needs a line of content before another can open. A heading-like line
       straight after one is its first item: "What we offer" then "Market competitive
       compensation structure" is a benefits list that starts with pay, not an empty
-      benefits section and a pay one. Measured on the 2026-10-16 feed, 147 headings
+      benefits section and a pay one. Measured on the 2026-10-16 feed, 138 headings
       sat straight after another; nearly all were that list's first item.
 
     A heading with nothing under it at all, at the very end, is left out.
