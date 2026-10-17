@@ -119,7 +119,7 @@ _MAX_WORDS = 9
 #: embed its whole description again. The intro has none: it comes first.
 KEPT: tuple[tuple[str, str | None], ...] = (
     (INTRO, None),
-    ("role", "About the Role"),
+    ("role", "Overview"),
     ("responsibilities", "Responsibilities"),
     ("requirements", "Requirements"),
     ("preferred", "Preferred Qualifications"),

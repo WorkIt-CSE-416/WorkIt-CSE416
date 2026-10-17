@@ -193,7 +193,7 @@ Visa sponsorship has three answers, or none when the job posting doesn't say:
 
 A description keeps only what says what the job is (KAN-229). The scraper finds
 its headings ("What you'll do", "Who you are", "Benefits") and stores the intro,
-then About the Role, Responsibilities, Requirements, Preferred Qualifications, Pay
+then Overview, Responsibilities, Requirements, Preferred Qualifications, Pay
 and Details, in that order and under those fixed headings. The company's pitch,
 benefits, legal notices and how to apply are left out: about 30% of the text. The
 facts above are read from the whole text first, so leaving text out never loses
@@ -245,7 +245,7 @@ table. Scraped ones have no `company_id`.
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
-| `embedding`, `fts` | For job matching (KAN-139). The embedding reads the title, About the Role, Responsibilities, Requirements and Preferred Qualifications |
+| `embedding`, `fts` | For job matching (KAN-139). The embedding reads the title, Overview, Responsibilities, Requirements and Preferred Qualifications |
 | `keywords`, `keywords_hash` | Tailor's keywords (KAN-215): at most 20, each required or preferred, read from the description by the model the first time a student's resume is matched against the job posting, with a hash of the description they came from. A new description makes them stale, and the import clears them |
 
 ### 5.2 `job_locations`, one row per place a job posting is in
