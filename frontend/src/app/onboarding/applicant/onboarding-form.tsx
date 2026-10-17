@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type ComponentType, type ReactNode } from "react";
 
 import {
+  EXPERIENCE_OPTIONS,
   JOB_TYPE_OPTIONS,
   NO_FILTERS,
   PAY_OPTIONS,
   payUnits,
+  statesNarrowCountries,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
@@ -16,7 +18,9 @@ import { signOut } from "@/app/actions";
 import { SalaryPicker, SearchPicker, type PickOption } from "@/components/filter-controls";
 import {
   BriefcaseIcon,
+  CalendarIcon,
   CoinIcon,
+  LevelIcon,
   PinIcon,
   RoleIcon,
   VisaIcon,
@@ -33,9 +37,12 @@ import { StoryPanel } from "./story-panel";
  * each one's question on the left (./story-panel) and the fields answering it
  * on the right.
  *
- * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, job type, workplace,
- * location, salary and visa are a `FeedFilters`, with the same options and
- * pickers as All Filters (components/filter-controls). Continue saves them
+ * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, experience, job type, start
+ * date, workplace, location, salary and visa are a `FeedFilters`, with the
+ * same options and pickers as All Filters (components/filter-controls). Start
+ * Date is asked only once Internship is picked, and dropping Internship
+ * clears it: a saved season keeps only the jobs that name one, which a
+ * new-grad role rarely does. Continue saves them
  * as the seeker's preferences, which marks onboarding done, then opens
  * intake (./bank, KAN-214), which fills the experience bank matching reads
  * and imports a resume; its Finish opens the Jobs page's Recommended view.
@@ -74,10 +81,13 @@ const toggle = <T,>(values: T[], value: T) =>
 export function OnboardingForm({
   roles,
   places,
+  seasons,
   initial = NO_FILTERS,
 }: {
   roles: PickOption[];
   places: PickOption[];
+  /** The Start Date options, GET /jobs/facets' seasons. */
+  seasons: PickOption[];
   initial?: FeedFilters;
 }) {
   const router = useRouter();
@@ -106,7 +116,8 @@ export function OnboardingForm({
   async function finish() {
     setSaving(true);
     setError(null);
-    const { error: saveError } = await savePreferences(answers);
+    // A picked state narrows its country, as All Filters' Apply does.
+    const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
     if (saveError) {
       setSaving(false);
       setError(saveError);
@@ -146,7 +157,9 @@ export function OnboardingForm({
           key={step}
           className="animate-rise mx-auto w-full max-w-2xl flex-1 px-6 py-6 lg:pt-[8vh]"
         >
-          {step === 0 && <RoleStep answers={answers} set={set} roles={roles} places={places} />}
+          {step === 0 && (
+            <RoleStep answers={answers} set={set} roles={roles} places={places} seasons={seasons} />
+          )}
           {step === 1 && <PriorityStep answers={answers} set={set} />}
         </div>
 
@@ -189,7 +202,9 @@ function RoleStep({
   set,
   roles,
   places,
-}: StepProps & { roles: PickOption[]; places: PickOption[] }) {
+  seasons,
+}: StepProps & { roles: PickOption[]; places: PickOption[]; seasons: PickOption[] }) {
+  const interns = answers.jobTypes.includes("internship");
   return (
     <>
       <Field Icon={RoleIcon} label="Role" required>
@@ -203,19 +218,52 @@ function RoleStep({
           onChange={(next) => set({ roles: next })}
         />
       </Field>
-      <Field Icon={BriefcaseIcon} label="Job Type" required>
-        <div className="grid grid-cols-2 gap-2 lg:gap-3">
-          {JOB_TYPE_OPTIONS.map((o) => (
+      <Field Icon={LevelIcon} label="Experience">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
+          {EXPERIENCE_OPTIONS.map((o) => (
             <ChoiceTile
               key={o.value}
-              pressed={answers.jobTypes.includes(o.value)}
-              onClick={() => set({ jobTypes: toggle(answers.jobTypes, o.value) })}
+              pressed={answers.levels.includes(o.value)}
+              onClick={() => set({ levels: toggle(answers.levels, o.value) })}
             >
               {o.label}
             </ChoiceTile>
           ))}
         </div>
       </Field>
+      <Field Icon={BriefcaseIcon} label="Job Type" required>
+        <div className="grid grid-cols-2 gap-2 lg:gap-3">
+          {JOB_TYPE_OPTIONS.map((o) => (
+            <ChoiceTile
+              key={o.value}
+              pressed={answers.jobTypes.includes(o.value)}
+              onClick={() => {
+                const jobTypes = toggle(answers.jobTypes, o.value);
+                set(jobTypes.includes("internship") ? { jobTypes } : { jobTypes, startTerms: [] });
+              }}
+            >
+              {o.label}
+            </ChoiceTile>
+          ))}
+        </div>
+      </Field>
+      {interns && (
+        <Field Icon={CalendarIcon} label="Start Date">
+          {seasons.length === 0 ? (
+            <p className="text-body text-ink-meta">No start dates in the feed yet.</p>
+          ) : (
+            <SearchPicker
+              size="lg"
+              label="Start Dates"
+              placeholder="Search a season, or leave empty for any"
+              empty="No season by that name has jobs."
+              options={seasons}
+              values={answers.startTerms}
+              onChange={(next) => set({ startTerms: next })}
+            />
+          )}
+        </Field>
+      )}
       <Field Icon={workStyleIcon("onsite")} label="Workplace" required>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
           {WORKPLACE_OPTIONS.map((o) => (

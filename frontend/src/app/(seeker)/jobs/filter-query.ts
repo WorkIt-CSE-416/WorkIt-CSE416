@@ -97,6 +97,19 @@ export const EXPERIENCE_OPTIONS: { value: Level; label: string }[] = [
  *  Full-Time filter. */
 export type JobTypeKey = JobType;
 
+/** A picked state narrows its country: United States and California is
+ *  California, the same rule as the row's Location (ticksFrom/placesFrom in
+ *  ./filters), so the two give one feed for the same picks. All Filters'
+ *  Apply and onboarding's save both pass their picks through it. */
+export function statesNarrowCountries(filters: FeedFilters): FeedFilters {
+  return {
+    ...filters,
+    places: filters.places.filter(
+      (p) => p.includes("-") || !filters.places.some((q) => q.startsWith(`${p}-`)),
+    ),
+  };
+}
+
 /** Which pay units a salary filter offers for these job types: hourly when
  *  only internships are wanted, yearly when none are, both otherwise. Shared
  *  by All Filters and onboarding. */

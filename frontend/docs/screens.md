@@ -834,9 +834,11 @@ the fields answer it on the right, with Back and Next pinned to the foot.
 From lg the screen is one window tall and only the right column scrolls, with
 its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
-Step 1 is Role, Job Type and Workplace (all required) and Location; step 2 is
-Salary Range and Visa Sponsorship (both optional), with Continue in place of
-Next. Intake (KAN-214) is onboarding's next step, so the wizard has no resume
+Step 1 is Role, Job Type and Workplace (all required), and Experience,
+Start Date and Location; step 2 is Salary Range and Visa Sponsorship (both
+optional), with Continue in place of Next. Start Date shows only once
+Internship is picked, and unpicking Internship clears it: a saved season keeps
+only the jobs that name one, which a new-grad role rarely does. Intake (KAN-214) is onboarding's next step, so the wizard has no resume
 step of its own: intake uploads and imports one into the experience bank,
 which matching reads. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
@@ -854,10 +856,14 @@ the question. Scout types a line in a chat bubble on every step. It is all
 decoration over made-up data, so it is aria-hidden, and it holds still under
 reduced motion.
 
-**Its answers are the Jobs page's filters.** Every question takes `FeedFilters` and the options in `jobs/filter-query.ts`, and Role,
-Location and Salary use All Filters' own pickers
-(`components/filter-controls.tsx`), so saving the answers can later fill the
-feed's filters with no translation. A fixed choice is a `ChoiceTile`
+**Its answers are the Jobs page's filters.** Every question takes
+`FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
+Start Date and Salary use All Filters' own pickers
+(`components/filter-controls.tsx`), so the saved answers fill the feed's
+filters with no translation. They share All Filters' rules too, from
+`filter-query.ts`: `payUnits` picks the salary's units from the job types,
+and `statesNarrowCountries` saves United States and California as
+California. A fixed choice is a `ChoiceTile`
 (./choice-tile.tsx): a box for any-of, a dot for one-of.
 
 **It sets larger than the app.** Each step is one question with the screen to

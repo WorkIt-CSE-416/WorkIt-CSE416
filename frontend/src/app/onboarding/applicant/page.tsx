@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { seasonLabel } from "@/app/(seeker)/jobs/filter-query";
 import { getJobFacets, getJobLocations, getSavedFilters } from "@/app/(seeker)/jobs/listings";
 import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
@@ -47,6 +48,11 @@ export default async function ApplicantOnboardingPage() {
         label: p.label,
         count: p.jobs,
         nested: p.code.includes("-"),
+      }))}
+      seasons={facets.start_term.map((t) => ({
+        value: t.value,
+        label: seasonLabel(t.value),
+        count: t.jobs,
       }))}
       initial={saved ?? undefined}
     />

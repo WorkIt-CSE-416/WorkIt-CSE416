@@ -29,6 +29,7 @@ import {
   PAY_OPTIONS,
   payUnits,
   seasonLabel,
+  statesNarrowCountries,
   VISA_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
@@ -319,18 +320,6 @@ function useDraftCount(draft: FeedFilters): number | null {
 function toggle<T>(values: T[], value: T, options: readonly { value: T }[]): T[] {
   const next = values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
   return options.map((o) => o.value).filter((v) => next.includes(v));
-}
-
-/** A picked state narrows its country: United States and California is
- *  California, the same rule as the row's Location (ticksFrom/placesFrom in
- *  ./filters), so the two give one feed for the same picks. */
-function statesNarrowCountries(filters: FeedFilters): FeedFilters {
-  return {
-    ...filters,
-    places: filters.places.filter(
-      (p) => p.includes("-") || !filters.places.some((q) => q.startsWith(`${p}-`)),
-    ),
-  };
 }
 
 /** One facet's section: its card glyph and name over its chips. */
