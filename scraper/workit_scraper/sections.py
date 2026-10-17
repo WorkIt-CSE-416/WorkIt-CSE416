@@ -87,7 +87,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     (
         "role",
         r"about (the|this) (role|position|job|team|opportunity|internship|program)|"
-        r"the role|role|job (summary|description|overview)|overview|"
+        r"the role|role|job (summary|overview)|overview|"
         r"position (summary|overview)|summary|the team|team description|the opportunity|"
         r"the internship|internship (overview|program)|your role|project details|"
         r"tech(nology|nical)? stack|technologies we use",
@@ -98,10 +98,36 @@ SECTIONS: tuple[tuple[str, str], ...] = (
 
 _PATTERNS = tuple((key, re.compile(rf"\b({words})\b", re.I)) for key, words in SECTIONS)
 
+#: A heading over the whole posting, not a section: Workday opens most descriptions
+#: with "Job Description", then "ABOUT BOSE". It is skipped, so it neither opens a
+#: section nor swallows the heading after it as its first item.
+_WRAPPER = re.compile(r"^((job|position) )?description$", re.I)
+
 #: Longest heading, in characters and words. Measured on the feed: real headings run
 #: to "What to expect during the internship" (36); past this is a sentence.
 _MAX_CHARS = 60
 _MAX_WORDS = 9
+
+
+#: What WorkIt stores of a description, in this order, each under this heading
+#: (decided 2026-10-17, scraper/docs/sections.md). The company's pitch, benefits,
+#: legal notices and how to apply are left out.
+#:
+#: THE HEADINGS ARE PART OF THE FEED'S CONTRACT. The backend finds the parts job
+#: matching reads by these exact lines (backend/app/services/matching/
+#: embeddings.py, `job_text`), so a heading renamed here alone makes every job
+#: embed its whole description again. The intro has none: it comes first.
+KEPT: tuple[tuple[str, str | None], ...] = (
+    (INTRO, None),
+    ("role", "About the Role"),
+    ("responsibilities", "Responsibilities"),
+    ("requirements", "Requirements"),
+    ("preferred", "Preferred Qualifications"),
+    ("pay", "Pay"),
+    ("logistics", "Details"),
+)
+
+_KEPT_HEADINGS = {head.casefold() for _, head in KEPT if head}
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +185,8 @@ def split(text: str | None) -> tuple[Section, ...]:
             sections.append(Section(key, head, body))
 
     for line in text.split("\n"):
+        if _WRAPPER.match(line.strip().strip("*#•·-–— ").rstrip(":").strip()):
+            continue
         opens = heading(line)
         just_opened = head is not None and not any(part.strip() for part in lines)
         if opens is None or opens == key or just_opened:
@@ -168,3 +196,32 @@ def split(text: str | None) -> tuple[Section, ...]:
         key, head, lines = opens, line.strip().strip("*#•·-–— ").rstrip(":").strip(), []
     close()
     return tuple(sections)
+
+
+def kept(text: str | None) -> str | None:
+    """The description as WorkIt stores it: the `KEPT` sections in `KEPT`'s order,
+    each under its fixed heading, the rest left out.
+
+    Sections of one kind are joined, in the order written: SpaceX states its
+    requirements, then the pay, then the export-control requirement. A line that is
+    only one of `KEPT`'s headings is dropped from the text, so the backend never
+    reads it as the start of a section.
+
+    A description that keeps nothing is kept whole. That is a posting whose every
+    heading names a left-out section, which means its headings were misread, not
+    that it says nothing about the job.
+    """
+    sections = split(text)
+    parts = []
+    for key, head in KEPT:
+        lines = [
+            line
+            for section in sections
+            if section.key == key
+            for line in section.text.split("\n")
+            if line.strip().rstrip(":").strip().casefold() not in _KEPT_HEADINGS
+        ]
+        body = "\n".join(lines).strip()
+        if body:
+            parts.append(f"{head}\n{body}" if head else body)
+    return "\n".join(parts) or text or None

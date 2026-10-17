@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import pytest
 
-from workit_scraper.sections import INTRO, heading, split
+from workit_scraper import providers
+from workit_scraper.details import Pay
+from workit_scraper.sections import INTRO, heading, kept, split
 
 
 class TestHeading:
@@ -173,3 +175,91 @@ class TestSplit:
     def test_no_text_is_no_sections(self) -> None:
         assert split(None) == ()
         assert split("") == ()
+
+    def test_a_whole_posting_job_description_heading_opens_nothing(self) -> None:
+        # Workday's records open with it (Bose, General Motors).
+        sections = split("Job Description\nAbout Bose\nYou know the moment.")
+
+        assert [(s.key, s.heading) for s in sections] == [("company", "About Bose")]
+
+
+# SpaceX's shape: requirements, then pay, then a second requirement.
+SPACEX_SHAPED = """SpaceX was founded under the belief that humanity should explore the stars.
+Responsibilities
+Write flight software for Starship.
+Basic Qualifications
+Bachelor's degree in computer science.
+Compensation
+Software Engineer/Level I: $125,000.00 - $150,000.00/per year
+ITAR Requirements
+Applicant must be a U.S. citizen or national.
+Benefits
+Comprehensive medical, vision, and dental coverage.
+Equal Opportunity Employer
+SpaceX is an equal opportunity employer."""
+
+
+class TestKept:
+    def test_the_kept_sections_come_in_a_fixed_order_under_fixed_headings(self) -> None:
+        assert kept(SPACEX_SHAPED) == (
+            "SpaceX was founded under the belief that humanity should explore the stars.\n"
+            "Responsibilities\n"
+            "Write flight software for Starship.\n"
+            "Requirements\n"
+            "Bachelor's degree in computer science.\n"
+            "Applicant must be a U.S. citizen or national.\n"
+            "Pay\n"
+            "Software Engineer/Level I: $125,000.00 - $150,000.00/per year"
+        )
+
+    def test_benefits_and_legal_text_are_left_out(self) -> None:
+        text = kept(SPACEX_SHAPED)
+
+        assert text is not None
+        assert "dental" not in text
+        assert "equal opportunity" not in text
+
+    def test_the_company_pitch_is_left_out_but_the_role_kept(self) -> None:
+        text = kept(ROBINHOOD_SHAPED)
+
+        assert text == (
+            "Join us in building the future of finance.\n"
+            "About the Role\n"
+            "You will join the Android team and ship features to millions of customers.\n"
+            "Responsibilities\n"
+            "Explore and build innovative Android UI/UX\n"
+            "Write well-tested Kotlin\n"
+            "Requirements\n"
+            "A solid foundation in software engineering\n"
+            "Familiarity with Kotlin or Java"
+        )
+
+    def test_a_line_that_is_only_a_kept_heading_is_dropped(self) -> None:
+        # The backend finds a section by its heading line, so no content line may be one.
+        text = kept("Requirements:\nRequirements\nA degree in CS")
+
+        assert text == "Requirements\nA degree in CS"
+
+    def test_a_posting_that_keeps_nothing_is_kept_whole(self) -> None:
+        # Every heading names a left-out section: the headings were misread.
+        whole = "About Us\nWe build robots and you will write their firmware in C."
+
+        assert kept(whole) == whole
+
+    def test_no_text_keeps_nothing(self) -> None:
+        assert kept(None) is None
+        assert kept("") is None
+
+
+class TestStoredPage:
+    def test_pay_in_a_left_out_section_still_reaches_the_card(self) -> None:
+        # Facts are read from the whole text before the boilerplate is left out.
+        full = (
+            "Responsibilities\nBuild data pipelines.\n"
+            "Benefits\nThe pay for this role is $30-$40 per hour, plus a housing stipend."
+        )
+
+        page = providers._page("Data Engineering Intern", full)
+
+        assert page.description == "Responsibilities\nBuild data pipelines."
+        assert page.facts.pay == Pay("USD", 30, 40, "hour")

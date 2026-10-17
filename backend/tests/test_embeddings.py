@@ -180,3 +180,58 @@ def test_provider_is_validated():
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None, embedding_provider="typo")
+
+
+# A description as the scraper stores it since KAN-229: the kept sections under
+# fixed headings (scraper/workit_scraper/sections.py, KEPT).
+STORED = """Figure is an AI robotics company building humanoid robots.
+About the Role
+Join the firmware team.
+Responsibilities
+Write motor control firmware in C.
+Requirements
+Studying computer engineering.
+Preferred Qualifications
+Experience with battery management systems.
+Pay
+$40-$50 per hour.
+Details
+Onsite in San Jose, CA."""
+
+
+def test_job_text_reads_the_role_and_what_it_asks_for():
+    text = embeddings.job_text("Firmware Engineering Intern", STORED)
+
+    assert text == (
+        "Firmware Engineering Intern\n\n"
+        "Join the firmware team.\n"
+        "Write motor control firmware in C.\n"
+        "Studying computer engineering.\n"
+        "Experience with battery management systems."
+    )
+
+
+def test_job_text_leaves_out_the_intro_pay_and_details():
+    text = embeddings.job_text("Firmware Engineering Intern", STORED)
+
+    assert "humanoid" not in text
+    assert "$40" not in text
+    assert "San Jose" not in text
+
+
+def test_job_text_reads_a_description_without_the_headings_whole():
+    # Stored before KAN-229, or kept whole by the scraper.
+    old = "About Us\nWe build robots.\nWhat you'll do\nWrite firmware."
+
+    assert embeddings.job_text("Intern", old) == f"Intern\n\n{old}"
+
+
+def test_job_text_with_only_pay_and_details_reads_the_description_whole():
+    stored = "Pay\n$40 per hour.\nDetails\nOnsite."
+
+    assert embeddings.job_text("Intern", stored) == f"Intern\n\n{stored}"
+
+
+def test_job_text_without_a_description_is_the_title():
+    assert embeddings.job_text("Intern", None) == "Intern"
+    assert embeddings.job_text("Intern", "") == "Intern"

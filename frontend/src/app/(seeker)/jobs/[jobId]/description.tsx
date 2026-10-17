@@ -2,10 +2,12 @@
  * A scraped posting's description, readable. The scraper keeps it as plain
  * text, one line per paragraph or list item of the employer's page, with
  * neither headings nor bullets marked: "Responsibilities" is just a short
- * line, and the duties under it are just lines. Postings don't share
- * sections either (one has "What You'll Do", the next "Who You Are", most
- * something else), so this reads the text's own shape rather than sorting it
- * into the mock's three sections:
+ * line, and the duties under it are just lines. Since KAN-229 the scraper
+ * stores a description's kept sections under fixed headings ("About the
+ * Role", "Responsibilities", "Requirements"...; scraper/docs/sections.md),
+ * but a posting stored before then, or one kept whole, still has its
+ * employer's own ("What You'll Do", "Who You Are"), so this reads the text's
+ * own shape rather than looking for those names:
  *
  *   a short Title Case line with no full stop,    a subheading
  *     with text after it (or any short line
