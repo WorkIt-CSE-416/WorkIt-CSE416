@@ -173,7 +173,9 @@ long reading, and the grey was hard to read (2026-10-17). Each of KAN-229's
 fixed section headings (Overview, Responsibilities, Requirements, Preferred
 Qualifications, Pay, Details) draws an icon beside it in brand purple
 (`SECTION_ICONS`; Pay reuses the salary fact's coin). All Filters' section
-icons stay grey: there they label controls, here they mark where to read. In such a
+icons stay grey: there they label controls, here they mark where to read.
+Section titles are 16px bold with a 20px icon, a step under "About the
+Role"; an employer's subheading is 14px semibold. In such a
 description, any other heading the employer wrote is a smaller subheading with
 no icon; a description stored before KAN-229 draws its headings as before.
 Apply Now (`[jobId]/apply-button.tsx`,
