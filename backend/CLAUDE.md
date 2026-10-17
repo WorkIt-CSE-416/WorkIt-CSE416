@@ -71,6 +71,11 @@ module docstring has the steps.
   `a70c641b2f99`, merge and deploy, then `uv run alembic upgrade head`. A plain
   `upgrade head` before the deploy takes the live Jobs page and the scheduled
   import down.
+- **KAN-233's contract is two migrations around one deploy.** Apply
+  `aa97037c00e5` (moves the rows), merge and deploy, then `uv run alembic
+  upgrade head` for `188c8c2d7c14` (drops the old levels). `188c8c2d7c14`
+  before the deploy fails every Experience filter and count on the live Jobs
+  page (`app/models/CLAUDE.md`, KAN-233).
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).

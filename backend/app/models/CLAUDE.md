@@ -209,11 +209,20 @@ expand then contract, and the recipe for the next one:
 2. **Deploy** code that writes only new values and reads both. Here every read
    of the two columns goes through `queries/jobs/legacy_levels.py`, and the
    enum keeps the old members marked LEGACY.
-3. **Contract** (`aa97037c00e5`, after the deploy and one import): move the
-   remaining rows, rebuild `experience_level` without the old values, then
-   deploy the code without `legacy_levels.py` and the LEGACY members. Apply
-   it before that deploy: the code of step 2 reads the new values alone fine,
-   but the code after it can't read an old one.
+3. **Move the rows** (`aa97037c00e5`, after one import on step 2's code):
+   rewrite the remaining old values as new ones, and leave the type alone.
+   Then deploy the code without `legacy_levels.py` and the LEGACY members,
+   which can't read an old value.
+4. **Drop the old values** (`188c8c2d7c14`, after that deploy): rebuild
+   `experience_level` without them.
+
+**Steps 3 and 4 must be two migrations with the deploy between them.** One
+contract migration has no safe order: applied first, it drops values the live
+code still names in its queries (`experience_level IN ('student',
+'internship')`), and Postgres refuses a query that names a value its enum
+lacks, so the Experience filter and counts fail; deployed first, the new code
+meets rows it can't read. KAN-233 first wrote it as one, and review caught it
+before it was applied.
 
 ## A new column reaches the database before the model that maps it
 
