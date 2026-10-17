@@ -66,7 +66,63 @@ const SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> = {
 type Block =
   | { kind: "paragraph"; text: string }
   | { kind: "heading"; text: string }
-  | { kind: "list"; items: string[] };
+  | { kind: "list"; items: string[] }
+  /** A core section the description lacks, and why (`withCoreSections`). */
+  | { kind: "missing"; why: "cut" | "unlisted" }
+  /** Pay the posting sent as a field rather than in its text. */
+  | { kind: "listed-pay"; pay: string };
+
+/** The fixed sections in the order the scraper stores them (KAN-229, `KEPT`). */
+const SECTION_ORDER = [
+  "Overview",
+  "Responsibilities",
+  "Requirements",
+  "Preferred Qualifications",
+  "Pay",
+  "Details",
+];
+
+/** The sections every sectioned description shows, there or not. Preferred
+ *  Qualifications and Details are missing from 52% and 78% of postings
+ *  (2026-10-17), so a placeholder there would be mostly noise. */
+const CORE = new Set(["Overview", "Responsibilities", "Requirements", "Pay"]);
+
+/**
+ * The blocks with every core section in its place: a missing one gets its
+ * heading and a line saying why (KAN-229 fix 5). Why is what WorkIt can know:
+ *
+ * - Pay the hiring system sent as a field (Ashby, Lever) is the card's, and it
+ *   shows here as the employer's listing: 79 postings had pay on the card and
+ *   no "$" in their text at all.
+ * - A description cut at 8,000 characters may hold the section past the cut,
+ *   which is WorkIt's limit, not the posting's.
+ * - Otherwise the posting has no heading for it. That is said as such rather
+ *   than "the posting doesn't say": the facts may still be in a paragraph the
+ *   scraper could not place.
+ */
+function withCoreSections(blocks: Block[], cut: boolean, pay: string | null): Block[] {
+  const at = (name: string) => blocks.findIndex((b) => b.kind === "heading" && b.text === name);
+  const starts = SECTION_ORDER.map(at).filter((i) => i >= 0);
+  const intro = blocks.slice(0, starts.length > 0 ? Math.min(...starts) : blocks.length);
+  const out: Block[] = [...intro];
+  for (const name of SECTION_ORDER) {
+    const start = at(name);
+    if (start >= 0) {
+      const next = blocks.findIndex(
+        (b, i) => i > start && b.kind === "heading" && SECTION_ORDER.includes(b.text),
+      );
+      out.push(...blocks.slice(start, next < 0 ? blocks.length : next));
+    } else if (CORE.has(name)) {
+      out.push({ kind: "heading", text: name });
+      out.push(
+        name === "Pay" && pay
+          ? { kind: "listed-pay", pay }
+          : { kind: "missing", why: cut ? "cut" : "unlisted" },
+      );
+    }
+  }
+  return out;
+}
 
 const BULLET = /^(?:[-•*·▪●◦]|\d{1,2}[.)])\s+/;
 
@@ -113,11 +169,17 @@ export function toBlocks(text: string): Block[] {
   // A line ending ":" says it heads what follows, so it stays one even when
   // the first item under it is short ("Requirements:" then "Python"); that
   // demoted 184 of 1,160 postings' subheadings (review, 2026-10-10).
+  // A fixed section heading (KAN-229) always heads its section, even straight
+  // before an employer's own ("Requirements" then "Required Qualifications"),
+  // which the neighbour rule read as two list items: TensorWave's requirements
+  // then showed as missing and sat under the section above. The scraper never
+  // leaves a content line that is exactly one of these names.
   const heading = candidate.map(
     (c, i) =>
-      c &&
-      i < lines.length - 1 &&
-      (lines[i].endsWith(":") || (!candidate[i - 1] && !candidate[i + 1])),
+      SECTION_ORDER.includes(lines[i]) ||
+      (c &&
+        i < lines.length - 1 &&
+        (lines[i].endsWith(":") || (!candidate[i - 1] && !candidate[i + 1]))),
   );
 
   const blocks: Block[] = [];
@@ -159,17 +221,32 @@ export function JobDescription({
   text,
   company,
   applyUrl,
+  pay = null,
 }: {
   text: string;
   company: string;
   applyUrl: string;
+  /** The card's pay ("$50–70/hr"), shown under Pay when the text has none. */
+  pay?: string | null;
 }) {
   const cut = isCut(text);
-  const blocks = toBlocks(cut ? text.slice(0, -CUT.length) : text);
+  const parsed = toBlocks(cut ? text.slice(0, -CUT.length) : text);
   // One fixed heading means the KAN-229 format, where the employer's other
-  // headings are subheadings.
-  const sectioned = blocks.some(
+  // headings are subheadings and every core section shows.
+  const sectioned = parsed.some(
     (b) => b.kind === "heading" && Object.hasOwn(SECTION_ICONS, b.text),
+  );
+  const blocks = sectioned ? withCoreSections(parsed, cut, pay) : parsed;
+  const fullPosting = (label: string) => (
+    <a
+      href={applyUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-brand hover:text-brand-hover underline decoration-current underline-offset-2 transition-colors duration-150"
+    >
+      {label}
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
   );
   return (
     <div className="mt-3 flex max-w-[68ch] flex-col gap-3">
@@ -180,14 +257,29 @@ export function JobDescription({
           <ul key={i} role="list" className="flex flex-col gap-1.5 pl-4">
             {block.items.map((item, j) => (
               <li key={j} className="text-body text-ink flex items-start gap-2">
-                <span
-                  aria-hidden="true"
-                  className="bg-ink-faint mt-2 size-1.5 shrink-0 rounded-full"
-                />
+                {/* Ink like the text: in the faintest grey the bullets were
+                    hard to see (2026-10-17). */}
+                <span aria-hidden="true" className="bg-ink mt-2 size-1.5 shrink-0 rounded-full" />
                 {item}
               </li>
             ))}
           </ul>
+        ) : block.kind === "listed-pay" ? (
+          <p key={i} className="text-body text-ink">
+            {block.pay}{" "}
+            <span className="text-ink-meta">
+              (from {company}&apos;s listing, not the posting&apos;s text)
+            </span>
+          </p>
+        ) : block.kind === "missing" ? (
+          <p key={i} className="text-body text-ink-meta">
+            {block.why === "cut" ? (
+              <>Not in the part shown here. It may be further down the posting. </>
+            ) : (
+              <>Not available: this posting doesn&apos;t list it under its own heading. </>
+            )}
+            {fullPosting(`Read the full posting on ${company}'s site`)}.
+          </p>
         ) : (
           <p key={i} className="text-body text-ink">
             {block.text}
@@ -197,16 +289,7 @@ export function JobDescription({
       {cut && (
         <p className="text-body text-ink-meta">
           This is the start of the posting.{" "}
-          <a
-            href={applyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-brand hover:text-brand-hover underline decoration-current underline-offset-2 transition-colors duration-150"
-          >
-            Read the full posting on {company}&apos;s site
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
-          .
+          {fullPosting(`Read the full posting on ${company}'s site`)}.
         </p>
       )}
     </div>
