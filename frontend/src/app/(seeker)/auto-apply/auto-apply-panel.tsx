@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 
 import { SectionHeading } from "@/components/ui/section-heading";
+import { openNextApplication, type OpenApplicationResult } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { startBatch } from "./actions";
@@ -24,13 +25,15 @@ const RUN_LABEL: Record<RunState, string> = {
  * says which it is. `children` is Live Activity's list, drawn on the server
  * (./page.tsx) and passed through, since this half is a client component.
  *
- * START QUEUES A BATCH. From idle, the button asks the API for the seeker's
- * best matches (./actions, startBatch: 10, leaving out every job they
- * already have an application for), then refreshes the route so the list
- * shows them. Pause and Resume only move this state: nothing fills a form
- * until the extension's runner exists (`auto-apply/architecture.md`, "The
- * run"). The state is the page's own, so a return visit starts idle, and
- * Start queues another batch.
+ * START QUEUES A BATCH, THEN OPENS THE FIRST APPLICATION. From idle, the
+ * button asks the API for the seeker's best matches (./actions, startBatch:
+ * 10, leaving out every job they already have an application for) and
+ * refreshes the route so the list shows them. Then it asks the extension's
+ * runner to open the oldest queued application's apply_url in a window
+ * behind this one (openNextApplication), and says what happened. Nothing
+ * fills the form yet, and Pause and Resume only move this state
+ * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
+ * so a return visit starts idle, and Start queues another batch.
  */
 export function AutoApplyPanel({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -50,14 +53,16 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
         return;
       }
       setRun("running");
-      setNote({
-        text:
-          result.queued === 0
-            ? "No new matches to queue. Every match already has an application."
-            : `Queued ${result.queued} ${result.queued === 1 ? "job" : "jobs"}.`,
-        error: false,
-      });
       router.refresh();
+      const queued =
+        result.queued === 0
+          ? "No new matches to queue."
+          : `Queued ${result.queued} ${result.queued === 1 ? "job" : "jobs"}.`;
+      const opened = await openNextApplication();
+      setNote({
+        text: `${queued} ${openedNote(opened)}`,
+        error: !opened.opened && opened.reason !== "queue_empty",
+      });
     });
   }
 
@@ -82,6 +87,21 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
       </section>
     </>
   );
+}
+
+/** The second half of Start's note: what the extension's runner opened. */
+function openedNote(result: OpenApplicationResult): string {
+  if (result.opened) return "The first application is open in a new Chrome window.";
+  switch (result.reason) {
+    case "not_installed":
+      return "Install the WorkIt extension to open the applications.";
+    case "queue_empty":
+      return "Nothing is queued to open.";
+    case "signed_out":
+      return "The extension can't see your sign-in. Refresh this page, then try again.";
+    case "error":
+      return `The extension couldn't open the application: ${result.error}`;
+  }
 }
 
 /** A dot and a word at the heading's top right. Green only while it runs; the

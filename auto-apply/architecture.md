@@ -18,7 +18,10 @@ built. It replaces the earlier `design.md`.
 > side: base resumes from the experience bank, Tailor, the PDF render and
 > sent resumes. The run reuses them ("The resume"), and the resume step's
 > backend is built: `pick_resume`, `prepare_resume` and `POST
-> .../applications/{job_id}/resume`. Next: the extension's file upload.
+> .../applications/{job_id}/resume`. The runner's first step is built:
+> Start sends `run/open`, and the extension opens the next queued
+> application's `apply_url` in its own window
+> (`autofiller_extension/src/background/runner.js`); it fills nothing yet.
 > Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
 
@@ -806,7 +809,9 @@ Each step ships alone and is about one ticket.
 4. **Extension: file upload**, tested on Greenhouse, Lever and Ashby. They
    host 87% of the job postings in the feed snapshot (`backend/data/feed.json`).
 5. **Extension: the runner**, the port, host permissions, and the overlay's
-   **Submitted** and **Skip**. Start and Pause go live.
+   **Submitted** and **Skip**. Start and Pause go live. Started: `run/open`
+   opens the next queued application in the run's window (a one-shot
+   message, not yet the port; no fill).
 6. **`autofill_runs`**, and Live Activity shows each fill's report.
 7. **`autofill_answers`** for screening questions.
 8. **The Auto Apply page and Tailor**: the resume each application gets, and

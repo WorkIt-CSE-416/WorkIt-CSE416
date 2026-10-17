@@ -364,9 +364,12 @@ Apply queues a batch of the seeker's best matches through the API (`POST
 .../auto-apply/batches`, the server action `startBatch`: 10, leaving out
 every job they already have an application for), says how many under the
 row, and refreshes the route so Live Activity lists them; an error (an empty
-experience bank) shows there in red instead. Then Pause and Resume, which
-only move the state: nothing fills a form until the extension's runner
-exists. It is off until the list has a resume, and while a batch is
+experience bank) shows there in red instead. Then it asks the extension to
+open the oldest queued application's page in a Chrome window behind this
+one (`openNextApplication` in `src/lib/autofill-extension.ts`, the message
+`run/open`), and the note says so, or why not (no extension, signed out,
+nothing queued) in red. Pause and Resume only move the state: nothing fills
+a form yet. It is off until the list has a resume, and while a batch is
 queueing. The state (`idle`, `running`, `paused`) is held in
 `auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
 Started, Live (a green dot that rings out) or Paused; a return visit starts
