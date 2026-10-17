@@ -269,7 +269,11 @@ class TestStoredPage:
 
         page = providers._page("Data Engineering Intern", full)
 
-        assert page.description == "Responsibilities\nBuild data pipelines."
+        # The pay line moves to Pay by what it says (fix 3), out of Benefits.
+        assert page.description == (
+            "Responsibilities\nBuild data pipelines.\n"
+            "Pay\nThe pay for this role is $30-$40 per hour, plus a housing stipend."
+        )
         assert page.facts.pay == Pay("USD", 30, 40, "hour")
 
 
@@ -392,3 +396,96 @@ class TestHeadingVariants:
 
         assert [s.key for s in split(text)] == ["benefits", "company"]
         assert kept(text) == text  # nothing kept, so the whole text stays
+
+
+class TestLinesSortedByWhatTheySay:
+    """Fix 3: a line moves by what it says, whatever heading it sits under."""
+
+    def test_a_pay_sentence_under_another_heading_goes_to_pay(self) -> None:
+        # Tenstorrent's: under its hiring timelines, with no heading of its own.
+        text = (
+            "Responsibilities\nShip kernels\nUSA Hiring Timelines\nSummer Term: May–Aug.\n"
+            "Compensation for all interns at Tenstorrent ranges from $50/hr - $70/hr "
+            "including base and variable compensation."
+        )
+
+        assert kept(text) == (
+            "Responsibilities\nShip kernels\n"
+            "Pay\nCompensation for all interns at Tenstorrent ranges from $50/hr - $70/hr "
+            "including base and variable compensation.\n"
+            "Details\nSummer Term: May–Aug."
+        )
+
+    def test_pay_in_a_left_out_section_still_reaches_pay(self) -> None:
+        text = (
+            "Responsibilities\nShip kernels\nBenefits\nHealth insurance\n"
+            "The pay range for this position is expected to be between $45 and $65/hour."
+        )
+
+        assert kept(text) == (
+            "Responsibilities\nShip kernels\n"
+            "Pay\nThe pay range for this position is expected to be between $45 and $65/hour."
+        )
+
+    def test_a_label_naming_another_section_is_left_off_a_moved_line(self) -> None:
+        # Mendix's: the label is the perks list's, the sentence is the pay.
+        text = (
+            "Responsibilities\nShip features\nBenefits\n"
+            "Comprehensive Benefits: The salary range for this position is "
+            "€52,100- €78,200 annually."
+        )
+
+        stored = kept(text)
+
+        assert stored is not None
+        assert stored.endswith(
+            "Pay\nThe salary range for this position is €52,100- €78,200 annually."
+        )
+        assert kept(stored) == stored
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # Bree's and a cell phone plan: perks with a price, not the pay.
+            "- Perks: $250 monthly lunch stipend, $150 monthly transportation stipend",
+            "$20/pay period cell phone reimbursement",
+        ],
+    )
+    def test_a_perk_with_a_price_is_not_pay(self, line: str) -> None:
+        stored = kept(f"Responsibilities\nShip features\nBenefits\nHealth insurance\n{line}")
+
+        assert stored == "Responsibilities\nShip features"
+
+    def test_a_pay_line_that_mentions_a_stipend_is_still_pay(self) -> None:
+        line = (
+            "The estimated starting rate for this role is $25.00 an hour plus a $2,000 "
+            "monthly housing stipend"
+        )
+
+        stored = kept(f"Responsibilities\nShip features\nBenefits\n{line}")
+
+        assert stored is not None and stored.endswith(f"Pay\n{line}")
+
+    def test_an_equal_opportunity_line_is_dropped_from_a_kept_section(self) -> None:
+        text = (
+            "Responsibilities\nShip kernels\n"
+            "Tenstorrent is an equal opportunity employer and values diversity."
+        )
+
+        assert kept(text) == "Responsibilities\nShip kernels"
+
+    def test_an_export_control_requirement_is_kept(self) -> None:
+        # Students must meet it, unlike equal-opportunity boilerplate.
+        line = "Applicant must be eligible to access U.S. export-controlled technology."
+
+        assert kept(f"Requirements\nA CS degree\n{line}") == f"Requirements\nA CS degree\n{line}"
+
+    def test_a_posting_whose_only_kept_line_is_its_pay_is_kept_whole(self) -> None:
+        # Bose's whole posting sits under "About Bose": its pay line alone would
+        # lose everything else.
+        text = (
+            "About Bose\nYou know the moment.\n"
+            "The hiring range for this position is $21.15-$29.09 per hour."
+        )
+
+        assert kept(text) == text

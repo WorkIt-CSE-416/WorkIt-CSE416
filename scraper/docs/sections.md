@@ -110,13 +110,15 @@ dates, pay and legal text inside Responsibilities, its pay was a sentence under 
 heading, and the card read "$50/hr - $70/hr" as $50. Each fix below was measured
 on the 2026-10-16 snapshot with the same script, and each number is cumulative.
 
-| | Before | Fix 1 | Fix 2 |
-|---|---|---|---|
-| Pay on the card but no Pay section | 342 of 621 | 285 | 337 |
-| Inline labels read as plain text | 406 | 106 | 114 |
-| Legal text inside a kept section | 218 | 202 | 174 |
-| Missing Responsibilities | 23% | 23% | 20% |
-| Unstable on a second pass | 1 | 0 | 0 |
+| | Before | Fix 1 | Fix 2 | Fix 3 |
+|---|---|---|---|---|
+| Pay on the card but no Pay section | 342 of 621 | 285 | 337 | 171 |
+| Inline labels read as plain text | 406 | 106 | 114 | 114 |
+| Legal text inside a kept section | 218 | 202 | 174 | 18 |
+| Missing Responsibilities | 23% | 23% | 20% | 20% |
+| Missing Pay | 71% | 65% | 71% | 55% |
+| Unstable on a second pass | 1 | 0 | 0 | 0 |
+| Stored text, less than raw | 29.7% | 30.1% | 31.4% | 32.6% |
 
 The inline labels left are each in the section they name, so they are content on
 purpose.
@@ -146,6 +148,30 @@ with a test. Two rules came with them:
   pitch after it was kept as pay. That rule is why "pay on the card but no Pay
   section" rose to 337 at fix 2: real amounts inside "Compensation & Benefits"
   lists reach Pay through fix 3 instead.
+
+**Fix 3, lines sorted by what they say** (`_sorted_lines`, used by `kept`).
+After the split, a line that states pay goes to Pay from any section, a left-out
+one too, and an equal-opportunity line is dropped even from a kept section.
+Tenstorrent's "Compensation for all interns … $50/hr - $70/hr" now reaches Pay
+from under its hiring timelines; 249 lines moved on the snapshot, most from
+Benefits, Requirements and the intro.
+
+- **Pay is the card's own reader** (`details.pay`), so the card and the Pay
+  section agree on what pay is. A perk with a price ("$250 monthly lunch stipend",
+  "$20/pay period cell phone reimbursement") stays put unless the line also speaks
+  of pay, as "$25.00 an hour plus a $2,000 monthly housing stipend" does.
+- **A moved line loses a label that names another section**, so "Comprehensive
+  Benefits: The salary range is €52,100- €78,200" is stored as the sentence alone
+  and reads back the same; with the label it changed on the next read.
+- **Export control is not dropped.** "Must be eligible to access U.S.
+  export-controlled technology" is a requirement a student has to meet.
+- **Nothing about the job itself kept means the posting is kept whole**, not just
+  nothing kept: Bose's whole posting sits under "About Bose", and storing its pay
+  line alone would have lost the rest.
+
+Of the 171 postings still with pay on the card and no Pay section, 79 have no "$"
+in their text at all: the hiring system sent the pay as a field (Ashby, Lever).
+The job page shows the card's pay under Pay for those (fix 5).
 
 ## What WorkIt keeps (decided 2026-10-17)
 
