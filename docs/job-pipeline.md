@@ -324,6 +324,13 @@ applicant's token is read when sent: `GET /jobs`, `/jobs/count` and
 `/jobs/recommended` then leave out the job postings that applicant marked as
 applied (stage `applied`; a job only queued for auto apply stays in). Without a token, or with a bad or company one, nothing is left out.
 
+Every job posting the API sends carries `auto_apply`: true when its
+`apply_url` is on a hiring system auto apply can fill, which is Greenhouse
+only for now (any `greenhouse.io` host; a company's own page with
+`?gh_jid=` does not count). It is worked out from the URL, never stored. The
+Auto Apply button shows only where it is true, and auto apply's matches and
+queue take only those job postings (`backend/app/auto_apply/hosts.py`).
+
 | Endpoint | Returns |
 |---|---|
 | `GET /jobs` | A page of published job postings, newest first, without descriptions |
@@ -350,6 +357,7 @@ with **and**.
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
 | `start_term` | `summer-2027` | That season; seasons that have ended aren't offered |
 | `visa` | `sponsors` | Says it sponsors. `not_ruled_out` keeps job postings that sponsor or don't say |
+| `auto_apply` | `true` | Only job postings auto apply can fill: `auto_apply` true (section 6), Greenhouse for now |
 | `q` | `swe intern stripe` | A company it names by whole name (a typo corrected) narrows to that company's jobs; the roles it names (typos corrected) narrow to jobs tagged with them or whose title says the words that named them ("software" finds "Embedded Software Engineer"); "intern", "new grad", "remote", "summer 2027" and the like narrow their own columns (a start term and "remote" also match a title saying them); every other word must be in the job posting's text or its company's name. Newest first, like the rest of the feed |
 | `limit`, `offset` | `51`, `50` | Paging, for Load More |
 
@@ -366,12 +374,13 @@ can't be shown as matching a fact it never stated.
 | Piece | How it works |
 |---|---|
 | **Filters live in the address** | `/jobs?work_style=remote&role=quant`. A reload or a shared link keeps them. A value the API would refuse is dropped, not shown as an error. |
-| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract (section 3.2). |
+| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary, Start Date and Auto Apply Supported are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract (section 3.2). |
 | **All Filters** | One panel with every option as chips, or a search picker for the long lists: Location, Start Date, and Role, whose specialties ("Mechanical Engineering", "Security & IT") sit indented under their category. Changes are a draft until "Show N Jobs", whose number is counted live. |
 | **Counts beside options** | From `/jobs/facets` and `/jobs/locations`, cached for 5 minutes (they only change when an import runs). |
 | **Applying a filter** | The list dims at once while the narrowed list loads. |
 | **Load More** | The first 50 job postings, then a button adding 50 more with the same filters, until "That's every role that matches." |
 | **Search** | The words go to the API (`q`), so a search covers every job posting, not only the first 50. |
+| **Auto Apply on a card** | Only on a job posting whose `auto_apply` is true (Greenhouse for now; section 6). Its page shows it on the same rule. |
 | **Location on a card** | The import's label where there is one ("San Francisco, CA" for "SF"), else the raw text tidied ("Philadelphia, PA"). Several places read "Austin, TX +3 more", with every place listed on the job posting's page. `placesOf` in `jobs/format.ts`. |
 | **Pinned header** | The title and filters stay at the top while the list scrolls; on a phone only the filter row stays. |
 

@@ -41,6 +41,8 @@ from app.services.resume_render.word import render_docx
 from app.services.resume_view import ResumeView
 
 BUCKET = "Resume"
+# How long a sent resume's download link works.
+FILE_URL_TTL_SECONDS = 5 * 60
 
 
 @dataclass(frozen=True)
@@ -196,6 +198,19 @@ async def delete_sent(session: AsyncSession, applicant_id: uuid.UUID, sent_id: u
     await session.delete(row)
     await session.flush()
     return None if await file_in_use(session, path) else path
+
+
+async def file_url(storage: Any, row: Sent_Resume) -> str:
+    """A link that downloads the row's file under its download name for
+    FILE_URL_TTL_SECONDS. Raises whatever Storage raises: the caller says
+    what failed."""
+    signed = await asyncio.to_thread(
+        storage.from_(BUCKET).create_signed_url,
+        row.storage_path,
+        FILE_URL_TTL_SECONDS,
+        {"download": download_name(row)},
+    )
+    return signed.get("signedUrl")
 
 
 def download_name(row: Sent_Resume) -> str:

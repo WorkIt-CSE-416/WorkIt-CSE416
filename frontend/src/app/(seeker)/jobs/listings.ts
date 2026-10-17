@@ -74,6 +74,10 @@ export type JobListing = {
   /** What the posting says about visas (KAN-168): it sponsors, it doesn't, or
    *  US citizens only. Null when it says nothing, which is most postings. */
   sponsorship: "sponsors" | "no_sponsorship" | "citizens_only" | null;
+  /** Whether auto apply takes it: its apply_url is on a hiring system the
+   *  extension fills (Greenhouse for now; the API's
+   *  `app/auto_apply/hosts.py` decides). Auto Apply shows only where true. */
+  auto_apply: boolean;
   /** WorkIt's score against the seeker's resume, 0-100, and why: only on
    *  the Recommended view (`getRecommendedPage`), whose API adds them. The
    *  card's match rail draws its placeholder without them. */
@@ -224,9 +228,10 @@ export type JobRoleOption = FacetCount & { label: string };
 /** Every filter option's count across the whole feed (not narrowed by the
  *  other filters), and the start terms postings name, in calendar order.
  *  `role` is also the Role filter's options: the roles that tag a job, in
- *  the database's order, with their names. */
+ *  the database's order, with their names. `auto_apply` has one option,
+ *  "true": the job postings auto apply can fill. */
 export type JobFacets = Record<
-  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term",
+  "work_style" | "experience" | "job_type" | "posted_within" | "visa" | "start_term" | "auto_apply",
   FacetCount[]
 > & { role: JobRoleOption[] };
 
@@ -238,6 +243,7 @@ const NO_FACETS: JobFacets = {
   posted_within: [],
   visa: [],
   start_term: [],
+  auto_apply: [],
 };
 
 /** The filter row's counts and Start Date options. Empty when the API can't be

@@ -10,7 +10,8 @@ import type { JobType, WorkStyle } from "./data";
  * codes), ?work_style=, ?role=, ?experience=, ?job_type= (repeated, any of),
  * ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or
  * year, a range either end of which may be open), ?start_term= (seasons,
- * "summer-2027", repeated) and ?visa= (sponsors or not_ruled_out).
+ * "summer-2027", repeated), ?visa= (sponsors or not_ruled_out) and
+ * ?auto_apply=true (only job postings auto apply can fill).
  *
  * READING DROPS WHAT THE API WOULD REFUSE. A value outside the options, a
  * malformed place or a 61st one is left out here rather than sent on, so a
@@ -41,6 +42,10 @@ export type FeedFilters = {
    *  ("2027") for postings that name no season. */
   startTerms: string[];
   visa: Visa | null;
+  /** All Filters' "Auto Apply Supported": only job postings whose hiring
+   *  system auto apply fills (Greenhouse for now; the API decides, from
+   *  `backend/app/auto_apply/hosts.py`). False shows every job posting. */
+  autoApply: boolean;
 };
 
 export const NO_FILTERS: FeedFilters = {
@@ -55,6 +60,7 @@ export const NO_FILTERS: FeedFilters = {
   payPer: "year",
   startTerms: [],
   visa: null,
+  autoApply: false,
 };
 
 /* Each facet's options, in the words ./format prints on the cards, so a
@@ -170,6 +176,7 @@ export const FILTER_KEYS = [
   "pay_per",
   "start_term",
   "visa",
+  "auto_apply",
 ] as const;
 
 /** The API's ceiling on ?location= (routers/jobs.py) and its code shape. */
@@ -219,6 +226,8 @@ export function readFilters(params: Params): FeedFilters {
       MAX_SEASONS,
     ),
     visa: pick(params.visa, VISA_OPTIONS)[0] ?? null,
+    // Only "true" turns it on: the one value the filter writes.
+    autoApply: first(params.auto_apply) === "true",
   };
 }
 
@@ -240,6 +249,7 @@ export function filterEntries(filters: FeedFilters): [string, string][] {
       : []),
     ...filters.startTerms.map((t): [string, string] => ["start_term", t]),
     ...(filters.visa != null ? [["visa", filters.visa] as [string, string]] : []),
+    ...(filters.autoApply ? [["auto_apply", "true"] as [string, string]] : []),
   ];
 }
 

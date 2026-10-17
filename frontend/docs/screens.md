@@ -25,7 +25,7 @@ the API's role resolver: roles, a typo corrected, then text and company):
 ?location= (repeated ISO
 codes, US or US-CA), ?work_style=, ?role=, ?experience=, ?job_type= (repeated),
 ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or year),
-?start_term= (seasons) and ?visa=, GET /jobs' own names. jobs/filter-query.ts
+?start_term= (seasons), ?visa= and ?auto_apply=true, GET /jobs' own names. jobs/filter-query.ts
 reads and writes them for the pages and the row alike, dropping any value the
 API would refuse, so a stale link narrows by what was valid instead of erroring.
 
@@ -62,7 +62,12 @@ KAN-172 link's "data_ai/ml" is dropped, not sent.
 
 All Filters opens one panel (jobs/all-filters.tsx) with every facet's options in
 view as chips, or a search picker for the long lists, and no facet popups inside
-it (they landed left or right of their button by the room). Its picks are a
+it (they landed left or right of their button by the room). Its last section,
+Auto Apply (the Zap glyph a job's Auto Apply button wears), has one chip,
+Auto Apply Supported: on, the feed shows only the job postings auto apply can
+fill, the ones with an Auto Apply button (Greenhouse for now, `?auto_apply=true`,
+counted by GET /jobs/facets' `auto_apply`); off, every job posting. Like Visa,
+it is in All Filters only (asked for 2026-10-17). Its picks are a
 draft until "Show N Jobs", which counts the draft as it changes (GET /jobs/count
 via jobs/actions.ts). Applying a filter dims the feed at once (jobs/feed-
 transition.tsx: the row and the feed share one transition), since the narrowed
@@ -149,13 +154,36 @@ the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
 Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. The card's own row has Not Interested, Save, Ask
-Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
+Scout, Auto Apply and Apply Now. Auto Apply shows only on a job posting the
+API marks `auto_apply` (its hiring system is one auto apply fills:
+Greenhouse for now, `backend/app/auto_apply/hosts.py`); every other job
+posting has no Auto Apply at all. It sits between Ask Scout and Apply
 Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
 Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
 the job posting through the API (`POST /applicants/{id}/applications`, the
 server action `queueJob`), and the button turns to the stage it answers
 (Queued; or Skipped, Needs You, Applied for a job that already had an
-application), off, so it is never queued twice. Its first state comes from
+application). Queued is a toggle (`aria-pressed`): a second click takes the
+job out of the queue (`DELETE .../applications/{job_id}`, `dequeueJob`) and
+the button reads Auto Apply again. The other stages are off: they record what
+happened, so the button never undoes them. A new queueing raises a toast
+(`components/ui/toast.tsx`), "<title> from <company> is queued for Auto
+Apply.", with Undo, which takes the job out again (`dequeueJob`) and turns
+the button back to Auto Apply: Live Activity's cross and Undo, the other way
+round. A failed Undo says so in a toast and leaves the button Queued.
+A click that leaves the job queued then runs Start Auto Apply's pipeline
+without the matching: it asks the extension to open the oldest queued job
+in a Chrome window behind this one (`openNextApplication`), which is this
+job only when nothing older waits. It runs after the click settles, so the
+button never waits on a page load; only a failure shows, as a line above
+the button (no extension stays silent). The job open in that window reads
+**Working in Browser** (the AppWindow glyph) on every card that shows it,
+read once per page from the extension (`useRunnerJob` in
+`src/lib/autofill-extension.ts`, asked again whenever the tab gets focus).
+It goes back to Queued only when the extension says the window is closed,
+never on a failed answer: coming back from the run's window once reset it;
+a click brings the window to the front (`showRunWindow`), and the job
+leaves the queue from Live Activity only. Its first state comes from
 the server: the job's page reads its one application (`GET
 .../applications/{job_id}`), and /jobs and /search read every application
 once beside the first page (`getApplicationStages`) and hand the stages to
@@ -343,45 +371,81 @@ sits between Jobs and Applications, in the order the work goes, and its page
 uses the same heading block as every seeker screen. The pipeline it grows
 into is `auto-apply/architecture.md` at the repo root.
 
-**"Applying with Resume:" is its first section, and it is live**
-(`auto-apply/applying-resume.tsx`). It shows the seeker's primary resume
-(`is_default`) in My Profile's own row (`src/components/resume-row.tsx`) with
-only the eye, and a Change link to My Profile, where resumes are chosen and
-deleted. Only the primary, never My Profile's fallback to the newest: the
-matching reads the primary alone, so a seeker without one is asked to star
-one. It is a client component reading `listResumes()` like My Profile, and
-starts from My Profile's cache when the shell has one, without writing to it.
+**"Resume List" is its first section, and it is live**
+(`auto-apply/resume-list.tsx`). It lists every resume the seeker has, not
+one: auto apply picks a resume per application (the one tailored to that job
+posting, else the default resume, `POST .../applications/{job_id}/resume`;
+`auto-apply/architecture.md`, "The resume"), and a note under the heading
+says so. The default is one resume, built or uploaded (starring one clears
+the other), so one row at most says Default; with resumes but no default, a
+second note says to star one, since the run then attaches none. Built
+resumes (`listBuiltResumes()`) come first, then uploaded ones
+(`listResumes()`), each list's default first. Each row is My Profile's 52px
+box (`RESUME_ROW`) with Default, Tailored or Posting closed badges. A
+built resume's Open goes to the resume editor, as on the bank page; it never
+downloads here, since every download keeps a sent resume. An uploaded one
+previews or downloads (`previewResume`). Manage goes to the bank page's
+Your Resumes, and the empty state names the bank and My Profile. Uploaded
+resumes start from My Profile's cache when the shell has one, without
+writing to it; a list that fails keeps what loaded and says the rest didn't.
+It replaced "Applying with Resume", which showed the primary uploaded resume
+alone because matching read it then; matching reads the experience bank now
+(KAN-212).
 
 **The button beside the resume starts and pauses auto apply.** Start Auto
 Apply queues a batch of the seeker's best matches through the API (`POST
 .../auto-apply/batches`, the server action `startBatch`: 10, leaving out
 every job they already have an application for), says how many under the
-row, and refreshes the route so Live Activity lists them; an error (no
-primary resume) shows there in red instead. Then Pause and Resume, which
-only move the state: nothing fills a form until the extension's runner
-exists. It is off until there is a primary resume, and while a batch is
+row, and refreshes the route so Live Activity lists them; an error (an empty
+experience bank) shows there in red instead. Then it asks the extension to
+open the oldest queued application's page in a Chrome window behind this
+one (`openNextApplication` in `src/lib/autofill-extension.ts`, the message
+`run/open`), and the note says so, or why not (no extension, signed out)
+in red (`auto-apply/opened-note.ts`, shared with the job card). A window
+already on that job stays as it is, so Start never wipes a form in
+progress. Pause and Resume only move the state: nothing fills
+a form yet. It is off until the list has a resume, and while a batch is
 queueing. The state (`idle`, `running`, `paused`) is held in
 `auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
 Started, Live (a green dot that rings out) or Paused; a return visit starts
 idle, so Start queues another batch. The brand fill marks
 the action that starts work, so Pause is the bordered neutral. The button is
-52px tall and 208px wide beside the row, so the row does not shift between
-labels; on a phone it drops under the row at full width.
+52px tall and 208px wide beside the list, its top level with the first
+row's (a grid), so nothing shifts between labels; on a phone it drops under
+the list at full width.
 
 **Live Activity is live: the seeker's applications from the API**
-(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), newest
-first, drawn on the server against the request's clock. Each stored stage is
+(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), in
+queue order: the oldest queued first, the job the extension opens next, and
+a newly queued one at the bottom (asked for 2026-10-17). The API answers
+newest first and the page reverses it, so the API's order stays as other
+callers know it. Drawn on the server against the request's clock. Each stored stage is
 a row (`activityOf` in `auto-apply/activity-list.tsx`): queued Queued,
-needs_you Couldn't Finish, skipped Skipped, applied Applied. The whole row
+needs_you Couldn't Finish, skipped Skipped, applied Applied. The queued
+job open in the extension's window reads Working in Browser instead
+(`auto-apply/live-activity.tsx`, the one client step over the server's
+rows), in flight, with no cross: taking it out would leave the window on a
+job that is gone. The whole row
 opens the job posting's page, as on the Applications list, while the posting
 is open; a closed one says so and links nowhere. None yet is an empty state
 pointing at Start and the jobs' Auto Apply; a failed read says so, never a
 fixture. One row per job posting, in one white card with rules between rows. Each status takes a
-badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Tailoring Resume
-and Autofilling `advanced` blue, their dot ringing three times; Needs Review
+badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Working in
+Browser, Tailoring Resume and Autofilling `advanced` blue, their dot ringing
+three times, and counted under In Progress; Needs Review
 and Couldn't Finish warning amber, as both wait on the seeker; Applied the
 Applied stage's violet, so it reads the same as on the Applications board.
-The counts above the card use the same dot colours. Narrow, a row's badge and
+The counts above the card use the same dot colours. A queued row has a cross
+beside its badge (`auto-apply/remove-from-queue.tsx`) that takes the job out
+of the queue and refreshes the route; it sits above the row's link, so the
+click never opens the job posting. No other stage has one. The cross, a
+job's Auto Apply and Start each take one click at a time (a ref set on
+the click): `disabled={pending}` lands a render late, so a fast double
+click once sent two removals and showed the removal toast twice. A toast then says
+"<role> from <company> is removed from Auto Apply." with Undo, which queues
+the job again (`queueJob`): it comes back as a new queued row at the
+bottom, since the queue orders by when a job was queued. A failure, of either the
+removal or the Undo, is a toast too. Narrow, a row's badge and
 time drop under its text so the role keeps the width. The list is
 `aria-live="polite"`. Tailoring Resume, Autofilling and Needs Review are the
 runner's live states, kept for when the extension reports them; the

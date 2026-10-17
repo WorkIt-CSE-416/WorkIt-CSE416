@@ -28,6 +28,8 @@ class SentResumeCreate(BaseModel):
 
 
 class SentResumeResponse(BaseModel):
+    """One sent resume as every route answers it."""
+
     id: UUID
     name: str
     built_resume_id: UUID | None
@@ -36,6 +38,15 @@ class SentResumeResponse(BaseModel):
     created_at: datetime.datetime
     # The kept file's kind, read from its path: "pdf" or "docx".
     format: str
+
+    @classmethod
+    def from_row(cls, row) -> "SentResumeResponse":
+        """From a Sent_Resume row; `format` from its file's extension."""
+        return cls(
+            id=row.id, name=row.name, built_resume_id=row.built_resume_id,
+            uploaded_resume_id=row.uploaded_resume_id, job_posting_id=row.job_posting_id,
+            created_at=row.created_at, format=row.storage_path.rsplit(".", 1)[-1].lower(),
+        )
 
 
 class SentResumeDownload(SentResumeResponse):

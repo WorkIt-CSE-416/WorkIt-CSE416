@@ -8,6 +8,7 @@
 
 import { getSession } from "./auth.js";
 import { getAutofillProfile, ApiError } from "./api.js";
+import { openNextApplication, runStatus, showRunWindow } from "./runner.js";
 
 /** @param {{ type: string, [key: string]: any }} message */
 async function handleMessage(message) {
@@ -42,17 +43,35 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Messages from the WorkIt webapp itself (manifest.json's
 // externally_connectable). Deliberately a much smaller surface than the
 // internal channel above — the webapp can ask "is the extension here and
-// signed in", nothing more. It never receives the profile or the session;
-// there's no reason the page needs either, and handing them over would
-// make a compromised or malicious page on an allowed origin able to read a
-// signed-in user's resume data just by asking.
+// signed in", and ask the runner to open the next queued application,
+// nothing more. It never receives the profile or the session; there's no
+// reason the page needs either, and handing them over would make a
+// compromised or malicious page on an allowed origin able to read a
+// signed-in user's resume data just by asking. `run/open` takes no URL for
+// the same reason: the runner reads it from the API (runner.js). The other
+// two only say which job posting the run's window shows, and bring it to
+// the front.
+const RUNNER_MESSAGES = {
+  "run/open": openNextApplication,
+  "run/status": runStatus,
+  "run/show": showRunWindow,
+};
+
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "ping") {
-    sendResponse({ ok: false, error: "Unsupported message" });
-    return;
+  if (message?.type === "ping") {
+    getSession()
+      .then((session) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session) }))
+      .catch(() => sendResponse({ ok: true, installed: true, signedIn: false }));
+    return true;
   }
-  getSession()
-    .then((session) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session) }))
-    .catch(() => sendResponse({ ok: true, installed: true, signedIn: false }));
-  return true;
+
+  // Own keys only, so a type such as "toString" never reaches a built-in.
+  if (Object.hasOwn(RUNNER_MESSAGES, message?.type)) {
+    RUNNER_MESSAGES[message.type]()
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  sendResponse({ ok: false, error: "Unsupported message" });
 });
