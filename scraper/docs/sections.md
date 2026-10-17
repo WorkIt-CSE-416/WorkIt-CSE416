@@ -26,17 +26,18 @@ A description is stored as one block of plain text, cut at `DESCRIPTION_CHARS`
 | `company` | The company's pitch, mission, values | Who we are, About Stripe |
 | `role` | What the role and team are | About the role, Position Overview |
 | `responsibilities` | What the student will do | What you'll do, Key Responsibilities |
-| `requirements` | What the student must have | Requirements, What we're looking for |
+| `requirements` | What the student must have, export control included | Requirements, What we're looking for, Export Compliance |
 | `preferred` | What is nice to have | Preferred Qualifications, Bonus Points |
 | `pay` | The pay, in words | Compensation, Hourly PhD Pay |
 | `benefits` | Perks and benefits | What we offer, Life at Palantir |
 | `logistics` | Location, dates, schedule | Work Schedule, Internship Details |
 | `apply` | How to apply, the interview steps | Interview Process |
-| `legal` | EEO, export control, privacy, fraud notices | EEO Statement, #LI-Hybrid |
+| `legal` | EEO, privacy, fraud notices | EEO Statement, #LI-Hybrid |
 
 The order of `SECTIONS` decides headings two sections could claim. Each choice
 has a test in `tests/test_sections.py`:
 
+- export control before legal: "Export Compliance" is a requirement, not a notice.
 - legal before pay: "Pay Transparency Disclosure" is a notice.
 - benefits before pay: "Compensation & Benefits" opens the perks list.
 - preferred before requirements: "Preferred Qualifications".
@@ -164,7 +165,12 @@ Benefits, Requirements and the intro.
   Benefits: The salary range is €52,100- €78,200" is stored as the sentence alone
   and reads back the same; with the label it changed on the next read.
 - **Export control is not dropped.** "Must be eligible to access U.S.
-  export-controlled technology" is a requirement a student has to meet.
+  export-controlled technology" is a requirement a student has to meet, so a
+  section headed "Export Control" or "Export Compliance" (or naming ITAR) is
+  Requirements, matched before legal. Filed as legal at first, K2 Space's whole
+  ITAR section left the job page, and the card's sponsorship reader misses
+  ITAR's "U.S. persons" wording, so nothing on WorkIt said who could take the
+  job (PR review, 2026-10-17).
 - **Nothing about the job itself kept means the posting is kept whole**, not just
   nothing kept: Bose's whole posting sits under "About Bose", and storing its pay
   line alone would have lost the rest.
@@ -240,7 +246,8 @@ text is gone for search, matching, Scout and Tailor.
   written, so SpaceX's export-control rule joins its other requirements.
 - **Left out:** company, benefits, legal, apply.
 - **Matching's embedding reads:** Overview, Responsibilities,
-  Requirements and Preferred Qualifications
+  Requirements and Preferred Qualifications, plus the intro when there is no
+  Overview, since that is where such a posting states the role
   (`backend/app/services/matching/embeddings.py`, `job_text`).
 
 `providers._page` stores `cap(kept(full))`: the card's facts are read from the
@@ -267,10 +274,10 @@ already reads short title-case lines as headings
 (`frontend/src/app/(seeker)/jobs/[jobId]/description.tsx`).
 
 **The headings are part of the feed's contract.** The backend finds the parts
-matching reads by these exact lines, and the job posting page draws an icon
-beside each one (`SECTION_ICONS` in
-`frontend/src/app/(seeker)/jobs/[jobId]/description.tsx`). Rename one in `KEPT`,
-in `job_text` and in `SECTION_ICONS` in the same change, or every posting
+matching reads by these exact lines, and the job posting page is to draw an
+icon beside each one (`SECTION_ICONS` in
+`frontend/src/app/(seeker)/jobs/[jobId]/description.tsx`, KAN-246). Rename one in
+`KEPT`, in `job_text` and in `SECTION_ICONS` in the same change, or every posting
 quietly embeds its whole description again and the section loses its icon.
 
 Measured on the snapshot: the stored text is 29.7% smaller (median 4,596 to 3,122

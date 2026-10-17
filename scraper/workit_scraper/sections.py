@@ -29,10 +29,18 @@ from workit_scraper import details
 INTRO = "intro"
 
 #: (section, the words that name it in a heading). First match wins, so the order is
-#: the decision: legal before pay, so "Pay Transparency" is a notice; benefits before
-#: pay, so "Compensation & Benefits" is a benefits list; preferred before
+#: the decision: export control before legal, so an "Export Compliance" section is
+#: a requirement; legal before pay, so "Pay Transparency" is a notice; benefits
+#: before pay, so "Compensation & Benefits" is a benefits list; preferred before
 #: requirements, so "Preferred Qualifications" is not a requirement.
 SECTIONS: tuple[tuple[str, str], ...] = (
+    # A rule the student has to meet ("U.S. persons only"), not a notice: under
+    # legal, K2 Space's ITAR section left the job page, and the card's sponsorship
+    # reader does not read ITAR's wording either. In "we"/"our" voice it stays a
+    # notice (`_ABOUT_THE_READER`), and `legal` still catches it. At most two words
+    # after "export control": "Export control register for all CQC shipment" is a
+    # duty in a list, not a heading.
+    ("requirements", r"\bexport control\w*( \S+){0,2}$|\bexport compliance\b|\bitar\b"),
     (
         "legal",
         r"eeo|equal (employment )?opportunit\w*|e-verify|export control|accommodations?|"
@@ -156,10 +164,9 @@ _MAX_WORDS = 9
 #:
 #: THE HEADINGS ARE PART OF THE FEED'S CONTRACT. The backend finds the parts job
 #: matching reads by these exact lines (backend/app/services/matching/
-#: embeddings.py, `job_text`), and the job posting page draws each one's icon
-#: (frontend .../jobs/[jobId]/description.tsx, `SECTION_ICONS`), so a heading
-#: renamed here alone makes every job embed its whole description again and
-#: loses its icon. The intro has none: it comes first.
+#: embeddings.py, `job_text`), and the job posting page is to draw each one's
+#: icon (KAN-246), so a heading renamed here alone makes every job embed its whole
+#: description again and loses its icon. The intro has none: it comes first.
 KEPT: tuple[tuple[str, str | None], ...] = (
     (INTRO, None),
     ("role", "Overview"),

@@ -74,11 +74,17 @@ Nothing in this folder may assume what a software job is. Two consequences:
   Requirements and Preferred Qualifications. The scraper stores a description
   under those fixed headings, each alone on its line, with the company's
   pitch, benefits and legal text already left out
-  (`../../../../scraper/docs/sections.md`). The intro, Pay and Details are
-  stored but not embedded. A description without those headings (stored
-  before KAN-229, or one the scraper kept whole) is embedded whole. **The
-  headings are part of the feed's contract**: renamed in the scraper alone,
-  every posting quietly embeds its whole description again.
+  (`../../../../scraper/docs/sections.md`). Pay and Details are stored but
+  not embedded, and so is the intro when there is an Overview. Without one,
+  the intro is embedded first: it is where most such postings state the role
+  ("Garda is seeking a Software Engineer Intern..."). Left out always, it cost
+  52 role and requirement lines in the scraper's 50 gold postings, more than
+  the old 6,000-character cut did (PR review, 2026-10-17). A description with
+  none of those exact lines (the scraper's whole-text fallback) is embedded
+  whole; one stored before KAN-229 that uses such a word as a heading of its
+  own is read from that line. **The headings are part of the feed's
+  contract**: renamed in the scraper alone, every posting quietly embeds its
+  whole description again.
 - **Texts are cut to 6,000 characters**, since the model reads about 2,048
   tokens.
 

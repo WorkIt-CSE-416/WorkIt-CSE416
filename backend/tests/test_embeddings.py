@@ -219,6 +219,32 @@ def test_job_text_leaves_out_the_intro_pay_and_details():
     assert "San Jose" not in text
 
 
+def test_job_text_reads_the_intro_when_there_is_no_overview():
+    # Without an Overview the intro is where the posting states the role
+    # ("Garda is seeking a Software Engineer Intern..."); Pay stays out.
+    stored = (
+        "Garda is seeking a Software Engineer Intern for its AI tools team.\n"
+        "Requirements\nPython.\n"
+        "Pay\n$40 per hour."
+    )
+
+    assert embeddings.job_text("Intern", stored) == (
+        "Intern\n\n"
+        "Garda is seeking a Software Engineer Intern for its AI tools team.\n"
+        "Python."
+    )
+
+
+def test_job_text_reads_an_old_description_from_its_own_matched_heading():
+    # Stored before KAN-229, an employer's own "Requirements" line is read as
+    # the fixed heading, so the text before it counts as the intro.
+    old = "About Us\nWe build robots.\nRequirements\nC firmware.\nBenefits\nLunch."
+
+    assert embeddings.job_text("Intern", old) == (
+        "Intern\n\nAbout Us\nWe build robots.\nC firmware.\nBenefits\nLunch."
+    )
+
+
 def test_job_text_reads_a_description_without_the_headings_whole():
     # Stored before KAN-229, or kept whole by the scraper.
     old = "About Us\nWe build robots.\nWhat you'll do\nWrite firmware."
