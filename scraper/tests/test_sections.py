@@ -57,7 +57,8 @@ class TestHeading:
             ("Why join us?", "benefits"),
             ("EEO Statement", "legal"),
             ("Equal Opportunity Employer", "legal"),
-            ("Export Control", "legal"),
+            ("Export Control", "requirements"),
+            ("Export Compliance", "requirements"),
             ("Recruiting Fraud Alert", "legal"),
             ("#LI-Hybrid", "legal"),
             ("Interview Process", "apply"),
@@ -475,6 +476,20 @@ class TestLinesSortedByWhatTheySay:
         )
 
         assert kept(text) == "Responsibilities\nShip kernels"
+
+    def test_an_export_control_section_is_kept_as_requirements(self) -> None:
+        # K2 Space's order: under legal, the ITAR rule left the job page entirely.
+        text = (
+            "Requirements\nA CS degree\n"
+            "Benefits\nHealth insurance\n"
+            "Export Compliance\n"
+            "This role requires access to ITAR-controlled information; you must be a U.S. person."
+        )
+
+        assert kept(text) == (
+            "Requirements\nA CS degree\n"
+            "This role requires access to ITAR-controlled information; you must be a U.S. person."
+        )
 
     def test_an_export_control_requirement_is_kept(self) -> None:
         # Students must meet it, unlike equal-opportunity boilerplate.

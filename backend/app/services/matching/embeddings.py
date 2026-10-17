@@ -33,7 +33,9 @@ _URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:batchEm
 # scraper/workit_scraper/sections.py `KEPT`), each alone on its line. Part of
 # the feed's contract: renamed on one side only, every posting embeds its
 # whole description again. Matching reads the role and what it asks for; the
-# intro (often the company's pitch), the pay and the details are left out.
+# pay and the details are left out, and so is the intro unless the posting has
+# no Overview: then the intro is where it states the role (19 of the scraper's
+# 50 gold postings keep role or requirement lines there).
 _MATCHED_HEADINGS = frozenset(
     {"Overview", "Responsibilities", "Requirements", "Preferred Qualifications"}
 )
@@ -41,22 +43,31 @@ _OTHER_HEADINGS = frozenset({"Pay", "Details"})
 
 
 def _matched_part(description: str) -> str | None:
-    '''the text under the matched headings, or None when it has none: a
-    posting stored before KAN-229, or one the scraper kept whole'''
+    '''the text under the matched headings, after the intro when there is no
+    Overview, or None when no line is a matched heading. A description stored
+    before KAN-229 that uses one of those words as a heading of its own is read
+    from there; the scraper's own whole-text fallback never has one'''
+    intro: list[str] = []
     lines: list[str] = []
-    reading = False
+    seen = reading = False
     for line in description.split("\n"):
         if line in _MATCHED_HEADINGS or line in _OTHER_HEADINGS:
-            reading = line in _MATCHED_HEADINGS
+            seen, reading = True, line in _MATCHED_HEADINGS
+        elif not seen:
+            intro.append(line)
         elif reading:
             lines.append(line)
-    return "\n".join(lines).strip() or None
+    if not "\n".join(lines).strip():
+        return None
+    if "Overview" not in description.split("\n"):
+        lines = intro + lines
+    return "\n".join(lines).strip()
 
 
 def job_text(title: str, description: str | None) -> str:
-    '''what a posting is embedded from: its title, then its role,
-    responsibilities, requirements and preferred qualifications, or its whole
-    description when it has none of them'''
+    '''what a posting is embedded from: its title, then its role (its intro
+    when it has no Overview), responsibilities, requirements and preferred
+    qualifications, or its whole description when it has none of them'''
     body = _matched_part(description) if description else None
     return f"{title}\n\n{body or description or ''}".strip()
 
