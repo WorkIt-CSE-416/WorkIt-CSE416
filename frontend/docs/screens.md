@@ -176,7 +176,11 @@ stops it). Apply Without a Resume leaves for the employer's posting at once.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
-Ask Scout asks about the role, Share copies the page's link, and Report
+The header's actions are one row under the title at every width
+(KAN-250, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply, Tailor My
+Resume and Apply Now. The row wraps on a phone; the logo never shrinks.
+The "…" menu (`MoreActions`, `[jobId]/page-actions.tsx`) holds Copy Link
+and Report. Ask Scout asks about the role, Copy Link copies the page's link, and Report
 stays inert. Save (KAN-261) keeps the job posting in the Saved column on My
 Applications, on the card and the page alike (`jobs/save-job-button.tsx`,
 over the drawing-only `components/save-button.tsx`): the bookmark fills at
@@ -231,10 +235,15 @@ the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
 the last one visited in sessionStorage). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
 would change a moment after the page loads.
-**Applied** (KAN-232), last in the header's actions, shows for a signed-in
-applicant only (`getApplied` answers null for anyone else). A click calls
-`markApplied` (`jobs/actions.ts`), and the button becomes "Applied at
-10/15/2026", the viewer's own day after hydration (`AppliedOn`). The job then
+**Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
+When a signed-in applicant leaves for the employer's posting from Apply Now's
+dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
+behind the new tab and asks "Did You Apply?". Yes, I Applied calls
+`markApplied` (`jobs/actions.ts`); Not Yet closes it. A job already marked is
+never asked about again, and anyone else's dialog just closes. The page then
+reads "You applied on Oct 17, 2026" under the header (`AppliedNote`), the
+viewer's own day after hydration. An Applied button in the header did this
+before, and one misclick took a job off the feed with no undo. The job then
 leaves that applicant's feed, /search and count, because `listings.ts` sends
 their token with those reads (`viewerToken`) and the API filters on it. There
 is no undo yet.

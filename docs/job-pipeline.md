@@ -316,10 +316,10 @@ deployed (`backend/CLAUDE.md`, Commands).
 ### 5.5 `job_applications`, one row per job posting an applicant saved or applied to (KAN-232, KAN-261)
 
 An applicant id and a job posting id, with a `stage`, `created_at` and
-`applied_at`. The applicant writes an `applied` row with the Applied button
-on the job posting's page (section 7.2), and a `saved` row with a Save button
+`applied_at`. The applicant writes an `applied` row by answering "Did You
+Apply?" after Apply Now opens the employer's posting (section 7.2), and a `saved` row with a Save button
 (on the card and the page). A saved row counts as no application yet: the
-Applied button or auto apply moves it on, and saving never moves a later
+application confirmation or auto apply moves it on, and saving never moves a later
 stage back. Auto apply writes `queued` rows and
 moves them to `applied`, `skipped` or `needs_you`
 (`auto-apply/architecture.md`, "Data model"); `applied_at` stays empty until
@@ -406,8 +406,8 @@ can't be shown as matching a fact it never stated.
 | **Opening it** | A click anywhere on a card |
 | **Header** | The same facts as the card, and the company logo |
 | **About the Role** | The description, with headings and bullet lists recovered from the plain text |
-| **Actions** | Apply Now (the company's own page), Ask Scout, Share (copies the link), Save (keeps the job posting in the Saved column on My Applications; a second click takes it out). Report isn't built yet. |
-| **Applied** | Signed-in applicants only, last in the header's actions (top right). A click records the job posting in `job_applications` and the button becomes "Applied at 10/15/2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
+| **Actions** | One row under the title: Save, a "…" menu (Copy Link, Report), Ask Scout, Auto Apply, Tailor My Resume and Apply Now (the company's own page). Save keeps the job posting in the Saved column on My Applications; a second click takes it out. Report isn't built yet. |
+| **Applied** | Signed-in applicants only. After Apply Now opens the company's page, the dialog asks "Did You Apply?". Yes records the job posting in `job_applications`, and the page reads "You applied on Oct 17, 2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
 | **Back to Jobs** | Returns to the list you came from, with its filters |
 
 ### 7.3 Coming back
