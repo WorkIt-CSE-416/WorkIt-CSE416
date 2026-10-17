@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
-import { CheckIcon } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import {
   Select,
   SelectContent as VendoredSelectContent,
@@ -64,43 +64,20 @@ function SelectContent({
 }
 
 /**
- * A row that reads as a checkbox — label on the left, box on the right — for a
- * `multiple` Select, where the vendored SelectItem's lone check mark does not
- * say "you can pick more than one". Written here rather than in shadcn/ because
- * it has no registry counterpart to regenerate from.
- *
- * The box is a stand-in, not the real `Checkbox`: the item already tracks
- * selection, so a second stateful control would only have to be kept in sync.
- *
- * Two details that look arbitrary and are not:
- * - `data-[selected]`, not `data-selected`. The `data-selected` variant from
- *   `shadcn/tailwind.css` only matches `data-selected="true"`, and Base UI
- *   writes the attribute bare, so the short form never checks the box.
- * - No `**:text-accent-foreground` on the highlighted row, unlike the vendored
- *   item. That rule recolours every descendant, which turns the white check
- *   dark on hover; the row's own text colour is all the highlight needs.
- * - `border-ink-meta`, not shadcn's `border-input`. The empty box is what says
- *   a facet takes several picks, and the input hairline drew it at 1.19:1 on
- *   the white popup. This is 5.59:1 there and 4.90:1 on the hovered row;
- *   ink-faint would drop to 2.73:1 on hover.
+ * A row that reads as a checkbox (./check-row) for a `multiple` Select, where
+ * the vendored SelectItem's lone check mark does not say "you can pick more
+ * than one". Written here rather than in shadcn/ because it has no registry
+ * counterpart to regenerate from.
  */
 function SelectCheckboxItem({ className, children, ...props }: SelectPrimitive.Item.Props) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
-      className={cn(
-        "group/select-item data-highlighted:bg-accent data-highlighted:text-accent-foreground text-body flex w-full cursor-default items-center justify-between gap-2 rounded-md py-1 pr-1.5 pl-2 outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
-        className,
-      )}
+      className={cn(checkRowClasses, className)}
       {...props}
     >
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-      <span
-        aria-hidden
-        className="border-ink-meta text-primary-foreground group-data-[selected]/select-item:border-primary group-data-[selected]/select-item:bg-primary pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors"
-      >
-        <CheckIcon className="size-3.5 opacity-0 group-data-[selected]/select-item:opacity-100" />
-      </span>
+      <CheckRowBox />
     </SelectPrimitive.Item>
   );
 }
