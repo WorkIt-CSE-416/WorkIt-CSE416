@@ -100,11 +100,11 @@ Xiang asked for this to be decided before anything was dropped, because dropped
 text is gone for search, matching, Scout and Tailor.
 
 - **Kept, in this order, under these headings** (`sections.KEPT`): the intro (no
-  heading), About the Role, Responsibilities, Requirements, Preferred
+  heading), Overview, Responsibilities, Requirements, Preferred
   Qualifications, Pay, Details. Sections of one kind are joined in the order
   written, so SpaceX's export-control rule joins its other requirements.
 - **Left out:** company, benefits, legal, apply.
-- **Matching's embedding reads:** About the Role, Responsibilities,
+- **Matching's embedding reads:** Overview, Responsibilities,
   Requirements and Preferred Qualifications
   (`backend/app/services/matching/embeddings.py`, `job_text`).
 
@@ -121,7 +121,11 @@ Two guards keep the format readable by the backend, each with a test:
   left-out section means the headings were misread. Measured: 2 of 1,094.
 
 `Job Description`, the heading Workday puts over a whole posting, opens no
-section; without that, Bose's company pitch was filed as About the Role.
+section; without that, Bose's company pitch was filed as the role's overview.
+
+The role's heading is Overview, not "About the Role": the job page already puts the
+whole description under its own "About the Role" section, and the two printed
+one above the other.
 
 No migration: the format lives inside the `description` column, and the job page
 already reads short title-case lines as headings

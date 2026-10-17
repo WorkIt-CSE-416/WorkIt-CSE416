@@ -3,8 +3,8 @@
  * text, one line per paragraph or list item of the employer's page, with
  * neither headings nor bullets marked: "Responsibilities" is just a short
  * line, and the duties under it are just lines. Since KAN-229 the scraper
- * stores a description's kept sections under fixed headings ("About the
- * Role", "Responsibilities", "Requirements"...; scraper/docs/sections.md),
+ * stores a description's kept sections under fixed headings ("Overview",
+ * "Responsibilities", "Requirements"...; scraper/docs/sections.md),
  * but a posting stored before then, or one kept whole, still has its
  * employer's own ("What You'll Do", "Who You Are"), so this reads the text's
  * own shape rather than looking for those names:

@@ -70,7 +70,7 @@ Nothing in this folder may assume what a software job is. Two consequences:
   (`../../../../scout/CLAUDE.md`), because Gemini's free tier may train on what
   it receives. `bank_input.bank_text()` is where that boundary lives (below).
 - **A posting is embedded from its title and the sections that say what the
-  job is** (`job_text`, KAN-229): About the Role, Responsibilities,
+  job is** (`job_text`, KAN-229): Overview, Responsibilities,
   Requirements and Preferred Qualifications. The scraper stores a description
   under those fixed headings, each alone on its line, with the company's
   pitch, benefits and legal text already left out

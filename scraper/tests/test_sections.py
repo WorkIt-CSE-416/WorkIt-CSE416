@@ -224,7 +224,7 @@ class TestKept:
 
         assert text == (
             "Join us in building the future of finance.\n"
-            "About the Role\n"
+            "Overview\n"
             "You will join the Android team and ship features to millions of customers.\n"
             "Responsibilities\n"
             "Explore and build innovative Android UI/UX\n"

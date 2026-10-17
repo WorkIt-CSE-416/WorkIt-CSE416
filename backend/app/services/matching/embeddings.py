@@ -35,7 +35,7 @@ _URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:batchEm
 # whole description again. Matching reads the role and what it asks for; the
 # intro (often the company's pitch), the pay and the details are left out.
 _MATCHED_HEADINGS = frozenset(
-    {"About the Role", "Responsibilities", "Requirements", "Preferred Qualifications"}
+    {"Overview", "Responsibilities", "Requirements", "Preferred Qualifications"}
 )
 _OTHER_HEADINGS = frozenset({"Pay", "Details"})
 

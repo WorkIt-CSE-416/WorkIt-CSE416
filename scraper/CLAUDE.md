@@ -149,7 +149,7 @@ real posting and the measurements behind them.
 A stored description is its kept sections under fixed headings (KAN-229):
 `providers._page` stores `cap(sections.kept(full))`. `sections.split` reads a
 description into role, responsibilities, requirements, preferred, pay, benefits,
-legal and the rest by its headings, and `kept` keeps the intro, About the Role,
+legal and the rest by its headings, and `kept` keeps the intro, Overview,
 Responsibilities, Requirements, Preferred Qualifications, Pay and Details, in
 that order. Read `docs/sections.md` before changing a pattern, a rule or `KEPT`:
 it has the measurements, the heading audit that found the misses, and why each

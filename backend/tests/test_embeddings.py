@@ -185,7 +185,7 @@ def test_provider_is_validated():
 # A description as the scraper stores it since KAN-229: the kept sections under
 # fixed headings (scraper/workit_scraper/sections.py, KEPT).
 STORED = """Figure is an AI robotics company building humanoid robots.
-About the Role
+Overview
 Join the firmware team.
 Responsibilities
 Write motor control firmware in C.
