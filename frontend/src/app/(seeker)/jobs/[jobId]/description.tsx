@@ -215,17 +215,21 @@ export function JobDescription({
 
 /** A heading in the description: a fixed section's with its icon, an
  *  employer's own inside a sectioned description as a smaller subheading, or
- *  any heading of a description stored before KAN-229 as it always drew. */
+ *  any heading of a description stored before KAN-229, the same size as a
+ *  section's with no icon. Sections are 16px bold with a 20px icon, a step
+ *  under "About the Role" (20px) above them: at 14px semibold they were too
+ *  small to scan by (2026-10-17; Jobright's are 20px with no wrapper title).
+ *  Subheadings are 14px semibold. */
 function Heading({ text, sectioned }: { text: string; sectioned: boolean }) {
   const Icon = Object.hasOwn(SECTION_ICONS, text) ? SECTION_ICONS[text] : null;
   if (Icon) {
     return (
-      <h3 className="text-body text-ink mt-2 flex items-center gap-2 font-semibold">
-        <Icon className="text-brand size-4 shrink-0" />
+      <h3 className="text-subtitle text-ink mt-3 flex items-center gap-2 font-bold">
+        <Icon className="text-brand size-5 shrink-0" />
         {text}
       </h3>
     );
   }
-  if (sectioned) return <h4 className="text-body text-ink font-medium">{text}</h4>;
-  return <h3 className="text-body text-ink mt-2 font-semibold">{text}</h3>;
+  if (sectioned) return <h4 className="text-body text-ink font-semibold">{text}</h4>;
+  return <h3 className="text-subtitle text-ink mt-3 font-bold">{text}</h3>;
 }
