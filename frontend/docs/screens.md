@@ -388,7 +388,11 @@ Applied stage's violet, so it reads the same as on the Applications board.
 The counts above the card use the same dot colours. A queued row has a cross
 beside its badge (`auto-apply/remove-from-queue.tsx`) that takes the job out
 of the queue and refreshes the route; it sits above the row's link, so the
-click never opens the job posting. No other stage has one. Narrow, a row's badge and
+click never opens the job posting. No other stage has one. A toast then says
+"<role> from <company> is removed from Auto Apply." with Undo, which queues
+the job again (`queueJob`): it comes back as a new queued row at the top,
+since the queue orders by when a job was queued. A failure, of either the
+removal or the Undo, is a toast too. Narrow, a row's badge and
 time drop under its text so the role keeps the width. The list is
 `aria-live="polite"`. Tailoring Resume, Autofilling and Needs Review are the
 runner's live states, kept for when the extension reports them; the

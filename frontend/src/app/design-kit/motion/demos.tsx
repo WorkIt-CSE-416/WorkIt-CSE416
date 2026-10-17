@@ -123,6 +123,21 @@ function Specimen({ cls, demo }: { cls: string; demo: Demo }) {
           ))}
         </span>
       );
+    case "toast":
+      // The toast's own card, without its timer: the clip stands in for the
+      // window's bottom edge it rises from.
+      return (
+        <span className="block overflow-hidden p-2">
+          <span
+            className={cn(
+              "bg-panel border-border-subtle rounded-card shadow-lift text-body text-ink block w-56 border px-4 py-2.5",
+              cls,
+            )}
+          >
+            Removed from Auto Apply.
+          </span>
+        </span>
+      );
     case "bell":
       // Hover-driven like the bar's, so it needs no Replay.
       return (

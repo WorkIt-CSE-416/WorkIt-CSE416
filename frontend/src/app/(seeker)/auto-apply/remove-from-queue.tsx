@@ -2,46 +2,73 @@
 
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 
 import { IconButton } from "@/components/ui/icon-button";
+import { useToast } from "@/components/ui/toast";
 
-import { dequeueJob } from "./actions";
+import { dequeueJob, queueJob } from "./actions";
 
 /**
  * Live Activity's cross on a queued row: takes the job out of the queue
- * (dequeueJob), then refreshes the route so the server draws the list
- * without it. Only queued rows have one: a later stage is a record, not a
- * plan. It sits above the row's stretched link (`relative z-10`), so a
- * click removes and never opens the job posting.
+ * (dequeueJob), refreshes the route so the server draws the list without
+ * it, and raises a toast with Undo (components/ui/toast.tsx). Undo queues
+ * the job again (queueJob), so it comes back as a new queued row, at the
+ * top: the queue orders by when a job was queued, and this is a new queueing.
+ *
+ * Only queued rows have a cross: a later stage is a record, not a plan. It
+ * sits above the row's stretched link (`relative z-10`), so a click removes
+ * and never opens the job posting. A failure says so in a toast too.
  */
-export function RemoveFromQueue({ jobId, role }: { jobId: string; role: string }) {
+export function RemoveFromQueue({
+  jobId,
+  role,
+  company,
+}: {
+  jobId: string;
+  role: string;
+  company: string;
+}) {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [pending, start] = useTransition();
 
+  async function undo() {
+    const result = await queueJob(jobId);
+    if (result.error) {
+      toast.show({ message: `Couldn't put ${role} back in the queue. ${result.error}` });
+      return;
+    }
+    router.refresh();
+  }
+
   return (
-    <>
-      {error && (
-        <span role="alert" className="text-note text-danger">
-          {error}
-        </span>
-      )}
-      <IconButton
-        label={`Remove ${role} from the queue`}
-        tooltip="Remove from queue"
-        className="relative z-10 size-7"
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const result = await dequeueJob(jobId);
-            setError(result.error);
-            if (!result.error) router.refresh();
-          })
-        }
-      >
-        <X aria-hidden className="size-4" />
-      </IconButton>
-    </>
+    <IconButton
+      label={`Remove ${role} from the queue`}
+      tooltip="Remove from queue"
+      className="relative z-10 size-7"
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          const result = await dequeueJob(jobId);
+          if (result.error) {
+            toast.show({ message: result.error });
+            return;
+          }
+          router.refresh();
+          toast.show({
+            message: (
+              <>
+                <span className="font-medium">{role}</span> from {company} is removed from Auto
+                Apply.
+              </>
+            ),
+            action: { label: "Undo", onClick: undo },
+          });
+        })
+      }
+    >
+      <X aria-hidden className="size-4" />
+    </IconButton>
   );
 }

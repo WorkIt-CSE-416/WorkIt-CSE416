@@ -77,8 +77,9 @@ export function activityOf(application: Application): ActivityItem {
  *
  * A row with an `href` (its job posting is still open) is one link: its
  * role, stretched over the row, as on the Applications list. A queued row
- * also has a cross beside its badge that takes it out of the queue
- * (./remove-from-queue.tsx), above the link; no other stage has one.
+ * also has a cross beside its badge that takes it out of the queue, with a
+ * toast to Undo it (./remove-from-queue.tsx), above the link; no other
+ * stage has one.
  *
  * A row in flight rings out from its dot, three times and then rests
  * (`animate-status-ping`, as the detail panel's next step does): a dot that
@@ -190,7 +191,7 @@ export function ActivityList({ items, now }: { items: ActivityItem[]; now: Date 
                   <div className="flex items-center gap-1">
                     <Badge tone={status.tone}>{status.label}</Badge>
                     {item.status === "queued" && (
-                      <RemoveFromQueue jobId={item.id} role={item.role} />
+                      <RemoveFromQueue jobId={item.id} role={item.role} company={item.company} />
                     )}
                   </div>
                   <span className="text-note text-ink-meta">{ago(item.at, now)}</span>

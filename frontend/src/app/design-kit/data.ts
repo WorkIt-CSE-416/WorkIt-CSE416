@@ -367,7 +367,7 @@ export const EASINGS: { token: string; cls: string; role: string }[] = [
 export const ANIMATIONS: {
   token: string;
   cls: string;
-  demo: "card" | "cross" | "row" | "rail" | "bar" | "ring" | "bell" | "dots" | "ping";
+  demo: "card" | "cross" | "row" | "rail" | "bar" | "ring" | "bell" | "dots" | "ping" | "toast";
   role: string;
 }[] = [
   {
@@ -423,6 +423,18 @@ export const ANIMATIONS: {
     cls: "animate-typing",
     demo: "dots",
     role: "Scout's three thinking dots, staggered 150ms; the one animation that loops",
+  },
+  {
+    token: "--animate-toast-in",
+    cls: "animate-toast-in",
+    demo: "toast",
+    role: "A toast rising in from below the window's edge (ui/toast.tsx); Display shows a live one",
+  },
+  {
+    token: "--animate-toast-out",
+    cls: "animate-toast-out",
+    demo: "toast",
+    role: "A toast dropping back out, faster than it came: after 5 seconds, or its cross",
   },
 ];
 
