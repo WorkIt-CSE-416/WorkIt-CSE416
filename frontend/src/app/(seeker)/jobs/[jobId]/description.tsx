@@ -28,10 +28,42 @@
  * to read at length (2026-10-17). The page's "Open in …" line above it
  * matches.
  *
+ * THE FIXED SECTIONS GET AN ICON (`SECTION_ICONS`). Since KAN-229 the scraper
+ * stores a description under fixed headings (scraper/workit_scraper/
+ * sections.py, `KEPT`), and each of those draws its glyph beside it, as All
+ * Filters' sections do, so a long posting can be scanned by section. Those
+ * names are part of the feed's contract here too: a heading renamed in the
+ * scraper alone loses its icon. In a description that has them, any other
+ * heading the employer wrote ("California Hourly Rate:" under Pay) is a
+ * smaller subheading with no icon, so it never reads as a section missing
+ * one. A description stored before KAN-229 has none of them, and its headings
+ * draw as before, all alike and without icons.
+ *
  * The scraper cuts a long posting at 8,000 characters and ends it " …"
  * (providers.cap); then the last line says so and links to the whole posting
  * on the employer's site.
  */
+
+import type { ComponentType } from "react";
+
+import {
+  CoinIcon,
+  DetailsIcon,
+  OverviewIcon,
+  PreferredIcon,
+  RequirementsIcon,
+  ResponsibilitiesIcon,
+} from "@/components/icons";
+
+/** Each fixed section heading's icon (KAN-229). */
+const SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  Overview: OverviewIcon,
+  Responsibilities: ResponsibilitiesIcon,
+  Requirements: RequirementsIcon,
+  "Preferred Qualifications": PreferredIcon,
+  Pay: CoinIcon,
+  Details: DetailsIcon,
+};
 
 type Block =
   | { kind: "paragraph"; text: string }
@@ -135,13 +167,17 @@ export function JobDescription({
   applyUrl: string;
 }) {
   const cut = isCut(text);
+  const blocks = toBlocks(cut ? text.slice(0, -CUT.length) : text);
+  // One fixed heading means the KAN-229 format, where the employer's other
+  // headings are subheadings.
+  const sectioned = blocks.some(
+    (b) => b.kind === "heading" && Object.hasOwn(SECTION_ICONS, b.text),
+  );
   return (
     <div className="mt-3 flex max-w-[68ch] flex-col gap-3">
-      {toBlocks(cut ? text.slice(0, -CUT.length) : text).map((block, i) =>
+      {blocks.map((block, i) =>
         block.kind === "heading" ? (
-          <h3 key={i} className="text-body text-ink mt-2 font-semibold">
-            {block.text}
-          </h3>
+          <Heading key={i} text={block.text} sectioned={sectioned} />
         ) : block.kind === "list" ? (
           <ul key={i} role="list" className="flex flex-col gap-1.5 pl-4">
             {block.items.map((item, j) => (
@@ -177,4 +213,21 @@ export function JobDescription({
       )}
     </div>
   );
+}
+
+/** A heading in the description: a fixed section's with its icon, an
+ *  employer's own inside a sectioned description as a smaller subheading, or
+ *  any heading of a description stored before KAN-229 as it always drew. */
+function Heading({ text, sectioned }: { text: string; sectioned: boolean }) {
+  const Icon = Object.hasOwn(SECTION_ICONS, text) ? SECTION_ICONS[text] : null;
+  if (Icon) {
+    return (
+      <h3 className="text-body text-ink mt-2 flex items-center gap-2 font-semibold">
+        <Icon className="text-ink-meta size-4 shrink-0" />
+        {text}
+      </h3>
+    );
+  }
+  if (sectioned) return <h4 className="text-body text-ink font-medium">{text}</h4>;
+  return <h3 className="text-body text-ink mt-2 font-semibold">{text}</h3>;
 }

@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
+  ClipboardCheck,
   Clock,
   Ellipsis,
   ExternalLink,
@@ -22,6 +23,8 @@ import {
   Globe,
   GraduationCap,
   House,
+  Info,
+  ListChecks,
   ListFilter,
   Lock,
   LogOut,
@@ -33,6 +36,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  Star,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -285,6 +289,30 @@ const UserTie = createLucideIcon("user-tie", [
  *  the job card doesn't print the fact. */
 export function RoleIcon({ className }: IconProps) {
   return <UserTie aria-hidden className={className} />;
+}
+
+/* A job description's sections, beside their fixed headings on the job
+ * posting page (KAN-229's Overview, Responsibilities, Requirements, Preferred
+ * Qualifications and Details; Pay draws CoinIcon, the salary fact's). */
+
+export function OverviewIcon({ className }: IconProps) {
+  return <FileText aria-hidden className={className} />;
+}
+
+export function ResponsibilitiesIcon({ className }: IconProps) {
+  return <ListChecks aria-hidden className={className} />;
+}
+
+export function RequirementsIcon({ className }: IconProps) {
+  return <ClipboardCheck aria-hidden className={className} />;
+}
+
+export function PreferredIcon({ className }: IconProps) {
+  return <Star aria-hidden className={className} />;
+}
+
+export function DetailsIcon({ className }: IconProps) {
+  return <Info aria-hidden className={className} />;
 }
 
 export function CalendarIcon({ className }: IconProps) {
