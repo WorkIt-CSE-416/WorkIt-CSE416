@@ -12,13 +12,33 @@ so `id` there is the row's UUID; in feed.json it is the apply URL. The import
 (app/scripts/import_jobs.py) parses the file with this model.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 
 from app.models import dto
 from app.models.dto import work_style
 from app.services.matching.scoring import ScoreBreakdown
+
+# The filter values GET /jobs reads from its query, shared with the saved
+# preferences (schemas/preferences.py) so both accept exactly the same picks.
+
+# A Start Date option: "summer-2027", or a year, "2027".
+SeasonKey = Annotated[
+    str, StringConstraints(pattern=r"^((winter|spring|summer|fall)-)?20[0-9]{2}$")
+]
+
+# A country ("US") or a state ("US-CA"). Only the shape is checked: a code no
+# job uses matches nothing, which is the right answer for it.
+PlaceCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}(-[A-Z0-9]{1,3})?$")]
+
+# A job_roles slug ("software_engineer"). Only the shape is checked, as for a
+# place: a slug no job is tagged with matches nothing. The seed's
+# job_roles_slug_shape CHECK holds the same pattern, capped here.
+RoleSlug = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
+
+# ?job_type=: the column's four, internship among them (KAN-233).
+JobTypeKey = Literal["full_time", "part_time", "contract", "internship"]
 
 
 class JobListing(BaseModel):
@@ -29,8 +49,7 @@ class JobListing(BaseModel):
     company: str
     apply_url: str
     # Who the job is for (KAN-233): a student (every internship), a new grad,
-    # or someone with experience. Narrower than the shared enum on purpose:
-    # its LEGACY members are never written, and to_listing reads them as these.
+    # or someone with experience.
     experience_level: Literal["student", "new_grad", "experienced"]
     # Stated by the posting, else inferred by the scraper from the company's other
     # postings or, for a posting that names a place and no alternative, On site

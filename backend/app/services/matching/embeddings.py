@@ -68,11 +68,16 @@ def model_key() -> str:
     return f"{settings.embedding_provider}:{model}:{DIMENSIONS}"
 
 
-async def embed(texts: Sequence[str]) -> list[list[float]] | None:
+async def embed(
+    texts: Sequence[str], *, timeout: float | None = None
+) -> list[list[float]] | None:
     """One vector per text, or None on provider failure; never fall back to another model.
 
     Empty input returns []; oversized batches are caller errors. Both providers
     must return finite, 768-dimensional vectors before anything can be stored.
+    `timeout` overrides `embedding_timeout_seconds` (120s, sized for the
+    import's batches): a call inside a user's request passes a short one, so
+    a provider that is down or absent costs seconds, not the whole request.
     """
     if len(texts) > BATCH_SIZE:
         raise ValueError(f"embed() takes at most {BATCH_SIZE} texts at a time")
@@ -105,7 +110,9 @@ async def embed(texts: Sequence[str]) -> list[list[float]] | None:
             "truncate": True,
         }
     try:
-        async with httpx.AsyncClient(timeout=settings.embedding_timeout_seconds) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout if timeout is not None else settings.embedding_timeout_seconds
+        ) as client:
             response = await client.post(url, json=body, headers=headers)
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:

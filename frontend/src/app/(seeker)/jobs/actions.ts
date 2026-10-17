@@ -4,7 +4,7 @@ import { apiGet } from "@/lib/api";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 
 import { feedQuery, readFilters, readQuery } from "./filter-query";
-import { getFeedPage, viewerToken, type FeedPage } from "./listings";
+import { getFeedPage, getRecommendedPage, viewerToken, type FeedPage } from "./listings";
 
 /** A query string as the record a page's searchParams would be. */
 function paramsOf(query: string): Record<string, string[]> {
@@ -75,4 +75,21 @@ export async function markApplied(
   } catch {
     return { appliedAt: null, error: "Could not reach the server." };
   }
+}
+
+/**
+ * The Recommended view's Load More (./feed-list, `source="recommended"`):
+ * the next page of the seeker's scored jobs under the same filters. The
+ * seeker comes from the session in getRecommendedPage, never an argument. A
+ * seeker whose experience bank emptied between pages gets an error, and the
+ * page they reload shows the plain feed.
+ */
+export async function loadMoreRecommended(query: string, offset: number): Promise<FeedPage> {
+  if (!Number.isInteger(offset) || offset < 0 || offset > MAX_OFFSET) {
+    return { jobs: null, more: false, error: "That page of jobs doesn't exist." };
+  }
+  const page = await getRecommendedPage(feedQuery(readFilters(paramsOf(query))), offset);
+  return (
+    page ?? { jobs: null, more: false, error: "Fill your experience bank to see your matches." }
+  );
 }

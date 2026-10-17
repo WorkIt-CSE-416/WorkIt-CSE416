@@ -248,6 +248,12 @@
   --text-figure--line-height: 2.5rem;
   --text-figure--font-weight: 500;
   --text-figure--letter-spacing: -0.02em;
+  /* Onboarding's question from lg (onboarding/applicant/story-panel.tsx): the
+   * one line on the screen, set large and regular with its key words bold. */
+  --text-hero: 2.5rem; /* 40px */
+  --text-hero--line-height: 3rem;
+  --text-hero--font-weight: 400;
+  --text-hero--letter-spacing: -0.02em;
 
   /* -------------------------------------------------------------------------
    * Applications board — added for the KAN-43 applications mockup
@@ -515,6 +521,12 @@
    * in turn with the others, staggered by the caller. The one animation here
    * that loops, because it means "still working"; reduced motion stills it. */
   --animate-typing: typing 1.2s ease-in-out infinite;
+  /* A whole scene trading places with the last one (onboarding's showcase):
+   * slower and further than rise, so a large card glides in rather than
+   * blinks, while the scene before it leaves on the exit curve in the same
+   * spot. The exit is shorter, as every exit is. */
+  --animate-arrive: arrive 700ms var(--ease-glide) both;
+  --animate-leave: leave 420ms var(--ease-exit) both;
 
   @keyframes rise {
     from {
@@ -545,6 +557,20 @@
   @keyframes draw-x {
     from {
       transform: scaleX(0);
+    }
+  }
+
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translateY(18px) scale(0.97);
+    }
+  }
+
+  @keyframes leave {
+    to {
+      opacity: 0;
+      transform: translateY(-12px) scale(0.98);
     }
   }
 
