@@ -95,13 +95,14 @@ export async function openNextApplication(): Promise<OpenApplicationResult> {
 }
 
 /** Brings the run's window to the front. False when it was closed (and
- *  `useRunnerJob` drops the job). */
+ *  `useRunnerJob` drops the job) or the extension failed to answer (it
+ *  keeps the job). */
 export async function showRunWindow(): Promise<boolean> {
   const r = (await sendToExtension({ type: "run/show" })) as
-    { ok: true; shown: boolean } | undefined;
-  const shown = Boolean(r?.ok && r.shown);
-  if (!shown) setRunnerJob(null);
-  return shown;
+    { ok: true; shown: boolean } | { ok: false } | undefined;
+  if (!r?.ok) return false;
+  if (!r.shown) setRunnerJob(null);
+  return r.shown;
 }
 
 /**
@@ -111,6 +112,8 @@ export async function showRunWindow(): Promise<boolean> {
  * subscriber and again whenever this tab gets focus, since the student
  * closes the run's window in another window and comes back here. Null with
  * no extension, no window, or before the first answer (and on the server).
+ * It goes back to null only when the extension says the window is gone
+ * (run/status, run/show), never on a failed answer.
  */
 let runnerJob: string | null = null;
 let watching = false;
@@ -124,8 +127,11 @@ function setRunnerJob(jobId: string | null) {
 
 async function refreshRunnerJob() {
   const r = (await sendToExtension({ type: "run/status" })) as
-    { ok: true; jobId: string | null } | undefined;
-  setRunnerJob(r?.ok ? r.jobId : null);
+    { ok: true; jobId: string | null } | { ok: false } | undefined;
+  // Only a real answer changes it. A failed one (an extension that predates
+  // run/status, a worker that errored) once turned Working in Browser back
+  // to Queued each time the student came back from the run's window.
+  if (r?.ok) setRunnerJob(r.jobId);
 }
 
 function subscribe(listener: () => void) {

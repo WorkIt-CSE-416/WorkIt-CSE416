@@ -159,7 +159,9 @@ button never waits on a page load; only a failure shows, as a line above
 the button (no extension stays silent). The job open in that window reads
 **Working in Browser** (the AppWindow glyph) on every card that shows it,
 read once per page from the extension (`useRunnerJob` in
-`src/lib/autofill-extension.ts`, asked again whenever the tab gets focus);
+`src/lib/autofill-extension.ts`, asked again whenever the tab gets focus).
+It goes back to Queued only when the extension says the window is closed,
+never on a failed answer: coming back from the run's window once reset it;
 a click brings the window to the front (`showRunWindow`), and the job
 leaves the queue from Live Activity only. Its first state comes from
 the server: the job's page reads its one application (`GET
