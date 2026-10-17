@@ -115,14 +115,23 @@ descriptions, each only by keeping a label the line had lost:
 - **A label naming the open section is content**, as `split` says, whatever the
   whole line reads as. The code had tested the whole line as a heading.
 
-The 208 left are mostly bullets read as headings ("Perform other duties as
+**A line ending in a colon opens its own section, even straight after a
+heading** (decided 2026-10-17). Items rarely end in a colon. It fixed 121 more
+failures (87 left), changes 477 stored descriptions, and leaves the gold score
+where it was (80.5%; the gold set has few such lines). J&J's empty "Required
+Skills:" then "Preferred Skills:" no longer files one under the other, and Wade
+Trim's "About Wade Trim:" pitch leaves Preferred Qualifications. For matching,
+278 postings now embed less text and 74 more (45,313 characters fewer in all),
+mostly pitches leaving the embedded sections. The known cost: where an employer
+puts a one-line heading inside a list, the rest of the list follows it. Applied
+Materials' "Location:" sits inside "What We Offer", so its benefits text is now
+stored under Details, where before it was left out.
+
+The 87 left are mostly bullets read as headings ("Perform other duties as
 assigned", "Communication skills"), after which a real heading counts as the
 false one's first item: ATC's "Why ATC as an Intern" pitch is stored under
-Responsibilities. Still open. A line ending in a colon could always open its
-own section (that leaves 87): it moves Wade Trim's "About Wade Trim:" pitch out
-of Preferred Qualifications, but also files Applied Materials' benefits text
-under Details after its "Location:" line, and it changes 644 stored descriptions
-that the gold set does not cover.
+Responsibilities. Still open: it needs a better test of a bullet against a
+heading, not another position rule.
 
 ## Fixes after the first review (2026-10-17)
 
