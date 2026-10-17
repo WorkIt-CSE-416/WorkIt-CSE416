@@ -84,6 +84,16 @@ export function EntryEditor({
   };
   const field = (name: string) => `${uid}-${name}`;
 
+  /** A new bullet box at the end, or back to the last one while it is empty. */
+  function addBullet() {
+    const last = draft.bullets.length - 1;
+    if (last >= 0 && draft.bullets[last].text.trim() === "") {
+      document.getElementById(field(`bullet-${last}`))?.focus();
+    } else {
+      set({ bullets: [...draft.bullets, { text: "" }] });
+    }
+  }
+
   function cleaned(): EntryDraft {
     return {
       ...draft,
@@ -235,43 +245,90 @@ export function EntryEditor({
         )}
       </div>
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className={FIELD_LABEL}>Bullets</legend>
-        {draft.bullets.map((bullet, i) => (
-          <div key={bullet.id ?? `new-${i}`} className="flex items-center gap-2">
-            <input
-              aria-label={`Bullet ${i + 1}`}
-              maxLength={500}
-              className={cn(FIELD_CONTROL, "px-3.5 py-2.5")}
-              value={bullet.text}
-              onChange={(e) =>
-                set({
-                  bullets: draft.bullets.map((b, j) =>
-                    j === i ? { ...b, text: e.target.value } : b,
-                  ),
-                })
-              }
-            />
-            <IconButton
-              label="Remove Bullet"
-              tooltip="Remove this bullet"
-              className="size-8"
-              onClick={() => set({ bullets: draft.bullets.filter((_, j) => j !== i) })}
+      {/* Each bullet is a box with its bullet mark drawn in, so it reads as
+          the list it makes; the last row is a dashed box of the same size,
+          Add Bullet Point, whose + sits under the marks. Add Bullet used to
+          be bare brand text under the label, which read as crowded against
+          it. A box Add Bullet Point makes takes the cursor, and while the
+          last box is empty the button goes back to it rather than stacking
+          another empty one.
+          A box grows with its text (field-sizing, as the resume editor's
+          lines do), so a long bullet wraps in view rather than scrolling
+          sideways in a one-line input; its mark and × stay on the first
+          line. A bullet is one line on the resume, so it never holds a line
+          break: Enter goes to the next box, as Add Bullet Point does from
+          the last, and a pasted break becomes a space. */}
+      <div role="group" aria-labelledby={field("bullets")} className="flex flex-col gap-1">
+        <span id={field("bullets")} className={FIELD_LABEL}>
+          Bullets
+        </span>
+        <div className="flex flex-col gap-2">
+          {draft.bullets.map((bullet, i) => (
+            <div key={bullet.id ?? `new-${i}`} className="flex items-start gap-2">
+              <div className="relative min-w-0 flex-1">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute top-0 left-3.5 flex h-10.5 w-4 items-center justify-center"
+                >
+                  <span className="bg-ink-meta size-1.5 rounded-full" />
+                </span>
+                <textarea
+                  id={field(`bullet-${i}`)}
+                  aria-label={`Bullet ${i + 1}`}
+                  rows={1}
+                  maxLength={500}
+                  placeholder="One thing you did"
+                  autoFocus={!bullet.id && bullet.text === ""}
+                  className={cn(
+                    FIELD_CONTROL,
+                    "block field-sizing-content min-h-10.5 resize-none py-2.5 pr-3.5 pl-9.5",
+                  )}
+                  value={bullet.text}
+                  onChange={(e) =>
+                    set({
+                      bullets: draft.bullets.map((b, j) =>
+                        j === i ? { ...b, text: e.target.value.replace(/\s*\n\s*/g, " ") } : b,
+                      ),
+                    })
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+                    e.preventDefault();
+                    if (i < draft.bullets.length - 1) {
+                      document.getElementById(field(`bullet-${i + 1}`))?.focus();
+                    } else {
+                      addBullet();
+                    }
+                  }}
+                />
+              </div>
+              <IconButton
+                label="Remove Bullet"
+                tooltip="Remove this bullet"
+                // Centred on the box's first line, beside the mark.
+                className="mt-1.25 size-8"
+                onClick={() => set({ bullets: draft.bullets.filter((_, j) => j !== i) })}
+              >
+                <X className="size-4" />
+              </IconButton>
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={addBullet}
+              className={cn(
+                FIELD_CONTROL,
+                "text-ink-meta hover:border-brand hover:text-brand flex min-w-0 flex-1 items-center gap-2 border-dashed px-3.5 py-2.5 text-left transition-colors",
+              )}
             >
-              <X className="size-4" />
-            </IconButton>
+              <Plus aria-hidden className="size-4 shrink-0" /> Add Bullet Point
+            </button>
+            {/* Keeps the box as wide as the bullets above, beside their × */}
+            {draft.bullets.length > 0 && <span aria-hidden className="size-8 shrink-0" />}
           </div>
-        ))}
-        <div>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => set({ bullets: [...draft.bullets, { text: "" }] })}
-          >
-            <Plus className="size-3.5" /> Add Bullet
-          </Button>
         </div>
-      </fieldset>
+      </div>
 
       {skills && <SkillLinksField skills={skills} value={skillIds} onChange={setSkillIds} />}
 

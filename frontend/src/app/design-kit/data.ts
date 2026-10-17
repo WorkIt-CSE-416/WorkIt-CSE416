@@ -368,7 +368,7 @@ export const EASINGS: { token: string; cls: string; role: string }[] = [
 export const ANIMATIONS: {
   token: string;
   cls: string;
-  demo: "card" | "cross" | "row" | "rail" | "bar" | "ring" | "bell" | "dots" | "ping";
+  demo: "card" | "cross" | "row" | "rail" | "bar" | "ring" | "bell" | "dots" | "ping" | "shimmer";
   role: string;
 }[] = [
   {
@@ -435,7 +435,13 @@ export const ANIMATIONS: {
     token: "--animate-typing",
     cls: "animate-typing",
     demo: "dots",
-    role: "Scout's three thinking dots, staggered 150ms; the one animation that loops",
+    role: "Scout's three thinking dots, staggered 150ms; it loops, as only shimmer also does",
+  },
+  {
+    token: "--animate-shimmer",
+    cls: "animate-shimmer",
+    demo: "shimmer",
+    role: "A band of light crossing what Scout is working on: the bank row its panel is filling",
   },
 ];
 

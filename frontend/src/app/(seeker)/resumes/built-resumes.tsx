@@ -22,23 +22,23 @@ import {
   type SentResume,
 } from "@/lib/sent-resume-actions";
 
+import { ResumesHeader } from "./header";
 import { openDownload, SentResumes } from "./sent-resumes";
 
 /**
- * The bank page's base resumes (KAN-207): Generate makes one from the whole
- * bank in Jake's Resume, and each downloads as a PDF or a Word file. A PDF
- * whose text has characters the font cannot draw shows a warning first; the
- * student downloads anyway or fixes the bank. The 5-resume limit is the
- * API's: its refusal shows as the error. Open goes to the resume editor.
+ * The Resumes view of Resumes & Experiences: its header, with Generate
+ * Resume beside the switcher, then two cards, the base resumes (KAN-207)
+ * and Sent (KAN-208). The header is drawn here because Generate changes
+ * this component's list. Generate makes a base resume from the whole bank in Jake's Resume, and
+ * each downloads as a PDF or a Word file. A PDF whose text has characters
+ * the font cannot draw shows a warning first; the student downloads anyway
+ * or fixes the bank. The 5-resume limit is the API's: its refusal shows as
+ * the error. Open goes to the resume editor.
  *
- * Base resumes and Sent share one "Your Resumes" card, below the bank's
- * sections: they are what the bank makes, so the page leads with intake
- * and the title's "Your Resumes" button jumps here.
- *
- * Every download, PDF or Word, keeps a sent resume (KAN-208), shown in the
- * "Sent" list below; a repeat of the same content returns the one already
- * kept. A download cancelled at the warning deletes the sent resume it just
- * made.
+ * Every download, PDF or Word, keeps a sent resume, shown in the Sent card;
+ * a repeat of the same content returns the one already kept. A download
+ * cancelled at the warning deletes the sent resume it just made. This
+ * component owns both lists for that reason.
  */
 
 export function BuiltResumes({
@@ -75,39 +75,50 @@ export function BuiltResumes({
   }
 
   return (
-    <Card
-      as="section"
-      id="your-resumes"
-      aria-labelledby="bank-resumes"
-      className="mt-4 scroll-mt-4"
-    >
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="bank-resumes" className="text-subtitle text-ink">
-          Your Resumes
-        </h2>
-        <Button size="sm" onClick={generate} disabled={generating}>
-          <FileText /> {generating ? "Generating…" : "Generate"}
-        </Button>
+    <>
+      {/* The view's primary action sits beside the switcher, as Fill With
+          Scout does on Experiences; it was the Base Resumes card's own. */}
+      <ResumesHeader
+        view="resumes"
+        action={
+          <Button size="sm" onClick={generate} disabled={generating}>
+            <FileText /> {generating ? "Generating…" : "Generate Resume"}
+          </Button>
+        }
+      />
+      <div className="mt-4 flex flex-col gap-4">
+        <Card as="section" aria-labelledby="resumes-base">
+          <h2 id="resumes-base" className="text-subtitle text-ink">
+            Base Resumes
+          </h2>
+          <p className="text-note text-ink-meta mt-1">
+            A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
+            every resume.
+          </p>
+          {error && (
+            <p role="alert" className="text-note text-danger mt-2">
+              {error}
+            </p>
+          )}
+          {/* Says what fills it, as the Sent card does. */}
+          {resumes.length === 0 ? (
+            <p className="text-note text-ink-muted mt-2">Resumes you generate show here.</p>
+          ) : (
+            <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
+              {resumes.map((resume) => (
+                <ResumeRow
+                  key={resume.id}
+                  resume={resume}
+                  reload={reload}
+                  reloadSent={reloadSent}
+                />
+              ))}
+            </ul>
+          )}
+        </Card>
+        <SentResumes sent={sent} reload={reloadSent} />
       </div>
-      <h3 className="text-label text-ink mt-3">Base Resumes</h3>
-      <p className="text-note text-ink-meta mt-1">
-        A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
-        every resume.
-      </p>
-      {error && (
-        <p role="alert" className="text-note text-danger mt-2">
-          {error}
-        </p>
-      )}
-      {resumes.length > 0 && (
-        <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-          {resumes.map((resume) => (
-            <ResumeRow key={resume.id} resume={resume} reload={reload} reloadSent={reloadSent} />
-          ))}
-        </ul>
-      )}
-      <SentResumes sent={sent} reload={reloadSent} />
-    </Card>
+    </>
   );
 }
 
@@ -164,7 +175,9 @@ function ResumeRow({
   return (
     <li className="py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+        {/* The badges wrap under a long name: held beside it, they squeezed
+            a tailored resume's name to a few words per line on a phone. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <p className="text-body text-ink font-medium break-words">{resume.name}</p>
           {resume.is_default && <Badge>Default</Badge>}
           {resume.job_posting_id && <Badge variant="tag">Tailored</Badge>}
