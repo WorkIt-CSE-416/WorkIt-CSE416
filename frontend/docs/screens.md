@@ -167,7 +167,9 @@ The page is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. Apply Now (`[jobId]/apply-button.tsx`,
+says so and links to the whole posting. Its paragraphs and list items are
+ink, the headings' colour, not body copy's lighter ink-muted: a posting is
+long reading, and the grey was hard to read (2026-10-17). Apply Now (`[jobId]/apply-button.tsx`,
 KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
