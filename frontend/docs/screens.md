@@ -130,8 +130,9 @@ says so and links to the whole posting. Its paragraphs and list items are
 ink, the headings' colour, not body copy's lighter ink-muted: a posting is
 long reading, and the grey was hard to read (2026-10-17). Each of KAN-229's
 fixed section headings (Overview, Responsibilities, Requirements, Preferred
-Qualifications, Pay, Details) draws an icon beside it, as All Filters'
-sections do (`SECTION_ICONS`; Pay reuses the salary fact's coin). In such a
+Qualifications, Pay, Details) draws an icon beside it in brand purple
+(`SECTION_ICONS`; Pay reuses the salary fact's coin). All Filters' section
+icons stay grey: there they label controls, here they mark where to read. In such a
 description, any other heading the employer wrote is a smaller subheading with
 no icon; a description stored before KAN-229 draws its headings as before.
 Apply Now (`[jobId]/apply-button.tsx`,

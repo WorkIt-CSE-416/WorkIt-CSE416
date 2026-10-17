@@ -27,8 +27,9 @@
  *
  * THE FIXED SECTIONS GET AN ICON (`SECTION_ICONS`). Since KAN-229 the scraper
  * stores a description under fixed headings (scraper/workit_scraper/
- * sections.py, `KEPT`), and each of those draws its glyph beside it, as All
- * Filters' sections do, so a long posting can be scanned by section. Those
+ * sections.py, `KEPT`), and each of those draws its glyph beside it in brand
+ * purple, so a long posting can be scanned by section. All Filters' section
+ * icons stay grey: there they label controls, here they mark where to read. Those
  * names are part of the feed's contract here too: a heading renamed in the
  * scraper alone loses its icon. In a description that has them, any other
  * heading the employer wrote ("California Hourly Rate:" under Pay) is a
@@ -220,7 +221,7 @@ function Heading({ text, sectioned }: { text: string; sectioned: boolean }) {
   if (Icon) {
     return (
       <h3 className="text-body text-ink mt-2 flex items-center gap-2 font-semibold">
-        <Icon className="text-ink-meta size-4 shrink-0" />
+        <Icon className="text-brand size-4 shrink-0" />
         {text}
       </h3>
     );
