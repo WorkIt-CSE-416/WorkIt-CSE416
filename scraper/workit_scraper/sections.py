@@ -87,7 +87,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     (
         "logistics",
         r"locations?|work arrangement|(work )?schedules?|dates?|timelines?|duration|"
-        r"start dates?|available terms|"
+        r"start dates?|available terms|internship information|"
         r"program details|internship details|logistics|additional information|"
         r"what to expect|offer deadline|visa sponsorship|^details$",
     ),
@@ -109,7 +109,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         r"^(the |your )?role$|^(the |our )?team$|^overview$|^summary$|"
         r"(role|position|team|internship|program) (summary|overview|description)|"
         r"job (summary|overview)|why this role|the role entails|role at a glance|"
-        r"the team and culture|^(the |our )?internship$|internship (program|information)|"
+        r"the team and culture|^(the |our )?internship$|internship program|"
         r"the opportunity|project details|subteam for this role|program highlights|"
         r"tech(nology|nical)? stack|technologies we use",
     ),
