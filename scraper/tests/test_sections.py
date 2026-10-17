@@ -271,3 +271,70 @@ class TestStoredPage:
 
         assert page.description == "Responsibilities\nBuild data pipelines."
         assert page.facts.pay == Pay("USD", 30, 40, "hour")
+
+
+class TestInlineLabels:
+    """Fix 1: a label and its text on one line ("Overview: This is the team…")."""
+
+    def test_an_inline_label_moves_its_line_and_the_open_section_carries_on(self) -> None:
+        # Tenstorrent's AI Software Intern: its role summary was in the intro.
+        text = (
+            "Tenstorrent is leading the industry on cutting-edge AI technology.\n"
+            "Overview: This is the team that makes it run on Tenstorrent hardware.\n"
+            "This role is on-site based out of Austin, TX or Santa Clara, CA."
+        )
+
+        assert [(s.key, s.heading, s.text) for s in split(text)] == [
+            (INTRO, None, "Tenstorrent is leading the industry on cutting-edge AI technology."),
+            ("role", "Overview", "This is the team that makes it run on Tenstorrent hardware."),
+            (INTRO, None, "This role is on-site based out of Austin, TX or Santa Clara, CA."),
+        ]
+
+    def test_a_label_inside_a_list_covers_itself_alone(self) -> None:
+        text = "Responsibilities\nShip kernels\nLocation: Austin, TX\nProfile models"
+
+        assert [(s.key, s.text) for s in split(text)] == [
+            ("responsibilities", "Ship kernels"),
+            ("logistics", "Austin, TX"),
+            ("responsibilities", "Profile models"),
+        ]
+
+    def test_a_bonus_item_in_a_requirements_list_is_preferred(self) -> None:
+        # Ambrook's requirements list marks its nice-to-haves inline.
+        text = "Requirements\n- Strong Python\n- Bonus: Experience with Typescript, React."
+
+        sections = split(text)
+
+        assert [s.key for s in sections] == ["requirements", "preferred"]
+        assert sections[1].text == "Experience with Typescript, React."
+
+    def test_a_label_naming_the_open_section_is_content(self) -> None:
+        text = "Requirements\nExperience: 2+ years of Python"
+
+        assert [(s.key, s.text) for s in split(text)] == [
+            ("requirements", "Experience: 2+ years of Python")
+        ]
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # A time, not a label.
+            "Hours are 9:00 AM to 5:00 PM.",
+            # A label that names no section.
+            "Kernels: Develops high performance kernels on Tenstorrent hardware",
+        ],
+    )
+    def test_a_line_that_is_not_a_section_label_stays_in_place(self, line: str) -> None:
+        sections = split(f"Responsibilities\nShip kernels\n{line}")
+
+        assert sections[0].key == "responsibilities"
+        assert line in sections[0].text
+
+    def test_a_line_ending_at_its_colon_is_a_heading_not_a_label(self) -> None:
+        # Palantir's: the text it heads is on the lines after it.
+        text = "Requirements\nA CS degree\nTo apply, please submit the following:\nA resume"
+
+        assert [(s.key, s.text) for s in split(text)] == [
+            ("requirements", "A CS degree"),
+            ("apply", "A resume"),
+        ]

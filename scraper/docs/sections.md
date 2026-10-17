@@ -102,6 +102,29 @@ rule above. Tightening them cost role 57.8% to 55.0% of postings, and made the
 stored format read back the same on a second pass for all but 1 of 1,094 postings
 (from 7). Re-run that check after changing a pattern: `kept(kept(text)) == kept(text)`.
 
+## Fixes after the first review (2026-10-17)
+
+Tenstorrent's AI Software Intern showed four gaps at once: its role summary was an
+inline label in the intro, an unknown heading ("USA Hiring Timelines") left its
+dates, pay and legal text inside Responsibilities, its pay was a sentence under no
+heading, and the card read "$50/hr - $70/hr" as $50. Each fix below was measured
+on the 2026-10-16 snapshot with the same script, and each number is cumulative.
+
+| | Before | Fix 1 |
+|---|---|---|
+| Pay on the card but no Pay section | 342 of 621 | 285 |
+| Inline labels read as plain text | 406 | 106 (each names its own section) |
+| Legal text inside a kept section | 218 | 202 |
+| Unstable on a second pass | 1 | 0 |
+
+**Fix 1, inline labels.** "Overview: This is the team that…" puts its text under
+the label's section, and the section that was open carries on after that one line
+(`split`). A label inside a list covers itself alone: "Location: Austin, TX" among
+the duties goes to Details and the duties after it stay. The most common moves are
+Location (72), Compensation (32), Duration (25) and Start Date (24); "- Bonus:
+Experience with Typescript" items in a requirements list go to Preferred, which is
+what those postings mean by it.
+
 ## What WorkIt keeps (decided 2026-10-17)
 
 Xiang asked for this to be decided before anything was dropped, because dropped
