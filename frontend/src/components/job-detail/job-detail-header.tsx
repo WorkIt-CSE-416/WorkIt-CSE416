@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import { formatPosted } from "@/app/(seeker)/jobs/format";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/cn";
 
 import { ClosesOn } from "./closes-on";
 import type { JobPosting } from "./data";
@@ -25,14 +24,11 @@ type JobDetailHeaderProps = {
    *  leaves this off and keeps "Posted …". The day is the viewer's own, set
    *  in the browser by `ClosesOn`, since `closesAt` is a full timestamp. */
   showDeadline?: boolean;
-  /** Save, the "…" menu, Ask Scout, Auto Apply, Tailor and Apply Now on the
-   *  seeker side; the status badge and Edit on the company side. */
-  actions: ReactNode;
-  /** Keep the actions in a row of their own under the title at every width,
-   *  rather than beside it from 576px of card. The seeker's six controls need
-   *  about 600px, and the card is never wider than 928px (`max-w-app`), so
-   *  beside the title they squeezed it to one word a line (KAN-246). */
-  actionsBelow?: boolean;
+  /** The status badge and Edit on the company side, beside the title. The
+   *  seeker page passes none: its actions sit in the bar pinned above this card
+   *  (`[jobId]/action-bar.tsx`), where the card's six controls once squeezed
+   *  the title to a word a line (KAN-246). */
+  actions?: ReactNode;
   /** The right rail this job's audience gets: `MatchRail` (`standalone`) for
    *  a seeker, `ApplicantOverviewPanel` for the company managing the
    *  posting, each its own rounded card, sitting beside the facts. Omit it
@@ -67,10 +63,10 @@ type JobDetailHeaderProps = {
  * and the company shell has no `@container/main` to measure. Narrower than
  * that, the actions drop to a full-width row of their own under the title,
  * and the rail stacks under the facts, so neither squeezes the title or the
- * facts into a sliver beside it. The seeker's six actions always take that
- * row (`actionsBelow`): beside the title they took the row's whole width, the
- * title wrapped a word a line and the posted date ran under the buttons
- * (KAN-246). The row wraps rather than overflowing.
+ * facts into a sliver beside it. The row wraps rather than overflowing. The
+ * seeker page passes no actions: its six sit in the bar pinned above the card,
+ * since beside the title they took the row's whole width, the title wrapped a
+ * word a line and the posted date ran under the buttons (KAN-246).
  *
  * `actions` and `rail` are the only things that differ between the company
  * and seeker pages that render this; everything else is shared.
@@ -81,7 +77,6 @@ export function JobDetailHeader({
   companyHref,
   showDeadline = false,
   actions,
-  actionsBelow = false,
   rail,
 }: JobDetailHeaderProps) {
   const timing =
@@ -96,12 +91,7 @@ export function JobDetailHeader({
 
   return (
     <Card as="header" padding="lg" elevated={false} className="@container flex flex-col gap-4">
-      <div
-        className={cn(
-          "flex flex-col gap-3",
-          !actionsBelow && "@xl:flex-row @xl:items-start @xl:justify-between @xl:gap-4",
-        )}
-      >
+      <div className="flex flex-col gap-3 @xl:flex-row @xl:items-start @xl:justify-between @xl:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {/* Never narrower than itself: in a crowded row the mark was
@@ -136,14 +126,11 @@ export function JobDetailHeader({
 
         {/* Wraps rather than overflows: a row wider than the card ran under
             the company line and the posted date (KAN-246). */}
-        <div
-          className={cn(
-            "flex w-full flex-wrap items-center gap-2",
-            !actionsBelow && "@xl:w-auto @xl:shrink-0",
-          )}
-        >
-          {actions}
-        </div>
+        {actions && (
+          <div className="flex w-full flex-wrap items-center gap-2 @xl:w-auto @xl:shrink-0">
+            {actions}
+          </div>
+        )}
       </div>
 
       <div className="border-border-subtle flex flex-col gap-4 border-t pt-4 @xl:flex-row @xl:items-start">

@@ -199,9 +199,12 @@ stops it). Apply Without a Resume leaves for the employer's posting at once.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
-The header's actions are one row under the title at every width
-(KAN-250, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply, Tailor My
-Resume and Apply Now. The row wraps on a phone; the logo never shrinks.
+The job's actions sit in one bar with Back, pinned at the top from md
+(`[jobId]/action-bar.tsx`, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply,
+Tailor My Resume and Apply Now. Below md the bar scrolls away and wraps.
+The header card below holds who is hiring, the title and facts; its logo never
+shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
+two columns under 448px, with unstated facts leaving their slots empty.
 The "…" menu (`MoreActions`, `[jobId]/page-actions.tsx`) holds Copy Link
 and Report. Ask Scout asks about the role, Copy Link copies the page's link, and Report
 stays inert. Save (KAN-261) keeps the job posting in the Saved column on My
