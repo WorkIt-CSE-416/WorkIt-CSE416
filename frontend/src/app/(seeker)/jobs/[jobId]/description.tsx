@@ -20,6 +20,11 @@
  * subheadings, but a line ending ":" heads one whatever follows it. Measured on live postings (2026-10-09): about half came out as
  * thirty-odd one-line paragraphs before this read their subheadings.
  *
+ * Its paragraphs and list items are ink, the headings' colour, not the body
+ * copy's ink-muted: a posting is long reading, and the lighter grey was hard
+ * to read at length (2026-10-17). The page's "Open in …" line above it
+ * matches.
+ *
  * The scraper cuts a long posting at 8,000 characters and ends it " …"
  * (providers.cap); then the last line says so and links to the whole posting
  * on the employer's site.
@@ -137,7 +142,7 @@ export function JobDescription({
         ) : block.kind === "list" ? (
           <ul key={i} role="list" className="flex flex-col gap-1.5 pl-4">
             {block.items.map((item, j) => (
-              <li key={j} className="text-body text-ink-muted flex items-start gap-2">
+              <li key={j} className="text-body text-ink flex items-start gap-2">
                 <span
                   aria-hidden="true"
                   className="bg-ink-faint mt-2 size-1.5 shrink-0 rounded-full"
@@ -147,7 +152,7 @@ export function JobDescription({
             ))}
           </ul>
         ) : (
-          <p key={i} className="text-body text-ink-muted">
+          <p key={i} className="text-body text-ink">
             {block.text}
           </p>
         ),

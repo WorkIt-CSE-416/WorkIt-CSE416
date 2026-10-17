@@ -136,7 +136,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
       <Section title="About the Role">
         {/* The card names one place and how many more; here, all of them. */}
         {places.length > 1 && (
-          <p className="text-body text-ink-muted mt-3">Open in {places.join(" · ")}.</p>
+          <p className="text-body text-ink mt-3">Open in {places.join(" · ")}.</p>
         )}
         {job.description ? (
           <JobDescription text={job.description} company={job.company} applyUrl={job.apply_url} />
