@@ -75,11 +75,15 @@ arbitrary websites at install time.
 ## The auto-apply runner (KAN-223): opens the next queued application
 
 `src/background/runner.js` is the runner's first step
-(`auto-apply/architecture.md`, "The run"). The Auto Apply page's Start
-sends `run/open` over `externally_connectable`; the runner reads the
-oldest queued application from `GET .../applications/next` and opens its
-`job.apply_url`. It fills nothing yet: injecting the fill, Submitted/Skip
-and `POST .../finish` are the next steps.
+(`auto-apply/architecture.md`, "The run"). The Auto Apply page's Start,
+and a job card's Auto Apply once it queues the job, send `run/open` over
+`externally_connectable`; the runner reads the oldest queued application
+from `GET .../applications/next` and opens its `job.apply_url`. It fills
+nothing yet: injecting the fill, Submitted/Skip and `POST .../finish` are
+the next steps. Two more messages serve the webapp's "Working in
+Browser": `run/status` answers which job posting the run's window shows
+(null once the student closes it), and `run/show` brings that window to
+the front.
 
 - **The URL always comes from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
@@ -94,6 +98,11 @@ and `POST .../finish` are the next steps.
   load `status` need none (only url, title and favicon need `tabs`).
   Injecting the fill into these tabs will: `activeTab` doesn't cover a tab
   the runner opened, so that step adds hiring-system `host_permissions`.
+- **`run/open` never reloads the application already open.** When the
+  run's tab shows the next application's job posting, it is left as it
+  is: a second click (another card, Start again) would otherwise throw
+  away what the student typed. The saved job id is what's compared, not
+  the URL, which the form's own steps change.
 - **`run/open` answers once the page loads** (`status: "complete"`, 30
   seconds at most) or with why nothing opened: `queue_empty`,
   `signed_out`, or an error such as a closed tab. Greenhouse and Ashby draw

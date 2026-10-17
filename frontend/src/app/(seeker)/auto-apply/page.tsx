@@ -6,9 +6,10 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
-import { ActivityList, activityOf } from "./activity-list";
+import { activityOf } from "./activity-list";
 import { getApplications } from "./applications";
 import { AutoApplyPanel } from "./auto-apply-panel";
+import { LiveActivity } from "./live-activity";
 
 export const metadata: Metadata = {
   title: "Auto Apply",
@@ -29,7 +30,9 @@ export const metadata: Metadata = {
  *   Live Activity          the seeker's applications from the API
  *                          (./applications.ts), newest first: each job
  *                          posting queued with a batch or a job's Auto Apply
- *                          button, and where it stands (./activity-list.tsx)
+ *                          button, and where it stands (./activity-list.tsx;
+ *                          ./live-activity.tsx adds the one open in the
+ *                          extension's window)
  *
  * The list is drawn here, on the server, against the request's clock, and
  * passed through the client panel; a batch refreshes the route to redraw it.
@@ -64,7 +67,7 @@ export default async function AutoApplyPage() {
             Start Auto Apply to queue your best matches, or click Auto Apply on any job.
           </EmptyState>
         ) : (
-          <ActivityList items={applications.map(activityOf)} now={now} />
+          <LiveActivity items={applications.map(activityOf)} now={now} />
         )}
       </AutoApplyPanel>
     </div>

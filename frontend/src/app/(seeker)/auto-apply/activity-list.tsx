@@ -11,12 +11,13 @@ import type { Application } from "./applications";
 import { RemoveFromQueue } from "./remove-from-queue";
 
 /** Where one application stands in the pipeline. The order a job moves
- *  through: queued, tailoring, filling, then review or failed, then applied
- *  or skipped. Only queued, failed, skipped and applied are stored
- *  (job_applications.stage); tailoring, filling and review are the runner's
- *  live states, for when the extension reports them. */
+ *  through: queued, browser (open in the run's Chrome window), tailoring,
+ *  filling, then review or failed, then applied or skipped. Only queued,
+ *  failed, skipped and applied are stored (job_applications.stage); browser
+ *  comes from the extension (./live-activity.tsx), and tailoring, filling
+ *  and review are the runner's live states, for when it reports them. */
 export type ActivityStatus =
-  "queued" | "tailoring" | "filling" | "review" | "failed" | "skipped" | "applied";
+  "queued" | "browser" | "tailoring" | "filling" | "review" | "failed" | "skipped" | "applied";
 
 export type ActivityItem = {
   id: string;
@@ -70,10 +71,10 @@ export function activityOf(application: Application): ActivityItem {
  * stage's violet (../stage-colors.ts), so "Applied" reads the same here as on
  * the Applications board:
  *
- *   queued, skipped     inert grey   not begun, or set aside: nothing owed
- *   tailoring, filling  advanced     in flight: WorkIt is doing the work
- *   review, failed      warning      halted, waiting on the seeker
- *   applied             brand        the Applied stage
+ *   queued, skipped              inert grey   not begun, or set aside: nothing owed
+ *   browser, tailoring, filling  advanced     in flight: WorkIt is doing the work
+ *   review, failed               warning      halted, waiting on the seeker
+ *   applied                      brand        the Applied stage
  *
  * A row with an `href` (its job posting is still open) is one link: its
  * role, stretched over the row, as on the Applications list. A queued row
@@ -87,6 +88,7 @@ export function activityOf(application: Application): ActivityItem {
  */
 const STATUS: Record<ActivityStatus, { label: string; tone: BadgeTone; dot: string }> = {
   queued: { label: "Queued", tone: "inert", dot: "bg-ink-meta" },
+  browser: { label: "Working in Browser", tone: "advanced", dot: "bg-advanced" },
   tailoring: { label: "Tailoring Resume", tone: "advanced", dot: "bg-advanced" },
   filling: { label: "Autofilling", tone: "advanced", dot: "bg-advanced" },
   review: { label: "Needs Review", tone: "warning", dot: "bg-warning-strong" },
@@ -95,7 +97,7 @@ const STATUS: Record<ActivityStatus, { label: string; tone: BadgeTone; dot: stri
   applied: { label: "Applied", tone: "brand", dot: "bg-brand" },
 };
 
-const IN_FLIGHT: ActivityStatus[] = ["tailoring", "filling"];
+const IN_FLIGHT: ActivityStatus[] = ["browser", "tailoring", "filling"];
 
 /** The summary over the feed: each group's count, by the same dot colours. */
 const GROUPS: { label: string; statuses: ActivityStatus[]; dot: string }[] = [

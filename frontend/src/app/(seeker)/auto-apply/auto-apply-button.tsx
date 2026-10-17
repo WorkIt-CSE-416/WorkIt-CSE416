@@ -1,13 +1,15 @@
 "use client";
 
-import { Zap } from "lucide-react";
+import { AppWindow, Zap } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { CheckIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { openNextApplication, showRunWindow, useRunnerJob } from "@/lib/autofill-extension";
 
 import { dequeueJob, queueJob, type ApplicationStage } from "./actions";
+import { openedNote } from "./opened-note";
 
 /** What the button says once the job posting has an application. */
 const STAGE_LABEL: Record<ApplicationStage, string> = {
@@ -35,6 +37,16 @@ const STAGE_LABEL: Record<ApplicationStage, string> = {
  * (dequeueJob) and turns the button back to Auto Apply: the same as Live
  * Activity's cross and its Undo, the other way round. Only a new queueing
  * raises one; a click that finds an earlier stage just shows it.
+ *
+ * THEN THE SAME PIPELINE AS START AUTO APPLY, without the matching: a click
+ * that leaves the job queued asks the extension to open the oldest queued
+ * job in its window behind this one (openNextApplication). That is this
+ * job only when nothing older waits. The job open there reads Working in
+ * Browser, on every card that shows it (useRunnerJob), and a click brings
+ * the window to the front instead of taking the job out of the queue. The
+ * opening runs after the click settles, so the button never waits on a
+ * page load; only a failure shows (no extension stays silent: most
+ * visitors have none).
  */
 export function AutoApplyButton({
   jobId,
@@ -51,6 +63,7 @@ export function AutoApplyButton({
   const [stage, setStage] = useState(saved);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const inBrowser = useRunnerJob() === jobId;
 
   if (stage && stage !== "queued") {
     return (
@@ -70,6 +83,28 @@ export function AutoApplyButton({
       return;
     }
     setStage(null);
+  }
+
+  if (stage === "queued" && inBrowser) {
+    return (
+      <Button
+        variant="secondary"
+        size="sm"
+        title="Show the Chrome window"
+        onClick={() => void showRunWindow()}
+      >
+        <AppWindow className="size-4" />
+        Working in Browser
+      </Button>
+    );
+  }
+
+  /** The window opens in the background; only a failure is worth a line. */
+  async function openInBrowser() {
+    const result = await openNextApplication();
+    if (!result.opened && (result.reason === "signed_out" || result.reason === "error")) {
+      setError(openedNote(result));
+    }
   }
 
   const queued = stage === "queued";
@@ -100,6 +135,7 @@ export function AutoApplyButton({
             if (!result.stage) return;
             setStage(result.stage);
             if (result.stage === "queued") {
+              void openInBrowser();
               toast.show({
                 message: (
                   <>

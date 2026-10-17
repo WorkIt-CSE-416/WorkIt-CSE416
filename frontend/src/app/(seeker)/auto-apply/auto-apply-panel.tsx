@@ -4,10 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 
 import { SectionHeading } from "@/components/ui/section-heading";
-import { openNextApplication, type OpenApplicationResult } from "@/lib/autofill-extension";
+import { openNextApplication } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { startBatch } from "./actions";
+import { openedNote } from "./opened-note";
 import { ResumeList } from "./resume-list";
 
 /** Whether auto apply is on: never started, running, or paused after a run. */
@@ -30,7 +31,8 @@ const RUN_LABEL: Record<RunState, string> = {
  * 10, leaving out every job they already have an application for) and
  * refreshes the route so the list shows them. Then it asks the extension's
  * runner to open the oldest queued application's apply_url in a window
- * behind this one (openNextApplication), and says what happened. Nothing
+ * behind this one (openNextApplication), and says what happened
+ * (./opened-note.ts); Live Activity marks it Working in Browser. Nothing
  * fills the form yet, and Pause and Resume only move this state
  * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
  * so a return visit starts idle, and Start queues another batch.
@@ -87,21 +89,6 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
       </section>
     </>
   );
-}
-
-/** The second half of Start's note: what the extension's runner opened. */
-function openedNote(result: OpenApplicationResult): string {
-  if (result.opened) return "The first application is open in a new Chrome window.";
-  switch (result.reason) {
-    case "not_installed":
-      return "Install the WorkIt extension to open the applications.";
-    case "queue_empty":
-      return "Nothing is queued to open.";
-    case "signed_out":
-      return "The extension can't see your sign-in. Refresh this page, then try again.";
-    case "error":
-      return `The extension couldn't open the application: ${result.error}`;
-  }
 }
 
 /** A dot and a word at the heading's top right. Green only while it runs; the

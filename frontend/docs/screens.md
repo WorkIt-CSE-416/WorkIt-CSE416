@@ -150,7 +150,18 @@ happened, so the button never undoes them. A new queueing raises a toast
 (`components/ui/toast.tsx`), "<title> from <company> is queued for Auto
 Apply.", with Undo, which takes the job out again (`dequeueJob`) and turns
 the button back to Auto Apply: Live Activity's cross and Undo, the other way
-round. A failed Undo says so in a toast and leaves the button Queued. Its first state comes from
+round. A failed Undo says so in a toast and leaves the button Queued.
+A click that leaves the job queued then runs Start Auto Apply's pipeline
+without the matching: it asks the extension to open the oldest queued job
+in a Chrome window behind this one (`openNextApplication`), which is this
+job only when nothing older waits. It runs after the click settles, so the
+button never waits on a page load; only a failure shows, as a line above
+the button (no extension stays silent). The job open in that window reads
+**Working in Browser** (the AppWindow glyph) on every card that shows it,
+read once per page from the extension (`useRunnerJob` in
+`src/lib/autofill-extension.ts`, asked again whenever the tab gets focus);
+a click brings the window to the front (`showRunWindow`), and the job
+leaves the queue from Live Activity only. Its first state comes from
 the server: the job's page reads its one application (`GET
 .../applications/{job_id}`), and /jobs and /search read every application
 once beside the first page (`getApplicationStages`) and hand the stages to
@@ -367,8 +378,10 @@ row, and refreshes the route so Live Activity lists them; an error (an empty
 experience bank) shows there in red instead. Then it asks the extension to
 open the oldest queued application's page in a Chrome window behind this
 one (`openNextApplication` in `src/lib/autofill-extension.ts`, the message
-`run/open`), and the note says so, or why not (no extension, signed out,
-nothing queued) in red. Pause and Resume only move the state: nothing fills
+`run/open`), and the note says so, or why not (no extension, signed out)
+in red (`auto-apply/opened-note.ts`, shared with the job card). A window
+already on that job stays as it is, so Start never wipes a form in
+progress. Pause and Resume only move the state: nothing fills
 a form yet. It is off until the list has a resume, and while a batch is
 queueing. The state (`idle`, `running`, `paused`) is held in
 `auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
@@ -383,13 +396,18 @@ the list at full width.
 (`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), newest
 first, drawn on the server against the request's clock. Each stored stage is
 a row (`activityOf` in `auto-apply/activity-list.tsx`): queued Queued,
-needs_you Couldn't Finish, skipped Skipped, applied Applied. The whole row
+needs_you Couldn't Finish, skipped Skipped, applied Applied. The queued
+job open in the extension's window reads Working in Browser instead
+(`auto-apply/live-activity.tsx`, the one client step over the server's
+rows), in flight, with no cross: taking it out would leave the window on a
+job that is gone. The whole row
 opens the job posting's page, as on the Applications list, while the posting
 is open; a closed one says so and links nowhere. None yet is an empty state
 pointing at Start and the jobs' Auto Apply; a failed read says so, never a
 fixture. One row per job posting, in one white card with rules between rows. Each status takes a
-badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Tailoring Resume
-and Autofilling `advanced` blue, their dot ringing three times; Needs Review
+badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Working in
+Browser, Tailoring Resume and Autofilling `advanced` blue, their dot ringing
+three times, and counted under In Progress; Needs Review
 and Couldn't Finish warning amber, as both wait on the seeker; Applied the
 Applied stage's violet, so it reads the same as on the Applications board.
 The counts above the card use the same dot colours. A queued row has a cross

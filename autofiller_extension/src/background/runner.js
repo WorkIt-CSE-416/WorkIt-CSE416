@@ -9,14 +9,19 @@
 
 import { ApiError, me, nextApplication } from "./api.js";
 
-// The run's window and tab, kept in chrome.storage.session rather than a
-// variable: Chrome stops this worker after ~30 seconds idle, which clears
-// module state, while session storage lasts until the browser closes.
+// The run's window, its tab and the job posting open in it, kept in
+// chrome.storage.session rather than a variable: Chrome stops this worker
+// after ~30 seconds idle, which clears module state, while session storage
+// lasts until the browser closes.
 const RUN_WINDOW_KEY = "workit_run_window";
 const LOAD_TIMEOUT_MS = 30_000;
 
 /**
- * Opens the next queued application's apply_url.
+ * Opens the next queued application's apply_url. When the run's tab
+ * already shows that application, it is left as it is: reloading it would
+ * throw away whatever the student typed. Nothing finishes an application
+ * yet, so the next one stays the same until the student closes the window
+ * or takes it out of the queue.
  * @returns {Promise<{ opened: true, jobId: string, url: string } | { opened: false, reason: "queue_empty" | "signed_out" }>}
  */
 export async function openNextApplication() {
@@ -29,11 +34,54 @@ export async function openNextApplication() {
   }
 
   const application = await nextApplication(account.id);
-  if (!application) return { opened: false, reason: "queue_empty" };
+  const saved = await runTab();
+  if (!application) {
+    if (saved) await saveRunWindow({ ...saved, jobId: null });
+    return { opened: false, reason: "queue_empty" };
+  }
 
+  const jobId = application.job.id;
   const url = application.job.apply_url;
-  await openApplicationWindow(url);
-  return { opened: true, jobId: application.job.id, url };
+  if (saved?.jobId !== jobId) await openApplicationWindow(saved, jobId, url);
+  return { opened: true, jobId, url };
+}
+
+/**
+ * Which job posting the run's window shows, or null when there is none
+ * (never opened, or the student closed it).
+ * @returns {Promise<{ jobId: string | null }>}
+ */
+export async function runStatus() {
+  const saved = await runTab();
+  return { jobId: saved?.jobId ?? null };
+}
+
+/**
+ * Brings the run's window to the front, for the webapp's "Working in
+ * Browser". False when the student has closed it.
+ * @returns {Promise<{ shown: boolean }>}
+ */
+export async function showRunWindow() {
+  const saved = await runTab();
+  if (!saved) return { shown: false };
+  await chrome.tabs.update(saved.tabId, { active: true });
+  await chrome.windows.update(saved.windowId, { focused: true });
+  return { shown: true };
+}
+
+/**
+ * The saved run window, only while its tab still exists.
+ * @returns {Promise<{ windowId: number, tabId: number, jobId: string | null } | null>}
+ */
+async function runTab() {
+  const { [RUN_WINDOW_KEY]: saved } = await chrome.storage.session.get(RUN_WINDOW_KEY);
+  if (!saved) return null;
+  const tab = await chrome.tabs.get(saved.tabId).catch(() => null);
+  return tab ? saved : null;
+}
+
+function saveRunWindow(saved) {
+  return chrome.storage.session.set({ [RUN_WINDOW_KEY]: saved });
 }
 
 /**
@@ -43,23 +91,23 @@ export async function openNextApplication() {
  * minimized window's tab is hidden, and Chrome slows timers and stops
  * redraws there, which some dropdowns wait on (architecture.md, "Hidden
  * tabs run slowly"). Resolves once the page has loaded.
+ * @param {{ windowId: number, tabId: number } | null} saved runTab()'s answer
+ * @param {string} jobId
  * @param {string} url
  */
-async function openApplicationWindow(url) {
-  const { [RUN_WINDOW_KEY]: saved } = await chrome.storage.session.get(RUN_WINDOW_KEY);
-  const tab = saved ? await chrome.tabs.get(saved.tabId).catch(() => null) : null;
-
-  if (tab) {
+async function openApplicationWindow(saved, jobId, url) {
+  if (saved) {
+    await saveRunWindow({ ...saved, jobId });
     // Listen before navigating, so a fast load can't finish unseen.
-    const loaded = waitForLoad(tab.id);
-    await chrome.tabs.update(tab.id, { url });
+    const loaded = waitForLoad(saved.tabId);
+    await chrome.tabs.update(saved.tabId, { url });
     return loaded;
   }
 
   // The student closed the run's window (or this is the first open).
   const win = await chrome.windows.create({ url, focused: false, type: "normal", width: 1100, height: 900 });
   const [created] = win.tabs;
-  await chrome.storage.session.set({ [RUN_WINDOW_KEY]: { windowId: win.id, tabId: created.id } });
+  await saveRunWindow({ windowId: win.id, tabId: created.id, jobId });
   return waitForLoad(created.id);
 }
 
