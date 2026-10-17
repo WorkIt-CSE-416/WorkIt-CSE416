@@ -103,6 +103,27 @@ rule above. Tightening them cost role 57.8% to 55.0% of postings, and made the
 stored format read back the same on a second pass for all but 1 of 1,094 postings
 (from 7). Re-run that check after changing a pattern: `kept(kept(text)) == kept(text)`.
 
+On the 13,284 descriptions stored in the database on 2026-10-17 (every scraped
+posting, not only internships, cut at 8,000 characters), 312 failed that check
+(PR review). Two inline-label rules fixed 104 of them. They change 168 stored
+descriptions, each only by keeping a label the line had lost:
+
+- **Text that reads as a heading alone keeps its label.** Blue Origin's "Required
+  for all positions: Blue's Standard Background Check" was stored without its
+  label; read again, "Blue's Standard Background Check" is a legal heading, and
+  the requirement vanished (81 postings).
+- **A label naming the open section is content**, as `split` says, whatever the
+  whole line reads as. The code had tested the whole line as a heading.
+
+The 208 left are mostly bullets read as headings ("Perform other duties as
+assigned", "Communication skills"), after which a real heading counts as the
+false one's first item: ATC's "Why ATC as an Intern" pitch is stored under
+Responsibilities. Still open. A line ending in a colon could always open its
+own section (that leaves 87): it moves Wade Trim's "About Wade Trim:" pitch out
+of Preferred Qualifications, but also files Applied Materials' benefits text
+under Details after its "Location:" line, and it changes 644 stored descriptions
+that the gold set does not cover.
+
 ## Fixes after the first review (2026-10-17)
 
 Tenstorrent's AI Software Intern showed four gaps at once: its role summary was an

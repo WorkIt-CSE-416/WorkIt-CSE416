@@ -249,10 +249,19 @@ def _walk(text: str) -> list[_Line]:
         labelled = heading(inline.group(1)) if inline else None
         if labelled is not None and labelled != key:
             label, rest = inline.group(1).strip(), inline.group(2).strip()
+            # Text that reads as a heading alone keeps its label: Blue Origin's
+            # "Required for all positions: Blue's Standard Background Check" was
+            # stored as "Blue's Standard Background Check", which a second read
+            # takes for a legal heading and drops.
+            if heading(rest) is not None:
+                rest = line.strip()
             walked.append(_Line(index, labelled, label, rest, inline=True))
             started = True
             continue
-        opens = heading(line)
+        # A label naming the open section is content (`split`), whatever the
+        # whole line reads as: under Requirements, "Required for all positions:
+        # ... Background Check" is a requirement, not a legal heading.
+        opens = None if labelled is not None else heading(line)
         just_opened = head is not None and not started
         # A benefits list names pay among its perks ("Life assurance worth 4x your
         # annual salary", "Competitive pay"): those are items, not a Pay heading,
