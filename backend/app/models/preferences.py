@@ -36,9 +36,9 @@ class Applicant_Preferences(BaseModel):
     the roles live in applicant_job_roles and the places in
     applicant_locations, for their foreign keys
 
-    Text with CHECKs rather than Postgres enums: experience_level still holds
-    KAN-233's LEGACY levels until its contract step, which no saved pick may
-    name, and an enum value is a coordinated deploy.
+    Text with CHECKs rather than Postgres enums: changing an enum's values is
+    a coordinated deploy (KAN-233 took an expand and a contract step), while
+    a CHECK changes in one migration.
     The values are GET /jobs' query values, which routers/jobs.py validates
     the same way. Places and seasons are checked by shape in the API only, as
     GET /jobs checks them: a code no job uses matches nothing.
