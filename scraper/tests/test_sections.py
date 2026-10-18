@@ -10,9 +10,17 @@ from __future__ import annotations
 
 import pytest
 
-from workit_scraper import providers
+from workit_scraper import providers, sections
 from workit_scraper.details import Pay
 from workit_scraper.sections import INTRO, heading, kept, split
+
+
+@pytest.fixture(autouse=True)
+def _patterns_only(monkeypatch):
+    """These tests state what the patterns and rules do. The learned labels
+    (learned_headings.json) are scored on the gold set, and their own rules are
+    tests/test_label_headings.py's."""
+    monkeypatch.setattr(sections, "_LEARNED", {})
 
 
 class TestHeading:
@@ -189,7 +197,10 @@ class TestSplit:
             "About Wade Trim:\nWade Trim is committed to infrastructure."
         )
 
-        assert kept(text) == "Requirements\nA civil engineering degree"
+        assert kept(text) == (
+            "Requirements\nA civil engineering degree\n"
+            "About the Company\nWade Trim is committed to infrastructure."
+        )
         assert kept(kept(text)) == kept(text)
 
     def test_a_preferred_list_keeps_an_item_that_names_requirements(self) -> None:
@@ -245,17 +256,19 @@ class TestKept:
             "Bachelor's degree in computer science.\n"
             "Applicant must be a U.S. citizen or national.\n"
             "Pay\n"
-            "Software Engineer/Level I: $125,000.00 - $150,000.00/per year"
+            "Software Engineer/Level I: $125,000.00 - $150,000.00/per year\n"
+            "Benefits\n"
+            "Comprehensive medical, vision, and dental coverage."
         )
 
-    def test_benefits_and_legal_text_are_left_out(self) -> None:
+    def test_benefits_come_last_and_legal_text_is_left_out(self) -> None:
         text = kept(SPACEX_SHAPED)
 
         assert text is not None
-        assert "dental" not in text
+        assert text.endswith("Benefits\nComprehensive medical, vision, and dental coverage.")
         assert "equal opportunity" not in text
 
-    def test_the_company_pitch_is_left_out_but_the_role_kept(self) -> None:
+    def test_the_company_pitch_and_perks_come_after_the_job(self) -> None:
         text = kept(ROBINHOOD_SHAPED)
 
         assert text == (
@@ -267,7 +280,10 @@ class TestKept:
             "Write well-tested Kotlin\n"
             "Requirements\n"
             "A solid foundation in software engineering\n"
-            "Familiarity with Kotlin or Java"
+            "Familiarity with Kotlin or Java\n"
+            "Benefits\n"
+            "Market competitive compensation structure\n"
+            "Commuter benefits"
         )
 
     def test_a_line_that_is_only_a_kept_heading_is_dropped(self) -> None:
@@ -462,7 +478,8 @@ class TestLinesSortedByWhatTheySay:
 
         assert kept(text) == (
             "Responsibilities\nShip kernels\n"
-            "Pay\nThe pay range for this position is expected to be between $45 and $65/hour."
+            "Pay\nThe pay range for this position is expected to be between $45 and $65/hour.\n"
+            "Benefits\nHealth insurance"
         )
 
     def test_a_label_naming_another_section_is_left_off_a_moved_line(self) -> None:
@@ -492,7 +509,7 @@ class TestLinesSortedByWhatTheySay:
     def test_a_perk_with_a_price_is_not_pay(self, line: str) -> None:
         stored = kept(f"Responsibilities\nShip features\nBenefits\nHealth insurance\n{line}")
 
-        assert stored == "Responsibilities\nShip features"
+        assert stored == f"Responsibilities\nShip features\nBenefits\nHealth insurance\n{line}"
 
     def test_a_pay_line_that_mentions_a_stipend_is_still_pay(self) -> None:
         line = (
@@ -518,8 +535,29 @@ class TestLinesSortedByWhatTheySay:
         line = "Required for all positions: Blue’s Standard Background Check"
         text = f"Benefits\nA 401(k) match\n{line}\nRequirements\nA CS degree"
 
-        assert kept(text) == f"Requirements\n{line}\nA CS degree"
+        assert kept(text) == f"Requirements\n{line}\nA CS degree\nBenefits\nA 401(k) match"
         assert kept(kept(text)) == kept(text)
+
+    def test_an_inline_label_that_starts_a_sentence_keeps_the_whole_line(self) -> None:
+        # Nuro: "You will own features end-to-end" opens Responsibilities, but
+        # stored as its text alone the line read "scoping, implementation, ...".
+        line = "You will own features end-to-end: scoping, implementation and testing."
+        text = f"Requirements\nA CS degree\n{line}"
+
+        assert kept(text) == f"Responsibilities\n{line}\nRequirements\nA CS degree"
+        assert kept(kept(text)) == kept(text)
+
+    def test_about_the_work_is_the_role_not_a_company_name(self) -> None:
+        # Nuro's new grad posting: read as "About Stripe", its duties left the page.
+        text = (
+            "Who We Are\nNuro builds self-driving cars.\n"
+            "About the Work\nYou will build fleet tools."
+        )
+
+        assert kept(text) == (
+            "Overview\nYou will build fleet tools.\n"
+            "About the Company\nNuro builds self-driving cars."
+        )
 
     def test_a_label_naming_the_open_section_is_content_whatever_the_line_reads_as(
         self,
@@ -540,7 +578,8 @@ class TestLinesSortedByWhatTheySay:
 
         assert kept(text) == (
             "Requirements\nA CS degree\n"
-            "This role requires access to ITAR-controlled information; you must be a U.S. person."
+            "This role requires access to ITAR-controlled information; you must be a U.S. person.\n"
+            "Benefits\nHealth insurance"
         )
 
     def test_an_export_control_requirement_is_kept(self) -> None:
@@ -605,7 +644,9 @@ class TestRoles:
         roles = ("b", "p", "b", "p")
 
         assert [s.key for s in split(text, roles)] == ["company", "role"]
-        assert kept(text, roles) == "Overview\nBuild models for our products."
+        assert kept(text, roles) == (
+            "Overview\nBuild models for our products.\nAbout the Company\nWe make vacuums."
+        )
         # Plain text has no marks to go by.
         assert [s.key for s in split(text)] == ["company"]
 
@@ -699,13 +740,17 @@ class TestWhatALineSays:
             "Responsibilities\nShip code\nRequirements\nVisa sponsorship is not available."
         )
 
-    def test_a_named_perk_and_an_apply_line_are_left_out(self) -> None:
+    def test_a_named_perk_and_an_apply_line_leave_the_job_sections(self) -> None:
         text = (
             "Responsibilities\nShip code\nReceive a competitive 401(k) match\n"
             "Requirements\nA CS degree\nTo apply, submit your resume and transcript."
         )
 
-        assert kept(text) == "Responsibilities\nShip code\nRequirements\nA CS degree"
+        assert kept(text) == (
+            "Responsibilities\nShip code\nRequirements\nA CS degree\n"
+            "Benefits\nReceive a competitive 401(k) match\n"
+            "How to Apply\nTo apply, submit your resume and transcript."
+        )
 
     def test_a_line_that_only_mentions_applying_stays(self) -> None:
         line = "Ability to apply critical thinking skills to client work"
@@ -741,3 +786,26 @@ class TestHeadingVoice:
     )
     def test_who_a_heading_addresses_decides(self, line: str, key: str | None) -> None:
         assert heading(line) == key
+
+
+class TestExtras:
+    """Benefits, How to Apply and About the Company (sections.EXTRA, 2026-10-18)."""
+
+    def test_an_eligibility_line_leaves_an_extra_for_requirements(self) -> None:
+        # ASDA: the right to work sat under "What you'll gain" and left the page.
+        line = "Candidates must be eligible to work in the UK."
+        text = f"Requirements\nA finance degree\nWhat You'll Gain\nMentoring\n{line}"
+
+        assert kept(text) == f"Requirements\nA finance degree\n{line}\nBenefits\nMentoring"
+
+    def test_about_the_intern_program_is_the_role(self) -> None:
+        # OCC: its intern program sat under "About OCC".
+        text = "About OCC\nOCC clears options.\nAbout the Intern Program:\nInterns join a team."
+
+        assert kept(text) == (
+            "Overview\nInterns join a team.\nAbout the Company\nOCC clears options."
+        )
+
+    def test_the_extras_read_back_the_same(self) -> None:
+        text = kept(SPACEX_SHAPED)
+        assert kept(text) == text

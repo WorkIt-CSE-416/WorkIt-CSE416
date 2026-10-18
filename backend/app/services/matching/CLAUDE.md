@@ -72,10 +72,15 @@ Nothing in this folder may assume what a software job is. Two consequences:
 - **A posting is embedded from its title and the sections that say what the
   job is** (`job_text`, KAN-229): Overview, Responsibilities,
   Requirements and Preferred Qualifications. The scraper stores a description
-  under those fixed headings, each alone on its line, with the company's
-  pitch, benefits and legal text already left out
-  (`../../../../scraper/docs/sections.md`). Pay and Details are stored but
-  not embedded, and so is the intro when there is an Overview. Without one,
+  under those fixed headings, each alone on its line, with legal text left
+  out (`../../../../scraper/docs/sections.md`). Pay and Details are stored but
+  not embedded, and so is the intro when there is an Overview. **Benefits, How
+  to Apply and About the Company** come last, for the job posting's page
+  (2026-10-18): `_matched_part` stops at their headings, and `job_part`, which
+  the keywords (`services/keywords.py`) and Tailor (`services/tailor.py`) read
+  too, never includes them, so a perks list never steers a match, a keyword or
+  a tailored resume. A description with only an intro under none of the job's
+  headings reads the intro alone, never the perks after it. Without one,
   the intro is embedded first: it is where most such postings state the role
   ("Garda is seeking a Software Engineer Intern..."). Left out always, it cost
   52 role and requirement lines in the scraper's 50 gold postings, more than

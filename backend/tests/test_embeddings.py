@@ -237,11 +237,34 @@ def test_job_text_reads_the_intro_when_there_is_no_overview():
 
 def test_job_text_reads_an_old_description_from_its_own_matched_heading():
     # Stored before KAN-229, an employer's own "Requirements" line is read as
-    # the fixed heading, so the text before it counts as the intro.
+    # the fixed heading, so the text before it counts as the intro; its own
+    # "Benefits" line ends it, as the kept extra's heading does.
     old = "About Us\nWe build robots.\nRequirements\nC firmware.\nBenefits\nLunch."
 
     assert embeddings.job_text("Intern", old) == (
-        "Intern\n\nAbout Us\nWe build robots.\nC firmware.\nBenefits\nLunch."
+        "Intern\n\nAbout Us\nWe build robots.\nC firmware."
+    )
+
+
+def test_job_text_never_reads_the_kept_extras():
+    # Benefits, How to Apply and About the Company follow the job's sections
+    # (sections.EXTRA): for the page, never for matching.
+    stored = (
+        STORED
+        + "\nBenefits\nA 401(k) match.\nHow to Apply\nSend a transcript.\n"
+        + "About the Company\nFigure was founded in 2022."
+    )
+
+    assert embeddings.job_text("Firmware Engineering Intern", stored) == embeddings.job_text(
+        "Firmware Engineering Intern", STORED
+    )
+
+
+def test_job_text_with_only_an_intro_and_extras_reads_the_intro():
+    stored = "Garda is seeking a Software Engineer Intern.\nBenefits\nLunch.\nPay\n$40 per hour."
+
+    assert embeddings.job_text("Intern", stored) == (
+        "Intern\n\nGarda is seeking a Software Engineer Intern."
     )
 
 

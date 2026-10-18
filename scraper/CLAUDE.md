@@ -9,6 +9,7 @@ python3 -m workit_scraper              # scrape, then write the page and feed.js
 python3 -m workit_scraper --full       # the same, quiet boards included
 python3 -m workit_scraper --offline    # no network; rewrite both from jobs.json
 python3 build_boards.py                # add the boards the curated lists name now
+GROQ_API_KEY=... python3 label_headings.py  # label the headings no rule names
 uvx pytest                             # the tests
 ```
 
@@ -150,8 +151,12 @@ A stored description is its kept sections under fixed headings (KAN-229):
 `providers._page` stores `cap(sections.kept(full))`. `sections.split` reads a
 description into role, responsibilities, requirements, preferred, pay, benefits,
 legal and the rest by its headings, and `kept` keeps the intro, Overview,
-Responsibilities, Requirements, Preferred Qualifications, Pay and Details, in
-that order. Read `docs/sections.md` before changing a pattern, a rule or `KEPT`:
+Responsibilities, Requirements, Preferred Qualifications, Pay and Details, then
+the extras (`EXTRA`: Benefits, How to Apply, About the Company), in that order.
+Only legal notices are left out. The extras are for the job posting's page,
+shown last and folded; the backend's matching, keywords and Tailor stop at their
+headings (`job_part`), so add a heading to `KEPT` and to the backend's
+`_OTHER_HEADINGS` in the same change, or its text reaches matching. Read `docs/sections.md` before changing a pattern, a rule or `KEPT`:
 it has the measurements, the heading audit that found the misses, and why each
 section is kept or left out.
 
@@ -175,7 +180,9 @@ section is kept or left out.
   a pay sentence goes to Pay from any section, an equal-opportunity line is
   dropped, a nice-to-have goes to Preferred Qualifications, a qualification in a
   duties list and a work-eligibility line go to Requirements, and a named perk
-  and a how-to-apply line are left out. Each rule is kept only if it fixes more
+  and a how-to-apply line leave the job's sections for Benefits and How to
+  Apply, and a work-eligibility line in an extra goes to Requirements (ASDA's
+  right to work sat under "What you'll gain"). Each rule is kept only if it fixes more
   gold lines than it breaks, in both groups (`docs/sections.md`, fix 4).
   Re-run the heading audit and `kept(kept(text)) == kept(text)` on the whole feed
   after any change (`docs/sections.md`, "Fixes after the first review").
@@ -185,6 +192,18 @@ section is kept or left out.
   Tailor. Two rules stop that: a marked heading no pattern names ends the
   company's section and opens Overview, and a description that keeps under a
   tenth of its text is kept whole (`docs/sections.md`, "Hiding less job text").
+- **A heading no pattern names is looked up in `learned_headings.json`**, the
+  labels a model gave once (`label_headings.py`, Groq's `openai/gpt-oss-20b`
+  with a key of its own, never Scout's, so a first run never spends Scout's
+  quota). Patterns always win, and "none" keeps a line as content. **A learned
+  label never sends job text where it should not go:** one naming legal cannot
+  end a job section, and one naming an extra cannot end a section matching
+  reads (out of Pay or Details it may). It is a committed file, never a call during the scrape: Groq
+  takes about 30 requests a minute, a run reads thousands of pages, and each
+  page is stored once. After a run, review the diff (a list item labeled as a
+  heading splits its list), score the gold set with the per-label effect, set a
+  label that loses gold lines to "none", and bump `PAGE_VERSION`, or stored
+  postings never get the new labels (`docs/sections.md`, "Learned headings").
 - **Correctness is scored against a gold test set** (`tests/test_sections_gold.py`,
   80 labeled postings in two groups: 50 from Greenhouse, Ashby and Lever, and 30
   from Workday, which is most of the feed): run its report after any change. It

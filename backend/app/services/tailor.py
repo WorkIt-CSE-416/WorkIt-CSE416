@@ -33,6 +33,7 @@ from app.schemas.keywords import Keyword
 from app.schemas.tailor import TailorChange, TailorReading
 from app.services import keywords as kw
 from app.services.bank import Bank, Entry, NotFound, copy_key
+from app.services.matching.embeddings import job_part
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -68,9 +69,10 @@ this posting.
 
 def posting_text(job: Job_Post, keywords: Sequence[Keyword]) -> str:
     """What the bullets are ranked against: the title, the keywords and the
-    description (only the title and keywords when it has none)."""
+    description's job sections (`job_part`; only the title and keywords when it
+    has none)."""
     words = " ".join(k.keyword for k in keywords)
-    return f"{job.title} {words} {(job.description or '')[: kw.MAX_DESCRIPTION_CHARS]}"
+    return f"{job.title} {words} {job_part(job.description)[: kw.MAX_DESCRIPTION_CHARS]}"
 
 
 def weak_match(job: Job_Post) -> bool:
@@ -125,7 +127,7 @@ def prompt(
             if bullet.id in best:
                 shows = choices.bullets.get(bullet.id)
                 lines.append(f"  {named[bullet.id]}: {(shows and shows.text) or bullet.text}")
-    description = (job.description or "").strip()[: kw.MAX_DESCRIPTION_CHARS] or "(No description: only the title.)"
+    description = job_part(job.description).strip()[: kw.MAX_DESCRIPTION_CHARS] or "(No description: only the title.)"
     words = ", ".join(f"{k.keyword} ({k.kind})" for k in keywords) or "(none)"
     skills = ", ".join(s.name for s in bank.skills) or "(none)"
     user = (
