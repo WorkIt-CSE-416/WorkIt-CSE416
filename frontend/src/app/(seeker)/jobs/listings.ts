@@ -195,8 +195,8 @@ export async function getJobCount(filters: FeedFilters, q = ""): Promise<number 
   }
 }
 
-/** How long the filter row's places and counts are reused before asking the API
- *  again. They change only when an import runs (every few hours), and each ask
+/** How long the filter row's places and facet lists are reused before asking
+ *  the API again. They change only when an import runs (every few hours), and each ask
  *  costs the API a database connection and six counting queries, which every
  *  filter change used to pay again. */
 const COUNTS_TTL = 300;
@@ -240,9 +240,9 @@ const NO_FACETS: JobFacets = {
   start_term: [],
 };
 
-/** The filter row's counts and Start Date options. Empty when the API can't be
- *  reached: the counts stay off and Start Date shows disabled, and the feed
- *  below reports the error itself. */
+/** The filter row's Role and Start Date options. Empty when the API can't be
+ *  reached: Role's list is empty, Start Date shows disabled, and the feed
+ *  below reports the error itself. No option shows its count (KAN-252). */
 export async function getJobFacets(): Promise<JobFacets> {
   await connection();
   try {

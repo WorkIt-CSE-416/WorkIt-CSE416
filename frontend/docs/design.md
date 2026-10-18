@@ -101,8 +101,10 @@ image files; `public/workit-icon.svg` is the favicon's source (`npm run
 favicon`). `components/icons.tsx` holds glyphs used by more than one route, as
 thin wrappers over Lucide at its default stroke (the brand marks stay drawn);
 every per-route `icons.tsx` is the same kind of wrapper. Draw no new glyph by
-hand. `components/hero-arcs.tsx` is the corner arcs on the company Dashboard's
-violet hero.
+hand while Lucide has one. A glyph it lacks (RoleIcon's person in a suit,
+KAN-252) is drawn on Lucide's 24-unit grid with `createLucideIcon`, never as
+a bare `<svg>`, so it takes the same stroke and sizing. `components/hero-arcs.tsx`
+is the corner arcs on the company Dashboard's violet hero.
 
 ## Colour
 

@@ -51,11 +51,21 @@ showed beside it as two thin vertical lines while they scrolled under.
 jobs/filters.tsx draws the row (KAN-170); every facet filters, and Industry is
 gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
-All Filters stays a normal button; never stretch it across the row. Role
+All Filters stays a normal button; never stretch it across the row. Job Type
+is in All Filters only too: the row is 928px at most, and it would need
+about 1,070px. Each facet is at least 144px and as wide as its label needs,
+so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
+(KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
+filters" in its tooltip, and turns every filter off, keeping ?view and ?q; a
+cleared /jobs with no ?view lands on ?view=recommended, since the bare URL
+would bring the saved preferences back. As the words "Clear Filters" it took
+the room of Date Posted at every width and wrapped the row on a phone. The
+widths at which the facets step in leave room for it whether or not it shows,
+so a pick never pushes a facet out of the row (filters.tsx lists them). Role
 (KAN-155: the `job_roles` list, slugs like software_engineer, a job tagged with
 each role its title names, so it counts under each) sits second, after Location,
 as the facet a seeker narrows by first; no pick shows every role. Its options
-are not in the code: the row and the panel read them, names and counts, from GET
+are not in the code: the row and the panel read their names from GET
 /jobs/facets' `role` (only roles with a job, in the database's order), and the
 row's Role waits on them behind a disabled button as Location waits on its
 places. filter-query.ts checks a ?role= by shape only, like a place, so an old
@@ -68,11 +78,19 @@ draft until "Show N Jobs", which counts the draft as it changes (GET /jobs/count
 via jobs/actions.ts). Applying a filter dims the feed at once (jobs/feed-
 transition.tsx: the row and the feed share one transition), since the narrowed
 page is a round trip plus the API's half second away; the row's places and
-counts are fetched once per visit and cached five minutes (COUNTS_TTL in
+facet lists (GET /jobs/facets) are fetched once per visit and cached five minutes (COUNTS_TTL in
 jobs/listings.ts), not refetched per change. Each facet button wears the glyph
 the job card draws for its fact (Date Posted a clock, since the card's calendar
-is the start date), and inside a popup only Workplace's options carry glyphs,
-the card's own three. Salary is a range, "$ 30 /hr – $ 50 /hr", either end open,
+is the start date; Role, which the card doesn't print, a person in a suit and
+tie, drawn for it since Lucide has none, KAN-252), and inside a popup only
+Workplace's options carry glyphs, the card's own three, and Experience's
+(levelIcon: a backpack, the mortarboard, a check badge; KAN-252, asked for
+2026-10-17), as their chips do in the panel. Options are medium weight, as the
+facet buttons are; at body weight they read thin beside the row. A facet's popup is as
+wide as its longest option, never narrower than its button and never wider than
+the screen (FacetPopup, KAN-252): the vendored Select is only the button's
+width, which wrapped Role's options onto up to four lines and cut off
+Infrastructure Engineer's checkbox. Salary is a range, "$ 30 /hr – $ 50 /hr", either end open,
 with presets (hourly when only internships are picked, yearly when none are, `payUnits`) that fill the
 minimum; a posting matches when its own range overlaps it, compared as yearly
 figures in USD.
@@ -86,12 +104,16 @@ opens upward, and no taller than the room, when the panel's scroll area has less
 room below than above, as at Start Date), a keyboard combobox (Up, Down, Enter,
 Escape closing only the list), picks shown below as pills with a cross, and
 nothing pre-picked. Clear All remounts the pickers so typed text clears too. The
-row's Role stays a checklist dropdown, as Workplace is; only the panel's is a
-picker. A picked state narrows its country, in the panel as in the row. Start
+row's Role is a checklist dropdown with a search field at its top (KAN-252,
+asked for 2026-10-17: forty-odd roles were too many to scroll), Workplace's rows
+under the panel picker's field. It is Base UI's Combobox, not a Select, since a
+Select whose rows come and go undoes an untick (below). A pick keeps the typed
+search, as the panel's picker does, and each open starts empty. A picked state narrows its country, in the panel as in the row. Start
 Date offers seasons (Summer 2027), grouped by the API from the terms postings
-use; Visa offers Sponsors Visas and Hide Jobs That Rule Me Out. Every option
-shows its job count from GET /jobs/facets, across the whole feed rather than the
-current results. Location, fed by GET /jobs/locations, is a Popover of two
+use; Visa offers Sponsors Visas and Hide Jobs That Rule Me Out. No option shows
+a job count, in the row or the panel (removed 2026-10-17, KAN-252, as clutter);
+the panel's Show N Jobs is the one count. GET /jobs/facets still sends them.
+Location, fed by GET /jobs/locations, is a Popover of two
 panels, not a Select: countries left, the ticked country's states right. A
 country alone is all of it, with states ticked just those (ticksFrom/placesFrom
 there). Don't move it back into a Select with rows that come and go: a multiple

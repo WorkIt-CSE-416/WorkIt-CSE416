@@ -33,20 +33,18 @@ type Glyph = ComponentType<{ className?: string }>;
  *  14px. `default` fits All Filters' panel. */
 export type ControlSize = "default" | "lg";
 
-/** One option: a choice Chip (ui/chip.tsx), pressed or not, with its job
- *  count after the label. Pressed is the brand's tint, as a picked facet
- *  button is in the row. `lg` is the Chip's own large size. It drew its own
- *  pill until KAN-251. */
+/** One option: a choice Chip (ui/chip.tsx), pressed or not. Pressed is the
+ *  brand's tint, as a picked facet button is in the row. `lg` is the Chip's
+ *  own large size. It drew its own pill until KAN-251, and showed its job
+ *  count after the label until KAN-252. */
 export function OptionChip({
   pressed,
-  count,
   Icon,
   onClick,
   size = "default",
   children,
 }: {
   pressed: boolean;
-  count?: number;
   Icon?: Glyph;
   onClick: () => void;
   size?: ControlSize;
@@ -56,11 +54,6 @@ export function OptionChip({
     <Chip pressed={pressed} size={size} onClick={onClick}>
       {Icon && <Icon className={cn("size-3.5", !pressed && "text-ink-meta")} />}
       {children}
-      {count != null && (
-        <span className={cn("tabular-nums", pressed ? "text-brand/70" : "text-ink-meta")}>
-          {count.toLocaleString("en-US")}
-        </span>
-      )}
     </Chip>
   );
 }
@@ -74,7 +67,6 @@ const LIST_GAP = 8;
 export type PickOption = {
   value: string;
   label: string;
-  count?: number;
   /** Drawn indented under the option before it (a state under its country, a
    *  specialty under its category) while nothing is typed. */
   nested?: boolean;
@@ -303,13 +295,6 @@ export function SearchPicker({
                     <span className={cn("min-w-0 flex-1 truncate", !nested && "font-medium")}>
                       {o.label}
                     </span>
-                    {o.count != null && (
-                      <span
-                        className={cn("text-note text-ink-meta tabular-nums", lg && "text-body")}
-                      >
-                        {o.count.toLocaleString("en-US")}
-                      </span>
-                    )}
                   </div>
                 );
               })
