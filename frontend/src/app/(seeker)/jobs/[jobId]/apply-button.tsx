@@ -151,8 +151,11 @@ export function ApplyButton({
 
   return (
     <>
+      {/* sm, as every action in the bar it sits in (./action-bar.tsx): lg
+          stood 12px over Ask Scout and Tailor My Resume (frontend/docs/
+          design.md, "Pick a button's size by where it sits"). */}
       <Button
-        size="lg"
+        size="sm"
         className={className}
         onClick={() => {
           setOpen(true);
