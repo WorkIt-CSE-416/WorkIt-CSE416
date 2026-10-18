@@ -57,6 +57,7 @@ def test_queue_inserts_only_listed_jobs_and_keeps_existing_rows():
     assert "CAST(%(param_2)s AS application_stage)" in sql
     assert "job_postings.company_id IS NULL" in sql
     assert "job_postings.status = %(status_1)s" in sql
+    assert "job_postings.apply_url ~* %(apply_url_1)s" in sql  # Greenhouse only
     assert "ON CONFLICT (applicant_id, job_id) DO NOTHING" in sql
     assert "RETURNING job_applications.job_id" in sql
 
@@ -123,3 +124,10 @@ def test_matches_hide_every_job_with_an_application():
     sql = _sql(clause)
     assert sql.startswith("NOT (EXISTS (SELECT")
     assert "stage" not in sql
+
+
+def test_matches_can_take_only_jobs_auto_apply_fills():
+    assert matching(JobFilters()) == []
+    (clause,) = matching(JobFilters(auto_apply_only=True))
+    assert _sql(clause).startswith("job_postings.apply_url ~* '^https?://")
+    assert "greenhouse\\.io" in _sql(clause)

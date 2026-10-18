@@ -74,6 +74,12 @@ moving at `/design-kit/motion`. The rules:
   sheet locally and drops `?app=` in `onOpenChangeComplete`, since the
   navigation unmounts it; `applications/detail-panel.tsx` says why it
   remembers the object it closed on rather than the id.
+- **A toast rises from below the window and drops back out.**
+  `--animate-toast-in` (280ms glide) moves it up its own height plus the
+  16px gap, so it comes from past the window's bottom edge;
+  `--animate-toast-out` (180ms exit, shorter) sends it back. The card is
+  removed on its `animationend`, with a timer behind it, since a hidden tab
+  never fires one (`components/ui/toast.tsx`).
 - **Reduced motion is one rule**, at the foot of the motion CSS: every
   animation, transition and view transition completes at once (1ms, not 0,
   so Base UI's dialogs still hear an animation end). Do not add

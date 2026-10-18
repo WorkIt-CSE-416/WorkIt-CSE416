@@ -130,6 +130,18 @@ map, never the other's.
 ## Components
 
 `components/save-button.tsx` is the one Save control on every job surface.
+
+**Every short "this happened" message is a toast** (`components/ui/toast.tsx`):
+`useToast().show({ message, action? })` from any page, since one
+`<ToastProvider>` sits in the root layout beside the tooltips'. A toast is a
+white card (`bg-panel`, the subtle border, `--shadow-lift`, the card radius)
+in the window's bottom right corner, body text, an optional action as a
+secondary button (Undo), and a cross. It stays 5 seconds, paused while the
+pointer or focus is on it, so an Undo is never lost mid-reach; at most three
+show, newest nearest the corner. The provider holds them, so a toast
+outlives the part that raised it (a row that a refresh removes). Use one for
+a result the page does not show by itself, never for an error a form can
+show beside its field.
 `lib/format-count.ts` prints a headline figure ("1,234", "12.3K") in en-US so
 the server and the browser print the same.
 

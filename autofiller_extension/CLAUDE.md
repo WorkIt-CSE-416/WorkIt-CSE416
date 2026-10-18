@@ -37,10 +37,11 @@ here:
 - **The webapp's role is a thin, optional bridge** (`frontend/src/lib/
   autofill-extension.ts`, `frontend/src/components/autofill-badge.tsx`),
   using Chrome's `externally_connectable` to ask "are you here, and signed
-  in" — nothing more. It shows a small badge next to a job's Apply button
-  when the answer is yes. The extension's core function never depends on
-  this bridge: it works from its own popup on whatever page the user is on,
-  bridge or no bridge.
+  in", and (the Auto Apply page's Start) to ask the runner to open the next
+  queued application — nothing more. It shows a small badge next to a
+  job's Apply button when the answer is yes. The extension's core function
+  never depends on this bridge: it works from its own popup on whatever
+  page the user is on, bridge or no bridge.
 
 **`externally_connectable.matches` takes exact origins, never a glued
 prefix+wildcard.** `manifest.json` lists `http://localhost:3000/*` and the
@@ -70,6 +71,55 @@ prototype never auto-submits, ever** — the user always clicks the real
 Submit button themselves, on the ATS's own page, after reviewing what got
 filled. `activeTab` also means no broad host-permission prompt for
 arbitrary websites at install time.
+
+## The auto-apply runner (KAN-223): opens the next queued application
+
+`src/background/runner.js` is the runner's first step
+(`auto-apply/architecture.md`, "The run"). The Auto Apply page's Start,
+and a job card's Auto Apply once it queues the job, send `run/open` over
+`externally_connectable`; the runner reads the oldest queued application
+from `GET .../applications/next` and opens its `job.apply_url`. It fills
+nothing yet: injecting the fill, Submitted/Skip and `POST .../finish` are
+the next steps. Two more messages serve the webapp's "Working in
+Browser": `run/status` answers which job posting the run's tab shows
+(null once the student closes it), and `run/show` switches to that tab.
+
+- **The URL always comes from the API, never the message.** `run/open`
+  carries no body: a page on an allowed origin that could hand the worker
+  a URL could make it open any site.
+- **One background tab for the run, beside the WorkIt tab that asked.**
+  `chrome.tabs.create({ active: false })` in the sender's window the first
+  time, then `chrome.tabs.update` on the same tab; its id lives in
+  `chrome.storage.session`, since Chrome stops the worker after ~30
+  seconds idle and clears its variables. A closed tab is created again.
+  **Never a new window**: a window opened with `focused: false` from a
+  full-screen window on macOS got its own Space, and macOS switched the
+  student to it; no Chrome API stops that. The tab is hidden until the
+  student opens it, so Chrome slows its timers and stops its redraws,
+  which some dropdowns wait on: the fill step must work in a hidden tab
+  (`auto-apply/architecture.md`, "Hidden tabs run slowly").
+- **The run's tab is never discarded.** It is set
+  `autoDiscardable: false`, so Memory Saver can't throw away a
+  half-filled form in a tab the student has not looked at yet.
+- **No new permission.** `chrome.tabs.create`, `chrome.tabs.update`
+  (`autoDiscardable` too), `chrome.windows.update` and a tab's load
+  `status` need none (only url, title and favicon need `tabs`).
+  Injecting the fill into these tabs will: `activeTab` doesn't cover a tab
+  the runner opened, so that step adds hiring-system `host_permissions`.
+- **`run/open` never reloads the application already open.** When the
+  run's tab shows the next application's job posting, it is left as it
+  is: a second click (another card, Start again) would otherwise throw
+  away what the student typed. The saved job id is what's compared, not
+  the URL, which the form's own steps change.
+- **`run/open` answers once the page loads** (`status: "complete"`, 30
+  seconds at most) or with why nothing opened: `queue_empty`,
+  `signed_out`, or an error such as a closed tab. Greenhouse and Ashby draw
+  their form after `complete`; the fill step must wait for fields itself.
+
+Still open: a Lever `apply_url` opens the job posting, not the form (that
+is at `.../apply`). Whether a Greenhouse form fills in a hidden tab
+(dropdowns, file upload) is untested. A tab closed within a second or two
+of opening should be reported as that, not as the student's Skip.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
 
@@ -141,10 +191,11 @@ if this turns out to be too conservative in practice.
 
 ## No backend changes, and why that's safe
 
-`src/background/api.js` calls three endpoints that already exist for the
+`src/background/api.js` calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
-/applicants/{id}/resumes[/...]`. All three were already reachable with a
-Bearer token before this folder existed.
+/applicants/{id}/resumes[/...]`, and the runner's `GET
+/applicants/{id}/applications/next`. All were already reachable with a
+Bearer token before the extension called them.
 
 The backend needed **zero CORS changes** for this to work: MV3 extensions
 with a target host listed in `manifest.json`'s `host_permissions` bypass

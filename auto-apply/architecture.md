@@ -5,7 +5,7 @@ is filled in; check it and submit", in as few steps as possible. This is the
 one document for auto-apply (KAN-223): what it does, why, and how the code is
 built. It replaces the earlier `design.md`.
 
-> **Status (2026-10-15).** Decided: the run happens in the student's own
+> **Status (2026-10-16).** Decided: the run happens in the student's own
 > Chrome, through the WorkIt extension. No WorkIt server ever drives a
 > browser. The code is function based, in three layers, so that an MCP
 > server can expose it later. **Built:** the Match step's function ("Match
@@ -14,7 +14,16 @@ built. It replaces the earlier `design.md`.
 > `backend/app/routers/auto_apply.py` ("Data model", "API routes"), which
 > the webapp now calls: a job's Auto Apply button queues it, Start Auto
 > Apply queues a batch, and Live Activity lists the applications. The
-> extension is next. Everything else is a plan. The exact function names are a
+> resume builder on `main` (KAN-181, 207, 208, 217, 220) built the resume
+> side: base resumes from the experience bank, Tailor, the PDF render and
+> sent resumes. The run reuses them ("The resume"), and the resume step's
+> backend is built: `pick_resume`, `prepare_resume` and `POST
+> .../applications/{job_id}/resume`. The runner's first step is built:
+> Start and a job card's Auto Apply send `run/open`, and the extension
+> opens the next queued application's `apply_url` in its own background
+> tab (`autofiller_extension/src/background/runner.js`); the webapp shows that
+> job as Working in Browser. It fills nothing yet.
+> Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
 
 ## Terms
@@ -25,8 +34,12 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 |---|---|
 | **Hiring system** | Software a company uses to collect applications (an ATS): Greenhouse, Lever, Workday |
 | **Job posting** | One open job, and its `job_postings` row. `apply_url` is the page on the hiring system where the student applies |
-| **Base resume** | A resume the student uploaded, parsed into `resumes.parsed_json`. The **primary resume** is the one marked default |
-| **Tailored resume** | A copy of a base resume, rewritten for one job posting |
+| **Experience bank** | The student's entries, bullets and skills (`backend/app/services/bank.py`). Matching, base resumes and Tailor read it |
+| **Base resume** | A resume built from the experience bank (`built_resumes` with no `job_posting_id`, KAN-207). Its default is `applicant_profiles.default_built_resume_id` |
+| **Tailored resume** | A built resume for one job posting (`built_resumes.job_posting_id`), made with Tailor (KAN-217). At most one per job posting |
+| **Uploaded resume** | A file the student uploaded (`resumes`). Its default is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
+| **Default resume** | The one resume the student starred, a base or an uploaded one: My Profile calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two |
+| **Sent resume** | The exact file a student downloaded or applied with, kept in `sent_resumes` (KAN-208). With `job_posting_id` it records what went to that job posting (Apply, KAN-220) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
 | **Run** | The extension working through the queue, one application at a time |
@@ -38,12 +51,12 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 ## 1. Summary
 
 ```
- 1. Match              2. Tailor (later)        3. Fill                   4. Record
- fetch_recommended  →  the model rewrites the → the extension opens    → the student clicks the
- ranks job postings    primary resume for one   apply_url in the run's   hiring system's Submit,
- against the primary   job posting; the API     window, fills the form,  then "Submitted" or "Skip";
- resume; a batch of    renders it to PDF        attaches the PDF         the API saves the result
- 10 is queued
+ 1. Match              2. Resume                3. Fill                   4. Record
+ fetch_recommended  →  the API picks the     →  the extension opens    → the student clicks the
+ ranks job postings    resume (tailored, else   apply_url in the run's   hiring system's Submit,
+ against the           the default) and keeps   window, fills the form,  then "Submitted" or "Skip";
+ experience bank; a    it as a sent resume      attaches the PDF         the API saves the result
+ batch of 10 is queued for the job posting
 ```
 
 **The student clicks Submit on every application.** The run automates
@@ -53,7 +66,8 @@ everything up to that click and nothing after it ("Decisions", below).
 
 - Find the job postings that fit a student, using the matching that exists.
 - Fill the hiring system's form with the student's data and resume.
-- Later, make one tailored resume per job posting, with no invented content.
+- Attach the right resume to each application: the tailored one when the
+  student made one with Tailor, else their default.
 - Track every application, so the Applications screen shows real data.
 - Expose the pipeline to AI agents through an MCP server, and charge for
   auto-apply.
@@ -72,20 +86,24 @@ everything up to that click and nothing after it ("Decisions", below).
 |---|---|---|
 | Job postings | Scraped and imported every 3 hours, with `apply_url` and a full description | `scraper/`, `backend/app/scripts/import_jobs.py`, `docs/job-pipeline.md` |
 | Matching | `fetch_recommended()` scores job postings 0–100 against the experience bank, with up to 3 highlights and `min_match`. Also served as `GET /jobs/recommended/{applicant_id}` | `backend/app/routers/jobs.py`, `backend/app/services/matching/` |
-| Parsed resume | `ParsedResume`: education, experience, skills, projects, certifications. No name or contact details | `backend/app/models/dto.py`, `backend/app/models/resume.py` |
-| Resume file | Uploaded PDF in the `Resume` Storage bucket, served by `GET .../resumes/{id}/file` | `backend/app/routers/resumes.py` |
-| LLM access | One OpenAI-compatible client; the model is configuration; a daily cap per account | `scout/workit_scout/llm.py`, `settings.py`, `quota.py` |
-| Privacy boundary | Maps `parsed_json` to model input without names, contact details or links | `scout/workit_scout/facts.py` |
+| Experience bank | The student's facts, filled by intake and import. Matching, base resumes and Tailor read it | `backend/app/services/bank.py`, `backend/app/routers/bank.py` |
+| Base and tailored resumes | Built from the bank and rendered to PDF with Tectonic (Jake's Resume). Tailor proposes changes for one job posting; the student accepts or rejects each | `backend/app/services/built_resumes.py`, `services/resume_render/`, `services/tailor.py`, `frontend/src/app/(seeker)/jobs/[jobId]/tailor/` |
+| Sent resumes | `POST .../sent-resumes` keeps the exact file and answers a 5-minute download link. With `job_posting_id` it is Apply | `backend/app/services/sent_resumes.py`, `backend/app/routers/sent_resumes.py` |
+| Uploaded resume | PDF or DOCX in the `Resume` Storage bucket. Feeds the bank's import | `backend/app/routers/resumes.py` |
+| LLM access | Scout's model chain. Daily uses per student and feature; Tailor has 2 a day | `scout/workit_scout/llm.py`, `backend/app/services/usage.py` |
+| Privacy boundary | Identity fields (name, contact details, links) never reach a model: the seam removes them | `backend/app/services/identity.py`, `scout/` |
 | Form filling | Chrome extension, started from its popup. Fills text fields, dropdowns and repeated sections. Never submits | `autofiller_extension/` |
 | Webapp ↔ extension link | `externally_connectable`. Today it only answers "installed and signed in?" | `frontend/src/lib/autofill-extension.ts` |
-| Auto Apply page | The primary resume, a Start button that only changes local state, and Live Activity over a fixture | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
+| Auto Apply page | "Resume List" (every resume the student has, with the pick rule under it), Start Auto Apply, and Live Activity from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
 | Applications screen | UI only, over a fixture (`data.ts`) | `frontend/src/app/(seeker)/applications/` |
 
 **Built since:** the queue (`job_applications.stage`), its routes, and the
 webapp's use of them (Auto Apply buttons, Start Auto Apply, Live Activity).
-**Missing:** the extension calling them, the runner, file upload in the
-extension, `autofill_runs`, tailoring and the PDF renderer, and the MCP
-server.
+The resume builder (KAN-181, 207, 208, 217, 220) also built base resumes,
+Tailor, the PDF render and sent resumes. **Missing:** the resume step
+(picking the resume and keeping it for the job posting), the extension
+calling the routes, the runner, file upload in the extension,
+`autofill_runs`, and the MCP server.
 
 ---
 
@@ -122,7 +140,7 @@ server.
 
 | Part | Does | Never does |
 |---|---|---|
-| **WorkIt API** | Scores matches. Queues batches. Owns applications and autofill runs. Tailors and serves resumes | Opens a browser. Decides when the run moves on |
+| **WorkIt API** | Scores matches. Queues batches. Owns applications and autofill runs. Picks the resume for each application and serves the file | Opens a browser. Decides when the run moves on |
 | **Auto Apply page** | Shows Live Activity. Sends Start and Pause. Keeps the session fresh while the run goes on ("Chrome limits") | Fills anything. Holds the queue in memory as the truth |
 | **Runner** (extension background worker) | Takes the next application, opens its tab, starts the fill, waits for the student, records the result | Clicks Submit. Refreshes the session itself |
 | **Content scripts** (in the hiring system's tab) | Fill fields, attach the PDF, show the overlay with **Submitted** and **Skip** | Talk to the API. Move to another page |
@@ -154,8 +172,8 @@ same functions.
   It does not call other layer-1 functions. Pure functions take no database
   session, so tests need no database.
 - **Layer 2** functions are each **safe to call alone**. A step that must
-  always run (the grounding check before a tailored resume is saved) runs
-  inside the layer-2 function, so no caller can skip it. A step can be very
+  always run (the stage check before a resume is kept for an application)
+  runs inside the layer-2 function, so no caller can skip it. A step can be very
   thin: `get_matches` may only call `fetch_recommended`.
 - **Layer 3** holds no pipeline logic. It has about as many functions as
   layer 2, not fewer: it is an adapter, not a parent. It never combines two
@@ -174,22 +192,23 @@ Names are not final.
 | Layer | Function | Does |
 |---|---|---|
 | 1 | `fetch_recommended(db, account, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
-| 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. Every hiring system stays in. **Built** |
+| 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. **Built** |
+| 1, pure | `auto_apply_supported(apply_url)` (`hosts.py`) | Whether the host is a hiring system auto apply fills: Greenhouse for now. `AUTO_APPLY_SUPPORTED` in `queries/jobs/filters.py` is the same rule in SQL, required by the matches and `queue_applications`. **Built** |
 | 1 | `queue_applications(db, applicant_id, job_ids)` | Saves the open ones with no application yet as `queued`; answers which. **Built** |
 | 1 | `fetch_stage(db, applicant_id, job_id)` | The application's stage, or `None`. **Built** |
 | 1 | `fetch_applications(db, applicant_id, stages)` | The applications, newest first, each with its job posting's listing and `open`. **Built** |
 | 1 | `fetch_next_application(db, applicant_id)` | The oldest queued application whose job posting is open, with its `apply_url`. **Built** |
-| 1, LLM | `tailor_resume(llm, parsed, job)` | A tailored `ParsedResume` (in `scout/`) |
-| 1, pure | `check_grounding(base, tailored)` | Lists anything the model invented |
-| 1, pure | `render_resume_pdf(parsed, contact)` | PDF bytes |
-| 1 | `store_tailored_resume(db, storage, …)` | Saves the PDF and the resume row |
+| 1 | `pick_resume(db, applicant_id, job_id)` | The resume to attach: tailored to this job posting, else the default resume, else `None` ("The resume"). **Built** |
+| 1 | `sent_resumes.send_built`, `send_uploaded` | Keep the file as a sent resume linked to the job posting; unchanged content returns the last one. **Built** (KAN-208, KAN-220) |
 | 1 | `record_run(db, application_id, report)` | Saves one autofill result |
 | 1 | `set_stage(db, applicant_id, job_id, stage)` | Moves it; `applied` also sets `applied_at`. **Built** |
 | 2 | `get_matches(db, account, filters, min_match=60, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
 | 2 | `start_batch(db, account, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
 | 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
+| 1 | `remove_queued(db, applicant_id, job_id)` | Deletes the application only while it is `queued`, in one statement, so a fill that finishes it meanwhile is never undone. **Built** |
+| 2 | `dequeue_job(db, applicant_id, job_id)` | The Auto Apply button's second click and Live Activity's cross: `remove_queued`, one commit; the job has no application again, so a later batch may pick it. `NotFound` without one, `WrongStage` past queued. **Built** |
 | 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. **Built** |
-| 2 | `prepare_application(db, llm, storage, application_id)` | `tailor_resume` → `check_grounding` → `render_resume_pdf` → `store_tailored_resume`. If any step fails, keep the primary resume; never block the fill |
+| 2 | `prepare_resume(db, storage, applicant_id, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`; none, `NotFound`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting → one commit → the sent resume and a 5-minute link, or `None` with no resume. Never tailors. **Built** |
 | 2 | `finish_application(db, applicant_id, job_id, outcome)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `set_stage`: submitted → `applied`, skipped → `skipped`, failed → `needs_you`. **Built**, without `record_run`, which waits for `autofill_runs` |
 
 ### 5.3 One step through all three layers
@@ -212,17 +231,17 @@ Webapp or AI agent: "start a batch of 10"
 backend/app/auto_apply/
     rules.py        layer 1, pure:  pick_batch
     queries.py      layer 1, DB:    queue_applications, fetch_stage, fetch_application, fetch_applications,
-                                    fetch_next_application, set_stage; later record_run
-    pipeline.py     layer 2:        get_matches, start_batch, queue_job, list_applications,
-                                    get_application, next_application, finish_application; later prepare_application
+                                    fetch_next_application, set_stage, remove_queued, pick_resume; later record_run
+    pipeline.py     layer 2:        get_matches, start_batch, queue_job, dequeue_job, list_applications,
+                                    get_application, next_application, finish_application, prepare_resume
 backend/app/routers/auto_apply.py   layer 3: the routes. Every router lives in app/routers/
-scout/workit_scout/tailor.py        layer 1, LLM: tailor_resume, check_grounding
 the MCP server                      layer 3, later: its own small program that calls the routes
 ```
 
-`backend/CLAUDE.md` says services hold no database code. `app/auto_apply/`
-holds functions that take a session, so it is a new kind of folder. Record
-that rule in `backend/CLAUDE.md` when the folder is created.
+`app/auto_apply/` holds functions that take a session, so it is its own
+kind of folder (`backend/CLAUDE.md`, Code layout). `prepare_resume` calls
+`services/sent_resumes.py` for the file, never Storage or Tectonic itself, so
+a sent resume from auto apply follows the same rules as one from Apply.
 `fetch_recommended` stays in `routers/jobs.py`, since the Jobs page uses it
 too; layer 2 imports it from there.
 
@@ -234,9 +253,9 @@ read and write the queue through the routes, like any other caller.
 ```js
 runBatch()                       // parent: a loop, nothing else
   → nextApplication()            // GET from the API
-  → openApplicationTab(url)      // the run's own window, one tab at a time
-  → fillForm(tabId)              // the field engine that exists
-  → attachResume(tabId, resumeId)
+  → openApplicationTab(url)      // the run's own background tab, reused
+  → prepareResume(jobId)         // POST to the API: the sent resume and its link
+  → fillForm(tabId, file)        // the field engine that exists, plus the file
   → waitForDecision(tabId)       // the student clicks "Submitted" or "Skip"
   → finishApplication(...)       // POST to the API
 ```
@@ -247,7 +266,11 @@ runBatch()                       // parent: a loop, nothing else
 
 The run applies to the student's matches. Matching already exists and is
 reused: it scores every listed job posting against the student's
-**experience bank** (KAN-212), never an uploaded resume.
+**experience bank** (KAN-212) and its embedding. It reads no resume at all,
+uploaded or built. So matching and the resume are separate: the bank decides
+which job postings a batch gets, and "The resume" decides what file each
+application sends. A student with an empty bank cannot start a batch, even
+with resumes.
 
 - **`fetch_recommended(db, account, min_match=60)`** in
   `backend/app/routers/jobs.py` returns the matches, best first, as
@@ -274,21 +297,28 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    and ranks in one call. There is no separate "match the resume" step.
 2. **Leave out what is done.** Every job posting that already has an
    application for this student (queued, applied, skipped) stays out. Without
-   this, every click returns the same 10. Applied ones are left out today:
-   `get_matches` sets `JobFilters.applied_by`, the Jobs page's own filter over
-   `job_applications` (KAN-232), so they are never scored. Queued and skipped
-   ones join that filter when the queue has a table.
+   this, every click returns the same 10. `get_matches` and `start_batch`
+   set `JobFilters.no_application_by`, so a job posting with an application
+   at any stage is never scored.
 3. **Freeze the batch at Start.** Pick the 10 once and save them as `queued`
    applications. New job postings arrive every 3 hours and scores change, so
    a list read during the run could change under it. A saved batch also lets
    Pause, Resume and a Chrome crash continue with the same 10.
-4. **Use the student's filters.** Matching reads the resume only, not
+4. **Use the student's filters.** Matching reads the experience bank only, not
    location, visa or start date. Pass the student's preferences as
    `filters=`, or let them set filters on the Auto Apply page.
 5. **Keep one job posting per company and title.** Some roles are listed
-   once per office. The batch does not filter by hiring system: a job
-   posting the extension cannot fill (Workday, a company's own site) is
-   queued like any other, and its fill fails to `needs_you` ("The run").
+   once per office.
+6. **Only hiring systems the extension fills: Greenhouse, for now.** The
+   matches, a batch and a job's Auto Apply button take a job posting only
+   when its `apply_url` host is a `greenhouse.io` one
+   (`backend/app/auto_apply/hosts.py`, the one list; the SQL condition and
+   `JobListing.auto_apply` both read it). A company's own careers page that
+   embeds Greenhouse (`?gh_jid=`) stays out: the run would land on the
+   company's page, not the form. Add a hiring system there once its fill
+   works. This reverses an earlier choice to queue every hiring system and
+   let unfillable ones fail to `needs_you`: a student saw a Workday or
+   Ashby job queued that the run could only fail.
 
 Why 10: the student checks each form before Submit, so 10 applications take
 about 10 to 30 minutes. A small batch also limits the harm of a bad fill.
@@ -314,26 +344,27 @@ student can still finish it.
 ### 8.2 One application
 
 ```
- next ─▶ (tailor) ─▶ opening ─▶ filling ─▶ waiting ─▶ recording ─▶ next
-                       │          │          │
-                       ▼          ▼          ▼ tab closed = Skip
-                     failed     failed
+ next ─▶ resume ─▶ opening ─▶ filling ─▶ waiting ─▶ recording ─▶ next
+                     │          │          │
+                     ▼          ▼          ▼ tab closed = Skip
+                   failed     failed
 ```
 
 1. **next.** The runner asks the API for the next queued application. None
-   left: the run goes idle. Once tailoring exists, the API tailors the
-   application here if it has no tailored resume yet, so no caller has to
-   remember the step. Tailor the next one while the student checks the
-   current one, so the student does not wait.
-2. **opening.** It opens `apply_url` in the run's window ("Chrome limits")
+   left: the run goes idle.
+2. **resume.** The runner calls `prepare_resume`. The API picks the resume,
+   keeps it as a sent resume for this job posting and answers a 5-minute
+   link. The background worker downloads the file at once. No resume: the
+   run fills the form without one ("The resume"). The run never tailors.
+3. **opening.** It opens `apply_url` in the run's tab ("Chrome limits")
    and waits for the tab's `complete` status. Limit: 30 seconds.
-3. **filling.** It injects the content scripts (as the popup does today) and
-   sends `fill/start` with the resume id. The content script fills, attaches
+4. **filling.** It injects the content scripts (as the popup does today) and
+   sends `fill/start` with the file. The content script fills, attaches
    the PDF, and replies with the counts and the report. Limit: 60 seconds.
-4. **waiting.** The overlay shows what was filled, what failed and what was
+5. **waiting.** The overlay shows what was filled, what failed and what was
    skipped, and two buttons. The runner waits for `student/decision`, with
    no time limit. Closing the tab counts as **Skip**.
-5. **recording.** The runner saves an autofill run. **Submitted** moves the
+6. **recording.** The runner saves an autofill run. **Submitted** moves the
    application to `applied` and sets `applied_on`. **Skip** moves it to
    `skipped`, so the next batch does not pick it again.
 
@@ -376,7 +407,7 @@ The message makes the page fast; the API keeps it correct.
 
 | Direction | Type | Body |
 |---|---|---|
-| runner → tab | `fill/start` | `{ applicationId, resumeId }` |
+| runner → tab | `fill/start` | `{ jobId, resume: { name, type, base64 } \| null }`. The file goes as base64: a message carries JSON only |
 | tab → runner | `fill/result` | `{ filled, failed, skipped, report, resumeAttached }` |
 | tab → runner | `student/decision` | `{ decision: "submitted" \| "skipped" }` |
 
@@ -423,85 +454,114 @@ events. Two measures:
 - The open port from the Auto Apply page sends `run/status` every 20 seconds
   while the run goes on. Each message resets the idle timer.
 - The runner writes its cursor to `chrome.storage.session` after each step:
-  `{ state, applicantId, applicationId, tabId, windowId, step }`. When the
+  `{ state, applicantId, applicationId, tabId, step }`. When the
   worker starts again, it reads the cursor and continues from that step.
 
 ### 10.4 Hidden tabs run slowly
 
 Chrome slows timers in hidden tabs and stops page redraws. Some dropdowns wait
-for a redraw. So the tab is never hidden:
+for a redraw. The run's tab is hidden all the same:
 
-- The runner opens **one window** for the run (`chrome.windows.create`) and
-  reuses it, one tab at a time. The student's own windows stay as they are.
-- The current application's tab is always the active tab in that window.
+- The runner opens **one background tab** for the run (`chrome.tabs.create`
+  with `active: false`), beside the WorkIt tab, and reuses it. The student
+  stays on the page they were on.
+- **Never a new window.** The first build opened one with `focused: false`
+  to keep the tab visible. From a full-screen window on macOS, the new
+  window got its own Space and macOS switched the student to it. No Chrome
+  API prevents this, and a minimized window is hidden too.
+- The tab is set `autoDiscardable: false`, so Memory Saver never throws
+  away a half-filled form.
+- So the fill must work in a hidden tab: wait on DOM changes
+  (`MutationObserver`), not on redraws or `requestAnimationFrame`. Test
+  each hiring system's dropdowns and file upload in a background tab.
 - Only one application fills at a time.
 
 ---
 
-## 11. Tailoring (later)
+## 11. The resume
 
-Tailoring comes after the run works. The run makes applying faster with no
-AI at all; tailoring adds to it.
+### 11.1 What exists
 
-### 11.1 Tailor
+The resume builder on `main` (KAN-181, 207, 208, 217, 220) replaced this
+section's earlier plan: a `tailor_resume` in `scout/`, an fpdf2 render and a
+`resumes.tailored_from_id` column. **Do not build those.** The run reuses
+what exists:
 
-`tailor_resume` takes a base resume and a job posting and returns a tailored
-`ParsedResume`.
+- **Base resumes** are built from the experience bank (Generate) and
+  rendered to PDF with Tectonic. The student stars one as the default.
+- **Tailor** (KAN-217) works on one job posting at a time. `POST
+  .../tailor` proposes changes; the student accepts or rejects each one;
+  `POST .../tailor/done` saves the job posting's one tailored resume. The
+  truth rule (`services/truth_rule.py`, `invented`) drops a wording with a
+  number or a tool that is in neither its original bullet nor the bank's
+  skills, and Done refuses one (422). Identity fields never reach the model.
+- **Sent resumes** (KAN-208) keep every file a student downloads or applies
+  with, and answer a 5-minute download link. Unchanged content returns the
+  last sent resume, with no new file.
+- **Apply** on the job posting page (KAN-220) offers the tailored resume
+  first, else the default, and keeps the one sent as a sent resume linked to
+  the job posting.
 
-**It lives in `scout/workit_scout/tailor.py`.** Scout already has the model
-client, the privacy mapping and the test fake (`ScriptedLLM`). The rule in
-`scout/CLAUDE.md` holds: the package never imports the backend and never
-touches the database. Layer 2 loads the resume and the job posting and hands
-them in.
+### 11.2 Tailor stays out of the run
 
-**What the model may do:** reorder entries, bullets and skills so the most
-relevant come first; rephrase a bullet with the job posting's words when the
-bullet already states that fact; cut entries and bullets to keep one page.
+Tailor is finished for its own use: one job posting, with the student
+(`backend/tests/test_tailor.py`). It is not a step the run can take, for
+three reasons:
 
-**What the model must never do:** add a skill, an employer, a title, a date, a
-degree, a number or a technology that the base resume does not state. This is
-Scout's grounding rule (`scout/CLAUDE.md`, "Grounding"). Invented skills are
-the most common complaint about JobRight.
+1. **The limit.** A student has 2 Tailor runs per UTC day
+   (`AI_TAILOR_CAP`), and Tailor has 40% of a daily pool of 1,000 uses
+   across all students. A batch has 10 applications.
+2. **The review.** Tailor saves only the changes the student accepts. A run
+   with nobody watching would have to accept them all, and the truth rule
+   checks numbers and tools, not claims ("Open questions").
+3. **The time.** Each Tailor run is a model call of several seconds.
 
-**Two checks enforce it:**
+So **the run never tailors**. It attaches a tailored resume when the student
+made one with Tailor.
 
-1. **`check_grounding`, in code**, after the model replies. Every skill must
-   be in the base resume's skills. Every experience, education, project and
-   certification entry must match a base entry by name and title, with the
-   same dates. A reply that fails is rejected and the base resume is used.
-2. **The student's review** covers what code cannot check: whether a
-   rephrased bullet still says only what the original said.
+### 11.3 Picking the resume
 
-**The prompt is one frozen string** in the package, like `prompt.py`, so the
-provider can cache the prefix. **The output is JSON** that validates as
-`ParsedResume`; a reply that does not validate counts as a failure.
+`pick_resume` takes the first that exists:
 
-### 11.2 Render
+1. **The resume tailored to this job posting.** The student made it for this
+   job posting and reviewed every change.
+2. **The default resume.** The one the student starred, a base resume or an
+   uploaded file. There is only one: starring a resume clears the other
+   kind's pointer. An uploaded default with no stored file counts as none.
+3. **None.** The run fills the form without a resume, and the overlay says
+   "No resume attached", so the student can attach one by hand. The
+   application does not go to `needs_you`: the rest of the form is filled.
 
-The tailored `ParsedResume` plus the name and contact details from
-`applicant_profiles` become a one-page PDF.
+This is Apply's order (11.1), so a job posting gets the same resume from
+the Apply button and from auto apply. Apply then falls back to the first
+resume in its list; the run does not guess, so a student with resumes but no
+default gets none, and the Resume List says to star one. The run never
+generates a base resume: that is slow, and it counts toward the 5-resume
+limit.
 
-- **In the backend**, because the extension and the webapp both need the
-  same file and the API already owns the `Resume` bucket.
-- **A pure-Python library** (fpdf2 or ReportLab) with one fixed template.
-  Headless Chrome also works but makes the Vercel Function much larger and
-  slower to start.
-- **The file goes in the `Resume` bucket** under the student's folder, and
-  the tailored resume's row stores its `storage_path`. Then the existing
-  `GET .../resumes/{id}/file` serves it with no new code.
-- **Contact details are added here, after the model step.** They never go to
-  the model.
+### 11.4 Keeping the file
 
-A tailored PDF will not look like the student's own design, so the student
-can choose the base resume file instead.
+`prepare_resume` keeps the file as a sent resume linked to the job posting,
+as Apply does:
 
-### 11.3 Review
+- **The student sees what went out.** The Sent list and the job posting
+  page's "You sent <name> on <date>" show it, the same as for Apply.
+- **A retry makes nothing new.** When Chrome closes and the run starts
+  again, unchanged content returns the same sent resume.
+- **It is fast.** A built resume renders in the request (Tectonic, about
+  0.3 s); an uploaded resume makes no new file.
+- **The link lasts 5 minutes.** The background worker downloads the file at
+  once and never stores the link.
+- **No new column.** An application's resume is the last sent resume for
+  its job posting, so `job_applications` needs no `resume_id`.
 
-The Auto Apply page lists the batch. For each application it shows the job
-posting, the match score, and the tailored resume next to the base resume,
-with the changed lines marked. The student can approve it, edit it (the same
-editor as My Profile's, `resume-edit-dialog.tsx`; the backend re-renders the
-PDF), use the base resume instead, or remove the application.
+### 11.5 Later
+
+- **Tailor before Start.** Live Activity links each queued application to
+  its job posting's Tailor screen, so the student tailors the ones that
+  matter, within the daily limit, before the run.
+- **Show the pick per application.** Live Activity names the resume each
+  queued application will get (`pick_resume`, read only).
 
 ---
 
@@ -537,9 +597,9 @@ disagree. Migration `c0467afe819c` added:
   a delete, so the row and the listing stay; `fetch_next_application` passes
   over it and `GET .../applications` marks it `open: false`. Only a deleted
   job posting deletes its rows (CASCADE).
-- **Later columns**, when their steps are built: `resume_id` (the resume to
-  attach, tailored or base), `tailor_status`, `match` (the score when
-  queued). The tracker's stages (`interviewing`, `offer`, `rejected`) are a
+- **Later columns**, when their steps are built: `match` (the score when
+  queued). No `resume_id`: the resume is the sent resume linked to the job
+  posting ("The resume"). The tracker's stages (`interviewing`, `offer`, `rejected`) are a
   later ticket (models `CLAUDE.md`, Out of scope) and an `ALTER TYPE`.
 
 ### `autofill_runs`
@@ -556,17 +616,6 @@ One row per fill attempt. A failed run does not change the application.
 | `created_at` | timestamptz | |
 
 This data also shows which hiring systems need adapter work.
-
-### `resumes`: one new column
-
-`tailored_from_id uuid null`, FK `resumes.id`, SET NULL. It marks a tailored
-resume.
-
-- My Profile's resume list must hide rows where it is not NULL, or each
-  application adds a resume to that list.
-- A tailored resume is never the default resume and is never embedded for
-  matching.
-- `raw_text` stays NULL. The resume never existed as uploaded text.
 
 ### `autofill_answers`
 
@@ -592,21 +641,19 @@ function. Every route checks that the caller owns the applicant, like
 | GET | `/applicants/{id}/auto-apply/matches` | `get_matches` | The matches a batch would queue, with the Jobs page's filters. **Built** |
 | POST | `/applicants/{id}/auto-apply/batches` | `start_batch` | Queues a batch (`{"size": 10}`, at most 50); answers the job ids. **Built** |
 | POST | `/applicants/{id}/applications` | `queue_job` | A job's Auto Apply button: queues `{"job_id"}`. **Built** |
+| DELETE | `/applicants/{id}/applications/{job_id}` | `dequeue_job` | Takes a queued job out of the queue; 204. 404 with no application, 409 past queued. **Built** |
 | GET | `/applicants/{id}/applications` | `list_applications` | Live Activity and later the tracker. `?stage=` repeats. **Built** |
 | GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. **Built** |
 | GET | `/applicants/{id}/applications/{job_id}` | `get_application` | One application, as the list has it; 404 without one. Registered after `/next`. **Built** |
 | POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
-| POST | `/applicants/{id}/applications/{job_id}/tailor` | `prepare_application` | Make or remake the tailored resume. Counts toward the cap |
+| POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 404 with no application or a closed job posting, 409 when not queued or needs_you, 503 when the PDF cannot be made, 502 when Storage refuses the file. **Built** |
 
 An application is named by its job id: the row's key is `(applicant_id,
 job_id)`, and the applicant is in the path. `/jobs/recommended/{id}` stays
 the Jobs page's route; it does not leave out queued jobs.
 
-**Tailoring is slow** (several seconds per model call). The `tailor` route
-can answer `202` and set `tailor_status = pending`, and the webapp polls the
-application. A Vercel Function can run long enough for one call, so start
-with doing the work inside the request, and move to a background step only
-if it times out.
+**No background step.** The `resume` route renders inside the request
+(about 0.3 s) and calls no model.
 
 ---
 
@@ -618,14 +665,15 @@ An MCP server publishes a list of tools. An AI agent reads the list and
 decides by itself which tools to call, and in which order. **The agent
 becomes the parent of the layer-2 steps.** So:
 
-1. **Expose layer 2, never layer 1.** If `store_tailored_resume` were a tool,
-   an agent could call it without `check_grounding`.
+1. **Expose layer 2, never layer 1.** If `send_built` were a tool, an agent
+   could keep a resume for a job posting with no application, skipping the
+   stage check.
 2. **Expose few tools.** A short list is easier for an agent to use well.
    Suggested: `get_matches` (read only), `start_batch(size)` (queues and
    returns at once), `get_batch_status` (each application's stage; the agent
-   polls it), `skip_application(id)`.
-3. **Not one "do everything" tool.** Tailoring 10 resumes takes many model
-   calls, near the time limit of one request. The student fills and submits
+   polls it), `skip_application(id)`, `dequeue_job(id)`.
+3. **Not one "do everything" tool.** Tailoring takes a model call and the
+   student's review per job posting. The student fills and submits
    in Chrome over many minutes, and a tool cannot wait for that. And the
    agent could not stop between steps to show the student the matches.
 4. **Inputs and outputs are ids and plain data.** An agent can only pass
@@ -670,7 +718,7 @@ it later if needed.
 Reading routes are free: they show what the webapp shows. **What costs money
 is auto-apply itself**: a batch, its fills, the tailored PDFs. So the plan
 limit sits in the layer-2 step that does the action (`start_batch`,
-`prepare_application`), not in the route or the MCP server. Every caller
+`prepare_resume`), not in the route or the MCP server. Every caller
 meets it, whichever way they come in, so nobody can avoid it by calling the
 routes with a normal sign-in token. The `usage` table counts each action; a
 payment service (Stripe) bills a monthly plan or per use.
@@ -688,14 +736,13 @@ tools still run on our server, and we pay for the work inside them.
 | Autofill | The student's Chrome | None | Not needed |
 
 **The student's AI can write the tailored resume**, with two tools:
-`get_tailoring_task(application_id)` returns the resume facts, the job
-description and the rules; the agent writes the resume;
-`submit_tailored_resume(application_id, resume_json)` validates it, runs
-`check_grounding` and renders the PDF. Our model cost for MCP users is then
+`get_tailoring_task(application_id)` returns the bank facts, the job
+description and the rules; the agent proposes the changes;
+`submit_tailored_resume(application_id, changes)` runs the truth rule and
+saves them as Tailor's Done does. Our model cost for MCP users is then
 close to zero.
 
-- **Never trust the agent's output.** The grounding check stays on our
-  server.
+- **Never trust the agent's output.** The truth rule stays on our server.
 - **Send only what the task needs.** Each job description uses the student's
   AI usage too.
 - MCP's "sampling" feature lets a server ask the user's AI for text
@@ -721,24 +768,18 @@ That is prompt injection: AI apps watch for it, and it breaks trust.
 
 ## 15. Cost, quota and privacy
 
-**Cost.** Tailoring is one model call per application. Production uses
-Gemini's free tier, about 500–1,500 requests a day per project
-(`scout/CLAUDE.md`, "Which model, where"). Scout uses the same quota, with
-`SCOUT_DAILY_TURNS=20` per student.
+**Cost.** The run calls no model: matching is embeddings and Postgres, and
+the resume is rendered. Tailor is the model cost, one call per job posting,
+counted as a Tailor use (`backend/app/services/usage.py`): 2 per student per
+UTC day, and 40% of a pool of 1,000 uses a day. Raising the Tailor limit for
+auto apply is a cost decision, made with the model's price (`scout/CLAUDE.md`,
+"Which model, where").
 
-- Give tailoring its own daily cap per student (start at 10, one batch),
-  with the `quota.py` pattern.
-- 100 active students at 10 a day is 1,000 requests: the top of the free
-  quota, before Scout. Above that, decide between a lower cap and a paid
-  tier.
-- Tailor only applications in a batch, never every match.
+**Privacy.** Only bank facts and the public job description go to the model;
+the seam removes identity fields (`load_identity`). The free tiers may train
+on prompts, which is why this rule exists.
 
-**Privacy.** The rules from `scout/CLAUDE.md` apply. Only parsed resume
-fields and the public job description go to the model. Names, email, phone
-and links never do; reuse the `facts.py` mapping. The free tier may train on
-prompts, which is why this rule exists.
-
-**Storage.** Tailored PDFs hold contact details, like uploads. They go in the
+**Storage.** Sent resumes hold contact details, like uploads. They go in the
 private `Resume` bucket. Deleting an account does not delete Storage objects
 yet (`backend/CLAUDE.md`, Auth, Still open). This adds more objects to that
 gap.
@@ -749,7 +790,10 @@ gap.
 |---|---|---|
 | Who clicks Submit | **The student**, on every application. Each costs one review and one click; no wrong application goes out unseen | The extension: reverses the rule in `autofiller_extension/CLAUDE.md`; CAPTCHAs and bot detection make it fail often; hiring systems' terms prohibit it; a wrong answer reaches an employer under the student's name and cannot be undone |
 | How the queue fills | **WorkIt queues a batch of matches** at Start | The student picks each one: slower. Fully automatic: ruled out by the row above |
-| Where tailoring runs | **On demand, per application in a batch** | A scheduled batch: tailors matches nobody looks at, and uses Scout's quota |
+| Where tailoring runs | **Never in the run.** The student tailors with Tailor, one job posting at a time | In the run, per application: 2 Tailor runs a day, and nobody reviews the changes. A scheduled batch: tailors matches nobody looks at |
+| What the Auto Apply page shows | **Resume List**: every resume the student has, with the pick rule under it | One primary resume: no application is sure to get it, and matching does not read it |
+| Which resume the run attaches | **Tailored, else the default resume** (Apply's order), kept as a sent resume | A new `job_applications.resume_id`: a second record of what the sent resume already says |
+| Which job postings auto apply takes | **Only hiring systems the extension fills** (Greenhouse for now, "The batch") | Every one, failing the rest to `needs_you`: the queue filled with jobs the run could only fail |
 | Where the run happens | **The student's Chrome** ("Where the run happens") | Our servers |
 | How the code is shaped | **Three layers**, so MCP is a thin adapter | One function per screen: an agent could not reuse it |
 | What we charge for | **The auto-apply action**, for every caller | Charging MCP access only: users would call the routes directly |
@@ -758,15 +802,15 @@ gap.
 
 | Folder | Change |
 |---|---|
-| `backend/` | `app/auto_apply/` (layers 1 and 2), `routers/auto_apply.py` (layer 3); the tables in "Data model"; later the API-key check and usage. `backend/CLAUDE.md` records the new folder's rule |
-| `scout/` | `tailor.py`: `tailor_resume`, `check_grounding`, the frozen prompt |
-| `frontend/` | Auto Apply page: the port to the runner, Start and Pause wired to it, Live Activity from the API, the session keep-alive; later the review and the API-key settings |
+| `backend/` | `app/auto_apply/` (layers 1 and 2), `routers/auto_apply.py` (layer 3); `pick_resume`, `prepare_resume` and the `resume` route; the tables in "Data model"; later the API-key check and usage |
+| `frontend/` | Auto Apply page: the port to the runner, Start and Pause wired to it, the session keep-alive; later the resume each application gets and a Tailor link per queued application and the API-key settings |
 | `autofiller_extension/` | The runner; `onConnectExternal` for the port; `fill/start` in the content script; file upload; **Submitted** and **Skip** in the overlay; host permissions. Its `CLAUDE.md` changes too: it says the extension adds no backend routes, which stops being true |
 | MCP server (new, later) | The tools in "MCP access and billing", each calling one route |
 
-**File upload in the extension:** fetch the PDF from
-`GET .../resumes/{id}/file`, make a `File`, put it in a `DataTransfer`, set
-the file input's `files`, and send `input` and `change` events. Some hiring
+**File upload in the extension:** the background worker downloads the file
+from `prepare_resume`'s link and sends it to the content script (base64). The
+content script makes a `File`, puts it in a `DataTransfer`, sets the file
+input's `files`, and sends `input` and `change` events. Some hiring
 systems use a drop zone instead (Workday). Test each hiring system. The
 sample form (`test/sample-form.html`) needs a file input.
 
@@ -779,17 +823,24 @@ Each step ships alone and is about one ticket.
    `routers/auto_apply.py`, and the webapp on them: the Auto Apply buttons,
    Start Auto Apply and Live Activity (`frontend/docs/screens.md`, Auto
    Apply). The browser queue and Live Activity's fixture are gone.
-3. **Extension: file upload**, tested on Greenhouse, Lever and Ashby. They
+3. **The resume (backend)** (done): `pick_resume`, `prepare_resume` and the
+   `resume` route, with tests (`backend/tests/test_auto_apply_resume.py` on
+   real Postgres). No migration.
+4. **Extension: file upload**, tested on Greenhouse, Lever and Ashby. They
    host 87% of the job postings in the feed snapshot (`backend/data/feed.json`).
-4. **Extension: the runner**, the port, host permissions, and the overlay's
-   **Submitted** and **Skip**. Start and Pause go live.
-5. **`autofill_runs`** and Live Activity from the API. The fixture goes.
-6. **`autofill_answers`** for screening questions.
-7. **Tailoring** in `scout/`, with `ScriptedLLM` tests (grounding check,
-   invalid JSON, quota), and `prepare_application`.
-8. **PDF render** and `resumes.tailored_from_id`.
-9. **Review** on the Auto Apply page.
-10. **MCP server**, API keys and billing.
+5. **Extension: the runner**, the port, host permissions, and the overlay's
+   **Submitted** and **Skip**. Start and Pause go live. Started: `run/open`
+   opens the next queued application in the run's background tab, and
+   `run/status` and `run/show` drive "Working in Browser" (one-shot
+   messages, not yet the port; no fill).
+6. **`autofill_runs`**, and Live Activity shows each fill's report.
+7. **`autofill_answers`** for screening questions.
+8. **The Auto Apply page and Tailor**: the resume each application gets, and
+   a Tailor link per queued application ("The resume", Later).
+9. **MCP server**, API keys and billing.
+
+Tailoring with its review, the PDF render and the resume editor are built
+(KAN-207, 217, 218). They are not steps here.
 
 ## 19. Open questions
 
@@ -812,8 +863,12 @@ Each step ships alone and is about one ticket.
   delete their own job postings and the tracker must keep those rows.
 - **Detecting Submit**: each hiring system's confirmation page could replace
   the **Submitted** button, one hiring system at a time.
-- **Resume template**: one page or not; one fixed template, or the student
-  picks?
-- **Grounding of rephrased bullets.** The structural check cannot see a
-  bullet that gained a claim. Is the student's review enough, or should a
-  second model call compare each bullet with its original?
+- **Tailoring without review.** Should a batch tailor its applications with
+  nobody accepting the changes? The truth rule sees numbers and tools, not a
+  bullet that gained a claim, and the limit is 2 a day. Until this is
+  decided, the run never tailors.
+- **Skip and the sent resume.** Skip keeps the sent resume, as Apply does.
+  The Sent list then shows a resume that went to no employer. Delete it on
+  Skip instead?
+- **The uploaded resume as a fallback.** It is the student's own file, but
+  the bank may say more. Ask the student to Generate a base resume first?

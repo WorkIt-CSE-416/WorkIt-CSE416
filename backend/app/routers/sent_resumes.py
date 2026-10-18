@@ -53,29 +53,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/applicants/{applicant_id}/sent-resumes", tags=["sent-resumes"])
 
-FILE_URL_TTL_SECONDS = 5 * 60
-
-
-def _response(row: Sent_Resume) -> SentResumeResponse:
-    return SentResumeResponse(
-        id=row.id, name=row.name, built_resume_id=row.built_resume_id,
-        uploaded_resume_id=row.uploaded_resume_id, job_posting_id=row.job_posting_id,
-        created_at=row.created_at, format=row.storage_path.rsplit(".", 1)[-1].lower(),
-    )
+_response = SentResumeResponse.from_row
 
 
 async def _signed_url(row: Sent_Resume) -> str:
     try:
-        signed = await asyncio.to_thread(
-            get_supabase().storage.from_(service.BUCKET).create_signed_url,
-            row.storage_path,
-            FILE_URL_TTL_SECONDS,
-            {"download": service.download_name(row)},
-        )
+        return await service.file_url(get_supabase().storage, row)
     except Exception:
         logger.exception("Failed to sign sent resume URL", extra={"storage_path": row.storage_path})
         raise HTTPException(502, "Could not open the resume")
-    return signed.get("signedUrl")
 
 
 async def _remove_file(path: str) -> None:
