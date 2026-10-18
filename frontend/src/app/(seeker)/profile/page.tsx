@@ -1,11 +1,10 @@
 "use client";
 
-import { FileText, Phone, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { Phone } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
-import { MailIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { MailIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import {
   Dialog,
   DialogClose,
@@ -15,9 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/shadcn/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
@@ -25,74 +22,39 @@ import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
 import { SectionAction } from "./section-action";
-import { UpdateResumeDialog } from "./update-resume-dialog";
-import { ResumeUpload } from "@/components/resume-upload";
-import {
-  uploadResume,
-  deleteResume,
-  listResumes,
-  setPrimaryResume,
-  type ResumeItem,
-} from "@/lib/resume-actions";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
-import { importResume, type ImportResponse } from "@/lib/bank-actions";
-import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { importSummary } from "@/lib/import-summary";
-import { RESUME_ROW, ResumeRow } from "@/components/resume-row";
-import { previewResume } from "@/lib/preview-resume";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
 import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
 import { SEEKER_GUTTER } from "../gutter";
 import { useProfileCache } from "../profile-cache";
 
 /**
- * The profile screen. Resumes, the profile photo and identity fields are all
- * live. Resume facts are not edited here: they live in the experience bank
- * (/bank), which every upload fills (ADR 0003; KAN-211 removed the parsed-
- * JSON editor that used to sit here). Under the dropzone a note says what the
- * last upload wrote there, with Read It With AI while the student has an AI
- * reading left; the model never reads a resume unasked. A row's Import
- * Updated Resume opens ./update-resume-dialog.tsx, which replaces that row's
- * file with a newer version and says what it wrote. Name, headline, email and
- * phone come from the applicant_profiles table via getProfile(). A return
- * visit renders the last visit's data at once
- * (../profile-cache.tsx) and refetches it behind the scenes.
- * The tab title is set in ./layout.tsx, because a client page cannot export
- * metadata.
+ * The profile screen: the profile photo and the identity fields, both live.
+ * Name, headline, email and phone come from the applicant_profiles table
+ * via getProfile(). A return visit renders the last visit's data at once
+ * (../profile-cache.tsx) and refetches it behind the scenes. The tab title
+ * is set in ./layout.tsx, because a client page cannot export metadata.
  *
- * NOT FIVE WHITE CARDS. Every section used to be the same bordered box, and
- * the short left column stopped about 350px above the right one. It is laid
- * out the way the seeker Dashboard is now, each kind of thing on its own
- * surface:
+ * Resumes are not kept here. The Resume card (the uploads and their
+ * dropzone) moved to the Resumes view's Your Resumes card on 2026-10-18,
+ * beside the base resumes that share its limit of 5, and Application
+ * Settings (an Autofill switch that saved nothing) went the same day. Resume
+ * facts are edited in the experience bank (/bank), never here (KAN-211).
  *
  *   identity        an open band under the title: the photo and its edit
  *                   control, the name and headline, the contact details as
  *                   one wrapping row, closed by a hairline
- *   Resume          the one card, because the dropzone and the file rows are
- *                   a surface to work on. It spans the page, so its height
- *                   (one row per resume, up to five) has no column beside it
- *                   to fall out of step with. Inside, the rows take the wide
- *                   track and the dropzone the narrow one
- *   Experiences     an open section under a plain heading, linking to the
- *                   bank. Application Settings (an Autofill switch that saved
- *                   nothing) sat beside it until 2026-10-18
+ *   Resumes &       an open section under a plain heading, linking to both
+ *   Experiences     views of that page
  *
  * Each open section's actions sit at the top right of its heading, as a
  * Dashboard section's "View All" does (./section-action.tsx).
  *
- * A FAILED LOAD IS ONE NOTICE AT THE TOP, NOT A RED LINE PER CARD. The photo
- * and the resumes load separately, and each used to print its own "Could not
- * reach the server." in red under the thing it failed to load (under the
- * avatar, and under the dropzone), so a single outage read as two scattered
- * faults. Errors from something the seeker just did (an upload, a delete)
- * still show beside it, because that is where they are looking. An empty or
- * failed resume list holds the first row's place in grey rather than red, so
- * a list that did not load is not mistaken for one with nothing in it.
+ * A FAILED LOAD IS ONE NOTICE AT THE TOP, NOT A RED LINE UNDER EACH THING.
+ * The photo and the profile load separately, and a single outage printed
+ * as scattered faults. Errors from something the seeker just did (a photo
+ * upload) still show beside it, because that is where they are looking.
  */
-// The API's limit: uploaded plus base resumes, together (tailored ones are
-// free). The count below adds the base resumes, so it matches the API's 409.
-const MAX_RESUMES = 5;
-
 export default function ProfilePage() {
   // The last visit's data, if any, read once. A return visit renders it at
   // once, and the effects below refetch in the background.
@@ -105,28 +67,6 @@ export default function ProfilePage() {
     cached?.applicantProfile ?? null,
   );
   const [editOpen, setEditOpen] = useState(false);
-
-  // Resume items. `uploading` is the name of the file in flight, or null.
-  const [resumeList, setResumeList] = useState<ResumeItem[]>(cached?.resumes ?? []);
-  // Base resumes (the Resumes view) count toward the same 5.
-  const [baseCount, setBaseCount] = useState(0);
-  const resumeCount = resumeList.length + baseCount;
-  const [resumeError, setResumeError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  // What the last upload wrote into the experience bank.
-  const [imported, setImported] = useState<ImportResponse | null>(null);
-  const [importingId, setImportingId] = useState<string | null>(null);
-  // The row whose Import Updated Resume dialog is open.
-  const [updateTarget, setUpdateTarget] = useState<ResumeItem | null>(null);
-  const [loaded, setLoaded] = useState(cached !== null);
-  // A failed list hides the "2 of 5" count: "0 of 5" would say there are none.
-  const [listFailed, setListFailed] = useState(false);
-
-  // The resume the delete dialog asks about. It outlives `confirmOpen` so the
-  // filename does not vanish while the dialog fades out.
-  const [deleteTarget, setDeleteTarget] = useState<ResumeItem | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Profile photo. avatarUrl is a signed URL from the API, or a blob: preview
   // while an upload is in flight. avatarLoaded separates the first fetch,
@@ -164,10 +104,10 @@ export default function ProfilePage() {
   // photo upload's blob: preview (revoked afterwards) is on screen, and not
   // after a failed load, which would show the next visit an empty profile.
   useEffect(() => {
-    if (loaded && !avatarBusy && !loadFailed) {
-      cache.write({ resumes: resumeList, avatarUrl, applicantProfile });
+    if (avatarLoaded && !avatarBusy && applicantProfile && !loadFailed) {
+      cache.write({ avatarUrl, applicantProfile });
     }
-  }, [cache, loaded, avatarBusy, loadFailed, resumeList, avatarUrl, applicantProfile]);
+  }, [cache, avatarLoaded, avatarBusy, loadFailed, avatarUrl, applicantProfile]);
 
   async function handleAvatarSelect(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -217,136 +157,6 @@ export default function ProfilePage() {
     }
     setAvatarUrl(null);
     router.refresh();
-  }
-
-  // Load the resumes — on a return visit, a background refresh of the cache.
-  // A failed load keeps whatever a return visit already shows. No guard is
-  // needed against this landing after a change made meanwhile: Next runs
-  // server actions one at a time, so this one, dispatched first, always
-  // finishes first, and the change's own update applies on top of it.
-  useEffect(() => {
-    function fail() {
-      setLoadFailed(true);
-      setListFailed(true);
-    }
-    Promise.all([listResumes(), listBuiltResumes()])
-      .then(([{ resumes, error }, built]) => {
-        if (error || built.error) return fail();
-        setResumeList(resumes);
-        setBaseCount((built.data ?? []).filter((r) => r.job_posting_id == null).length);
-      })
-      .catch(fail)
-      .finally(() => setLoaded(true));
-  }, []);
-
-  // Uploads at once: the API reads the file itself and writes what it read
-  // into the experience bank, where the student checks it.
-  async function handleResumeFileAdd(file: File) {
-    if (!loaded || uploading !== null) return;
-    if (resumeCount >= MAX_RESUMES) {
-      setResumeError(
-        `You can keep up to ${MAX_RESUMES} resumes, uploaded and base resumes together. Remove one to add another.`,
-      );
-      return;
-    }
-    setResumeError(null);
-    setImported(null);
-    setUploading(file.name);
-
-    const fd = new FormData();
-    fd.append("file", file);
-    try {
-      const { resume, error } = await uploadResume(fd);
-      if (error) return setResumeError(error);
-      // Functional: another action may have changed the list meanwhile.
-      if (resume) setResumeList((prev) => [resume, ...prev]);
-      if (resume?.bank) {
-        setImported({ ...resume.bank, resume_id: resume.id, filename: resume.original_filename });
-      }
-    } catch {
-      setResumeError("Could not upload the resume. Refresh the page and try again.");
-    } finally {
-      setUploading(null);
-    }
-  }
-
-  // Read It With AI on the last upload: only ever on a click.
-  async function handleReadWithAi(resumeId: string) {
-    if (importingId) return;
-    setResumeError(null);
-    setImportingId(resumeId);
-    try {
-      const { data, error } = await importResume({ resumeId, readWithAi: true });
-      if (data) setImported(data);
-      else setResumeError(error);
-    } catch {
-      setResumeError("Could not import the resume. Refresh the page and try again.");
-    } finally {
-      setImportingId(null);
-    }
-  }
-
-  // Import Updated Resume put a newer file on this row. Its upload date is
-  // now, so it moves to the top, where a reload would put it too; the note
-  // under the dropzone names the old file, so it goes if it was this row's.
-  function handleReplaced(updated: ResumeItem) {
-    setResumeList((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)]);
-    setImported((prev) => (prev?.resume_id === updated.id ? null : prev));
-  }
-
-  async function handleMakePrimary(resumeId: string) {
-    setResumeError(null);
-    try {
-      const { error } = await setPrimaryResume(resumeId);
-      if (error) {
-        setResumeError(error);
-        return;
-      }
-      setResumeList((prev) => prev.map((r) => ({ ...r, is_default: r.id === resumeId })));
-    } catch {
-      setResumeError("Could not update the resume. Refresh the page and try again.");
-    }
-  }
-
-  async function handlePreview(resume: ResumeItem) {
-    setResumeError(null);
-    // No await before this call: it opens the PDF's tab inside the click.
-    const error = await previewResume(resume);
-    if (error) setResumeError(error);
-  }
-
-  async function handleRemove(resumeId: string) {
-    if (deletingId) return;
-    setResumeError(null);
-    setDeletingId(resumeId);
-    try {
-      const { error } = await deleteResume(resumeId);
-      if (error) {
-        setResumeError(error);
-        return;
-      }
-      // The API makes a student's only resume the default, so the one row
-      // left, with no base resume, gets the star a reload would show.
-      setResumeList((prev) => {
-        const rest = prev.filter((r) => r.id !== resumeId);
-        return rest.length === 1 && baseCount === 0 ? [{ ...rest[0], is_default: true }] : rest;
-      });
-    } catch {
-      // The server action call itself failed
-      // or the page came back from the back-forward cache with stale action IDs.
-      setResumeError("Could not remove the resume. Refresh the page and try again.");
-    } finally {
-      // Without this a thrown call leaves deletingId set, and every later
-      // click returns early without doing anything.
-      setDeletingId(null);
-    }
-  }
-
-  // Deleting is final, which is the whole reason the trash button asks first.
-  // The dialog closes at once; the row's dimmed button shows the delete running.
-  function confirmRemove() {
-    setConfirmOpen(false);
-    if (deleteTarget) handleRemove(deleteTarget.id);
   }
 
   return (
@@ -459,161 +269,20 @@ export default function ProfilePage() {
         )}
       </section>
 
-      {/* From @4xl the card splits the way the page below it does: the list
-          in the wide track, the dropzone in a narrow one whose left edge
-          lines up with the Skills column. That column is a third of the page
-          after the 40px gap, and the card's inside is 38px narrower than the
-          page (18px padding and a 1px border each side), hence the calc.
-          Below @4xl the dropzone stacks under the heading, where a third of
-          the card wrapped every line in it. Grid placement does the moving;
-          the DOM stays heading, dropzone, list, so a phone still meets the
-          dropzone before the rows. */}
-      <Card
-        as="section"
-        aria-labelledby="resume"
-        className="mt-8 grid grid-cols-1 @4xl/main:grid-cols-[minmax(0,1fr)_calc((100%_-_2px)/3_-_19px)] @4xl/main:grid-rows-[auto_1fr] @4xl/main:gap-x-10"
-      >
-        <div>
-          <SectionHeading
-            id="resume"
-            action={
-              loaded && !listFailed ? (
-                <Badge variant="tag" pill>
-                  {resumeCount} of {MAX_RESUMES}
-                </Badge>
-              ) : undefined
-            }
-          >
-            Resume
-          </SectionHeading>
-          <p className="text-body text-ink-meta mt-1">
-            Keep a version for each kind of role you apply to, up to {MAX_RESUMES}, counting the
-            base resumes you generate.
-          </p>
-        </div>
-
-        <div className="mt-4 @4xl/main:col-start-2 @4xl/main:row-span-2 @4xl/main:row-start-1 @4xl/main:mt-0">
-          <ResumeUpload
-            file={null}
-            onFileChange={handleResumeFileAdd}
-            onRemove={() => {}}
-            busy={uploading !== null}
-          />
-          {resumeError && (
-            <p role="alert" className="text-meta text-danger mt-2">
-              {resumeError}
-            </p>
-          )}
-          {imported && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-              <p className="text-note text-ink-muted min-w-0 flex-1" aria-live="polite">
-                {importSummary(imported, imported.filename)}{" "}
-                <Link href="/bank" className="text-brand hover:text-brand-hover underline">
-                  Open Experiences
-                </Link>
-              </p>
-              {imported.uses_left > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={importingId !== null}
-                  onClick={() => handleReadWithAi(imported.resume_id)}
-                >
-                  <Sparkles /> {importingId ? "Reading…" : "Read It With AI"}
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="@4xl/main:mt-2">
-          {!loaded && (
-            <div aria-hidden="true" className="bg-well rounded-control mt-2 h-13 animate-pulse" />
-          )}
-          {/* Nothing to list holds the first row's place, in grey: one box,
-              not a red line, and the first upload lands exactly where it
-              stood. A failed list says so here too, since a blank box would
-              read as "no resumes"; the notice at the top stays the alert. */}
-          {loaded && uploading === null && resumeList.length === 0 && (
-            <div className={RESUME_ROW}>
-              <FileText aria-hidden className="text-ink-faint size-5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-label text-ink-muted truncate">
-                  {listFailed ? "Your resumes didn't load" : "No resumes yet"}
-                </p>
-                <p className="text-note text-ink-meta">
-                  {listFailed
-                    ? "Refresh the page to see them here."
-                    : "Each upload is listed here, newest first."}
-                </p>
-              </div>
-            </div>
-          )}
-          {uploading !== null && (
-            <div className={RESUME_ROW}>
-              <PdfIcon className="size-5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-label text-ink truncate">{uploading}</p>
-                <p className="text-note text-ink-meta">Uploading…</p>
-              </div>
-            </div>
-          )}
-          {resumeList.map((r) => (
-            <ResumeRow
-              key={r.id}
-              resume={r}
-              deleting={deletingId === r.id}
-              onPreview={() => handlePreview(r)}
-              onMakePrimary={() => handleMakePrimary(r.id)}
-              onUpdate={() => setUpdateTarget(r)}
-              onDelete={() => {
-                setDeleteTarget(r);
-                setConfirmOpen(true);
-              }}
-            />
-          ))}
-        </div>
-
-        {updateTarget && (
-          <UpdateResumeDialog
-            resume={updateTarget}
-            open
-            onOpenChange={(open) => !open && setUpdateTarget(null)}
-            onReplaced={handleReplaced}
-          />
-        )}
-
-        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="text-subtitle font-semibold">Delete This Resume?</DialogTitle>
-              <DialogDescription>
-                <span className="text-ink font-medium wrap-anywhere">
-                  {deleteTarget?.original_filename ?? "This resume"}
-                </span>{" "}
-                will be removed from your profile, and this can&apos;t be undone.
-              </DialogDescription>
-            </DialogHeader>
-
-            <DialogFooter>
-              <DialogClose render={<Button variant="secondary">Keep It</Button>} />
-              <Button variant="destructive" onClick={confirmRemove}>
-                Delete Resume
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </Card>
-
-      <section aria-labelledby="bank" className="mt-10">
-        <SectionHeading id="bank">Experiences</SectionHeading>
+      <section aria-labelledby="resumes" className="mt-8">
+        <SectionHeading id="resumes">Resumes &amp; Experiences</SectionHeading>
         <p className="text-body text-ink-meta mt-1">
-          Your jobs, projects, clubs and skills live in Experiences, where you edit them. Each
-          resume you upload fills it in.
+          Upload and generate your resumes on Resumes. Your jobs, projects, clubs and skills live in
+          Experiences, where you edit them; each resume you upload fills it in.
         </p>
-        <ButtonLink href="/bank" variant="secondary" className="mt-4">
-          Open Experiences
-        </ButtonLink>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <ButtonLink href="/resumes" variant="secondary">
+            Open Resumes
+          </ButtonLink>
+          <ButtonLink href="/bank" variant="secondary">
+            Open Experiences
+          </ButtonLink>
+        </div>
       </section>
 
       {applicantProfile && editOpen && (

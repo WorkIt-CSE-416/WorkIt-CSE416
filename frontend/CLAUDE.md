@@ -194,16 +194,17 @@ are in `docs/auth.md`.
   action runs.
 - **My Profile's cache (`(seeker)/profile-cache.tsx`) lives in the seeker
   layout, never a module variable**: sign-out leaving the shell is what drops
-  it, and a module variable would show one account's resumes to the next
+  it, and a module variable would show one account's profile to the next
   person in that tab.
 - **Resume facts are edited in the experience bank only** (KAN-211). An
   upload writes its reading into the bank itself (ADR 0003); no screen holds
   a second copy of an upload's facts to edit. Two editors of the same facts
   drift apart, and built resumes read the bank. Every screen that reports an
   import says it with `lib/import-summary.ts`, from the `bank` of an upload
-  or an Import Updated Resume, or Import Again's response. My Profile's row
-  offers Import Updated Resume (a newer file for that row), never a re-read
-  of the stored file, which only ever read the same text. "Read It With
+  or an Import Updated Resume, or Import Again's response. An upload's row
+  on the Resumes view offers Import Updated Resume (a newer file for that
+  row), never a re-read of the stored file, which only ever read the same
+  text. "Read It With
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.

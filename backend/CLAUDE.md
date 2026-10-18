@@ -251,7 +251,7 @@ Find files with a directory listing; these are the rules for where code goes.
   before a parser fix gets the fix. It can bring back a bullet the student
   deleted; that is the student's explicit click.
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
-  with a file, from My Profile's row: a newer version replaces the row's
+  with a file, from an upload's row on the Resumes view: a newer version replaces the row's
   file and is read and merged as an upload is. The row keeps its id and
   primary star, and its `created_at` becomes now, the upload date the row
   shows. The file goes to a new Storage path: a sent resume may point at the

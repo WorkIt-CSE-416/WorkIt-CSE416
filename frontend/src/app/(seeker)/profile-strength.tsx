@@ -15,7 +15,8 @@ import { getCurrentAccount } from "@/lib/session";
  * history and skills are still the profile page's fixtures, and a meter that
  * scores fixtures would congratulate everyone on the same made-up profile.
  * Add a step here when its data is live. The resume leads: nothing can be
- * matched without one.
+ * matched without one. Each step links to where it is done: the upload on
+ * Resumes, the photo on My Profile.
  *
  * Lavender (--color-rail) on the white panel, the one tinted block in it,
  * so it reads as a card set apart from the rows above without the weight of
@@ -33,8 +34,8 @@ export async function ProfileStrength() {
   if (resumes.error != null || avatar.error != null) return null;
 
   const steps = [
-    { done: resumes.resumes.length > 0, todo: "Upload Your Resume" },
-    { done: avatar.url != null, todo: "Add a Profile Photo" },
+    { done: resumes.resumes.length > 0, todo: "Upload Your Resume", href: "/resumes" },
+    { done: avatar.url != null, todo: "Add a Profile Photo", href: "/profile" },
   ];
   const done = steps.filter((step) => step.done).length;
   const next = steps.find((step) => !step.done);
@@ -65,7 +66,7 @@ export async function ProfileStrength() {
       </div>
 
       <Link
-        href="/profile"
+        href={next.href}
         // The underline fades in and the arrow leans on, as a section link's
         // does.
         className="group/strength text-note text-brand-ink focus-visible:ring-brand-ring mt-2 inline-flex items-center gap-1 rounded-xs font-medium underline decoration-transparent underline-offset-2 transition-[text-decoration-color] duration-150 hover:decoration-current focus-visible:ring-2 focus-visible:outline-none"

@@ -8,7 +8,7 @@ export type ResumesView = "resumes" | "experiences";
 const VIEWS: Record<ResumesView, { title: string; description: string }> = {
   resumes: {
     title: "Resumes",
-    description: "Resumes made from your experiences, and every one you sent.",
+    description: "Resumes you uploaded or made from your experiences, and every one you sent.",
   },
   experiences: {
     title: "Experiences",

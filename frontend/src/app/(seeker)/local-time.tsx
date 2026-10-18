@@ -37,7 +37,7 @@ export function When({ at }: { at: string }) {
  * UTC day on the server, the local one after hydration, as <When> does.
  * `formatDate` alone prints the UTC day, which is already tomorrow for a
  * resume sent on an evening in the Americas (KAN-258). The year shows only
- * when it is not this one, as the tracker's days and My Profile's resume rows
+ * when it is not this one, as the tracker's days and an upload's resume row
  * read: with it, a resume card's "Last edited" wrapped on a phone.
  */
 export function LocalDate({ at }: { at: string }) {
