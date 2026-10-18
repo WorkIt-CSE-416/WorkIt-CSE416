@@ -46,7 +46,7 @@ class Recorder:
         return str(self.sent[i].compile(dialect=postgresql.dialect()))
 
 
-def test_queue_inserts_only_listed_jobs_and_keeps_existing_rows():
+def test_queue_inserts_only_listed_jobs_and_moves_only_saved_rows():
     db = Recorder()
     asyncio.run(queries.queue_applications(db, APPLICANT, [JOB]))
     sql = db.sql()
@@ -58,7 +58,11 @@ def test_queue_inserts_only_listed_jobs_and_keeps_existing_rows():
     assert "job_postings.company_id IS NULL" in sql
     assert "job_postings.status = %(status_1)s" in sql
     assert "job_postings.apply_url ~* %(apply_url_1)s" in sql  # Greenhouse only
-    assert "ON CONFLICT (applicant_id, job_id) DO NOTHING" in sql
+    # Only a saved job moves to queued; any other stage keeps its row.
+    assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = " in sql
+    assert "created_at = now()" in sql
+    assert "WHERE job_applications.stage = %(stage_1)s" in sql
+    assert db.sent[-1].compile().params["stage_1"] == application_stage.saved
     assert "RETURNING job_applications.job_id" in sql
 
 
@@ -119,11 +123,11 @@ def test_the_feed_hides_applied_jobs_only():
     assert "job_applications.stage = 'applied'" in _sql(clause)
 
 
-def test_matches_hide_every_job_with_an_application():
+def test_matches_hide_every_job_with_an_application_but_a_saved_one():
     (clause,) = matching(JobFilters(no_application_by=APPLICANT))
     sql = _sql(clause)
     assert sql.startswith("NOT (EXISTS (SELECT")
-    assert "stage" not in sql
+    assert "job_applications.stage != 'saved'" in sql
 
 
 def test_matches_can_take_only_jobs_auto_apply_fills():

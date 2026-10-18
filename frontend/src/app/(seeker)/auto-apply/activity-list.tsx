@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 
 import { formatPlaces } from "../jobs/format";
-import type { ApplicationStage } from "./actions";
+import type { RunStage } from "./actions";
 import type { Application } from "./applications";
 import { RemoveFromQueue } from "./remove-from-queue";
 
@@ -37,7 +37,7 @@ export type ActivityItem = {
 };
 
 /** Each stored stage's row: its status, and a line on what it waits on. */
-const STAGE_ROW: Record<ApplicationStage, { status: ActivityStatus; detail: string }> = {
+const STAGE_ROW: Record<RunStage, { status: ActivityStatus; detail: string }> = {
   queued: { status: "queued", detail: "Waiting for its turn" },
   needs_you: { status: "failed", detail: "Couldn't fill the form. Finish it on the job's page" },
   skipped: { status: "skipped", detail: "You skipped this one" },
@@ -45,7 +45,7 @@ const STAGE_ROW: Record<ApplicationStage, { status: ActivityStatus; detail: stri
 };
 
 /** A stored application as its Live Activity row. */
-export function activityOf(application: Application): ActivityItem {
+export function activityOf(application: Application<RunStage>): ActivityItem {
   const { job, stage, open } = application;
   const { status, detail } = STAGE_ROW[stage];
   return {

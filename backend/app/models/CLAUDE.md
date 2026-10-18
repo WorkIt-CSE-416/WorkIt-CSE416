@@ -799,10 +799,11 @@ Its downgrade puts the columns back empty; the old import refills them.
 ## job_applications — each applicant's application to each job (KAN-232, KAN-223)
 
 `applications.py`: one row per (applicant, job). The Applied button
-(`routers/applications.py`) writes it `applied`; auto apply
-(`app/auto_apply/`) writes it `queued` and moves it on. GET /jobs leaves out
-that applicant's `applied` jobs (`JobFilters.applied_by`, a `NOT EXISTS`);
-auto apply's matches leave out every stage (`no_application_by`). Rules:
+(`routers/applications.py`) writes it `applied`, a Save button `saved`
+(KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on.
+GET /jobs leaves out that applicant's `applied` jobs (`JobFilters.applied_by`,
+a `NOT EXISTS`); auto apply's matches leave out every stage but `saved`
+(`no_application_by`). Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants
@@ -816,8 +817,14 @@ auto apply's matches leave out every stage (`no_application_by`). Rules:
 - **`stage` is the status** (`dto.application_stage`: `saved`, `queued`,
   `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
   `17ea74fa4573`), a column here rather than a second table, so one row is
-  one application. `created_at` orders the queue. `saved` is for a job's
-  Save button (KAN-261); nothing writes it until that feature ships.
+  one application. `created_at` orders the queue.
+- **`saved` is a bookmark, not an application** (KAN-261). Applying or
+  queueing moves it on (`mark_applied`; `queue_applications`, which also
+  moves its `created_at` to now so it doesn't jump the queue); saving never
+  moves a later stage back (`ON CONFLICT DO NOTHING`), and unsaving deletes
+  a `saved` row only, a 409 otherwise. A saved insert names `applied_at`
+  NULL, as a queued one does. Live Activity asks for every stage but saved;
+  the Applications board asks for saved and applied.
 - **Apply `17ea74fa4573` before the deploy that writes `saved`.** It only
   adds the value, so the code running before it never meets it; deployed
   first, every Save answers 500.
@@ -828,9 +835,9 @@ auto apply's matches leave out every stage (`no_application_by`). Rules:
   first, the migration or the deploy. A queued insert must name both: its
   stage, and `applied_at` NULL (`auto_apply/queries.py`), or the default
   dates a job nobody applied to.
-- **The Applied button upserts**: a queued, skipped or needs_you row becomes
-  applied; an applied row keeps its first `applied_at` (`ON CONFLICT DO
-  UPDATE ... WHERE applied_at IS NULL`).
+- **The Applied button upserts**: a saved, queued, skipped or needs_you row
+  becomes applied; an applied row keeps its first `applied_at` (`ON CONFLICT
+  DO UPDATE ... WHERE applied_at IS NULL`).
 - **Apply `c0467afe819c` right after merging.** Until then the deployed
   code's queue routes and stage filters fail on the missing column; the
   Applied button keeps working either way.

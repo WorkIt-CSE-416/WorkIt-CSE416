@@ -83,7 +83,8 @@ async def _matches(
         db,
         account,
         # Every job with an application at any stage stays out, so a batch
-        # never queues a job twice, nor one the student skipped; and only
+        # never queues a job twice, nor one the student skipped (a saved one
+        # stays in: it is no application yet); and only
         # job postings the extension can fill come in (hosts.py).
         filters=dataclasses.replace(
             filters, no_application_by=account.id, auto_apply_only=True
@@ -142,7 +143,8 @@ async def queue_job(
 ) -> application_stage:
     """
     A job's Auto Apply button: queues this one job posting, and answers its
-    stage. A job that already has an application keeps it, and answers that
+    stage. A saved job is queued. A job that already has an application at
+    any other stage keeps it, and answers that
     stage: a second click changes nothing. Raises NotFound for a job posting
     that isn't open, or isn't on a hiring system auto apply fills
     (queue_applications saves neither).
