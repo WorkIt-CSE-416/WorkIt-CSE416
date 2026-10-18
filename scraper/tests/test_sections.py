@@ -101,6 +101,12 @@ class TestHeading:
             # A comma makes a list item, even with a section word in it.
             "Medical, dental, and vision insurance",
             "Generous vacation policy, plus holidays",
+            # A typed bullet makes a list item, whatever its words (Workday
+            # postings type them into paragraphs).
+            "• Perform other duties as assigned",
+            "- Graduation date of Winter 2027 or Spring 2028",
+            "· Cumulative 3.0 GPA or above (preferred)",
+            "* Required skills",
             # Sentences, however short.
             "We value curiosity and ownership.",
             "you will build tools for our customers",

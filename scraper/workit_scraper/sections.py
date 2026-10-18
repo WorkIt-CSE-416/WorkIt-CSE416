@@ -152,6 +152,11 @@ _INLINE = re.compile(r"^[\s*#•·\-–—]*([A-Z][^:\n]{1,58}):\s+(\S.*)$")
 #: section nor swallows the heading after it as its first item.
 _WRAPPER = re.compile(r"^((job|position) )?description$", re.I)
 
+#: A typed bullet: a glyph, then a space. A line that starts with one is a list
+#: item, never a heading, as the job page reads it too (`BULLET` in
+#: description.tsx). "**Requirements**" has no space after its first asterisk.
+_TYPED_BULLET = re.compile(r"[•·▪◦‣●○*\-–—]\s")
+
 #: Longest heading, in characters and words. Measured on the feed: real headings run
 #: to "What to expect during the internship" (36); past this is a sentence.
 _MAX_CHARS = 60
@@ -192,12 +197,17 @@ def heading(line: str) -> str | None:
     """The section a line opens, or None when it is content.
 
     A heading is short, starts with a capital, and does not end like a sentence. A
+    line that starts with a typed bullet ("• ", "- ") is a list item, never one. A
     comma means a list item ("Medical, dental, and vision insurance") unless the line
     ends with a colon, as "To apply, please submit the following:" does. A heading in
     the company's voice ("we", "our") opens no section about the reader
     (`_COMPANY_VOICE`) unless it asks for the reader ("What we're looking for").
     """
     stripped = line.strip()
+    # Stripping the glyph below would let "• Perform other duties as assigned"
+    # open Responsibilities and swallow the real heading after it.
+    if _TYPED_BULLET.match(stripped):
+        return None
     name = stripped.strip("*#•·-–— ").rstrip(":").strip()
     if not name or len(name) > _MAX_CHARS or len(name.split()) > _MAX_WORDS:
         return None
