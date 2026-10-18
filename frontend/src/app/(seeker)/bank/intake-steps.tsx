@@ -49,7 +49,6 @@ export function StepBar({
   currentFill,
   filled,
   skipped,
-  lead,
   busy = false,
   compact = false,
   onJump,
@@ -61,9 +60,7 @@ export function StepBar({
   /** Sections with at least one entry in the bank. */
   filled: readonly Section[];
   skipped: readonly Section[];
-  /** A step before the sections, shown done: onboarding's profile form. */
-  lead?: string;
-  /** While WorkIt answers: a late reply must not land on another section. */
+  /** While Scout answers: a late reply must not land on another section. */
   busy?: boolean;
   /** The segments alone, for Scout's panel's stage card. */
   compact?: boolean;
@@ -85,8 +82,6 @@ export function StepBar({
 
   const index = current ? WALK.indexOf(current) : -1;
   const previous = index > 0 ? WALK[index - 1] : null;
-  const offset = lead ? 1 : 0;
-  const steps = WALK.length + offset;
 
   const cheer =
     percent === 100
@@ -97,13 +92,16 @@ export function StepBar({
           ? "Over halfway there. Keep it up!"
           : "Nice work. Keep going!";
 
+  // "Section", not "Step": onboarding's Experiences page has the step rail
+  // above this bar (onboarding/applicant/steps.ts), and two "Step x of y"
+  // counts on one page read as one count gone wrong (KAN-259).
   const where = current ? (
     <>
-      Step {index + 1 + offset} of {steps} ·{" "}
+      Section {index + 1} of {WALK.length} ·{" "}
       <span className="text-brand font-semibold">{sectionOf(current).label}</span>
     </>
   ) : (
-    `${finished + offset} of ${steps} steps done`
+    `${finished} of ${WALK.length} sections done`
   );
 
   const segments = WALK.map((s, i) => (
@@ -143,7 +141,6 @@ export function StepBar({
         </button>
 
         <ol aria-label="Intake steps" className="flex flex-1 items-start gap-1.5">
-          {lead && <Segment label={lead} state="done" fill={100} />}
           {segments}
         </ol>
 

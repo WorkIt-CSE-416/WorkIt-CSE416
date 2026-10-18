@@ -527,16 +527,16 @@ and widens to 448px (460px of room with its gap). Three bands, top to
 bottom: the stage card (`draft-preview.tsx`), the chat, the composer.
 
 **The resume question comes first, alone** (KAN-249), when the bank is
-empty and no draft is kept: WorkIt's greeting asks "Have a resume?" with
+empty and no draft is kept: Scout's greeting asks "Have a resume?" with
 Upload Resume, Use One I Uploaded and Start Without One under it, and no
-section or stage card shows until one is picked. **Every answer WorkIt
+section or stage card shows until one is picked. **Every answer Scout
 offers is a suggestion Chip** (`ui/chip.tsx`, KAN-251), these and the
 section chips alike: one size, one look, each with its glyph. The resume
 answers were a fill, an outline and a text link of three heights, the last
 on a line of its own. Start Without One goes in
 the chat as the student's answer, then the first section starts; an import
 starts the walk on what the resume left out, as before. A bank with
-entries has no stage: the walk opens on its gaps at once, and WorkIt's
+entries has no stage: the walk opens on its gaps at once, and Scout's
 second line asks "Have a resume?" with Upload Resume and Use One I
 Uploaded, until the student imports once. With no offer there, as the
 first version of KAN-249 had it, a student whose bank held one entry had
@@ -547,13 +547,13 @@ and Education at once, which read as two tasks on one screen.
 section's icon and name, "Step 1 of 6", "Skip Section" (a new entry) or
 "Leave As Is" (a visit) at the right, the panel's only Skip, and the step
 bar's segments under them, thin (`compact`; a segment still jumps, so
-there is no Back). Skip is disabled, not hidden, while WorkIt answers or a
-save runs. Once WorkIt has a title, the draft opens under a hairline: its
+there is no Back). Skip is disabled, not hidden, while Scout answers or a
+save runs. Once Scout has a title, the draft opens under a hairline: its
 title and state ("Filling in as you talk", "Ready to save"), the entry as
-the bank lists it, fading each line in as WorkIt fills it, "Still needed"
+the bank lists it, fading each line in as Scout fills it, "Still needed"
 chips, Edit and Save Entry; it folds to its title row. Before that there
 is nothing to show or save, and Edit sits beside Skip instead, so the
-student can still type the entry into the form when WorkIt cannot answer
+student can still type the entry into the form when Scout cannot answer
 (the API's "Fill in the card yourself"). With no section open the card
 holds the bar alone. It replaced a step bar with its own Back, step line and Skip over a
 separate draft card with a second Skip, the section named again, a hint
@@ -621,7 +621,7 @@ in Docs (suggested answers in the chat, not a banner).
   here (`docs/resume.md`).
 - **Import Your Resume** (`import-card.tsx`, KAN-211) opens inside intake,
   from the resume question's answers in the chat (the first stage for an
-  empty bank, WorkIt's second line otherwise), offered until the student
+  empty bank, Scout's second line otherwise), offered until the student
   imports once.
   Upload Resume (PDF or DOCX) uploads through `uploadResume`, as My Profile
   does, then imports that file (`resumeId`); the link imports the default
@@ -682,7 +682,7 @@ in Docs (suggested answers in the chat, not a banner).
   and says "Some changes did not save", because a retry would repeat the
   steps that worked. Intake and import omit `skills`, so no links show.
 - **Intake** (`intake.tsx`, KAN-213), in the look of the intake prototype's
-  variant G: a lavender chat with WorkIt's gradient mark and a chapter line
+  variant G: a lavender chat with Scout's gradient mark and a chapter line
   per section. On the bank page it is in Scout's panel, in the three bands
   above. In onboarding it leads the page: the draft card sticky beside the
   chat from `@4xl/main` and, below that, a one-line draft that opens as a
@@ -706,10 +706,10 @@ in Docs (suggested answers in the chat, not a banner).
   Leadership & Activities, Experience, Awards, Certifications: user story
   41, not the bank's order), Back on the left, Skip on the right (in Scout's
   panel, the segments alone inside the stage card, as above). A segment
-  jumps to its section; the bar is disabled while WorkIt answers or a save
+  jumps to its section; the bar is disabled while Scout answers or a save
   runs, so a late reply never lands on another section. It starts at 25%
   and fills as sections are done; the current segment fills as its draft
-  grows (a title, each answer, full when WorkIt has no questions left).
+  grows (a title, each answer, full when Scout has no questions left).
   **A skipped section counts toward the percentage** (settled in KAN-214,
   as the prototype does): the bar measures sections dealt with, so a
   student with no awards still reaches 100%. Its segment is striped, not
@@ -721,13 +721,13 @@ in Docs (suggested answers in the chat, not a banner).
   (`sections.ts`'s `gapQuestions`: no dates for a school or job; no organization for a job or
   role; no bullets for a job, project or role; no degree, field or GPA for
   a school, which a resume import often lacks) gets a visit. The card opens
-  on the saved entry, WorkIt's first line asks about the gap, the model is
+  on the saved entry, Scout's first line asks about the gap, the model is
   told what the card has and lacks, and saving edits the entry. Skip on a
   visit passes over that entry only. An entry visited once is not visited
   again on the page. A section with no entries gets the full questions.
   **A jump or a chip visits too**: picking a section opens its first entry
   with gaps not yet visited, never a blank card that asks the student to
-  retell what the bank holds. Otherwise it opens a new card, and WorkIt's
+  retell what the bank holds. Otherwise it opens a new card, and Scout's
   first line names the entries the bank already has there, each once with
   its organization ("Software Engineer Intern (Clever Devices)"): copies
   read as the same title over and over. A visited entry
@@ -742,8 +742,9 @@ in Docs (suggested answers in the chat, not a banner).
 - **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
   profile form's Continue leads there, then Finish leads to /jobs, the
   Recommended view (KAN-231). It
-  always walks, and its step bar shows the profile form as a done "Profile"
-  step before the sections. It imports `Intake` from the bank route rather
+  always walks, and its step bar counts the sections alone ("Section 3 of
+  6"): the page's step rail above it already shows the wizard's two steps
+  done, and a "Profile" segment counted them twice (KAN-259). It imports `Intake` from the bank route rather
   than promoting it to `src/components`: intake needs the bank's entry
   editor and sections, which stay with the bank page.
 - **Students see "Experiences"** (KAN-249), on the bank's view and as the
@@ -902,12 +903,12 @@ the profile (the header's fields), and shows the error state if any fails.
   keyboard, and the field does not zoom; and the render time on cellular
   data, read from "Saved, N ms".
 - **The assistant** (`assistant.tsx`, KAN-221; the KAN-195 prototype's
-  variant E) opens from Ask WorkIt in the sticky bar and **docks beside the
+  variant E) opens from Ask Scout in the sticky bar and **docks beside the
   page** from @4xl/main (sticky, never over the page); narrower, it stacks
-  under it. On a phone, Ask WorkIt in the bottom bar or in a line's sheet
+  under it. On a phone, Ask Scout in the bottom bar or in a line's sheet
   opens it in its own sheet. It stays mounted while closed, so closing it
   keeps the chat; nothing is stored. The look is intake's (variant G:
-  lavender panel, WorkIt's mark) and the bubbles, dots and composer are
+  lavender panel, Scout's mark) and the bubbles, dots and composer are
   Scout's `chat.tsx`. It does four things, all through the editor's own
   saves: Fit to One Page, hide and move the selected line, and **Make it
   shorter** for a bullet, which shows the old and new wording with Use This
@@ -934,7 +935,7 @@ room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
 the panel is open. `chat.tsx` holds the message bubble, typing dots and
-composer (with the mic, `use-speech-input`) and WorkIt's mark, shared with
+composer (with the mic, `use-speech-input`) and Scout's mark, shared with
 intake on the bank page and the editor assistant; each takes who is talking
 as a prop. `stream.ts` mirrors the API's NDJSON events, which
 `app/api/scout/` (the one route handler, since the reply streams) forwards with
@@ -945,9 +946,11 @@ stays escaped text otherwise).
 ## Applicant onboarding
 
 /onboarding/applicant is a two-step wizard (KAN-231), outside both shells:
-Scout asks each step's question on a lavender left half
-(`onboarding/applicant/story-panel.tsx`, a band across the top below lg) and
-the fields answer it on the right, with Back and Next pinned to the foot.
+each step's question is the page's h1 on a lavender left half
+(`onboarding/applicant/story-panel.tsx`, a band across the top below lg that
+holds the logo and the question alone), and the fields answer it on the
+right, with Back and Next pinned to the foot. Each new question takes focus,
+so a screen reader reads it out; focus used to stay on the footer button.
 From lg the screen is one window tall and only the right column scrolls, with
 its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
@@ -960,7 +963,28 @@ step of its own: intake uploads and imports one into the experience bank,
 which matching reads. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
-**The left half moves, from lg.** Above the question a showcase
+**One step rail counts the whole journey (KAN-259).** Both onboarding pages
+head their content with the shared `components/stepper.tsx` at `size="lg"`:
+Role, Pay & Visa, Experiences (`onboarding/applicant/steps.ts`), the third
+step being intake on ./bank. It replaced a thin bar and a 14px grey "Step 1 of
+2" at the foot of the left half: the smallest type on the screen, far from the
+fields, and wrong, since intake then opened six more sections. Intake's own
+bar on ./bank counts its sections ("Section 3 of 6") under the rail.
+
+**The question and Scout stand apart (KAN-259).** The question sits under the
+logo; Scout sits at the left half's foot, from lg only, and types a tip the
+question does not give ("Both are optional..."). They were one block, the
+bubble 28px over the question and asking it again in other words, so it was
+not clear who was asking.
+
+**The way out is quiet (KAN-259).** "Signed in as … Not you? Sign Out"
+(`onboarding/applicant/signed-in-as.tsx`) closes both pages, in the 12px of
+the inline button. Onboarding has no account menu, and sign-in brings an
+unfinished applicant back here, so the screen needs an exit; as a Sign Out
+button at the top right of the form it was the column's first thing and read
+as part of the step.
+
+**The left half moves, from lg.** Between the question and Scout a showcase
 (`onboarding/applicant/showcase.tsx`) cycles three scenes on one clock: a
 mock screen (a matched job, a resume, the applications board) with the
 notification that screen would send tucked over its corner. A scene glides
@@ -968,10 +992,10 @@ in, its notification follows a beat later, and both leave together while the
 next arrives (`--animate-arrive` and `--animate-leave`), so the change is a
 crossfade. Two clocks, one per part, drifted out of step. The scenes are
 scaled as a whole to fill the room the panel leaves (up to 1.8x), so a tall
-window gets a big picture; under 0.85x the stage hides and leaves the room to
-the question. Scout types a line in a chat bubble on every step. It is all
-decoration over made-up data, so it is aria-hidden, and it holds still under
-reduced motion.
+window gets a big picture; under 0.85x the stage hides and its room stays
+empty, with the question still at the top. Scout types its tip in a chat
+bubble on every step. It is all decoration over made-up data, so it is
+aria-hidden, and it holds still under reduced motion.
 
 **Its answers are the Jobs page's filters.** Every question takes
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
@@ -987,8 +1011,9 @@ California. A fixed choice is a `ChoiceTile`
 itself, so the question is `text-hero` (40px) from lg, and the shared pickers
 take `size="lg"` (taller fields); All Filters keeps their default size. The
 right side has three type sizes at every width: 20px for each section title,
-16px for every answer (tiles, chips, pills, typed text) and 14px for every note
-beside one. `text-subtitle`, the answers' size, carries a 600 weight of its
+16px for every answer (tiles, chips, pills, typed text, the rail's step
+names) and 14px for every note beside one, the rail's numbers too; the
+signed-in line at the foot is the one 12px exception. `text-subtitle`, the answers' size, carries a 600 weight of its
 own, so each answer sets its weight; without it the typed salary and search
 text came out semibold.
 
@@ -999,8 +1024,10 @@ the saved filters and scores what they keep against the bank just filled. A
 failed save leaves the seeker on the page to retry. Date Posted is not asked:
 a saved "past 24 hours" would empty the feed within days. Sign-in sends an
 applicant here until they finish (`docs/auth.md`); a finished one coming back
-from intake's "Back to Profile" finds the wizard filled with their saved
-answers, and Continue saves the edits.
+from intake's "Back to Pay & Visa" (`?step=2`) finds the wizard on its second
+step, filled with their saved answers, and Continue saves the edits. Without
+saved answers `?step=2` opens on the first step, which holds the answers that
+must be given.
 
 ## Company screens
 

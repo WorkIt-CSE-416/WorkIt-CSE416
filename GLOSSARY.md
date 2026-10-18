@@ -69,7 +69,7 @@ How many of a job posting's keywords a built resume shows, given as a count (12 
 _Avoid_: ATS score, match score, resume score
 
 **Intake**:
-The guided conversation in which WorkIt asks a student about one thing they did at a time and drafts an entry from their own words.
+The guided conversation in which Scout asks a student about one thing they did at a time and drafts an entry from their own words.
 _Avoid_: onboarding, chat import, AI builder
 
 **Draft entry**:

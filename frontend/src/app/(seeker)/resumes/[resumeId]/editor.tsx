@@ -627,7 +627,7 @@ function Bar({
       </span>
       {onAsk && (
         <Button variant="outline" size="sm" onClick={onAsk}>
-          <Sparkles /> Ask WorkIt
+          <Sparkles /> Ask Scout
         </Button>
       )}
     </div>

@@ -13,19 +13,19 @@ import { entryDetails, formatDates, neededFacts, sectionOf, type EntryDraft } fr
  * Intake's draft as Scout's panel shows it (KAN-202): a read-only preview,
  * pinned between the step bar and the chat, of the entry as the bank will
  * list it. It is not a form. The form opens over the panel on Edit, so the
- * chat keeps the panel's height and the card never sits on WorkIt's lines.
+ * chat keeps the panel's height and the card never sits on Scout's lines.
  *
  * After Cloudscape's split of inline previews (quick to read, one or two
  * actions in the card) from canvas previews (opened to edit), and the
- * context block chat guides recommend: what WorkIt has understood so far,
- * in plain view. Each line is keyed by its text, so a line WorkIt fills in
+ * context block chat guides recommend: what Scout has understood so far,
+ * in plain view. Each line is keyed by its text, so a line Scout fills in
  * or changes fades in, and the student sees the answer land. "Still needed"
  * names the facts a resume line wants that the draft lacks yet
  * (`neededFacts`), never an optional field.
  *
  * THE STAGE CARD (KAN-249). The panel's one block above the chat: the
  * section's icon and name, "Step 1 of 6", Skip at the right, and the step
- * bar's segments (`progress`, the compact StepBar) under them. Once WorkIt
+ * bar's segments (`progress`, the compact StepBar) under them. Once Scout
  * has a title, the draft opens under a hairline: its title and state dot,
  * the entry as the bank lists it, and Edit and Save Entry. Before that there
  * is nothing to show or save, and the chat's question is the next step; Edit
@@ -76,7 +76,7 @@ export function DraftPreview({
   /** Moves on without saving. */
   onSkip: () => void;
   skipLabel: string;
-  /** While WorkIt answers or a save runs: a late reply must not land on the
+  /** While Scout answers or a save runs: a late reply must not land on the
    *  next section. Disabled rather than hidden, so the header holds still. */
   skipDisabled: boolean;
   icon: ReactNode;
@@ -107,7 +107,7 @@ export function DraftPreview({
           </div>
           {/* No title yet, so no preview and no Edit below it: the form is
               still the way to fill the entry in by hand, which the API's own
-              "Fill in the card yourself" asks for when WorkIt cannot answer. */}
+              "Fill in the card yourself" asks for when Scout cannot answer. */}
           {!titled && (
             <Button size="sm" variant="ghost" className="shrink-0" onClick={onEdit}>
               <Pencil /> Edit
@@ -233,7 +233,7 @@ export function DraftPreview({
   );
 }
 
-/** Whether WorkIt has more to ask: a pulsing brand dot, or a still green
+/** Whether Scout has more to ask: a pulsing brand dot, or a still green
  *  one once the draft is ready. Intake's other draft views share it. */
 export function Dot({ ready }: { ready: boolean }) {
   return (

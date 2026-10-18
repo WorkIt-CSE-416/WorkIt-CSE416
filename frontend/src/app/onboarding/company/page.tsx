@@ -15,7 +15,7 @@ export const metadata: Metadata = {
  * still undecided (see the ticket), so there is nothing to design against
  * yet. It exists so the route resolves once sign-up can reach it, rather than
  * a company account hitting a 404 the day this ships — the same reasoning
- * ../../company/jobs/new/stepper.tsx gives for drawing steps nobody has built.
+ * components/stepper.tsx gives for drawing steps nobody has built.
  */
 export default function CompanyOnboardingPage() {
   return (
