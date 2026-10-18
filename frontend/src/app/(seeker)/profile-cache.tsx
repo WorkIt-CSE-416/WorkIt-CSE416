@@ -3,7 +3,6 @@
 import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
 
 import type { ApplicantProfile } from "@/lib/profile-actions";
-import type { ResumeItem } from "@/lib/resume-actions";
 
 /**
  * My Profile's data, kept for as long as the seeker shell stays mounted, so a
@@ -12,7 +11,7 @@ import type { ResumeItem } from "@/lib/resume-actions";
  * It lives in the shell's layout rather than in a module variable on purpose:
  * signing out redirects to /login, outside this shell, which unmounts the
  * layout and drops the cache with it. A module variable would outlive the
- * session and show one account's resumes to whoever signs in next in the same
+ * session and show one account's profile to whoever signs in next in the same
  * tab. A full page load starts it empty as well.
  *
  * The page still refetches in the background on every visit, so a cached
@@ -20,7 +19,6 @@ import type { ResumeItem } from "@/lib/resume-actions";
  * made in another tab still arrives.
  */
 export type ProfileSnapshot = {
-  resumes: ResumeItem[];
   avatarUrl: string | null;
   applicantProfile: ApplicantProfile | null;
 };

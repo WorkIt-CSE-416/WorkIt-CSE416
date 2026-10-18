@@ -19,7 +19,7 @@ import { importSummary } from "@/lib/import-summary";
 import { replaceResume, type ResumeItem } from "@/lib/resume-actions";
 
 /**
- * Import Updated Resume, from a resume row on My Profile. The stored file
+ * Import Updated Resume, from an uploaded resume's row on the Resumes view. The stored file
  * never changes, so the student brings the newer version: it replaces the
  * row's file (same row, same primary star) and the API reads it into the
  * experience bank, merging what the bank has (ADR 0003). The dialog then

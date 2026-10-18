@@ -78,8 +78,8 @@ export function ImportCard({
         {result?.found === 0 && (
           <>
             {" "}
-            <Link href="/profile" className="text-brand hover:text-brand-hover underline">
-              Upload another on My Profile
+            <Link href="/resumes" className="text-brand hover:text-brand-hover underline">
+              Upload another on Resumes
             </Link>
             , or add your entries here.
           </>

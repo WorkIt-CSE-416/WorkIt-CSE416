@@ -1,8 +1,8 @@
 import { getResumeFileUrl, type ResumeItem } from "@/lib/resume-actions";
 
 /**
- * Opens one resume's file, the way a resume row's eye does on My Profile and
- * the Applications page. Returns the message to show, or null when it opened.
+ * Opens one resume's file, the way a resume row's eye does on the Resumes
+ * view and the Auto Apply page. Returns the message to show, or null when it opened.
  *
  * CALL IT STRAIGHT FROM THE CLICK, before any await of your own. A PDF opens
  * in a new tab, and that tab is opened here, before this function's own first

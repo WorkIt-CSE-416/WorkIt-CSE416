@@ -136,8 +136,9 @@ async def generate(
         resume = await service.generate(session, applicant_id, body.name)
     except service.ResumeLimitReached as exc:
         raise HTTPException(409, str(exc))
+    default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
-    return _response(resume, None)
+    return _response(resume, default_id)
 
 
 @router.get("", response_model=list[BuiltResumeResponse])

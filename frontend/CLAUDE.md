@@ -194,16 +194,17 @@ are in `docs/auth.md`.
   action runs.
 - **My Profile's cache (`(seeker)/profile-cache.tsx`) lives in the seeker
   layout, never a module variable**: sign-out leaving the shell is what drops
-  it, and a module variable would show one account's resumes to the next
+  it, and a module variable would show one account's profile to the next
   person in that tab.
 - **Resume facts are edited in the experience bank only** (KAN-211). An
   upload writes its reading into the bank itself (ADR 0003); no screen holds
   a second copy of an upload's facts to edit. Two editors of the same facts
   drift apart, and built resumes read the bank. Every screen that reports an
   import says it with `lib/import-summary.ts`, from the `bank` of an upload
-  or an Import Updated Resume, or Import Again's response. My Profile's row
-  offers Import Updated Resume (a newer file for that row), never a re-read
-  of the stored file, which only ever read the same text. "Read It With
+  or an Import Updated Resume, or Import Again's response. An upload's row
+  on the Resumes view offers Import Updated Resume (a newer file for that
+  row), never a re-read of the stored file, which only ever read the same
+  text. "Read It With
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
@@ -216,10 +217,12 @@ are in `docs/auth.md`.
   (`lib/sent-resume-actions.ts`, KAN-208), PDF or Word (`"docx"`), never
   `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
   downloads the file. A download cancelled at the missing-character warning
-  deletes the sent resume it just made (`created`), so the "Sent" list holds
-  only files the student took. Apply on the posting detail goes through
+  deletes the sent resume it just made (`created`), so only files the
+  student took are kept. Apply on the posting detail goes through
   `applyWithResume` (KAN-220) and keeps its sent resume: the student is
-  told it is in the Sent list, so it is never deleted behind their back.
+  told WorkIt kept a copy, so it is never deleted behind their back. No
+  screen lists sent resumes since the Resumes view's Sent card went
+  (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
   (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also

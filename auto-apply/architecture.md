@@ -38,7 +38,7 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 | **Base resume** | A resume built from the experience bank (`built_resumes` with no `job_posting_id`, KAN-207). Its default is `applicant_profiles.default_built_resume_id` |
 | **Tailored resume** | A built resume for one job posting (`built_resumes.job_posting_id`), made with Tailor (KAN-217). At most one per job posting |
 | **Uploaded resume** | A file the student uploaded (`resumes`). Its default is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
-| **Default resume** | The one resume the student starred, a base or an uploaded one: My Profile calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two |
+| **Default resume** | The one resume the student starred, a base or an uploaded one: the Resumes view calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two. A student's only resume is the default with no star click (`built_resumes.default_if_only`, on every add and delete) |
 | **Sent resume** | The exact file a student downloaded or applied with, kept in `sent_resumes` (KAN-208). With `job_posting_id` it records what went to that job posting (Apply, KAN-220) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
@@ -544,8 +544,9 @@ limit.
 `prepare_resume` keeps the file as a sent resume linked to the job posting,
 as Apply does:
 
-- **The student sees what went out.** The Sent list and the job posting
-  page's "You sent <name> on <date>" show it, the same as for Apply.
+- **The student sees what went out.** The job posting page's "You sent
+  <name> on <date>" shows it, the same as for Apply. (The Resumes view's
+  Sent list showed it too, until it was removed on 2026-10-18.)
 - **A retry makes nothing new.** When Chrome closes and the run starts
   again, unchanged content returns the same sent resume.
 - **It is fast.** A built resume renders in the request (Tectonic, about
@@ -868,7 +869,7 @@ Tailoring with its review, the PDF render and the resume editor are built
   bullet that gained a claim, and the limit is 2 a day. Until this is
   decided, the run never tailors.
 - **Skip and the sent resume.** Skip keeps the sent resume, as Apply does.
-  The Sent list then shows a resume that went to no employer. Delete it on
-  Skip instead?
+  The job posting page then says a resume was sent that went to no
+  employer. Delete it on Skip instead?
 - **The uploaded resume as a fallback.** It is the student's own file, but
   the bank may say more. Ask the student to Generate a base resume first?

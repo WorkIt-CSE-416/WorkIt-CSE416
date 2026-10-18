@@ -13,7 +13,6 @@ import { cn } from "@/lib/cn";
 import { previewResume } from "@/lib/preview-resume";
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
 
-import { useProfileCache } from "../profile-cache";
 import type { RunState } from "./auto-apply-panel";
 
 /**
@@ -31,11 +30,10 @@ import type { RunState } from "./auto-apply-panel";
  * as on /resumes; it never downloads here, since every download keeps a
  * sent resume (frontend/CLAUDE.md). An uploaded one previews in a new tab
  * (previewResume). Choosing, building and deleting resumes stays on /resumes
- * and My Profile, which Manage and the empty state lead to.
+ * (uploads too, since 2026-10-18), which Manage leads to.
  *
- * Uploaded resumes start from My Profile's cache when the shell has one
- * (../profile-cache.tsx), without writing to it; both lists refetch on every
- * visit. A list that fails keeps what loaded and says the rest didn't.
+ * Both lists load on every visit. A list that fails keeps what loaded and
+ * says the rest didn't.
  *
  * The button beside the list starts and pauses auto apply; Start queues a
  * batch of matches. The state lives in ./auto-apply-panel.tsx, since Live
@@ -78,10 +76,7 @@ export function ResumeList({
   pending: boolean;
   onToggle: () => void;
 }) {
-  const cache = useProfileCache();
-  const [uploaded, setUploaded] = useState<ResumeItem[] | null>(
-    () => cache.read()?.resumes ?? null,
-  );
+  const [uploaded, setUploaded] = useState<ResumeItem[] | null>(null);
   const [built, setBuilt] = useState<BuiltResume[] | null>(null);
   const [uploadedFailed, setUploadedFailed] = useState(false);
   const [builtFailed, setBuiltFailed] = useState(false);
@@ -90,7 +85,6 @@ export function ResumeList({
   useEffect(() => {
     listResumes()
       .then(({ resumes, error: listError }) => {
-        // A failed refetch keeps the cached list a return visit already shows.
         if (listError) setUploadedFailed(true);
         else setUploaded(resumes);
       })
@@ -172,7 +166,7 @@ export function ResumeList({
                 <p className="text-note text-ink-meta">
                   {someFailed
                     ? "Refresh the page to see them here."
-                    : "Generate one on Resumes, or upload one on My Profile."}
+                    : "Generate or upload one on Resumes."}
                 </p>
               </div>
             </div>
@@ -180,7 +174,7 @@ export function ResumeList({
           {count > 0 && !hasDefault && !someFailed && (
             <p className="text-note text-ink-meta mt-2">
               None is your default yet, so a job with no tailored resume gets none. Star one on
-              Resumes or on My Profile.
+              Resumes.
             </p>
           )}
           {count > 0 && someFailed && (

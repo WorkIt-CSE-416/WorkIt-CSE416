@@ -85,8 +85,8 @@ seeker Dashboard's old surfaces (it moved to tiles in KAN-173). On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
 the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
 with no cards inside it, and one white card, the Recent Applicants table. On
-/profile: an open identity band, Resume as the only card, and open sections
-for Work Experience, Skills and Application Settings. The company hero draws
+/profile: an open identity band, Resume as the only card, and an open
+Experiences section. The company hero draws
 `components/hero-arcs.tsx`. A section's one way onward, open or carded, sits
 at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
 variant="section">` for an action. Whether those two pages should move to
