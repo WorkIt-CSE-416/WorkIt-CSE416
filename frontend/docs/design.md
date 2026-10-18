@@ -92,6 +92,16 @@ at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
 variant="section">` for an action. Whether those two pages should move to
 cards as well is still open. Each page's docblock says what goes where.
 
+The auth screens (/login, /signup, /signup/choose-account-type) sit outside
+both shells. Each is its card alone over a skyline (`components/skyline.tsx`):
+a white sky thinning to lavender, a low sun on the left, and four rows of flat
+violet towers along the window's floor, each row paler and hazier than the one
+before it, the near ones shaded on their right faces. It is fixed, so the card
+scrolls over it. The card hangs from
+the top (12vh down from lg) so it holds still when the Company fields open. A
+violet pitch filled the left of the window from lg until KAN-259: no mockup
+drew it, and it pulled the eye off the form.
+
 ## Brand and icons
 
 `components/logo.tsx` draws the WorkIt logo as SVG (a w-shaped figure with its

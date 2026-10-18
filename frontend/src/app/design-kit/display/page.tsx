@@ -16,6 +16,7 @@ import { JOB_POSTINGS } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { SaveButton } from "@/components/save-button";
+import { Skyline, SKYLINE_SKY } from "@/components/skyline";
 import { StatTile } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,6 +113,17 @@ export default function DisplayPage() {
           <div className="from-brand to-brand-active text-on-brand rounded-shell relative h-28 w-full max-w-sm overflow-hidden bg-linear-to-br p-5">
             <HeroArcs />
             <p className="text-caption relative text-white/85 uppercase">Next Up</p>
+          </div>
+        </Row>
+        <Row
+          name="<Skyline>"
+          role="The city behind the auth screens' card; SkylineBackdrop fixes it there under this sky"
+        >
+          <div
+            className="rounded-shell border-border-subtle relative h-32 w-full overflow-hidden border"
+            style={{ background: SKYLINE_SKY }}
+          >
+            <Skyline className="absolute inset-0 size-full" />
           </div>
         </Row>
       </Group>

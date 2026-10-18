@@ -83,11 +83,11 @@ export const COLOR_GROUPS: ColorGroup[] = [
     title: "Surfaces",
     note: "Login and the app shell disagree about which hex is a page and which is a card, so both scales exist side by side until a designer reconciles them. Every one is a pure grey: the blue casts they were sampled with are gone.",
     tokens: [
-      { token: "--color-canvas", role: "Login page ground" },
+      { token: "--color-canvas", role: "Body ground; the auth screens paint a sky over it" },
       { token: "--color-surface", role: "Login card, and every field fill" },
       { token: "--color-surface-tint", role: "Logo tile, subtle fills" },
       { token: "--color-app", role: "Home and design kit ground; uploaded-file row" },
-      { token: "--color-panel", role: "Top bar and cards" },
+      { token: "--color-panel", role: "Top bar, cards and secondary buttons" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
       { token: "--color-frame", role: "Seeker shell ground, under its floating panels" },
     ],
