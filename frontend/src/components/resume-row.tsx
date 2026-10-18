@@ -29,13 +29,11 @@ function uploadedOn(createdAt: string | null) {
 export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
 
 /**
- * The primary resume's star. On the primary it is filled and always
- * visible; on the others it appears while the row is hovered or the star has
- * keyboard focus. A touch screen has no hover, so there those stars stay
- * visible. A hidden star still holds its place, so nothing shifts when it
- * appears. With no `onMakePrimary`, a resume that is not primary shows none.
- * The Resumes view's uploads and built resumes (KAN-258) draw
- * it alike; the row must carry `group`.
+ * The primary resume's star. On the primary it is filled; on the others it
+ * is an outline, always visible (KAN-268): it showed only while the row was
+ * hovered, so a student did not know a resume could be made primary. With
+ * no `onMakePrimary`, a resume that is not primary shows none. The Resumes
+ * view's uploads and built resumes (KAN-258) draw it alike.
  */
 export function PrimaryStar({
   name,
@@ -58,10 +56,7 @@ export function PrimaryStar({
     <IconButton
       label={`Make ${name} your primary resume`}
       tooltip="Make primary"
-      className={cn(
-        ROW_ACTION,
-        "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
-      )}
+      className={ROW_ACTION}
       onClick={onMakePrimary}
     >
       <Star aria-hidden className="size-4" />
