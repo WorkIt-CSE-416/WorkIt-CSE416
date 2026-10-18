@@ -127,7 +127,10 @@ def prompt(
             if bullet.id in best:
                 shows = choices.bullets.get(bullet.id)
                 lines.append(f"  {named[bullet.id]}: {(shows and shows.text) or bullet.text}")
-    description = job_part(job.description).strip()[: kw.MAX_DESCRIPTION_CHARS] or "(No description: only the title.)"
+    description = (
+        job_part(job.description, keep_headings=True).strip()[: kw.MAX_DESCRIPTION_CHARS]
+        or "(No description: only the title.)"
+    )
     words = ", ".join(f"{k.keyword} ({k.kind})" for k in keywords) or "(none)"
     skills = ", ".join(s.name for s in bank.skills) or "(none)"
     user = (

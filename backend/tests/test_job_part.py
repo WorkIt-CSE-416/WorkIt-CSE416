@@ -7,8 +7,24 @@ import pytest
 from app.models.jobs import Job_Post
 from app.schemas.keywords import KeywordReading
 from app.services import keywords, tailor
+from app.services.matching.embeddings import job_part, job_text
 
 pytestmark = pytest.mark.anyio
+
+
+def test_qualification_labels_survive_section_filtering() -> None:
+    description = (
+        "Requirements\nPython\nPreferred Qualifications\nRust\nBenefits\nFree lunch"
+    )
+    assert job_part(description, keep_headings=True) == (
+        "Requirements\nPython\nPreferred Qualifications\nRust"
+    )
+    assert job_text("Intern", description) == "Intern\n\nPython\nRust"
+
+
+def test_empty_sections_do_not_replace_the_intro_with_headings() -> None:
+    description = "Build robots.\nRequirements\n\nBenefits\nFree lunch"
+    assert job_part(description, keep_headings=True) == "Build robots."
 
 STORED = (
     "Overview\nJoin the firmware team.\nRequirements\nC and Rust.\n"

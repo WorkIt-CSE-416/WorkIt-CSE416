@@ -59,7 +59,8 @@ DESCRIPTION_CHARS = 8000
 #: 15: the HTML's list items and headings guide the sections, and a list item is
 #: stored as "• item" (`plain_lines`); with it, unreleased, a line moved by what it
 #: says and less job text hidden, and the learned headings (`docs/sections.md`).
-PAGE_VERSION = 15
+# Re-read lower-bound salary annotations and implicitly closed HTML lists.
+PAGE_VERSION = 16
 
 
 class BoardNotFound(Exception):
@@ -348,7 +349,7 @@ class _TextOnly(HTMLParser):
             self.parts.append(("\n", ()))
         for index in range(len(self.open) - 1, -1, -1):
             if self.open[index] == tag:
-                del self.open[index]
+                del self.open[index:]
                 break
 
     def handle_data(self, data: str) -> None:

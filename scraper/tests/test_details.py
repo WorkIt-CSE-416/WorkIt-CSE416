@@ -1076,14 +1076,26 @@ class TestSponsorship:
 
 
 class TestConstructedGuards:
-    """Constructed guards for KAN-168's fixes and one pay shape, not seen live: each
-    bug was real, but no posting on 2026-10-09 (or, for the pay, on 2026-10-10) said
-    it this way."""
+    """Constructed guards for sponsorship and pay fixes, not seen live.
+
+    These sentences reproduce review findings without claiming a live posting
+    used the exact wording, including ranges with metadata on only one bound.
+    """
 
     def test_cents_on_one_end_of_a_range(self) -> None:
         # Reported as read "50,000 to 50,000"; the cached postings write cents on
         # both ends or neither.
         assert details.pay("Salary: $50,000.00 - $70,000") == Pay("USD", 50000, 70000, "year")
+
+    def test_range_keeps_lower_bound_currency_and_period(self) -> None:
+        assert details.pay("$30CAD to $45 per hour") == Pay("CAD", 30, 45, "hour")
+        assert details.pay("Salary: $1000/week - $2000") == Pay("USD", 1000, 2000, "week")
+        assert details.pay("$50/hr - $70") == Pay("USD", 50, 70, "hour")
+        assert details.pay("$1000/month - $2000") == Pay("USD", 1000, 2000, "month")
+
+    def test_lower_bound_period_does_not_hide_non_pay_upper_suffix(self) -> None:
+        assert details.pay("Salary: $50/hr - $70 million") is None
+        assert details.pay("Salary: $50/hr - $70 billion") is None
 
     INTERN = "Software Engineer Intern"
 
