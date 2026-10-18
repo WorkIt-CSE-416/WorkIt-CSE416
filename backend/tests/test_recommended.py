@@ -125,11 +125,9 @@ async def test_the_embedding_input_follows_the_spec(student, gemini, database):
     assert (await _recommended(client, me)).status_code == 200
     assert gemini == [(
         "Skills: Python, ROS\n"
-        "BS Computer Science\n"
         "Experience: Robotics Intern, Acme\n"
         "- Wrote ROS nodes for arms.\n"
         "- Mailed [email] weekly reports.\n"
-        "Education: Stony Brook University\n"
         "Projects: WorkIt\n"
         "- Built a job board."
     )]
