@@ -813,10 +813,14 @@ auto apply's matches leave out every stage (`no_application_by`). Rules:
   `job_applications_job_idx` serves "who applied to this job".
 - **CASCADE from both sides**: deleting the account or the job deletes the
   row. A closed job keeps its rows, since closing is a status, not a delete.
-- **`stage` is the status** (`dto.application_stage`: `queued`,
-  `needs_you`, `skipped`, `applied`; `c0467afe819c`), a column here rather
-  than a second table, so one row is one application. `created_at` orders
-  the queue.
+- **`stage` is the status** (`dto.application_stage`: `saved`, `queued`,
+  `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
+  `17ea74fa4573`), a column here rather than a second table, so one row is
+  one application. `created_at` orders the queue. `saved` is for a job's
+  Save button (KAN-261); nothing writes it until that feature ships.
+- **Apply `17ea74fa4573` before the deploy that writes `saved`.** It only
+  adds the value, so the code running before it never meets it; deployed
+  first, every Save answers 500.
 - **`applied_at` is NULL until the applicant applies**, and the
   `job_applications_applied_dated` CHECK keeps an `applied` row dated.
 - **The defaults (`stage` `applied`, `applied_at` `now()`) are for applied
