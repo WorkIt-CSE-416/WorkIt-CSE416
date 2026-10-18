@@ -299,8 +299,9 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    application for this student (queued, applied, skipped) stays out. Without
    this, every click returns the same 10. `get_matches` and `start_batch`
    set `JobFilters.no_application_by`, so a job posting with an application
-   at any stage is never scored. A saved job posting (KAN-261) is no
-   application yet: it stays in, and queueing it moves it to `queued`.
+   at any stage is never scored, a saved one (KAN-261) too: saving never
+   queues a job by itself. Only the student's own Auto Apply click queues a
+   saved job, which moves it to `queued`.
 3. **Freeze the batch at Start.** Pick the 10 once and save them as `queued`
    applications. New job postings arrive every 3 hours and scores change, so
    a list read during the run could change under it. A saved batch also lets
@@ -591,13 +592,14 @@ disagree. Migration `c0467afe819c` added:
 | `applied_at` | timestamptz **null** now | Set when the student clicks **Submitted** or the Applied button; `NULL` while queued. A CHECK keeps an `applied` row dated |
 
 - **The Jobs page hides `applied` rows only** (`JobFilters.applied_by`). A
-  saved or queued job stays on it; matches leave out every stage but saved
+  saved or queued job stays on it; matches leave out every stage, saved too
   (`JobFilters.no_application_by`).
 - **The Applied button turns a saved, queued, skipped or needs_you row
   applied** (`mark_applied`, an upsert); an applied row keeps its first date.
-- **A saved row is the Save button's, not a run's** (KAN-261).
-  `queue_applications` turns it `queued` (`ON CONFLICT DO UPDATE ... WHERE
-  stage = 'saved'`) and leaves every other stage alone; Save never moves a
+- **A saved row is the Save button's, not a run's** (KAN-261). A batch
+  never picks it. A job's own Auto Apply click does: `queue_applications`
+  turns it `queued` (`ON CONFLICT DO UPDATE ... WHERE stage = 'saved'`) and
+  leaves every other stage alone; Save never moves a
   later stage back, and Unsave deletes a saved row only. Live Activity asks
   for every stage but saved. Taking a queued job out of the queue deletes
   its row, so a job that was saved before it was queued is no longer saved.

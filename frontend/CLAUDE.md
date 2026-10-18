@@ -87,7 +87,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   dated events stay empty until the API stores them; a failed read shows an
   error, never stand-in cards. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
-  one read per page; a saved job counts as no application to Auto Apply.
+  one read per page. Auto Apply never picks a saved job for a batch; only
+  the job's own Auto Apply click queues it.
   `docs/screens.md`, Applications, has the rest.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).

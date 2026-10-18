@@ -123,11 +123,12 @@ def test_the_feed_hides_applied_jobs_only():
     assert "job_applications.stage = 'applied'" in _sql(clause)
 
 
-def test_matches_hide_every_job_with_an_application_but_a_saved_one():
+def test_matches_hide_every_job_with_an_application_saved_ones_too():
+    # A batch never picks a saved job: only the student's own click queues it.
     (clause,) = matching(JobFilters(no_application_by=APPLICANT))
     sql = _sql(clause)
     assert sql.startswith("NOT (EXISTS (SELECT")
-    assert "job_applications.stage != 'saved'" in sql
+    assert "stage" not in sql
 
 
 def test_matches_can_take_only_jobs_auto_apply_fills():

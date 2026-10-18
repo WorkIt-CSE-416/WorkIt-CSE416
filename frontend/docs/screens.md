@@ -183,8 +183,9 @@ over the drawing-only `components/save-button.tsx`): the bookmark fills at
 once and empties again, with a toast, if the API refuses, and a second
 click takes it back out. It reads its first state from the same stage the
 Auto Apply button gets, so it costs no fetch of its own. A job posting
-already queued or applied stays as it is, and a toast says where it is; a
-saved one still counts as no application, so Auto Apply queues it. The
+already queued or applied stays as it is, and a toast says where it is.
+Saving never queues a job: Start Auto Apply's batches skip saved jobs, and
+only the job's own Auto Apply button queues one. The
 card's own row has Not Interested, Save, Ask
 Scout, Auto Apply, Tailor My Resume and Apply Now. Tailor My Resume is the
 page's button on the card too (KAN-241): it opens `/jobs/[jobId]/tailor`

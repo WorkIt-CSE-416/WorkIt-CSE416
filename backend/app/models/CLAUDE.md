@@ -802,8 +802,8 @@ Its downgrade puts the columns back empty; the old import refills them.
 (`routers/applications.py`) writes it `applied`, a Save button `saved`
 (KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on.
 GET /jobs leaves out that applicant's `applied` jobs (`JobFilters.applied_by`,
-a `NOT EXISTS`); auto apply's matches leave out every stage but `saved`
-(`no_application_by`). Rules:
+a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
+(`no_application_by`), so a batch never picks a saved job. Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants
@@ -818,8 +818,9 @@ a `NOT EXISTS`); auto apply's matches leave out every stage but `saved`
   `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
   `17ea74fa4573`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
-- **`saved` is a bookmark, not an application** (KAN-261). Applying or
-  queueing moves it on (`mark_applied`; `queue_applications`, which also
+- **`saved` is a bookmark, not an application** (KAN-261). Nothing queues
+  it by itself: batches skip it. Applying, or the job's own Auto Apply
+  click, moves it on (`mark_applied`; `queue_applications`, which also
   moves its `created_at` to now so it doesn't jump the queue); saving never
   moves a later stage back (`ON CONFLICT DO NOTHING`), and unsaving deletes
   a `saved` row only, a 409 otherwise. A saved insert names `applied_at`
