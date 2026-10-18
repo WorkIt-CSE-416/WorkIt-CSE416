@@ -45,6 +45,7 @@ export function FeedList({
   more: initialMore,
   query,
   stages,
+  tailored,
   source = "feed",
 }: {
   initial: JobListing[];
@@ -53,6 +54,8 @@ export function FeedList({
   /** The seeker's applications by job id, read once with the first page; a
    *  Load More page's cards look theirs up here too. */
   stages: Record<string, ApplicationStage>;
+  /** The job ids the seeker has a tailored resume for, read the same way. */
+  tailored: string[];
   source?: "feed" | "recommended";
 }) {
   // The server renders the first page alone; the browser adds the kept
@@ -71,6 +74,7 @@ export function FeedList({
   // The first role of the last page loaded, to move focus to.
   const [focusId, setFocusId] = useState<string | null>(null);
   const list = useRef<HTMLUListElement>(null);
+  const tailoredIds = new Set(tailored);
 
   useEffect(() => {
     if (!focusId) return;
@@ -124,7 +128,11 @@ export function FeedList({
             style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
             className="animate-rise"
           >
-            <ListingCard job={job} stage={stages[job.id] ?? null} />
+            <ListingCard
+              job={job}
+              stage={stages[job.id] ?? null}
+              tailored={tailoredIds.has(job.id)}
+            />
           </li>
         ))}
         {loaded.map((job, i) => (
@@ -135,7 +143,11 @@ export function FeedList({
             style={{ animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }}
             className="animate-rise"
           >
-            <ListingCard job={job} stage={stages[job.id] ?? null} />
+            <ListingCard
+              job={job}
+              stage={stages[job.id] ?? null}
+              tailored={tailoredIds.has(job.id)}
+            />
           </li>
         ))}
       </ul>
