@@ -10,7 +10,7 @@ import { FIELD_CONTROL, FIELD_LABEL, TextField } from "@/components/ui/text-fiel
 import type { BankEntry, EndKind, Skill } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { sectionOf, type EntryDraft } from "./sections";
+import { savable, sectionOf, type EntryDraft } from "./sections";
 import { SkillLinksField } from "./skill-links";
 
 /**
@@ -94,18 +94,9 @@ export function EntryEditor({
     }
   }
 
-  function cleaned(): EntryDraft {
-    return {
-      ...draft,
-      // An entry that runs to Present has no end month.
-      end_month: draft.end_kind === "present" ? null : draft.end_month,
-      bullets: draft.bullets.filter((b) => b.text.trim() !== ""),
-    };
-  }
-
   function submit(event: FormEvent) {
     event.preventDefault();
-    onSave(cleaned(), skillIds);
+    onSave(savable(draft), skillIds);
   }
 
   return (
@@ -350,7 +341,11 @@ export function EntryEditor({
           {cancelLabel}
         </Button>
         {duplicate && onSaveAsNew ? (
-          <Button type="button" disabled={saving} onClick={() => onSaveAsNew(cleaned(), skillIds)}>
+          <Button
+            type="button"
+            disabled={saving}
+            onClick={() => onSaveAsNew(savable(draft), skillIds)}
+          >
             {saving ? "Saving…" : "Save as New"}
           </Button>
         ) : (

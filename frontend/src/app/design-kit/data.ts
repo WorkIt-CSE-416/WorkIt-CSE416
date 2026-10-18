@@ -435,7 +435,7 @@ export const ANIMATIONS: {
     token: "--animate-typing",
     cls: "animate-typing",
     demo: "dots",
-    role: "Scout's three thinking dots, staggered 150ms; it loops, as only shimmer also does",
+    role: "Scout's three thinking dots, staggered 150ms; of these tokens it loops, as only shimmer also does",
   },
   {
     token: "--animate-shimmer",

@@ -40,6 +40,7 @@ import {
   draftOf,
   emptyDraft,
   gapQuestions,
+  savable,
   sectionOf,
   SECTIONS,
   type EntryDraft,
@@ -103,6 +104,8 @@ import {
  * resume question is a stage of its own first: the greeting asks it, its
  * answers (Upload Resume, Use One I Uploaded, Start Without One) sit under
  * it, and no section or stage card shows until one is picked (KAN-249).
+ * With entries, the walk starts at once and the question is WorkIt's second
+ * line, with the two import answers, until the student imports once.
  * Onboarding keeps the page layout.
  */
 
@@ -515,7 +518,8 @@ export function Intake({
     setError(failure);
   }
 
-  async function save(entry: EntryDraft, allowDuplicate = false) {
+  async function save(input: EntryDraft, allowDuplicate = false) {
+    const entry = savable(input);
     if (kept?.entryId) return saveVisit(kept.entryId, entry);
     setSaving(true);
     setSaveError(null);
@@ -643,13 +647,11 @@ export function Intake({
     <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
   );
 
-  /** Docked, the resume question is a stage of its own (KAN-249): WorkIt's
-   *  greeting asks it (OFFER_GREETING), its three answers sit under it, and
-   *  no section starts until one is picked. Asked beside the Education
-   *  question, as it was, the first screen asked two things at once. Every
-   *  answer WorkIt offers is a suggestion Chip, these and the section chips
-   *  alike (KAN-251); they were a fill, an outline and a text link. */
-  const importOffer = resumeStage && (
+  /** The resume question's answers. Every answer WorkIt offers is a
+   *  suggestion Chip, these and the section chips alike (KAN-251); they were
+   *  a fill, an outline and a text link. Start Without One only in the
+   *  stage, where no section has started yet. */
+  const resumeAnswers = (stage: boolean) => (
     <>
       <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
         <Chip
@@ -663,9 +665,11 @@ export function Intake({
         <Chip variant="suggestion" disabled={uploading} onClick={() => setImporting(true)}>
           <FileText aria-hidden /> Use One I Uploaded
         </Chip>
-        <Chip variant="suggestion" disabled={uploading} onClick={startWithoutResume}>
-          <MessageSquareText aria-hidden /> Start Without One
-        </Chip>
+        {stage && (
+          <Chip variant="suggestion" disabled={uploading} onClick={startWithoutResume}>
+            <MessageSquareText aria-hidden /> Start Without One
+          </Chip>
+        )}
       </div>
       {uploadError && (
         <p role="alert" className="text-note text-danger pl-10.5">
@@ -674,6 +678,28 @@ export function Intake({
       )}
     </>
   );
+
+  /** Docked with an empty bank, the resume question is a stage of its own
+   *  (KAN-249): WorkIt's greeting asks it (OFFER_GREETING), its three
+   *  answers sit under it, and no section starts until one is picked. Asked
+   *  beside the Education question, as it was, the first screen asked two
+   *  things at once. A bank with entries has no stage, since the walk opens
+   *  on its gaps: the question is WorkIt's second line, with its two import
+   *  answers, until the student imports once. Without it, a student whose
+   *  bank had an entry had no way to import at all. After Start Without One
+   *  it stays answered. */
+  const importOffer = resumeStage
+    ? resumeAnswers(true)
+    : offerImport &&
+      !importing &&
+      !greetedWithOffer && (
+        <>
+          <WorkItLine follows>
+            Have a resume? I can read it, fill in what it can, and then ask only about the rest.
+          </WorkItLine>
+          {resumeAnswers(false)}
+        </>
+      );
 
   const stepBar = (
     <StepBar
