@@ -194,7 +194,9 @@ Visa sponsorship has three answers, or none when the job posting doesn't say:
 A description keeps only what says what the job is (KAN-229). The scraper finds
 its headings ("What you'll do", "Who you are", "Benefits") and stores the intro,
 then Overview, Responsibilities, Requirements, Preferred Qualifications, Pay
-and Details, in that order and under those fixed headings. The company's pitch,
+and Details, in that order and under those fixed headings. A line the
+employer's page listed is stored as "• item", and the page's own markup tells
+the scraper which lines are headings and which are list items. The company's pitch,
 benefits, legal notices and how to apply are left out: about 30% of the text. The
 facts above are read from the whole text first, so leaving text out never loses
 one. Then a long description is cut at 8,000 characters, ending in " …". The

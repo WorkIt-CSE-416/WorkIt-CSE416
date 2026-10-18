@@ -16,6 +16,12 @@ labeled with the section it belongs to by what it says, in two groups scored apa
 Every label follows one guide (`docs/sections-gold-guide.md`). Treat a
 disagreement as a question about the label as well as the parser.
 
+`roles` is each line's role in the posting's HTML, as the scraper reads it
+(`providers.plain_lines`), so the parser is scored on what it sees in production:
+re-read from each provider on 2026-10-17, matched line by line where a posting
+had changed, and null for Ashby (which the scraper reads as plain text) and for
+postings that had closed.
+
 Scored where a student sees each line: under which fixed heading, in the
 unlabeled intro, or left out. Every other section test checks one case; this one
 says how often the parser is right across real postings, so a change that fixes
@@ -76,7 +82,8 @@ def score(group: str = "boards") -> dict:
     right = total = 0
     shown_as: Counter[tuple[str, str]] = Counter()  # (predicted place, gold place)
     for posting in postings(group):
-        found = labels(posting["text"])
+        roles = posting.get("roles")
+        found = labels(posting["text"], tuple(roles) if roles else None)
         for index, gold in enumerate(posting["labels"]):
             if gold is None or found[index] is None:
                 continue
@@ -121,6 +128,8 @@ def test_every_gold_posting_is_labeled_whole() -> None:
         assert len(posting["labels"]) == len(lines), posting["apply_url"]
         for line, gold in zip(lines, posting["labels"], strict=True):
             assert (gold is None) == (not line.strip()), (posting["apply_url"], line)
+        if posting.get("roles") is not None:
+            assert len(posting["roles"]) == len(lines), posting["apply_url"]
 
 
 def test_line_accuracy_holds(result: dict) -> None:
@@ -143,14 +152,16 @@ def test_workday_wrong_content_under_a_core_heading_stays_rare(
     assert workday["per_heading"][heading]["wrong"] <= WORKDAY_WRONG_CEILING[heading]
 
 
-#: The scores when each group was added (see the module docstring), 2026-10-17.
-#: Boards: 80.3% of 1,724 lines shown where they belong; of the lines shown under
-#: Responsibilities, Requirements and Pay, 18.4%, 10.9% and 20.0% belong elsewhere.
-ACCURACY_FLOOR = 0.80
-WRONG_CEILING = {"Responsibilities": 0.185, "Requirements": 0.11, "Pay": 0.20}
-#: Workday: 66.6% of 1,346 lines; 13.8%, 33.7% and 41.7% wrong under the same three.
-WORKDAY_ACCURACY_FLOOR = 0.66
-WORKDAY_WRONG_CEILING = {"Responsibilities": 0.14, "Requirements": 0.34, "Pay": 0.42}
+#: The scores, raised as the parser improved (see the module docstring), 2026-10-17.
+#: Boards: 80.3% of 1,724 lines shown where they belong when written; of the lines
+#: shown under Responsibilities, Requirements and Pay, 18.4%, 10.9% and 20.0% belonged
+#: elsewhere. Workday, when added: 66.6% of 1,346 lines; 13.8%, 33.7% and 41.7%.
+#: With the HTML's structure and the Workday audit's headings (`docs/sections.md`):
+#: boards 82.0%; 16.0%, 10.2% and 13.0%. Workday 70.1%; 10.7%, 22.1% and 41.7%.
+ACCURACY_FLOOR = 0.82
+WRONG_CEILING = {"Responsibilities": 0.165, "Requirements": 0.105, "Pay": 0.135}
+WORKDAY_ACCURACY_FLOOR = 0.70
+WORKDAY_WRONG_CEILING = {"Responsibilities": 0.11, "Requirements": 0.225, "Pay": 0.42}
 
 
 def report() -> None:

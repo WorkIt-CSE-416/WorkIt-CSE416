@@ -292,6 +292,59 @@ Workday's largest errors: left-out text (benefits, company) shown under
 Requirements (44 lines), role and duty text dropped (34 and 32), and duty lines
 shown as requirements (27).
 
+## The HTML's structure (2026-10-17)
+
+Until now the scraper flattened a posting's HTML to bare lines (`providers.plain_text`)
+and the parser guessed from each line's shape which ones were headings. The HTML
+had already said so, and said which lines were list items. `providers.plain_lines`
+now keeps that: the same lines, each with its role, "h" inside a heading tag, "li"
+inside a list item, "b" when all of it is bold, "p" otherwise. The text is
+unchanged (byte for byte on 491 fetched descriptions), so no card fact moves.
+`sections.kept(text, roles)` uses the roles three ways:
+
+- **A list item never opens a section**, unless it ends in a colon ("Preferred:"
+  as a list's first item). Workday lists items such as "Good interpersonal skills"
+  that used to open Requirements and take the next items with them.
+- **A marked heading is read by its words alone** (`_marked`). The shape test only
+  stands in for markup, so where the HTML marks a heading, a comma, quotes, "…" or
+  a longer phrase no longer hide it: "In this internship, you will...", "“Let's
+  find out about you.”", "Here are some attributes that we are looking for in
+  our next intern". A bold sentence is still emphasis ("The minimum length of the
+  Internship must be 12 weeks." ends with a full stop), unless it is quoted.
+- **A list item is stored as "• item"**, so the job page draws a list and a
+  second read takes it for an item.
+
+Ashby stays on its plain field, which already marks list items ("- ") and
+capitalizes headings; Lever's list titles are now marked as headings.
+
+On the Workday gold postings, half the misplaced lines (231 of 450) sat under a
+heading the HTML marked but the keywords did not know. So the headings were
+audited again, on a separate sample: 250 Workday and 100 Greenhouse postings
+fetched on 2026-10-17, none in the gold set. Every marked heading the parser did
+not read was counted, and each section name seen in two postings or more was
+added: "Education", "You bring to the team", "The ideal candidate will have",
+"What Will You Do?", "Key Accountabilities", "Health & Wellbeing", "What you can
+expect", "Working Conditions", "Accessibility", "Candidate AI Usage Policy",
+"Learn More & Apply Now" and the like (`SECTIONS`), plus "Job Description Summary"
+and "Job Details" as wrappers. Left out on purpose: Workday's fields ("Job Type",
+"Time Type", "Travel -"), whose label line a heading would drop, leaving "Full
+time" alone under Details; and "A day in the life", which heads a summary as often
+as duties. Two fixes came with it: a zero-width space before a heading
+(Morningstar's "\u200bWho You Are") no longer hides it, and "Also helpful, but not
+required" is preferred, not required.
+
+| | Before | After |
+|---|---|---|
+| Boards: lines shown where they belong | 80.5% | 82.0% |
+| Workday: lines shown where they belong | 66.6% | 70.1% |
+| Workday: wrong under Requirements | 33.7% | 22.1% |
+
+The gold floors were raised to these. On the 467 fetched HTML descriptions, 11
+fail `kept(kept(text, roles)) == kept(text, roles)`, against 12 for the parser
+before on the same text. Read without roles, as the stored text is, 205 of the
+13,257 stored descriptions fail it (77 before): Workday's text without its markup
+is not what production reads. `PAGE_VERSION` 15 re-reads every stored page.
+
 ## What WorkIt keeps (decided 2026-10-17)
 
 Xiang asked for this to be decided before anything was dropped, because dropped

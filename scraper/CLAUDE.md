@@ -162,6 +162,12 @@ section is kept or left out.
   it ("Commuter benefits", "Competitive salary"), so a heading of the open
   section, or one straight after a heading, is content. Without that, one
   posting's whole benefits list vanished.
+- **The HTML's structure guides the sections.** `providers.plain_lines` gives
+  each line its role in the HTML (heading tag, bold, list item, paragraph) beside
+  `plain_text`'s unchanged text, and `kept(text, roles)` uses it: a list item never
+  opens a section, a marked heading is read by its words alone, and a list item is
+  stored as "• item". A provider that sends HTML passes the roles to `_page`; one
+  that does not (Ashby's plain field) is read by shape as before.
 - **Facts still come from the whole text.** `details.read` runs before
   anything is left out, so a pay line under Benefits still reaches the card.
 - **Headings decide most lines, what a line says decides the rest**

@@ -66,6 +66,18 @@ class TestHeading:
             ("Work Schedule", "logistics"),
             ("Internship Details", "logistics"),
             ("Location: Remote", "logistics"),
+            # The 2026-10-17 Workday audit (docs/sections.md).
+            ("Education:", "requirements"),
+            ("You bring to the team:", "requirements"),
+            ("What Will You Do?", "responsibilities"),
+            ("Key Accountabilities", "responsibilities"),
+            ("Health & Wellbeing", "benefits"),
+            ("WHAT YOU WILL GAIN", "benefits"),
+            ("Working Conditions:", "logistics"),
+            ("Candidate AI Usage Policy", "legal"),
+            ("Also helpful, but not required:", "preferred"),
+            # A zero-width space before it (Morningstar).
+            ("\u200bWho You Are", "requirements"),
         ],
     )
     def test_a_real_heading_opens_its_section(self, line: str, key: str) -> None:
@@ -543,6 +555,52 @@ class TestLinesSortedByWhatTheySay:
         )
 
         assert kept(text) == text
+
+
+class TestRoles:
+    """Fix 3: each line's role in the HTML (`providers.plain_lines`) guides the walk."""
+
+    def test_a_list_item_never_opens_a_section(self) -> None:
+        # Workday lists "Good interpersonal skills", which used to open Requirements.
+        text = "Responsibilities\nShip features\nGood interpersonal skills\nWrite tests"
+        roles = ("h", "li", "li", "li")
+
+        assert [s.key for s in split(text, roles)] == ["responsibilities"]
+
+    def test_a_list_item_ending_in_a_colon_still_opens_one(self) -> None:
+        text = "Requirements\nA CS degree\nPreferred:\nRust"
+        roles = ("h", "li", "li", "li")
+
+        assert [s.key for s in split(text, roles)] == ["requirements", "preferred"]
+
+    def test_a_marked_heading_is_read_by_its_words_alone(self) -> None:
+        # A comma and an ellipsis fail the shape test, not the markup.
+        text = "Intro text.\nIn this internship, you will...\nWrite copy"
+        roles = ("p", "b", "li")
+
+        assert split(text, roles)[-1].key == "responsibilities"
+        assert split(text)[-1].key == INTRO
+
+    def test_a_quoted_title_is_a_heading_when_marked(self) -> None:
+        text = "Intro text.\n“Let's find out about you.”\nA finance degree"
+        roles = ("p", "b", "li")
+
+        assert split(text, roles)[-1].key == "requirements"
+
+    def test_a_bold_sentence_is_not_a_heading(self) -> None:
+        text = "Logistics\nThe minimum length of the Internship must be 12 weeks.\nSummer only"
+        roles = ("h", "b", "p")
+
+        assert [s.key for s in split(text, roles)] == ["logistics"]
+
+    def test_a_listed_line_is_stored_with_its_bullet_and_reads_back_the_same(self) -> None:
+        text = "Requirements\nA CS degree\nCommunication skills"
+        roles = ("h", "li", "li")
+
+        stored = kept(text, roles)
+
+        assert stored == "Requirements\n• A CS degree\n• Communication skills"
+        assert kept(stored) == stored
 
 
 class TestHeadingVoice:
