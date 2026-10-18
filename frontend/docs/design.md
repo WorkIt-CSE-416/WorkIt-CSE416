@@ -196,7 +196,12 @@ icon with no `size-*` class is 16px (14px at `inline`, `xs` and
 bank's My Resumes button stood taller than Fill With Scout beside it
 (KAN-249); give an icon a size only when it must differ. `shadcn/button.tsx` is a re-export pointing back at it, and an
 ESLint rule keeps app code on the canonical path, as it does for `badge`
-and `card`, which are not re-exports.
+and `card`, which are not re-exports. **A secondary button never sits on
+`--color-surface`**, its own fill: there it shows only as an outline. The
+resume editor's bar and the phone editor's sheets were surface-coloured,
+and Download, Done and Hide all but vanished into them (KAN-258); put
+secondary buttons on white (a card, a sheet) or on a tint (the editor's
+bars take `--color-brand-tint`).
 
 **A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
 acts (saves, opens, sends, goes somewhere); a chip is a choice made in

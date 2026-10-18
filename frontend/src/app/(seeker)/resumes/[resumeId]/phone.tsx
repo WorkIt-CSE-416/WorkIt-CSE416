@@ -2,10 +2,9 @@
 
 import {
   ArrowLeft,
-  Check,
   ChevronLeft,
   ChevronRight,
-  Scissors,
+  Pointer,
   Sparkles,
   Undo2,
   X,
@@ -15,13 +14,14 @@ import {
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate, RenderBox, RenderedPdf } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
-import { lineName, pageLabel, tray, type Line } from "./model";
+import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-menu";
+import { FitNotice } from "./fit-notice";
+import { lineName, shortPageLabel, tray, type Line } from "./model";
 import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
 import { Tray } from "./tray";
 
@@ -98,6 +98,7 @@ export function PhoneEditor({
   elapsed,
   error,
   fitUndo,
+  download,
   actions,
   assistant,
   onSelect,
@@ -120,6 +121,8 @@ export function PhoneEditor({
   elapsed: number | null;
   error: string | null;
   fitUndo: ChoicesUpdate | null;
+  /** The resume's downloads, the same as the desktop sticky bar's. */
+  download: ResumeDownload;
   /** The selected line's actions, the same as the desktop sticky bar's. */
   actions: ReactNode;
   /** The editor assistant (KAN-221), shown in a sheet when asked for. */
@@ -156,7 +159,9 @@ export function PhoneEditor({
       className="bg-app fixed inset-x-0 top-0 z-40 flex flex-col overflow-hidden"
       style={{ height: height || "100dvh", transform: `translateY(${top}px)` }}
     >
-      <header className="bg-surface/95 border-border-subtle flex flex-col gap-2 border-b px-4 pt-3 pb-2 backdrop-blur">
+      {/* The bars take the desktop bar's brand tint, so their secondary
+          buttons (surface-filled) do not vanish into them (KAN-258). */}
+      <header className="bg-brand-tint/95 border-brand-pale flex flex-col gap-2 border-b px-4 pt-3 pb-2 backdrop-blur">
         <div className="flex items-center gap-2">
           <Link
             href="/resumes"
@@ -165,41 +170,53 @@ export function PhoneEditor({
           >
             <ArrowLeft className="size-5" />
           </Link>
-          <Badge tone={rendered.page_count <= 1 ? "positive" : "warning"}>
-            {rendered.page_count <= 1 && <Check className="mr-1 size-3" />}
-            {pageLabel(rendered.page_count, rendered.lines_over)}
-          </Badge>
+          {/* As on the desktop bar: the way in, or, over one page, the
+              count joined to its fix (./fit-notice.tsx), short so it fits
+              beside the back arrow; the toast spells it out (KAN-258). */}
+          {rendered.page_count > 1 ? (
+            <span className={TAP}>
+              <FitNotice
+                label={shortPageLabel(rendered.page_count, rendered.lines_over)}
+                fitLabel="Fit"
+                onFit={onFit}
+                disabled={saving}
+              />
+            </span>
+          ) : (
+            <span className="text-label text-ink flex items-center gap-1.5 font-medium">
+              <Pointer aria-hidden className="text-brand size-4 shrink-0" />
+              Tap a line to edit it.
+            </span>
+          )}
           <span className="text-note text-ink-meta ml-auto" aria-live="polite">
             {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
           </span>
         </div>
         <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
-          {rendered.page_count > 1 && (
-            <Button variant="outline" size="sm" onClick={onFit} disabled={saving}>
-              <Scissors /> Fit to One Page
-            </Button>
-          )}
           {fitUndo && (
             <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
               <Undo2 /> Undo
             </Button>
           )}
-          <Button
-            variant="secondary"
-            size="sm"
-            className="ml-auto"
-            aria-pressed={zoom}
-            onClick={() => setZoom(!zoom)}
-          >
-            {zoom ? <ZoomOut /> : <ZoomIn />}
-            {zoom ? "Fit Width" : "Zoom"}
-          </Button>
+          <div className="ml-auto flex gap-2">
+            <DownloadMenu download={download} />
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-pressed={zoom}
+              onClick={() => setZoom(!zoom)}
+            >
+              {zoom ? <ZoomOut /> : <ZoomIn />}
+              {zoom ? "Fit Width" : "Zoom"}
+            </Button>
+          </div>
         </div>
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}
           </p>
         )}
+        <DownloadNotes download={download} />
       </header>
 
       <div
@@ -220,7 +237,7 @@ export function PhoneEditor({
       {!selected && (
         <div
           className={cn(
-            "bg-surface/95 border-border-subtle absolute inset-x-0 bottom-0 border-t p-3 backdrop-blur",
+            "bg-brand-tint/95 border-brand-pale absolute inset-x-0 bottom-0 border-t p-3 backdrop-blur",
             TAP,
           )}
         >
@@ -228,7 +245,8 @@ export function PhoneEditor({
             <Button variant="secondary" className="flex-1" onClick={() => setTrayOpen(true)}>
               Not on This Resume {waiting > 0 && <span className="text-ink-meta">({waiting})</span>}
             </Button>
-            <Button variant="outline" onClick={() => setAsking(true)}>
+            {/* The primary action, filled as on the desktop bar. */}
+            <Button onClick={() => setAsking(true)}>
               <Sparkles /> Ask WorkIt
             </Button>
           </div>
@@ -293,7 +311,7 @@ export function PhoneEditor({
             ))}
           <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
             {actions}
-            <Button variant="outline" size="sm" onClick={() => setAsking(true)}>
+            <Button size="sm" onClick={() => setAsking(true)}>
               <Sparkles /> Ask WorkIt About This Line
             </Button>
           </div>
@@ -342,7 +360,9 @@ function Sheet({
   return (
     <div
       className={cn(
-        "animate-rise bg-surface ring-border-subtle absolute inset-x-0 bottom-0 z-40 flex flex-col rounded-t-3xl shadow-lg ring-1",
+        // A panel, so white as a card is: on the surface colour its own
+        // secondary buttons showed only as outlines (KAN-258).
+        "animate-rise bg-panel ring-border-subtle absolute inset-x-0 bottom-0 z-40 flex flex-col rounded-t-3xl shadow-lg ring-1",
         fill ? "h-full" : "max-h-[70%]",
       )}
       // A press on a button keeps focus in the field, so the keyboard stays up

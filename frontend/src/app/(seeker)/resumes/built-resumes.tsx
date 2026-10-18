@@ -1,46 +1,46 @@
 "use client";
 
-import { FileDown, FilePen, FileText, Star, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { FileText } from "lucide-react";
+import Link from "next/link";
+import { useState, type FormEvent } from "react";
 
+import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { PrimaryStar, RESUME_ROW, ROW_ACTION } from "@/components/resume-row";
 import { Badge } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
+import { TextField } from "@/components/ui/text-field";
 import {
   deleteBuiltResume,
   generateResume,
   listBuiltResumes,
+  renameBuiltResume,
   setDefaultBuiltResume,
   type BuiltResume,
 } from "@/lib/built-resume-actions";
-import {
-  deleteSentResume,
-  listSentResumes,
-  sendBuiltResume,
-  type SentDownload,
-  type SentResume,
-} from "@/lib/sent-resume-actions";
+import { cn } from "@/lib/cn";
+import type { SentResume } from "@/lib/sent-resume-actions";
 
+import { LocalDate } from "../local-time";
+import { DeleteConfirm } from "./delete-confirm";
 import { ResumesHeader } from "./header";
-import { openDownload, SentResumes } from "./sent-resumes";
+import { SentResumes } from "./sent-resumes";
 
 /**
  * The Resumes view of Resumes & Experiences: its header, with Generate
- * Resume beside the switcher, then two cards, the base resumes (KAN-207)
- * and Sent (KAN-208). The header is drawn here because Generate changes
- * this component's list. Generate makes a base resume from the whole bank in Jake's Resume, and
- * each downloads as a PDF or a Word file. A PDF whose text has characters
- * the font cannot draw shows a warning first; the student downloads anyway
- * or fixes the bank. The 5-resume limit is the API's: its refusal shows as
- * the error. Open goes to the resume editor.
+ * Resume beside the switcher, then the cards: Your Resumes, the base
+ * resumes (KAN-207), Tailored Resumes when there is one (KAN-217), and
+ * Sent (KAN-208). The header is drawn here because Generate changes this
+ * component's list. Generate makes a base resume from the whole bank in
+ * Jake's Resume, named "Resume #N" by the API until the student renames it.
+ * The 5-resume limit is the API's: its refusal shows as the error.
  *
- * Every download, PDF or Word, keeps a sent resume, shown in the Sent card;
- * a repeat of the same content returns the one already kept. A download
- * cancelled at the warning deletes the sent resume it just made. This
- * component owns both lists for that reason.
+ * Each resume is a card drawn as My Profile's resume rows are
+ * (`components/resume-row.tsx`), and the whole card opens the resume
+ * editor, which downloads it as a PDF or a Word file (KAN-258). Open and
+ * Download were buttons on every row until then.
  */
-
 export function BuiltResumes({
   initial,
   initialSent,
@@ -49,23 +49,13 @@ export function BuiltResumes({
   initialSent: SentResume[];
 }) {
   const [resumes, setResumes] = useState(initial);
-  const [sent, setSent] = useState(initialSent);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Sent is a card of its own since KAN-249, so its reload's error shows
-  // there, not under Base Resumes.
-  const [sentError, setSentError] = useState<string | null>(null);
 
   async function reload() {
     const { data, error } = await listBuiltResumes();
     if (data) setResumes(data);
     if (error) setError(error);
-  }
-
-  async function reloadSent() {
-    const { data, error } = await listSentResumes();
-    if (data) setSent(data);
-    setSentError(error);
   }
 
   async function generate() {
@@ -77,10 +67,16 @@ export function BuiltResumes({
     await reload();
   }
 
+  // A tailored resume is made for one posting, so it has a card of its own
+  // (KAN-258). Under the base resumes' card, then "Base Resumes", it was
+  // told apart only by a Tailored tag and sat under a name it does not have.
+  const base = resumes.filter((resume) => !resume.job_posting_id);
+  const tailored = resumes.filter((resume) => resume.job_posting_id);
+
   return (
     <>
       {/* The view's primary action sits beside the switcher, as Fill With
-          Scout does on Experiences; it was the Base Resumes card's own. */}
+          Scout does on Experiences; it was the base resumes' card's own. */}
       <ResumesHeader
         view="resumes"
         action={
@@ -90,161 +86,208 @@ export function BuiltResumes({
         }
       />
       <div className="mt-4 flex flex-col gap-4">
-        <Card as="section" aria-labelledby="resumes-base">
-          <h2 id="resumes-base" className="text-subtitle text-ink">
-            Base Resumes
-          </h2>
-          <p className="text-note text-ink-meta mt-1">
-            A resume in Jake&apos;s Resume with every entry in your bank. A fix in the bank shows on
-            every resume.
-          </p>
-          {error && (
-            <p role="alert" className="text-note text-danger mt-2">
-              {error}
-            </p>
-          )}
-          {/* Says what fills it, as the Sent card does. */}
-          {resumes.length === 0 ? (
-            <p className="text-note text-ink-muted mt-2">Resumes you generate show here.</p>
-          ) : (
-            <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-              {resumes.map((resume) => (
-                <ResumeRow
-                  key={resume.id}
-                  resume={resume}
-                  reload={reload}
-                  reloadSent={reloadSent}
-                />
-              ))}
-            </ul>
-          )}
-        </Card>
-        <SentResumes sent={sent} reload={reloadSent} error={sentError} />
+        {/* "Your Resumes" and Experiences, not "Base Resumes" and "your
+            bank": the words a student sees on these two views (KAN-258). */}
+        <ResumeCard
+          id="resumes-base"
+          title="Your Resumes"
+          description="Open one to edit it or download it. A change in Experiences shows on every resume."
+          error={error}
+          empty
+          resumes={base}
+          reload={reload}
+        />
+        {tailored.length > 0 && (
+          <ResumeCard
+            id="resumes-tailored"
+            title="Tailored Resumes"
+            description="Made for one job posting, with Tailor My Resume on its page."
+            resumes={tailored}
+            reload={reload}
+          />
+        )}
+        <SentResumes initial={initialSent} />
       </div>
     </>
   );
 }
 
-function ResumeRow({
-  resume,
+/** A card of resumes, Your Resumes or Tailored Resumes: both draw their
+ *  resumes the same way. */
+function ResumeCard({
+  id,
+  title,
+  description,
+  error = null,
+  empty = false,
+  resumes,
   reload,
-  reloadSent,
 }: {
-  resume: BuiltResume;
+  id: string;
+  title: string;
+  description: string;
+  /** Generate's or a reload's, so Your Resumes shows it. */
+  error?: string | null;
+  /** Whether an empty card says so, in the box a resume takes, as My
+   *  Profile's list does. Tailored Resumes shows only once it has one. */
+  empty?: boolean;
+  resumes: BuiltResume[];
   reload: () => Promise<void>;
-  reloadSent: () => Promise<void>;
 }) {
-  const [busy, setBusy] = useState<"pdf" | "docx" | null>(null);
+  return (
+    <Card as="section" aria-labelledby={id}>
+      <h2 id={id} className="text-subtitle text-ink">
+        {title}
+      </h2>
+      <p className="text-note text-ink-meta mt-1">{description}</p>
+      {error && (
+        <p role="alert" className="text-note text-danger mt-2">
+          {error}
+        </p>
+      )}
+      {resumes.length === 0 ? (
+        empty && (
+          <div className={RESUME_ROW}>
+            <FileText aria-hidden className="text-ink-faint size-5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-label text-ink-muted truncate">No resumes yet</p>
+              <p className="text-note text-ink-meta">
+                Generate Resume makes one from your experiences.
+              </p>
+            </div>
+          </div>
+        )
+      ) : (
+        <ul role="list" className="flex flex-col">
+          {resumes.map((resume) => (
+            <ResumeRow key={resume.id} resume={resume} reload={reload} />
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * One resume, drawn as My Profile's resume rows are: the file mark, the
+ * name and its day, then the star, Rename and Delete. The whole card is
+ * one target: the name's link stretches over it (`after:inset-0`), the
+ * icons sit above that, and the card lifts under the pointer as every
+ * whole-target card does (`docs/motion.md`).
+ */
+function ResumeRow({ resume, reload }: { resume: BuiltResume; reload: () => Promise<void> }) {
+  const [renaming, setRenaming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A sent resume held back by the missing-character warning
-  const [held, setHeld] = useState<SentDownload | null>(null);
 
-  async function pdf() {
-    setBusy("pdf");
+  async function makePrimary() {
     setError(null);
-    const { data, error } = await sendBuiltResume(resume.id);
-    setBusy(null);
-    if (!data) return setError(error);
-    if (data.missing_characters.length) return setHeld(data);
-    openDownload(data.url);
-    await reloadSent();
-  }
-
-  // The student did not take the file: it was not sent.
-  async function cancel(held: SentDownload) {
-    setHeld(null);
-    if (!held.created) return;
-    const { error } = await deleteSentResume(held.id);
-    if (error) setError(error);
-  }
-
-  async function docx() {
-    setBusy("docx");
-    setError(null);
-    const { data, error } = await sendBuiltResume(resume.id, "docx");
-    setBusy(null);
-    if (!data) return setError(error);
-    openDownload(data.url);
-    await reloadSent();
-  }
-
-  async function act(action: (id: string) => Promise<{ error: string | null }>) {
-    setError(null);
-    const { error } = await action(resume.id);
+    const { error } = await setDefaultBuiltResume(resume.id);
     if (error) return setError(error);
     await reload();
   }
 
+  // The form stays open until the list has the new name, so the old one
+  // never flashes back.
+  async function rename(name: string) {
+    setSaving(true);
+    setError(null);
+    const { error } = await renameBuiltResume(resume.id, name);
+    if (!error) await reload();
+    setSaving(false);
+    if (error) return setError(error);
+    setRenaming(false);
+  }
+
+  // Delete stays disabled until the reload drops the row.
+  async function remove() {
+    setDeleting(true);
+    setError(null);
+    const { error } = await deleteBuiltResume(resume.id);
+    if (!error) return reload();
+    setDeleting(false);
+    setError(error);
+  }
+
+  // The API sends edited_at equal to created_at until the first change.
+  const edited = Date.parse(resume.edited_at) > Date.parse(resume.created_at);
+
   return (
-    <li className="py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* The badges wrap under a long name: held beside it, they squeezed
-            a tailored resume's name to a few words per line on a phone. */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="text-body text-ink font-medium break-words">{resume.name}</p>
-          {resume.is_default && <Badge>Default</Badge>}
-          {resume.job_posting_id && <Badge variant="tag">Tailored</Badge>}
-          {/* Story 90: the resume still opens and downloads; only Tailor needs a live posting. */}
-          {resume.posting_closed && <Badge tone="inert">Posting closed</Badge>}
-        </div>
-        {/* Wraps: four buttons and a star held on one line ran past the
-            card's edge on a phone. */}
-        <div className="flex flex-wrap items-center gap-3">
-          <ButtonLink
-            variant="secondary"
-            size="sm"
-            href={`/resumes/${encodeURIComponent(resume.id)}`}
-          >
-            <FilePen /> Open
-          </ButtonLink>
-          <Button variant="secondary" size="sm" onClick={pdf} disabled={busy !== null}>
-            <FileDown /> {busy === "pdf" ? "Making PDF…" : "PDF"}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={docx} disabled={busy !== null}>
-            <FileDown /> {busy === "docx" ? "Making Word…" : "Word"}
-          </Button>
-          {/* Only a base resume can be the default (the API refuses a tailored one). */}
-          {!resume.is_default && !resume.job_posting_id && (
-            <IconButton
-              label={`Make ${resume.name} the Default Resume`}
-              tooltip="Make this the default resume"
-              onClick={() => act(setDefaultBuiltResume)}
-            >
-              <Star className="size-4" />
-            </IconButton>
+    <li>
+      {renaming ? (
+        <RenameForm
+          id={resume.id}
+          name={resume.name}
+          saving={saving}
+          onSave={rename}
+          onCancel={() => setRenaming(false)}
+        />
+      ) : (
+        <div
+          className={cn(
+            "group relative",
+            RESUME_ROW,
+            "hover:border-brand/40 hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
           )}
-          <IconButton
-            label={`Delete ${resume.name}`}
-            tooltip="Delete this resume"
-            onClick={() => act(deleteBuiltResume)}
-          >
-            <Trash2 className="size-4" />
-          </IconButton>
-        </div>
-      </div>
-      {held && (
-        <div role="alert" className="text-note text-ink-muted mt-2">
-          <p>
-            The PDF&apos;s font cannot show {held.missing_characters.join(" ")}. These characters
-            will be missing from the PDF. Change them in your bank, or use the Word file.
-          </p>
-          <div className="mt-1.5 flex gap-3">
-            <Button
-              variant="ghost"
-              size="inline"
-              onClick={async () => {
-                openDownload(held.url);
-                setHeld(null);
-                await reloadSent();
-              }}
+        >
+          <PdfIcon className="size-5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <Link
+              href={`/resumes/${encodeURIComponent(resume.id)}`}
+              className="text-label text-ink after:rounded-control focus-visible:after:ring-brand-ring block truncate after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
             >
-              Download Anyway
-            </Button>
-            <Button variant="ghost" size="inline" onClick={() => cancel(held)}>
-              Cancel
-            </Button>
+              {resume.name}
+            </Link>
+            {/* One day: when it was last edited, or made until the first edit.
+                Both together said one day twice for a resume edited the day
+                it was made, and the made day mattered less. */}
+            <p className="text-note text-ink-meta">
+              {edited ? "Last edited" : "Made"}{" "}
+              <LocalDate at={edited ? resume.edited_at : resume.created_at} />
+            </p>
+          </div>
+          {/* Story 90: the resume still opens and downloads; only Tailor needs a live posting. */}
+          {resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
+          {/* Above the stretched link, so a press on an icon is the icon's. */}
+          <div className="relative z-10 flex shrink-0 items-center">
+            {/* Only a base resume can be the primary (the API refuses a tailored one). */}
+            {!resume.job_posting_id && (
+              <PrimaryStar
+                name={resume.name}
+                primary={resume.is_default}
+                onMakePrimary={makePrimary}
+              />
+            )}
+            <IconButton
+              label={`Rename ${resume.name}`}
+              tooltip="Rename"
+              className={ROW_ACTION}
+              onClick={() => setRenaming(true)}
+            >
+              <PencilIcon className="size-4" />
+            </IconButton>
+            <IconButton
+              label={`Delete ${resume.name}`}
+              tooltip="Delete"
+              className={cn(ROW_ACTION, "hover:text-danger")}
+              onClick={() => setConfirming(true)}
+            >
+              <TrashIcon className="size-4" />
+            </IconButton>
           </div>
         </div>
+      )}
+      {confirming && (
+        <DeleteConfirm
+          label="Delete Resume"
+          busy={deleting}
+          onDelete={remove}
+          onKeep={() => setConfirming(false)}
+        >
+          Delete this resume? Files you already sent stay in Sent.
+        </DeleteConfirm>
       )}
       {error && (
         <p role="alert" className="text-note text-danger mt-2">
@@ -252,5 +295,61 @@ function ResumeRow({
         </p>
       )}
     </li>
+  );
+}
+
+/**
+ * The resume's name, open for typing (KAN-258): Rename turns the card into
+ * this form, as Edit opens a bank entry in place, with the bank's form
+ * buttons at a field's height. A name left as it was closes the form with
+ * no call; Escape or Cancel keeps the name.
+ */
+function RenameForm({
+  id,
+  name,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  id: string;
+  name: string;
+  saving: boolean;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(name);
+  const trimmed = draft.trim();
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (trimmed === name) return onCancel();
+    onSave(trimmed);
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-2 flex flex-wrap items-end gap-2">
+      <div className="min-w-0 flex-1 basis-56">
+        <TextField
+          id={`resume-name-${id}`}
+          label="Resume Name"
+          required
+          autoFocus
+          maxLength={80}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") onCancel();
+          }}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={saving || !trimmed}>
+          {saving ? "Saving…" : "Save Name"}
+        </Button>
+      </div>
+    </form>
   );
 }

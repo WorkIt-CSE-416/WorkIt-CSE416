@@ -839,9 +839,9 @@ in Docs (suggested answers in the chat, not a banner).
 ## Resumes (`/resumes`)
 
 `(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
-resumes the bank makes, in two cards, Base Resumes then Sent, under the
-shared header with Generate Resume (it was the Base Resumes card's own
-Generate). They sat in one "Your Resumes" card at the foot of the bank page
+resumes the bank makes, in cards, Your Resumes, Tailored Resumes when there
+is one, then Sent, under the shared header with Generate Resume (it was the
+base resumes' card's own Generate). They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
 lit there and the phone editor's back arrow lands here. The page needs
@@ -849,40 +849,83 @@ the resume list and the Sent list: if either fails it shows "Your Resumes
 Aren't Loading Right Now" and a Try Again link. Uploaded resumes stay on My
 Profile.
 
-- **Base Resumes** (`built-resumes.tsx`, KAN-207). With none, it says that
-  generated resumes show there, as Sent does for its own.
+- **Your Resumes** (`built-resumes.tsx`, KAN-207), the base resumes. It was
+  "Base Resumes", saying "Made from every entry in your bank" until
+  KAN-258: students see "Experiences", never "bank", and its line now says
+  that opening a resume edits or downloads it and that a change in
+  Experiences shows on every resume. Sent and the PDF warning say
+  Experiences too. With none, it holds My Profile's empty box: "No resumes
+  yet".
   Generate makes a base resume with every entry, bullet and skill in the
   bank, except a copy of an entry already on it (same section, title,
   organization and months: an import saved "as new"), which waits in "Not on
-  This Resume"; two copies of one job sent a resume to two pages. Each row downloads a PDF (Jake's Resume) or a Word file, can become
-  the default resume (star) and can be deleted. Either download keeps a
-  sent resume (KAN-208) and comes back as a 5-minute Storage link that
-  downloads the file, so no route handler is needed. A PDF whose text
-  has characters the font lacks shows them and waits for Download Anyway
-  (user story 53); Cancel deletes the sent resume it just made. The
+  This Resume"; two copies of one job sent a resume to two pages. It is
+  named "Resume #N", one past the highest number the student's resumes
+  carry; every one was "Base Resume" until KAN-258, so the list read as one
+  name repeated. The
   5-resume limit is the API's; its 409 message shows as the card's error.
-  Each row's Open goes to the resume editor.
-  A tailored resume shows there too, with a Tailored tag and no star (only
-  a base resume can be the default), and a "Posting closed" tag once the
-  Jobs page no longer lists its posting (story 90, the API's
-  `posting_closed`). It still opens and downloads; only Tailor needs a
-  live posting.
-- **A resume row wraps.** Its buttons wrap: held on one line, they ran past
-  the card's edge. Its badges wrap under a long name: beside it, they
-  squeezed a tailored resume's name to a few words per line.
-- **Sent** (`sent-resumes.tsx`, KAN-208), the card below. Every
-  PDF or Word file the student downloaded or applied with (KAN-220), newest first, with its name then and the date
-  ("Sent Oct 13, 2026", "Word · Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;
-  none is edited. A repeat download of unchanged content adds no row.
-  `BuiltResumes` owns both lists, since a download from a base resume adds
-  a row to Sent.
+- **Tailored Resumes** (KAN-258), between Your Resumes and Sent, only while
+  the student has one: each is made for one job posting with Tailor
+  (KAN-217). They sat in Base Resumes with a Tailored tag until KAN-258,
+  under a name they do not have. A tailored resume has no star (only a base
+  resume can be the primary), and a "Posting Closed" badge once the Jobs
+  page no longer lists its posting (story 90, the API's `posting_closed`).
+  It still opens and downloads; only Tailor needs a live posting.
+- **Each resume is a card drawn as My Profile's resume rows are**
+  (KAN-258), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
+  (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
+  drift apart: the PDF mark, the name, one line with one day, then the
+  star, Rename and Delete. **The whole card opens the resume editor**: the
+  name's link stretches over it and the icons sit above that link, and it
+  lifts under the pointer as every whole-target card does (`docs/motion.md`).
+  It held Open, PDF and Word buttons until KAN-258; downloading moved into
+  the editor. The star works as My Profile's does and uses its word,
+  "primary": filled on the primary resume, shown on the others under the
+  pointer or on a touch screen. The view said "default" and showed a
+  Default badge for the same setting (the API's one default resume,
+  uploaded or base).
+- **The day**: when the resume was last edited ("Last edited Oct 20"), or
+  when it was made until its first edit ("Made Oct 17"); on Sent, the file
+  and the day it was sent ("PDF · Sent Oct 13"). The year shows only when it
+  is not this one, as on My Profile and in the tracker. With it, "Last
+  edited" wrapped on a phone. Both days together said one day twice for a resume
+  edited the day it was made, and the made day mattered less. The
+  template's name was on that line until 2026-10-18, when it went: there is
+  one template, so every row said the same.
+  "Last edited" is the API's `edited_at`, the last change to the resume
+  itself (what shows, its order, its wording or its name); a fix in the
+  bank changes every resume and does not count. The days are the student's
+  own (`LocalDate` in `(seeker)/local-time.tsx`); Sent printed the UTC
+  day, so a resume sent on an evening showed the next day.
+- **Rename** opens the name in place, in a field with Cancel and Save Name
+  at the field's height, as the bank's Skills form is drawn; Escape cancels
+  and an unchanged name saves nothing. A sent resume keeps the name it went
+  out under.
+- **Delete asks first**, on a resume and on a Sent row, drawn as a bank
+  entry's confirm is (`delete-confirm.tsx`, which Experiences uses too): the
+  question, then Delete Resume (or Delete Sent Resume) and Keep It, the two
+  buttons wrapping as one, since wrapped apart Keep It sat alone on a line.
+  Both went at one click until KAN-258. Deleting a resume keeps the files
+  already sent from it.
+- **Sent** (`sent-resumes.tsx`, KAN-208), the last card, which owns its
+  list. Every PDF or Word file the student downloaded or applied with
+  (KAN-220), newest first, with its name then and its line ("PDF · Sent
+  Oct 13", "Word · Sent Oct 13"). Each downloads the kept file again or is
+  deleted; none is edited. A repeat download of unchanged content adds no
+  row. **A Sent row keeps its icon by the name on a phone**
+  (`row-layout.tsx`): from @xl/main the name, Download and Delete share one
+  line; narrower, Delete stays at the top right beside the name, as a bank
+  entry's icons do, and Download takes the line under it.
 
 ## Resume editor
 
-`(seeker)/resumes/[resumeId]`, opened from a base resume's Open on My
-Resumes. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
+`(seeker)/resumes/[resumeId]`, opened from a resume's card on the Resumes
+view. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
 phone layout; KAN-221 adds the assistant. The page loads the render, the bank, the resume's choices and
 the profile (the header's fields), and shows the error state if any fails.
+A **Back** button above the title returns to the Resumes view, drawn as the
+job posting page's Back is; until KAN-258 the editor had no way back but
+the sidebar. The phone layout keeps its own back arrow.
 
 - **The page is the PDF itself** (ADR 0002): the render response's PDF,
   drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
@@ -922,13 +965,39 @@ the profile (the header's fields), and shows the error state if any fails.
   that renumbers the siblings), the bullet's wordings (Original, each
   Tailored version, This Resume's Wording) and, on Education, Show/Hide GPA
   and Coursework. A press on a bar button keeps focus in the field. With no
-  line selected: the page-count chip ("1 page", "2 pages · 3 lines over
-  1 page", from the render's `lines_over`, an estimate) and, over one page,
-  Fit to One Page, then Undo, which shows again everything Fit hid (the
-  response's `undo` body). Undo is kept in sessionStorage per resume
+  line selected: the hint "Click a line to edit it." first, in ink at label
+  size with a brand pointer glyph (a grey note after the page count until
+  KAN-258, it read as fine print); then, only over one page, **one amber
+  group** (`fit-notice.tsx`): the warning glyph and the count ("2 pages · 3
+  lines over 1 page", from the render's `lines_over`, an estimate), a
+  hairline, and Fit to One Page in the same amber. An amber badge beside an
+  outline button read as two unrelated things. Then Undo, which shows again
+  everything Fit hid (the response's `undo` body). A one-page resume shows
+  no count: a green "1 page" said what the page itself shows, and stood
+  apart from the rest of the bar. Undo is kept in sessionStorage per resume
   (`fit-undo.ts`), so a reload in the same tab still offers it. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
-  the Vercel preview check.
+  the Vercel preview check. **Download** (PDF or Word) and Ask WorkIt end
+  the bar whether or not a line is selected, so Download stays in reach down
+  a two-page resume (`../download-menu.tsx`, KAN-258; it was on each card
+  of the Resumes view). It keeps a sent resume and holds a PDF with
+  characters the font lacks for Download Anyway, as Download always has;
+  the warning and any error show under the bar. The status, Download and
+  Ask WorkIt wrap as one group, so on a narrow page they stay together at
+  the right. **The bar is the brand tint**, not the surface colour, so its
+  secondary buttons stand out (`docs/design.md`, Components), and **Ask
+  WorkIt is the brand's filled button**, the editor's primary action; it
+  was an outline until KAN-258. The phone layout's top and bottom bars take
+  the same tint and its Ask WorkIt buttons the same fill, and its sheets
+  are white.
+- **A toast says it first** (`fit-notice.tsx`, KAN-258): when the editor
+  opens on a resume over one page, or an edit pushes one over, a toast at
+  the bottom right (above the bottom bar on a phone) says by how much, with
+  Fit to One Page and a cross. It closes on Fit, on the cross, once the
+  resume fits, or after 10 seconds, since the bar's group keeps the same
+  fix. On a phone it does not show while a line's sheet is open, which it
+  would cover. The editor notices the change while rendering (the last
+  count is kept in state), not in an effect.
 - **Fit to One Page is the API's** (`POST .../fit`): it cuts least useful
   first, in steps across every section: coursework (beside Experience),
   then bullets past a cap per entry, then the bottom entries of
@@ -955,7 +1024,11 @@ the profile (the header's fields), and shows the error state if any fails.
   (Apple's smallest touch target), and **previous and next arrows** that
   step through the boxes in page order (page, then top, then left), so a
   mis-tap on a 7 px line costs one press. **Zoom** draws the page at two
-  times the width, scrolled sideways; Fit Width undoes it. The selected line
+  times the width, scrolled sideways; Fit Width undoes it. Download sits
+  beside Zoom in the top bar, and beside the back arrow the top bar says
+  "Tap a line to edit it.", or, over one page, the bar's amber group in its
+  place, short to fit there: "3 lines over" and "Fit" (named Fit to One
+  Page for a screen reader). The toast spells it out. The selected line
   scrolls to the middle of the page area. The tray opens from a bottom
   button in its own sheet (with a scrim). The layout is a fixed layer over
   the seeker shell, **sized to `window.visualViewport`** (height, moved down

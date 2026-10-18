@@ -117,6 +117,16 @@ applicant_profiles
   model proposes it and when the student approves it.
 - **The limit is 5 uploaded plus base resumes.** Tailored and sent resumes
   do not count. The API checks before writing, on Generate and on upload.
+- **A name, and when it last changed** (KAN-258). A resume made with no
+  name is "Resume #N", one past the highest number the student's resumes
+  carry; every one was "Base Resume" before, so a list of them read as one
+  name repeated. The student renames it on the Resumes page, and a sent
+  resume keeps the name it went out under. `updated_at` is the resume's
+  last edit (its choices or its name), which the list shows as "Last
+  edited". It needs no new column, since every table has `updated_at`, but
+  a write to a choice row leaves the resume's own row as it was, so the
+  service marks the resume itself (`touch`). A fix in the bank changes
+  every resume and does not count as an edit to one.
 - **The default resume is one of two pointers.** It was
   `applicant_profiles.default_resume_id`, a foreign key to `resumes`, and it
   can now be a base resume too. A single id column could not keep a foreign

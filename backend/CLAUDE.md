@@ -244,7 +244,11 @@ Find files with a directory listing; these are the rules for where code goes.
   and a built resume's choices to what the resume shows. The PDF, the Word
   file, Tailor, the sent resume's hash and the editor read that shape; a rule
   about what shows goes there, never into one reader. Built resumes are
-  written only through `services/built_resumes.py`.
+  written only through `services/built_resumes.py`. Its `touch` sets a
+  resume's `updated_at`, the Resumes page's "Last edited" (KAN-258), because
+  a write to a choice row leaves the resume's own row as it was:
+  `write_choices` and `update_choices` call it, and any new write to a
+  resume's choices goes through them or calls it too.
 - **The editor writes a resume's choices in one PATCH**
   (`.../built-resumes/{rid}/choices`, KAN-218): hide, show, move (the
   client renumbers the siblings), the GPA and coursework toggles, typed

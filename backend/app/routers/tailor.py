@@ -98,7 +98,7 @@ async def run(
     source = tailored or await built_resumes.latest_base(session, applicant_id)
     if source is None:
         try:
-            source = await built_resumes.generate(session, applicant_id, "Base Resume")
+            source = await built_resumes.generate(session, applicant_id)
         except built_resumes.ResumeLimitReached as exc:
             raise HTTPException(409, str(exc))
     choices = await built_resumes.load_choices(session, source.id)
@@ -178,6 +178,7 @@ async def done(
         resume=BuiltResumeResponse(
             id=resume.id, name=resume.name, template=resume.template, job_posting_id=resume.job_posting_id,
             is_default=resume.id == default_id, created_at=resume.created_at,
+            edited_at=resume.updated_at,
         ),
         matched=matched,
         missing=missing,
