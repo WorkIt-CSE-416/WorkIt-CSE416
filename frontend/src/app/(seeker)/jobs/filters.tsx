@@ -720,16 +720,19 @@ export function JobFilters({
     <>
       {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
           and All Filters stays a normal button at every width. Each facet is
-          144px, All Filters 105 and Clear Filters 36, with 8px gaps, so the
-          row fits them on one line from these widths of row (the page's
-          @container, so an open sidebar or Scout counts): Location and All
-          Filters anywhere (301px, a 360px phone's row is 310), then Role from
-          456px, Workplace 608, Experience 760 and Date Posted 912. Those leave
-          room for Clear Filters whether or not it shows, so a pick never
-          pushes a facet out of the row or All Filters onto a second line
-          (KAN-252). The row is never wider than 928px (max-w-app less its
-          gutters), so Job Type, which would need 1,064px, is in the panel
-          only; its old step, 1024px, was never reached either.
+          at least 144px and as wide as its label needs (Date Posted 149px:
+          at 144 sm's padding cut it to "Date Post…"), All Filters 105 and
+          Clear Filters 36, with 8px gaps, so the row fits them on one line
+          from these widths of row (the page's @container, so an open sidebar
+          or Scout counts): Location and All Filters anywhere (301px, a 360px
+          phone's row is 310), then Role from 456px, Workplace 608, Experience
+          768 and Date Posted 920, each a few pixels over what it needs, for a
+          label that renders a little wider elsewhere. Those leave room for
+          Clear Filters whether or not it shows, so a pick never pushes a
+          facet out of the row or All Filters onto a second line (KAN-252).
+          The row is never wider than 928px (max-w-app less its gutters), so
+          Job Type, which would need about 1,070px, is in the panel only; its
+          old step, 1024px, was never reached either.
           Role sits second, beside Location (KAN-171): with every field in
           one feed (KAN-172), which kind of role is the first thing a
           seeker narrows by, and software and engineering are half of it
@@ -740,11 +743,11 @@ export function JobFilters({
           Filters across the row, which on a laptop with the sidebar open
           left one wide bar where four filters had fit. The panel holds
           every facet, and Salary and Start Date, which the row has no room for. */}
-      {facet.location("w-36")}
-      {facet.role("hidden w-36 @min-[28.5rem]:flex")}
-      {facet.workplace("hidden w-36 @min-[38rem]:flex")}
-      {facet.experience("hidden w-36 @min-[47.5rem]:flex")}
-      {facet.datePosted("hidden w-36 @min-[57rem]:flex")}
+      {facet.location("min-w-36")}
+      {facet.role("hidden min-w-36 @min-[28.5rem]:flex")}
+      {facet.workplace("hidden min-w-36 @min-[38rem]:flex")}
+      {facet.experience("hidden min-w-36 @min-[48rem]:flex")}
+      {facet.datePosted("hidden min-w-36 @min-[57.5rem]:flex")}
 
       {/* Every pick off in one press (KAN-252), shown only while there is
           one: the panel's Clear All, without opening the panel. An outlined

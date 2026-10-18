@@ -53,7 +53,8 @@ gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
 All Filters stays a normal button; never stretch it across the row. Job Type
 is in All Filters only too: the row is 928px at most, and it would need
-1,064px. While any filter is on, Clear Filters sits just before All Filters
+about 1,070px. Each facet is at least 144px and as wide as its label needs,
+so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
 (KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
 filters" in its tooltip, and turns every filter off, keeping ?view and ?q; a
 cleared /jobs with no ?view lands on ?view=recommended, since the bare URL
