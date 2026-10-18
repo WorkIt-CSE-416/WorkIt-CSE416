@@ -146,9 +146,7 @@ def test_workday_line_accuracy_holds(workday: dict) -> None:
 
 
 @pytest.mark.parametrize("heading", ["Responsibilities", "Requirements", "Pay"])
-def test_workday_wrong_content_under_a_core_heading_stays_rare(
-    workday: dict, heading: str
-) -> None:
+def test_workday_wrong_content_under_a_core_heading_stays_rare(workday: dict, heading: str) -> None:
     assert workday["per_heading"][heading]["wrong"] <= WORKDAY_WRONG_CEILING[heading]
 
 
