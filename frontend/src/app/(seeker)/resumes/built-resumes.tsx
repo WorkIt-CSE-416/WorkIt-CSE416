@@ -24,8 +24,8 @@ import { YourResumes } from "./your-resumes";
  * posting's page says which one the student sent there. The header is
  * drawn here because Generate changes this component's lists. Generate makes a base resume from the whole bank in
  * Jake's Resume, named "Resume #N" by the API until the student renames it.
- * The 5-resume limit is the API's: its refusal shows as Generated
- * Resumes' error, and the "n of 5" badge stays on Your Resumes.
+ * Generate has no limit: only uploads count toward the 5 (KAN-268). A
+ * failed Generate or reload shows as Generated Resumes' error.
  *
  * Each built resume is a row drawn as an uploaded one's is
  * (`components/resume-row.tsx`), and the whole row opens the resume
@@ -80,7 +80,7 @@ export function BuiltResumes({
         }
       />
       <div className="mt-4 flex flex-col gap-4">
-        <YourResumes uploaded={uploaded} generatedCount={base.length} reload={reload} />
+        <YourResumes uploaded={uploaded} reload={reload} />
         <Card as="section" aria-labelledby="resumes-generated">
           <h2 id="resumes-generated" className="text-subtitle text-ink">
             Generated Resumes

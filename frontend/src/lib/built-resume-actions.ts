@@ -62,8 +62,7 @@ export async function listBuiltResumes(): Promise<Result<BuiltResume[]>> {
 }
 
 /** Generate: a base resume with everything in the bank, "Resume #N" when
- *  no name is given. Refused (the API's message in `error`) when the
- *  student already has 5 resumes. */
+ *  no name is given. No limit: only uploads count toward the 5. */
 export async function generateResume(name?: string): Promise<Result<BuiltResume>> {
   return call<BuiltResume>("", { method: "POST", body: JSON.stringify(name ? { name } : {}) });
 }

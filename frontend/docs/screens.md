@@ -516,9 +516,9 @@ link into the Calendar from anywhere else goes through `DayLink` in
 **My Profile holds the photo and the identity fields**, and a "Resumes &
 Experiences" section that links to both views of that page. **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
-the Resumes view's Your Resumes card (below), beside the base resumes that
-share its limit of 5. With one limit split across two pages, each page's
-"n of 5" and star depended on a list the other page held. The Application
+the Resumes view's Your Resumes card (below), beside the base resumes,
+which then shared its limit of 5. With one limit split across two pages,
+each page's "n of 5" and star depended on a list the other page held. The Application
 Settings section, an "Autofill Applications" switch that saved nothing,
 went the same day; the extension's own popup runs autofill.
 
@@ -696,7 +696,7 @@ in Docs (suggested answers in the chat, not a banner).
   `bank` result. Use One I Uploaded, and `?import=1` (the Jobs page's
   prompt, which opens the panel on arrival), run Import Again
   (`importResume`) on the default upload, else the newest. The card takes
-  the chat's place until Continue. The API's 5-resume limit shows as the
+  the chat's place until Continue. The API's 5-upload limit shows as the
   strip's error; with no upload the API's 404 message shows. Until
   KAN-240 this was a review of draft entries the student saved one by one
   or with Save All; students who uploaded on My Profile never reached it,
@@ -846,8 +846,8 @@ the built list and the uploaded list: if either fails it
 shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 
 - **Your Resumes** (`your-resumes.tsx`), the uploads, newest first, under
-  an "n of 5" badge that counts the generated resumes too (the API's limit
-  counts both), with the upload dropzone in a narrow track beside the
+  an "n of 5" badge of uploads alone (the API's limit; generated resumes
+  counted toward it until KAN-268), with the upload dropzone in a narrow track beside the
   list from @4xl (under the heading, before the rows, below it). It held
   base resumes alone until 2026-10-18, when My Profile's Resume card moved
   in; both kinds then shared it until KAN-268, and a student could not
@@ -868,9 +868,8 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   This Resume"; two copies of one job sent a resume to two pages. It is
   named "Resume #N", one past the highest number the student's resumes
   carry; every one was "Base Resume" until KAN-258, so the list read as one
-  name repeated. The
-  5-resume limit is the API's; its 409 message shows as Generated Resumes'
-  error.
+  name repeated. Generate has no limit (KAN-268); a failed one shows its
+  message as Generated Resumes' error.
 - **Uploads** in Your Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
   parsed content. **The upload fills the experience bank** (ADR 0003): a

@@ -3,7 +3,6 @@
 import { Import, Star } from "lucide-react";
 
 import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 import type { ResumeItem } from "@/lib/resume-actions";
@@ -14,14 +13,6 @@ import type { ResumeItem } from "@/lib/resume-actions";
  *  real row arrives. */
 export const RESUME_ROW =
   "border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2";
-
-/** What each backend resume status reads as. A failed parse is a warning, not
- *  a danger: the file is stored, and only its text could not be extracted. */
-const RESUME_STATUS: Record<string, { label: string; tone: BadgeTone } | undefined> = {
-  parsed: { label: "Ready", tone: "positive" },
-  uploaded: { label: "Processing", tone: "inert" },
-  parse_failed: { label: "Couldn't Read Text", tone: "warning" },
-};
 
 /** Rows only exist after the client-side fetch, so this is the browser's own
  *  calendar day, never the server's UTC one. */
@@ -84,6 +75,9 @@ export function PrimaryStar({
  * (KAN-268): the name's button stretches over it (`after:inset-0`) and
  * previews the file, the icons sit above that, and the card lifts under
  * the pointer (`docs/motion.md`). An eye button previewed it until then.
+ * It shows no status badge (KAN-268): "Ready" on every row told the
+ * student nothing, and a reading that found nothing already says so in
+ * the note under the dropzone.
  *
  * The star (`PrimaryStar`) marks the primary resume: the default one auto
  * apply attaches when a job has no tailored resume. Import Updated Resume (`onUpdate`) opens
@@ -117,7 +111,6 @@ export function ResumeRow({
   const name = resume.original_filename ?? "Resume";
   // A browser shows a PDF itself; a DOCX it can only download.
   const action = resume.storage_path.endsWith(".pdf") ? "Preview" : "Download";
-  const status = RESUME_STATUS[resume.status] ?? { label: resume.status, tone: "inert" };
 
   return (
     <div
@@ -139,7 +132,6 @@ export function ResumeRow({
         </button>
         <p className="text-note text-ink-meta">{uploadedOn(resume.created_at)}</p>
       </div>
-      <Badge tone={status.tone}>{status.label}</Badge>
       {/* No gap between them: each is a 32px box already. Above the
           stretched button, so a press on an icon is the icon's. */}
       <div className="relative z-10 flex shrink-0 items-center">

@@ -220,51 +220,32 @@ async def _upload(client, me):
     return await client.post(f"{me}/resumes", files=files)
 
 
-async def test_five_resumes_uploaded_and_base_together_and_no_sixth(student, monkeypatch):
+async def test_five_uploads_and_no_sixth_however_many_are_generated(student, monkeypatch):
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
     monkeypatch.setattr("app.routers.resumes._extract", _no_text)
     client, me = student
-    for _ in range(2):
-        assert (await _upload(client, me)).status_code == 200
-    built = [await _generate(client, me) for _ in range(3)]
+    # Generated resumes count for nothing (KAN-268): six of them leave room
+    # for five uploads.
+    for _ in range(6):
+        await _generate(client, me)
+    uploads = []
+    for _ in range(5):
+        res = await _upload(client, me)
+        assert res.status_code == 200
+        uploads.append(res.json()["id"])
 
-    res = await client.post(f"{me}/built-resumes", json={})
-    assert res.status_code == 409
-    assert "5 resumes" in res.json()["detail"]
     res = await _upload(client, me)
     assert res.status_code == 409
     assert "5 resumes" in res.json()["detail"]
+    assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
 
     # Deleting one makes room again.
-    assert (await client.delete(f"{me}/built-resumes/{built[0]}")).status_code == 204
-    assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
+    assert (await client.delete(f"{me}/resumes/{uploads[0]}")).status_code == 200
+    assert (await _upload(client, me)).status_code == 200
 
 
 async def _no_text(contents, ext):
     return ""
-
-
-async def test_a_tailored_resume_does_not_count_toward_the_five(student, database):
-    client, me = student
-    applicant_id = uuid.UUID(me.split("/")[2])
-    async with database() as session:
-        posting = await session.scalar(
-            text(
-                "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
-                " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
-            )
-        )
-        await session.execute(
-            text(
-                "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
-                " VALUES (:a, 'Tailored', 'jakes', :p)"
-            ),
-            {"a": applicant_id, "p": posting},
-        )
-        await session.commit()
-    for _ in range(5):
-        await _generate(client, me)
-    assert (await client.post(f"{me}/built-resumes", json={})).status_code == 409
 
 
 async def test_a_tailored_resume_says_when_its_posting_has_closed(student, database):

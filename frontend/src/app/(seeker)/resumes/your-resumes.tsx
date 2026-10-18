@@ -25,14 +25,14 @@ import { RenameForm } from "./built-resume-row";
 import { DeleteConfirm } from "./delete-confirm";
 import { UpdateResumeDialog } from "./update-resume-dialog";
 
-// The API's limit: uploaded plus base resumes, together (tailored ones are
-// free), so the count here matches the API's 409.
+// The API's limit, on uploads alone: generated resumes count for nothing
+// (KAN-268), so the count here matches the API's 409.
 const MAX_RESUMES = 5;
 
 /**
  * Your Resumes, the Resumes view's first card: the files the student
- * uploaded, under an "n of 5" count that includes the generated resumes,
- * since the API's limit counts both. It was My Profile's Resume card until
+ * uploaded, under an "n of 5" count of uploads alone: generated resumes
+ * have counted for nothing since KAN-268. It was My Profile's Resume card until
  * 2026-10-18, beside a "Your Resumes" card of base resumes alone: one limit
  * split across two pages, and the star on each page cleared a star the
  * other page showed. Base resumes then shared this card until KAN-268,
@@ -56,12 +56,9 @@ const MAX_RESUMES = 5;
  */
 export function YourResumes({
   uploaded,
-  generatedCount,
   reload,
 }: {
   uploaded: ResumeItem[];
-  /** The base resumes in Generated Resumes: they count toward the limit. */
-  generatedCount: number;
   reload: () => Promise<void>;
 }) {
   // The name of the file in flight, or null.
@@ -72,14 +69,12 @@ export function YourResumes({
   const [importingId, setImportingId] = useState<string | null>(null);
   // The row whose Import Updated Resume dialog is open.
   const [updateTarget, setUpdateTarget] = useState<ResumeItem | null>(null);
-  const count = generatedCount + uploaded.length;
+  const count = uploaded.length;
 
   async function handleFile(file: File) {
     if (uploading !== null) return;
     if (count >= MAX_RESUMES) {
-      setUploadError(
-        `You can keep up to ${MAX_RESUMES} resumes, uploaded and generated together. Delete one to add another.`,
-      );
+      setUploadError(`You can upload up to ${MAX_RESUMES} resumes. Delete one to upload another.`);
       return;
     }
     setUploadError(null);
@@ -140,8 +135,7 @@ export function YourResumes({
           </Badge>
         </div>
         <p className="text-note text-ink-meta mt-1">
-          Upload a resume to add its experiences. You can keep {MAX_RESUMES} resumes, uploaded and
-          generated together.
+          Upload a resume to add its experiences. You can upload up to {MAX_RESUMES}.
         </p>
       </div>
 

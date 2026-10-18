@@ -24,8 +24,8 @@ then names the row after the new file again.
 clearing a base resume that was the default. A student's only resume is
 the default without a click: upload and delete set it
 (`built_resumes.default_if_only`). Upload answers 409 when the
-student already has 5 resumes, uploaded and base resumes together
-(`app/services/built_resumes.py`).
+student already has 5 uploads; generated resumes do not count (KAN-268,
+`app/services/built_resumes.py`).
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
 download under the original filename for a DOCX.
 `DELETE .../{resume_id}` removes the row, and its stored file unless a sent

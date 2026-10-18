@@ -1,13 +1,12 @@
 """Built resumes under /applicants/{applicant_id}/built-resumes (KAN-207).
 Every route checks the token's account owns `applicant_id` first; another
-applicant's resume answers 404. The rules (the 5-resume limit, the default
-resume) live in `app/services/built_resumes.py`; what shows on a resume is
+applicant's resume answers 404. The rules (the default resume) live in `app/services/built_resumes.py`; what shows on a resume is
 `app/services/resume_view.py`.
 
 POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 BuiltResumeResponse
        Generate: a base resume with every bank entry, bullet and skill. With
-       no name it is "Resume #N", one past the highest number in use.
-       409 {detail} when the student already has 5 resumes (uploaded plus base).
+       no name it is "Resume #N", one past the highest number in use. No
+       limit: only uploads count toward the 5 (KAN-268).
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
        page no longer lists (story 90's "Posting closed"). `edited_at` is
@@ -132,10 +131,7 @@ async def generate(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> BuiltResumeResponse:
-    try:
-        resume = await service.generate(session, applicant_id, body.name)
-    except service.ResumeLimitReached as exc:
-        raise HTTPException(409, str(exc))
+    resume = await service.generate(session, applicant_id, body.name)
     default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
     return _response(resume, default_id)

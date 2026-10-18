@@ -287,8 +287,8 @@ change here must keep:
   Deleting a bank item cascades to its choice rows.
 - **A base resume has no `job_posting_id`; a tailored one has one**, unique
   per applicant and posting (`built_resumes_applicant_posting_key`; NULLs are
-  distinct, so base resumes are many). Only base resumes count toward the
-  limit of 5 (`../services/built_resumes.py`).
+  distinct, so base resumes are many). No built resume counts toward the
+  limit of 5, which is uploads only (`../services/built_resumes.py`).
 - **The default resume is two pointers, at most one set.**
   `applicant_profiles.default_resume_id` (an uploaded resume) and
   `default_built_resume_id` (a base resume), each `ON DELETE SET NULL`, with

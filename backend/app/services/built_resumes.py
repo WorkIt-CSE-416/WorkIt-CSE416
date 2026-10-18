@@ -1,12 +1,13 @@
 """
-Built resumes (KAN-207): Generate, the 5-resume limit, the default resume,
+Built resumes (KAN-207): Generate, the 5-upload limit, the default resume,
 and loading one resume's view. Like services/bank.py, every function takes
 the applicant id and touches only that applicant's rows (another applicant's
 resume answers `NotFound`), and flushes but never commits.
 
-- **The limit:** uploaded resumes plus base resumes, at most `MAX_RESUMES`.
-  Tailored resumes (with a job posting) and sent resumes do not count.
-  `check_room` runs before anything is written, on Generate and on upload.
+- **The limit:** uploaded resumes, at most `MAX_RESUMES`. Built resumes
+  (base and tailored) and sent resumes do not count, so Generate has no
+  limit (KAN-268; base resumes counted until then). `check_room` runs on
+  upload, before anything is written.
 - **The default resume** is `applicant_profiles.default_resume_id` (an
   uploaded resume) or `default_built_resume_id` (a base resume), never both:
   setting one clears the other, and a check constraint backs it. A student
@@ -64,25 +65,15 @@ DEFAULT_TEMPLATE = "jakes"
 class ResumeLimitReached(Exception):
     def __init__(self) -> None:
         super().__init__(
-            f"You can keep {MAX_RESUMES} resumes (uploaded and base resumes together). "
-            "Delete one to add another."
+            f"You can upload up to {MAX_RESUMES} resumes. Delete one to upload another."
         )
-
-
-async def count_resumes(session: AsyncSession, applicant_id: uuid.UUID) -> int:
-    uploaded = await session.scalar(select(func.count()).where(Resume.applicant_id == applicant_id))
-    base = await session.scalar(
-        select(func.count()).where(
-            Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id.is_(None)
-        )
-    )
-    return (uploaded or 0) + (base or 0)
 
 
 async def check_room(session: AsyncSession, applicant_id: uuid.UUID) -> None:
-    """Raise ResumeLimitReached when one more resume would pass the limit.
+    """Raise ResumeLimitReached when one more upload would pass the limit.
     Two requests at once can both pass; the limit errs toward the student."""
-    if await count_resumes(session, applicant_id) >= MAX_RESUMES:
+    uploaded = await session.scalar(select(func.count()).where(Resume.applicant_id == applicant_id))
+    if (uploaded or 0) >= MAX_RESUMES:
         raise ResumeLimitReached
 
 
@@ -105,7 +96,6 @@ async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str | N
     already on it (`copy_key`), which waits hidden in "Not on This Resume":
     two copies of one job sent a resume to two pages. With no name it is
     "Resume #N" (`next_name`)."""
-    await check_room(session, applicant_id)
     name = name or await next_name(session, applicant_id)
     resume = Built_Resume(id=uuid.uuid4(), applicant_id=applicant_id, name=name, template=DEFAULT_TEMPLATE)
     session.add(resume)

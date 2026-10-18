@@ -536,8 +536,8 @@ This is Apply's order (11.1), so a job posting gets the same resume from
 the Apply button and from auto apply. Apply then falls back to the first
 resume in its list; the run does not guess, so a student with resumes but no
 default gets none, and the Resume List says to star one. The run never
-generates a base resume: that is slow, and it counts toward the 5-resume
-limit.
+generates a base resume: that is slow, and the student never asked for
+it.
 
 ### 11.4 Keeping the file
 
