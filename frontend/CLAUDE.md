@@ -129,8 +129,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
-  `formatDate` in `lib/format-date.ts` formats in UTC and suits date-only
-  strings only.
+  `LocalDate` and `When` in `(seeker)/local-time.tsx` do it for a seeker
+  screen. `formatDate` in `lib/format-date.ts` formats in UTC and suits
+  date-only strings only.
 
 ## Auth and the API
 
