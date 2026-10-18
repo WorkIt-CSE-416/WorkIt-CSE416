@@ -67,7 +67,8 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         # a benefits heading and drop the rest of the list.
         r"^health (&|and) wellness$|^(flexible pto|paid time off)$|can offer you|"
         r"we.ll bring to|taking care of our team|^health (&|and) well-?being$|"
-        r"personal (&|and) professional development|what you can expect",
+        # "What you can expect" alone is duties (`responsibilities`); from us, perks.
+        r"personal (&|and) professional development|what you can expect from us",
     ),
     (
         "pay",
@@ -98,7 +99,11 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         r"in this role|you will|example projects|what you.ll learn|what you will learn|"
         r"what you (might|may|could) (do|work on)|the work you.ll do|what you.ll achieve|"
         r"what you.ll actually do|^your mission$|major objectives|"
-        r"what will you (do|be doing)|accountabilit\w*",
+        r"what will you (do|be doing)|accountabilit\w*|"
+        # 116 of the 138 stored postings with it describe the job under it (Marvell's
+        # 88, 1Password, PGIM); filed as benefits, every Marvell posting lost its
+        # duties. The other 22 list perks (Kyndryl, CrowdStrike), now shown as duties.
+        r"what you can expect",
     ),
     (
         "logistics",
@@ -194,6 +199,7 @@ KEPT: tuple[tuple[str, str | None], ...] = (
 )
 
 _KEPT_HEADINGS = {head.casefold() for _, head in KEPT if head}
+_KEPT_KEYS = {key for key, _ in KEPT}
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,6 +268,13 @@ def _marked(line: str) -> str | None:
     "In this internship, you will..." (a comma) and "“Let's find out about you.”"
     (quotes, a full stop) head their sections. A bold sentence is still emphasis:
     "The minimum length of the Internship must be 12 weeks." heads nothing."""
+    name = _marked_name(line)
+    return _named(name) if name else None
+
+
+def _marked_name(line: str) -> str | None:
+    """The name a marked line gives as a heading, or None when it reads as a
+    sentence or a list item (`_marked`)."""
     stripped = _visible(line).strip()
     if _TYPED_BULLET.match(stripped):
         return None
@@ -272,7 +285,7 @@ def _marked(line: str) -> str | None:
     name = stripped.strip("*#•·-–— \"“”'‘’").rstrip(":.…?! ").strip("\"“”'‘’ ")
     if not name or len(name) > _MARKED_MAX_CHARS or len(name.split()) > _MARKED_MAX_WORDS:
         return None
-    return _named(name)
+    return name
 
 
 def _role(roles: tuple[str | None, ...] | None, index: int) -> str | None:
@@ -308,13 +321,17 @@ def _walk(text: str, roles: tuple[str | None, ...] | None = None) -> list[_Line]
     Two rules use it. A list item is never a heading, unless it ends in a colon
     ("Preferred:" as the first item of a list): Workday lists "Good interpersonal
     skills", which used to open Requirements. And a line the HTML marks as a
-    heading is read by its words alone (`_marked`)."""
+    heading is read by its words alone (`_marked`); after the company's section,
+    one whose words name no section opens Overview."""
     walked: list[_Line] = []
     key, head = INTRO, None
     # Whether the open section has held a line yet: a heading straight after its
     # own heading is its first item. True again after an inline label hands it
     # back, which is not a fresh heading.
     started = False
+    # Whether the open section's heading was a guess (below): a heading straight
+    # after a guess opens its own section rather than being its first item.
+    guessed = False
     for index, line in enumerate(text.split("\n")):
         if _WRAPPER.match(line.strip().strip("*#•·-–— ").rstrip(":").strip()):
             continue
@@ -335,16 +352,30 @@ def _walk(text: str, roles: tuple[str | None, ...] | None = None) -> list[_Line]
         # whole line reads as: under Requirements, "Required for all positions:
         # ... Background Check" is a requirement, not a legal heading.
         opens = None if labelled is not None else heading(line)
+        guess = False
         role = _role(roles, index)
         if role == "li" and not line.rstrip().endswith(":"):
             opens = None
         elif role in ("h", "b") and opens is None and labelled is None:
             opens = _marked(line)
+            # A marked heading no pattern names ends the company's section, and the
+            # text after it shows under Overview: the section otherwise runs on to
+            # the next heading a pattern names. SharkNinja's "About Us" ran on
+            # through "AI at SharkNinja" and "This role:", and its duties and
+            # requirements left the page with the company's pitch. Only after the
+            # company's: after benefits or a notice, the gold set's unnamed marked
+            # headings were more of it ("And More:", "What You'll Experience").
+            if opens is None and key == "company" and _marked_name(line):
+                opens, guess = "role", True
         # A line ending in a colon is a heading even there: items rarely end in
         # one, and J&J's empty "Required Skills:" then "Preferred Skills:", or
         # Wade Trim's "Preferred Qualifications" then "About Wade Trim:", filed
-        # the second heading's section under the first.
-        just_opened = head is not None and not started and not line.strip().endswith(":")
+        # the second heading's section under the first. After a guess too: a
+        # slogan ("Outrageously Extraordinary") then "Candidate Privacy Notice"
+        # filed SharkNinja's privacy notice as its Overview.
+        just_opened = (
+            head is not None and not started and not guessed and not line.strip().endswith(":")
+        )
         # A benefits list names pay among its perks ("Life assurance worth 4x your
         # annual salary", "Competitive pay"): those are items, not a Pay heading,
         # which kept the company pitch after one under Pay. A real amount reaches
@@ -356,7 +387,7 @@ def _walk(text: str, roles: tuple[str | None, ...] | None = None) -> list[_Line]
             continue
         key, head = opens, line.strip().strip("*#•·-–— ").rstrip(":").strip()
         walked.append(_Line(index, key, head, "", opens=True))
-        started = False
+        started, guessed = False, guess
     return walked
 
 
@@ -433,11 +464,15 @@ _PAY_WORDS = re.compile(
     re.I,
 )
 
-_KEPT_KEYS = {key for key, _ in KEPT}
-
 #: The kept sections that say what the job is. A description with none of them is
 #: kept whole: its pay or its details alone are not a description.
 _ABOUT_THE_JOB = {INTRO, "role", "responsibilities", "requirements", "preferred"}
+
+#: A description whose kept text is under this share of it is kept whole too: a
+#: left-out section swallowed the job. SharkNinja's "About Us" kept its "Education:"
+#: line, so the rule above let 2 lines of 45 through. Of the 13,257 descriptions
+#: stored on 2026-10-17, 36 kept under 10%; the median kept 73%.
+_KEEP_WHOLE_BELOW = 0.10
 
 
 #: What a line says that its heading does not (fix 4, `_settled`): each moves a line
@@ -622,7 +657,9 @@ def kept(text: str | None, roles: tuple[str | None, ...] | None = None) -> str |
     A description that keeps nothing about the job itself (no intro, Overview,
     Responsibilities, Requirements or Preferred Qualifications) is kept whole. That
     is a posting whose every heading names a left-out section, which means its
-    headings were misread, not that it says nothing about the job.
+    headings were misread, not that it says nothing about the job. So is one that
+    keeps under a tenth of its text (`_KEEP_WHOLE_BELOW`): whole, a student still
+    sees the job, under the employer's own headings.
 
     `roles` is each line's role in the posting's HTML (`_walk`), when there was HTML.
     """
@@ -634,6 +671,8 @@ def kept(text: str | None, roles: tuple[str | None, ...] | None = None) -> str |
     # lose the rest. The posting is then kept whole.
     if not any(at in _ABOUT_THE_JOB for at, _ in lines):
         return text or None
+    if sum(len(line) for at, line in lines if at in _KEPT_KEYS) < _KEEP_WHOLE_BELOW * len(text):
+        return text
     parts = []
     for key, head in KEPT:
         body = "\n".join(

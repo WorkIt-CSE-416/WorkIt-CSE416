@@ -73,6 +73,9 @@ class TestHeading:
             ("Key Accountabilities", "responsibilities"),
             ("Health & Wellbeing", "benefits"),
             ("WHAT YOU WILL GAIN", "benefits"),
+            # Marvell's duties; said by the company, its perks (Pure Storage).
+            ("What You Can Expect", "responsibilities"),
+            ("WHAT YOU CAN EXPECT FROM US:", "benefits"),
             ("Working Conditions:", "logistics"),
             ("Candidate AI Usage Policy", "legal"),
             ("Also helpful, but not required:", "preferred"),
@@ -556,6 +559,14 @@ class TestLinesSortedByWhatTheySay:
 
         assert kept(text) == text
 
+    def test_a_posting_that_keeps_under_a_tenth_of_its_text_is_kept_whole(self) -> None:
+        # SharkNinja's "About Us" swallowed its duties, and the rule above let its
+        # one kept line through: 2 lines of 45.
+        pitch = "We build products people love, and we never stand still. " * 6
+        text = f"Product Design Co-op\nAbout Us\n{pitch}\n{pitch}\nBuild and test prototypes."
+
+        assert kept(text) == text
+
 
 class TestRoles:
     """Fix 3: each line's role in the HTML (`providers.plain_lines`) guides the walk."""
@@ -586,6 +597,40 @@ class TestRoles:
         roles = ("p", "b", "li")
 
         assert split(text, roles)[-1].key == "requirements"
+
+    def test_an_unnamed_marked_heading_ends_the_companys_section(self) -> None:
+        # SharkNinja's "About Us" ran on through "AI at SharkNinja", and the role's
+        # duties left the page with the company's pitch.
+        text = "About Us\nWe make vacuums.\nAI at SharkNinja\nBuild models for our products."
+        roles = ("b", "p", "b", "p")
+
+        assert [s.key for s in split(text, roles)] == ["company", "role"]
+        assert kept(text, roles) == "Overview\nBuild models for our products."
+        # Plain text has no marks to go by.
+        assert [s.key for s in split(text)] == ["company"]
+
+    def test_a_heading_straight_after_a_guessed_one_opens_its_own_section(self) -> None:
+        # SharkNinja's slogan, then its privacy notice, which is not its Overview.
+        text = (
+            "Learn more about us:\nsharkninja.com\nOutrageously Extraordinary\n"
+            "Candidate Privacy Notice\nRead our notice."
+        )
+        roles = ("p", "p", "b", "b", "li")
+
+        assert [s.key for s in split(text, roles)] == ["company", "legal"]
+
+    def test_after_benefits_an_unnamed_marked_heading_is_more_of_them(self) -> None:
+        # Stanley Black & Decker's "And More:" goes on with its benefits.
+        text = "Benefits\nMedical coverage\nAnd More:\nGrow with our brands."
+        roles = ("b", "li", "b", "li")
+
+        assert [s.key for s in split(text, roles)] == ["benefits"]
+
+    def test_a_bold_sentence_in_the_companys_section_stays_in_it(self) -> None:
+        text = "About Us\nWe make vacuums.\nWe are proud of every one of them.\nMore pitch."
+        roles = ("b", "p", "b", "p")
+
+        assert [s.key for s in split(text, roles)] == ["company"]
 
     def test_a_bold_sentence_is_not_a_heading(self) -> None:
         text = "Logistics\nThe minimum length of the Internship must be 12 weeks.\nSummer only"
@@ -669,11 +714,11 @@ class TestWhatALineSays:
 
     def test_discrimination_boilerplate_is_not_an_eligibility_line(self) -> None:
         text = (
-            "Responsibilities\nShip code\nPay\nThe company prohibits discrimination based "
-            "on race, religion or citizenship."
+            "Responsibilities\nShip code to production\nPay\nThe company prohibits "
+            "discrimination based on race, religion or citizenship."
         )
 
-        assert kept(text) == "Responsibilities\nShip code"
+        assert kept(text) == "Responsibilities\nShip code to production"
 
 
 class TestHeadingVoice:
