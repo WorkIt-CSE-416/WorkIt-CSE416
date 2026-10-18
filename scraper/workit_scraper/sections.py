@@ -47,23 +47,27 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         r"fraud|scams?|privacy|disclaimer|background checks?|affirmative action|"
         r"pay transparency|legal|compliance|diversity|inclusion|belonging|"
         r"verify communications|terms of service|vevraa|li-(remote|hybrid|onsite|dnp)|"
-        r"a note on ai|use of artificial intelligence|other notices|\w+ applicants$",
+        r"a note on ai|use of artificial intelligence|other notices|\w+ applicants$|"
+        # The 2026-10-17 Workday audit (`docs/sections.md`, "The HTML's structure").
+        r"accessibility|identity statement|ai usage|non-?discrimination|employment practices|"
+        r"posting statement|^disclosures?$",
     ),
     (
         "apply",
         r"how to apply|to apply|application (process|journey|timeline)|"
         r"interview process|next steps|hiring process|what is next|recruitment process|"
-        r"referral instructions",
+        r"referral instructions|apply (now|today)",
     ),
     (
         "benefits",
         r"benefits?|perks|what we offer|we offer|total rewards|why you.ll love|why join|"
-        r"life at|what you.ll (get|gain)|what makes working|in it for you|"
+        r"life at|what you(.ll| will) (get|gain)|what makes working|in it for you|"
         # Whole headings only: "insurance" or "retirement" anywhere in a line
         # would read "Knowledge of insurance claims" in a requirements list as
         # a benefits heading and drop the rest of the list.
         r"^health (&|and) wellness$|^(flexible pto|paid time off)$|can offer you|"
-        r"we.ll bring to|taking care of our team",
+        r"we.ll bring to|taking care of our team|^health (&|and) well-?being$|"
+        r"personal (&|and) professional development|what you can expect",
     ),
     (
         "pay",
@@ -73,7 +77,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     (
         "preferred",
         r"preferred|nice[ -]to[ -]haves?|bonus( points)?|desired|good to have|extra credit|"
-        r"stand out|we prefer|desirable|sets you apart",
+        r"stand out|we prefer|desirable|sets you apart|not required|also helpful",
     ),
     (
         "requirements",
@@ -82,7 +86,10 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         r"you have|must[ -]haves?|what we (require|need|value)|eligibility|"
         r"skills( and experience)?|about you|what you.ll need|what you need|"
         r"to be successful|^experience$|qualities that make|looking for someone|"
-        r"^profile$|^(work )?authorization$|the student we.re looking for",
+        r"^profile$|^(work )?authorization$|the student we.re looking for|"
+        r"(we.re|we are) looking for|^(your )?education\b(?! (assistance|reimbursement))|"
+        r"educational (&|and) professional experience|you bring|^you are$|"
+        r"you are passionate about|ideal candidate|who we look for|clearance",
     ),
     (
         "responsibilities",
@@ -90,21 +97,23 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         r"duties|essential functions|your impact|make an impact|day[ -]to[ -]day|"
         r"in this role|you will|example projects|what you.ll learn|what you will learn|"
         r"what you (might|may|could) (do|work on)|the work you.ll do|what you.ll achieve|"
-        r"what you.ll actually do|^your mission$|major objectives",
+        r"what you.ll actually do|^your mission$|major objectives|"
+        r"what will you (do|be doing)|accountabilit\w*",
     ),
     (
         "logistics",
         r"locations?|work arrangement|(work )?schedules?|dates?|timelines?|duration|"
         r"start dates?|available terms|internship information|"
         r"program details|internship details|logistics|additional information|"
-        r"what to expect|offer deadline|visa sponsorship|^details$",
+        r"what to expect|offer deadline|visa sponsorship|^details$|"
+        r"work(ing)? (environment|conditions)|^work model$|^at a glance$",
     ),
     (
         "company",
         r"about (us|the company)|company (overview|description)|who we are|"
         r"our (mission|story|company|values|principles|culture)|shared values|how we work|"
         r"world-changing company|what we do|core values|our commitments|"
-        r"^why (?!this |join |work )[\w&.'’ -]{2,30}\??$",
+        r"^why (?!this |join |work )[\w&.'’ -]{2,30}\??$|who are we|^the company$",
     ),
     (
         "role",
@@ -119,7 +128,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
         r"job (summary|overview)|why this role|the role entails|role at a glance|"
         r"the team and culture|^(the |our )?internship$|internship program|"
         r"the opportunity|project details|subteam for this role|program highlights|"
-        r"tech(nology|nical)? stack|technologies we use",
+        r"tech(nology|nical)? stack|technologies we use|program structure|^purpose$",
     ),
     # "About Stripe": a company's own name. Last, so "About the role" is the role.
     ("company", r"^about [\w&.'’ -]{2,30}$"),
@@ -136,7 +145,7 @@ _ABOUT_THE_READER = {"responsibilities", "requirements", "preferred"}
 _COMPANY_VOICE = re.compile(r"\b(we|we.ve|we.re|we.ll|our|ours|us)\b", re.I)
 #: The headings in "we" that still speak about the reader.
 _READER_WE = re.compile(
-    r"look(ing)? for|excited about you|qualifications we|qualities we|"
+    r"look(ing)? for|excited about you|qualifications we|qualities we|ideal candidate|"
     r"we (require|need|value|expect|prefer)|we.d (love|like)|like to see|with us",
     re.I,
 )
@@ -150,7 +159,9 @@ _INLINE = re.compile(r"^[\s*#•·\-–—]*([A-Z][^:\n]{1,58}):\s+(\S.*)$")
 #: A heading over the whole posting, not a section: Workday opens most descriptions
 #: with "Job Description", then "ABOUT BOSE". It is skipped, so it neither opens a
 #: section nor swallows the heading after it as its first item.
-_WRAPPER = re.compile(r"^((job|position) )?description$", re.I)
+_WRAPPER = re.compile(
+    r"^((job|position) )?description( (&|and) summary| summary)?$|^(job|position) details$", re.I
+)
 
 #: A typed bullet: a glyph, then a space. A line that starts with one is a list
 #: item, never a heading, as the job page reads it too (`BULLET` in
@@ -193,6 +204,16 @@ class Section:
     text: str
 
 
+#: Zero-width characters: invisible, but Morningstar's "\u200bWho You Are" read as
+#: starting with no capital, so it headed nothing.
+_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff"))
+
+
+def _visible(line: str) -> str:
+    """The line without its zero-width characters."""
+    return line.translate(_ZERO_WIDTH)
+
+
 def heading(line: str) -> str | None:
     """The section a line opens, or None when it is content.
 
@@ -203,7 +224,7 @@ def heading(line: str) -> str | None:
     the company's voice ("we", "our") opens no section about the reader
     (`_COMPANY_VOICE`) unless it asks for the reader ("What we're looking for").
     """
-    stripped = line.strip()
+    stripped = _visible(line).strip()
     # Stripping the glyph below would let "• Perform other duties as assigned"
     # open Responsibilities and swallow the real heading after it.
     if _TYPED_BULLET.match(stripped):
@@ -215,6 +236,11 @@ def heading(line: str) -> str | None:
         return None
     if name.endswith((".", ";")) or ("," in name and not stripped.endswith(":")):
         return None
+    return _named(name)
+
+
+def _named(name: str) -> str | None:
+    """The section a heading's words name, or None."""
     company_voice = _COMPANY_VOICE.search(name) and not _READER_WE.search(name)
     for key, pattern in _PATTERNS:
         if key in _ABOUT_THE_READER and company_voice:
@@ -222,6 +248,37 @@ def heading(line: str) -> str | None:
         if pattern.search(name):
             return key
     return None
+
+
+#: A marked heading's limits: past these, a bold line is a sentence.
+_MARKED_MAX_CHARS = 100
+_MARKED_MAX_WORDS = 16
+
+
+def _marked(line: str) -> str | None:
+    """The section a line names that the HTML marks as a heading (a heading tag, or
+    a bold line of its own), by its words alone. The shape test is what tells a
+    heading from content in plain text, and here the markup has already told: so
+    "In this internship, you will..." (a comma) and "“Let's find out about you.”"
+    (quotes, a full stop) head their sections. A bold sentence is still emphasis:
+    "The minimum length of the Internship must be 12 weeks." heads nothing."""
+    stripped = _visible(line).strip()
+    if _TYPED_BULLET.match(stripped):
+        return None
+    bare = stripped.strip("* ")
+    quoted = bare[:1] in "\"“'‘" and bare[-1:] in "\"”'’"
+    if not quoted and (re.search(r"(?<!\.)\.$", bare) or re.search(r"[a-z]\.\s+[A-Z]", bare)):
+        return None
+    name = stripped.strip("*#•·-–— \"“”'‘’").rstrip(":.…?! ").strip("\"“”'‘’ ")
+    if not name or len(name) > _MARKED_MAX_CHARS or len(name.split()) > _MARKED_MAX_WORDS:
+        return None
+    return _named(name)
+
+
+def _role(roles: tuple[str | None, ...] | None, index: int) -> str | None:
+    """A line's role in the HTML (`providers.plain_lines`): "h" a heading tag, "b" a
+    bold line of its own, "li" a list item, "p" anything else; None when unknown."""
+    return roles[index] if roles is not None and index < len(roles) else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -243,9 +300,15 @@ class _Line:
     inline: bool = False
 
 
-def _walk(text: str) -> list[_Line]:
+def _walk(text: str, roles: tuple[str | None, ...] | None = None) -> list[_Line]:
     """Every line but a whole-posting wrapper, each with the section it belongs to,
-    by the rules `split` describes. The one pass both `split` and `labels` read."""
+    by the rules `split` describes. The one pass `split`, `labels` and `kept` read.
+
+    `roles` is each line's role in the posting's HTML, when the scraper had HTML.
+    Two rules use it. A list item is never a heading, unless it ends in a colon
+    ("Preferred:" as the first item of a list): Workday lists "Good interpersonal
+    skills", which used to open Requirements. And a line the HTML marks as a
+    heading is read by its words alone (`_marked`)."""
     walked: list[_Line] = []
     key, head = INTRO, None
     # Whether the open section has held a line yet: a heading straight after its
@@ -272,6 +335,11 @@ def _walk(text: str) -> list[_Line]:
         # whole line reads as: under Requirements, "Required for all positions:
         # ... Background Check" is a requirement, not a legal heading.
         opens = None if labelled is not None else heading(line)
+        role = _role(roles, index)
+        if role == "li" and not line.rstrip().endswith(":"):
+            opens = None
+        elif role in ("h", "b") and opens is None and labelled is None:
+            opens = _marked(line)
         # A line ending in a colon is a heading even there: items rarely end in
         # one, and J&J's empty "Required Skills:" then "Preferred Skills:", or
         # Wade Trim's "Preferred Qualifications" then "About Wade Trim:", filed
@@ -280,7 +348,7 @@ def _walk(text: str) -> list[_Line]:
         # A benefits list names pay among its perks ("Life assurance worth 4x your
         # annual salary", "Competitive pay"): those are items, not a Pay heading,
         # which kept the company pitch after one under Pay. A real amount reaches
-        # Pay by what it says, wherever it sits (`_sorted_lines`).
+        # Pay by what it says, wherever it sits (`_settled`).
         in_perks = opens == "pay" and key == "benefits"
         if opens is None or opens == key or just_opened or in_perks:
             walked.append(_Line(index, key, head, line))
@@ -292,7 +360,7 @@ def _walk(text: str) -> list[_Line]:
     return walked
 
 
-def split(text: str | None) -> tuple[Section, ...]:
+def split(text: str | None, roles: tuple[str | None, ...] | None = None) -> tuple[Section, ...]:
     """The description's sections in the order written.
 
     Two rules keep a list's items in their list, where a pattern alone would cut it:
@@ -326,7 +394,7 @@ def split(text: str | None) -> tuple[Section, ...]:
         if body:
             sections.append(Section(key, head, body))
 
-    for line in _walk(text):
+    for line in _walk(text, roles):
         if line.inline:
             # Its own one-line section; the open one carries on after it.
             close()
@@ -379,7 +447,7 @@ def _states_pay(line: str) -> bool:
 def _settled(key: str, line: str) -> tuple[str, str]:
     """(section, text) for a content line once what it says has had its say: a
     line stating pay goes to Pay, an equal-opportunity line to legal (left out),
-    anything else stays in `key`. See `_sorted_lines`."""
+    anything else stays in `key`. See `_sorted_lines` for why."""
     if key in _KEPT_KEYS and _EEO.search(line):
         return "legal", line
     if key != "pay" and _states_pay(line):
@@ -392,7 +460,7 @@ def _settled(key: str, line: str) -> tuple[str, str]:
     return key, line
 
 
-def labels(text: str | None) -> list[str | None]:
+def labels(text: str | None, roles: tuple[str | None, ...] | None = None) -> list[str | None]:
     """Each of the text's lines' final section, by position: a heading line its
     section's, a content line where it is stored or left out (`_settled`), and
     None for a blank line or a whole-posting wrapper. What the gold test set
@@ -400,7 +468,7 @@ def labels(text: str | None) -> list[str | None]:
     if not text:
         return []
     found: list[str | None] = [None] * len(text.split("\n"))
-    for line in _walk(text):
+    for line in _walk(text, roles):
         if line.opens:
             found[line.index] = line.key
         elif line.text.strip():
@@ -408,8 +476,8 @@ def labels(text: str | None) -> list[str | None]:
     return found
 
 
-def _sorted_lines(sections: tuple[Section, ...]) -> list[tuple[str, str]]:
-    """Every line as (section, line), each sorted by what it says (fix 3).
+def _sorted_lines(text: str, roles: tuple[str | None, ...] | None) -> list[tuple[str, str]]:
+    """Every content line as (section, line), each sorted by what it says (fix 3).
 
     Headings decide most lines, but a line can say something its section is not
     about, and then it moves:
@@ -422,16 +490,22 @@ def _sorted_lines(sections: tuple[Section, ...]) -> list[tuple[str, str]]:
       with a price (`_PERK`) unless the line also speaks of pay.
     - **An equal-opportunity line is dropped**, even from a kept section, as its
       own heading's section would be.
+
+    A line the HTML lists keeps its bullet: it is stored as "• item", so the job
+    page draws a list, and a second read takes it for an item, never a heading.
     """
-    return [
-        _settled(section.key, line)
-        for section in sections
-        for line in section.text.split("\n")
-        if line.strip()
-    ]
+    lines = []
+    for line in _walk(text, roles):
+        if line.opens or not line.text.strip():
+            continue
+        at, said = _settled(line.key, line.text)
+        if _role(roles, line.index) == "li" and not _TYPED_BULLET.match(said.strip()):
+            said = "• " + said.strip()
+        lines.append((at, said))
+    return lines
 
 
-def kept(text: str | None) -> str | None:
+def kept(text: str | None, roles: tuple[str | None, ...] | None = None) -> str | None:
     """The description as WorkIt stores it: the `KEPT` sections in `KEPT`'s order,
     each under its fixed heading, the rest left out, each line where it belongs by
     what it says (`_sorted_lines`).
@@ -445,8 +519,12 @@ def kept(text: str | None) -> str | None:
     Responsibilities, Requirements or Preferred Qualifications) is kept whole. That
     is a posting whose every heading names a left-out section, which means its
     headings were misread, not that it says nothing about the job.
+
+    `roles` is each line's role in the posting's HTML (`_walk`), when there was HTML.
     """
-    lines = _sorted_lines(split(text))
+    if not text:
+        return None
+    lines = _sorted_lines(text, roles)
     # Nothing about the job itself kept means the headings were misread: Bose's
     # whole posting sits under "About Bose", and storing its pay line alone would
     # lose the rest. The posting is then kept whole.
