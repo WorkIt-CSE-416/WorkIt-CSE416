@@ -325,7 +325,12 @@ export default function ProfilePage() {
         setResumeError(error);
         return;
       }
-      setResumeList((prev) => prev.filter((r) => r.id !== resumeId));
+      // The API makes a student's only resume the default, so the one row
+      // left, with no base resume, gets the star a reload would show.
+      setResumeList((prev) => {
+        const rest = prev.filter((r) => r.id !== resumeId);
+        return rest.length === 1 && baseCount === 0 ? [{ ...rest[0], is_default: true }] : rest;
+      });
     } catch {
       // The server action call itself failed
       // or the page came back from the back-forward cache with stale action IDs.
