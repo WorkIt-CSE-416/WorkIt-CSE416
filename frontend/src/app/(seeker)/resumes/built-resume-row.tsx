@@ -158,11 +158,11 @@ export function BuiltResumeRow({
 
 /**
  * The resume's name, open for typing (KAN-258): Rename turns the card into
- * this form, as Edit opens a bank entry in place, with the bank's form
+ * this form, a built resume's or an upload's (KAN-268), as Edit opens a bank entry in place, with the bank's form
  * buttons at a field's height. A name left as it was closes the form with
  * no call; Escape or Cancel keeps the name.
  */
-function RenameForm({
+export function RenameForm({
   id,
   name,
   saving,

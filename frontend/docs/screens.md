@@ -879,22 +879,26 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   Experiences, and offers **Read It With AI** while the student has an AI
   reading left. Before KAN-240 an upload showed nothing, and its facts
   reached the bank only if the student found the import inside intake;
-  most never did. Each upload's row (`src/components/resume-row.tsx`,
-  shared with the Auto Apply page) has an eye — a short-lived signed link
-  from `getResumeFileUrl`, opened by `src/lib/preview-resume.ts`: a PDF
-  opens in a new tab, opened inside the click so it is not blocked as a
-  popup (if it is blocked anyway, the page says so rather than leaving
-  it); a DOCX downloads — a star that makes it primary
-  (`setPrimaryResume`), **Import Updated Resume** and Delete, which asks
+  most never did. **A click anywhere on an upload's row previews it**
+  (`src/components/resume-row.tsx`, KAN-268), as a generated resume's row
+  opens the editor: a short-lived signed link from `getResumeFileUrl`,
+  opened by `src/lib/preview-resume.ts`. A PDF opens in a new tab, opened
+  inside the click so it is not blocked as a popup (if it is blocked
+  anyway, the page says so rather than leaving it); a DOCX downloads. An
+  eye button did this until KAN-268. The row's icons are a star that makes
+  it primary (`setPrimaryResume`), **Rename** (the pencil, the same form as
+  a generated resume's; `renameResume`, and the API keeps the file's
+  extension on the name), **Import Updated Resume** and Delete, which asks
   first in the line under the row, as a base resume's does. Import Updated
+  Resume names the row after its new file again. Import Updated
   Resume opens `resumes/update-resume-dialog.tsx`: a dropzone for a newer
   version of that file, which replaces it on the same row (`replaceResume`;
   the row keeps its primary star and moves to the top with today's date)
   and merges its reading into the bank. The dialog then says what went in,
   with Read It With AI while a reading is left, and Done. It replaced
   Import Again on the row (2026-10-18): the stored file never changes, so
-  re-reading it only said "already in your bank". The star, Import Updated
-  Resume and the delete are optional props, so a screen that only shows a
+  re-reading it only said "already in your bank". The star, Rename, Import
+  Updated Resume and the delete are optional props, so a screen that only shows a
   resume leaves them out. The `ResumeUpload` component
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.

@@ -15,11 +15,13 @@ import { importSummary } from "@/lib/import-summary";
 import { previewResume } from "@/lib/preview-resume";
 import {
   deleteResume,
+  renameResume,
   setPrimaryResume,
   uploadResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
 
+import { RenameForm } from "./built-resume-row";
 import { DeleteConfirm } from "./delete-confirm";
 import { UpdateResumeDialog } from "./update-resume-dialog";
 
@@ -37,8 +39,9 @@ const MAX_RESUMES = 5;
  * when they moved to Generated Resumes (./built-resumes.tsx) on the same
  * page.
  *
- * Uploads are newest first, each with a preview, Import Updated Resume
- * (./update-resume-dialog.tsx) and Delete. Picking a file in the dropzone uploads it at
+ * Uploads are newest first. A click on the row previews the file; each
+ * has Rename, Import Updated Resume (./update-resume-dialog.tsx) and
+ * Delete. Picking a file in the dropzone uploads it at
  * once; the API reads it into the experience bank (ADR 0003), and a note
  * under the dropzone says what went in, with Read It With AI while the
  * student has an AI reading left. The model never reads a resume unasked.
@@ -222,8 +225,8 @@ export function YourResumes({
   );
 }
 
-/** One uploaded resume: the shared row, its errors, and Delete's confirm
- *  under it, as a generated resume's row has. */
+/** One uploaded resume: the shared row, or Rename's form in its place, its
+ *  errors, and Delete's confirm under it, as a generated resume's row has. */
 function UploadedRow({
   resume,
   reload,
@@ -233,9 +236,24 @@ function UploadedRow({
   reload: () => Promise<void>;
   onUpdate: () => void;
 }) {
+  const [renaming, setRenaming] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const name = resume.original_filename ?? "Resume";
+
+  // The form stays open until the list has the new name, so the old one
+  // never flashes back.
+  async function rename(next: string) {
+    setSaving(true);
+    setError(null);
+    const { error } = await renameResume(resume.id, next);
+    if (!error) await reload();
+    setSaving(false);
+    if (error) return setError(error);
+    setRenaming(false);
+  }
 
   async function preview() {
     setError(null);
@@ -262,14 +280,25 @@ function UploadedRow({
 
   return (
     <li>
-      <ResumeRow
-        resume={resume}
-        deleting={deleting}
-        onPreview={preview}
-        onMakePrimary={makePrimary}
-        onUpdate={onUpdate}
-        onDelete={() => setConfirming(true)}
-      />
+      {renaming ? (
+        <RenameForm
+          id={resume.id}
+          name={name}
+          saving={saving}
+          onSave={rename}
+          onCancel={() => setRenaming(false)}
+        />
+      ) : (
+        <ResumeRow
+          resume={resume}
+          deleting={deleting}
+          onPreview={preview}
+          onMakePrimary={makePrimary}
+          onRename={() => setRenaming(true)}
+          onUpdate={onUpdate}
+          onDelete={() => setConfirming(true)}
+        />
+      )}
       {confirming && (
         <DeleteConfirm
           label="Delete Resume"

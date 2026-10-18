@@ -261,6 +261,13 @@ Find files with a directory listing; these are the rules for where code goes.
   (2026-10-18): the stored file never changes, so re-reading it with the
   same parser only said "already in your bank". Tests:
   `tests/test_bank_import.py`.
+- **Rename** is `PATCH /applicants/{id}/resumes/{resume_id}` with
+  `{"name"}` (KAN-268). It writes `original_filename`, the name every
+  screen shows and a DOCX downloads under, so it adds the stored file's
+  extension when the name lacks it: without it a renamed DOCX downloads
+  as a file no program opens. There is no separate name column, so Import
+  Updated Resume names the row after the new file again. Tests:
+  `tests/test_bank_import.py`.
 - **The model reads a resume only when the student asks** (KAN-222, ADR
   0003): Import Again's `read_with_ai: true`, "Read It With AI". Upload and
   a plain Import Again never fall back to it, even when the parser finds

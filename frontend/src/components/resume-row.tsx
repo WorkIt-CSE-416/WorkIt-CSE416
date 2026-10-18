@@ -1,8 +1,8 @@
 "use client";
 
-import { Eye, Import, Star } from "lucide-react";
+import { Import, Star } from "lucide-react";
 
-import { PdfIcon, TrashIcon } from "@/components/icons";
+import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
@@ -79,8 +79,11 @@ export function PrimaryStar({
 }
 
 /**
- * One uploaded resume, with its preview, primary, Import Updated Resume and
- * delete actions.
+ * One uploaded resume, with its primary, Rename, Import Updated Resume and
+ * delete actions. The whole card is one target, as a built resume's is
+ * (KAN-268): the name's button stretches over it (`after:inset-0`) and
+ * previews the file, the icons sit above that, and the card lifts under
+ * the pointer (`docs/motion.md`). An eye button previewed it until then.
  *
  * The star (`PrimaryStar`) marks the primary resume: the default one auto
  * apply attaches when a job has no tailored resume. Import Updated Resume (`onUpdate`) opens
@@ -90,13 +93,14 @@ export function PrimaryStar({
  *
  * The Resumes view passes every action. A screen that only shows a resume passes
  * onPreview alone: the primary's star still marks it, but there is no star
- * to click, no update and no delete.
+ * to click, no rename, no update and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
   deleting?: boolean;
   onPreview: () => void;
   onMakePrimary?: () => void;
+  onRename?: () => void;
   onUpdate?: () => void;
   onDelete?: () => void;
 };
@@ -106,6 +110,7 @@ export function ResumeRow({
   deleting = false,
   onPreview,
   onMakePrimary,
+  onRename,
   onUpdate,
   onDelete,
 }: ResumeRowProps) {
@@ -115,24 +120,40 @@ export function ResumeRow({
   const status = RESUME_STATUS[resume.status] ?? { label: resume.status, tone: "inert" };
 
   return (
-    <div className={cn("group", RESUME_ROW)}>
+    <div
+      className={cn(
+        "group relative",
+        RESUME_ROW,
+        "hover:border-brand/40 hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
+      )}
+    >
       <PdfIcon className="size-5 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-label text-ink truncate">{name}</p>
+        <button
+          type="button"
+          aria-label={`${action} ${name}`}
+          onClick={onPreview}
+          className="text-label text-ink after:rounded-control focus-visible:after:ring-brand-ring block w-full cursor-pointer truncate text-left after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+        >
+          {name}
+        </button>
         <p className="text-note text-ink-meta">{uploadedOn(resume.created_at)}</p>
       </div>
       <Badge tone={status.tone}>{status.label}</Badge>
-      {/* No gap between them: each is a 32px box already. */}
-      <div className="flex shrink-0 items-center">
+      {/* No gap between them: each is a 32px box already. Above the
+          stretched button, so a press on an icon is the icon's. */}
+      <div className="relative z-10 flex shrink-0 items-center">
         <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
-        <IconButton
-          label={`${action} ${name}`}
-          tooltip={action}
-          className={ROW_ACTION}
-          onClick={onPreview}
-        >
-          <Eye aria-hidden className="size-4" />
-        </IconButton>
+        {onRename && (
+          <IconButton
+            label={`Rename ${name}`}
+            tooltip="Rename"
+            className={ROW_ACTION}
+            onClick={onRename}
+          >
+            <PencilIcon className="size-4" />
+          </IconButton>
+        )}
         {onUpdate && (
           <IconButton
             label={`Import Updated Resume for ${name}`}
