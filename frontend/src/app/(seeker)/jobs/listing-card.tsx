@@ -1,4 +1,4 @@
-import { Ban, CloudOff } from "lucide-react";
+import { Ban, CloudOff, Sparkles } from "lucide-react";
 
 import { AutofillBadge } from "@/components/autofill-badge";
 import { ExternalLinkIcon } from "@/components/icons";
@@ -65,15 +65,20 @@ import { MatchRail } from "./match-rail";
  * view, which scores against the seeker's resume, and its placeholder
  * (score null) everywhere else.
  * The card opens the role's own page, /jobs/[jobId] (KAN-73), which shows
- * its description; Apply Now leaves for the employer's own posting.
+ * its description; Apply Now leaves for the employer's own posting. Tailor
+ * My Resume is the page's own button (KAN-241): it opens Tailor for this
+ * role, and reads "Your Tailored Resume" once the seeker has one for it.
  */
 export function ListingCard({
   job,
   stage,
+  tailored,
 }: {
   job: JobListing;
   /** The seeker's application for it, for its Auto Apply button; null: none. */
   stage: ApplicationStage | null;
+  /** Whether the seeker has a resume tailored to it, for its Tailor button. */
+  tailored: boolean;
 }) {
   return (
     <JobPostingCard
@@ -88,8 +93,9 @@ export function ListingCard({
       rail={<MatchRail score={job.match ?? null} highlights={job.highlights ?? []} />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
-         too many. All five sit at the row's right end, as on the mock cards:
-         the quick verdicts first, then the three steps toward applying. */
+         too many. All sit at the row's right end, as on the mock cards: the
+         quick verdicts first, then the steps toward applying, in the job
+         page's order. */
       actions={
         <>
           <IconButton
@@ -109,6 +115,15 @@ export function ListingCard({
           {job.auto_apply && (
             <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
           )}
+
+          <ButtonLink
+            href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+            variant="secondary"
+            size="sm"
+          >
+            <Sparkles className="size-4" />
+            {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
+          </ButtonLink>
 
           {/* Leaves for the employer's own posting, so the glyph says so and
               a screen reader hears it. On a card under 384px (a phone) the
@@ -208,6 +223,7 @@ export function ListingsSkeleton() {
                     <Skeleton className="size-9" />
                     <Skeleton className="h-9 w-28" />
                     <Skeleton className="h-9 w-28" />
+                    <Skeleton className="h-9 w-36" />
                     <Skeleton className="h-9 w-24" />
                   </div>
                 </div>

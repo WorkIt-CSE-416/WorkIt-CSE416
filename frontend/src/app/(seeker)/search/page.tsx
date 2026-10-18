@@ -29,6 +29,7 @@ import {
   getJobFacets,
   getJobListings,
   getJobLocations,
+  getTailoredJobIds,
   type FeedPage,
 } from "../jobs/listings";
 
@@ -103,8 +104,13 @@ async function Results({
   query: string;
   filters: FeedFilters;
 }) {
-  // The seeker's applications, for the cards' Auto Apply buttons (as /jobs).
-  const [{ jobs, more, error }, stages] = await Promise.all([results, getApplicationStages()]);
+  // The seeker's applications and tailored resumes, for the cards' Auto Apply
+  // and Tailor buttons (as /jobs).
+  const [{ jobs, more, error }, stages, tailored] = await Promise.all([
+    results,
+    getApplicationStages(),
+    getTailoredJobIds(),
+  ]);
 
   if (error != null) {
     const retry = new URLSearchParams([["q", query], ...filterEntries(filters)]);
@@ -135,7 +141,13 @@ async function Results({
       {/* The level between the page's h1 and each card's h3, as on /jobs. */}
       <h2 className="sr-only">Search Results</h2>
       {/* The first page of matches, and a Load More for the rest. */}
-      <FeedList initial={jobs} more={more} query={feedQuery(filters, query)} stages={stages} />
+      <FeedList
+        initial={jobs}
+        more={more}
+        query={feedQuery(filters, query)}
+        stages={stages}
+        tailored={tailored}
+      />
     </>
   );
 }
