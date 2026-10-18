@@ -123,6 +123,33 @@ function Specimen({ cls, demo }: { cls: string; demo: Demo }) {
           ))}
         </span>
       );
+    case "toast":
+      // The toast's own card, without its timer: the clip stands in for the
+      // window's bottom edge it rises from.
+      return (
+        <span className="block overflow-hidden p-2">
+          <span
+            className={cn(
+              "bg-panel border-border-subtle rounded-card shadow-lift text-body text-ink block w-56 border px-4 py-2.5",
+              cls,
+            )}
+          >
+            Removed from Auto Apply.
+          </span>
+        </span>
+      );
+    case "shimmer":
+      // Looping, so it needs no Replay; painted as the bank's marked row is.
+      return (
+        <span className="bg-brand-tint/70 relative isolate block h-12 w-56 overflow-hidden rounded-xl">
+          <span
+            className={cn(
+              "via-panel/80 absolute inset-0 -z-10 bg-linear-[110deg] from-transparent from-35% via-50% to-transparent to-65% bg-[length:200%_100%]",
+              cls,
+            )}
+          />
+        </span>
+      );
     case "bell":
       // Hover-driven like the bar's, so it needs no Replay.
       return (
@@ -147,6 +174,8 @@ export function AnimationDemo({ cls, demo }: { cls: string; demo: Demo }) {
         <span className="text-note text-ink-meta">Point at it</span>
       ) : demo === "dots" ? (
         <span className="text-note text-ink-meta">Loops while Scout thinks</span>
+      ) : demo === "shimmer" ? (
+        <span className="text-note text-ink-meta">Loops while Scout works on a row</span>
       ) : (
         <Button variant="secondary" size="sm" onClick={() => setRun((n) => n + 1)}>
           Replay

@@ -3,6 +3,8 @@ import {
   ArrowLeftRight,
   ArrowRight,
   Award,
+  Backpack,
+  BadgeCheck,
   Banknote,
   Bell,
   Bookmark,
@@ -33,7 +35,6 @@ import {
   Plus,
   Search,
   Settings,
-  Shapes,
   Star,
   Trash2,
   TrendingDown,
@@ -41,6 +42,7 @@ import {
   Upload,
   User,
   X,
+  createLucideIcon,
 } from "lucide-react";
 
 type IconProps = { className?: string };
@@ -64,7 +66,9 @@ type IconProps = { className?: string };
  * visible where the icons are defined.
  *
  * The three brand marks at the bottom (Google, LinkedIn, the PDF file) stay
- * drawn: they are logos, not glyphs, and Lucide does not have them.
+ * drawn: they are logos, not glyphs, and Lucide does not have them. A glyph
+ * Lucide lacks (RoleIcon's person in a suit) is drawn on its grid and built
+ * with its `createLucideIcon`, never as a bare <svg>, so it keeps the family.
  */
 
 /* Chrome ------------------------------------------------------------------ */
@@ -203,6 +207,34 @@ export function LevelIcon({ className }: IconProps) {
   return <GraduationCap aria-hidden className={className} />;
 }
 
+export function StudentIcon({ className }: IconProps) {
+  return <Backpack aria-hidden className={className} />;
+}
+
+export function ExperiencedIcon({ className }: IconProps) {
+  return <BadgeCheck aria-hidden className={className} />;
+}
+
+/* Keyed as WORK_STYLE_ICON is, so the filter's "new_grad" and a label's
+ * "New Grad" find the same glyph. */
+const LEVEL_ICON = {
+  student: StudentIcon,
+  newgrad: LevelIcon,
+  experienced: ExperiencedIcon,
+} as const;
+
+/**
+ * One experience level's glyph, for a list that tells the levels apart (the
+ * Experience filter's options, KAN-252): a backpack for a student, the
+ * mortarboard for a new grad, a check badge for someone experienced. A fact
+ * that names one level, as the job card does, still draws LevelIcon. An
+ * unknown or missing level falls back to the mortarboard.
+ */
+export function levelIcon(level: string | null) {
+  const key = level?.toLowerCase().replace(/[^a-z]/g, "");
+  return LEVEL_ICON[key as keyof typeof LEVEL_ICON] ?? LevelIcon;
+}
+
 export function OnSiteIcon({ className }: IconProps) {
   return <Building2 aria-hidden className={className} />;
 }
@@ -242,10 +274,22 @@ export function VisaIcon({ className }: IconProps) {
   return <Globe aria-hidden className={className} />;
 }
 
-/** A role's discipline (software, data, product, quant, hardware): shapes, one
- *  of each kind. The Role filter's; the job card doesn't print the fact. */
+/** Lucide has no person in a suit, so this one is drawn on its 24-unit grid
+ *  and rendered by its own factory: the same stroke, caps and size as every
+ *  glyph above, so it is still one family. Lucide's `User` with wider
+ *  shoulders, a collar and a knotted tie. */
+const UserTie = createLucideIcon("user-tie", [
+  ["circle", { cx: "12", cy: "6", r: "3.5", key: "head" }],
+  ["path", { d: "M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1", key: "shoulders" }],
+  ["path", { d: "m10.5 14 1.5 2 1.5-2", key: "collar" }],
+  ["path", { d: "m12 16-1 3 1 2 1-2z", key: "tie" }],
+]);
+
+/** A role, the job a person does: someone in a suit and tie (KAN-252; it
+ *  was shapes, which read as nothing). The Role filter's and onboarding's;
+ *  the job card doesn't print the fact. */
 export function RoleIcon({ className }: IconProps) {
-  return <Shapes aria-hidden className={className} />;
+  return <UserTie aria-hidden className={className} />;
 }
 
 /* A job description's sections, beside their fixed headings on the job

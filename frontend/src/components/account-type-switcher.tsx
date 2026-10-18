@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-
-import { SegmentedToggle } from "@/components/ui/segmented-control";
+// Hidden with the business side (KAN-239); uncomment with the block below.
+// import { useState } from "react";
+//
+// import { SegmentedToggle } from "@/components/ui/segmented-control";
 
 /**
  * Applicant or Company — which of the two account types a login or sign-up
@@ -42,35 +43,42 @@ export type AccountTypeValue = (typeof TYPES)[number]["value"];
  */
 export function AccountTypeSwitcher({
   form,
-  value,
-  onValueChange,
+  // value,
+  // onValueChange,
 }: {
   form: string;
   value?: AccountTypeValue;
   onValueChange?: (next: AccountTypeValue) => void;
 }) {
-  const [ownType, setOwnType] = useState<AccountTypeValue>(TYPES[0].value);
-  const type = value ?? ownType;
-  const setType = (next: AccountTypeValue) => {
-    setOwnType(next);
-    onValueChange?.(next);
-  };
+  // KAN-239: the business side is hidden, so login, signup and
+  // choose-account-type show no switcher and always submit "applicant". The
+  // callers' state never leaves "applicant", so their company fields stay
+  // closed. To restore, uncomment this block and drop the fixed input below.
+  //
+  // const [ownType, setOwnType] = useState<AccountTypeValue>(TYPES[0].value);
+  // const type = value ?? ownType;
+  // const setType = (next: AccountTypeValue) => {
+  //   setOwnType(next);
+  //   onValueChange?.(next);
+  // };
+  //
+  // return (
+  //   <>
+  //     {/* The top margin is here rather than at the call site because the
+  //         fragment has no element to hang it on, and this control has exactly
+  //         one home: the gap between the card's subtitle and its form. */}
+  //     <SegmentedToggle
+  //       label="Account Type"
+  //       options={[...TYPES]}
+  //       value={type}
+  //       onValueChange={(next) => setType(next as AccountTypeValue)}
+  //       size="lg"
+  //       className="mt-5 w-full"
+  //     />
+  //
+  //     <input type="hidden" name="accountType" value={type} form={form} />
+  //   </>
+  // );
 
-  return (
-    <>
-      {/* The top margin is here rather than at the call site because the
-          fragment has no element to hang it on, and this control has exactly
-          one home: the gap between the card's subtitle and its form. */}
-      <SegmentedToggle
-        label="Account Type"
-        options={[...TYPES]}
-        value={type}
-        onValueChange={(next) => setType(next as AccountTypeValue)}
-        size="lg"
-        className="mt-5 w-full"
-      />
-
-      <input type="hidden" name="accountType" value={type} form={form} />
-    </>
-  );
+  return <input type="hidden" name="accountType" value={TYPES[0].value} form={form} />;
 }

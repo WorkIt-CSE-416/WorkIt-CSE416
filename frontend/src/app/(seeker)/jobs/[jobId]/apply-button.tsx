@@ -29,8 +29,8 @@ type Source = { builtResumeId: string } | { uploadedResumeId: string };
  * "Pick a resume, then Apply" (KAN-220). Apply Now asks which resume the
  * student sends, keeps that exact file as a sent resume linked to this
  * posting (`applyWithResume`), then offers the file to download and the
- * employer's own posting to apply on. The sent resume shows in the bank
- * page's "Sent" list (Experience Bank). A student with no resume, or who would rather not
+ * employer's own posting to apply on. The sent resume shows in the Resumes
+ * view's "Sent" list. A student with no resume, or who would rather not
  * pick one, still reaches the posting: "Apply Without a Resume".
  *
  * The employer's page opens from a link the student clicks, never from
@@ -189,8 +189,8 @@ export function ApplyButton({
                   Your Resume Is Ready
                 </DialogTitle>
                 <DialogDescription>
-                  WorkIt kept &ldquo;{sent.name}&rdquo; in your Sent list, linked to {title}.
-                  Download it, then attach it on the employer&apos;s page.
+                  WorkIt kept &ldquo;{sent.name}&rdquo; in your Sent list, under Resumes, linked to{" "}
+                  {title}. Download it, then attach it on the employer&apos;s page.
                 </DialogDescription>
               </DialogHeader>
               {sent.missing_characters.length > 0 && (
@@ -224,7 +224,7 @@ export function ApplyButton({
               ) : choices.length === 0 ? (
                 !error && (
                   <p className="text-note text-ink-muted">
-                    You have no resumes yet. Make one in your Experience Bank, or apply without one.
+                    You have no resumes yet. Generate one under Resumes, or apply without one.
                   </p>
                 )
               ) : (

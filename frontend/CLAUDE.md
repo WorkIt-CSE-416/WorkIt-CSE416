@@ -57,6 +57,16 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   segment, so two groups cannot both define `/profile` and both audiences need
   one; the prefix also makes the auth guard one path check. Auth screens
   (`login/`, `signup/`) and `design-kit/` sit outside both shells.
+- **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
+  redirects `/company` and `/onboarding/company` (and everything under them)
+  to `/coming-soon`, "Waiting for Deployment", before its env check, so a
+  clone with no env file is gated too. The root page's hiring card still
+  shows and lands there. `components/account-type-switcher.tsx` has its
+  toggle commented out and always submits `applicant`, so login, signup and
+  choose-account-type show no Company option; the brand panel's hiring line
+  is commented out too. The company code stays in place. To bring it back,
+  delete the proxy block and `app/coming-soon/`, then uncomment those two
+  components. The API still accepts company signups; the gate is the UI only.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -81,6 +91,14 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
+- **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
+  Pick a button's size by where it sits (`docs/design.md`, Components). A
+  `className` on a Button or Chip may place it or colour a state, never change
+  its height, padding, radius, type size, line height or border width: the
+  `no-restricted-syntax` rule in `eslint.config.mjs` fails the lint on a plain
+  string class. It cannot read a class built in `cn()`, a template string or a
+  variable, so keep overrides out of those too. A new box is a new size in the
+  component.
 - **Build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
   leaves both conflicting utilities in the attribute and the stylesheet's
   emit order picks the winner. `cn()` cannot merge across groups (`border` and
@@ -121,8 +139,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
-  `formatDate` in `lib/format-date.ts` formats in UTC and suits date-only
-  strings only.
+  `LocalDate` and `When` in `(seeker)/local-time.tsx` do it for a seeker
+  screen. `formatDate` in `lib/format-date.ts` formats in UTC and suits
+  date-only strings only.
 
 ## Auth and the API
 
@@ -147,8 +166,9 @@ are in `docs/auth.md`.
 - **`src/proxy.ts` (Next 16's middleware) refreshes the session on every
   request**, because Server Components cannot write cookies and sessions would
   die with the hour-long access token. It is a convenience, not security: the
-  API is reachable without Next and checks every token. It no-ops when the
-  Supabase env vars are unset, so a clone with no env file boots.
+  API is reachable without Next and checks every token. Its session step
+  no-ops when the Supabase env vars are unset, so a clone with no env file
+  boots; the business-side redirect above runs first, either way.
 - **Never export a token-returning helper from a `"use server"` file.** Every
   export there is a browser-callable endpoint. Token helpers (`session.ts`)
   and Server-Component-only reads (`job-queries.ts`) live in `server-only`
@@ -212,8 +232,8 @@ are in `docs/auth.md`.
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
   posting page and card, seeker Dashboard, Applications, Calendar, My Profile,
-  the Experience Bank, Scout's panel, applicant onboarding, company screens),
-  read its section in `docs/screens.md`.
+  Resumes & Experiences, Scout's panel, applicant onboarding, company
+  screens), read its section in `docs/screens.md`.
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.

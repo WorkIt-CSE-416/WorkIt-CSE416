@@ -29,6 +29,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 
 import { MatchRail } from "../../(seeker)/jobs/match-rail";
+import { ToastSpecimen } from "../interactive";
 import { STAGE_TONE } from "../../company/applicants/data";
 import { STATUS_TONE } from "../../company/jobs/data";
 import { SECTIONS } from "../data";
@@ -207,6 +208,18 @@ export default function DisplayPage() {
         )}
       </Group>
 
+      <Group
+        title="Toasts"
+        note="A short message in the window's bottom right corner. It rises in, stays 5 seconds (paused while the pointer or focus is on it), and drops away; its cross closes it at once."
+      >
+        <Row
+          name="useToast().show()"
+          role="components/ui/toast.tsx: a message, and an optional action such as Undo"
+        >
+          <ToastSpecimen />
+        </Row>
+      </Group>
+
       <Group title="Empty and Long-Form">
         <Row name="<EmptyState>" role="A list with nothing in it: what happened, then one way on">
           <Card padding="none" className="w-full max-w-md">
@@ -250,7 +263,7 @@ export default function DisplayPage() {
           <IconButton label="Notifications">
             <BellIcon className="size-4" />
           </IconButton>
-          <IconButton label="Save job" variant="outline" className="size-8">
+          <IconButton label="Save job" variant="outline" className="size-9">
             <BookmarkIcon className="size-4" />
           </IconButton>
           <IconButton label="Edit avatar" variant="brand">

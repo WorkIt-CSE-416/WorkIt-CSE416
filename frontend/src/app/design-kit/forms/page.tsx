@@ -1,4 +1,4 @@
-import { FilterChip } from "@/components/ui/filter-chip";
+import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { SearchField } from "@/components/ui/search-field";
 import { TextField } from "@/components/ui/text-field";
 
@@ -24,7 +24,7 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SegmentedToggle> / <SegmentedLinks>"
-          role="One choice among a few, its thumb sliding to the pick: sm (32px) and lg (44px)"
+          role="One choice among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
         >
           <SegmentedSpecimen />
         </Row>
@@ -34,10 +34,24 @@ export default function FormsPage() {
         <Row name="<ResumeUpload>" role="Dropzone and file preview; the caller does the upload">
           <ResumeUploadSpecimen />
         </Row>
-        <Row name="<FilterChip>" role="Toggle in a filter rail">
-          <FilterChip label="Remote" active />
-          <FilterChip label="Full-Time" />
-          <FilterChip label="Internship" />
+        <Row
+          name="checkRowClasses + <CheckRowBox>"
+          role="An option in a list of several picks: a multiple Select's and the Role filter's"
+        >
+          <div className="border-border-subtle bg-panel w-56 rounded-lg border p-1 shadow-md">
+            <div className={checkRowClasses} data-selected="">
+              Software Engineer
+              <CheckRowBox />
+            </div>
+            <div className={checkRowClasses} data-highlighted="">
+              Data Scientist
+              <CheckRowBox />
+            </div>
+            <div className={checkRowClasses}>
+              Product Manager
+              <CheckRowBox />
+            </div>
+          </div>
         </Row>
       </div>
     </KitPage>

@@ -10,9 +10,17 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 
 
 class BuiltResumeCreate(BaseModel):
-    """POST body for Generate. With no name the resume is "Base Resume"."""
+    """POST body for Generate. With no name the resume is "Resume #N"
+    (`services/built_resumes.next_name`, KAN-258); every one made with no
+    name was "Base Resume" before."""
 
-    name: Name = "Base Resume"
+    name: Name | None = None
+
+
+class BuiltResumeRename(BaseModel):
+    """PATCH body: the resume's new name (KAN-258)."""
+
+    name: Name
 
 
 class BuiltResumeResponse(BaseModel):
@@ -22,6 +30,10 @@ class BuiltResumeResponse(BaseModel):
     job_posting_id: UUID | None
     is_default: bool
     created_at: datetime.datetime
+    # The last change to the resume itself: what shows, its order, its
+    # wording or its name (KAN-258). It equals `created_at` until then. A
+    # fix in the bank changes every resume and is not counted.
+    edited_at: datetime.datetime
     # A tailored resume whose posting the Jobs page no longer lists.
     posting_closed: bool = False
 

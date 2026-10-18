@@ -127,7 +127,7 @@ export function MoreActions({ title }: { title: string }) {
               label={`More actions for ${title}`}
               tooltip="More actions"
               variant="outline"
-              className="size-8 shrink-0"
+              className="size-9 shrink-0"
             >
               <EllipsisIcon className="size-4" />
             </IconButton>

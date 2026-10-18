@@ -96,7 +96,7 @@ export function ListingCard({
             label={`Not interested in ${job.title}`}
             tooltip="Not interested"
             variant="outline"
-            className="size-8"
+            className="size-9"
           >
             <Ban className="size-4" />
           </IconButton>
@@ -105,7 +105,10 @@ export function ListingCard({
 
           <AskScoutButton id={job.id} title={job.title} company={job.company} />
 
-          <AutoApplyButton jobId={job.id} stage={stage} />
+          {/* Only where auto apply can fill the form (Greenhouse for now). */}
+          {job.auto_apply && (
+            <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
+          )}
 
           {/* Leaves for the employer's own posting, so the glyph says so and
               a screen reader hears it. On a card under 384px (a phone) the
@@ -201,11 +204,11 @@ export function ListingsSkeleton() {
                     ))}
                   </div>
                   <div className="border-border-subtle mt-3 flex justify-end gap-2 border-t pt-3">
-                    <Skeleton className="size-8" />
-                    <Skeleton className="size-8" />
-                    <Skeleton className="h-8 w-28" />
-                    <Skeleton className="h-8 w-28" />
-                    <Skeleton className="h-8 w-24" />
+                    <Skeleton className="size-9" />
+                    <Skeleton className="size-9" />
+                    <Skeleton className="h-9 w-28" />
+                    <Skeleton className="h-9 w-28" />
+                    <Skeleton className="h-9 w-24" />
                   </div>
                 </div>
                 {/* The match rail's box: the ring, the tier line, three rows. */}

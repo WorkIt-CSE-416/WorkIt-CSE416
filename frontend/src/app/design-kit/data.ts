@@ -39,7 +39,7 @@ export const SECTIONS = {
   buttons: {
     slug: "buttons",
     title: "Buttons",
-    note: "One component, shadcn's variant and size names, WorkIt's measured styling. Each variant has a natural size, so most call sites pass only a variant.",
+    note: "A button acts and is a rounded rectangle; a chip is a choice and is a pill. One Button and one Chip, each with fixed sizes: a call site places them but never changes their height, padding, radius or type size (a lint rule refuses it).",
   },
   forms: {
     slug: "forms",
@@ -368,7 +368,18 @@ export const EASINGS: { token: string; cls: string; role: string }[] = [
 export const ANIMATIONS: {
   token: string;
   cls: string;
-  demo: "card" | "cross" | "row" | "rail" | "bar" | "ring" | "bell" | "dots" | "ping";
+  demo:
+    | "card"
+    | "cross"
+    | "row"
+    | "rail"
+    | "bar"
+    | "ring"
+    | "bell"
+    | "dots"
+    | "ping"
+    | "shimmer"
+    | "toast";
   role: string;
 }[] = [
   {
@@ -435,7 +446,25 @@ export const ANIMATIONS: {
     token: "--animate-typing",
     cls: "animate-typing",
     demo: "dots",
-    role: "Scout's three thinking dots, staggered 150ms; the one animation that loops",
+    role: "Scout's three thinking dots, staggered 150ms; of these tokens it loops, as only shimmer also does",
+  },
+  {
+    token: "--animate-shimmer",
+    cls: "animate-shimmer",
+    demo: "shimmer",
+    role: "A band of light crossing what Scout is working on: the bank row its panel is filling",
+  },
+  {
+    token: "--animate-toast-in",
+    cls: "animate-toast-in",
+    demo: "toast",
+    role: "A toast rising in from below the window's edge (ui/toast.tsx); Display shows a live one",
+  },
+  {
+    token: "--animate-toast-out",
+    cls: "animate-toast-out",
+    demo: "toast",
+    role: "A toast dropping back out, faster than it came: after 5 seconds, or its cross",
   },
 ];
 
@@ -471,5 +500,24 @@ export const BUTTON_VARIANTS = [
   { variant: "link", note: "UNMEASURED" },
 ] as const;
 
-export const BUTTON_SIZES = ["inline", "xs", "sm", "default", "lg"] as const;
+/** Each size and when to use it (KAN-251). Pick by role, never by look. */
+export const BUTTON_SIZES = [
+  { size: "inline", note: "A text action inside a line, no box: Clear Filters, Download Anyway" },
+  { size: "xs", note: "UNMEASURED; no screen uses it for a boxed action" },
+  { size: "sm", note: "36px. An action in a card, a row, a page's header or a panel" },
+  { size: "default", note: "42px, a text field's height. An action in a form or a dialog" },
+  { size: "lg", note: "48px. The one main action of a page, or the sign-in card's" },
+] as const;
+
+/** The chip's roles (ui/chip.tsx). A pill is always a chip, never a button. */
+export const CHIP_VARIANTS = [
+  { variant: "choice", pressed: false, note: "A filter or a toggle, off" },
+  { variant: "choice", pressed: true, note: "The same, on (aria-pressed)" },
+  {
+    variant: "suggestion",
+    pressed: undefined,
+    note: "An answer offered: WorkIt's replies, a skill to add",
+  },
+  { variant: "primary", pressed: undefined, note: "The one suggestion most people take: Use This" },
+] as const;
 export const BUTTON_ICON_SIZES = ["icon-xs", "icon-sm", "icon", "icon-lg"] as const;

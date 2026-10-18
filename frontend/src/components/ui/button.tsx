@@ -18,8 +18,39 @@ import { cn } from "@/lib/cn";
  * ONE DELIBERATE 2PX: the filled variants (`default`, `positive`,
  * `destructive`) carry a transparent border. Without it they were 2px shorter
  * than the bordered ones on the same padding, so Apply Now sat at 30px beside
- * a 32px Save. Every variant at a size is now the same box: sm 32px, default
- * 36px, lg 42px.
+ * a 32px Save. The boxed sizes now give every button a 1px border, which the
+ * text-only variants (`ghost`, `section`, `link`) keep transparent, so even
+ * a text-only button at a boxed size is that box (a 30px Skip sat beside 32px
+ * buttons until KAN-251). Every variant at a size is the same box: sm 36px,
+ * default 42px, lg 48px.
+ *
+ * THE HEIGHTS WENT UP 4 TO 6PX IN KAN-251, from 32, 36 and 42px: the buttons
+ * read as thin, and a form's default buttons stood 6px shorter than the
+ * 42px text fields beside them. default is now a field's height, and the
+ * chip, the small segmented control and the icon buttons that sit with sm
+ * buttons (Save, Not Interested, the Calendar's arrows) follow sm to 36px.
+ *
+ * ONE SHAPE, THREE SIZES (KAN-251). A button is a rounded rectangle; a pill
+ * is a chip (ui/chip.tsx), so the shape says whether a thing acts or is a
+ * choice. The Dashboard's pill buttons (a `shape` prop) were the only
+ * exception and are gone. Pick the size by role, never by look:
+ *
+ *   sm       an action in a card, a row, a page's header or a panel
+ *   default  an action in a form or a dialog, its footer included
+ *   lg       the one main action of a page, or the sign-in card's
+ *
+ * A call site never sets a button's height, padding, radius or type size:
+ * a no-restricted-syntax rule in eslint.config.mjs (BOX_CLASS) refuses it.
+ * It may set width, colour for a state and its place in a layout (w-full,
+ * shrink-0, mt-4). The design kit's Buttons page shows each size's role.
+ *
+ * ICONS ARE SIZED HERE TOO. A glyph with no size class takes 16px (14px in
+ * the `inline` and `xs` sizes, whose text is 12px, and in `section`, which
+ * matches SectionLink's arrow). Lucide draws at 24px by
+ * default, and an unsized one stretched an sm button to 38px: My Resumes
+ * stood 6px taller than Fill With Scout beside it, and the same held for
+ * about 30 buttons (Open, PDF, Word, Edit, Save Entry...). A call site that
+ * sets its own `size-*` keeps it.
  *
  * Every focus ring is solid (see --color-brand-ring in globals.css), and the
  * filled variants hold theirs 2px off the fill with ring-offset-2: a solid ring
@@ -30,14 +61,11 @@ import { cn } from "@/lib/cn";
  * an explicit font-medium. Gap lives in the sizes, not the base, so that the
  * padding-free `inline` size can tighten it without two gap utilities colliding.
  *
- * ONE DELIBERATE NORMALISATION: the profile mockup's "Browse Files" measured
- * px-3 where the login and top-bar buttons of the same height measured px-2.5.
- * `sm` uses px-2.5, so that button is now 2px narrower overall. The two mockups
- * already disagree elsewhere (see the surfaces note in globals.css), so this is
- * read as mockup noise rather than intent — if it turns out to be deliberate,
- * add a size here rather than reaching for `className`. Overrides do work now
- * that classes go through cn(), but a one-off padding at a call site is a size
- * nobody else can find or reuse.
+ * The mockups measured px-2.5 and px-3 for buttons of one height (the
+ * profile's "Browse Files" against the login and top-bar buttons), read as
+ * mockup noise. Since the heights went up, each size's side padding grows
+ * with it: sm px-3, default px-4, lg px-5. A one-off padding at a call site
+ * is a size nobody else can find or reuse; add a size here instead.
  *
  * ---------------------------------------------------------------------------
  * WHY THE NAMES ARE SHADCN'S AND THE STYLING IS NOT
@@ -76,7 +104,7 @@ import { cn } from "@/lib/cn";
  * happened; see frontend/docs/motion.md.
  */
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -101,13 +129,13 @@ export const buttonVariants = cva(
          *  fill; WorkIt's is brand-coloured, which is the reading kept here
          *  because four call sites were drawn that way. */
         ghost:
-          "text-brand hover:text-brand-hover focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2",
+          "text-brand hover:text-brand-hover focus-visible:ring-brand-ring rounded-xs border-transparent focus-visible:ring-2",
         /** Muted text, darkening to ink on hover: an action at the top right of
          *  an open section's heading (the profile's Add and Edit). It wears
          *  ui/section-link.tsx's look, so a section's one control has the same
          *  weight whether it acts here or goes somewhere. WorkIt-only. */
         section:
-          "text-ink-muted hover:text-ink focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2",
+          "text-ink-muted hover:text-ink focus-visible:ring-brand-ring rounded-xs border-transparent focus-visible:ring-2",
         /** UNMEASURED: no mockup draws a destructive action. --destructive
          *  aliases --color-danger, the Rejected chip's red (see globals.css),
          *  so the app has one red. Shaped and ringed like the other fills. */
@@ -116,22 +144,30 @@ export const buttonVariants = cva(
         /** UNMEASURED — provided because shadcn components ask for it. For a
          *  link inside running text prefer <TextLink>, which inherits the
          *  sentence's type size instead of setting its own. */
-        link: "text-brand hover:text-brand-hover rounded-xs underline-offset-4 hover:underline focus-visible:ring-brand-ring focus-visible:ring-2",
+        link: "text-brand hover:text-brand-hover rounded-xs border-transparent underline-offset-4 hover:underline focus-visible:ring-brand-ring focus-visible:ring-2",
       },
       size: {
         /** Padding-free. WorkIt-only: shadcn has no size without a box. The
          *  ::after widens the hit area past the 16px text without moving
          *  anything around it. */
         inline:
-          "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
-        /** `inline` at SectionLink's 13px, with its 14px glyph. */
+          "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
+        /** `inline` at SectionLink's 13px, with its 14px glyph. The glyph
+         *  rule takes the base's `:not([class*='size-'])` modifier, so cn()
+         *  merges the two; as a bare `[&_svg]` it was a weaker selector than
+         *  the base's 16px, which won (KAN-249). */
         section:
-          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg]:size-3.5",
-        /** UNMEASURED — extrapolated between `inline` and `sm`. */
-        xs: "text-note gap-1 px-2 py-1",
-        sm: "text-label gap-2 px-2.5 py-1.5",
-        default: "text-label gap-2 px-3 py-2",
-        lg: "text-body gap-2 px-4 py-2.5",
+          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
+        /** UNMEASURED — extrapolated between `inline` and `sm`. The boxed
+         *  sizes carry the 1px border width; each variant colours it. */
+        xs: "text-note gap-1 border px-2 py-1 [&_svg:not([class*='size-'])]:size-3.5",
+        /** 36px: 8px over and under 18px label type, and the 1px border. */
+        sm: "text-label gap-2 border px-3 py-2",
+        /** 42px, a text field's height, so a form's buttons line up with
+         *  its fields. */
+        default: "text-label gap-2 border px-4 py-2.75",
+        /** 48px, with 20px body type. */
+        lg: "text-body gap-2 border px-5 py-3.25",
         /** UNMEASURED — square glyph buttons, for shadcn components that ask
          *  for them. A bare glyph in WorkIt's own chrome is <IconButton>. */
         "icon-xs": "size-6",
@@ -140,6 +176,16 @@ export const buttonVariants = cva(
         "icon-lg": "size-9",
       },
     },
+    compoundVariants: [
+      {
+        // A text-only button at a boxed size is a rounded rectangle like the
+        // rest: its hover fill (a menu's preset rows) took rounded-xs, the
+        // radius meant for a focus ring around inline text (KAN-251).
+        variant: ["ghost", "section", "link"],
+        size: ["xs", "sm", "default", "lg"],
+        class: "rounded-control",
+      },
+    ],
     defaultVariants: { variant: "default", size: "default" },
   },
 );
@@ -168,9 +214,6 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
 type StyleProps = {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** "pill" rounds the ends fully: the seeker Dashboard's actions (KAN-173),
-   *  where every control on its tiles is a pill. */
-  shape?: "pill";
   className?: string;
 };
 
@@ -178,21 +221,17 @@ type StyleProps = {
  * Exported for the rare element that must be styled as a button without being
  * one — a file input's label, say. Prefer <Button> or <ButtonLink>.
  */
-export function buttonClasses({ variant = "default", size, shape, className }: StyleProps = {}) {
-  return cn(
-    buttonVariants({ variant, size: size ?? DEFAULT_SIZE[variant] }),
-    shape === "pill" && "rounded-full",
-    className,
-  );
+export function buttonClasses({ variant = "default", size, className }: StyleProps = {}) {
+  return cn(buttonVariants({ variant, size: size ?? DEFAULT_SIZE[variant] }), className);
 }
 
 type ButtonProps = StyleProps & Omit<ButtonPrimitive.Props, "className">;
 
-export function Button({ variant, size, shape, className, ...props }: ButtonProps) {
+export function Button({ variant, size, className, ...props }: ButtonProps) {
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={buttonClasses({ variant, size, shape, className })}
+      className={buttonClasses({ variant, size, className })}
       {...props}
     />
   );
@@ -201,6 +240,6 @@ export function Button({ variant, size, shape, className, ...props }: ButtonProp
 type ButtonLinkProps = StyleProps & Omit<ComponentProps<typeof Link>, "className">;
 
 /** A link that looks like a button. Navigation, so it stays an anchor. */
-export function ButtonLink({ variant, size, shape, className, ...props }: ButtonLinkProps) {
-  return <Link className={buttonClasses({ variant, size, shape, className })} {...props} />;
+export function ButtonLink({ variant, size, className, ...props }: ButtonLinkProps) {
+  return <Link className={buttonClasses({ variant, size, className })} {...props} />;
 }

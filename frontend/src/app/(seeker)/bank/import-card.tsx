@@ -192,7 +192,7 @@ export function ImportCard({
               Upload one on My Profile.
             </Link>
           </p>
-          <Button className="mt-3" onClick={() => runImport()} disabled={busy}>
+          <Button size="sm" className="mt-3" onClick={() => runImport()} disabled={busy}>
             {busy ? "Reading…" : "Import"}
           </Button>
         </>
@@ -265,12 +265,12 @@ export function ImportCard({
       {rows && (savable > 0 || usesLeft > 0) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {savable > 0 && (
-            <Button onClick={saveAll} disabled={busy}>
+            <Button size="sm" onClick={saveAll} disabled={busy}>
               Save All
             </Button>
           )}
           {usesLeft > 0 && (
-            <Button variant="secondary" onClick={() => runImport(true)} disabled={busy}>
+            <Button variant="secondary" size="sm" onClick={() => runImport(true)} disabled={busy}>
               <Sparkles /> {busy ? "Reading…" : "Read It Again with AI"}
             </Button>
           )}

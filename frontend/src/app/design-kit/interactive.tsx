@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
 import { ResumeUpload } from "@/components/resume-upload";
+import { RemovableChip } from "@/components/ui/chip";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import {
   Dialog,
@@ -28,6 +29,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/select-field";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * The kit's specimens that hold state or take a function, which a server page
@@ -139,6 +141,46 @@ export function SelectFieldSpecimen() {
   );
 }
 
+/** A real toast in the window's corner: one plain, one with an action, as
+ *  Live Activity raises it. Undo here only raises a second toast. */
+export function ToastSpecimen() {
+  const toast = useToast();
+
+  return (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => toast.show({ message: "Your resume is saved." })}
+      >
+        Show a Toast
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() =>
+          toast.show({
+            message: (
+              <>
+                <span className="font-medium">Software Engineer Intern</span> from{" "}
+                <span className="font-medium">Acme</span> is removed from Auto Apply.
+              </>
+            ),
+            action: {
+              label: "Undo",
+              onClick: () => {
+                toast.show({ message: "Software Engineer Intern is back in the queue." });
+              },
+            },
+          })
+        }
+      >
+        Show One With Undo
+      </Button>
+    </>
+  );
+}
+
 /** The dropzone. A picked file only shows its preview; nothing uploads. */
 export function ResumeUploadSpecimen() {
   const [file, setFile] = useState<File | null>(null);
@@ -182,6 +224,29 @@ export function AccountMenuSpecimen() {
           </span>
         </span>
       </AccountMenu>
+    </>
+  );
+}
+
+/** Picked values the student can take back; a cross removes one, and the
+ *  last one gone brings them all back so the specimen never stays empty. */
+export function RemovableChipSpecimen() {
+  const all = ["Boston, MA", "Remote", "New York, NY"];
+  const [picked, setPicked] = useState(all);
+  return (
+    <>
+      {picked.map((value) => (
+        <RemovableChip
+          key={value}
+          removeLabel={`Remove ${value}`}
+          onRemove={() => {
+            const rest = picked.filter((v) => v !== value);
+            setPicked(rest.length ? rest : all);
+          }}
+        >
+          {value}
+        </RemovableChip>
+      ))}
     </>
   );
 }

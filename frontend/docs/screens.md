@@ -2,7 +2,7 @@
 
 How each screen behaves and why: the Jobs page and its filters, the job
 posting page and card, the seeker Dashboard, Applications, the Calendar, My
-Profile (resumes, photo), the Experience Bank, Scout's panel, applicant
+Profile (resumes, photo), Resumes & Experiences, Scout's panel, applicant
 onboarding, and the company screens. Read the section for a screen before
 changing it.
 
@@ -25,11 +25,12 @@ the API's role resolver: roles, a typo corrected, then text and company):
 ?location= (repeated ISO
 codes, US or US-CA), ?work_style=, ?role=, ?experience=, ?job_type= (repeated),
 ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or year),
-?start_term= (seasons) and ?visa=, GET /jobs' own names. jobs/filter-query.ts
+?start_term= (seasons), ?visa= and ?auto_apply=true, GET /jobs' own names. jobs/filter-query.ts
 reads and writes them for the pages and the row alike, dropping any value the
 API would refuse, so a stale link narrows by what was valid instead of erroring.
 
-An empty experience bank gets a card above the /jobs feed
+An empty experience bank gets a card above the /jobs feed, "Add Your
+Experiences" or, with an upload, "Import Your Resume"
 (`jobs/bank-prompt.tsx`, stories 22 and 102): with an uploaded resume,
 "Import Your Resume" opens `/bank?import=1`, which starts the bank page's
 import at once (one click; the student still checks each draft); with
@@ -50,11 +51,21 @@ showed beside it as two thin vertical lines while they scrolled under.
 jobs/filters.tsx draws the row (KAN-170); every facet filters, and Industry is
 gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
-All Filters stays a normal button; never stretch it across the row. Role
+All Filters stays a normal button; never stretch it across the row. Job Type
+is in All Filters only too: the row is 928px at most, and it would need
+about 1,070px. Each facet is at least 144px and as wide as its label needs,
+so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
+(KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
+filters" in its tooltip, and turns every filter off, keeping ?view and ?q; a
+cleared /jobs with no ?view lands on ?view=recommended, since the bare URL
+would bring the saved preferences back. As the words "Clear Filters" it took
+the room of Date Posted at every width and wrapped the row on a phone. The
+widths at which the facets step in leave room for it whether or not it shows,
+so a pick never pushes a facet out of the row (filters.tsx lists them). Role
 (KAN-155: the `job_roles` list, slugs like software_engineer, a job tagged with
 each role its title names, so it counts under each) sits second, after Location,
 as the facet a seeker narrows by first; no pick shows every role. Its options
-are not in the code: the row and the panel read them, names and counts, from GET
+are not in the code: the row and the panel read their names from GET
 /jobs/facets' `role` (only roles with a job, in the database's order), and the
 row's Role waits on them behind a disabled button as Location waits on its
 places. filter-query.ts checks a ?role= by shape only, like a place, so an old
@@ -62,16 +73,29 @@ KAN-172 link's "data_ai/ml" is dropped, not sent.
 
 All Filters opens one panel (jobs/all-filters.tsx) with every facet's options in
 view as chips, or a search picker for the long lists, and no facet popups inside
-it (they landed left or right of their button by the room). Its picks are a
+it (they landed left or right of their button by the room). Its last section,
+Auto Apply (the Zap glyph a job's Auto Apply button wears), has one chip,
+Auto Apply Supported: on, the feed shows only the job postings auto apply can
+fill, the ones with an Auto Apply button (Greenhouse for now, `?auto_apply=true`,
+counted by GET /jobs/facets' `auto_apply`); off, every job posting. Like Visa,
+it is in All Filters only (asked for 2026-10-17). Its picks are a
 draft until "Show N Jobs", which counts the draft as it changes (GET /jobs/count
 via jobs/actions.ts). Applying a filter dims the feed at once (jobs/feed-
 transition.tsx: the row and the feed share one transition), since the narrowed
 page is a round trip plus the API's half second away; the row's places and
-counts are fetched once per visit and cached five minutes (COUNTS_TTL in
+facet lists (GET /jobs/facets) are fetched once per visit and cached five minutes (COUNTS_TTL in
 jobs/listings.ts), not refetched per change. Each facet button wears the glyph
 the job card draws for its fact (Date Posted a clock, since the card's calendar
-is the start date), and inside a popup only Workplace's options carry glyphs,
-the card's own three. Salary is a range, "$ 30 /hr – $ 50 /hr", either end open,
+is the start date; Role, which the card doesn't print, a person in a suit and
+tie, drawn for it since Lucide has none, KAN-252), and inside a popup only
+Workplace's options carry glyphs, the card's own three, and Experience's
+(levelIcon: a backpack, the mortarboard, a check badge; KAN-252, asked for
+2026-10-17), as their chips do in the panel. Options are medium weight, as the
+facet buttons are; at body weight they read thin beside the row. A facet's popup is as
+wide as its longest option, never narrower than its button and never wider than
+the screen (FacetPopup, KAN-252): the vendored Select is only the button's
+width, which wrapped Role's options onto up to four lines and cut off
+Infrastructure Engineer's checkbox. Salary is a range, "$ 30 /hr – $ 50 /hr", either end open,
 with presets (hourly when only internships are picked, yearly when none are, `payUnits`) that fill the
 minimum; a posting matches when its own range overlaps it, compared as yearly
 figures in USD.
@@ -85,12 +109,16 @@ opens upward, and no taller than the room, when the panel's scroll area has less
 room below than above, as at Start Date), a keyboard combobox (Up, Down, Enter,
 Escape closing only the list), picks shown below as pills with a cross, and
 nothing pre-picked. Clear All remounts the pickers so typed text clears too. The
-row's Role stays a checklist dropdown, as Workplace is; only the panel's is a
-picker. A picked state narrows its country, in the panel as in the row. Start
+row's Role is a checklist dropdown with a search field at its top (KAN-252,
+asked for 2026-10-17: forty-odd roles were too many to scroll), Workplace's rows
+under the panel picker's field. It is Base UI's Combobox, not a Select, since a
+Select whose rows come and go undoes an untick (below). A pick keeps the typed
+search, as the panel's picker does, and each open starts empty. A picked state narrows its country, in the panel as in the row. Start
 Date offers seasons (Summer 2027), grouped by the API from the terms postings
-use; Visa offers Sponsors Visas and Hide Jobs That Rule Me Out. Every option
-shows its job count from GET /jobs/facets, across the whole feed rather than the
-current results. Location, fed by GET /jobs/locations, is a Popover of two
+use; Visa offers Sponsors Visas and Hide Jobs That Rule Me Out. No option shows
+a job count, in the row or the panel (removed 2026-10-17, KAN-252, as clutter);
+the panel's Show N Jobs is the one count. GET /jobs/facets still sends them.
+Location, fed by GET /jobs/locations, is a Popover of two
 panels, not a Select: countries left, the ticked country's states right. A
 country alone is all of it, with states ticked just those (ticksFrom/placesFrom
 there). Don't move it back into a Select with rows that come and go: a multiple
@@ -190,13 +218,36 @@ page's link and says "Link copied" under the menu for a moment, floating so no
 button moves, and Report. Save stays a button: it is the one Save control on
 every job surface (`components/save-button.tsx`). Ask Scout asks about the
 role; Save and Report stay inert. The card's own row has Not Interested, Save,
-Ask Scout, Auto Apply and Apply Now. Auto Apply sits between Ask Scout and Apply
+Ask Scout, Auto Apply and Apply Now. Auto Apply shows only on a job posting the
+API marks `auto_apply` (its hiring system is one auto apply fills:
+Greenhouse for now, `backend/app/auto_apply/hosts.py`); every other job
+posting has no Auto Apply at all. It sits between Ask Scout and Apply
 Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
 Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
 the job posting through the API (`POST /applicants/{id}/applications`, the
 server action `queueJob`), and the button turns to the stage it answers
 (Queued; or Skipped, Needs You, Applied for a job that already had an
-application), off, so it is never queued twice. Its first state comes from
+application). Queued is a toggle (`aria-pressed`): a second click takes the
+job out of the queue (`DELETE .../applications/{job_id}`, `dequeueJob`) and
+the button reads Auto Apply again. The other stages are off: they record what
+happened, so the button never undoes them. A new queueing raises a toast
+(`components/ui/toast.tsx`), "<title> from <company> is queued for Auto
+Apply.", with Undo, which takes the job out again (`dequeueJob`) and turns
+the button back to Auto Apply: Live Activity's cross and Undo, the other way
+round. A failed Undo says so in a toast and leaves the button Queued.
+A click that leaves the job queued then runs Start Auto Apply's pipeline
+without the matching: it asks the extension to open the oldest queued job
+in a background tab beside this one (`openNextApplication`), which is this
+job only when nothing older waits. It runs after the click settles, so the
+button never waits on a page load; only a failure shows, as a line above
+the button (no extension stays silent). The job open in that tab reads
+**Working in Browser** (the AppWindow glyph) on every card that shows it,
+read once per page from the extension (`useRunnerJob` in
+`src/lib/autofill-extension.ts`, asked again whenever the tab gets focus).
+It goes back to Queued only when the extension says the tab is closed,
+never on a failed answer: coming back from the run's tab once reset it;
+a click switches to the tab (`showRunTab`, tooltip "Go to the tab"), and the job
+leaves the queue from Live Activity only. Its first state comes from
 the server: the job's page reads its one application (`GET
 .../applications/{job_id}`), and /jobs and /search read every application
 once beside the first page (`getApplicationStages`) and hand the stages to
@@ -267,7 +318,8 @@ panel, set apart by a soft violet-tinted `--shadow-tile` alone,
 `rounded-shell`, `p-5`, 16px apart. An outline on every tile read as a grid
 of grey boxes, and a lavender ground under them read as muted beside the
 shell's white panels; keep both off. Headings and figures are medium weight, figures in
-`--text-figure` (36px), actions are pills (`<Button shape="pill">`). It
+`--text-figure` (36px), and actions are the app's rectangular buttons (they
+were pills, `shape="pill"`, until KAN-251 made every pill a chip). It
 alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
@@ -275,7 +327,7 @@ tiles) the four numbers run across the top in a grid of their own (the
 first filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
-pill) over Up Next, then Activity two thirds wide beside Waiting (three
+button) over Up Next, then Activity two thirds wide beside Waiting (three
 columns, one per verdict: on track, follow up, likely closed, each labelled
 under it, so no legend; it was a half-ring gauge, whose round-capped parts
 left grey slivers between them and past its ends, then four columns, whose
@@ -291,7 +343,7 @@ Dates and times sit in pills (`<Badge variant="tag" pill>`): Next Up's,
 which links to the Calendar, Up Next's and New Matches' posted time; as 12px
 meta grey in Plus Jakarta Sans they read too faint. A pill sits in its text's
 column, under the title beside a tile or disc, never under the tile itself. New Matches' Apply is a
-filled primary pill. A KPI tile centres its label on its 36px ring (the ring
+filled primary sm button. A KPI tile centres its label on its 36px ring (the ring
 hides below 10.5rem of tile), keeps that header row 36px tall, pushes its
 figure to the foot, and gives the line under it a fixed `h-5`, hiding "vs
 last week" where it would wrap, so every figure in a row sits on one line.
@@ -307,7 +359,7 @@ Up wears its application's company tile (`companyIconOf`, the outlined
 `CompanyTile` the Applications detail panel draws at the same size). The
 fixture keeps an interview first on any day of the week: its follow-up sits four days
 out, since a weekend slides tomorrow's interview to Monday. Next
-Up's View Details pill opens that application's detail panel and its date that week on
+Up's View Details button opens that application's detail panel and its date that week on
 the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
 All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
@@ -389,45 +441,84 @@ sits between Jobs and Applications, in the order the work goes, and its page
 uses the same heading block as every seeker screen. The pipeline it grows
 into is `auto-apply/architecture.md` at the repo root.
 
-**"Applying with Resume:" is its first section, and it is live**
-(`auto-apply/applying-resume.tsx`). It shows the seeker's primary resume
-(`is_default`) in My Profile's own row (`src/components/resume-row.tsx`) with
-only the eye, and a Change link to My Profile, where resumes are chosen and
-deleted. Only the primary, never My Profile's fallback to the newest: the
-matching reads the primary alone, so a seeker without one is asked to star
-one. It is a client component reading `listResumes()` like My Profile, and
-starts from My Profile's cache when the shell has one, without writing to it.
+**"Resume List" is its first section, and it is live**
+(`auto-apply/resume-list.tsx`). It lists every resume the seeker has, not
+one: auto apply picks a resume per application (the one tailored to that job
+posting, else the default resume, `POST .../applications/{job_id}/resume`;
+`auto-apply/architecture.md`, "The resume"), and a note under the heading
+says so. The default is one resume, built or uploaded (starring one clears
+the other), so one row at most says Default; with resumes but no default, a
+second note says to star one, since the run then attaches none. Built
+resumes (`listBuiltResumes()`) come first, then uploaded ones
+(`listResumes()`), each list's default first. Each row is My Profile's 52px
+box (`RESUME_ROW`) with Default, Tailored or Posting closed badges. A
+built resume's Open goes to the resume editor, as on Resumes; it never
+downloads here, since every download keeps a sent resume. An uploaded one
+previews or downloads (`previewResume`). Manage goes to Resumes
+(`/resumes`), and the empty state names Resumes and My Profile. Uploaded
+resumes start from My Profile's cache when the shell has one, without
+writing to it; a list that fails keeps what loaded and says the rest didn't.
+It replaced "Applying with Resume", which showed the primary uploaded resume
+alone because matching read it then; matching reads the experience bank now
+(KAN-212).
 
 **The button beside the resume starts and pauses auto apply.** Start Auto
 Apply queues a batch of the seeker's best matches through the API (`POST
 .../auto-apply/batches`, the server action `startBatch`: 10, leaving out
 every job they already have an application for), says how many under the
-row, and refreshes the route so Live Activity lists them; an error (no
-primary resume) shows there in red instead. Then Pause and Resume, which
-only move the state: nothing fills a form until the extension's runner
-exists. It is off until there is a primary resume, and while a batch is
-queueing. The state (`idle`, `running`, `paused`) is held in
+row, and refreshes the route so Live Activity lists them; an error (an empty
+experience bank) shows there in red instead. Then it asks the extension to
+open the oldest queued application's page in a background tab beside this
+one (`openNextApplication` in `src/lib/autofill-extension.ts`, the message
+`run/open`), and the note says so, or why not (no extension, signed out)
+in red (`auto-apply/opened-note.ts`, shared with the job card). A tab
+already on that job stays as it is, so Start never wipes a form in
+progress. Pause and Resume only move the state: nothing fills
+a form yet. It is off until the list has a resume, and while a batch is
+queueing. It never waits on the tab's page load: the note says how many
+jobs it queued at once and adds the tab's result when it lands. The
+state (`idle`, `running`, `paused`) is held in
 `auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
 Started, Live (a green dot that rings out) or Paused; a return visit starts
 idle, so Start queues another batch. The brand fill marks
 the action that starts work, so Pause is the bordered neutral. The button is
-52px tall and 208px wide beside the row, so the row does not shift between
-labels; on a phone it drops under the row at full width.
+lg (48px) and 208px wide beside the list, its top level with the first
+row's (a grid), so nothing shifts between labels; on a phone it drops under
+the list at full width. It was stretched to a row's 52px until KAN-251, the
+largest button in the app.
 
 **Live Activity is live: the seeker's applications from the API**
-(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), newest
-first, drawn on the server against the request's clock. Each stored stage is
+(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), in
+queue order: the oldest queued first, the job the extension opens next, and
+a newly queued one at the bottom (asked for 2026-10-17). The API answers
+newest first and the page reverses it, so the API's order stays as other
+callers know it. Drawn on the server against the request's clock. Each stored stage is
 a row (`activityOf` in `auto-apply/activity-list.tsx`): queued Queued,
-needs_you Couldn't Finish, skipped Skipped, applied Applied. The whole row
+needs_you Couldn't Finish, skipped Skipped, applied Applied. The queued
+job open in the extension's tab reads Working in Browser instead
+(`auto-apply/live-activity.tsx`, the one client step over the server's
+rows), in flight, with no cross: taking it out would leave the tab on a
+job that is gone. The whole row
 opens the job posting's page, as on the Applications list, while the posting
 is open; a closed one says so and links nowhere. None yet is an empty state
 pointing at Start and the jobs' Auto Apply; a failed read says so, never a
 fixture. One row per job posting, in one white card with rules between rows. Each status takes a
-badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Tailoring Resume
-and Autofilling `advanced` blue, their dot ringing three times; Needs Review
+badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Working in
+Browser, Tailoring Resume and Autofilling `advanced` blue, their dot ringing
+three times, and counted under In Progress; Needs Review
 and Couldn't Finish warning amber, as both wait on the seeker; Applied the
 Applied stage's violet, so it reads the same as on the Applications board.
-The counts above the card use the same dot colours. Narrow, a row's badge and
+The counts above the card use the same dot colours. A queued row has a cross
+beside its badge (`auto-apply/remove-from-queue.tsx`) that takes the job out
+of the queue and refreshes the route; it sits above the row's link, so the
+click never opens the job posting. No other stage has one. The cross, a
+job's Auto Apply and Start each take one click at a time (a ref set on
+the click): `disabled={pending}` lands a render late, so a fast double
+click once sent two removals and showed the removal toast twice. A toast then says
+"<role> from <company> is removed from Auto Apply." with Undo, which queues
+the job again (`queueJob`): it comes back as a new queued row at the
+bottom, since the queue orders by when a job was queued. A failure, of either the
+removal or the Undo, is a toast too. Narrow, a row's badge and
 time drop under its text so the role keeps the width. The list is
 `aria-live="polite"`. Tailoring Resume, Autofilling and Needs Review are the
 runner's live states, kept for when the extension reports them; the
@@ -465,7 +556,7 @@ link into the Calendar from anywhere else goes through `DayLink` in
 **Resume upload is wired.** Onboarding asks for a resume in intake, its
 second step (Experience Bank section), not in the wizard. The seeker profile (`(seeker)/profile`) supports up to
 5 resumes, uploaded and base resumes together as the API counts them (its
-"n of 5" adds the bank page's base resumes; tailored ones are free),
+"n of 5" adds the base resumes; tailored ones are free),
 newest first: picking a file uploads it at once (`uploadResume`);
 the API reads it itself, and the client never sends parsed content. Each
 resume row (`src/components/resume-row.tsx`, shared with the Auto Apply page)
@@ -482,7 +573,7 @@ knows nothing about upload logic or limits.
 **Resume facts are not edited on My Profile** (KAN-211). The parsed-JSON
 editor (a review dialog after upload, and Work Experience and Skills cards
 editing the primary resume's `parsed_json`) is gone, so the experience bank
-is the only place to edit resume facts. In its place an "Experience Bank"
+is the only place to edit resume facts. In its place an "Experiences"
 section links to `/bank`, where import turns an upload into drafts. Do not
 bring back an editor of `parsed_json`: two places to edit the same facts
 drift apart, and the bank is what built resumes read.
@@ -508,32 +599,87 @@ signed URL valid for an hour — so it is fetched per page load, never stored.
 fetches it per render (`(seeker)/account-status.tsx`); the company bar still
 shows initials.
 
-## Experience Bank
+## Resumes & Experiences
 
-`(seeker)/bank` (KAN-206), a sidebar row above My Profile. The experience
-bank is where resume facts are kept, once (`GLOSSARY.md`), and the only
-place they are edited: My Profile keeps the uploads and links here.
+One sidebar row, above My Profile, for one page in two views (KAN-249):
+**Resumes** (`/resumes`, the row's link) and **Experiences** (`/bank`, the
+experience bank). Both draw one header (`resumes/header.tsx`; it stays
+beside the Resumes view though `/bank` imports it too, since the two routes
+are one page's views, not two consumers), laid out as the Dashboard's is: the view's own title and line on the left ("Resumes",
+"Experiences"), and at the top right, level with the foot of that block, a
+segmented switcher between the two views and then the view's primary
+action, Generate Resume or Fill With Scout; on a narrow page the controls
+wrap under the title. A shared "Resumes & Experiences" title on both views
+said less about where the student was. The views stay two routes, so every link to either still
+lands (the Jobs page's `/bank?import=1` included), and the switcher is plain
+links, since each view reads its own data on the server; the sidebar row is
+lit on both (`also` in `app-sidebar.tsx`) and in the editor under
+`/resumes`. They were two pages and two rows, Experience Bank and My
+Resumes, each with a button pointing at the other; a student building a
+resume went back and forth between them. "Experiences" is the name students
+see for the experience bank; the glossary term stays.
 
-**Layout, top to bottom** (settled 2026-10-13): the title with a "Your
-Resumes" button that jumps to the bottom card and Fill With Scout; the
-section cards and Skills; then one "Your Resumes" card holding Base Resumes
-and Sent. The page is the filled-out bank itself.
+## Experiences (`/bank`)
+
+`(seeker)/bank` (KAN-206). The experience bank is where resume facts are
+kept, once (`GLOSSARY.md`), and the only place they are edited: My Profile
+keeps the uploads and links here.
+
+**Layout, top to bottom**: the shared header (above) with Fill With Scout,
+then the section cards and Skills. The page is the filled-out bank itself.
+The resumes it makes moved out in KAN-249 (Resumes, below). At the foot of
+the bank, as settled on 2026-10-13, a student editing entries scrolled past
+every section to reach a resume, and the page read as two pages in one.
 
 **Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
 Scout button or Fill With Scout opens it. On this page the panel shows
 intake in place of Scout's job chat (`components/scout/scout-takeover.tsx`)
 and widens to 448px (460px of room with its gap). Three bands, top to
-bottom: the step bar and a read-only preview of the draft
-(`draft-preview.tsx`); the chat; the composer. The preview shows the entry
-as the bank lists it, fading each line in as WorkIt fills it, with "Still
-needed" chips, Edit and Save Entry, and on the left "Leave As Is" (a
-visit) or "Skip Section" (a new entry): the step bar's Skip, where a student
-happy with an entry looked for "next" and found none. It folds to its header.
+bottom: the stage card (`draft-preview.tsx`), the chat, the composer.
+
+**The resume question comes first, alone** (KAN-249), when the bank is
+empty and no draft is kept: WorkIt's greeting asks "Have a resume?" with
+Upload Resume, Use One I Uploaded and Start Without One under it, and no
+section or stage card shows until one is picked. **Every answer WorkIt
+offers is a suggestion Chip** (`ui/chip.tsx`, KAN-251), these and the
+section chips alike: one size, one look, each with its glyph. The resume
+answers were a fill, an outline and a text link of three heights, the last
+on a line of its own. Start Without One goes in
+the chat as the student's answer, then the first section starts; an import
+starts the walk on what the resume left out, as before. A bank with
+entries has no stage: the walk opens on its gaps at once, and WorkIt's
+second line asks "Have a resume?" with Upload Resume and Use One I
+Uploaded, until the student imports once. With no offer there, as the
+first version of KAN-249 had it, a student whose bank held one entry had
+no way to import a resume. The first version also asked about the resume
+and Education at once, which read as two tasks on one screen.
+
+**The stage card is the one block above the chat** (KAN-249): the
+section's icon and name, "Step 1 of 6", "Skip Section" (a new entry) or
+"Leave As Is" (a visit) at the right, the panel's only Skip, and the step
+bar's segments under them, thin (`compact`; a segment still jumps, so
+there is no Back). Skip is disabled, not hidden, while WorkIt answers or a
+save runs. Once WorkIt has a title, the draft opens under a hairline: its
+title and state ("Filling in as you talk", "Ready to save"), the entry as
+the bank lists it, fading each line in as WorkIt fills it, "Still needed"
+chips, Edit and Save Entry; it folds to its title row. Before that there
+is nothing to show or save, and Edit sits beside Skip instead, so the
+student can still type the entry into the form when WorkIt cannot answer
+(the API's "Fill in the card yourself"). With no section open the card
+holds the bar alone. It replaced a step bar with its own Back, step line and Skip over a
+separate draft card with a second Skip, the section named again, a hint
+line and a disabled Save Entry: two blocks that read as unrelated, which
+left the chat about 300px at 800px tall. A student happy with an entry
+looked for "next" near it and found only the step bar's small Skip, which
+is why Skip sits with the section it skips.
 **The page marks what Scout is working on** while the panel is open
 (`Intake`'s `onFocus`, `ScoutMarked` in `bank-screen.tsx`): the section card
-takes the brand outline, a visited entry a brand tint with a "With Scout"
-tag, and a new entry shows as a tinted row with the draft's title. The
-marked row scrolls into view (instantly under reduced motion). Gemini in
+takes the brand outline, and a visited entry, or a new entry shown as a
+row with the draft's title, takes a brand tint with a band of light
+crossing it (`animate-shimmer`), so it reads as Scout at work on it. A
+"With Scout" tag did this until KAN-249 and read as one more line of the
+entry; a screen reader still hears it, and reduced motion keeps the tint
+still. The marked row scrolls into view (instantly under reduced motion). Gemini in
 Docs and Grammarly mark the text their side panel acts on the same way;
 before this, the student could not tell which entry the questions meant. The chips are
 `sections.ts`'s `neededFacts`: only what intake asks about (a school's or
@@ -543,10 +689,11 @@ version listed every empty field and asked for "College or Department".
 Before the draft has a title the chips stay hidden, since the chat's
 question is the next step. Edit opens the
 full form over the panel, with Back to Chat (Escape goes back too). The
-upload offer is WorkIt's second line with Upload Resume and Use One I
-Uploaded, not a strip. The import review opens in the chat's place. A save
+import review opens in the chat's place. A save
 reads the bank again, so the page behind updates at once. An empty bank
-shows a card pointing to Fill With Scout. Any other page gets Scout's own
+gets no card of its own (removed in KAN-249): the title's Fill With Scout
+and each section's Add already say where to start, and the card only
+repeated them. Any other page gets Scout's own
 chat back. Intake used to lead the page, with the card in a column beside
 the chat; onboarding still shows it that way.
 
@@ -570,8 +717,7 @@ in Docs (suggested answers in the chat, not a banner).
   edit and delete buttons above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
   An import draft does the same below `@sm` of its own width (each draft is
-  a container, since Scout's panel is not), and a resume row's buttons wrap:
-  held on one line, they ran past the card's edge.
+  a container, since Scout's panel is not).
 - **An entry warns what a resume would miss** (`sections.ts`'s
   `missingFacts`, story 17): for Education and Experience no start and end
   (or "present"), and for Experience and Leadership no organization. A
@@ -585,7 +731,9 @@ in Docs (suggested answers in the chat, not a banner).
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
 - **Import Your Resume** (`import-card.tsx`, KAN-211) opens inside intake,
-  from the upload strip above it, shown until the student imports once.
+  from the resume question's answers in the chat (the first stage for an
+  empty bank, WorkIt's second line otherwise), offered until the student
+  imports once.
   Upload Resume (PDF or DOCX) uploads through `uploadResume`, as My Profile
   does, then imports that file (`resumeId`); the link imports the default
   upload, else the newest. The review takes the chat's place until Close,
@@ -608,6 +756,19 @@ in Docs (suggested answers in the chat, not a banner).
   required. Each section adds its own fields (`sections.ts` names the
   title and organization for each). Months use the browser's month picker,
   which falls back to a `YYYY-MM` text box where there is none.
+  **Bullets read as the list they make** (KAN-249): each is a box with its
+  bullet mark drawn in, and under them a dashed box of the same size, Add
+  Bullet Point, whose + sits under the marks. The box it makes takes the
+  cursor; while the last box is empty it goes back to that box rather than
+  stack another. It is the shared field box (`FIELD_CONTROL`) drawn dashed.
+  Add Bullet used to sit under the label as bare brand text, which read as
+  crowded against it. **A bullet box grows with its text**
+  (`field-sizing-content`, as the resume editor's lines do), so a long
+  bullet wraps in view; a one-line input scrolled it sideways out of sight.
+  Its mark and × stay on the first line. A bullet is one line on the
+  resume, so it never holds a line break: Enter goes to the next box (from
+  the last, it adds one, as Add Bullet Point does), and a pasted break
+  becomes a space.
 - **A duplicate warns and never blocks.** When a new entry matches one in
   the bank (section, title and organization, ignoring case), the editor
   says "This looks like …" and its save button becomes Save as New; Cancel
@@ -615,11 +776,15 @@ in Docs (suggested answers in the chat, not a banner).
 - **Editing an entry** sends its fields in one PATCH, then its bullets as the
   adds, edits and deletes that turn the saved list into the draft's
   (`entry-save.ts`'s `editSteps`, shared with intake's entry visits).
-- **Delete asks once**, inline. **Still open:** saying how many built
-  resumes use the entry (user story 18); built resumes exist since KAN-207,
-  but the count is not shown yet.
-- **Skills are a plain list** with an optional group, shown one line per
-  group. A name appears once, ignoring case; the API answers 409 otherwise.
+- **Delete asks once**, inline, with the count above.
+- **Skills are a plain list** with an optional group, one row per group.
+  A name appears once, ignoring case; the API answers 409 otherwise. The
+  group names make one column from `@md/main`, so every group's skills start
+  at one edge; on a phone each name sits over its skills. **Add opens the
+  form**, at the top right as on the section cards. It stays open after an
+  add, for the next skill, and closes after an edit; the skill being edited
+  takes the brand outline. A form always open under the list made Skills the
+  only card that never looked finished.
 - **Skill links live in the entry editor** (KAN-216, `skill-links.tsx`):
   "Skills Used Here" shows one toggle per bank skill, pressed when linked.
   The editor only edits the list; on save the screen sends the link and
@@ -627,11 +792,12 @@ in Docs (suggested answers in the chat, not a banner).
   created). Once the entry has saved, a failed later step closes the editor
   and says "Some changes did not save", because a retry would repeat the
   steps that worked. Intake and import omit `skills`, so no links show.
-- **Intake** (`intake.tsx`, KAN-213) leads the page, above the section
-  cards, in the look of the intake prototype's variant
-  G: a lavender chat with WorkIt's gradient mark, a chapter line per section, the draft card sticky beside
-  the chat from `@4xl/main` and, below that, a one-line draft that opens as
-  a bottom sheet. The student picks a section from its chips; the opener
+- **Intake** (`intake.tsx`, KAN-213), in the look of the intake prototype's
+  variant G: a lavender chat with WorkIt's gradient mark and a chapter line
+  per section. On the bank page it is in Scout's panel, in the three bands
+  above. In onboarding it leads the page: the draft card sticky beside the
+  chat from `@4xl/main` and, below that, a one-line draft that opens as a
+  bottom sheet. The student picks a section from its chips; the opener
   for it is fixed text, not a model turn. Each turn goes through
   `app/api/intake/` to `POST /intake/turn` with this entry's chat and the
   card, edits included; the reply comes back as NDJSON lines: the line, the
@@ -649,7 +815,8 @@ in Docs (suggested answers in the chat, not a banner).
 - **Intake's step bar** (`intake-steps.tsx`, KAN-214), after variant G: one
   segment per section in the order intake walks (Education, Projects,
   Leadership & Activities, Experience, Awards, Certifications: user story
-  41, not the bank's order), Back on the left, Skip on the right. A segment
+  41, not the bank's order), Back on the left, Skip on the right (in Scout's
+  panel, the segments alone inside the stage card, as above). A segment
   jumps to its section; the bar is disabled while WorkIt answers or a save
   runs, so a late reply never lands on another section. It starts at 25%
   and fills as sections are done; the current segment fills as its draft
@@ -690,36 +857,9 @@ in Docs (suggested answers in the chat, not a banner).
   step before the sections. It imports `Intake` from the bank route rather
   than promoting it to `src/components`: intake needs the bank's entry
   editor and sections, which stay with the bank page.
-- **The page title stays "Experience Bank"** on the bank page and the
-  onboarding step (settled for now in KAN-214, per the spec's "kept for
-  now"); the glossary term stays either way. **Still open:** the name
-  students see.
-- **Base Resumes** (`built-resumes.tsx`, KAN-207), in the "Your Resumes"
-  card below the sections.
-  Generate makes a base resume with every entry, bullet and skill in the
-  bank, except a copy of an entry already on it (same section, title,
-  organization and months: an import saved "as new"), which waits in "Not on
-  This Resume"; two copies of one job sent a resume to two pages. Each row downloads a PDF (Jake's Resume) or a Word file, can become
-  the default resume (star) and can be deleted. Either download keeps a
-  sent resume (KAN-208) and comes back as a 5-minute Storage link that
-  downloads the file, so no route handler is needed. A PDF whose text
-  has characters the font lacks shows them and waits for Download Anyway
-  (user story 53); Cancel deletes the sent resume it just made. The
-  5-resume limit is the API's; its 409 message shows as the card's error.
-  The page needs the bank, the resume list and the Sent list: if any fails
-  it shows the error state. Each row's Open goes to the resume editor.
-  A tailored resume shows there too, with a Tailored tag and no star (only
-  a base resume can be the default), and a "Posting closed" tag once the
-  Jobs page no longer lists its posting (story 90, the API's
-  `posting_closed`). It still opens and downloads; only Tailor needs a
-  live posting.
-- **Sent** (`sent-resumes.tsx`, KAN-208), in the same card below Base
-  Resumes. Every
-  PDF or Word file the student downloaded or applied with (KAN-220), newest first, with its name then and the date
-  ("Sent Oct 13, 2026", "Word · Sent Oct 13, 2026"). Each downloads the kept file again or is deleted;
-  none is edited. A repeat download of unchanged content adds no row. It
-  sits on the bank page because base resumes do; "the resumes page" in the
-  spec means this page until resumes get their own.
+- **Students see "Experiences"** (KAN-249), on the bank's view and as the
+  onboarding step's title; it was "Experience Bank" from KAN-214 until
+  then. The glossary term stays "experience bank".
 
 ### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
 
@@ -742,12 +882,96 @@ in Docs (suggested answers in the chat, not a banner).
   shows it on the tailored resume, and offers to link it to an entry.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
+## Resumes (`/resumes`)
+
+`(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
+resumes the bank makes, in cards, Your Resumes, Tailored Resumes when there
+is one, then Sent, under the shared header with Generate Resume (it was the
+base resumes' card's own Generate). They sat in one "Your Resumes" card at the foot of the bank page
+until KAN-249; the spec's "the resumes page" now means this view. The
+editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
+lit there and the phone editor's back arrow lands here. The page needs
+the resume list and the Sent list: if either fails it shows "Your Resumes
+Aren't Loading Right Now" and a Try Again link. Uploaded resumes stay on My
+Profile.
+
+- **Your Resumes** (`built-resumes.tsx`, KAN-207), the base resumes. It was
+  "Base Resumes", saying "Made from every entry in your bank" until
+  KAN-258: students see "Experiences", never "bank", and its line now says
+  that opening a resume edits or downloads it and that a change in
+  Experiences shows on every resume. Sent and the PDF warning say
+  Experiences too. With none, it holds My Profile's empty box: "No resumes
+  yet".
+  Generate makes a base resume with every entry, bullet and skill in the
+  bank, except a copy of an entry already on it (same section, title,
+  organization and months: an import saved "as new"), which waits in "Not on
+  This Resume"; two copies of one job sent a resume to two pages. It is
+  named "Resume #N", one past the highest number the student's resumes
+  carry; every one was "Base Resume" until KAN-258, so the list read as one
+  name repeated. The
+  5-resume limit is the API's; its 409 message shows as the card's error.
+- **Tailored Resumes** (KAN-258), between Your Resumes and Sent, only while
+  the student has one: each is made for one job posting with Tailor
+  (KAN-217). They sat in Base Resumes with a Tailored tag until KAN-258,
+  under a name they do not have. A tailored resume has no star (only a base
+  resume can be the primary), and a "Posting Closed" badge once the Jobs
+  page no longer lists its posting (story 90, the API's `posting_closed`).
+  It still opens and downloads; only Tailor needs a live posting.
+- **Each resume is a card drawn as My Profile's resume rows are**
+  (KAN-258), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
+  (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
+  drift apart: the PDF mark, the name, one line with one day, then the
+  star, Rename and Delete. **The whole card opens the resume editor**: the
+  name's link stretches over it and the icons sit above that link, and it
+  lifts under the pointer as every whole-target card does (`docs/motion.md`).
+  It held Open, PDF and Word buttons until KAN-258; downloading moved into
+  the editor. The star works as My Profile's does and uses its word,
+  "primary": filled on the primary resume, shown on the others under the
+  pointer or on a touch screen. The view said "default" and showed a
+  Default badge for the same setting (the API's one default resume,
+  uploaded or base).
+- **The day**: when the resume was last edited ("Last edited Oct 20"), or
+  when it was made until its first edit ("Made Oct 17"); on Sent, the file
+  and the day it was sent ("PDF · Sent Oct 13"). The year shows only when it
+  is not this one, as on My Profile and in the tracker. With it, "Last
+  edited" wrapped on a phone. Both days together said one day twice for a resume
+  edited the day it was made, and the made day mattered less. The
+  template's name was on that line until 2026-10-18, when it went: there is
+  one template, so every row said the same.
+  "Last edited" is the API's `edited_at`, the last change to the resume
+  itself (what shows, its order, its wording or its name); a fix in the
+  bank changes every resume and does not count. The days are the student's
+  own (`LocalDate` in `(seeker)/local-time.tsx`); Sent printed the UTC
+  day, so a resume sent on an evening showed the next day.
+- **Rename** opens the name in place, in a field with Cancel and Save Name
+  at the field's height, as the bank's Skills form is drawn; Escape cancels
+  and an unchanged name saves nothing. A sent resume keeps the name it went
+  out under.
+- **Delete asks first**, on a resume and on a Sent row, drawn as a bank
+  entry's confirm is (`delete-confirm.tsx`, which Experiences uses too): the
+  question, then Delete Resume (or Delete Sent Resume) and Keep It, the two
+  buttons wrapping as one, since wrapped apart Keep It sat alone on a line.
+  Both went at one click until KAN-258. Deleting a resume keeps the files
+  already sent from it.
+- **Sent** (`sent-resumes.tsx`, KAN-208), the last card, which owns its
+  list. Every PDF or Word file the student downloaded or applied with
+  (KAN-220), newest first, with its name then and its line ("PDF · Sent
+  Oct 13", "Word · Sent Oct 13"). Each downloads the kept file again or is
+  deleted; none is edited. A repeat download of unchanged content adds no
+  row. **A Sent row keeps its icon by the name on a phone**
+  (`row-layout.tsx`): from @xl/main the name, Download and Delete share one
+  line; narrower, Delete stays at the top right beside the name, as a bank
+  entry's icons do, and Download takes the line under it.
+
 ## Resume editor
 
-`(seeker)/resumes/[resumeId]`, opened from a base resume's Open on the bank
-page. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
+`(seeker)/resumes/[resumeId]`, opened from a resume's card on the Resumes
+view. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
 phone layout; KAN-221 adds the assistant. The page loads the render, the bank, the resume's choices and
 the profile (the header's fields), and shows the error state if any fails.
+A **Back** button above the title returns to the Resumes view, drawn as the
+job posting page's Back is; until KAN-258 the editor had no way back but
+the sidebar. The phone layout keeps its own back arrow.
 
 - **The page is the PDF itself** (ADR 0002): the render response's PDF,
   drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
@@ -772,7 +996,7 @@ the profile (the header's fields), and shows the error state if any fails.
   profile. `model.ts`'s codecs say how each field reads and saves; a
   detail line shows its printed label ("GPA: 3.81/4.00"), so the field
   covers the whole line. Dates and the degree line are built from several
-  fields, so they are not typed here: the bar links to the Experience Bank.
+  fields, so they are not typed here: the bar links to Experiences.
   The email is the sign-in address and is not typed either. A contact the
   profile lacks has no line to click, so selecting the header puts "Add
   Phone" and the next missing link in the bar. Picking a wording (bar or
@@ -787,13 +1011,39 @@ the profile (the header's fields), and shows the error state if any fails.
   that renumbers the siblings), the bullet's wordings (Original, each
   Tailored version, This Resume's Wording) and, on Education, Show/Hide GPA
   and Coursework. A press on a bar button keeps focus in the field. With no
-  line selected: the page-count chip ("1 page", "2 pages · 3 lines over
-  1 page", from the render's `lines_over`, an estimate) and, over one page,
-  Fit to One Page, then Undo, which shows again everything Fit hid (the
-  response's `undo` body). Undo is kept in sessionStorage per resume
+  line selected: the hint "Click a line to edit it." first, in ink at label
+  size with a brand pointer glyph (a grey note after the page count until
+  KAN-258, it read as fine print); then, only over one page, **one amber
+  group** (`fit-notice.tsx`): the warning glyph and the count ("2 pages · 3
+  lines over 1 page", from the render's `lines_over`, an estimate), a
+  hairline, and Fit to One Page in the same amber. An amber badge beside an
+  outline button read as two unrelated things. Then Undo, which shows again
+  everything Fit hid (the response's `undo` body). A one-page resume shows
+  no count: a green "1 page" said what the page itself shows, and stood
+  apart from the rest of the bar. Undo is kept in sessionStorage per resume
   (`fit-undo.ts`), so a reload in the same tab still offers it. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
-  the Vercel preview check.
+  the Vercel preview check. **Download** (PDF or Word) and Ask WorkIt end
+  the bar whether or not a line is selected, so Download stays in reach down
+  a two-page resume (`../download-menu.tsx`, KAN-258; it was on each card
+  of the Resumes view). It keeps a sent resume and holds a PDF with
+  characters the font lacks for Download Anyway, as Download always has;
+  the warning and any error show under the bar. The status, Download and
+  Ask WorkIt wrap as one group, so on a narrow page they stay together at
+  the right. **The bar is the brand tint**, not the surface colour, so its
+  secondary buttons stand out (`docs/design.md`, Components), and **Ask
+  WorkIt is the brand's filled button**, the editor's primary action; it
+  was an outline until KAN-258. The phone layout's top and bottom bars take
+  the same tint and its Ask WorkIt buttons the same fill, and its sheets
+  are white.
+- **A toast says it first** (`fit-notice.tsx`, KAN-258): when the editor
+  opens on a resume over one page, or an edit pushes one over, a toast at
+  the bottom right (above the bottom bar on a phone) says by how much, with
+  Fit to One Page and a cross. It closes on Fit, on the cross, once the
+  resume fits, or after 10 seconds, since the bar's group keeps the same
+  fix. On a phone it does not show while a line's sheet is open, which it
+  would cover. The editor notices the change while rendering (the last
+  count is kept in state), not in an effect.
 - **Fit to One Page is the API's** (`POST .../fit`): it cuts least useful
   first, in steps across every section: coursework (beside Experience),
   then bullets past a cap per entry, then the bottom entries of
@@ -820,13 +1070,17 @@ the profile (the header's fields), and shows the error state if any fails.
   (Apple's smallest touch target), and **previous and next arrows** that
   step through the boxes in page order (page, then top, then left), so a
   mis-tap on a 7 px line costs one press. **Zoom** draws the page at two
-  times the width, scrolled sideways; Fit Width undoes it. The selected line
+  times the width, scrolled sideways; Fit Width undoes it. Download sits
+  beside Zoom in the top bar, and beside the back arrow the top bar says
+  "Tap a line to edit it.", or, over one page, the bar's amber group in its
+  place, short to fit there: "3 lines over" and "Fit" (named Fit to One
+  Page for a screen reader). The toast spells it out. The selected line
   scrolls to the middle of the page area. The tray opens from a bottom
   button in its own sheet (with a scrim). The layout is a fixed layer over
   the seeker shell, **sized to `window.visualViewport`** (height, moved down
   by its offset): the iOS keyboard covers the layout viewport instead of
   shrinking it, so a layout sized to the window would put the sheet behind
-  the keyboard. A back arrow goes to the Experience Bank. The first paint
+  the keyboard. A back arrow goes to the Resumes view. The first paint
   is the desktop layout (the server cannot know the width), then a phone
   switches. Manual checks on a real iPhone: the sheet stays above the
   keyboard, and the field does not zoom; and the render time on cellular

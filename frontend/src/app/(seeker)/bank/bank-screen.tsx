@@ -1,9 +1,8 @@
 "use client";
 
-import { Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { OpenScoutButton } from "@/components/scout/scout-buttons";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Button } from "@/components/ui/button";
@@ -27,6 +26,7 @@ import {
   type Skill,
 } from "@/lib/bank-actions";
 
+import { DeleteConfirm } from "../resumes/delete-confirm";
 import { EntryEditor } from "./entry-editor";
 import { editSteps, type SaveStep } from "./entry-save";
 import { Intake, type IntakeFocus } from "./intake";
@@ -52,8 +52,9 @@ import { linkChanges } from "./skill-links";
  * from the bar's launcher or the title's Fill With Scout, so the page is the
  * bank itself. `autoImport` (the Jobs page's Import Your Resume) opens the
  * panel on arrival, since the student clicked to get there, and drops
- * ?import=1 so a reload or Back does not open it again. An empty bank says
- * where to start, since intake is no longer on the page.
+ * ?import=1 so a reload or Back does not open it again. An empty bank gets
+ * no card of its own: the title's Fill With Scout and each section's Add
+ * already say where to start.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -189,15 +190,6 @@ export function BankScreen({
           onFocus={setFocus}
         />
       </ScoutTakeover>
-      {bank.entries.length === 0 && (
-        <Card className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-body text-ink-muted min-w-0 flex-1">
-            Your bank is empty. Scout asks about one thing at a time and fills in each entry from
-            your answers, or reads your resume for you.
-          </p>
-          <OpenScoutButton>Fill With Scout</OpenScoutButton>
-        </Card>
-      )}
       {pageError && (
         <p role="alert" className="text-note text-danger">
           {pageError}
@@ -290,9 +282,12 @@ export function BankScreen({
 }
 
 /**
- * A bank row, marked while Scout works on it: a brand tint, a "With Scout"
- * tag, and a scroll into view, so the student sees which entry the panel's
- * questions are about.
+ * A bank row, marked while Scout works on it: a brand tint with a band of
+ * light crossing it (`animate-shimmer`), and a scroll into view, so the
+ * student sees which entry the panel's questions are about and that Scout
+ * is at work on it. The shimmer replaced a "With Scout" tag (KAN-249), which
+ * read as one more line of the entry rather than as Scout acting on it; a
+ * screen reader still hears it. Reduced motion keeps the tint, still.
  */
 function ScoutMarked({ active, children }: { active: boolean; children: ReactNode }) {
   const ref = useRef<HTMLLIElement>(null);
@@ -306,14 +301,19 @@ function ScoutMarked({ active, children }: { active: boolean; children: ReactNod
       ref={ref}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "-mx-3 scroll-my-24 rounded-xl px-3 py-3 transition-colors duration-200",
-        active && "bg-brand-tint ring-brand/30 ring-1",
+        // isolate: the band paints over the tint and under the text.
+        "relative isolate -mx-3 scroll-my-24 overflow-hidden rounded-xl px-3 py-3 transition-colors duration-200",
+        active && "bg-brand-tint/70",
       )}
     >
       {active && (
-        <span className="text-note text-brand mb-1 inline-flex items-center gap-1 font-medium">
-          <Sparkles className="size-3.5" /> With Scout
-        </span>
+        <>
+          <span
+            aria-hidden
+            className="animate-shimmer via-panel/80 pointer-events-none absolute inset-0 -z-10 bg-linear-[110deg] from-transparent from-35% via-50% to-transparent to-65% bg-[length:200%_100%]"
+          />
+          <span className="sr-only">Scout is working on this entry.</span>
+        </>
       )}
       {children}
     </li>
@@ -395,20 +395,14 @@ function EntryView({
       )}
 
       {confirming && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-note text-ink-muted">
-            Delete this entry and its bullets?{" "}
-            {confirming.resumes === 0
-              ? "No built resume shows it."
-              : `It comes off ${confirming.resumes === 1 ? "the 1 built resume" : `all ${confirming.resumes} built resumes`} that show it.`}
-          </span>
-          <Button size="sm" variant="destructive" onClick={remove}>
-            Delete Entry
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => setConfirming(null)}>
-            Keep It
-          </Button>
-        </div>
+        <DeleteConfirm label="Delete Entry" onDelete={remove} onKeep={() => setConfirming(null)}>
+          Delete this entry and its bullets?{" "}
+          {confirming.resumes === 0
+            ? "No built resume shows it."
+            : confirming.resumes === 1
+              ? "It comes off the 1 built resume that shows it."
+              : `It comes off all ${confirming.resumes} built resumes that show it.`}
+        </DeleteConfirm>
       )}
       {error && (
         <p role="alert" className="text-note text-danger mt-1">
@@ -419,12 +413,22 @@ function EntryView({
   );
 }
 
+/**
+ * The skills, one row per group. Drawn as the section cards are: Add at the
+ * top right opens the form, so the card is a list until the student adds or
+ * edits a skill; a form always open under the list made Skills the only card
+ * that never looked finished. The form stays open after an add, for the next
+ * skill, and closes after an edit.
+ */
 function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise<string | null> }) {
   const [name, setName] = useState("");
   const [group, setGroup] = useState("");
+  const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const nameField = useRef<HTMLInputElement>(null);
+  const formOpen = adding || editingId !== null;
 
   const groups = new Map<string, Skill[]>();
   for (const skill of skills) {
@@ -432,9 +436,10 @@ function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise
     groups.set(key, [...(groups.get(key) ?? []), skill]);
   }
 
-  function reset() {
+  function close() {
     setName("");
     setGroup("");
+    setAdding(false);
     setEditingId(null);
   }
 
@@ -448,7 +453,13 @@ function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise
     setBusy(false);
     if (res.error) return setError(res.error);
     setError(null);
-    reset();
+    if (editingId) {
+      close();
+    } else {
+      // Ready for the next one, in the same group.
+      setName("");
+      nameField.current?.focus();
+    }
     const reloadError = await reload();
     if (reloadError) setError(reloadError);
   }
@@ -457,83 +468,112 @@ function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise
     const res = await deleteSkill(skill.id);
     if (res.error) return setError(res.error);
     setError(null);
-    if (editingId === skill.id) reset();
+    if (editingId === skill.id) close();
     const reloadError = await reload();
     if (reloadError) setError(reloadError);
   }
 
   return (
     <Card as="section" aria-labelledby="bank-skills">
-      <h2 id="bank-skills" className="text-subtitle text-ink">
-        Skills
-      </h2>
-      {skills.length === 0 && <p className="text-body text-ink-meta mt-2">Nothing here yet.</p>}
-      <div className="mt-2 flex flex-col gap-2">
-        {[...groups].map(([groupName, members]) => (
-          <div key={groupName} className="flex flex-wrap items-center gap-2">
-            <span className="text-label text-ink-muted">{groupName || "Other"}:</span>
-            {members.map((skill) => (
-              <span
-                key={skill.id}
-                className="rounded-control border-border-subtle text-note text-ink inline-flex items-center gap-1.5 border px-2 py-1"
-              >
-                {skill.name}
-                <IconButton
-                  label={`Edit ${skill.name}`}
-                  tooltip="Edit this skill"
-                  onClick={() => {
-                    setEditingId(skill.id);
-                    setName(skill.name);
-                    setGroup(skill.group ?? "");
-                  }}
-                >
-                  <Pencil className="size-3" />
-                </IconButton>
-                <IconButton
-                  label={`Remove ${skill.name}`}
-                  tooltip="Remove this skill"
-                  onClick={() => remove(skill)}
-                >
-                  <X className="size-3" />
-                </IconButton>
-              </span>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      <form
-        onSubmit={submit}
-        className="mt-3 grid items-end gap-3 @lg/main:grid-cols-[1fr_1fr_auto]"
-      >
-        <TextField
-          id="skill-name"
-          label="Skill"
-          required
-          maxLength={60}
-          placeholder="Python"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <TextField
-          id="skill-group"
-          label="Group"
-          maxLength={60}
-          placeholder="Languages"
-          value={group}
-          onChange={(e) => setGroup(e.target.value)}
-        />
-        <div className="flex gap-2">
-          {editingId && (
-            <Button type="button" variant="secondary" onClick={reset}>
-              Cancel
-            </Button>
-          )}
-          <Button type="submit" disabled={busy}>
-            {editingId ? "Save Skill" : "Add Skill"}
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="bank-skills" className="text-subtitle text-ink">
+          Skills
+        </h2>
+        {!formOpen && (
+          <Button
+            variant="section"
+            onClick={() => {
+              setError(null);
+              setAdding(true);
+            }}
+          >
+            <Plus /> Add
           </Button>
-        </div>
-      </form>
+        )}
+      </div>
+      {skills.length === 0 && !formOpen && (
+        <p className="text-body text-ink-meta mt-2">Nothing here yet.</p>
+      )}
+      {/* The group names make one column where there is room, so every
+          group's skills start at the same edge; on a phone each name sits
+          over its skills. */}
+      {skills.length > 0 && (
+        <dl className="mt-2 grid gap-x-4 gap-y-2 @md/main:grid-cols-[max-content_minmax(0,1fr)]">
+          {[...groups].map(([groupName, members]) => (
+            <div key={groupName} className="contents">
+              <dt className="text-label text-ink-muted @md/main:pt-1">{groupName || "Other"}</dt>
+              <dd className="flex flex-wrap gap-2">
+                {members.map((skill) => (
+                  <span
+                    key={skill.id}
+                    className={cn(
+                      "rounded-control text-note text-ink inline-flex items-center gap-1.5 border px-2 py-1",
+                      editingId === skill.id ? "border-brand" : "border-border-subtle",
+                    )}
+                  >
+                    {skill.name}
+                    <IconButton
+                      label={`Edit ${skill.name}`}
+                      tooltip="Edit this skill"
+                      onClick={() => {
+                        setError(null);
+                        setAdding(false);
+                        setEditingId(skill.id);
+                        setName(skill.name);
+                        setGroup(skill.group ?? "");
+                      }}
+                    >
+                      <Pencil className="size-3" />
+                    </IconButton>
+                    <IconButton
+                      label={`Remove ${skill.name}`}
+                      tooltip="Remove this skill"
+                      onClick={() => remove(skill)}
+                    >
+                      <X className="size-3" />
+                    </IconButton>
+                  </span>
+                ))}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {formOpen && (
+        <form
+          onSubmit={submit}
+          className="mt-3 grid items-end gap-3 @lg/main:grid-cols-[1fr_1fr_auto]"
+        >
+          <TextField
+            ref={nameField}
+            id="skill-name"
+            label="Skill"
+            required
+            autoFocus
+            maxLength={60}
+            placeholder="Python"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <TextField
+            id="skill-group"
+            label="Group"
+            maxLength={60}
+            placeholder="Languages"
+            value={group}
+            onChange={(e) => setGroup(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={close}>
+              {editingId ? "Cancel" : "Done"}
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {editingId ? "Save Skill" : "Add Skill"}
+            </Button>
+          </div>
+        </form>
+      )}
       {error && (
         <p role="alert" className="text-note text-danger mt-2">
           {error}
