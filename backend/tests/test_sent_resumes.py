@@ -327,14 +327,16 @@ async def test_a_real_download_keeps_the_rendered_pdf(student, storage):
     assert "Sam Seeker" in text and "Cut page load time by 30%" in text
 
 
-async def _seed_posting(database) -> str:
+async def _seed_posting(database, apply_url: str = "https://example.com/apply") -> str:
+    """A published scraped posting. Auto apply takes only a Greenhouse
+    `apply_url` (app/auto_apply/hosts.py); its tests pass one."""
     from sqlalchemy import text
 
     async with database() as session:
         posting = await session.scalar(text(
             "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
-            " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
-        ))
+            " (gen_random_uuid(), 'Intern', 'published', 'Acme', :url) RETURNING id"
+        ), {"url": apply_url})
         await session.commit()
     return str(posting)
 

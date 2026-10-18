@@ -40,6 +40,31 @@ export async function queueJob(
   }
 }
 
+/** Takes a queued job out of the queue (DELETE .../applications/{job_id}):
+ *  the Auto Apply button's second click and Live Activity's cross. The job
+ *  then has no application, as before it was queued. One past queued
+ *  (needs you, skipped, applied) stays, and the API's 409 says why. */
+export async function dequeueJob(jobId: string): Promise<{ error: string | null }> {
+  let session;
+  try {
+    session = await getApplicantSession();
+  } catch {
+    return { error: SIGNED_OUT };
+  }
+  try {
+    const res = await apiFetch(
+      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}`,
+      { method: "DELETE" },
+      session.token,
+    );
+    // Already gone (another tab took it out): what was asked for is true.
+    if (res.ok || res.status === 404) return { error: null };
+    return { error: await extractErrorMessage(res) };
+  } catch {
+    return { error: UNREACHABLE };
+  }
+}
+
 /** Start Auto Apply: queues a batch of the seeker's best matches (POST
  *  .../auto-apply/batches, 10 by default) and answers how many it queued. */
 export async function startBatch(): Promise<

@@ -151,10 +151,11 @@ with the failure it prevents.
   change to how jobs are scraped, imported, stored, served or filtered updates
   it alongside the `CLAUDE.md` beside the code.
 - `auto-apply/architecture.md` — auto-apply (KAN-223), the one document for
-  it: match, batch, fill in the student's Chrome with the extension, record,
-  then tailoring; the three function layers an MCP server will expose; API
-  keys and billing; the build order. Only the Match step is built; read it
-  before starting any other step.
+  it: match, batch, the resume to attach (reusing the resume builder's
+  Tailor and sent resumes), fill in the student's Chrome with the
+  extension, record; the three function layers an MCP server will expose;
+  API keys and billing; the build order. Match and the queue are built;
+  read it before starting any other step.
 - `docs/agents/` — configuration for the `mattpocock-skills` plugin; edit
   these files directly to change how the skills behave.
 

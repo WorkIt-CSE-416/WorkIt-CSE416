@@ -57,6 +57,16 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   segment, so two groups cannot both define `/profile` and both audiences need
   one; the prefix also makes the auth guard one path check. Auth screens
   (`login/`, `signup/`) and `design-kit/` sit outside both shells.
+- **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
+  redirects `/company` and `/onboarding/company` (and everything under them)
+  to `/coming-soon`, "Waiting for Deployment", before its env check, so a
+  clone with no env file is gated too. The root page's hiring card still
+  shows and lands there. `components/account-type-switcher.tsx` has its
+  toggle commented out and always submits `applicant`, so login, signup and
+  choose-account-type show no Company option; the brand panel's hiring line
+  is commented out too. The company code stays in place. To bring it back,
+  delete the proxy block and `app/coming-soon/`, then uncomment those two
+  components. The API still accepts company signups; the gate is the UI only.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -160,8 +170,9 @@ are in `docs/auth.md`.
 - **`src/proxy.ts` (Next 16's middleware) refreshes the session on every
   request**, because Server Components cannot write cookies and sessions would
   die with the hour-long access token. It is a convenience, not security: the
-  API is reachable without Next and checks every token. It no-ops when the
-  Supabase env vars are unset, so a clone with no env file boots.
+  API is reachable without Next and checks every token. Its session step
+  no-ops when the Supabase env vars are unset, so a clone with no env file
+  boots; the business-side redirect above runs first, either way.
 - **Never export a token-returning helper from a `"use server"` file.** Every
   export there is a browser-callable endpoint. Token helpers (`session.ts`)
   and Server-Component-only reads (`job-queries.ts`) live in `server-only`

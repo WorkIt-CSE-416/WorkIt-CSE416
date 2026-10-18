@@ -563,6 +563,25 @@
    * holds its last frame (`both`), past the right edge, where without a fill
    * mode the band fell back to 0% and rested over the row's right third. */
   --animate-shimmer: shimmer 2.4s ease-in-out infinite both;
+  /* A toast (components/ui/toast.tsx) rising in from below the window's
+   * edge, its own height and the 16px gap, and dropping back out faster. */
+  --animate-toast-in: toast-in 280ms var(--ease-glide) both;
+  --animate-toast-out: toast-out 180ms var(--ease-exit) both;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(calc(100% + 1rem));
+    }
+  }
+
+  @keyframes toast-out {
+    to {
+      opacity: 0;
+      transform: translateY(calc(100% + 1rem));
+    }
+  }
+
   /* A whole scene trading places with the last one (onboarding's showcase):
    * slower and further than rise, so a large card glides in rather than
    * blinks, while the scene before it leaves on the exit curve in the same

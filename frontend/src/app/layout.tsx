@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 
 import { TooltipProvider } from "@/components/shadcn/tooltip";
+import { ToastProvider } from "@/components/ui/toast";
 
 import "./globals.css";
 
@@ -38,8 +39,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Here rather than in a shell: every icon-only button carries a
             tooltip, and those are in both shells and the design kit. One
             provider is also what makes hovering along a row of them hand the
-            tooltip straight from one to the next. */}
-        <TooltipProvider>{children}</TooltipProvider>
+            tooltip straight from one to the next. Toasts likewise: any
+            page can raise one, and it outlives the part that did. */}
+        <TooltipProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </TooltipProvider>
       </body>
     </html>
   );

@@ -1,4 +1,4 @@
-import { Building2, Search, SquareKanban } from "lucide-react";
+import { /* Building2, */ Search, SquareKanban } from "lucide-react";
 import type { ComponentType } from "react";
 
 /**
@@ -38,11 +38,12 @@ const pillars: Pillar[] = [
     title: "Every Application on One Board",
     body: "Follow each role from applied through to offer without a spreadsheet.",
   },
-  {
-    Icon: Building2,
-    title: "Hiring? Sign In Here Too",
-    body: "Company accounts sign in on this page and land in their applicant pipeline.",
-  },
+  // Hidden with the business side (KAN-239); uncomment with Building2's import.
+  // {
+  //   Icon: Building2,
+  //   title: "Hiring? Sign In Here Too",
+  //   body: "Company accounts sign in on this page and land in their applicant pipeline.",
+  // },
 ];
 
 /**
