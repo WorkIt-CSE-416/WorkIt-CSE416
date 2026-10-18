@@ -84,6 +84,12 @@ module docstring has the steps.
 
 ### Tests
 
+- **Never test what an AI prompt says.** No test checks a system prompt's
+  wording or the facts text in it, for Scout, intake, Tailor, the editor
+  assistant or Read It With AI. Test behaviour instead: what a reply saves,
+  counts or refuses. They were removed on 2026-10-18 as upkeep with no
+  catch: a wording change broke them and proved nothing. The tests that no
+  identity data reaches the model stay (`../scout/CLAUDE.md`, Tests).
 - **A new resume that parses wrong becomes a fixture first.** Add its text to
   `tests/fixtures/` with its expected output in `tests/test_resume_parser.py`
   before touching `app/utils/resume_parser.py`. The heuristics interact: a fix
