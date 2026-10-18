@@ -20,8 +20,8 @@ built. It replaces the earlier `design.md`.
 > backend is built: `pick_resume`, `prepare_resume` and `POST
 > .../applications/{job_id}/resume`. The runner's first step is built:
 > Start and a job card's Auto Apply send `run/open`, and the extension
-> opens the next queued application's `apply_url` in its own window
-> (`autofiller_extension/src/background/runner.js`); the webapp shows that
+> opens the next queued application's `apply_url` in its own background
+> tab (`autofiller_extension/src/background/runner.js`); the webapp shows that
 > job as Working in Browser. It fills nothing yet.
 > Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
@@ -253,7 +253,7 @@ read and write the queue through the routes, like any other caller.
 ```js
 runBatch()                       // parent: a loop, nothing else
   → nextApplication()            // GET from the API
-  → openApplicationTab(url)      // the run's own window, one tab at a time
+  → openApplicationTab(url)      // the run's own background tab, reused
   → prepareResume(jobId)         // POST to the API: the sent resume and its link
   → fillForm(tabId, file)        // the field engine that exists, plus the file
   → waitForDecision(tabId)       // the student clicks "Submitted" or "Skip"
@@ -356,7 +356,7 @@ student can still finish it.
    keeps it as a sent resume for this job posting and answers a 5-minute
    link. The background worker downloads the file at once. No resume: the
    run fills the form without one ("The resume"). The run never tailors.
-3. **opening.** It opens `apply_url` in the run's window ("Chrome limits")
+3. **opening.** It opens `apply_url` in the run's tab ("Chrome limits")
    and waits for the tab's `complete` status. Limit: 30 seconds.
 4. **filling.** It injects the content scripts (as the popup does today) and
    sends `fill/start` with the file. The content script fills, attaches
@@ -454,17 +454,26 @@ events. Two measures:
 - The open port from the Auto Apply page sends `run/status` every 20 seconds
   while the run goes on. Each message resets the idle timer.
 - The runner writes its cursor to `chrome.storage.session` after each step:
-  `{ state, applicantId, applicationId, tabId, windowId, step }`. When the
+  `{ state, applicantId, applicationId, tabId, step }`. When the
   worker starts again, it reads the cursor and continues from that step.
 
 ### 10.4 Hidden tabs run slowly
 
 Chrome slows timers in hidden tabs and stops page redraws. Some dropdowns wait
-for a redraw. So the tab is never hidden:
+for a redraw. The run's tab is hidden all the same:
 
-- The runner opens **one window** for the run (`chrome.windows.create`) and
-  reuses it, one tab at a time. The student's own windows stay as they are.
-- The current application's tab is always the active tab in that window.
+- The runner opens **one background tab** for the run (`chrome.tabs.create`
+  with `active: false`), beside the WorkIt tab, and reuses it. The student
+  stays on the page they were on.
+- **Never a new window.** The first build opened one with `focused: false`
+  to keep the tab visible. From a full-screen window on macOS, the new
+  window got its own Space and macOS switched the student to it. No Chrome
+  API prevents this, and a minimized window is hidden too.
+- The tab is set `autoDiscardable: false`, so Memory Saver never throws
+  away a half-filled form.
+- So the fill must work in a hidden tab: wait on DOM changes
+  (`MutationObserver`), not on redraws or `requestAnimationFrame`. Test
+  each hiring system's dropdowns and file upload in a background tab.
 - Only one application fills at a time.
 
 ---
@@ -821,7 +830,7 @@ Each step ships alone and is about one ticket.
    host 87% of the job postings in the feed snapshot (`backend/data/feed.json`).
 5. **Extension: the runner**, the port, host permissions, and the overlay's
    **Submitted** and **Skip**. Start and Pause go live. Started: `run/open`
-   opens the next queued application in the run's window, and
+   opens the next queued application in the run's background tab, and
    `run/status` and `run/show` drive "Working in Browser" (one-shot
    messages, not yet the port; no fill).
 6. **`autofill_runs`**, and Live Activity shows each fill's report.

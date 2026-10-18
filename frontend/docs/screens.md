@@ -173,16 +173,16 @@ the button back to Auto Apply: Live Activity's cross and Undo, the other way
 round. A failed Undo says so in a toast and leaves the button Queued.
 A click that leaves the job queued then runs Start Auto Apply's pipeline
 without the matching: it asks the extension to open the oldest queued job
-in a Chrome window behind this one (`openNextApplication`), which is this
+in a background tab beside this one (`openNextApplication`), which is this
 job only when nothing older waits. It runs after the click settles, so the
 button never waits on a page load; only a failure shows, as a line above
-the button (no extension stays silent). The job open in that window reads
+the button (no extension stays silent). The job open in that tab reads
 **Working in Browser** (the AppWindow glyph) on every card that shows it,
 read once per page from the extension (`useRunnerJob` in
 `src/lib/autofill-extension.ts`, asked again whenever the tab gets focus).
-It goes back to Queued only when the extension says the window is closed,
-never on a failed answer: coming back from the run's window once reset it;
-a click brings the window to the front (`showRunWindow`), and the job
+It goes back to Queued only when the extension says the tab is closed,
+never on a failed answer: coming back from the run's tab once reset it;
+a click switches to the tab (`showRunTab`, tooltip "Go to the tab"), and the job
 leaves the queue from Live Activity only. Its first state comes from
 the server: the job's page reads its one application (`GET
 .../applications/{job_id}`), and /jobs and /search read every application
@@ -398,15 +398,15 @@ Apply queues a batch of the seeker's best matches through the API (`POST
 every job they already have an application for), says how many under the
 row, and refreshes the route so Live Activity lists them; an error (an empty
 experience bank) shows there in red instead. Then it asks the extension to
-open the oldest queued application's page in a Chrome window behind this
+open the oldest queued application's page in a background tab beside this
 one (`openNextApplication` in `src/lib/autofill-extension.ts`, the message
 `run/open`), and the note says so, or why not (no extension, signed out)
-in red (`auto-apply/opened-note.ts`, shared with the job card). A window
+in red (`auto-apply/opened-note.ts`, shared with the job card). A tab
 already on that job stays as it is, so Start never wipes a form in
 progress. Pause and Resume only move the state: nothing fills
 a form yet. It is off until the list has a resume, and while a batch is
-queueing. It never waits on the window's page load: the note says how many
-jobs it queued at once and adds the window's result when it lands. The
+queueing. It never waits on the tab's page load: the note says how many
+jobs it queued at once and adds the tab's result when it lands. The
 state (`idle`, `running`, `paused`) is held in
 `auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
 Started, Live (a green dot that rings out) or Paused; a return visit starts
@@ -424,9 +424,9 @@ newest first and the page reverses it, so the API's order stays as other
 callers know it. Drawn on the server against the request's clock. Each stored stage is
 a row (`activityOf` in `auto-apply/activity-list.tsx`): queued Queued,
 needs_you Couldn't Finish, skipped Skipped, applied Applied. The queued
-job open in the extension's window reads Working in Browser instead
+job open in the extension's tab reads Working in Browser instead
 (`auto-apply/live-activity.tsx`, the one client step over the server's
-rows), in flight, with no cross: taking it out would leave the window on a
+rows), in flight, with no cross: taking it out would leave the tab on a
 job that is gone. The whole row
 opens the job posting's page, as on the Applications list, while the posting
 is open; a closed one says so and links nowhere. None yet is an empty state

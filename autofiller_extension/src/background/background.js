@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import { getAutofillProfile, ApiError } from "./api.js";
-import { openNextApplication, runStatus, showRunWindow } from "./runner.js";
+import { openNextApplication, runStatus, showRunTab } from "./runner.js";
 
 /** @param {{ type: string, [key: string]: any }} message */
 async function handleMessage(message) {
@@ -48,16 +48,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // reason the page needs either, and handing them over would make a
 // compromised or malicious page on an allowed origin able to read a
 // signed-in user's resume data just by asking. `run/open` takes no URL for
-// the same reason: the runner reads it from the API (runner.js). The other
-// two only say which job posting the run's window shows, and bring it to
-// the front.
+// the same reason: the runner reads it from the API (runner.js); it gets
+// the sender only to open the run's tab beside the page that asked. The
+// other two only say which job posting the run's tab shows, and switch to
+// it.
 const RUNNER_MESSAGES = {
   "run/open": openNextApplication,
   "run/status": runStatus,
-  "run/show": showRunWindow,
+  "run/show": showRunTab,
 };
 
-chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   if (message?.type === "ping") {
     getSession()
       .then((session) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session) }))
@@ -67,7 +68,7 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
 
   // Own keys only, so a type such as "toString" never reaches a built-in.
   if (Object.hasOwn(RUNNER_MESSAGES, message?.type)) {
-    RUNNER_MESSAGES[message.type]()
+    RUNNER_MESSAGES[message.type](sender)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;

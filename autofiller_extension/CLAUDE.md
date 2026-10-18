@@ -81,21 +81,29 @@ and a job card's Auto Apply once it queues the job, send `run/open` over
 from `GET .../applications/next` and opens its `job.apply_url`. It fills
 nothing yet: injecting the fill, Submitted/Skip and `POST .../finish` are
 the next steps. Two more messages serve the webapp's "Working in
-Browser": `run/status` answers which job posting the run's window shows
-(null once the student closes it), and `run/show` brings that window to
-the front.
+Browser": `run/status` answers which job posting the run's tab shows
+(null once the student closes it), and `run/show` switches to that tab.
 
 - **The URL always comes from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
   a URL could make it open any site.
-- **One window for the run, behind the student's own.** `chrome.windows
-  .create({ focused: false })` the first time, then `chrome.tabs.update`
-  on the same tab; its ids live in `chrome.storage.session`, since Chrome
-  stops the worker after ~30 seconds idle and clears its variables. A
-  closed window is created again. **Never minimized**: a hidden tab gets
-  slowed timers and no redraws, which some dropdowns wait on.
-- **No new permission.** `chrome.windows`, `chrome.tabs.update` and a tab's
-  load `status` need none (only url, title and favicon need `tabs`).
+- **One background tab for the run, beside the WorkIt tab that asked.**
+  `chrome.tabs.create({ active: false })` in the sender's window the first
+  time, then `chrome.tabs.update` on the same tab; its id lives in
+  `chrome.storage.session`, since Chrome stops the worker after ~30
+  seconds idle and clears its variables. A closed tab is created again.
+  **Never a new window**: a window opened with `focused: false` from a
+  full-screen window on macOS got its own Space, and macOS switched the
+  student to it; no Chrome API stops that. The tab is hidden until the
+  student opens it, so Chrome slows its timers and stops its redraws,
+  which some dropdowns wait on: the fill step must work in a hidden tab
+  (`auto-apply/architecture.md`, "Hidden tabs run slowly").
+- **The run's tab is never discarded.** It is set
+  `autoDiscardable: false`, so Memory Saver can't throw away a
+  half-filled form in a tab the student has not looked at yet.
+- **No new permission.** `chrome.tabs.create`, `chrome.tabs.update`
+  (`autoDiscardable` too), `chrome.windows.update` and a tab's load
+  `status` need none (only url, title and favicon need `tabs`).
   Injecting the fill into these tabs will: `activeTab` doesn't cover a tab
   the runner opened, so that step adds hiring-system `host_permissions`.
 - **`run/open` never reloads the application already open.** When the
@@ -109,9 +117,8 @@ the front.
   their form after `complete`; the fill step must wait for fields itself.
 
 Still open: a Lever `apply_url` opens the job posting, not the form (that
-is at `.../apply`). An unfocused window that another window covers fully
-can still count as hidden on macOS and Windows; untested. A pop-up-killer
-extension can close any new window; a tab closed within a second or two
+is at `.../apply`). Whether a Greenhouse form fills in a hidden tab
+(dropdowns, file upload) is untested. A tab closed within a second or two
 of opening should be reported as that, not as the student's Skip.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own

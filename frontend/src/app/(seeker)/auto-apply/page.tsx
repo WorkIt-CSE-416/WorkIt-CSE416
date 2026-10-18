@@ -33,7 +33,7 @@ export const metadata: Metadata = {
  *                          posting queued with a batch or a job's Auto Apply
  *                          button, and where it stands (./activity-list.tsx;
  *                          ./live-activity.tsx adds the one open in the
- *                          extension's window)
+ *                          extension's tab)
  *
  * The list is drawn here, on the server, against the request's clock, and
  * passed through the client panel; a batch refreshes the route to redraw it.

@@ -11,7 +11,7 @@ import type { Application } from "./applications";
 import { RemoveFromQueue } from "./remove-from-queue";
 
 /** Where one application stands in the pipeline. The order a job moves
- *  through: queued, browser (open in the run's Chrome window), tailoring,
+ *  through: queued, browser (open in the run's Chrome tab), tailoring,
  *  filling, then review or failed, then applied or skipped. Only queued,
  *  failed, skipped and applied are stored (job_applications.stage); browser
  *  comes from the extension (./live-activity.tsx), and tailoring, filling

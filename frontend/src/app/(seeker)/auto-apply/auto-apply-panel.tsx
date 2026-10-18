@@ -30,10 +30,10 @@ const RUN_LABEL: Record<RunState, string> = {
  * button asks the API for the seeker's best matches (./actions, startBatch:
  * 10, leaving out every job they already have an application for) and
  * refreshes the route so the list shows them. Then it asks the extension's
- * runner to open the oldest queued application's apply_url in a window
- * behind this one (openNextApplication), and says what happened
+ * runner to open the oldest queued application's apply_url in a background
+ * tab beside this one (openNextApplication), and says what happened
  * (./opened-note.ts); Live Activity marks it Working in Browser. The click
- * waits for the queueing only: the window opens after it settles, as on the
+ * waits for the queueing only: the tab opens after it settles, as on the
  * job card (./auto-apply-button.tsx), so the button never waits on a page
  * load. Nothing fills the form yet, and Pause and Resume only move this state
  * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
@@ -48,7 +48,7 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
   // fast double click on Start queued two batches.
   const queueing = useRef(false);
 
-  /** Not awaited: `run/open` answers only once the window's page loads (up
+  /** Not awaited: `run/open` answers only once the tab's page loads (up
    *  to 30 seconds), and inside the transition that kept Start disabled and
    *  held back the refreshed list. The note gains the result when it lands. */
   async function openInBrowser(queued: string) {

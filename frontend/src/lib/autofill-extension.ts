@@ -52,8 +52,8 @@ function sendToExtension(message: { type: string }): Promise<unknown> {
  * Talks to the extension through manifest.json's `externally_connectable`
  * — the one, deliberately narrow channel a web page gets: "are you here,
  * and is someone signed in", plus the runner's three messages below (open
- * the next queued application, which job its window shows, bring that
- * window to the front). Never the profile itself; see
+ * the next queued application, which job its tab shows, switch to that
+ * tab). Never the profile itself; see
  * autofiller_extension/src/background/background.js's own comment on why
  * that line is drawn where it is.
  *
@@ -75,9 +75,9 @@ export type OpenApplicationResult =
 
 /**
  * Asks the extension's runner to open the next queued application's
- * apply_url in its own window, behind this one
+ * apply_url in its own background tab, beside this one
  * (autofiller_extension/src/background/runner.js). The message carries no
- * URL: the runner reads the queue from the API itself. A window already on
+ * URL: the runner reads the queue from the API itself. A tab already on
  * that application is left as it is. Resolves once the page has loaded, or
  * with why nothing opened; never throws. Updates `useRunnerJob`.
  */
@@ -94,10 +94,10 @@ export async function openNextApplication(): Promise<OpenApplicationResult> {
     : { opened: false, reason: r.reason };
 }
 
-/** Brings the run's window to the front. False when it was closed (and
+/** Switches to the run's tab. False when it was closed (and
  *  `useRunnerJob` drops the job) or the extension failed to answer (it
  *  keeps the job). */
-export async function showRunWindow(): Promise<boolean> {
+export async function showRunTab(): Promise<boolean> {
   const r = (await sendToExtension({ type: "run/show" })) as
     { ok: true; shown: boolean } | { ok: false } | undefined;
   if (!r?.ok) return false;
@@ -106,13 +106,13 @@ export async function showRunWindow(): Promise<boolean> {
 }
 
 /**
- * WHICH JOB POSTING THE RUN'S WINDOW SHOWS, shared by every caller on the
+ * WHICH JOB POSTING THE RUN'S TAB SHOWS, shared by every caller on the
  * page: each job card's Auto Apply and Live Activity read one value, so the
  * extension is asked once, not once per card. Asked on the first
  * subscriber and again whenever this tab gets focus, since the student
- * closes the run's window in another window and comes back here. Null with
- * no extension, no window, or before the first answer (and on the server).
- * It goes back to null only when the extension says the window is gone
+ * closes the run's tab and comes back here. Null with no extension, no
+ * run tab, or before the first answer (and on the server). It goes back
+ * to null only when the extension says the tab is gone
  * (run/status, run/show), never on a failed answer.
  */
 let runnerJob: string | null = null;
@@ -130,7 +130,7 @@ async function refreshRunnerJob() {
     { ok: true; jobId: string | null } | { ok: false } | undefined;
   // Only a real answer changes it. A failed one (an extension that predates
   // run/status, a worker that errored) once turned Working in Browser back
-  // to Queued each time the student came back from the run's window.
+  // to Queued each time the student came back from the run's tab.
   if (r?.ok) setRunnerJob(r.jobId);
 }
 
@@ -146,7 +146,7 @@ function subscribe(listener: () => void) {
   };
 }
 
-/** The job posting id open in the run's window, or null. */
+/** The job posting id open in the run's tab, or null. */
 export function useRunnerJob(): string | null {
   return useSyncExternalStore(
     subscribe,
