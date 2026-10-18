@@ -575,6 +575,10 @@ free tier). Render with a Dockerfile is the fallback.
   table, so this order lets `upgrade head` still create it there. A local
   database that applied `5cc3189af108` first reads the resume builder's tables
   as applied; recreate it from `upgrade head`.
+- **Apply `17ea74fa4573` (the `saved` stage, KAN-261) before the deploy
+  that writes it.** It only adds an enum value, so the running code never
+  meets it and applying it early is safe; deployed first, every Save button
+  answers 500.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
