@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Resume Editor" };
 
 /**
  * /resumes/[resumeId], the resume editor, opened from a base resume on the
- * bank page: the PDF from `GET .../built-resumes/{id}/render`, drawn with
+ * Resumes view (/resumes): the PDF from `GET .../built-resumes/{id}/render`, drawn with
  * pdf.js (loaded on this page only), with a click target from each of the
  * render's boxes (KAN-209), edited in place (KAN-218). It needs the render,
  * the bank, the resume's choices and the profile (the header's fields); if

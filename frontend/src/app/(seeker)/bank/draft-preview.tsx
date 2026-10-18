@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Pencil } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,22 @@ import { entryDetails, formatDates, neededFacts, sectionOf, type EntryDraft } fr
  * names the facts a resume line wants that the draft lacks yet
  * (`neededFacts`), never an optional field.
  *
- * Folded, it is its header alone: the title, the section and the state dot.
+ * THE STAGE CARD (KAN-249). The panel's one block above the chat: the
+ * section's icon and name, "Step 1 of 6", Skip at the right, and the step
+ * bar's segments (`progress`, the compact StepBar) under them. Once WorkIt
+ * has a title, the draft opens under a hairline: its title and state dot,
+ * the entry as the bank lists it, and Edit and Save Entry. Before that there
+ * is nothing to show or save, and the chat's question is the next step; Edit
+ * sits beside Skip then, so the form can still be filled in by hand.
+ * Folded, the draft is its title row alone.
+ *
+ * It replaced two blocks that read as unrelated: the step bar with its own
+ * Back, "Step 1 of 6 · Education" and Skip, and a draft card under it with
+ * a second Skip, the section named again, a hint line repeating the panel's
+ * subtitle and a disabled Save Entry. At 800px tall the chat kept about
+ * 300px. Skip stays with the section it skips, from the first question: a
+ * student happy with a visited entry had only the step bar's small Skip and
+ * asked where "next" was.
  */
 
 const SHOWN_BULLETS = 2;
@@ -35,11 +50,14 @@ export function DraftPreview({
   saving,
   error,
   duplicate,
+  step,
+  progress,
   onFold,
   onEdit,
   onSave,
   onSkip,
   skipLabel,
+  skipDisabled,
   icon,
 }: {
   draft: EntryDraft;
@@ -48,13 +66,19 @@ export function DraftPreview({
   saving: boolean;
   error: string | null;
   duplicate: BankEntry | null;
+  /** Where the walk is, "Step 1 of 6". */
+  step: string;
+  /** The step bar's segments. */
+  progress: ReactNode;
   onFold: () => void;
   onEdit: () => void;
   onSave: () => void;
-  /** Moves on without saving: a student happy with a visited entry had only
-   *  the step bar's small Skip and asked where "next" was. */
-  onSkip?: () => void;
-  skipLabel?: string;
+  /** Moves on without saving. */
+  onSkip: () => void;
+  skipLabel: string;
+  /** While WorkIt answers or a save runs: a late reply must not land on the
+   *  next section. Disabled rather than hidden, so the header holds still. */
+  skipDisabled: boolean;
   icon: ReactNode;
 }) {
   const meta = sectionOf(draft.section);
@@ -62,65 +86,84 @@ export function DraftPreview({
   const place = [draft.organization, draft.location].filter(Boolean).join(" · ");
   const bullets = draft.bullets.map((b) => b.text.trim()).filter(Boolean);
   const needed = neededFacts(draft);
+  const titled = draft.title.trim() !== "";
 
   return (
     <section
-      aria-label="Draft entry"
+      aria-label={`${meta.label}, ${step}`}
       className="bg-panel ring-brand-tint shadow-card animate-fade shrink-0 rounded-2xl ring-1"
     >
-      <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-        <span
-          aria-hidden
-          className="bg-brand-tint text-brand flex size-8 shrink-0 items-center justify-center rounded-xl"
-        >
-          {icon}
-        </span>
-        <button
-          type="button"
-          onClick={onFold}
-          aria-expanded={!folded}
-          className="focus-visible:ring-brand-ring min-w-0 flex-1 rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
-        >
-          {draft.title ? (
+      <div className="flex flex-col gap-1.5 px-3.5 pt-3 pb-1.5">
+        <div className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className="bg-brand-tint text-brand flex size-8 shrink-0 items-center justify-center rounded-xl"
+          >
+            {icon}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-label text-ink truncate font-semibold">{meta.label}</p>
+            <p className="text-note text-ink-meta">{step}</p>
+          </div>
+          {/* No title yet, so no preview and no Edit below it: the form is
+              still the way to fill the entry in by hand, which the API's own
+              "Fill in the card yourself" asks for when WorkIt cannot answer. */}
+          {!titled && (
+            <Button size="sm" variant="ghost" className="shrink-0" onClick={onEdit}>
+              <Pencil /> Edit
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="shrink-0 gap-0.5"
+            disabled={skipDisabled}
+            onClick={onSkip}
+          >
+            {skipLabel} <ChevronRight aria-hidden className="size-4" />
+          </Button>
+        </div>
+        {progress}
+      </div>
+
+      {titled && (
+        <div className="border-border-subtle flex items-center gap-2 border-t py-2 pr-2 pl-3.5">
+          <button
+            type="button"
+            onClick={onFold}
+            aria-expanded={!folded}
+            className="focus-visible:ring-brand-ring min-w-0 flex-1 rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
+          >
             <span
               key={draft.title}
               className="text-label text-ink animate-fade block truncate font-semibold"
             >
               {draft.title}
             </span>
-          ) : (
-            <span className="text-label text-ink-subtle block truncate">
-              New {meta.label} entry
+            <span className="text-note text-ink-meta flex items-center gap-1.5">
+              <Dot ready={done} />
+              {done ? "Ready to save" : "Filling in as you talk"}
             </span>
-          )}
-          <span className="text-note text-ink-meta flex items-center gap-1.5">
-            <Dot ready={done} />
-            {meta.label} · {done ? "Ready to save" : "Filling in as you talk"}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={onFold}
-          aria-label={folded ? "Show the draft" : "Fold the draft"}
-          className="text-ink-meta hover:bg-hover focus-visible:ring-brand-ring flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none"
-        >
-          <ChevronDown
-            aria-hidden
-            className={cn(
-              "ease-glide size-4 transition-transform duration-200",
-              folded && "-rotate-90",
-            )}
-          />
-        </button>
-      </div>
+          </button>
+          <button
+            type="button"
+            onClick={onFold}
+            aria-label={folded ? "Show the draft" : "Fold the draft"}
+            className="text-ink-meta hover:bg-hover focus-visible:ring-brand-ring flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <ChevronDown
+              aria-hidden
+              className={cn(
+                "ease-glide size-4 transition-transform duration-200",
+                folded && "-rotate-90",
+              )}
+            />
+          </button>
+        </div>
+      )}
 
-      {!folded && (
-        <div className="border-border-subtle flex flex-col gap-2.5 border-t px-3.5 pt-2.5 pb-3">
-          {/* Before WorkIt has a title, the chat's question is the next step,
-              so the preview says only that the entry fills in from it. */}
-          {!draft.title && (
-            <p className="text-note text-ink-meta">Answer in the chat, and this entry fills in.</p>
-          )}
+      {titled && !folded && (
+        <div className="flex flex-col gap-2.5 px-3.5 pb-3">
           {/* The entry as the bank lists it. */}
           <div className="min-w-0 empty:hidden">
             {(place || dates) && (
@@ -154,7 +197,7 @@ export function DraftPreview({
             )}
           </div>
 
-          {draft.title && needed.length > 0 && (
+          {needed.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-meta text-ink-meta">Still needed:</span>
               {needed.map((n) => (
@@ -177,15 +220,10 @@ export function DraftPreview({
           )}
 
           <div className="flex items-center justify-end gap-2">
-            {onSkip && (
-              <Button size="sm" variant="ghost" className="mr-auto" onClick={onSkip}>
-                {skipLabel}
-              </Button>
-            )}
             <Button size="sm" variant="secondary" onClick={onEdit}>
               <Pencil /> Edit
             </Button>
-            <Button size="sm" onClick={onSave} disabled={saving || !draft.title}>
+            <Button size="sm" onClick={onSave} disabled={saving}>
               <Check /> {saving ? "Saving…" : "Save Entry"}
             </Button>
           </div>

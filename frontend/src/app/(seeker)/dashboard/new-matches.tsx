@@ -114,12 +114,12 @@ export async function NewMatches({ className }: { className?: string }) {
                   rel="noopener noreferrer"
                   aria-label={`Apply to ${job.title} at ${job.company}`}
                   // Filled, the primary button's own look: an outlined Apply
-                  // beside each role read as an afterthought.
+                  // beside each role read as an afterthought. sm, as an
+                  // action in a row is (KAN-251).
                   className={buttonClasses({
                     variant: "default",
-                    size: "xs",
-                    shape: "pill",
-                    className: "shrink-0 px-3",
+                    size: "sm",
+                    className: "shrink-0",
                   })}
                 >
                   Apply

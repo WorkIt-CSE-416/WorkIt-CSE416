@@ -13,7 +13,8 @@ import { cn } from "@/lib/cn";
  * A row of mutually exclusive options on a pill-shaped track, with a white
  * thumb that slides to the chosen one: the Calendar's Month, Week and Agenda,
  * the Dashboard's range, the Applications layouts, the sign-in card's
- * Applicant or Company, and the company chart's range.
+ * Applicant or Company, the company chart's range, and Resumes &
+ * Experiences' two views.
  *
  * WHY THE THUMB SLIDES. The options used to be squared-off segments that
  * swapped a white fill on and off, which read as sharp and abrupt. Now the
@@ -54,13 +55,13 @@ const SIZES: Record<
   Size,
   { track: string; thumb: string; inset: string; item: string; iconItem: string }
 > = {
-  // 32px tall: the height of the buttons these sit beside.
+  // 36px tall: the height of the sm buttons these sit beside (KAN-251).
   sm: {
     track: "p-0.5",
     thumb: "inset-y-0.5 left-0.5",
     inset: "4px",
-    item: "text-note h-7 px-3",
-    iconItem: "h-7 px-2",
+    item: "text-note h-8 px-3",
+    iconItem: "h-8 px-2",
   },
   // 44px, for a choice that leads a form.
   lg: {
@@ -135,7 +136,8 @@ export function SegmentedLinks({
   value: string;
   /** Move the URL in place rather than navigating: for content the browser
    *  already holds, which then reads the choice from the URL itself. Every
-   *  current caller sets it. */
+   *  current caller sets it but Resumes & Experiences' switcher, whose
+   *  options are two routes that each read their own data. */
   shallow?: boolean;
   size?: Size;
   className?: string;

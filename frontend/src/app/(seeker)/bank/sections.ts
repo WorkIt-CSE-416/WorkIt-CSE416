@@ -38,6 +38,19 @@ export function sectionOf(id: Section) {
  *  an id once saved. A draft from intake or import has no ids at all. */
 export type EntryDraft = EntryFields & { bullets: { id?: string; text: string }[] };
 
+/** A draft as the API takes it: no empty bullet box, which makes the API
+ *  refuse the whole entry, and no end month on an entry that runs to
+ *  Present. Every save goes through it: the form's own Save, and the stage
+ *  card's Save Entry, which hands over the kept draft as it stands (Enter on
+ *  the last bullet leaves an empty box in it, KAN-249). */
+export function savable(draft: EntryDraft): EntryDraft {
+  return {
+    ...draft,
+    end_month: draft.end_kind === "present" ? null : draft.end_month,
+    bullets: draft.bullets.filter((b) => b.text.trim() !== ""),
+  };
+}
+
 export function emptyDraft(section: Section): EntryDraft {
   return {
     section,

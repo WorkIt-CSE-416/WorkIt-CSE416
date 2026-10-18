@@ -250,7 +250,7 @@ export default function DisplayPage() {
           <IconButton label="Notifications">
             <BellIcon className="size-4" />
           </IconButton>
-          <IconButton label="Save job" variant="outline" className="size-8">
+          <IconButton label="Save job" variant="outline" className="size-9">
             <BookmarkIcon className="size-4" />
           </IconButton>
           <IconButton label="Edit avatar" variant="brand">

@@ -96,7 +96,7 @@ export function ListingCard({
             label={`Not interested in ${job.title}`}
             tooltip="Not interested"
             variant="outline"
-            className="size-8"
+            className="size-9"
           >
             <Ban className="size-4" />
           </IconButton>
@@ -201,11 +201,11 @@ export function ListingsSkeleton() {
                     ))}
                   </div>
                   <div className="border-border-subtle mt-3 flex justify-end gap-2 border-t pt-3">
-                    <Skeleton className="size-8" />
-                    <Skeleton className="size-8" />
-                    <Skeleton className="h-8 w-28" />
-                    <Skeleton className="h-8 w-28" />
-                    <Skeleton className="h-8 w-24" />
+                    <Skeleton className="size-9" />
+                    <Skeleton className="size-9" />
+                    <Skeleton className="h-9 w-28" />
+                    <Skeleton className="h-9 w-28" />
+                    <Skeleton className="h-9 w-24" />
                   </div>
                 </div>
                 {/* The match rail's box: the ring, the tier line, three rows. */}

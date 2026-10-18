@@ -81,6 +81,14 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
+- **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
+  Pick a button's size by where it sits (`docs/design.md`, Components). A
+  `className` on a Button or Chip may place it or colour a state, never change
+  its height, padding, radius, type size, line height or border width: the
+  `no-restricted-syntax` rule in `eslint.config.mjs` fails the lint on a plain
+  string class. It cannot read a class built in `cn()`, a template string or a
+  variable, so keep overrides out of those too. A new box is a new size in the
+  component.
 - **Build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
   leaves both conflicting utilities in the attribute and the stylesheet's
   emit order picks the winner. `cn()` cannot merge across groups (`border` and
@@ -212,8 +220,8 @@ are in `docs/auth.md`.
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
   posting page and card, seeker Dashboard, Applications, Calendar, My Profile,
-  the Experience Bank, Scout's panel, applicant onboarding, company screens),
-  read its section in `docs/screens.md`.
+  Resumes & Experiences, Scout's panel, applicant onboarding, company
+  screens), read its section in `docs/screens.md`.
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.
