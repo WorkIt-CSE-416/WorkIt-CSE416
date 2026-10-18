@@ -49,7 +49,13 @@ has a test in `tests/test_sections.py`:
 
 A heading is a short line (60 characters, 9 words at most), starts with a capital,
 does not end with a period, holds no comma unless it ends with a colon, and names a
-section. Two rules then keep a list's items in their list:
+section. A line that starts with a typed bullet ("• ", "- ", "· ", "* ") is a list
+item, never a heading, as the job page reads it too: the glyph used to be stripped
+first, so Workday's "• Perform other duties as assigned" opened Responsibilities
+and swallowed the real heading after it. On the 13,257 stored descriptions
+(2026-10-17) the rule changes 265 and cuts those that fail `kept(kept(text)) ==
+kept(text)` from 87 to 77; the gold scores do not move. Two rules then keep a
+list's items in their list:
 
 - **A heading of the section already open is content.** Under Benefits, "Commuter
   benefits" is an item.
