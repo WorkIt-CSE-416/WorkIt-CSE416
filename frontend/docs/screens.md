@@ -836,8 +836,8 @@ in Docs (suggested answers in the chat, not a banner).
 ## Resumes (`/resumes`)
 
 `(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
-resumes the bank makes and the uploads, in cards, Your Resumes, then Tailored
-Resumes when there is one, under the shared header with Generate Resume (it was the
+resumes the bank makes and the uploads, in cards, Your Resumes, then
+Generated Resumes, then Tailored Resumes when there is one, under the shared header with Generate Resume (it was the
 base resumes' card's own Generate). They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
@@ -845,14 +845,19 @@ lit there and the phone editor's back arrow lands here. The page needs
 the built list and the uploaded list: if either fails it
 shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 
-- **Your Resumes** (`your-resumes.tsx`), every resume the student keeps:
-  the base resumes (KAN-207) first, then the uploads, newest first, under
-  one "n of 5" badge, with the upload dropzone in a narrow track beside the
+- **Your Resumes** (`your-resumes.tsx`), the uploads, newest first, under
+  an "n of 5" badge that counts the generated resumes too (the API's limit
+  counts both), with the upload dropzone in a narrow track beside the
   list from @4xl (under the heading, before the rows, below it). It held
   base resumes alone until 2026-10-18, when My Profile's Resume card moved
-  in. It was "Base Resumes", saying "Made from every entry in your bank"
-  until KAN-258: students see "Experiences", never "bank". With no resume
-  it holds the grey empty box: "No resumes yet".
+  in; both kinds then shared it until KAN-268, and a student could not
+  tell which resumes they had generated. With no upload it holds the grey
+  empty box: "No uploaded resumes yet".
+- **Generated Resumes** (in `built-resumes.tsx`), the base resumes
+  (KAN-207), always shown, with the same grey empty box ("No generated
+  resumes yet") until Generate makes one. It was "Base Resumes", saying
+  "Made from every entry in your bank" until KAN-258: students see
+  "Experiences", never "bank".
   **Every change to either list reloads both** (`reload` in
   `built-resumes.tsx`): one primary star spans them, and the API makes a
   student's only resume, uploaded or base, the primary on every add and
@@ -864,7 +869,8 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   named "Resume #N", one past the highest number the student's resumes
   carry; every one was "Base Resume" until KAN-258, so the list read as one
   name repeated. The
-  5-resume limit is the API's; its 409 message shows as the card's error.
+  5-resume limit is the API's; its 409 message shows as Generated Resumes'
+  error.
 - **Uploads** in Your Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
   parsed content. **The upload fills the experience bank** (ADR 0003): a
@@ -892,7 +898,7 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   resume leaves them out. The `ResumeUpload` component
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.
-- **Tailored Resumes** (KAN-258), between Your Resumes and Sent, only while
+- **Tailored Resumes** (KAN-258), after Generated Resumes, only while
   the student has one: each is made for one job posting with Tailor
   (KAN-217). They sat in Base Resumes with a Tailored tag until KAN-258,
   under a name they do not have. A tailored resume has no star (only a base

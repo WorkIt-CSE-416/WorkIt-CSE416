@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
-import type { BuiltResume } from "@/lib/built-resume-actions";
 import { importSummary } from "@/lib/import-summary";
 import { previewResume } from "@/lib/preview-resume";
 import {
@@ -21,7 +20,6 @@ import {
   type ResumeItem,
 } from "@/lib/resume-actions";
 
-import { BuiltResumeRow } from "./built-resume-row";
 import { DeleteConfirm } from "./delete-confirm";
 import { UpdateResumeDialog } from "./update-resume-dialog";
 
@@ -30,21 +28,22 @@ import { UpdateResumeDialog } from "./update-resume-dialog";
 const MAX_RESUMES = 5;
 
 /**
- * Your Resumes, the Resumes view's first card: every resume the student
- * keeps, the base resumes Generate makes and the files they uploaded, under
- * one "n of 5" count, since the API's limit counts both. It was My Profile's
- * Resume card until 2026-10-18, beside a "Your Resumes" card of base
- * resumes alone: one limit split across two pages, and the star on each
- * page cleared a star the other page showed.
+ * Your Resumes, the Resumes view's first card: the files the student
+ * uploaded, under an "n of 5" count that includes the generated resumes,
+ * since the API's limit counts both. It was My Profile's Resume card until
+ * 2026-10-18, beside a "Your Resumes" card of base resumes alone: one limit
+ * split across two pages, and the star on each page cleared a star the
+ * other page showed. Base resumes then shared this card until KAN-268,
+ * when they moved to Generated Resumes (./built-resumes.tsx) on the same
+ * page.
  *
- * Base resumes come first and open in the editor; uploads follow, newest
- * first, each with a preview, Import Updated Resume (./update-resume-
- * dialog.tsx) and Delete. Picking a file in the dropzone uploads it at
+ * Uploads are newest first, each with a preview, Import Updated Resume
+ * (./update-resume-dialog.tsx) and Delete. Picking a file in the dropzone uploads it at
  * once; the API reads it into the experience bank (ADR 0003), and a note
  * under the dropzone says what went in, with Read It With AI while the
  * student has an AI reading left. The model never reads a resume unasked.
  *
- * Every change to either list calls `reload`, which reads both again: one
+ * Every change to either card's list calls `reload`, which reads both again: one
  * star spans both lists, and the API makes a student's only resume the
  * primary, so a local guess at the stars would drift from the API's.
  *
@@ -53,15 +52,13 @@ const MAX_RESUMES = 5;
  * phone meets the dropzone before the rows.
  */
 export function YourResumes({
-  base,
   uploaded,
-  error,
+  generatedCount,
   reload,
 }: {
-  base: BuiltResume[];
   uploaded: ResumeItem[];
-  /** Generate's or a reload's. */
-  error: string | null;
+  /** The base resumes in Generated Resumes: they count toward the limit. */
+  generatedCount: number;
   reload: () => Promise<void>;
 }) {
   // The name of the file in flight, or null.
@@ -72,13 +69,13 @@ export function YourResumes({
   const [importingId, setImportingId] = useState<string | null>(null);
   // The row whose Import Updated Resume dialog is open.
   const [updateTarget, setUpdateTarget] = useState<ResumeItem | null>(null);
-  const count = base.length + uploaded.length;
+  const count = generatedCount + uploaded.length;
 
   async function handleFile(file: File) {
     if (uploading !== null) return;
     if (count >= MAX_RESUMES) {
       setUploadError(
-        `You can keep up to ${MAX_RESUMES} resumes, uploaded and base resumes together. Delete one to add another.`,
+        `You can keep up to ${MAX_RESUMES} resumes, uploaded and generated together. Delete one to add another.`,
       );
       return;
     }
@@ -140,14 +137,9 @@ export function YourResumes({
           </Badge>
         </div>
         <p className="text-note text-ink-meta mt-1">
-          Upload a resume, or generate one from your experiences, up to {MAX_RESUMES} together. Open
-          a generated one to edit it or download it.
+          Upload a resume to add its experiences. You can keep {MAX_RESUMES} resumes, uploaded and
+          generated together.
         </p>
-        {error && (
-          <p role="alert" className="text-note text-danger mt-2">
-            {error}
-          </p>
-        )}
       </div>
 
       <div className="mt-4 @4xl/main:col-start-2 @4xl/main:row-span-2 @4xl/main:row-start-1 @4xl/main:mt-0">
@@ -187,21 +179,16 @@ export function YourResumes({
       <div className="@4xl/main:mt-2">
         {/* Nothing to list holds the first row's place, in grey, and the
             first resume lands exactly where it stood. */}
-        {count === 0 && uploading === null ? (
+        {uploaded.length === 0 && uploading === null ? (
           <div className={RESUME_ROW}>
             <FileText aria-hidden className="text-ink-faint size-5 shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="text-label text-ink-muted truncate">No resumes yet</p>
-              <p className="text-note text-ink-meta">
-                Upload one, or Generate Resume makes one from your experiences.
-              </p>
+              <p className="text-label text-ink-muted truncate">No uploaded resumes yet</p>
+              <p className="text-note text-ink-meta">Upload one to add its experiences.</p>
             </div>
           </div>
         ) : (
           <ul role="list" className="flex flex-col">
-            {base.map((resume) => (
-              <BuiltResumeRow key={`built:${resume.id}`} resume={resume} reload={reload} />
-            ))}
             {uploading !== null && (
               <li className={RESUME_ROW}>
                 <PdfIcon className="size-5 shrink-0" />
@@ -236,7 +223,7 @@ export function YourResumes({
 }
 
 /** One uploaded resume: the shared row, its errors, and Delete's confirm
- *  under it, as a base resume's row has. */
+ *  under it, as a generated resume's row has. */
 function UploadedRow({
   resume,
   reload,
