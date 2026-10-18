@@ -14,10 +14,10 @@ import {
 } from "react";
 
 import {
-  BriefcaseIcon,
   CheckIcon,
   ChevronDownIcon,
   ClockIcon,
+  CloseIcon,
   FilterIcon,
   LevelIcon,
   levelIcon,
@@ -35,6 +35,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
+import { IconButton } from "@/components/ui/icon-button";
 import {
   Select,
   SelectCheckboxItem,
@@ -50,7 +51,6 @@ import {
   FILTER_KEYS,
   filterEntries,
   isFiltered,
-  JOB_TYPE_OPTIONS,
   NO_FILTERS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
@@ -63,9 +63,10 @@ import type { JobFacets, JobLocationOption } from "./listings";
  * The filter row on /jobs and on /search, built on Base UI's `Select` (via
  * `@/components/ui/select`) instead of the inert chips `FilterChip`'s own doc
  * comment said would get a menu one day; /search drew those chips until it
- * moved onto the live feed. A Select rather than a Combobox because there is
+ * moved onto the live feed. A Select rather than a Combobox where there is
  * no search field: Base UI's Combobox handles arrow keys and Enter on its
  * input, so without one its list cannot be reached from the keyboard at all.
+ * Role has one, so Role is a Combobox (RoleFacetOptions, KAN-252).
  *
  * EVERY FACET FILTERS, ON THE SERVER (KAN-170). Its picks are the page's
  * query (./filter-query owns the names, the options and the reading), so the
@@ -159,8 +160,9 @@ function FacetTrigger({
 
 type Option = { value: string; label: string; Icon?: Glyph };
 
-/** The list shared by every facet's popup: checkbox rows where a facet takes
- *  several picks, the vendored check-mark rows where it takes one. Options are
+/** The list every Select facet's popup shares (Role's Combobox draws the
+ *  same rows): checkbox rows where a facet takes several picks, the vendored
+ *  check-mark rows where it takes one. Options are
  *  medium weight, as the buttons above them are, and carry no job count
  *  (both KAN-252): at body weight the list read thin beside the row. */
 function FacetPopup({ options, multiple }: { options: readonly Option[]; multiple: boolean }) {
@@ -534,7 +536,9 @@ function RoleFacetOptions({
             className="text-body text-ink placeholder:text-ink-meta min-w-0 flex-1 bg-transparent outline-none"
           />
         </div>
-        <ComboboxEmpty className="text-ink-meta text-body py-3">No roles match</ComboboxEmpty>
+        <ComboboxEmpty className="text-ink-meta text-body py-3">
+          No role by that name.
+        </ComboboxEmpty>
         {/* overscroll-contain: the list's own scroll stops at its ends
             instead of moving the page behind it. */}
         <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-contain p-1 empty:p-0">
@@ -617,6 +621,8 @@ export function JobFilters({
   filters: FeedFilters;
 }) {
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
+  // Clear Filters leaves with the last pick, so its press hands focus here.
+  const allFiltersButton = useRef<HTMLButtonElement>(null);
   // The first page's places and roles, kept for as long as the row is on
   // screen. They don't depend on the filters, so the promises each filter
   // change's render hands down again would only re-suspend Location and Role
@@ -640,7 +646,11 @@ export function JobFilters({
       const query = new URLSearchParams(window.location.search);
       for (const key of FILTER_KEYS) query.delete(key);
       for (const [key, value] of filterEntries(next)) query.append(key, value);
-      const search = query.toString();
+      let search = query.toString();
+      // Bare /jobs is a fresh visit, which the page sends on to the saved
+      // preferences, so a cleared row with no ?view (as the Dashboard's New
+      // Roles tile opens it) names the default view instead.
+      if (!search && pathname === "/jobs") search = "view=recommended";
       router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
     });
   }
@@ -659,16 +669,6 @@ export function JobFilters({
         facets={facets}
         values={shown.roles}
         onChange={(roles) => set({ roles })}
-        className={className}
-      />
-    ),
-    jobType: (className: string) => (
-      <Facet
-        Icon={BriefcaseIcon}
-        label="Job Type"
-        options={optionsOf(JOB_TYPE_OPTIONS)}
-        values={shown.jobTypes}
-        onChange={(values) => set({ jobTypes: values as FeedFilters["jobTypes"] })}
         className={className}
       />
     ),
@@ -720,14 +720,16 @@ export function JobFilters({
     <>
       {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
           and All Filters stays a normal button at every width. Each facet is
-          144px, All Filters 101 and Clear Filters 93, so the row fits them on
-          one line from these widths of row (the page's @container, so an open
-          sidebar or Scout counts): Location and All Filters anywhere, then
-          Role from 512px, Workplace 672, Experience 816, Date Posted 976 and
-          Job Type 1120. Those leave room for Clear Filters whether or not it
-          shows, so a pick never pushes a facet out of the row or All Filters
-          onto a second line (KAN-252; without it they were 448, 672, 768, 896
-          and 1024).
+          144px, All Filters 105 and Clear Filters 36, with 8px gaps, so the
+          row fits them on one line from these widths of row (the page's
+          @container, so an open sidebar or Scout counts): Location and All
+          Filters anywhere (301px, a 360px phone's row is 310), then Role from
+          456px, Workplace 608, Experience 760 and Date Posted 912. Those leave
+          room for Clear Filters whether or not it shows, so a pick never
+          pushes a facet out of the row or All Filters onto a second line
+          (KAN-252). The row is never wider than 928px (max-w-app less its
+          gutters), so Job Type, which would need 1,064px, is in the panel
+          only; its old step, 1024px, was never reached either.
           Role sits second, beside Location (KAN-171): with every field in
           one feed (KAN-172), which kind of role is the first thing a
           seeker narrows by, and software and engineering are half of it
@@ -739,22 +741,35 @@ export function JobFilters({
           left one wide bar where four filters had fit. The panel holds
           every facet, and Salary and Start Date, which the row has no room for. */}
       {facet.location("w-36")}
-      {facet.role("hidden w-36 @lg:flex")}
-      {facet.workplace("hidden w-36 @2xl:flex")}
-      {facet.experience("hidden w-36 @min-[51rem]:flex")}
-      {facet.datePosted("hidden w-36 @min-[61rem]:flex")}
-      {facet.jobType("hidden w-36 @min-[70rem]:flex")}
+      {facet.role("hidden w-36 @min-[28.5rem]:flex")}
+      {facet.workplace("hidden w-36 @min-[38rem]:flex")}
+      {facet.experience("hidden w-36 @min-[47.5rem]:flex")}
+      {facet.datePosted("hidden w-36 @min-[57rem]:flex")}
 
       {/* Every pick off in one press (KAN-252), shown only while there is
-          one: the panel's Clear All, without opening the panel. It keeps ?view
-          and ?q as every pick does, so the Recommended view stays itself
-          rather than bringing the saved preferences back. */}
+          one: the panel's Clear All, without opening the panel. An outlined
+          X at All Filters' height, its name in the tooltip: as the words
+          "Clear Filters" (93px) it cost the row Date Posted at every width,
+          and on a phone it pushed All Filters onto a second line. It keeps
+          ?view and ?q as every pick does, and apply() keeps /jobs off the
+          bare URL, so the Recommended view stays itself rather than bringing
+          the saved preferences back. The press hands focus to All Filters,
+          since the button leaves with the last pick. */}
       {filtered && (
-        <Button variant="ghost" size="sm" onClick={() => apply(NO_FILTERS)} className="ml-auto">
-          Clear Filters
-        </Button>
+        <IconButton
+          label="Clear filters"
+          variant="outline"
+          className="animate-fade ml-auto size-9 shrink-0"
+          onClick={() => {
+            allFiltersButton.current?.focus();
+            apply(NO_FILTERS);
+          }}
+        >
+          <CloseIcon className="size-4" />
+        </IconButton>
       )}
       <Button
+        ref={allFiltersButton}
         variant="secondary"
         size="sm"
         onClick={() => setAllFiltersOpen(true)}

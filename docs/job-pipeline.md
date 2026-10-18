@@ -366,9 +366,9 @@ can't be shown as matching a fact it never stated.
 | Piece | How it works |
 |---|---|
 | **Filters live in the address** | `/jobs?work_style=remote&role=quant`. A reload or a shared link keeps them. A value the API would refuse is dropped, not shown as an error. |
-| **The filter row** | Location, Role, Workplace, Experience, Date Posted, Job Type, plus All Filters. Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role lists the twelve categories (section 3.1); a job posting in two shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract (section 3.2). |
+| **The filter row** | Location, Role, Workplace, Experience and Date Posted, plus All Filters, and a Clear Filters X while any filter is on. Job Type, Visa, Salary and Start Date are in All Filters only. As the window narrows, filters move into All Filters one at a time; Location always stays. The row's Role is searched by typing; a job posting tagged with two roles shows under both. Job Type offers Internship beside Full-Time, Part-Time and Contract (section 3.2). |
 | **All Filters** | One panel with every option as chips, or a search picker for the long lists: Location, Start Date, and Role, whose specialties ("Mechanical Engineering", "Security & IT") sit indented under their category. Changes are a draft until "Show N Jobs", whose number is counted live. |
-| **Counts beside options** | From `/jobs/facets` and `/jobs/locations`, cached for 5 minutes (they only change when an import runs). |
+| **Option lists** | Role's names from `/jobs/facets` and Location's places from `/jobs/locations`, cached for 5 minutes (they only change when an import runs). No option shows a job count; "Show N Jobs" in All Filters is the one count. |
 | **Applying a filter** | The list dims at once while the narrowed list loads. |
 | **Load More** | The first 50 job postings, then a button adding 50 more with the same filters, until "That's every role that matches." |
 | **Search** | The words go to the API (`q`), so a search covers every job posting, not only the first 50. |

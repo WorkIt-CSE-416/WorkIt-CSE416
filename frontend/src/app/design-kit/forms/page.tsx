@@ -1,3 +1,4 @@
+import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { FilterChip } from "@/components/ui/filter-chip";
 import { SearchField } from "@/components/ui/search-field";
 import { TextField } from "@/components/ui/text-field";
@@ -33,6 +34,25 @@ export default function FormsPage() {
         </Row>
         <Row name="<ResumeUpload>" role="Dropzone and file preview; the caller does the upload">
           <ResumeUploadSpecimen />
+        </Row>
+        <Row
+          name="checkRowClasses + <CheckRowBox>"
+          role="An option in a list of several picks: a multiple Select's and the Role filter's"
+        >
+          <div className="border-border-subtle bg-panel w-56 rounded-lg border p-1 shadow-md">
+            <div className={checkRowClasses} data-selected="">
+              Software Engineer
+              <CheckRowBox />
+            </div>
+            <div className={checkRowClasses} data-highlighted="">
+              Data Scientist
+              <CheckRowBox />
+            </div>
+            <div className={checkRowClasses}>
+              Product Manager
+              <CheckRowBox />
+            </div>
+          </div>
         </Row>
         <Row name="<FilterChip>" role="Toggle in a filter rail">
           <FilterChip label="Remote" active />

@@ -1,7 +1,7 @@
 import { CheckIcon } from "lucide-react";
 
 /**
- * A row that reads as a checkbox — label on the left, box on the right — for a
+ * A row that reads as a checkbox (label on the left, box on the right) for a
  * list that takes several picks: a `multiple` Select (SelectCheckboxItem) and
  * the Role filter's searchable Combobox. One row for both, so a list you can
  * search draws its options exactly as the lists beside it do. Put the classes

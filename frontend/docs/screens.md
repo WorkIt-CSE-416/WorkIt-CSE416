@@ -50,12 +50,16 @@ showed beside it as two thin vertical lines while they scrolled under.
 jobs/filters.tsx draws the row (KAN-170); every facet filters, and Industry is
 gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
-All Filters stays a normal button; never stretch it across the row. While any
-filter is on, Clear Filters sits just before it (KAN-252, asked for 2026-10-17)
-and turns every one off, keeping ?view and ?q, so Recommended stays itself
-rather than bringing the saved preferences back. The widths at which the facets
-step in leave room for it whether or not it shows, so a pick never pushes a
-facet out of the row (filters.tsx lists them). Role
+All Filters stays a normal button; never stretch it across the row. Job Type
+is in All Filters only too: the row is 928px at most, and it would need
+1,064px. While any filter is on, Clear Filters sits just before All Filters
+(KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
+filters" in its tooltip, and turns every filter off, keeping ?view and ?q; a
+cleared /jobs with no ?view lands on ?view=recommended, since the bare URL
+would bring the saved preferences back. As the words "Clear Filters" it took
+the room of Date Posted at every width and wrapped the row on a phone. The
+widths at which the facets step in leave room for it whether or not it shows,
+so a pick never pushes a facet out of the row (filters.tsx lists them). Role
 (KAN-155: the `job_roles` list, slugs like software_engineer, a job tagged with
 each role its title names, so it counts under each) sits second, after Location,
 as the facet a seeker narrows by first; no pick shows every role. Its options
