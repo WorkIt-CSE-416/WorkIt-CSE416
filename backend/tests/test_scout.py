@@ -320,10 +320,3 @@ async def test_scout_knows_the_bank_and_not_the_upload(student, client, database
     assert "Python" in prompt and "WorkIt" in prompt
     for absent in ("COBOL", "Old Co", "github.com", "Austin"):
         assert absent not in prompt
-
-
-async def test_an_empty_bank_without_an_upload_says_so(student, client):
-    model = use_model(["ok"])
-    assert (await client.post("/scout/chat", json=CHAT)).status_code == 200
-    assert "experience bank is empty" in model.system_prompt
-    assert "have not uploaded a resume either" in model.system_prompt

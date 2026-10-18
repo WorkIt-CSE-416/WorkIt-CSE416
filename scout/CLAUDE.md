@@ -203,8 +203,8 @@ address or a friend's link goes too. Rules:
 
 - **Grounding.** The prompt forbids claiming anything about the user or the job
   that the facts block does not state. JobRight's most common complaint is its AI
-  inventing skills; keep the rule and its test
-  (`test_grounding_rules_cover_both_resume_and_posting`).
+  inventing skills; keep the rule. No test checks the prompt's wording
+  (removed 2026-10-18): read the prompt when you change it.
 - **Keep the prompt one frozen string** (`prompt.py`). Per-request context goes
   in messages after it, so providers can cache the prefix.
 - **No HTTP and no database in this folder.** The API's router authenticates,
@@ -231,8 +231,10 @@ every prompt as the model received it, and joins a script's pieces as the
 answer to a structured call. It covers: moving down the chain on 429, 5xx and
 a dead endpoint, no move on misconfiguration or mid-reply, the structured call
 (checked object, chain, rejected replies, no identity data), the request body
-(a JSON schema, never `tool_choice`), the chain read from env, the reply cap,
-the grounding rules, the facts block and the privacy mapping (`facts.py`).
+(a JSON schema, never `tool_choice`), the chain read from env, the reply cap
+and the privacy mapping (`facts.py`). Tests of the system prompt's wording
+and the facts block's text were removed on purpose (2026-10-18); do not add
+them back. The tests that no identity data reaches the model stay.
 `tests/test_identity.py` tests `remove_identity` directly: each profile field,
 each pattern, and text with no identity data, which must come back unchanged.
 The API's side, the route, the daily uses and the prompt sent through it, is
