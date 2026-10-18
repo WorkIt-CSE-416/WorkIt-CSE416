@@ -530,11 +530,15 @@ has an eye — a short-lived signed link from `getResumeFileUrl`, opened by
 `src/lib/preview-resume.ts`: a PDF opens in a new tab, opened inside the
 click so it is not blocked as a popup (if it is blocked anyway, the page says
 so rather than leaving it); a DOCX downloads — and a star that makes it
-primary (`setPrimaryResume`). **Import Again** (an import icon, `importResume`)
-reads that upload into the bank once more, merging what the bank has, and
-its result takes the same note, so Read It With AI works on any upload. The
-star, Import Again and the delete are optional props, so a screen that only
-shows a resume leaves them out. All of these actions live
+primary (`setPrimaryResume`). **Import Updated Resume** (an import icon)
+opens `profile/update-resume-dialog.tsx`: a dropzone for a newer version of
+that file, which replaces it on the same row (`replaceResume`; the row keeps
+its primary star and moves to the top with today's date) and merges its
+reading into the bank. The dialog then says what went in, with Read It With
+AI while a reading is left, and Done. It replaced Import Again on the row
+(2026-10-18): the stored file never changes, so re-reading it only said
+"already in your bank". The star, Import Updated Resume and the delete are
+optional props, so a screen that only shows a resume leaves them out. All of these actions live
 in `src/lib/resume-actions.ts`. The `ResumeUpload` component
 (`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
 knows nothing about upload logic or limits.

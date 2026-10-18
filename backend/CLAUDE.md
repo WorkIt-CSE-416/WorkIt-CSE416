@@ -246,9 +246,21 @@ Find files with a directory listing; these are the rules for where code goes.
   resume's start with another's end. A fill that clashes with a kept field
   (a GPA above the bank's scale) is dropped, and the bullets still go in.
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read and
-  merge on a stored upload, from My Profile's row. It re-reads `raw_text`,
-  so a resume uploaded before a parser fix gets the fix. It can bring back a
-  bullet the student deleted; that is the student's explicit click.
+  merge on a stored upload, from intake's Use One I Uploaded and the Jobs
+  page's empty-bank card. It re-reads `raw_text`, so a resume uploaded
+  before a parser fix gets the fix. It can bring back a bullet the student
+  deleted; that is the student's explicit click.
+- **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
+  with a file, from My Profile's row: a newer version replaces the row's
+  file and is read and merged as an upload is. The row keeps its id and
+  primary star, and its `created_at` becomes now, the upload date the row
+  shows. The file goes to a new Storage path: a sent resume may point at the
+  old one, and a sent resume's file never changes, so the old file goes only
+  when `file_in_use` says no row needs it. A failed commit removes the new
+  file and leaves the row as it was. It replaced Import Again on the row
+  (2026-10-18): the stored file never changes, so re-reading it with the
+  same parser only said "already in your bank". Tests:
+  `tests/test_bank_import.py`.
 - **The model reads a resume only when the student asks** (KAN-222, ADR
   0003): Import Again's `read_with_ai: true`, "Read It With AI". Upload and
   a plain Import Again never fall back to it, even when the parser finds

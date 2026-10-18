@@ -200,10 +200,13 @@ are in `docs/auth.md`.
   upload writes its reading into the bank itself (ADR 0003); no screen holds
   a second copy of an upload's facts to edit. Two editors of the same facts
   drift apart, and built resumes read the bank. Every screen that reports an
-  import says it with `lib/import-summary.ts`, from the upload's `bank` or
-  Import Again's response. "Read It With AI" (KAN-222) runs only on a click,
-  never on its own, and shows only while `uses_left` is above 0; a failed
-  reading writes nothing and says why.
+  import says it with `lib/import-summary.ts`, from the `bank` of an upload
+  or an Import Updated Resume, or Import Again's response. My Profile's row
+  offers Import Updated Resume (a newer file for that row), never a re-read
+  of the stored file, which only ever read the same text. "Read It With
+  AI" (KAN-222) runs only on a click, never on its own, and shows only
+  while `uses_left` is above 0; a failed reading writes nothing and says
+  why.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never

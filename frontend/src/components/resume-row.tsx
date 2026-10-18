@@ -79,34 +79,34 @@ export function PrimaryStar({
 }
 
 /**
- * One uploaded resume, with its preview, primary, Import Again and delete
- * actions.
+ * One uploaded resume, with its preview, primary, Import Updated Resume and
+ * delete actions.
  *
  * The star (`PrimaryStar`) marks the primary resume: the one the profile's
- * Work Experience and Skills show. Import Again reads the file into the
- * experience bank once more (ADR 0003), merging what the bank has.
+ * Work Experience and Skills show. Import Updated Resume (`onUpdate`) opens
+ * the caller's dialog for a newer version of this file, which replaces it
+ * and merges into the experience bank (ADR 0003). The stored file never
+ * changes by itself, so reading it again would only read the same text.
  *
  * My Profile passes every action. A screen that only shows a resume passes
  * onPreview alone: the primary's star still marks it, but there is no star
- * to click, no import and no delete.
+ * to click, no update and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
   deleting?: boolean;
-  importing?: boolean;
   onPreview: () => void;
   onMakePrimary?: () => void;
-  onImport?: () => void;
+  onUpdate?: () => void;
   onDelete?: () => void;
 };
 
 export function ResumeRow({
   resume,
   deleting = false,
-  importing = false,
   onPreview,
   onMakePrimary,
-  onImport,
+  onUpdate,
   onDelete,
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
@@ -133,13 +133,12 @@ export function ResumeRow({
         >
           <Eye aria-hidden className="size-4" />
         </IconButton>
-        {onImport && (
+        {onUpdate && (
           <IconButton
-            label={`Import ${name} again into Experiences`}
-            tooltip="Import again into Experiences"
+            label={`Import Updated Resume for ${name}`}
+            tooltip="Import Updated Resume"
             className={ROW_ACTION}
-            disabled={importing}
-            onClick={onImport}
+            onClick={onUpdate}
           >
             <Import aria-hidden className="size-4" />
           </IconButton>

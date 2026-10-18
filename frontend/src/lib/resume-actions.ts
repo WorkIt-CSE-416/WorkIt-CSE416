@@ -14,7 +14,8 @@ export type ResumeItem = {
   /** The applicant's primary resume — the one the profile shows. */
   is_default: boolean;
   created_at: string | null;
-  /** Upload only: what its reading wrote into the experience bank (ADR 0003). */
+  /** Upload and Import Updated Resume only: what the reading wrote into the
+   *  experience bank (ADR 0003). */
   bank?: ImportResult;
 };
 
@@ -107,6 +108,24 @@ export async function uploadResume(
       const msg = await extractErrorMessage(res);
       return { resume: null, error: msg };
     }
+    const resume: ResumeItem = await res.json();
+    return { resume, error: null };
+  } catch {
+    return { resume: null, error: "Could not reach the server. Is the backend running?" };
+  }
+}
+
+// Import Updated Resume: a newer version of the file on this row. The row
+// keeps its id and primary star, and the API reads the new file into the
+// experience bank as it reads an upload.
+export async function replaceResume(
+  resumeId: string,
+  formData: FormData,
+): Promise<{ resume: ResumeItem | null; error: string | null }> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiUpload(resumePath(id, resumeId), formData, token, "PUT");
+    if (!res.ok) return { resume: null, error: await extractErrorMessage(res) };
     const resume: ResumeItem = await res.json();
     return { resume, error: null };
   } catch {

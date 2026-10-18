@@ -25,6 +25,7 @@ import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
 import { SectionAction } from "./section-action";
+import { UpdateResumeDialog } from "./update-resume-dialog";
 import { ResumeUpload } from "@/components/resume-upload";
 import {
   uploadResume,
@@ -49,8 +50,10 @@ import { useProfileCache } from "../profile-cache";
  * live. Resume facts are not edited here: they live in the experience bank
  * (/bank), which every upload fills (ADR 0003; KAN-211 removed the parsed-
  * JSON editor that used to sit here). Under the dropzone a note says what the
- * last upload or Import Again wrote there, with Read It With AI while the
- * student has an AI reading left; the model never reads a resume unasked. Name, headline, email and
+ * last upload wrote there, with Read It With AI while the student has an AI
+ * reading left; the model never reads a resume unasked. A row's Import
+ * Updated Resume opens ./update-resume-dialog.tsx, which replaces that row's
+ * file with a newer version and says what it wrote. Name, headline, email and
  * phone come from the applicant_profiles table via getProfile(). A return
  * visit renders the last visit's data at once
  * (../profile-cache.tsx) and refetches it behind the scenes. The autofill
@@ -111,9 +114,11 @@ export default function ProfilePage() {
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  // What the last upload or Import Again wrote into the experience bank.
+  // What the last upload wrote into the experience bank.
   const [imported, setImported] = useState<ImportResponse | null>(null);
   const [importingId, setImportingId] = useState<string | null>(null);
+  // The row whose Import Updated Resume dialog is open.
+  const [updateTarget, setUpdateTarget] = useState<ResumeItem | null>(null);
   const [loaded, setLoaded] = useState(cached !== null);
   // A failed list hides the "2 of 5" count: "0 of 5" would say there are none.
   const [listFailed, setListFailed] = useState(false);
@@ -265,13 +270,13 @@ export default function ProfilePage() {
     }
   }
 
-  // Import Again, or Read It With AI: only ever on a click.
-  async function handleImport(resumeId: string, readWithAi = false) {
+  // Read It With AI on the last upload: only ever on a click.
+  async function handleReadWithAi(resumeId: string) {
     if (importingId) return;
     setResumeError(null);
     setImportingId(resumeId);
     try {
-      const { data, error } = await importResume({ resumeId, readWithAi });
+      const { data, error } = await importResume({ resumeId, readWithAi: true });
       if (data) setImported(data);
       else setResumeError(error);
     } catch {
@@ -279,6 +284,14 @@ export default function ProfilePage() {
     } finally {
       setImportingId(null);
     }
+  }
+
+  // Import Updated Resume put a newer file on this row. Its upload date is
+  // now, so it moves to the top, where a reload would put it too; the note
+  // under the dropzone names the old file, so it goes if it was this row's.
+  function handleReplaced(updated: ResumeItem) {
+    setResumeList((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)]);
+    setImported((prev) => (prev?.resume_id === updated.id ? null : prev));
   }
 
   async function handleMakePrimary(resumeId: string) {
@@ -499,7 +512,7 @@ export default function ProfilePage() {
                   variant="secondary"
                   size="sm"
                   disabled={importingId !== null}
-                  onClick={() => handleImport(imported.resume_id, true)}
+                  onClick={() => handleReadWithAi(imported.resume_id)}
                 >
                   <Sparkles /> {importingId ? "Reading…" : "Read It With AI"}
                 </Button>
@@ -545,10 +558,9 @@ export default function ProfilePage() {
               key={r.id}
               resume={r}
               deleting={deletingId === r.id}
-              importing={importingId !== null}
               onPreview={() => handlePreview(r)}
               onMakePrimary={() => handleMakePrimary(r.id)}
-              onImport={() => handleImport(r.id)}
+              onUpdate={() => setUpdateTarget(r)}
               onDelete={() => {
                 setDeleteTarget(r);
                 setConfirmOpen(true);
@@ -556,6 +568,15 @@ export default function ProfilePage() {
             />
           ))}
         </div>
+
+        {updateTarget && (
+          <UpdateResumeDialog
+            resume={updateTarget}
+            open
+            onOpenChange={(open) => !open && setUpdateTarget(null)}
+            onReplaced={handleReplaced}
+          />
+        )}
 
         <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <DialogContent>

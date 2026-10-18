@@ -9,6 +9,12 @@ parser's reading is not kept anywhere else. The model never reads an upload
 by itself: the student asks for that through Import Again
 (`POST /applicants/{id}/bank/import`). `GET .../{resume_id}` returns one
 resume as the list does.
+`PUT .../{resume_id}` (a file, as upload takes it) is Import Updated Resume:
+it replaces the row's file with a newer version and reads it into the bank
+the same way. The row keeps its id, so the primary star stays; the file
+goes to a new Storage path, because a sent resume may still point at the
+old one, which is removed only when nothing uses it. It merges, so an entry
+the new version dropped stays in the bank. It answers what upload answers.
 `PUT .../{resume_id}/default` makes it the default resume
 (`applicant_profiles.default_resume_id`; the list reports it as `is_default`),
 clearing a base resume that was the default. Upload answers 409 when the
@@ -246,16 +252,78 @@ async def upload_resume(
     except Exception:
         await session.rollback()
         # DB failed - remove the file from Storage
-        try:
-            await asyncio.to_thread(
-                client.storage.from_(BUCKET).remove,
-                [storage_path],
-            )
-        except Exception:
-            logger.exception("Failed to remove orphaned file from Storage",
-                             extra={"storage_path": storage_path})
+        await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
         raise HTTPException(500, "Failed to save resume record")
 
+    return _imported(resume, False, entries, skills, merged, left)
+
+
+@router.put("/applicants/{applicant_id}/resumes/{resume_id}")
+async def replace_resume(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    file: UploadFile,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    """Import Updated Resume: a newer version of the file on this row, read
+    into the bank as an upload is. No limit check, since the count stays."""
+    assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    contents, ext, mime = await _read_upload(file)
+
+    # A new path, never the old one: a sent resume may point at the old
+    # file, and a sent resume's file never changes (KAN-208).
+    old_path = resume.storage_path
+    storage_path = f"{applicant_id}/{uuid.uuid4()}{ext}"
+    client = get_supabase()
+    try:
+        await asyncio.to_thread(
+            client.storage.from_(BUCKET).upload,
+            storage_path,
+            contents,
+            {"content-type": mime},
+        )
+    except Exception:
+        logger.exception("Storage upload failed", extra={"storage_path": storage_path})
+        raise HTTPException(502, "File upload failed")
+
+    raw_text = await _extract(contents, ext)
+    entries, skills = bank_import.read(raw_text)
+
+    resume.original_filename = file.filename
+    resume.raw_text = raw_text
+    resume.storage_path = storage_path
+    resume.status = ResumeStatus.parsed if entries or skills else ResumeStatus.parse_failed
+    # The row says when its file was uploaded, and this one was uploaded now.
+    resume.created_at = datetime.now(UTC)
+
+    try:
+        merged = await bank.merge_import(session, applicant_id, entries, skills)
+        left = await uses_left(session, applicant_id, Feature.PARSING)
+        default_id = await _default_id(session, applicant_id)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
+        raise HTTPException(500, "Failed to save resume record")
+
+    if old_path and not await sent_resumes.file_in_use(session, old_path):
+        await _remove_file(client, old_path, "Failed to remove replaced resume file from Storage")
+
+    return _imported(resume, resume.id == default_id, entries, skills, merged, left)
+
+
+async def _remove_file(client, storage_path: str, message: str) -> None:
+    # Best effort: a file left behind is orphaned, but no data is lost.
+    try:
+        await asyncio.to_thread(client.storage.from_(BUCKET).remove, [storage_path])
+    except Exception:
+        logger.exception(message, extra={"storage_path": storage_path})
+
+
+def _imported(resume: Resume, is_default: bool, entries, skills, merged, left: int) -> dict:
+    """An uploaded file's row and what its reading wrote into the bank."""
     return {
         "id": str(resume.id),
         "applicant_id": str(resume.applicant_id),
@@ -263,7 +331,7 @@ async def upload_resume(
         "raw_text": resume.raw_text,
         "storage_path": resume.storage_path,
         "status": resume.status,
-        "is_default": False,
+        "is_default": is_default,
         "created_at": resume.created_at.isoformat() if resume.created_at else None,
         "bank": ImportResult(
             found=len(entries) + len(skills),

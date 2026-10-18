@@ -1,6 +1,6 @@
 """
-Seam-1 tests for import (KAN-211, ADR 0003) on real Postgres: an upload, and
-Import Again, read a resume and write it into the experience bank, merging an
+Seam-1 tests for import (KAN-211, ADR 0003) on real Postgres: an upload,
+Import Updated Resume and Import Again read a resume and write it into the experience bank, merging an
 entry the bank already has. The model reads a resume only when the student
 asks. backend/CLAUDE.md's Tests section has the setup.
 """
@@ -146,12 +146,15 @@ def upload(monkeypatch):
     bucket = _Bucket()
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: bucket)
 
-    async def send(client, applicant_id, raw_text):
+    async def send(client, applicant_id, raw_text, *, replacing=None, filename="resume.pdf"):
+        """With `replacing`, Import Updated Resume on that resume's row."""
         async def extract(contents, ext):
             return raw_text
 
         monkeypatch.setattr("app.routers.resumes._extract", extract)
-        files = {"file": ("resume.pdf", b"%PDF-1.4 not really a pdf", "application/pdf")}
+        files = {"file": (filename, b"%PDF-1.4 not really a pdf", "application/pdf")}
+        if replacing:
+            return await client.put(f"/applicants/{applicant_id}/resumes/{replacing}", files=files)
         return await client.post(f"/applicants/{applicant_id}/resumes", files=files)
 
     send.bucket = bucket
@@ -272,6 +275,78 @@ async def test_a_failed_bank_write_keeps_no_resume_and_no_file(student, upload, 
     assert res.status_code == 500
     assert upload.bucket.removed == list(upload.bucket.files)
     assert (await client.get(f"/applicants/{applicant_id}/resumes")).json() == []
+
+
+# --- Import Updated Resume --------------------------------------------------------
+
+UPDATED_TEXT = RESUME_TEXT.replace(
+    "•Ran tolerance stack-up analyses in SolidWorks\n",
+    "•Ran tolerance stack-up analyses in SolidWorks\n•Wrote the test plan for the bracket\n",
+)
+
+
+async def test_an_updated_resume_replaces_the_rows_file_and_merges_what_is_new(student, upload, database):
+    client, applicant_id, bank = student
+    first = (await upload(client, applicant_id, RESUME_TEXT)).json()
+    await _set_default(database, applicant_id, uuid.UUID(first["id"]))
+
+    res = await upload(client, applicant_id, UPDATED_TEXT, replacing=first["id"], filename="resume-v2.pdf")
+    assert res.status_code == 200
+    body = res.json()
+    assert (body["id"], body["original_filename"], body["is_default"]) == (first["id"], "resume-v2.pdf", True)
+    assert body["storage_path"] != first["storage_path"]
+    assert (body["bank"]["found"], _counts(body["bank"])) == (8, (0, 1, 0))
+    assert upload.bucket.removed == [first["storage_path"]]
+
+    listed = (await client.get(f"/applicants/{applicant_id}/resumes")).json()
+    assert [(r["id"], r["storage_path"]) for r in listed] == [(first["id"], body["storage_path"])]
+    internship = next(e for e in (await client.get(bank)).json()["entries"] if e["section"] == "experience")
+    assert "Wrote the test plan for the bracket" in [b["text"] for b in internship["bullets"]]
+
+
+async def test_an_updated_resume_keeps_the_old_file_a_sent_resume_uses(student, upload, database):
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, RESUME_TEXT)).json()
+    async with database() as session:
+        await session.execute(
+            text(
+                "INSERT INTO sent_resumes (applicant_id, storage_path, name, uploaded_resume_id)"
+                " VALUES (:a, :path, 'resume.pdf', :r)"
+            ),
+            {"a": applicant_id, "path": first["storage_path"], "r": uuid.UUID(first["id"])},
+        )
+        await session.commit()
+
+    res = await upload(client, applicant_id, UPDATED_TEXT, replacing=first["id"])
+    assert res.status_code == 200
+    assert upload.bucket.removed == []
+
+
+async def test_a_failed_update_keeps_the_old_file_and_removes_the_new_one(student, upload, monkeypatch):
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, RESUME_TEXT)).json()
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr("app.services.bank.merge_import", broken)
+    res = await upload(client, applicant_id, UPDATED_TEXT, replacing=first["id"])
+    assert res.status_code == 500
+    new_path = next(p for p in upload.bucket.files if p != first["storage_path"])
+    assert upload.bucket.removed == [new_path]
+    listed = (await client.get(f"/applicants/{applicant_id}/resumes")).json()
+    assert [r["storage_path"] for r in listed] == [first["storage_path"]]
+
+
+async def test_another_students_resume_cannot_be_updated(student, upload, database):
+    client, applicant_id, _ = student
+    async with database() as session:
+        other = await _seed_applicant(session)
+    theirs = await _seed_resume(database, other, RESUME_TEXT)
+
+    res = await upload(client, applicant_id, UPDATED_TEXT, replacing=theirs)
+    assert res.status_code == 404
+    assert upload.bucket.files == {}
 
 
 # --- Import Again ---------------------------------------------------------------

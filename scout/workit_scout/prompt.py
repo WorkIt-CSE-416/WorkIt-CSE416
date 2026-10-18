@@ -44,7 +44,7 @@ NO_UPLOAD = (
 )
 UPLOAD_UNREAD = (
     "They have uploaded a resume, but WorkIt could not read any entries from it. "
-    "Suggest Import Again on that resume on My Profile and then Read It With AI, "
+    "Suggest Import Your Resume on the Jobs page and then Read It With AI, "
     "or adding what they have done on the Experiences page, when it would help."
 )
 

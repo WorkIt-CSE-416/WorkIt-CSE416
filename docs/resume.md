@@ -74,8 +74,11 @@ An entry the bank already has (the duplicate check: section, title and
 organization, ignoring case) is **merged, never copied**: it gains only the
 fields it has empty and the bullets it lacks, so the student's fixes stay
 and several resumes add up to one bank. Dates fill only as a set, when the
-bank entry has none. **Import Again**, on each upload's row on My Profile,
-reads a stored upload the same way, so a parser fix reaches old uploads.
+bank entry has none. **Import Again** (intake's Use One I Uploaded, the
+Jobs page's empty-bank card) reads a stored upload the same way, so a
+parser fix reaches old uploads. **Import Updated Resume**, on each upload's
+row on My Profile, takes a newer version of that file: it replaces the
+file on the same row and merges the new reading the same way.
 Deleting an upload leaves the bank as it is.
 
 KAN-211 had import return drafts the student saved one by one, and wrote
