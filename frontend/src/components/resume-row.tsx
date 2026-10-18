@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Star } from "lucide-react";
+import { Eye, Import, Star } from "lucide-react";
 
 import { PdfIcon, TrashIcon } from "@/components/icons";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -79,20 +79,25 @@ export function PrimaryStar({
 }
 
 /**
- * One uploaded resume, with its preview, primary and delete actions.
+ * One uploaded resume, with its preview, primary, Import Updated Resume and
+ * delete actions.
  *
  * The star (`PrimaryStar`) marks the primary resume: the one the profile's
- * Work Experience and Skills show.
+ * Work Experience and Skills show. Import Updated Resume (`onUpdate`) opens
+ * the caller's dialog for a newer version of this file, which replaces it
+ * and merges into the experience bank (ADR 0003). The stored file never
+ * changes by itself, so reading it again would only read the same text.
  *
  * My Profile passes every action. A screen that only shows a resume passes
  * onPreview alone: the primary's star still marks it, but there is no star
- * to click and no delete.
+ * to click, no update and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
   deleting?: boolean;
   onPreview: () => void;
   onMakePrimary?: () => void;
+  onUpdate?: () => void;
   onDelete?: () => void;
 };
 
@@ -101,6 +106,7 @@ export function ResumeRow({
   deleting = false,
   onPreview,
   onMakePrimary,
+  onUpdate,
   onDelete,
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
@@ -116,7 +122,7 @@ export function ResumeRow({
         <p className="text-note text-ink-meta">{uploadedOn(resume.created_at)}</p>
       </div>
       <Badge tone={status.tone}>{status.label}</Badge>
-      {/* No gap between the three: each is a 32px box already. */}
+      {/* No gap between them: each is a 32px box already. */}
       <div className="flex shrink-0 items-center">
         <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
         <IconButton
@@ -127,6 +133,16 @@ export function ResumeRow({
         >
           <Eye aria-hidden className="size-4" />
         </IconButton>
+        {onUpdate && (
+          <IconButton
+            label={`Import Updated Resume for ${name}`}
+            tooltip="Import Updated Resume"
+            className={ROW_ACTION}
+            onClick={onUpdate}
+          >
+            <Import aria-hidden className="size-4" />
+          </IconButton>
+        )}
         {onDelete && (
           <IconButton
             label={`Delete ${name}`}

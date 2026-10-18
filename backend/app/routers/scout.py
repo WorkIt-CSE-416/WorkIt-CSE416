@@ -67,8 +67,9 @@ async def get_resume_facts(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> ResumeFacts:
-    """The applicant's experience bank, and whether they have an upload to
-    import. An uploaded resume's own text never reaches Scout."""
+    """The applicant's experience bank, and whether they have an upload (an
+    empty bank beside one means the parser read nothing in it, ADR 0003). An
+    uploaded resume's own text never reaches Scout."""
     bank = bank_response(await load_bank(db, account.id))
     has_upload = await db.scalar(select(exists().where(Resume.applicant_id == account.id)))
     return bank_facts(bank.model_dump(mode="json"), has_upload=bool(has_upload))

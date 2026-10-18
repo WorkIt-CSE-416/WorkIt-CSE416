@@ -9,9 +9,10 @@ import { listResumes } from "@/lib/resume-actions";
  * The Jobs page's prompt to fill the experience bank (stories 22 and 102).
  * Matching reads the bank, never an uploaded resume, so an empty bank gets
  * this card above the feed: one click on "Import Your Resume" opens the bank
- * page and starts the import there (`/bank?import=1`), where the student
- * checks each draft. With no uploaded resume it offers the upload and
- * intake instead. A bank with entries, or a fetch that fails, shows nothing:
+ * page and runs Import Again there (`/bank?import=1`), which writes the
+ * resume into the bank (ADR 0003). An upload imports itself, so this shows
+ * for an upload the parser read nothing in, or one from before that. With no
+ * uploaded resume it offers the upload and intake instead. A bank with entries, or a fetch that fails, shows nothing:
  * the prompt is a nudge, never an error.
  */
 export async function BankPrompt() {
@@ -27,8 +28,8 @@ export async function BankPrompt() {
       <p className="text-body text-ink-meta mt-1">
         You have no experiences yet, so WorkIt cannot match roles to you.{" "}
         {hasUpload
-          ? "Import your uploaded resume in one click: you check each entry before it is saved."
-          : "Upload a resume to import, or tell WorkIt about one thing you did."}
+          ? "Import your uploaded resume in one click, then fix any entry in Experiences."
+          : "Upload a resume to fill them in, or tell WorkIt about one thing you did."}
       </p>
       <div className="mt-3 flex flex-wrap gap-3">
         {hasUpload ? (
