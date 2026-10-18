@@ -177,7 +177,12 @@ the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
 Ask Scout asks about the role, Share copies the page's link, Save
 and Report stay inert. The card's own row has Not Interested, Save, Ask
-Scout, Auto Apply and Apply Now. Auto Apply shows only on a job posting the
+Scout, Auto Apply, Tailor My Resume and Apply Now. Tailor My Resume is the
+page's button on the card too (KAN-241): it opens `/jobs/[jobId]/tailor`
+and reads "Your Tailored Resume" once the student has one for that job
+posting. /jobs and /search read the built resumes once beside the first
+page (`getTailoredJobIds`) and hand each card its answer, as for Auto
+Apply; signed out, every card reads Tailor My Resume. Auto Apply shows only on a job posting the
 API marks `auto_apply` (its hiring system is one auto apply fills:
 Greenhouse for now, `backend/app/auto_apply/hosts.py`); every other job
 posting has no Auto Apply at all. It sits between Ask Scout and Apply
