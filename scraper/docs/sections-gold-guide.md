@@ -44,6 +44,7 @@ says**, as a careful human reader would. Ignore how the employer formatted it.
 
 Label every non-blank line of a new posting with this guide, blind (without
 running the parser), and add it to `tests/fixtures/sections_gold.json`: its
-`text` and a `labels` list as long as `text.split("\n")`, null for each blank
-line. Then run the report (`tests/test_sections_gold.py`'s docstring) and adjust
-the floors only upward.
+`text`, its provider as `ats` (Workday postings are scored as their own group),
+and a `labels` list as long as `text.split("\n")`, null for each blank line.
+Then run the report (`tests/test_sections_gold.py`'s docstring) and adjust the
+floors only upward.
