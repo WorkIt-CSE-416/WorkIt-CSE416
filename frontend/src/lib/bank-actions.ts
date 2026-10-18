@@ -143,31 +143,31 @@ export async function deleteSkill(skillId: string): Promise<Result<null>> {
   return call<null>(`/skills/${id(skillId)}`, { method: "DELETE" });
 }
 
-/** A draft entry from import: a `createEntry` body, plus the id of the bank
- *  entry it matches ("Already in your bank"), or null. */
-export type DraftEntry = EntryFields & { bullets: string[]; duplicate_of: string | null };
-export type DraftSkill = { name: string; group: string | null; in_bank: boolean };
+/** What one import wrote into the bank (ADR 0003): an upload's own reading,
+ *  or Import Again. `found` is what the reading found, written or not, so 0
+ *  means it read nothing. */
 export type ImportResult = {
-  resume_id: string;
-  filename: string | null;
-  entries: DraftEntry[];
-  skills: DraftSkill[];
+  found: number;
+  entries_added: number;
+  /** Entries the bank had that gained a field or a bullet. */
+  entries_updated: number;
+  skills_added: number;
   /** Who read the resume: the heuristic parser, or the model (KAN-222). */
   read_by: "parser" | "model";
   /** AI readings the student has left today. */
   uses_left: number;
 };
+export type ImportResponse = ImportResult & { resume_id: string; filename: string | null };
 
-/** Reads an uploaded resume (the default one, else the newest) into draft
- *  entries and skills. Saves nothing: each draft goes through `createEntry`
- *  and `addSkill`. With no uploaded resume, `error` says so. `readWithAi`
- *  reads it with the model ("Read it again with AI"), which also reads it
- *  when the parser finds no entries; `error` says when the AI limit is spent
- *  or the model is down. */
+/** Import Again: reads an uploaded resume (`resumeId`, else the default one,
+ *  else the newest) and writes it into the bank, merging the entries it
+ *  already has. With no uploaded resume, `error` says so. `readWithAi` reads
+ *  it with the model ("Read It With AI"), only ever on the student's click;
+ *  `error` says when the AI limit is spent or the model is down. */
 export async function importResume(
   options: { resumeId?: string; readWithAi?: boolean } = {},
-): Promise<Result<ImportResult>> {
-  return call<ImportResult>("/import", {
+): Promise<Result<ImportResponse>> {
+  return call<ImportResponse>("/import", {
     method: "POST",
     body: JSON.stringify({
       ...(options.resumeId ? { resume_id: options.resumeId } : {}),

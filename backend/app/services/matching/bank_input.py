@@ -39,21 +39,23 @@ def _newest_first(entry: Entry) -> tuple:
 
 def bank_text(bank: Bank, *, identity: Identity) -> str:
     """
-    What a bank is embedded from, in order: skills; each degree and field of
-    study; each entry's section, title and organization with its original
-    bullets, newest first across sections. Never a bullet variant, a link, a
-    location or a grade. The identity fields left in free text become
-    placeholders. Cut at MAX_CHARS, so the oldest entries go first.
+    Embed skills, work experience, and projects using original bullets.
     """
     lines = []
     if bank.skills:
         lines.append("Skills: " + ", ".join(s.name for s in bank.skills))
-    for e in bank.entries:
-        if e.row.section is bank_section.education:
-            study = " ".join(filter(None, (e.row.degree, e.row.field_of_study)))
-            if study:
-                lines.append(study)
-    for e in sorted(bank.entries, key=_newest_first):
+
+    included_sections = {
+        bank_section.experience,
+        bank_section.projects,
+    }
+    entries = [
+        entry
+        for entry in bank.entries
+        if entry.row.section in included_sections
+    ]
+
+    for e in sorted(entries, key=_newest_first):
         head = ", ".join(filter(None, (e.row.title, e.row.organization)))
         lines.append(f"{_LABEL[e.row.section]}: {head}")
         lines.extend(f"- {b.text}" for b in e.bullets)
@@ -97,7 +99,7 @@ def years_of_experience(bank: Bank, today: datetime.date) -> float:
         months += max(0, _months(row.start_month, min(end, today)))
     return months / 12
 
-
+# Check for eligibility
 def expected_graduation(bank: Bank) -> datetime.date | None:
     """The latest end month on an Education entry, past or expected."""
     ends = [

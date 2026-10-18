@@ -122,7 +122,7 @@ function formatSalary(draft: JobDraft) {
   return `${compact(min, draft.currency)} - ${compact(max, draft.currency)}/${period}`;
 }
 
-/** 100000, "USD" -> "$100K"; 27.5, "USD" -> "$27.50". `Intl` picks the right
+/** 100000, "USD" -> "$100K"; 27.5, "USD" -> "$27.5". `Intl` picks the right
  *  symbol for the currency a recruiter chose rather than assuming USD, and
  *  `compact` notation is what gives the one-decimal "$125K" instead of
  *  writing every zero out — it only kicks in above four digits, so an hourly
@@ -136,5 +136,7 @@ function compact(amount: number, currency: string) {
     currency,
     notation: "compact",
     maximumFractionDigits: 2,
+    // Match the feed and avoid runtime-dependent currency padding.
+    minimumFractionDigits: 0,
   }).format(amount);
 }

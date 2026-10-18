@@ -196,41 +196,43 @@ class DuplicateEntry(BaseModel):
 
 
 class ImportRequest(BaseModel):
-    """POST body for import. Without a resume id, import reads the default
-    resume, else the newest upload. `read_with_ai` skips the heuristic parser
-    and reads the resume with the model ("Read it again with AI")."""
+    """POST body for Import Again. Without a resume id, import reads the
+    default resume, else the newest upload. `read_with_ai` reads the resume
+    with the model in place of the heuristic parser; only the student asks
+    for it (ADR 0003)."""
 
     resume_id: UUID | None = None
     read_with_ai: bool = False
 
 
 class DraftEntry(EntryCreate):
-    """A draft entry from import: the body POST /entries takes, plus the id of
-    the bank entry it matches ("Already in your bank"), if any."""
+    """One entry as an import read it, before the merge writes it: the body
+    POST /entries takes, with the GPA as a plain number."""
 
     gpa: float | None = None
     gpa_scale: float | None = None
-    duplicate_of: UUID | None = None
 
 
-class DraftSkill(BaseModel):
-    name: str
-    group: str | None
-    # A skill of that name, ignoring case, is already in the bank.
-    in_bank: bool
+class ImportResult(BaseModel):
+    """What one import wrote into the bank (ADR 0003): the upload's own
+    reading, or an Import Again."""
 
-
-class ImportResponse(BaseModel):
-    """What import read from one uploaded resume. Nothing here is saved."""
-
-    resume_id: UUID
-    filename: str | None
-    entries: list[DraftEntry]
-    skills: list[DraftSkill]
+    # Entries and skills the reading found, written or not: 0 means it read
+    # nothing, which "already in your bank" (nothing written) is not.
+    found: int
+    entries_added: int
+    # Entries the bank had already that gained a field or a bullet.
+    entries_updated: int
+    skills_added: int
     # Who read the resume: the heuristic parser, or the model (KAN-222).
     read_by: Literal["parser", "model"] = "parser"
-    # Model parsing uses the student has left today.
+    # Model readings the student has left today, for "Read It With AI".
     uses_left: int
+
+
+class ImportResponse(ImportResult):
+    resume_id: UUID
+    filename: str | None
 
 
 class ModelEntry(BaseModel):

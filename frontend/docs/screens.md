@@ -32,9 +32,10 @@ API would refuse, so a stale link narrows by what was valid instead of erroring.
 An empty experience bank gets a card above the /jobs feed, "Add Your
 Experiences" or, with an upload, "Import Your Resume"
 (`jobs/bank-prompt.tsx`, stories 22 and 102): with an uploaded resume,
-"Import Your Resume" opens `/bank?import=1`, which starts the bank page's
-import at once (one click; the student still checks each draft); with
-none, Upload a Resume and Add What You Did. It streams in its own Suspense
+"Import Your Resume" opens `/bank?import=1`, which runs Import Again at
+once (one click; it writes into the bank, ADR 0003). An upload imports
+itself, so the card shows only for an upload the parser read nothing in or
+one from before KAN-240. With none, Upload a Resume and Add What You Did. It streams in its own Suspense
 boundary and shows nothing when the bank has entries or fails to load. The
 feed under it is the live listing for everyone, not a bank match, so it
 still shows; the API's bank-scored `GET /jobs/recommended` has no screen
@@ -560,14 +561,27 @@ second step (Experience Bank section), not in the wizard. The seeker profile (`(
 5 resumes, uploaded and base resumes together as the API counts them (its
 "n of 5" adds the base resumes; tailored ones are free),
 newest first: picking a file uploads it at once (`uploadResume`);
-the API reads it itself, and the client never sends parsed content. Each
+the API reads it itself, and the client never sends parsed content. **The
+upload fills the experience bank** (ADR 0003): a note under the dropzone
+says what went in ("Added 6 entries and 2 skills from resume.pdf", or "WorkIt
+couldn't find any entries in …"), links to Experiences, and offers **Read It
+With AI** while the student has an AI reading left. Before KAN-240 an upload
+showed nothing, and its facts reached the bank only if the student found
+the import inside intake; most never did. Each
 resume row (`src/components/resume-row.tsx`, shared with the Auto Apply page)
 has an eye — a short-lived signed link from `getResumeFileUrl`, opened by
 `src/lib/preview-resume.ts`: a PDF opens in a new tab, opened inside the
 click so it is not blocked as a popup (if it is blocked anyway, the page says
 so rather than leaving it); a DOCX downloads — and a star that makes it
-primary (`setPrimaryResume`). The star and the delete are optional props, so
-a screen that only shows a resume leaves them out. All of these actions live
+primary (`setPrimaryResume`). **Import Updated Resume** (an import icon)
+opens `profile/update-resume-dialog.tsx`: a dropzone for a newer version of
+that file, which replaces it on the same row (`replaceResume`; the row keeps
+its primary star and moves to the top with today's date) and merges its
+reading into the bank. The dialog then says what went in, with Read It With
+AI while a reading is left, and Done. It replaced Import Again on the row
+(2026-10-18): the stored file never changes, so re-reading it only said
+"already in your bank". The star, Import Updated Resume and the delete are
+optional props, so a screen that only shows a resume leaves them out. All of these actions live
 in `src/lib/resume-actions.ts`. The `ResumeUpload` component
 (`src/components/resume-upload.tsx`) is a pure dropzone + file preview — it
 knows nothing about upload logic or limits.
@@ -576,9 +590,9 @@ knows nothing about upload logic or limits.
 editor (a review dialog after upload, and Work Experience and Skills cards
 editing the primary resume's `parsed_json`) is gone, so the experience bank
 is the only place to edit resume facts. In its place an "Experiences"
-section links to `/bank`, where import turns an upload into drafts. Do not
-bring back an editor of `parsed_json`: two places to edit the same facts
-drift apart, and the bank is what built resumes read.
+section links to `/bank`. KAN-240 dropped `parsed_json` itself. Do not bring
+back an editor of an upload's facts: two places to edit the same facts drift
+apart, and the bank is what built resumes read.
 
 **My Profile is cached for the life of the seeker shell.**
 `(seeker)/profile-cache.tsx` keeps the page's last state (resumes, the
@@ -648,7 +662,9 @@ section chips alike: one size, one look, each with its glyph. The resume
 answers were a fill, an outline and a text link of three heights, the last
 on a line of its own. Start Without One goes in
 the chat as the student's answer, then the first section starts; an import
-starts the walk on what the resume left out, as before. A bank with
+starts the walk on what the resume left out, as before. Upload Resume
+uploads, and the upload fills the bank itself; Use One I Uploaded runs
+Import Again on the default upload. A bank with
 entries has no stage: the walk opens on its gaps at once, and WorkIt's
 second line asks "Have a resume?" with Upload Resume and Use One I
 Uploaded, until the student imports once. With no offer there, as the
@@ -691,7 +707,7 @@ version listed every empty field and asked for "College or Department".
 Before the draft has a title the chips stay hidden, since the chat's
 question is the next step. Edit opens the
 full form over the panel, with Back to Chat (Escape goes back too). The
-import review opens in the chat's place. A save
+import card opens in the chat's place. A save
 reads the bank again, so the page behind updates at once. An empty bank
 gets no card of its own (removed in KAN-249): the title's Fill With Scout
 and each section's Add already say where to start, and the card only
@@ -732,28 +748,25 @@ in Docs (suggested answers in the chat, not a banner).
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
-- **Import Your Resume** (`import-card.tsx`, KAN-211) opens inside intake,
+- **Import Your Resume** (`import-card.tsx`, KAN-240) opens inside intake,
   from the resume question's answers in the chat (the first stage for an
   empty bank, WorkIt's second line otherwise), offered until the student
-  imports once.
+  imports once. It says what went into the bank (`lib/import-summary.ts`)
+  and holds Continue and, while an AI reading is left, Read It With AI.
+  Nothing waits for review: the entries are in the bank, and the page
+  behind shows them at once.
   Upload Resume (PDF or DOCX) uploads through `uploadResume`, as My Profile
-  does, then imports that file (`resumeId`); the link imports the default
-  upload, else the newest. The review takes the chat's place until Close,
-  or a Save All that leaves nothing to check. The API's 5-resume limit
-  shows as the strip's error. `?import=1` (the Jobs page's prompt) opens
-  the panel and the import on arrival. One
-  click reads the default upload, else the newest, into draft entries and
-  skills (`importResume`). Each draft shows the lines the bank list shows
-  under an entry (`entryDetails`: degree and GPA, coursework, honors,
-  issuer, link), so an Education draft is checked before it is saved;
-  nothing is saved until the student saves a
-  draft (Save, or Edit in the entry editor) or uses Save All. A draft that
-  matches a bank entry shows "Already in Your Bank": Save All skips it and
-  its own button reads Save as New. Skip drops a draft; Close drops them
-  all. With no upload the API's 404 message shows, next to a link to My
-  Profile. The Jobs page links here for an empty bank (story 22).
+  does; the upload writes its reading into the bank and the card shows its
+  `bank` result. Use One I Uploaded, and `?import=1` (the Jobs page's
+  prompt, which opens the panel on arrival), run Import Again
+  (`importResume`) on the default upload, else the newest. The card takes
+  the chat's place until Continue. The API's 5-resume limit shows as the
+  strip's error; with no upload the API's 404 message shows. Until
+  KAN-240 this was a review of draft entries the student saved one by one
+  or with Save All; students who uploaded on My Profile never reached it,
+  and their banks stayed empty (ADR 0003).
 - **One entry editor** (`entry-editor.tsx`) for every section and for
-  import and intake drafts: it edits a draft and hands the whole draft
+  intake drafts: it edits a draft and hands the whole draft
   back, and the caller decides between create and edit. Only the title is
   required. Each section adds its own fields (`sections.ts` names the
   title and organization for each). Months use the browser's month picker,
@@ -793,7 +806,7 @@ in Docs (suggested answers in the chat, not a banner).
   unlink calls after the entry's own save (for a new entry, after it is
   created). Once the entry has saved, a failed later step closes the editor
   and says "Some changes did not save", because a retry would repeat the
-  steps that worked. Intake and import omit `skills`, so no links show.
+  steps that worked. Intake omits `skills`, so no links show.
 - **Intake** (`intake.tsx`, KAN-213), in the look of the intake prototype's
   variant G: a lavender chat with WorkIt's gradient mark and a chapter line
   per section. On the bank page it is in Scout's panel, in the three bands

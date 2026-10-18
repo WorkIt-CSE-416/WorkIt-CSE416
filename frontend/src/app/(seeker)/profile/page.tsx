@@ -1,6 +1,7 @@
 "use client";
 
-import { FileText, Phone } from "lucide-react";
+import { FileText, Phone, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
@@ -24,6 +25,7 @@ import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
 import { SectionAction } from "./section-action";
+import { UpdateResumeDialog } from "./update-resume-dialog";
 import { ResumeUpload } from "@/components/resume-upload";
 import {
   uploadResume,
@@ -33,7 +35,9 @@ import {
   type ResumeItem,
 } from "@/lib/resume-actions";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
+import { importResume, type ImportResponse } from "@/lib/bank-actions";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
+import { importSummary } from "@/lib/import-summary";
 import { RESUME_ROW, ResumeRow } from "@/components/resume-row";
 import { previewResume } from "@/lib/preview-resume";
 import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
@@ -44,8 +48,12 @@ import { useProfileCache } from "../profile-cache";
 /**
  * The profile screen. Resumes, the profile photo and identity fields are all
  * live. Resume facts are not edited here: they live in the experience bank
- * (/bank), which an upload fills through import (KAN-211 removed the parsed-
- * JSON editor that used to sit here). Name, headline, email and
+ * (/bank), which every upload fills (ADR 0003; KAN-211 removed the parsed-
+ * JSON editor that used to sit here). Under the dropzone a note says what the
+ * last upload wrote there, with Read It With AI while the student has an AI
+ * reading left; the model never reads a resume unasked. A row's Import
+ * Updated Resume opens ./update-resume-dialog.tsx, which replaces that row's
+ * file with a newer version and says what it wrote. Name, headline, email and
  * phone come from the applicant_profiles table via getProfile(). A return
  * visit renders the last visit's data at once
  * (../profile-cache.tsx) and refetches it behind the scenes. The autofill
@@ -106,6 +114,11 @@ export default function ProfilePage() {
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // What the last upload wrote into the experience bank.
+  const [imported, setImported] = useState<ImportResponse | null>(null);
+  const [importingId, setImportingId] = useState<string | null>(null);
+  // The row whose Import Updated Resume dialog is open.
+  const [updateTarget, setUpdateTarget] = useState<ResumeItem | null>(null);
   const [loaded, setLoaded] = useState(cached !== null);
   // A failed list hides the "2 of 5" count: "0 of 5" would say there are none.
   const [listFailed, setListFailed] = useState(false);
@@ -226,8 +239,8 @@ export default function ProfilePage() {
       .finally(() => setLoaded(true));
   }, []);
 
-  // Uploads at once: the API reads the file itself. The student checks what
-  // it read by importing it into the experience bank, not here.
+  // Uploads at once: the API reads the file itself and writes what it read
+  // into the experience bank, where the student checks it.
   async function handleResumeFileAdd(file: File) {
     if (!loaded || uploading !== null) return;
     if (resumeCount >= MAX_RESUMES) {
@@ -237,6 +250,7 @@ export default function ProfilePage() {
       return;
     }
     setResumeError(null);
+    setImported(null);
     setUploading(file.name);
 
     const fd = new FormData();
@@ -246,11 +260,38 @@ export default function ProfilePage() {
       if (error) return setResumeError(error);
       // Functional: another action may have changed the list meanwhile.
       if (resume) setResumeList((prev) => [resume, ...prev]);
+      if (resume?.bank) {
+        setImported({ ...resume.bank, resume_id: resume.id, filename: resume.original_filename });
+      }
     } catch {
       setResumeError("Could not upload the resume. Refresh the page and try again.");
     } finally {
       setUploading(null);
     }
+  }
+
+  // Read It With AI on the last upload: only ever on a click.
+  async function handleReadWithAi(resumeId: string) {
+    if (importingId) return;
+    setResumeError(null);
+    setImportingId(resumeId);
+    try {
+      const { data, error } = await importResume({ resumeId, readWithAi: true });
+      if (data) setImported(data);
+      else setResumeError(error);
+    } catch {
+      setResumeError("Could not import the resume. Refresh the page and try again.");
+    } finally {
+      setImportingId(null);
+    }
+  }
+
+  // Import Updated Resume put a newer file on this row. Its upload date is
+  // now, so it moves to the top, where a reload would put it too; the note
+  // under the dropzone names the old file, so it goes if it was this row's.
+  function handleReplaced(updated: ResumeItem) {
+    setResumeList((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)]);
+    setImported((prev) => (prev?.resume_id === updated.id ? null : prev));
   }
 
   async function handleMakePrimary(resumeId: string) {
@@ -458,6 +499,26 @@ export default function ProfilePage() {
               {resumeError}
             </p>
           )}
+          {imported && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="text-note text-ink-muted min-w-0 flex-1" aria-live="polite">
+                {importSummary(imported, imported.filename)}{" "}
+                <Link href="/bank" className="text-brand hover:text-brand-hover underline">
+                  Open Experiences
+                </Link>
+              </p>
+              {imported.uses_left > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={importingId !== null}
+                  onClick={() => handleReadWithAi(imported.resume_id)}
+                >
+                  <Sparkles /> {importingId ? "Reading…" : "Read It With AI"}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="@4xl/main:mt-2">
@@ -499,6 +560,7 @@ export default function ProfilePage() {
               deleting={deletingId === r.id}
               onPreview={() => handlePreview(r)}
               onMakePrimary={() => handleMakePrimary(r.id)}
+              onUpdate={() => setUpdateTarget(r)}
               onDelete={() => {
                 setDeleteTarget(r);
                 setConfirmOpen(true);
@@ -506,6 +568,15 @@ export default function ProfilePage() {
             />
           ))}
         </div>
+
+        {updateTarget && (
+          <UpdateResumeDialog
+            resume={updateTarget}
+            open
+            onOpenChange={(open) => !open && setUpdateTarget(null)}
+            onReplaced={handleReplaced}
+          />
+        )}
 
         <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <DialogContent>
@@ -536,8 +607,8 @@ export default function ProfilePage() {
         <section aria-labelledby="bank">
           <SectionHeading id="bank">Experiences</SectionHeading>
           <p className="text-body text-ink-meta mt-1">
-            Your jobs, projects, clubs and skills live in Experiences, where you edit them. Import
-            an uploaded resume there to fill it in one go.
+            Your jobs, projects, clubs and skills live in Experiences, where you edit them. Each
+            resume you upload fills it in.
           </p>
           <ButtonLink href="/bank" variant="secondary" className="mt-4">
             Open Experiences

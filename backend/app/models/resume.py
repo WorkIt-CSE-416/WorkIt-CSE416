@@ -1,7 +1,6 @@
 import uuid as _uuid
 
 from sqlalchemy import ForeignKey, text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import BaseModel
@@ -17,8 +16,7 @@ class Resume(BaseModel):
     storage_path: Mapped[str | None]
     status: Mapped[ResumeStatus] = mapped_column(server_default="uploaded")
     raw_text: Mapped[str | None]
-    # storing the ParsedResume objects
-    parsed_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # The parser's reading goes into the experience bank, not here (ADR 0003).
     # resumes.embedding still exists in the database but is no longer mapped:
     # the embedding moved to experience_banks (KAN-212). Its drop is the
     # contract half, applied after this code is deployed (models/CLAUDE.md).
