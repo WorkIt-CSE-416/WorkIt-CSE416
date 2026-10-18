@@ -146,8 +146,9 @@ const ROW =
 function currentIndex(items: SidebarNavItem[], pathname: string) {
   return items.findIndex((item) => {
     if ("action" in item) return false;
-    const { href, exact } = item;
-    return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+    const { href, exact, also = [] } = item;
+    const owns = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+    return exact ? pathname === href : owns(href) || also.some(owns);
   });
 }
 
@@ -209,6 +210,9 @@ export type SidebarNavItem = NavRowBase &
          *  root item (/company) needs it, or it would be lit on every
          *  screen. */
         exact?: boolean;
+        /** Other paths this row owns, with their subtrees: one section shown
+         *  as two routes, like Resumes & Experiences (/resumes and /bank). */
+        also?: string[];
       }
     | { action: () => void | Promise<void> }
   );

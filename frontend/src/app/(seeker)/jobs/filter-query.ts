@@ -80,7 +80,7 @@ export const WORKPLACE_OPTIONS: { value: WorkStyle; label: string }[] = [
 
 /** A role is a `job_roles` slug ("software_engineer", KAN-155), the way GET
  *  /jobs?role= takes it. The options aren't listed here: the Role filter reads
- *  them, with their names and counts, from GET /jobs/facets, since the list
+ *  them, with their names, from GET /jobs/facets, since the list
  *  lives in the database (backend/app/models/CLAUDE.md, Job roles). So a
  *  role, like a place, is checked by its shape only, and one no job holds
  *  matches nothing. KAN-172's keys ("data_ai/ml") don't fit it, so an old

@@ -56,8 +56,9 @@ The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-The seeker panel holds only the search (Dashboard, Jobs, Applications,
-Calendar, My Profile), with no caption over it. Settings, Help and Sign Out, once its General
+The seeker panel holds only the search (Dashboard, Jobs, Auto Apply,
+Applications, Calendar, Resumes & Experiences, My Profile), with no
+caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
@@ -100,8 +101,10 @@ image files; `public/workit-icon.svg` is the favicon's source (`npm run
 favicon`). `components/icons.tsx` holds glyphs used by more than one route, as
 thin wrappers over Lucide at its default stroke (the brand marks stay drawn);
 every per-route `icons.tsx` is the same kind of wrapper. Draw no new glyph by
-hand. `components/hero-arcs.tsx` is the corner arcs on the company Dashboard's
-violet hero.
+hand while Lucide has one. A glyph it lacks (RoleIcon's person in a suit,
+KAN-252) is drawn on Lucide's 24-unit grid with `createLucideIcon`, never as
+a bare `<svg>`, so it takes the same stroke and sizing. `components/hero-arcs.tsx`
+is the corner arcs on the company Dashboard's violet hero.
 
 ## Colour
 
@@ -144,17 +147,19 @@ the server and the browser print the same.
 
 **Every choice of one among a few is `ui/segmented-control.tsx`**: the
 Calendar's Month, Week and Agenda, the Dashboard's range, the Applications
-layouts, the sign-in card's Applicant or Company, and the company chart's
-range. A pill-shaped track (a 5% ink wash, so it reads on the white page and
+layouts, the sign-in card's Applicant or Company, the company chart's
+range, and Resumes & Experiences' two views. A pill-shaped track (a 5% ink wash, so it reads on the white page and
 the off-white auth card alike, and no outline) with a white thumb that slides
 to the chosen option on the 300ms glide (`docs/motion.md`), and jumps under
 reduced motion. The options are equal width, so the thumb is placed with CSS
 alone and the server renders it in place. `SegmentedLinks` is for a choice
 kept in the URL: the thumb moves on the click, before anything else answers.
-Every caller today passes `shallow`, which moves the query in place
+Every caller but one passes `shallow`, which moves the query in place
 (`components/shallow-routing.tsx`) for content the page already holds, so
 the content redraws with the thumb; without it, the page goes back to the
-server and the content follows a round trip later. `SegmentedToggle` is for component state, on Base UI's
+server and the content follows a round trip later. The one is Resumes &
+Experiences' switcher (`(seeker)/resumes/header.tsx`): its options are two
+routes, and each reads its own data on the server. `SegmentedToggle` is for component state, on Base UI's
 ToggleGroup for its arrow keys and single tab stop; a null value hides the
 thumb. An icon option is a rendered element, not a component, since a server
 page passes the options. Build a new segmented choice from it rather than
@@ -182,12 +187,46 @@ resolves to.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
-`positive`) while painting the mockups' styling, plus `shape="pill"` for the
-seeker Dashboard's fully rounded actions, so a component pasted from the
-shadcn docs composes without edits and still looks like WorkIt.
-`shadcn/button.tsx` is a re-export pointing back at it, and an ESLint rule keeps
-app code on the canonical path — likewise for `badge` and `card`, which are not
-re-exports.
+`positive`) while painting the mockups' styling, so a component pasted from
+the shadcn docs composes without edits and still looks like WorkIt.
+Every variant at a size is one box (sm 36px, default 42px, lg 48px), a
+text-only one included, and the Button sizes its glyphs to keep it so: an
+icon with no `size-*` class is 16px (14px at `inline`, `xs` and
+`section`). Lucide's own 24px stretched about 30 sm buttons to 38px, so the
+bank's My Resumes button stood taller than Fill With Scout beside it
+(KAN-249); give an icon a size only when it must differ. `shadcn/button.tsx` is a re-export pointing back at it, and an
+ESLint rule keeps app code on the canonical path, as it does for `badge`
+and `card`, which are not re-exports.
+
+**A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
+acts (saves, opens, sends, goes somewhere); a chip is a choice made in
+place: a filter, a toggle, or an answer offered. A badge is a pill too, but
+a label, and a segmented control's track is a pill because it is a choice as
+well. Two pills act on purpose: the Calendar's Today, drawn to match its
+round arrows, and Next Up's date, a badge inside a link to that day on the
+Calendar. **Pick a button's size by where it sits**: `sm` (36px)
+for an action in a card, a row, a page's header or a panel; `default`
+(42px, a text field's height, so a form's buttons line up with its fields)
+in a form or a dialog; `lg` (48px) for the one main action of a page or the
+sign-in card. The three were 32, 36 and 42px until KAN-251 and read as
+thin; the chip, the small segmented control and the icon buttons beside sm
+buttons (Save, Not Interested, Report, the Calendar's arrows) went to 36px
+with them.
+There is exactly one Chip, `ui/chip.tsx`, at two sizes: `default` (36px, an
+sm button's height, so they line up in a row) and `lg` (42px, a default
+button's and a text field's height, 16px type) for a screen where the chips
+are the question itself, onboarding's filter steps. Its roles: `choice` with `pressed` for filters and
+toggles, `suggestion` for an offered answer, `primary` for the one most
+people take, and `ChipLink` for a filter kept in the URL. **A call site
+never changes a button's or chip's box**: a `no-restricted-syntax` rule in
+`eslint.config.mjs` (BOX_CLASS) refuses a height, padding, radius, type
+size, line height or border width in its `className` (as a plain string;
+it cannot read `cn()` or a template string), which may only place it or
+colour a state. That is
+what ended the Dashboard's pill buttons, a 52px Start Auto Apply, the
+welcome page's stretched buttons (now choice cards) and five hand-drawn
+pills at three heights. `/design-kit/buttons` shows every size and chip with
+its role.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
 — there is no `tailwind.config.js`. Add design tokens there. The file also

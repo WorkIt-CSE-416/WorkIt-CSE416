@@ -28,10 +28,10 @@ import type { RunState } from "./auto-apply-panel";
  *
  * Built resumes come first, in the API's order with the default moved to
  * the top, then uploaded resumes, the default first. A built resume opens in the resume editor,
- * as on the bank page; it never downloads here, since every download keeps a
+ * as on /resumes; it never downloads here, since every download keeps a
  * sent resume (frontend/CLAUDE.md). An uploaded one previews in a new tab
- * (previewResume). Choosing, building and deleting resumes stays on the bank
- * page and My Profile, which Manage and the empty state lead to.
+ * (previewResume). Choosing, building and deleting resumes stays on /resumes
+ * and My Profile, which Manage and the empty state lead to.
  *
  * Uploaded resumes start from My Profile's cache when the shell has one
  * (../profile-cache.tsx), without writing to it; both lists refetch on every
@@ -123,16 +123,18 @@ export function ResumeList({
     <section aria-labelledby="resume-list" className="mt-6 max-w-2xl">
       {/* A grid, so the button's top meets the first row's whatever the
           list's length: the heading spans the first track, the list and the
-          button share the second. The button is as tall as a row (52px) and
-          208px wide, the widest label's, so Start becoming Pause shifts
-          nothing. On a phone it drops under the list at full width. */}
+          button share the second. The button is lg (48px), the page's one
+          main action: stretched to a row's 52px it was the largest button in
+          the app (KAN-251). It is 208px wide, the widest label's, so Start
+          becoming Pause shifts nothing. On a phone it drops under the list at
+          full width. */}
       <div className="grid grid-cols-1 gap-x-3 @lg/main:grid-cols-[minmax(0,1fr)_13rem]">
         <div className="@lg/main:col-span-2">
           <div className="flex items-center justify-between gap-4">
             <h2 id="resume-list" className="text-label text-ink-meta">
               Resume List
             </h2>
-            <SectionLink href="/bank#your-resumes" label="Manage your resumes">
+            <SectionLink href="/resumes" label="Manage your resumes">
               Manage
             </SectionLink>
           </div>
@@ -170,15 +172,15 @@ export function ResumeList({
                 <p className="text-note text-ink-meta">
                   {someFailed
                     ? "Refresh the page to see them here."
-                    : "Generate one in your Experience Bank, or upload one on My Profile."}
+                    : "Generate one on Resumes, or upload one on My Profile."}
                 </p>
               </div>
             </div>
           )}
           {count > 0 && !hasDefault && !someFailed && (
             <p className="text-note text-ink-meta mt-2">
-              None is your default yet, so a job with no tailored resume gets none. Star one in your
-              Experience Bank or on My Profile.
+              None is your default yet, so a job with no tailored resume gets none. Star one on
+              Resumes or on My Profile.
             </p>
           )}
           {count > 0 && someFailed && (
@@ -195,9 +197,9 @@ export function ResumeList({
           size="lg"
           disabled={count === 0 || pending}
           onClick={onToggle}
-          className="mt-3 w-full shrink-0 @lg/main:mt-2 @lg/main:h-13 @lg/main:w-52"
+          className="mt-3 w-full shrink-0 @lg/main:mt-2 @lg/main:w-52"
         >
-          <button.Icon aria-hidden className="size-4" />
+          <button.Icon aria-hidden />
           {button.label}
         </Button>
       </div>

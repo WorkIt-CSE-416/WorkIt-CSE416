@@ -4,9 +4,11 @@ import {
   BadgeCheck,
   Briefcase,
   ChevronLeft,
+  FileText,
   FileUp,
   GraduationCap,
   Lightbulb,
+  MessageSquareText,
   PartyPopper,
   SkipForward,
   Trophy,
@@ -17,6 +19,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "r
 
 import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scout/chat";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
 import { createEntry, type BankEntry, type EntryFields, type Section } from "@/lib/bank-actions";
 import { uploadResume } from "@/lib/resume-actions";
@@ -37,6 +40,7 @@ import {
   draftOf,
   emptyDraft,
   gapQuestions,
+  savable,
   sectionOf,
   SECTIONS,
   type EntryDraft,
@@ -92,12 +96,17 @@ import {
  *
  * Docked (`docked`): the bank page renders intake in Scout's panel
  * (components/scout/scout-takeover.tsx), which is too narrow for the card's
- * column. The panel's header replaces intake's own. Three bands: the step bar
- * and a read-only preview of the draft (`draft-preview.tsx`), the chat on
- * the panel's own surface, and the composer. The form opens over the panel
- * on the preview's Edit, so it never sits on the chat. The upload offer is
- * WorkIt's second line, with its two answers as buttons. Onboarding keeps
- * the page layout.
+ * column. The panel's header replaces intake's own. Three bands: the stage
+ * card (`draft-preview.tsx`: the section, its step, Skip, the step bar's
+ * segments and a read-only preview of the draft), the chat on the panel's
+ * own surface, and the composer. The form opens over the panel on the
+ * preview's Edit, so it never sits on the chat. With an empty bank the
+ * resume question is a stage of its own first: the greeting asks it, its
+ * answers (Upload Resume, Use One I Uploaded, Start Without One) sit under
+ * it, and no section or stage card shows until one is picked (KAN-249).
+ * With entries, the walk starts at once and the question is WorkIt's second
+ * line, with the two import answers, until the student imports once.
+ * Onboarding keeps the page layout.
  */
 
 type DraftWire = EntryFields & { bullets: string[] };
@@ -119,6 +128,11 @@ type Kept = { draft: EntryDraft; done: boolean; entryId?: string };
 
 /** Where the walk goes next: a new entry in a section, or a bank entry's gaps. */
 type Target = { section: Section } | { entry: BankEntry };
+
+/** Docked with an empty bank, WorkIt's greeting asks the resume question,
+ *  alone: the first section waits for the answer (`resumeStage`). */
+const OFFER_GREETING =
+  "Hi! I'll help you fill your experience bank, one thing at a time. Have a resume? I can read it first, then ask only about the rest.";
 
 const ICONS: Record<Section, LucideIcon> = {
   education: GraduationCap,
@@ -243,6 +257,12 @@ export function Intake({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [imported, setImported] = useState(false);
+  // Docked with an empty bank: the resume question comes first, alone, and
+  // the walk waits for the answer (Start Without One, or an import).
+  const [offerFirst, setOfferFirst] = useState(false);
+  // Whether the greeting carried that question; kept once it is answered,
+  // so the greeting above the chat never changes its words.
+  const [greetedWithOffer, setGreetedWithOffer] = useState(false);
   // Bumped when the import closes, so the walk restarts on the fresh bank.
   const [rewalk, setRewalk] = useState(0);
   const visited = useRef(new Set<string>());
@@ -269,6 +289,9 @@ export function Intake({
         { kind: "chapter", section: saved.draft.section },
         { kind: "text", role: "assistant", content: "Here's the draft you were working on." },
       ]);
+    } else if (docked && importable && !autoImport && entries.length === 0) {
+      setOfferFirst(true);
+      setGreetedWithOffer(true);
     } else if (walk) {
       const first = nextTarget(wasSkipped);
       if (first) go(first);
@@ -495,7 +518,8 @@ export function Intake({
     setError(failure);
   }
 
-  async function save(entry: EntryDraft, allowDuplicate = false) {
+  async function save(input: EntryDraft, allowDuplicate = false) {
+    const entry = savable(input);
     if (kept?.entryId) return saveVisit(kept.entryId, entry);
     setSaving(true);
     setSaveError(null);
@@ -554,6 +578,17 @@ export function Intake({
 
   // Offered until the student imports once on this page.
   const offerImport = importable && !imported;
+  // The resume question, before any section: until the student answers it.
+  const resumeStage = offerFirst && !importing && !imported;
+
+  /** Start Without One: the answer goes in the chat as the student's, then
+   *  the walk's first section. */
+  function startWithoutResume() {
+    setOfferFirst(false);
+    setLines((l) => [...l, { kind: "text", role: "user", content: "I'll start without one." }]);
+    const first = nextTarget();
+    if (first) go(first);
+  }
 
   const card = (
     <DraftCard
@@ -612,24 +647,29 @@ export function Intake({
     <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
   );
 
-  /** Docked, the upload offer is WorkIt's second line, with its two answers
-   *  as buttons, rather than a strip that stays over the chat. */
-  const importOffer = offerImport && !importing && (
+  /** The resume question's answers. Every answer WorkIt offers is a
+   *  suggestion Chip, these and the section chips alike (KAN-251); they were
+   *  a fill, an outline and a text link. Start Without One only in the
+   *  stage, where no section has started yet. */
+  const resumeAnswers = (stage: boolean) => (
     <>
-      <WorkItLine follows>
-        Have a resume? I can read it, fill in what it can, and then ask only about the rest.
-      </WorkItLine>
       <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
-        <Button
-          size="sm"
+        <Chip
+          variant="suggestion"
           onClick={() => fileInput.current?.click()}
           disabled={uploading || answering || saving}
         >
-          <FileUp /> {uploading ? "Uploading…" : "Upload Resume"}
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => setImporting(true)}>
-          Use One I Uploaded
-        </Button>
+          <FileUp aria-hidden />
+          {uploading ? "Uploading…" : "Upload Resume"}
+        </Chip>
+        <Chip variant="suggestion" disabled={uploading} onClick={() => setImporting(true)}>
+          <FileText aria-hidden /> Use One I Uploaded
+        </Chip>
+        {stage && (
+          <Chip variant="suggestion" disabled={uploading} onClick={startWithoutResume}>
+            <MessageSquareText aria-hidden /> Start Without One
+          </Chip>
+        )}
       </div>
       {uploadError && (
         <p role="alert" className="text-note text-danger pl-10.5">
@@ -639,6 +679,28 @@ export function Intake({
     </>
   );
 
+  /** Docked with an empty bank, the resume question is a stage of its own
+   *  (KAN-249): WorkIt's greeting asks it (OFFER_GREETING), its three
+   *  answers sit under it, and no section starts until one is picked. Asked
+   *  beside the Education question, as it was, the first screen asked two
+   *  things at once. A bank with entries has no stage, since the walk opens
+   *  on its gaps: the question is WorkIt's second line, with its two import
+   *  answers, until the student imports once. Without it, a student whose
+   *  bank had an entry had no way to import at all. After Start Without One
+   *  it stays answered. */
+  const importOffer = resumeStage
+    ? resumeAnswers(true)
+    : offerImport &&
+      !importing &&
+      !greetedWithOffer && (
+        <>
+          <WorkItLine follows>
+            Have a resume? I can read it, fill in what it can, and then ask only about the rest.
+          </WorkItLine>
+          {resumeAnswers(false)}
+        </>
+      );
+
   const stepBar = (
     <StepBar
       current={draft?.section ?? null}
@@ -647,8 +709,10 @@ export function Intake({
       skipped={skipped}
       lead={lead}
       busy={answering || saving}
+      // Docked, the stage card names the step and has Skip.
+      compact={docked}
       onJump={jump}
-      onSkip={skip}
+      onSkip={docked ? undefined : skip}
     />
   );
 
@@ -665,17 +729,19 @@ export function Intake({
     />
   );
 
-  /** The chat: WorkIt's lines, with `intro` after its greeting, then `tray`
-   *  (the draft's way in) above the composer. The class names size and
-   *  frame the box and its lines. */
+  /** The chat: WorkIt's lines, with `intro` after its greeting (`greeting`
+   *  in place of the usual one), then `tray` (the draft's way in) above the
+   *  composer. The class names size and frame the box and its lines. */
   const chat = ({
     className,
     logClassName,
+    greeting,
     intro,
     tray,
   }: {
     className: string;
     logClassName?: string;
+    greeting?: string;
     intro?: ReactNode;
     tray?: ReactNode;
   }) => (
@@ -693,9 +759,10 @@ export function Intake({
         )}
       >
         <WorkItLine>
-          {walk
-            ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
-            : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right."}
+          {greeting ??
+            (walk
+              ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
+              : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right.")}
         </WorkItLine>
         {intro}
 
@@ -718,19 +785,14 @@ export function Intake({
           </p>
         )}
 
-        {!draft && (
+        {!draft && !resumeStage && (
           <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
             {SECTIONS.map((s) => {
               const Icon = ICONS[s.id];
               return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => start(s.id)}
-                  className="text-label bg-panel text-brand ring-brand-pale hover:bg-brand-tint focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ring-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  <Icon aria-hidden className="size-3.5" /> {s.label}
-                </button>
+                <Chip key={s.id} variant="suggestion" onClick={() => start(s.id)}>
+                  <Icon aria-hidden /> {s.label}
+                </Chip>
               );
             })}
           </div>
@@ -751,7 +813,13 @@ export function Intake({
             disabled={!draft}
             who="WorkIt"
             label="Message WorkIt"
-            placeholder={draft ? "Type your answer…" : "Pick a section to start"}
+            placeholder={
+              draft
+                ? "Type your answer…"
+                : resumeStage
+                  ? "Pick an answer above to start"
+                  : "Pick a section to start"
+            }
           />
         </div>
         {usesLeft !== null && (
@@ -782,8 +850,9 @@ export function Intake({
     const Icon = draft ? ICONS[draft.section] : null;
     return (
       // Its own container, so the step bar and chips size to the panel.
-      // Three bands: progress and the draft's preview, the chat, the
-      // composer. The form opens over all three on Edit.
+      // Three bands: the stage card (the section, its step, Skip, the
+      // progress and the draft), the chat, the composer. The form opens over
+      // all three on Edit. During the resume stage only the chat shows.
       <section
         aria-labelledby="intake-title"
         className="@container/main relative flex min-h-0 flex-1 flex-col gap-3 pt-1"
@@ -793,25 +862,35 @@ export function Intake({
           Tell WorkIt About It
         </h2>
         {fileField}
-        <div className="flex flex-col gap-3 px-4">
-          {stepBar}
-          {draft && Icon && !importing && (
-            <DraftPreview
-              draft={draft}
-              done={kept?.done ?? false}
-              folded={folded}
-              saving={saving}
-              error={saveError}
-              duplicate={duplicate}
-              icon={<Icon className="size-4" />}
-              onFold={() => setFolded((f) => !f)}
-              onEdit={() => setSheet(true)}
-              onSave={() => save(draft)}
-              onSkip={saving || answering ? undefined : skip}
-              skipLabel={kept?.entryId ? "Leave As Is" : "Skip Section"}
-            />
-          )}
-        </div>
+        {!resumeStage && (
+          <div className="px-4">
+            {draft && Icon && !importing ? (
+              <DraftPreview
+                draft={draft}
+                done={kept?.done ?? false}
+                folded={folded}
+                saving={saving}
+                error={saveError}
+                duplicate={duplicate}
+                step={`Step ${WALK.indexOf(draft.section) + 1} of ${WALK.length}`}
+                progress={stepBar}
+                icon={<Icon className="size-4" />}
+                onFold={() => setFolded((f) => !f)}
+                onEdit={() => setSheet(true)}
+                onSave={() => save(draft)}
+                onSkip={skip}
+                skipLabel={kept?.entryId ? "Leave As Is" : "Skip Section"}
+                skipDisabled={saving || answering}
+              />
+            ) : (
+              // No section open (each one dealt with, or an import under
+              // way): the bar alone, in the stage card's frame.
+              <div className="bg-panel ring-brand-tint rounded-2xl px-3.5 py-1 ring-1">
+                {stepBar}
+              </div>
+            )}
+          </div>
+        )}
         {importing ? (
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
             {importer}
@@ -821,7 +900,10 @@ export function Intake({
           // lines fade out under the preview.
           chat({
             className: "min-h-0 flex-1 rounded-none bg-none ring-0",
-            logClassName: "pt-2 [mask-image:linear-gradient(to_bottom,transparent,black_12px)]",
+            // The first line starts below the 12px fade, so the greeting
+            // never opens half faded.
+            logClassName: "pt-3 [mask-image:linear-gradient(to_bottom,transparent,black_12px)]",
+            greeting: greetedWithOffer ? OFFER_GREETING : undefined,
             intro: importOffer,
           })
         )}

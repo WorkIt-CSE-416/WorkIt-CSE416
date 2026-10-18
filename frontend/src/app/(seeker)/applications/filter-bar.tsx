@@ -4,6 +4,7 @@ import Form from "next/form";
 import Link from "next/link";
 
 import { CloseIcon } from "@/components/icons";
+import { ChipLink } from "@/components/ui/chip";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
@@ -28,8 +29,8 @@ import { useApplicationsQuery } from "./view-switcher";
  * tint and a cross; off, it is a white outline with the stage's dot, so the
  * stage colours read the same here as on the board. Its count is how many
  * applications the search leaves in that stage, so a chip says what turning
- * it on will show. The chip is its own small link rather than
- * ui/filter-chip.tsx, whose chevron promises a menu.
+ * it on will show. The chip is a ChipLink (ui/chip.tsx, KAN-251) rather
+ * than ui/filter-chip.tsx, whose chevron promises a menu.
  *
  * A CLIENT COMPONENT, reading the URL itself (useApplicationsQuery), because
  * the layout switch moves the URL in place and never asks the server to draw
@@ -68,18 +69,19 @@ export function FilterBar({ counts }: { counts: Record<StageKey, number> }) {
             : STAGE_ORDER.filter((s) => s === stage || query.stages.includes(s));
 
           return (
-            <Link
+            <ChipLink
               key={stage}
               href={applicationsHref(query, { stages, app: null })}
               scroll={false}
-              className={cn(
-                // Its tint fades in or out as it is turned on or off, and it
-                // presses in on the click like every button.
-                "text-note focus-visible:ring-brand-ring ease-glide inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-medium transition-[color,background-color,border-color,transform] duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-95",
+              pressed={active}
+              // On, it takes its stage's tint rather than the brand's: a
+              // stage owns its colour (docs/design.md). The one chip that
+              // paints its own pressed look.
+              className={
                 active
                   ? cn("border-transparent", STAGE_COLOR[stage].tint, STAGE_COLOR[stage].onTint)
-                  : "border-border-subtle bg-panel text-ink-meta hover:border-border hover:text-ink",
-              )}
+                  : undefined
+              }
             >
               <span
                 aria-hidden="true"
@@ -99,7 +101,7 @@ export function FilterBar({ counts }: { counts: Record<StageKey, number> }) {
                   <span className="sr-only">, filter on</span>
                 </>
               )}
-            </Link>
+            </ChipLink>
           );
         })}
       </div>

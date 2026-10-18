@@ -10,6 +10,7 @@ import {
   ClockIcon,
   CoinIcon,
   LevelIcon,
+  levelIcon,
   PinIcon,
   RoleIcon,
   VisaIcon,
@@ -40,7 +41,8 @@ import type { JobFacets, JobLocationOption } from "./listings";
 /**
  * ALL FILTERS IS ONE PANEL WITH EVERY OPTION IN VIEW (KAN-170), after
  * Airbnb's filters and LinkedIn's "All filters": a section per facet under
- * the glyph the job card draws for it, each option a chip with its job count.
+ * the glyph the job card draws for it, each option a chip. Options carry no
+ * job count, as the row's don't (KAN-252); the button below counts the result.
  * It used to be a sheet of the row's dropdown buttons, which opened popups
  * inside a popup that landed left or right of their button depending on the
  * room. No popups in here.
@@ -107,7 +109,7 @@ function PanelBody({
   onApply: (filters: FeedFilters) => void;
 }) {
   const places = use(locations);
-  const counts = use(facets);
+  const facetOptions = use(facets);
   const [draft, setDraft] = useState(filters);
   // Bumped by Clear All: the pickers below keep what is typed in them (a
   // search, a salary figure) in their own state, so they are remounted empty.
@@ -115,8 +117,6 @@ function PanelBody({
   const count = useDraftCount(draft);
 
   const set = (change: Partial<FeedFilters>) => setDraft((d) => ({ ...d, ...change }));
-  const countOf = (group: keyof JobFacets, value: string | number) =>
-    counts[group].find((c) => c.value === String(value))?.jobs;
 
   return (
     <>
@@ -132,7 +132,6 @@ function PanelBody({
             options={places.map((p) => ({
               value: p.code,
               label: p.label,
-              count: p.jobs,
               nested: p.code.includes("-"),
             }))}
             values={draft.places}
@@ -149,10 +148,9 @@ function PanelBody({
             label="Roles"
             placeholder="Search a role"
             empty="No role by that name."
-            options={counts.role.map((o) => ({
+            options={facetOptions.role.map((o) => ({
               value: o.value,
               label: o.label,
-              count: o.jobs,
               nested: false,
             }))}
             values={draft.roles}
@@ -166,7 +164,6 @@ function PanelBody({
               <Chip
                 key={o.value}
                 pressed={draft.jobTypes.includes(o.value)}
-                count={countOf("job_type", o.value)}
                 onClick={() => set({ jobTypes: toggle(draft.jobTypes, o.value, JOB_TYPE_OPTIONS) })}
               >
                 {o.label}
@@ -180,7 +177,6 @@ function PanelBody({
                 key={o.value}
                 Icon={workStyleIcon(o.value)}
                 pressed={draft.workStyles.includes(o.value)}
-                count={countOf("work_style", o.value)}
                 onClick={() =>
                   set({ workStyles: toggle(draft.workStyles, o.value, WORKPLACE_OPTIONS) })
                 }
@@ -194,8 +190,8 @@ function PanelBody({
             {EXPERIENCE_OPTIONS.map((o) => (
               <Chip
                 key={o.value}
+                Icon={levelIcon(o.value)}
                 pressed={draft.levels.includes(o.value)}
-                count={countOf("experience", o.value)}
                 onClick={() => set({ levels: toggle(draft.levels, o.value, EXPERIENCE_OPTIONS) })}
               >
                 {o.label}
@@ -211,7 +207,6 @@ function PanelBody({
               <Chip
                 key={o.value}
                 pressed={draft.postedWithin === o.value}
-                count={countOf("posted_within", o.value)}
                 onClick={() =>
                   set({ postedWithin: draft.postedWithin === o.value ? null : o.value })
                 }
@@ -236,7 +231,7 @@ function PanelBody({
 
         <div className="grid gap-x-6 sm:grid-cols-2">
           <Section Icon={CalendarIcon} label="Start Date">
-            {counts.start_term.length === 0 ? (
+            {facetOptions.start_term.length === 0 ? (
               <p className="text-note text-ink-meta">No start dates in the feed yet.</p>
             ) : (
               <SearchPicker
@@ -244,10 +239,9 @@ function PanelBody({
                 label="Start Dates"
                 placeholder="Search a season"
                 empty="No season by that name has jobs."
-                options={counts.start_term.map((t) => ({
+                options={facetOptions.start_term.map((t) => ({
                   value: t.value,
                   label: seasonLabel(t.value),
-                  count: t.jobs,
                 }))}
                 values={draft.startTerms}
                 onChange={(next) => set({ startTerms: next })}
@@ -260,7 +254,6 @@ function PanelBody({
               <Chip
                 key={o.value}
                 pressed={draft.visa === o.value}
-                count={countOf("visa", o.value)}
                 onClick={() => set({ visa: draft.visa === o.value ? null : o.value })}
               >
                 {o.label}
@@ -273,11 +266,7 @@ function PanelBody({
             button. One chip: on, only the job postings that button shows
             on (Greenhouse for now); off, every job posting. */}
         <Section Icon={Zap} label="Auto Apply">
-          <Chip
-            pressed={draft.autoApply}
-            count={countOf("auto_apply", "true")}
-            onClick={() => set({ autoApply: !draft.autoApply })}
-          >
+          <Chip pressed={draft.autoApply} onClick={() => set({ autoApply: !draft.autoApply })}>
             Auto Apply Supported
           </Chip>
         </Section>
