@@ -9,6 +9,7 @@ import {
   Bell,
   Bookmark,
   BriefcaseBusiness,
+  Building,
   Building2,
   Calendar,
   Check,
@@ -21,6 +22,7 @@ import {
   ExternalLink,
   FileText,
   Globe,
+  Gift,
   GraduationCap,
   House,
   Info,
@@ -34,6 +36,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Send,
   Settings,
   Sparkles,
   Star,
@@ -293,7 +296,21 @@ export function RoleIcon({ className }: IconProps) {
 
 /* A job description's sections, beside their fixed headings on the job
  * posting page (KAN-229's Overview, Responsibilities, Requirements, Preferred
- * Qualifications and Details; Pay draws CoinIcon, the salary fact's). */
+ * Qualifications and Details; Pay draws CoinIcon, the salary fact's), then the
+ * extras folded under them: Benefits, How to Apply and About the Company. */
+
+export function BenefitsIcon({ className }: IconProps) {
+  return <Gift aria-hidden className={className} />;
+}
+
+export function ApplyIcon({ className }: IconProps) {
+  return <Send aria-hidden className={className} />;
+}
+
+/** A plain building, not On-Site's Building2, so the two never read as one fact. */
+export function CompanyIcon({ className }: IconProps) {
+  return <Building aria-hidden className={className} />;
+}
 
 export function OverviewIcon({ className }: IconProps) {
   return <FileText aria-hidden className={className} />;

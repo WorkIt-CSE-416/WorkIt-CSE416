@@ -194,12 +194,17 @@ Visa sponsorship has three answers, or none when the job posting doesn't say:
 A description keeps only what says what the job is (KAN-229). The scraper finds
 its headings ("What you'll do", "Who you are", "Benefits") and stores the intro,
 then Overview, Responsibilities, Requirements, Preferred Qualifications, Pay
-and Details, in that order and under those fixed headings. A line the
-employer's page listed is stored as "• item", and the page's own markup tells
-the scraper which lines are headings and which are list items. The company's pitch,
-benefits, legal notices and how to apply are left out: about 30% of the text. When
-that would keep under a tenth of a description, the headings were misread, and
-the whole description is stored instead. The facts above are read from the whole
+and Details, in that order and under those fixed headings. After them come
+Benefits, How to Apply and About the Company: the job posting's page shows them
+last, folded, and job matching, its keywords and Tailor never read them. Only
+legal notices are left out. A line the employer's page listed is stored as
+"• item", and the page's own markup tells the scraper which lines are headings
+and which are list items. When the job's own sections would keep under a tenth
+of a description, the headings were misread, and the whole description is
+stored instead. A heading the rules don't know
+("Role Purpose") is looked up in a list of labels a model gave once and the team
+reviewed (`scraper/workit_scraper/learned_headings.json`); the scrape itself
+never calls a model. The facts above are read from the whole
 text first, so leaving text out never loses one. Then a long description is cut at 8,000 characters, ending in " …". The
 rules and the measurements are in `scraper/docs/sections.md`.
 
@@ -237,7 +242,7 @@ table. Scraped ones have no `company_id`.
 | Column | Holds |
 |---|---|
 | `title`, `company_name`, `apply_url`, `company_logo_url` | What the card shows; `apply_url` is unique |
-| `description` | The kept sections under their fixed headings (section 3), for the job posting's page, search and Scout |
+| `description` | The kept sections under their fixed headings (section 3), for the job posting's page, search and Scout. Matching, its keywords and Tailor read only the job's sections, never Benefits, How to Apply or About the Company |
 | `location_raw` | The location as the company job board wrote it |
 | `location_label` | The card's version, "San Francisco, CA", written by the import (section 5.2) |
 | `work_style` | `remote`, `hybrid`, `onsite`, or empty |

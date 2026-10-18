@@ -444,17 +444,99 @@ change, and none keeps under 10% (the median keeps 73.7%). On the 467 fetched
 HTML descriptions, 12 fail `kept(kept(text, roles)) == kept(text, roles)`, as
 before.
 
+**Two more, from a live posting (2026-10-18).** Nuro's new grad posting lost its
+four On-Road Experience duties: "About the Work" fit the company-name rule
+("About Stripe"), so its section was dropped as the company's. It now opens
+Overview, as the gold set labels Nuro's intern posting. And an inline label of
+more than four words is a sentence's start, not a section's name: "You will own
+features end-to-end: scoping, ..." was stored as "scoping, ..."; the line now
+keeps its whole text. Together the board postings' line accuracy rose from 81.7%
+to 82.1% and their hidden job text fell from 3.7% to 3.0%; Workday's did not move.
+
 **Still open.** What is left needs a line's meaning. A model that labels each
 line would reach it. It was deferred on 2026-10-17 for want of a budget. A trial
 on the gold set fits a free plan: Groq's `gpt-oss-120b` allows 200,000 tokens a
 day, about one run. Labeling the whole feed does not: the stored descriptions are
 about 16 million tokens. It would run in the backend's import, since the scraper
 uses the standard library only. Ask it for a section per line number, not
-rewritten text, so nothing on the page is invented. Store the labels once per
+rewritten text, so nothing on the page is invented. The headings alone are labeled
+this way now, a few words each and once per heading ("Learned headings", below);
+a label per line is still open. Store the labels once per
 description, so the page does not change between runs. For comparison, JobRight
 runs a model on every posting. Its pages hold fields a model fills (a written
 summary, duties and qualifications copied word for word) and no copy of the
 posting.
+
+## Learned headings (2026-10-18)
+
+A heading no pattern names is content, and its text stays in the section before
+it: under a left-out section, it leaves the page (Nuro's "About the Work", Starr's
+"Role Purpose"). Writing a pattern for each one does not keep up, so a model labels
+them, once each:
+
+- **`label_headings.py`** collects every heading-shaped line no pattern or learned
+  label names (`sections.unknown_headings`), from the gold set, the feed snapshot or
+  any postings' JSON. In plain text only a title ("Role Purpose") or a label ending
+  ":" counts: every short list item is heading-shaped too. A line the HTML marks
+  as a heading always counts, and a list item never does.
+- It asks Groq for one label each, 50 a request, from `sections.LEARNED_LABELS`:
+  a section `SECTIONS` names, or "none". The prompt says to answer "none" when
+  unsure, since a list item labeled as a heading splits its list. An invented
+  label or a renamed line is dropped and asked again on the next run, and a 429
+  (8,000 tokens a minute) is waited out as Groq's retry-after says.
+- The answers go to `workit_scraper/learned_headings.json`, sorted, in git.
+  `_named` reads them after the patterns, so a pattern always wins. A run asks
+  only about headings with no answer, and one that stops keeps what it saved.
+- **A learned label never sends job text where it should not go** (`_hides` in
+  `_walk`): one naming legal cannot end any job section, and one naming an extra
+  (Benefits, How to Apply, About the Company) cannot end the sections matching
+  reads (the intro, Overview, Responsibilities, Requirements, Preferred
+  Qualifications). Groq filed Blenheim Chalcot's "The Centre of Excellence", its
+  early-careers programme, as the company's, and the programme left the page.
+  Out of Pay or Details into an extra it applies, since matching reads neither:
+  ASDA's and AEP's company pitch ran on under Details past "Everything about
+  Asda" and "Where Putting the Customer First Powers Everything We Do". A label
+  for a job section always applies, so a label can bring job text back but never
+  send it where matching cannot read it.
+- **The company-voice rule is the patterns' alone.** A pattern matches words
+  ("make an impact" in "Products we've built to make an impact"); the model read
+  the whole heading, and "Our ideal builders will have the following attributes
+  & skills" is a requirements list. Held to the rule, SharkNinja's requirements
+  stayed under its Responsibilities.
+- **Never during the scrape.** Groq takes about 30 requests a minute, a run reads
+  thousands of pages, and each page is stored once: a label that missed the run
+  would miss that posting for good, and the same posting could split two ways on
+  two runs.
+- **The model** is `openai/gpt-oss-20b` (`HEADINGS_MODEL` changes it), with low
+  reasoning effort: a Groq production model. Groq's model page lists
+  `llama-3.1-8b-instant`, but a new free account had no access to it. Use a key
+  of its own, never one Scout's chain uses, so a first run never spends Scout's
+  daily quota. Preview models ("may be discontinued at short notice") are out.
+
+**The first run (2026-10-18)** labeled the 867 unknown headings of the gold set
+and the feed snapshot: 384 "none", the rest a section. Scored one label at a
+time on the gold set, 11 lost gold lines or hid text ("You'll be" as
+Responsibilities, "A Brief Overview" and "AI at SharkNinja" as the company's)
+and were set to "none", and Accuray's "Internship Objectives" went from
+Responsibilities to Overview, as the set labels it. Two more were set later
+that day, once the extras were kept: "Available Internship Tracks" (Wing) to
+Overview and "Everything you'll love" (ASDA) to Benefits, fourteen in all. Then:
+
+| | Rules alone | With learned headings |
+|---|---|---|
+| Boards, line accuracy | 82.1% | 83.9% |
+| Boards, job text hidden | 3.0% | 2.6% |
+| Workday, line accuracy | 72.6% | 77.7% |
+| Workday, job text hidden | 5.2% | 2.5% |
+
+The test's floors and ceilings moved to these. Fourteen of the labels the set's
+headings got were corrected against it, so on those it is no longer a
+blind test; a heading the set has never seen is checked by reading the diff.
+
+- **After adding labels:** read the diff, score each new label on the gold set
+  (a label that loses lines or hides text goes to "none"), check the floors and
+  ceilings, and bump `providers.PAGE_VERSION`, or stored postings keep their old
+  split.
 
 ## What WorkIt keeps (decided 2026-10-17)
 
@@ -465,7 +547,14 @@ text is gone for search, matching, Scout and Tailor.
   heading), Overview, Responsibilities, Requirements, Preferred
   Qualifications, Pay, Details. Sections of one kind are joined in the order
   written, so SpaceX's export-control rule joins its other requirements.
-- **Left out:** company, benefits, legal, apply.
+- **Left out:** legal. **Kept after the job since 2026-10-18** (`sections.EXTRA`):
+  benefits ("Benefits"), apply ("How to Apply") and company ("About the Company").
+  Left out, they hid what employers wrote about the job under a perks heading
+  (Kepler's "Build and operate real satellites!" under "What We Offer", Stryker's
+  "What you will gain") and the internship under "About Us" (Wing, ION). Kept,
+  the gold set's hidden job text fell from 2.4% to 0.4% (boards) and 2.2% to
+  1.1% (Workday), with the job's own lines placed as before (85.5%, 80.8%). The
+  job page folds them under the job, and matching never reads them.
 - **Matching's embedding reads:** Overview, Responsibilities,
   Requirements and Preferred Qualifications, plus the intro when there is no
   Overview, since that is where such a posting states the role
@@ -473,8 +562,10 @@ text is gone for search, matching, Scout and Tailor.
 
 `providers._page` stores `cap(kept(full))`: the card's facts are read from the
 whole text first, so a pay line under Benefits still reaches the card. Search's
-full-text index, Scout, Tailor and the keyword match read the stored description,
-so none of them sees the left-out text any more.
+full-text index and Scout read the stored description, extras included, so a
+search for "relocation" still finds a posting that offers it. Matching's
+embedding, the keyword match and Tailor read only the job's sections
+(`embeddings.job_part`).
 
 Two guards keep the format readable by the backend, each with a test:
 

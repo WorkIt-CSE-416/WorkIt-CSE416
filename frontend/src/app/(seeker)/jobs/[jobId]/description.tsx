@@ -40,6 +40,15 @@
  * one. A description stored before KAN-229 has none of them, and its headings
  * draw as before, all alike and without icons.
  *
+ * THE EXTRAS ARE FOLDED UNDER THE JOB (`EXTRA_SECTIONS`). Since 2026-10-18 the
+ * scraper also keeps Benefits, How to Apply and About the Company, after the
+ * job's sections (sections.py, `EXTRA`). They show last, in one "More from the
+ * posting" fold that names them, closed at first, so the job itself is what a
+ * student reads first; matching never reads them. Before, they were left out,
+ * and with them what an employer wrote about the job under a perks heading.
+ * Only the job's sections make a description "sectioned": a description stored
+ * before KAN-229 with its own "Benefits" line draws as before.
+ *
  * The scraper cuts a long posting at 8,000 characters and ends it " …"
  * (providers.cap); then the last line says so and links to the whole posting
  * on the employer's site.
@@ -48,7 +57,11 @@
 import type { ComponentType } from "react";
 
 import {
+  ApplyIcon,
+  BenefitsIcon,
+  ChevronDownIcon,
   CoinIcon,
+  CompanyIcon,
   DetailsIcon,
   OverviewIcon,
   PreferredIcon,
@@ -64,7 +77,14 @@ const SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "Preferred Qualifications": PreferredIcon,
   Pay: CoinIcon,
   Details: DetailsIcon,
+  Benefits: BenefitsIcon,
+  "How to Apply": ApplyIcon,
+  "About the Company": CompanyIcon,
 };
+
+/** The extras the scraper keeps after the job's sections (sections.py, `EXTRA`),
+ *  in its order: shown folded, last. */
+const EXTRA_SECTIONS = ["Benefits", "How to Apply", "About the Company"];
 
 type Block =
   | { kind: "paragraph"; text: string }
@@ -83,6 +103,7 @@ const SECTION_ORDER = [
   "Preferred Qualifications",
   "Pay",
   "Details",
+  ...EXTRA_SECTIONS,
 ];
 
 /** The sections every sectioned description shows, there or not. Preferred
@@ -234,12 +255,24 @@ export function JobDescription({
 }) {
   const cut = isCut(text);
   const parsed = toBlocks(cut ? text.slice(0, -CUT.length) : text);
-  // One fixed heading means the KAN-229 format, where the employer's other
-  // headings are subheadings and every core section shows.
+  // One of the job's fixed headings means the KAN-229 format, where the
+  // employer's other headings are subheadings and every core section shows.
   const sectioned = parsed.some(
-    (b) => b.kind === "heading" && Object.hasOwn(SECTION_ICONS, b.text),
+    (b) =>
+      b.kind === "heading" &&
+      Object.hasOwn(SECTION_ICONS, b.text) &&
+      !EXTRA_SECTIONS.includes(b.text),
   );
-  const blocks = sectioned ? withCoreSections(parsed, cut, pay) : parsed;
+  const all = sectioned ? withCoreSections(parsed, cut, pay) : parsed;
+  // withCoreSections puts the extras last, so they are one tail to fold.
+  const firstExtra = sectioned
+    ? all.findIndex((b) => b.kind === "heading" && EXTRA_SECTIONS.includes(b.text))
+    : -1;
+  const blocks = firstExtra < 0 ? all : all.slice(0, firstExtra);
+  const extras = firstExtra < 0 ? [] : all.slice(firstExtra);
+  const extraNames = extras.flatMap((b) =>
+    b.kind === "heading" && EXTRA_SECTIONS.includes(b.text) ? [b.text] : [],
+  );
   const fullPosting = (label: string) => (
     <a
       href={applyUrl}
@@ -251,43 +284,57 @@ export function JobDescription({
       <span className="sr-only"> (opens in a new tab)</span>
     </a>
   );
+  const draw = (block: Block, i: number) =>
+    block.kind === "heading" ? (
+      <Heading key={i} text={block.text} sectioned={sectioned} />
+    ) : block.kind === "list" ? (
+      <ul key={i} role="list" className="flex flex-col gap-1.5 pl-4">
+        {block.items.map((item, j) => (
+          <li key={j} className="text-body text-ink flex items-start gap-2">
+            {/* Ink like the text: in the faintest grey the bullets were
+                    hard to see (2026-10-17). */}
+            <span aria-hidden="true" className="bg-ink mt-2 size-1.5 shrink-0 rounded-full" />
+            {item}
+          </li>
+        ))}
+      </ul>
+    ) : block.kind === "listed-pay" ? (
+      <p key={i} className="text-body text-ink">
+        {block.pay}{" "}
+        <span className="text-ink-meta">
+          (from {company}&apos;s listing, not the posting&apos;s text)
+        </span>
+      </p>
+    ) : block.kind === "missing" ? (
+      <p key={i} className="text-body text-ink-meta">
+        {block.why === "cut" ? (
+          <>Not in the part shown here. It may be further down the posting. </>
+        ) : (
+          // Never "not available": a heading the scraper doesn't know
+          // ("Role Purpose") leaves its text in the section above.
+          <>Not under its own heading in this posting. It may be in the text above. </>
+        )}
+        {fullPosting(`Read the full posting on ${company}'s site`)}.
+      </p>
+    ) : (
+      <p key={i} className="text-body text-ink">
+        {block.text}
+      </p>
+    );
   return (
     <div className="mt-3 flex max-w-[68ch] flex-col gap-3">
-      {blocks.map((block, i) =>
-        block.kind === "heading" ? (
-          <Heading key={i} text={block.text} sectioned={sectioned} />
-        ) : block.kind === "list" ? (
-          <ul key={i} role="list" className="flex flex-col gap-1.5 pl-4">
-            {block.items.map((item, j) => (
-              <li key={j} className="text-body text-ink flex items-start gap-2">
-                {/* Ink like the text: in the faintest grey the bullets were
-                    hard to see (2026-10-17). */}
-                <span aria-hidden="true" className="bg-ink mt-2 size-1.5 shrink-0 rounded-full" />
-                {item}
-              </li>
-            ))}
-          </ul>
-        ) : block.kind === "listed-pay" ? (
-          <p key={i} className="text-body text-ink">
-            {block.pay}{" "}
-            <span className="text-ink-meta">
-              (from {company}&apos;s listing, not the posting&apos;s text)
+      {blocks.map(draw)}
+      {extras.length > 0 && (
+        <details className="group border-border mt-3 rounded-xl border">
+          <summary className="hover:bg-hover focus-visible:ring-brand-ring flex cursor-pointer list-none items-center gap-2 rounded-xl px-4 py-3 focus-visible:ring-2 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+            <span className="text-body text-ink font-semibold">More from the posting</span>
+            <span className="text-note text-ink-meta min-w-0 flex-1 truncate">
+              {extraNames.join(", ")}
             </span>
-          </p>
-        ) : block.kind === "missing" ? (
-          <p key={i} className="text-body text-ink-meta">
-            {block.why === "cut" ? (
-              <>Not in the part shown here. It may be further down the posting. </>
-            ) : (
-              <>Not available: this posting doesn&apos;t list it under its own heading. </>
-            )}
-            {fullPosting(`Read the full posting on ${company}'s site`)}.
-          </p>
-        ) : (
-          <p key={i} className="text-body text-ink">
-            {block.text}
-          </p>
-        ),
+            <ChevronDownIcon className="text-ink-meta size-4 shrink-0 transition-transform duration-150 group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-3 px-4 pb-4">{extras.map(draw)}</div>
+        </details>
       )}
       {cut && (
         <p className="text-body text-ink-meta">

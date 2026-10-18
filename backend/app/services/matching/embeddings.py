@@ -35,11 +35,14 @@ _URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:batchEm
 # whole description again. Matching reads the role and what it asks for; the
 # pay and the details are left out, and so is the intro unless the posting has
 # no Overview: then the intro is where it states the role (19 of the scraper's
-# 50 gold postings keep role or requirement lines there).
+# 50 gold postings keep role or requirement lines there). The extras the
+# scraper keeps after them (Benefits, How to Apply, About the Company,
+# `sections.EXTRA`) are for the job posting's page: matching, the keywords and
+# Tailor never read them (`job_part`).
 _MATCHED_HEADINGS = frozenset(
     {"Overview", "Responsibilities", "Requirements", "Preferred Qualifications"}
 )
-_OTHER_HEADINGS = frozenset({"Pay", "Details"})
+_OTHER_HEADINGS = frozenset({"Pay", "Details", "Benefits", "How to Apply", "About the Company"})
 
 
 def _matched_part(description: str) -> str | None:
@@ -58,18 +61,29 @@ def _matched_part(description: str) -> str | None:
         elif reading:
             lines.append(line)
     if not "\n".join(lines).strip():
-        return None
+        # Only the intro under none of them, then Pay or an extra: the intro is
+        # the job, and the perks after it must not stand in for it.
+        return ("\n".join(intro).strip() or None) if seen else None
     if "Overview" not in description.split("\n"):
         lines = intro + lines
     return "\n".join(lines).strip()
+
+
+def job_part(description: str | None) -> str:
+    """What a posting says about the job itself (`_matched_part`), or its whole
+    description when it was stored with none of the fixed headings. What the
+    embedding, the keywords and Tailor read, so a perks list or the company's
+    pitch never steers them."""
+    if not description:
+        return ""
+    return _matched_part(description) or description
 
 
 def job_text(title: str, description: str | None) -> str:
     '''what a posting is embedded from: its title, then its role (its intro
     when it has no Overview), responsibilities, requirements and preferred
     qualifications, or its whole description when it has none of them'''
-    body = _matched_part(description) if description else None
-    return f"{title}\n\n{body or description or ''}".strip()
+    return f"{title}\n\n{job_part(description)}".strip()
 
 
 def model_key() -> str:

@@ -182,7 +182,9 @@ Qualifications and Details only when the posting has them. A missing core
 section says why, as far as WorkIt can tell: pay the hiring system sent as a
 field shows as the card's pay "(from <company>'s listing, not the posting's
 text)"; a description cut at 8,000 characters says the section may be further
-down; anything else says the posting doesn't list it under its own heading. All
+down; anything else says it isn't under its own heading and may be in the text
+above, since a heading the scraper doesn't know ("Role Purpose") leaves its
+text in the section before it. All
 three link to the full posting. It never says a posting lacks something, since
 the text may hold it in a paragraph the scraper could not place. A fixed
 heading always reads as a heading, even straight before an employer's own
@@ -190,6 +192,15 @@ heading always reads as a heading, even straight before an employer's own
 read as list items. In such a
 description, any other heading the employer wrote is a smaller subheading with
 no icon; a description stored before KAN-229 draws its headings as before.
+**Benefits, How to Apply and About the Company come last, folded**
+(`EXTRA_SECTIONS`, 2026-10-18): one "More from the posting" row, bordered like a
+card, names the ones the posting has and opens on a click (a `<details>`, so the
+keyboard and a screen reader work without code); inside, each has its own
+purple icon (a gift, a paper plane, a building, not On-Site's). The job's own
+sections stay first and open, since they are what a student reads first, and
+matching never reads the folded ones. Only the job's headings make a
+description sectioned, so an old one with its own "Benefits" line draws as
+before.
 Apply Now (`[jobId]/apply-button.tsx`,
 KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the

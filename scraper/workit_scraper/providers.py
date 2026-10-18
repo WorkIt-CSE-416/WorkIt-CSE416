@@ -58,7 +58,7 @@ DESCRIPTION_CHARS = 8000
 #: range whose low end carries its unit ("$50/hr - $70/hr") reads whole (KAN-229).
 #: 15: the HTML's list items and headings guide the sections, and a list item is
 #: stored as "• item" (`plain_lines`); with it, unreleased, a line moved by what it
-#: says and less job text hidden (`docs/sections.md`).
+#: says and less job text hidden, and the learned headings (`docs/sections.md`).
 PAGE_VERSION = 15
 
 
