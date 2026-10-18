@@ -10,7 +10,7 @@ Uploading a resume saves the file, reads its text into `resumes.raw_text`, parse
 - **The result says what went in**: `found` (what the reading found, written or not), entries added, entries filled in, skills added, and who read it. My Profile and intake show it as one sentence: "Added 6 entries and 2 skills from resume.pdf", "Experiences already has everything in …", or "WorkIt couldn't find any entries in …", with Read It With AI beside it while a use is left.
 - **Import Again** is an icon on each uploaded resume's row on My Profile. It re-reads the stored upload (`POST /applicants/{id}/bank/import`) under the same merge rules, with no review step, so a parser fix reaches old uploads. It can bring back a bullet the student deleted; that is the student's explicit click.
 - **Deleting an uploaded resume leaves the bank as it is.** Built resumes point at its entries, and the student may have edited them.
-- **Old uploads** get a one-time backfill script (`app.scripts.import_uploads`, `--dry-run` first, parser only). It fills only a student whose bank is empty: anyone else already imported or typed their facts, and a merge would add the resume's original wording beside bullets they reworded. A second run fills nothing.
+- **Old uploads are not backfilled.** A resume uploaded before this change reaches the bank when the student clicks Import Again, which the Jobs page's empty-bank card offers in one click.
 
 ## Considered Options
 
@@ -19,10 +19,11 @@ Uploading a resume saves the file, reads its text into `resumes.raw_text`, parse
 - **Skip an entry already in the bank**: loses the second resume's new bullets, so two resumes do not add up to one bank.
 - **Save a copy**: fills the bank with copies the student must clean up, and Generate already sets copies aside.
 - **Keep `parsed_json` beside the bank**: two stores of the same facts drift apart.
+- **A one-time backfill of old uploads**: written, then dropped. Import Again already covers an old upload on the student's click, and a script run by hand against the shared database is one more step that can go wrong.
 
 ## Consequences
 
-- Deploy the code before dropping the column (`3f7a2c9d1e84`): the code before this change writes `parsed_json` on every upload, so dropping it first breaks every upload. The order is merge and deploy, then `uv run alembic upgrade head`, then the backfill.
+- Deploy the code before dropping the column (`3f7a2c9d1e84`): the code before this change writes `parsed_json` on every upload, so dropping it first breaks every upload. The order is merge and deploy, then `uv run alembic upgrade head`.
 - The Chrome autofiller extension read `parsed_json` through `GET /applicants/{id}/resumes/{resume_id}`, which now returns the resume's metadata only, so the extension fills no Education or Experience until its owner moves it to `GET /applicants/{id}/bank`. That code is being rewritten by its owner and is left alone here.
 - The review screen's drafts, Save All and "Already in Your Bank" are gone. Intake's "Have a resume?" keeps Upload Resume, and "Use One I Uploaded" runs Import Again.
 - Scout, for an empty bank beside an upload, now says the upload could not be read and points at Import Again and Read It With AI, not at an import still waiting.

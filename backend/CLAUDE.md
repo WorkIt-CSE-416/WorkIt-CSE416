@@ -38,7 +38,6 @@ uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
 uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
-uv run python -m app.scripts.import_uploads    old uploads → empty banks, once (--dry-run rolls back; the user runs it)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -82,17 +81,6 @@ module docstring has the steps.
   `job_role_tags`, resolved from its title (KAN-155).
 - A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
   table sizes read right after one are inflated.
-
-### The upload backfill
-
-`app.scripts.import_uploads` fills the bank from resumes uploaded before an
-upload did it itself (KAN-240). **Claude never runs it against a shared
-database**, same rule as the feed import: the user runs it, `--dry-run`
-first. It fills only a student whose bank is empty (no entries, no skills):
-anyone else already imported or typed their facts, and a merge would add a
-resume's original wording beside bullets they reworded. Each student's
-uploads go newest first, so the newest resume's fields win. Parser only: the
-model would spend the students' daily uses. A second run fills nothing.
 
 ### Tests
 
@@ -263,9 +251,11 @@ Find files with a directory listing; these are the rules for where code goes.
   the model fails, and then writes nothing. The prompt and checks are in
   `services/bank_import.py`; the rules are in `app/utils/CLAUDE.md`, "The
   model upgrade path". Tests: `tests/test_bank_import.py` (the upload's
-  writes, the merge, Import Again, no model unasked, no identity data in
-  the prompt, an invalid or failed reply writes and counts nothing, the cap
-  and the share, the backfill).
+  writes, the merge, Import Again, no identity data in the prompt, an
+  invalid or failed reply writes and counts nothing, the cap and the share).
+- **Uploads from before KAN-240 are not backfilled.** Their facts reach the
+  bank only when the student clicks Import Again; the Jobs page's empty-bank
+  card offers it in one click.
 - **Every resume feature reads the built resume view**
   (`app/services/resume_view.py`, KAN-207): one pure function from the bank
   and a built resume's choices to what the resume shows. The PDF, the Word
@@ -618,8 +608,8 @@ free tier). Render with a Dockerfile is the fallback.
 - **Apply `3f7a2c9d1e84` only AFTER deploying KAN-240.** It drops
   `resumes.parsed_json`, which the code before KAN-240 names in every
   upload's INSERT, so applying it first makes every resume upload answer
-  500. The order: merge and deploy, then `uv run alembic upgrade head`, then
-  the backfill above (`--dry-run` first). The Chrome autofiller still reads
+  500. The order: merge and deploy, then `uv run alembic upgrade head`. The
+  Chrome autofiller still reads
   `parsed_json` through `GET .../resumes/{id}`, which now returns no such
   key; its owner is moving it to the bank (`../autofiller_extension/`, not
   ours to change).

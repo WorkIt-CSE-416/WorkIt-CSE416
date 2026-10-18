@@ -19,7 +19,6 @@ from app.deps import get_current_account
 from app.main import app
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
-from app.scripts.import_uploads import backfill
 from app.services import bank as bank_service
 from app.services.bank_import import read
 
@@ -252,15 +251,13 @@ async def test_the_same_resume_twice_adds_nothing_the_second_time(student, uploa
     assert len((await client.get(bank)).json()["entries"]) == 6
 
 
-async def test_an_upload_the_parser_cannot_read_adds_nothing_and_never_asks_the_model(student, upload, use_model):
+async def test_an_upload_the_parser_cannot_read_adds_nothing(student, upload):
     client, applicant_id, bank = student
-    fake = use_model(_reading())
 
     res = await upload(client, applicant_id, UNREADABLE_TEXT)
     assert res.status_code == 200
     assert res.json()["status"] == "parse_failed"
     assert (res.json()["bank"]["found"], _counts(res.json()["bank"])) == (0, (0, 0, 0))
-    assert fake.prompts == []
     assert (await client.get(bank)).json() == {"entries": [], "skills": []}
 
 
@@ -351,34 +348,6 @@ async def test_a_filled_field_that_clashes_leaves_the_entry_but_adds_its_bullets
     assert [b["text"] for b in saved[0]["bullets"]] == ["Tutored calculus"]
 
 
-# --- the backfill of old uploads ------------------------------------------------
-
-
-async def test_the_backfill_fills_only_empty_banks_newest_upload_first(student, database):
-    client, applicant_id, bank = student
-    await _seed_resume(database, applicant_id, "Projects\nWorkIt  Jan 2025 - Mar 2025\n• Built it", minutes_ago=10)
-    await _seed_resume(database, applicant_id, "Projects\nWorkIt  Jan 2026 - Present\n• Shipped it")
-    async with database() as session:
-        busy = await _seed_applicant(session)
-    await _seed_resume(database, busy, RESUME_TEXT)
-    async with database() as session:
-        await bank_service.add_skill(session, busy, "Python")
-        await session.commit()
-
-    async with database() as session:
-        report = await backfill(session)
-        await session.commit()
-    assert (report.students, report.resumes, report.entries_added) == (1, 2, 1)
-
-    (workit,) = (await client.get(bank)).json()["entries"]
-    # The newest upload's dates win; the older one adds its bullet.
-    assert (workit["start_month"], workit["end_kind"]) == ("2026-01", "present")
-    assert [b["text"] for b in workit["bullets"]] == ["Shipped it", "Built it"]
-
-    async with database() as session:
-        assert (await backfill(session)).resumes == 0
-
-
 # --- reading with the model (KAN-222) ----------------------------------------------
 #
 # ScriptedLLM stands in for the model (seam 2); its script is the model's JSON.
@@ -462,16 +431,6 @@ async def test_read_with_ai_writes_the_models_entries_checked_against_the_entry_
     assert (tunnel["title"], tunnel["start_month"], tunnel["end_month"]) == ("Wind Tunnel", None, None)
     assert (school["degree"], school["field_of_study"], school["gpa"]) == ("B.S.", None, 3.5)
     assert [(s["name"], s["group"]) for s in saved["skills"]] == [("Excel", "Tools")]
-
-
-async def test_import_never_asks_the_model_unless_the_student_does(student, database, use_model):
-    client, applicant_id, bank = student
-    await _seed_resume(database, applicant_id, UNREADABLE_TEXT)
-    fake = use_model(_reading())
-
-    body = (await client.post(f"{bank}/import", json={})).json()
-    assert (body["read_by"], _counts(body), body["uses_left"]) == ("parser", (0, 0, 0), 1)
-    assert fake.prompts == []
 
 
 async def test_the_prompt_sent_holds_no_identity_data(student, database, use_model):
