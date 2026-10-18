@@ -414,7 +414,11 @@ def split(text: str | None, roles: tuple[str | None, ...] | None = None) -> tupl
 #: U.S. export-controlled technology" is a requirement a student has to meet.
 _EEO = re.compile(
     r"equal (employment )?opportunit|without regard to|regardless of (race|sex|gender|age)|"
-    r"affirmative action|reasonable accommodations?|e-verify",
+    r"affirmative action|reasonable accommodations?|e-verify|"
+    # "prohibits discrimination or harassment based on ... citizenship": boilerplate,
+    # which the eligibility rule would otherwise show under Requirements.
+    r"(prohibits?|does not|do not|will not|won.t) (unlawfully )?discriminat|"
+    r"discriminat\w* (on the basis|based on|against|because)",
     re.I,
 )
 
@@ -436,6 +440,102 @@ _KEPT_KEYS = {key for key, _ in KEPT}
 _ABOUT_THE_JOB = {INTRO, "role", "responsibilities", "requirements", "preferred"}
 
 
+#: What a line says that its heading does not (fix 4, `_settled`): each moves a line
+#: out of the section its heading put it in. Scored on the gold set one by one; a
+#: rule that broke more lines than it fixed was dropped (`docs/sections.md`).
+#:
+#: A nice-to-have marker: "is a plus", "preferred", "desirable", "ideally".
+_PREFERRED = re.compile(
+    r"\(preferred\)|\bpreferred\b[.)]?$|\b(is|are) preferred\b|"
+    r"\bpreferred (but not required|knowledge|experience|qualifications?)\b|"
+    r"\bnice[ -]to[ -]have\b|\b(is|are|would be) a (big |strong |huge )?plus\b|"
+    r"\ba plus\b[.!]?$|\bideally\b|\bdesirable\b|\bdesired\b",
+    re.I,
+)
+#: A side note in brackets: "(Postman or similar is a plus)" marks part of a
+#: requirement, not the line. A bare "(preferred)" marks the whole line.
+_SIDE_NOTE = re.compile(
+    r"\((?!\s*(preferred|a plus|desired|desirable|nice to have)\s*\))[^)]*\)", re.I
+)
+#: A line that requires something, whatever else it prefers.
+_REQUIRES = re.compile(r"\bmust\b|\brequired\b", re.I)
+_NOT_REQUIRED = re.compile(r"\bnot required\b|\bno [\w ]{0,30}required\b", re.I)
+#: A qualification, in a duties list: "Strong analytical skills", "Standard
+#: knowledge of cost accounting principles", "Bachelor's degree in finance".
+_QUALIFICATION = re.compile(
+    r"^(•\s*)?((a |an )?(standard|strong|good|excellent|solid|basic|working|proven|"
+    r"advanced|demonstrated|sound|thorough|fluent|proficient)\b.{0,40}\b(knowledge|"
+    r"understanding|command|proficiency|skills?|abilit(y|ies)|experience|familiarity)\b|"
+    r"(knowledge|understanding|proficiency|familiarity|fluency) (of|in|with)\b|"
+    r"(currently )?(pursuing|enrolled)\b|(bachelor|master|associate)['’]?s?\b|"
+    r"(a |an )?(degree|studies) in\b|minimum (gpa|of \d)|\d\.\d+ gpa|gpa of\b)",
+    re.I,
+)
+#: Who may take the job: work authorization, sponsorship, citizenship, clearance.
+_ELIGIBILITY = re.compile(
+    r"\b(authori[sz]ed to work|work authori[sz]ation|visa sponsorship|sponsorship|"
+    r"citizen(ship)?|green card|permanent resident|security clearance|eligible to work|"
+    r"u\.?s\.? persons?)\b",
+    re.I,
+)
+#: A perk named outright.
+_BENEFIT = re.compile(
+    r"\b401\(?k\)?|medical, dental|dental,? and vision|health insurance|paid time off|"
+    r"\bpto\b|parental leave|tuition reimbursement|employee (discount|stock purchase)|"
+    r"wellness program|paid holidays",
+    re.I,
+)
+#: How to apply.
+_APPLY = re.compile(
+    r"\b(to apply|apply (now|online|today|by|through|via)|submit (your|a|an) (resume|cv|"
+    r"application|cover letter)|application deadline|interview process|"
+    r"next steps in the process)\b",
+    re.I,
+)
+
+
+def _preferred(line: str) -> bool:
+    """A nice-to-have, said in its own words: "Experience with automated testing is a
+    plus." Not a requirement with a nice-to-have aside ("Fluent in English and German
+    (any additional language is a plus)", "Programming skills in C++ and/or python.
+    Julia is a plus!"), which stays a requirement."""
+    core = _SIDE_NOTE.sub("", line)
+    if not _PREFERRED.search(core):
+        return False
+    first = re.split(r"(?<=[.!?;])\s+", core.strip(), maxsplit=1)[0]
+    if _REQUIRES.search(first) and not _NOT_REQUIRED.search(first):
+        return False
+    return _PREFERRED.search(first) is not None or len(first) <= 25
+
+
+def _said(key: str, line: str) -> str | None:
+    """The section a line belongs to by what it says, when its heading put it
+    somewhere else; None to leave it there. The order is the decision."""
+    if key in ("requirements", "responsibilities") and _preferred(line):
+        return "preferred"
+    if key == "responsibilities" and _QUALIFICATION.search(line):
+        return "requirements"
+    if key in ("logistics", INTRO, "role", "pay") and _ELIGIBILITY.search(line):
+        return "requirements"
+    if key in _KEPT_KEYS and key != "pay" and _BENEFIT.search(line):
+        return "benefits"
+    if key in _KEPT_KEYS and _applying(line):
+        return "apply"
+    return None
+
+
+def _applying(line: str) -> bool:
+    """A line about applying, not one that mentions it: "Ability to apply critical
+    thinking skills" is a qualification, and a role summary that ends "Apply
+    today!" is the role's. A long line counts only when it opens with the ask."""
+    found = _APPLY.search(line)
+    if not found or _QUALIFICATION.search(line):
+        return False
+    if re.search(r"\b(ability|able|skills?|knowledge) to apply\b", line, re.I):
+        return False
+    return len(line) <= 160 or found.start() <= 40
+
+
 def _states_pay(line: str) -> bool:
     """Whether a line states the job's pay: the card's reader finds an amount, and
     the line is not a perk with a price."""
@@ -447,7 +547,7 @@ def _states_pay(line: str) -> bool:
 def _settled(key: str, line: str) -> tuple[str, str]:
     """(section, text) for a content line once what it says has had its say: a
     line stating pay goes to Pay, an equal-opportunity line to legal (left out),
-    anything else stays in `key`. See `_sorted_lines` for why."""
+    then `_said`'s rules, and anything else stays in `key`. See `_sorted_lines`."""
     if key in _KEPT_KEYS and _EEO.search(line):
         return "legal", line
     if key != "pay" and _states_pay(line):
@@ -457,7 +557,7 @@ def _settled(key: str, line: str) -> tuple[str, str]:
         inline = _INLINE.match(line)
         labelled = heading(inline.group(1)) if inline else None
         return "pay", inline.group(2) if labelled not in (None, "pay") else line
-    return key, line
+    return _said(key, line) or key, line
 
 
 def labels(text: str | None, roles: tuple[str | None, ...] | None = None) -> list[str | None]:
@@ -490,6 +590,10 @@ def _sorted_lines(text: str, roles: tuple[str | None, ...] | None) -> list[tuple
       with a price (`_PERK`) unless the line also speaks of pay.
     - **An equal-opportunity line is dropped**, even from a kept section, as its
       own heading's section would be.
+    - **Then what else a line says** (`_said`, fix 4): a nice-to-have goes to
+      Preferred Qualifications, a qualification in a duties list to Requirements,
+      a work-eligibility line to Requirements, a named perk and a how-to-apply line
+      are left out.
 
     A line the HTML lists keeps its bullet: it is stored as "• item", so the job
     page draws a list, and a second read takes it for an item, never a heading.

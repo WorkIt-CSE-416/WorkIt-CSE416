@@ -158,10 +158,12 @@ def test_workday_wrong_content_under_a_core_heading_stays_rare(
 #: elsewhere. Workday, when added: 66.6% of 1,346 lines; 13.8%, 33.7% and 41.7%.
 #: With the HTML's structure and the Workday audit's headings (`docs/sections.md`):
 #: boards 82.0%; 16.0%, 10.2% and 13.0%. Workday 70.1%; 10.7%, 22.1% and 41.7%.
+#: With what a line says (fix 4): boards 82.5%; 15.5%, 8.7% and 13.0%. Workday
+#: 72.0%; 6.2%, 19.0% and 41.7%.
 ACCURACY_FLOOR = 0.82
-WRONG_CEILING = {"Responsibilities": 0.165, "Requirements": 0.105, "Pay": 0.135}
-WORKDAY_ACCURACY_FLOOR = 0.70
-WORKDAY_WRONG_CEILING = {"Responsibilities": 0.11, "Requirements": 0.225, "Pay": 0.42}
+WRONG_CEILING = {"Responsibilities": 0.16, "Requirements": 0.09, "Pay": 0.135}
+WORKDAY_ACCURACY_FLOOR = 0.72
+WORKDAY_WRONG_CEILING = {"Responsibilities": 0.065, "Requirements": 0.195, "Pay": 0.42}
 
 
 def report() -> None:

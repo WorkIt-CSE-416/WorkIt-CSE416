@@ -171,8 +171,12 @@ section is kept or left out.
 - **Facts still come from the whole text.** `details.read` runs before
   anything is left out, so a pay line under Benefits still reaches the card.
 - **Headings decide most lines, what a line says decides the rest**
-  (`_sorted_lines`): an inline "Overview: …" label moves its own line, a pay
-  sentence goes to Pay from any section, an equal-opportunity line is dropped.
+  (`_sorted_lines`, `_said`): an inline "Overview: …" label moves its own line,
+  a pay sentence goes to Pay from any section, an equal-opportunity line is
+  dropped, a nice-to-have goes to Preferred Qualifications, a qualification in a
+  duties list and a work-eligibility line go to Requirements, and a named perk
+  and a how-to-apply line are left out. Each rule is kept only if it fixes more
+  gold lines than it breaks, in both groups (`docs/sections.md`, fix 4).
   Re-run the heading audit and `kept(kept(text)) == kept(text)` on the whole feed
   after any change (`docs/sections.md`, "Fixes after the first review").
 - **Correctness is scored against a gold test set** (`tests/test_sections_gold.py`,
