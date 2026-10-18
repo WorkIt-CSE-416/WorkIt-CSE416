@@ -1,4 +1,3 @@
-import { FilterChip } from "@/components/ui/filter-chip";
 import { SearchField } from "@/components/ui/search-field";
 import { TextField } from "@/components/ui/text-field";
 
@@ -24,7 +23,7 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SegmentedToggle> / <SegmentedLinks>"
-          role="One choice among a few, its thumb sliding to the pick: sm (32px) and lg (44px)"
+          role="One choice among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
         >
           <SegmentedSpecimen />
         </Row>
@@ -33,11 +32,6 @@ export default function FormsPage() {
         </Row>
         <Row name="<ResumeUpload>" role="Dropzone and file preview; the caller does the upload">
           <ResumeUploadSpecimen />
-        </Row>
-        <Row name="<FilterChip>" role="Toggle in a filter rail">
-          <FilterChip label="Remote" active />
-          <FilterChip label="Full-Time" />
-          <FilterChip label="Internship" />
         </Row>
       </div>
     </KitPage>

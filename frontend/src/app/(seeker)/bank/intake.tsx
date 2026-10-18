@@ -19,6 +19,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "r
 
 import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scout/chat";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
 import { createEntry, type BankEntry, type EntryFields, type Section } from "@/lib/bank-actions";
 import { uploadResume } from "@/lib/resume-actions";
@@ -132,14 +133,6 @@ type Target = { section: Section } | { entry: BankEntry };
  *  alone: the first section waits for the answer (`resumeStage`). */
 const OFFER_GREETING =
   "Hi! I'll help you fill your experience bank, one thing at a time. Have a resume? I can read it first, then ask only about the rest.";
-
-/** An answer WorkIt offers in the chat, as a rounded chip: the section
- *  chips and the resume question's answers alike, each with its glyph, so
- *  every offered answer is one size and one look. The resume answers were a
- *  fill, an outline and a text link of three heights, the last on a line of
- *  its own (KAN-249). */
-const REPLY_CHIP =
-  "text-label bg-panel text-brand ring-brand-pale hover:bg-brand-tint focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ring-1 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50";
 
 const ICONS: Record<Section, LucideIcon> = {
   education: GraduationCap,
@@ -654,37 +647,28 @@ export function Intake({
     <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
   );
 
-  /** The resume question's answers, as reply chips. Start Without One only
-   *  in the stage, where no section has started yet. */
+  /** The resume question's answers. Every answer WorkIt offers is a
+   *  suggestion Chip, these and the section chips alike (KAN-251); they were
+   *  a fill, an outline and a text link. Start Without One only in the
+   *  stage, where no section has started yet. */
   const resumeAnswers = (stage: boolean) => (
     <>
       <div className="animate-fade flex flex-wrap gap-2 pl-10.5">
-        <button
-          type="button"
-          className={REPLY_CHIP}
+        <Chip
+          variant="suggestion"
           onClick={() => fileInput.current?.click()}
           disabled={uploading || answering || saving}
         >
-          <FileUp aria-hidden className="size-3.5" />
+          <FileUp aria-hidden />
           {uploading ? "Uploading…" : "Upload Resume"}
-        </button>
-        <button
-          type="button"
-          className={REPLY_CHIP}
-          disabled={uploading}
-          onClick={() => setImporting(true)}
-        >
-          <FileText aria-hidden className="size-3.5" /> Use One I Uploaded
-        </button>
+        </Chip>
+        <Chip variant="suggestion" disabled={uploading} onClick={() => setImporting(true)}>
+          <FileText aria-hidden /> Use One I Uploaded
+        </Chip>
         {stage && (
-          <button
-            type="button"
-            className={REPLY_CHIP}
-            disabled={uploading}
-            onClick={startWithoutResume}
-          >
-            <MessageSquareText aria-hidden className="size-3.5" /> Start Without One
-          </button>
+          <Chip variant="suggestion" disabled={uploading} onClick={startWithoutResume}>
+            <MessageSquareText aria-hidden /> Start Without One
+          </Chip>
         )}
       </div>
       {uploadError && (
@@ -806,9 +790,9 @@ export function Intake({
             {SECTIONS.map((s) => {
               const Icon = ICONS[s.id];
               return (
-                <button key={s.id} type="button" onClick={() => start(s.id)} className={REPLY_CHIP}>
-                  <Icon aria-hidden className="size-3.5" /> {s.label}
-                </button>
+                <Chip key={s.id} variant="suggestion" onClick={() => start(s.id)}>
+                  <Icon aria-hidden /> {s.label}
+                </Chip>
               );
             })}
           </div>

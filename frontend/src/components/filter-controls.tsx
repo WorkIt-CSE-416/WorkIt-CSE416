@@ -10,7 +10,8 @@ import {
   type ReactNode,
 } from "react";
 
-import { CheckIcon, ChevronDownIcon, CloseIcon, SearchIcon } from "@/components/icons";
+import { CheckIcon, ChevronDownIcon, SearchIcon } from "@/components/icons";
+import { Chip, RemovableChip } from "@/components/ui/chip";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
@@ -32,8 +33,10 @@ type Glyph = ComponentType<{ className?: string }>;
  *  14px. `default` fits All Filters' panel. */
 export type ControlSize = "default" | "lg";
 
-/** One option: a pill that is pressed or not, with its job count after the
- *  label. Pressed is the brand's tint, as a picked facet button is in the row. */
+/** One option: a choice Chip (ui/chip.tsx), pressed or not, with its job
+ *  count after the label. Pressed is the brand's tint, as a picked facet
+ *  button is in the row. `lg` is the Chip's own large size. It drew its own
+ *  pill until KAN-251. */
 export function OptionChip({
   pressed,
   count,
@@ -50,26 +53,15 @@ export function OptionChip({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        "text-note focus-visible:ring-brand-ring inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-medium transition-[background-color,border-color,color,scale] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-96",
-        size === "lg" && "text-subtitle h-10 px-4",
-        pressed
-          ? "border-brand bg-brand-tint text-brand"
-          : "border-border bg-panel text-ink hover:bg-well",
-      )}
-    >
-      {Icon && <Icon className={cn("size-3.5 shrink-0", !pressed && "text-ink-meta")} />}
+    <Chip pressed={pressed} size={size} onClick={onClick}>
+      {Icon && <Icon className={cn("size-3.5", !pressed && "text-ink-meta")} />}
       {children}
       {count != null && (
         <span className={cn("tabular-nums", pressed ? "text-brand/70" : "text-ink-meta")}>
           {count.toLocaleString("en-US")}
         </span>
       )}
-    </button>
+    </Chip>
   );
 }
 
@@ -331,22 +323,14 @@ export function SearchPicker({
           {values.map((value) => {
             const name = byValue.get(value)?.label ?? value;
             return (
-              <li
-                key={value}
-                className={cn(
-                  "border-brand bg-brand-tint text-brand text-note inline-flex h-8 items-center gap-1 rounded-full border pr-1 pl-3 font-medium",
-                  lg && "text-subtitle h-10 pl-4",
-                )}
-              >
-                {name}
-                <button
-                  type="button"
-                  aria-label={`Remove ${name}`}
-                  onClick={() => toggle(value)}
-                  className="hover:bg-brand/10 focus-visible:ring-brand-ring flex size-6 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-90"
+              <li key={value}>
+                <RemovableChip
+                  removeLabel={`Remove ${name}`}
+                  onRemove={() => toggle(value)}
+                  size={lg ? "lg" : "default"}
                 >
-                  <CloseIcon className="size-3.5" />
-                </button>
+                  {name}
+                </RemovableChip>
               </li>
             );
           })}
@@ -484,7 +468,7 @@ function MoneyField({
   return (
     <div
       className={cn(
-        "border-border focus-within:ring-brand-ring text-body flex h-8 w-36 items-center gap-1 rounded-md border px-2.5 focus-within:ring-2",
+        "border-border focus-within:ring-brand-ring text-body flex h-9 w-36 items-center gap-1 rounded-md border px-2.5 focus-within:ring-2",
         size === "lg" && "text-subtitle h-11 w-44 px-3.5 font-normal",
       )}
     >

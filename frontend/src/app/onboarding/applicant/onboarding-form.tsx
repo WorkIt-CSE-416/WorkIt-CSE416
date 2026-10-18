@@ -166,7 +166,7 @@ export function OnboardingForm({
         <div className="bg-panel border-border-subtle sticky bottom-0 border-t">
           <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-6 py-4">
             {step > 0 ? (
-              <Button variant="outline" size="lg" shape="pill" onClick={() => goTo(step - 1)}>
+              <Button variant="outline" size="lg" onClick={() => goTo(step - 1)}>
                 Back
               </Button>
             ) : (
@@ -178,9 +178,10 @@ export function OnboardingForm({
                   {error}
                 </p>
               )}
+              {/* lg and rectangular, as every page's one main action is
+                  (KAN-251); the wizard's two buttons were pills. */}
               <Button
                 size="lg"
-                shape="pill"
                 className="min-w-32"
                 disabled={!canNext || saving}
                 onClick={() => (last ? finish() : goTo(step + 1))}

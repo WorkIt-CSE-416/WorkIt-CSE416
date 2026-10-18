@@ -222,7 +222,8 @@ panel, set apart by a soft violet-tinted `--shadow-tile` alone,
 `rounded-shell`, `p-5`, 16px apart. An outline on every tile read as a grid
 of grey boxes, and a lavender ground under them read as muted beside the
 shell's white panels; keep both off. Headings and figures are medium weight, figures in
-`--text-figure` (36px), actions are pills (`<Button shape="pill">`). It
+`--text-figure` (36px), and actions are the app's rectangular buttons (they
+were pills, `shape="pill"`, until KAN-251 made every pill a chip). It
 alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
@@ -230,7 +231,7 @@ tiles) the four numbers run across the top in a grid of their own (the
 first filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
-pill) over Up Next, then Activity two thirds wide beside Waiting (three
+button) over Up Next, then Activity two thirds wide beside Waiting (three
 columns, one per verdict: on track, follow up, likely closed, each labelled
 under it, so no legend; it was a half-ring gauge, whose round-capped parts
 left grey slivers between them and past its ends, then four columns, whose
@@ -246,7 +247,7 @@ Dates and times sit in pills (`<Badge variant="tag" pill>`): Next Up's,
 which links to the Calendar, Up Next's and New Matches' posted time; as 12px
 meta grey in Plus Jakarta Sans they read too faint. A pill sits in its text's
 column, under the title beside a tile or disc, never under the tile itself. New Matches' Apply is a
-filled primary pill. A KPI tile centres its label on its 36px ring (the ring
+filled primary sm button. A KPI tile centres its label on its 36px ring (the ring
 hides below 10.5rem of tile), keeps that header row 36px tall, pushes its
 figure to the foot, and gives the line under it a fixed `h-5`, hiding "vs
 last week" where it would wrap, so every figure in a row sits on one line.
@@ -262,7 +263,7 @@ Up wears its application's company tile (`companyIconOf`, the outlined
 `CompanyTile` the Applications detail panel draws at the same size). The
 fixture keeps an interview first on any day of the week: its follow-up sits four days
 out, since a weekend slides tomorrow's interview to Monday. Next
-Up's View Details pill opens that application's detail panel and its date that week on
+Up's View Details button opens that application's detail panel and its date that week on
 the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
 All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
@@ -366,8 +367,10 @@ queueing. The state (`idle`, `running`, `paused`) is held in
 Started, Live (a green dot that rings out) or Paused; a return visit starts
 idle, so Start queues another batch. The brand fill marks
 the action that starts work, so Pause is the bordered neutral. The button is
-52px tall and 208px wide beside the row, so the row does not shift between
-labels; on a phone it drops under the row at full width.
+lg (48px), its bottom on the row's, and 208px wide, so the row does not
+shift between labels; on a phone it drops under the row at full width. It
+was stretched to the row's 52px until KAN-251, the largest button in the
+app.
 
 **Live Activity is live: the seeker's applications from the API**
 (`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), newest
@@ -505,7 +508,7 @@ bottom: the stage card (`draft-preview.tsx`), the chat, the composer.
 empty and no draft is kept: WorkIt's greeting asks "Have a resume?" with
 Upload Resume, Use One I Uploaded and Start Without One under it, and no
 section or stage card shows until one is picked. **Every answer WorkIt
-offers is a reply chip** (`REPLY_CHIP` in `intake.tsx`), these and the
+offers is a suggestion Chip** (`ui/chip.tsx`, KAN-251), these and the
 section chips alike: one size, one look, each with its glyph. The resume
 answers were a fill, an outline and a text link of three heights, the last
 on a line of its own. Start Without One goes in

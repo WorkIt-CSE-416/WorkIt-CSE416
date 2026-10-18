@@ -173,17 +173,46 @@ resolves to.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
-`positive`) while painting the mockups' styling, plus `shape="pill"` for the
-seeker Dashboard's fully rounded actions, so a component pasted from the
-shadcn docs composes without edits and still looks like WorkIt.
-Every variant at a size is one box (sm 32px, default 36px, lg 42px), and the
-Button sizes its glyphs to keep it so: an icon with no `size-*` class is
-16px (14px at `inline`, `xs` and `section`). Lucide's own 24px stretched about 30 sm
-buttons to 38px, so the bank's My Resumes button stood taller than Fill With Scout beside it
-(KAN-249); give an icon a size only when it must differ.
-`shadcn/button.tsx` is a re-export pointing back at it, and an ESLint rule keeps
-app code on the canonical path — likewise for `badge` and `card`, which are not
-re-exports.
+`positive`) while painting the mockups' styling, so a component pasted from
+the shadcn docs composes without edits and still looks like WorkIt.
+Every variant at a size is one box (sm 36px, default 42px, lg 48px), a
+text-only one included, and the Button sizes its glyphs to keep it so: an
+icon with no `size-*` class is 16px (14px at `inline`, `xs` and
+`section`). Lucide's own 24px stretched about 30 sm buttons to 38px, so the
+bank's My Resumes button stood taller than Fill With Scout beside it
+(KAN-249); give an icon a size only when it must differ. `shadcn/button.tsx` is a re-export pointing back at it, and an
+ESLint rule keeps app code on the canonical path, as it does for `badge`
+and `card`, which are not re-exports.
+
+**A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
+acts (saves, opens, sends, goes somewhere); a chip is a choice made in
+place: a filter, a toggle, or an answer offered. A badge is a pill too, but
+a label, and a segmented control's track is a pill because it is a choice as
+well. Two pills act on purpose: the Calendar's Today, drawn to match its
+round arrows, and Next Up's date, a badge inside a link to that day on the
+Calendar. **Pick a button's size by where it sits**: `sm` (36px)
+for an action in a card, a row, a page's header or a panel; `default`
+(42px, a text field's height, so a form's buttons line up with its fields)
+in a form or a dialog; `lg` (48px) for the one main action of a page or the
+sign-in card. The three were 32, 36 and 42px until KAN-251 and read as
+thin; the chip, the small segmented control and the icon buttons beside sm
+buttons (Save, Not Interested, Report, the Calendar's arrows) went to 36px
+with them.
+There is exactly one Chip, `ui/chip.tsx`, at two sizes: `default` (36px, an
+sm button's height, so they line up in a row) and `lg` (42px, a default
+button's and a text field's height, 16px type) for a screen where the chips
+are the question itself, onboarding's filter steps. Its roles: `choice` with `pressed` for filters and
+toggles, `suggestion` for an offered answer, `primary` for the one most
+people take, and `ChipLink` for a filter kept in the URL. **A call site
+never changes a button's or chip's box**: a `no-restricted-syntax` rule in
+`eslint.config.mjs` (BOX_CLASS) refuses a height, padding, radius, type
+size, line height or border width in its `className` (as a plain string;
+it cannot read `cn()` or a template string), which may only place it or
+colour a state. That is
+what ended the Dashboard's pill buttons, a 52px Start Auto Apply, the
+welcome page's stretched buttons (now choice cards) and five hand-drawn
+pills at three heights. `/design-kit/buttons` shows every size and chip with
+its role.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
 — there is no `tailwind.config.js`. Add design tokens there. The file also

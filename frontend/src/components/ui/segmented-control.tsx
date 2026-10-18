@@ -55,13 +55,13 @@ const SIZES: Record<
   Size,
   { track: string; thumb: string; inset: string; item: string; iconItem: string }
 > = {
-  // 32px tall: the height of the buttons these sit beside.
+  // 36px tall: the height of the sm buttons these sit beside (KAN-251).
   sm: {
     track: "p-0.5",
     thumb: "inset-y-0.5 left-0.5",
     inset: "4px",
-    item: "text-note h-7 px-3",
-    iconItem: "h-7 px-2",
+    item: "text-note h-8 px-3",
+    iconItem: "h-8 px-2",
   },
   // 44px, for a choice that leads a form.
   lg: {

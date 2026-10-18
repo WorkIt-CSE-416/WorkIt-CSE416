@@ -16,7 +16,7 @@ import { SectionCard } from "./section-card";
  *
  * A reminder, the way the Dashboard's reference draws one: a white tile whose
  * commitment is set large in brand violet, its date under it, and one filled
- * pill at the foot, View Details. It used to be a violet gradient card with
+ * button at the foot, View Details (a pill until KAN-251). It used to be a violet gradient card with
  * arcs; once the first headline number became the row's filled tile, two
  * violet blocks side by side competed, so the colour moved into the title and
  * the button.
@@ -92,8 +92,7 @@ export function NextUpHero({
           href={item ? `/applications?app=${item.applicationId}` : "/jobs"}
           aria-label={item ? `View ${item.role} at ${item.company}` : undefined}
           size="lg"
-          shape="pill"
-          className="w-full justify-center"
+          className="w-full"
         >
           {item ? "View Details" : "Browse Jobs"}
         </ButtonLink>

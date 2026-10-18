@@ -44,7 +44,7 @@ export default async function CompanyJobsPage() {
           </p>
         </div>
 
-        <ButtonLink href="/company/jobs/new" className="shrink-0">
+        <ButtonLink href="/company/jobs/new" size="sm" className="shrink-0">
           Post a Job
         </ButtonLink>
       </header>

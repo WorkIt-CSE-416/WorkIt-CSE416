@@ -106,7 +106,7 @@ export function ShareButton({ title }: { title: string }) {
       label={`Copy a link to ${title}`}
       tooltip={said ?? "Copy link"}
       variant="outline"
-      className="size-8 shrink-0"
+      className="size-9 shrink-0"
       onClick={() =>
         // Inside a promise, so a missing clipboard (an http address on a
         // phone, where navigator.clipboard is undefined) lands in the catch.

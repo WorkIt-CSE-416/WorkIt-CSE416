@@ -3,6 +3,7 @@
 import { ChevronLeft } from "lucide-react";
 
 import type { Section } from "@/lib/bank-actions";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 import { sectionOf } from "./sections";
@@ -147,14 +148,10 @@ export function StepBar({
         </ol>
 
         {current && onSkip ? (
-          <button
-            type="button"
-            onClick={onSkip}
-            disabled={busy}
-            className="text-label text-ink-meta hover:bg-brand-tint hover:text-brand focus-visible:ring-brand-ring shrink-0 rounded-full px-3 py-1.5 font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-40 disabled:hover:bg-transparent"
-          >
+          // A text button, not a pill: pills are chips (KAN-251).
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={onSkip} disabled={busy}>
             Skip
-          </button>
+          </Button>
         ) : (
           <span className="w-9 shrink-0" />
         )}
