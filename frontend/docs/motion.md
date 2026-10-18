@@ -93,7 +93,7 @@ moving at `/design-kit/motion`. The rules:
   column partway through. Below md it rises over the window instead. Its
   messages rise in, its thinking is three looping dots (`--animate-typing`),
   the bank row its panel is filling shimmers (`--animate-shimmer`, the only
-  other loop: both mean "still working"),
+  other looping token: both mean "still working"),
   and its Send stays hoverable (aria-disabled) so its tooltip can say why it
   won't send. `components/scout/scout-panel.tsx` has the details.
 - **Clickable means the hand.** Tailwind v4 dropped the pointer from

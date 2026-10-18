@@ -22,7 +22,8 @@ import { cn } from "@/lib/cn";
  * 36px, lg 42px.
  *
  * ICONS ARE SIZED HERE TOO. A glyph with no size class takes 16px (14px in
- * the `inline` and `xs` sizes, whose text is 12px). Lucide draws at 24px by
+ * the `inline` and `xs` sizes, whose text is 12px, and in `section`, which
+ * matches SectionLink's arrow). Lucide draws at 24px by
  * default, and an unsized one stretched an sm button to 38px: My Resumes
  * stood 6px taller than Fill With Scout beside it, and the same held for
  * about 30 buttons (Open, PDF, Word, Edit, Save Entry...). A call site that
@@ -131,9 +132,12 @@ export const buttonVariants = cva(
          *  anything around it. */
         inline:
           "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
-        /** `inline` at SectionLink's 13px, with its 14px glyph. */
+        /** `inline` at SectionLink's 13px, with its 14px glyph. The glyph
+         *  rule takes the base's `:not([class*='size-'])` modifier, so cn()
+         *  merges the two; as a bare `[&_svg]` it was a weaker selector than
+         *  the base's 16px, which won (KAN-249). */
         section:
-          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg]:size-3.5",
+          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
         /** UNMEASURED — extrapolated between `inline` and `sm`. */
         xs: "text-note gap-1 px-2 py-1 [&_svg:not([class*='size-'])]:size-3.5",
         sm: "text-label gap-2 px-2.5 py-1.5",

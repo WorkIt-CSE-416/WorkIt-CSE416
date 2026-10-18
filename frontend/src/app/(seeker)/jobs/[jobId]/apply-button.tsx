@@ -27,8 +27,8 @@ type Source = { builtResumeId: string } | { uploadedResumeId: string };
  * "Pick a resume, then Apply" (KAN-220). Apply Now asks which resume the
  * student sends, keeps that exact file as a sent resume linked to this
  * posting (`applyWithResume`), then offers the file to download and the
- * employer's own posting to apply on. The sent resume shows in the bank
- * page's "Sent" list (the Resumes view). A student with no resume, or who would rather not
+ * employer's own posting to apply on. The sent resume shows in the Resumes
+ * view's "Sent" list. A student with no resume, or who would rather not
  * pick one, still reaches the posting: "Apply Without a Resume".
  *
  * The employer's page opens from a link the student clicks, never from

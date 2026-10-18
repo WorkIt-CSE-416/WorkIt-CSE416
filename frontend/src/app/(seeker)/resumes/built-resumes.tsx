@@ -52,6 +52,9 @@ export function BuiltResumes({
   const [sent, setSent] = useState(initialSent);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sent is a card of its own since KAN-249, so its reload's error shows
+  // there, not under Base Resumes.
+  const [sentError, setSentError] = useState<string | null>(null);
 
   async function reload() {
     const { data, error } = await listBuiltResumes();
@@ -62,7 +65,7 @@ export function BuiltResumes({
   async function reloadSent() {
     const { data, error } = await listSentResumes();
     if (data) setSent(data);
-    if (error) setError(error);
+    setSentError(error);
   }
 
   async function generate() {
@@ -116,7 +119,7 @@ export function BuiltResumes({
             </ul>
           )}
         </Card>
-        <SentResumes sent={sent} reload={reloadSent} />
+        <SentResumes sent={sent} reload={reloadSent} error={sentError} />
       </div>
     </>
   );

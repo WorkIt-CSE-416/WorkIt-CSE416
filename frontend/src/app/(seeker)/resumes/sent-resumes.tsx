@@ -24,7 +24,16 @@ export function openDownload(url: string) {
   link.click();
 }
 
-export function SentResumes({ sent, reload }: { sent: SentResume[]; reload: () => Promise<void> }) {
+export function SentResumes({
+  sent,
+  reload,
+  error,
+}: {
+  sent: SentResume[];
+  reload: () => Promise<void>;
+  /** A failed reload of this list. */
+  error: string | null;
+}) {
   return (
     <Card as="section" aria-labelledby="resumes-sent">
       <h2 id="resumes-sent" className="text-subtitle text-ink">
@@ -34,6 +43,11 @@ export function SentResumes({ sent, reload }: { sent: SentResume[]; reload: () =
         Each resume you downloaded or applied with, kept as it was. Later changes to your bank do
         not change these.
       </p>
+      {error && (
+        <p role="alert" className="text-note text-danger mt-2">
+          {error}
+        </p>
+      )}
       {sent.length === 0 ? (
         <p className="text-note text-ink-muted mt-2">
           Resumes you download or apply with show here.

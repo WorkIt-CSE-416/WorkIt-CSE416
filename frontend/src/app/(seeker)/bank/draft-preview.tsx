@@ -28,7 +28,8 @@ import { entryDetails, formatDates, neededFacts, sectionOf, type EntryDraft } fr
  * bar's segments (`progress`, the compact StepBar) under them. Once WorkIt
  * has a title, the draft opens under a hairline: its title and state dot,
  * the entry as the bank lists it, and Edit and Save Entry. Before that there
- * is nothing to show or save, and the chat's question is the next step.
+ * is nothing to show or save, and the chat's question is the next step; Edit
+ * sits beside Skip then, so the form can still be filled in by hand.
  * Folded, the draft is its title row alone.
  *
  * It replaced two blocks that read as unrelated: the step bar with its own
@@ -104,6 +105,14 @@ export function DraftPreview({
             <p className="text-label text-ink truncate font-semibold">{meta.label}</p>
             <p className="text-note text-ink-meta">{step}</p>
           </div>
+          {/* No title yet, so no preview and no Edit below it: the form is
+              still the way to fill the entry in by hand, which the API's own
+              "Fill in the card yourself" asks for when WorkIt cannot answer. */}
+          {!titled && (
+            <Button size="sm" variant="ghost" className="shrink-0" onClick={onEdit}>
+              <Pencil /> Edit
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"

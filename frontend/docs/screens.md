@@ -467,8 +467,9 @@ shows initials.
 
 One sidebar row, above My Profile, for one page in two views (KAN-249):
 **Resumes** (`/resumes`, the row's link) and **Experiences** (`/bank`, the
-experience bank). Both draw one header (`resumes/header.tsx`), laid out as
-the Dashboard's is: the view's own title and line on the left ("Resumes",
+experience bank). Both draw one header (`resumes/header.tsx`; it stays
+beside the Resumes view though `/bank` imports it too, since the two routes
+are one page's views, not two consumers), laid out as the Dashboard's is: the view's own title and line on the left ("Resumes",
 "Experiences"), and at the top right, level with the foot of that block, a
 segmented switcher between the two views and then the view's primary
 action, Generate Resume or Fill With Scout; on a narrow page the controls
@@ -510,9 +511,12 @@ answers were a fill, an outline and a text link of three heights, the last
 on a line of its own. Start Without One goes in
 the chat as the student's answer, then the first section starts; an import
 starts the walk on what the resume left out, as before. A bank with
-entries goes straight to the walk, with no resume offer. The first version
-asked about the resume and Education at once, which read as two tasks on
-one screen.
+entries has no stage: the walk opens on its gaps at once, and WorkIt's
+second line asks "Have a resume?" with Upload Resume and Use One I
+Uploaded, until the student imports once. With no offer there, as the
+first version of KAN-249 had it, a student whose bank held one entry had
+no way to import a resume. The first version also asked about the resume
+and Education at once, which read as two tasks on one screen.
 
 **The stage card is the one block above the chat** (KAN-249): the
 section's icon and name, "Step 1 of 6", "Skip Section" (a new entry) or
@@ -523,8 +527,10 @@ save runs. Once WorkIt has a title, the draft opens under a hairline: its
 title and state ("Filling in as you talk", "Ready to save"), the entry as
 the bank lists it, fading each line in as WorkIt fills it, "Still needed"
 chips, Edit and Save Entry; it folds to its title row. Before that there
-is nothing to show or save. With no section open the card holds the bar
-alone. It replaced a step bar with its own Back, step line and Skip over a
+is nothing to show or save, and Edit sits beside Skip instead, so the
+student can still type the entry into the form when WorkIt cannot answer
+(the API's "Fill in the card yourself"). With no section open the card
+holds the bar alone. It replaced a step bar with its own Back, step line and Skip over a
 separate draft card with a second Skip, the section named again, a hint
 line and a disabled Save Entry: two blocks that read as unrelated, which
 left the chat about 300px at 800px tall. A student happy with an entry
@@ -589,7 +595,9 @@ in Docs (suggested answers in the chat, not a banner).
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
 - **Import Your Resume** (`import-card.tsx`, KAN-211) opens inside intake,
-  from the upload strip above it, shown until the student imports once.
+  from the resume question's answers in the chat (the first stage for an
+  empty bank, WorkIt's second line otherwise), offered until the student
+  imports once.
   Upload Resume (PDF or DOCX) uploads through `uploadResume`, as My Profile
   does, then imports that file (`resumeId`); the link imports the default
   upload, else the newest. The review takes the chat's place until Close,
