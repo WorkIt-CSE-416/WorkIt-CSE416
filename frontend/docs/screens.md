@@ -530,7 +530,9 @@ has an eye — a short-lived signed link from `getResumeFileUrl`, opened by
 `src/lib/preview-resume.ts`: a PDF opens in a new tab, opened inside the
 click so it is not blocked as a popup (if it is blocked anyway, the page says
 so rather than leaving it); a DOCX downloads — and a star that makes it
-primary (`setPrimaryResume`). **Import Updated Resume** (an import icon)
+primary (`setPrimaryResume`). A student's only resume, uploaded or base, is
+primary with no click (the API sets it on every add and delete), so after a
+delete the page stars the one row left when there is no base resume. **Import Updated Resume** (an import icon)
 opens `profile/update-resume-dialog.tsx`: a dropzone for a newer version of
 that file, which replaces it on the same row (`replaceResume`; the row keeps
 its primary star and moves to the top with today's date) and merges its
@@ -547,7 +549,9 @@ knows nothing about upload logic or limits.
 editor (a review dialog after upload, and Work Experience and Skills cards
 editing the primary resume's `parsed_json`) is gone, so the experience bank
 is the only place to edit resume facts. In its place an "Experiences"
-section links to `/bank`. KAN-240 dropped `parsed_json` itself. Do not bring
+section links to `/bank`. KAN-240 dropped `parsed_json` itself. The
+Application Settings section, an "Autofill Applications" switch that saved
+nothing, was removed on 2026-10-18; the extension's own popup runs autofill. Do not bring
 back an editor of an upload's facts: two places to edit the same facts drift
 apart, and the bank is what built resumes read.
 

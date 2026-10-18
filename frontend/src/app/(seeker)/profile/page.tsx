@@ -56,8 +56,7 @@ import { useProfileCache } from "../profile-cache";
  * file with a newer version and says what it wrote. Name, headline, email and
  * phone come from the applicant_profiles table via getProfile(). A return
  * visit renders the last visit's data at once
- * (../profile-cache.tsx) and refetches it behind the scenes. The autofill
- * switch is a bare checkbox with role="switch" that styles its own on state.
+ * (../profile-cache.tsx) and refetches it behind the scenes.
  * The tab title is set in ./layout.tsx, because a client page cannot export
  * metadata.
  *
@@ -74,8 +73,9 @@ import { useProfileCache } from "../profile-cache";
  *                   (one row per resume, up to five) has no column beside it
  *                   to fall out of step with. Inside, the rows take the wide
  *                   track and the dropzone the narrow one
- *   the rest        open sections under plain headings: Experience Bank in
- *                   the wide column, Application Settings in the narrow one
+ *   Experiences     an open section under a plain heading, linking to the
+ *                   bank. Application Settings (an Autofill switch that saved
+ *                   nothing) sat beside it until 2026-10-18
  *
  * Each open section's actions sit at the top right of its heading, as a
  * Dashboard section's "View All" does (./section-action.tsx).
@@ -605,52 +605,16 @@ export default function ProfilePage() {
         </Dialog>
       </Card>
 
-      {/* Settings comes last in the DOM, so a phone reaches it after Resume
-          and Experiences. Both tracks have a zero minimum, so a long
-          line truncates instead of widening its column past the screen. */}
-      <div className="mt-10 grid grid-cols-1 items-start gap-10 @3xl/main:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <section aria-labelledby="bank">
-          <SectionHeading id="bank">Experiences</SectionHeading>
-          <p className="text-body text-ink-meta mt-1">
-            Your jobs, projects, clubs and skills live in Experiences, where you edit them. Each
-            resume you upload fills it in.
-          </p>
-          <ButtonLink href="/bank" variant="secondary" className="mt-4">
-            Open Experiences
-          </ButtonLink>
-        </section>
-
-        <div className="flex flex-col gap-10">
-          <section aria-labelledby="settings">
-            <SectionHeading id="settings">Application Settings</SectionHeading>
-
-            <div className="mt-4 flex items-center justify-between gap-4">
-              <label htmlFor="autofill" className="cursor-pointer">
-                <span className="text-body text-ink block font-medium">Autofill Applications</span>
-                <span className="text-note text-ink-meta block">
-                  Use profile data to pre-fill forms
-                </span>
-              </label>
-
-              <input
-                type="checkbox"
-                role="switch"
-                id="autofill"
-                defaultChecked
-                className="peer sr-only"
-              />
-              {/* The thumb glides across on the app's glide while the track
-                  fades to brand, and it pinches in a little while pressed,
-                  so the switch answers the finger before it moves. */}
-              <label
-                htmlFor="autofill"
-                aria-hidden="true"
-                className="bg-ink-faint peer-checked:bg-brand peer-focus-visible:ring-brand-ring after:ease-glide relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 peer-focus-visible:ring-[3px] peer-focus-visible:ring-offset-2 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-[0_1px_2px_rgb(18_26_40/0.2)] after:transition-transform after:duration-200 after:content-[''] peer-checked:after:translate-x-4 active:after:scale-90"
-              />
-            </div>
-          </section>
-        </div>
-      </div>
+      <section aria-labelledby="bank" className="mt-10">
+        <SectionHeading id="bank">Experiences</SectionHeading>
+        <p className="text-body text-ink-meta mt-1">
+          Your jobs, projects, clubs and skills live in Experiences, where you edit them. Each
+          resume you upload fills it in.
+        </p>
+        <ButtonLink href="/bank" variant="secondary" className="mt-4">
+          Open Experiences
+        </ButtonLink>
+      </section>
 
       {applicantProfile && editOpen && (
         <EditProfileDialog
