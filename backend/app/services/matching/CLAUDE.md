@@ -121,10 +121,11 @@ Nothing in this folder may assume what a software job is. Two consequences:
 Pure functions over a loaded `services.bank.Bank` (KAN-212). Only the data
 the recommender reads changed; the scoring did not.
 
-- **`bank_text()`, the embedding input**, in order: skills; each degree and
-  field of study; each entry's section, title and organization with its
-  original bullets, newest first across sections (Present first, then by end
-  month). Never a bullet variant, a link, a location, a grade or a date. The
+- **`bank_text()`, the embedding input**, in order: skills; each Experience and
+  Projects entry's section, title and organization with its original
+  bullets, newest first across the two (Present first, then by end month).
+  Education and the other sections stay out (KAN-254). Never a bullet
+  variant, a link, a location, a grade or a date. The
   text then passes through `workit_scout.identity` with the profile's
   identity fields (`identity=` is required, with no empty default, so a
   caller cannot skip loading the profile), and is cut at 6,000 characters, so the oldest entries go

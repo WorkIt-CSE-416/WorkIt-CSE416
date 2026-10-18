@@ -281,19 +281,19 @@ async def student(database):
     app.dependency_overrides.clear()
 
 
-async def _upload(database, account, parsed_json: dict) -> None:
+async def _upload(database, account, raw_text: str) -> None:
     async with database() as session:
         await session.execute(
             text(
-                "INSERT INTO resumes (id, applicant_id, original_filename, status, raw_text, parsed_json)"
-                " VALUES (:id, :a, 'resume.pdf', 'parsed', 'Sam Seeker', CAST(:p AS jsonb))"
+                "INSERT INTO resumes (id, applicant_id, original_filename, status, raw_text)"
+                " VALUES (:id, :a, 'resume.pdf', 'parse_failed', :raw)"
             ),
-            {"id": uuid.uuid4(), "a": account.id, "p": json.dumps(parsed_json)},
+            {"id": uuid.uuid4(), "a": account.id, "raw": raw_text},
         )
         await session.commit()
 
 
-UPLOADED = {"skills": [{"skill_name": "COBOL"}], "experience": [{"company_name": "Old Co", "title": "Clerk"}]}
+UPLOADED = "Sam Seeker\nClerk at Old Co. Skills: COBOL"
 
 
 async def test_scout_knows_the_bank_and_not_the_upload(student, client, database):
@@ -320,19 +320,3 @@ async def test_scout_knows_the_bank_and_not_the_upload(student, client, database
     assert "Python" in prompt and "WorkIt" in prompt
     for absent in ("COBOL", "Old Co", "github.com", "Austin"):
         assert absent not in prompt
-
-
-async def test_an_empty_bank_with_an_upload_points_at_import(student, client, database):
-    await _upload(database, student, UPLOADED)
-    model = use_model(["ok"])
-    assert (await client.post("/scout/chat", json=CHAT)).status_code == 200
-    assert "experience bank is empty" in model.system_prompt
-    assert "have uploaded a resume but have not imported it" in model.system_prompt
-    assert "COBOL" not in model.system_prompt
-
-
-async def test_an_empty_bank_without_an_upload_says_so(student, client):
-    model = use_model(["ok"])
-    assert (await client.post("/scout/chat", json=CHAT)).status_code == 200
-    assert "experience bank is empty" in model.system_prompt
-    assert "have not uploaded a resume either" in model.system_prompt

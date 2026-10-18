@@ -25,7 +25,7 @@ MODEL = "gemini-embedding-001"
 DIMENSIONS = EMBEDDING_DIMENSIONS
 
 BATCH_SIZE = 100
-_MAX_CHARS = 6000
+_MAX_CHARS = 6000   # NOTE: MAX CHARACTER ON EMBED. Need to consider increasing as EXP BANK GROWS
 _URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:batchEmbedContents"
 
 

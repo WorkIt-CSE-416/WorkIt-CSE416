@@ -2,13 +2,6 @@ import { formatDistanceToNowStrict } from "date-fns";
 
 import type { ExperienceLevel, JobType, Recommendation, WorkStyle } from "./data";
 
-/**
- * Turns the schema-shaped fields on `Recommendation` back into the strings
- * the card used to carry pre-formatted. Keeping this separate from `data.ts`
- * is what stops the fixtures from re-hardcoding display text the way the
- * mockup-only version did.
- */
-
 const JOB_TYPE_LABEL: Record<JobType, string> = {
   full_time: "Full-Time",
   part_time: "Part-Time",
@@ -23,7 +16,7 @@ const WORK_STYLE_LABEL: Record<WorkStyle, string> = {
 };
 
 const EXPERIENCE_LABEL: Record<ExperienceLevel, string> = {
-  // Every internship's level (KAN-233); its job type beside it reads
+  // Every internship's level; its job type beside it reads
   // "Internship".
   student: "Student",
   new_grad: "New Grad",
@@ -208,6 +201,9 @@ export function formatSalary(
        $27.50/hr would silently round to $28/hr. A whole-dollar Year salary
        never had a fractional part, so raising this changes nothing for it. */
     maximumFractionDigits: 2,
+    // Explicit across Node/browser Intl versions: currency defaults can pad
+    // compact values differently ($55.50K vs $55.5K), breaking hydration.
+    minimumFractionDigits: 0,
     notation: "compact",
   });
 

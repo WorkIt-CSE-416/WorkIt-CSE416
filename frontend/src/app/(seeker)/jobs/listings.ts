@@ -4,6 +4,7 @@ import { connection } from "next/server";
 
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
+import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { getAccessToken, getApplicantSession } from "@/lib/session";
 
 import type { ExperienceLevel, Highlight, JobType, WorkStyle } from "./data";
@@ -316,4 +317,13 @@ export async function getApplied(id: string): Promise<{ appliedAt: string | null
   } catch {
     return null;
   }
+}
+
+/** The job ids the seeker has a tailored resume for, so each card's Tailor
+ *  button can read "Your Tailored Resume" as the job's page does. Empty when
+ *  it can't be read (signed out, the API down): every button then reads
+ *  Tailor My Resume, and Tailor itself shows the real one. */
+export async function getTailoredJobIds(): Promise<string[]> {
+  const { data } = await listBuiltResumes();
+  return (data ?? []).flatMap((r) => (r.job_posting_id ? [r.job_posting_id] : []));
 }

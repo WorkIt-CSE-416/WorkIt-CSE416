@@ -21,7 +21,13 @@ import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scou
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
-import { createEntry, type BankEntry, type EntryFields, type Section } from "@/lib/bank-actions";
+import {
+  createEntry,
+  type BankEntry,
+  type EntryFields,
+  type ImportResponse,
+  type Section,
+} from "@/lib/bank-actions";
 import { uploadResume } from "@/lib/resume-actions";
 import { cn } from "@/lib/cn";
 import {
@@ -82,10 +88,11 @@ import {
  *
  * Upload first: with `importable`, a slim strip above the step bar offers
  * Upload Resume (PDF or DOCX, the API's `uploadResume`) with a note on what
- * it is for, and a link to read an upload the student already has. Either
- * opens the import review (`import-card.tsx`) in the chat's place, on the
- * file just uploaded or else the default one, until it closes. The walk then starts again on the bank as
- * it is now. It skips a section that has entries, but visits each entry in
+ * it is for, and a link to read an upload the student already has. An upload
+ * writes its reading into the bank itself (ADR 0003); the link runs Import
+ * Again on the default upload. Either opens the import card
+ * (`import-card.tsx`) in the chat's place, saying what went in, until
+ * Continue. The walk then starts again on the bank as it is now. It skips a section that has entries, but visits each entry in
  * `entries` that has gaps (`gapQuestions`: no dates, no organization for a
  * job or role, no bullets for a job, project or role, no degree, field or
  * GPA for a school): the card opens on
@@ -251,8 +258,8 @@ export function Intake({
   const [folded, setFolded] = useState(false);
   const [skipped, setSkipped] = useState<Section[]>([]);
   const [importing, setImporting] = useState(autoImport);
-  // The upload to import; unset reads the default one.
-  const [importFrom, setImportFrom] = useState<string | undefined>();
+  // The upload's own import; unset, the card runs Import Again on the default one.
+  const [uploaded, setUploaded] = useState<ImportResponse | undefined>();
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -315,7 +322,7 @@ export function Intake({
 
   const draft = kept?.draft ?? null;
 
-  // The import review replaces the card, so nothing is being worked on.
+  // The import card replaces the draft card, so nothing is being worked on.
   const focusSection = importing ? undefined : draft?.section;
   const focusEntry = kept?.entryId;
   const focusTitle = draft?.title ?? "";
@@ -549,8 +556,12 @@ export function Intake({
     const { resume, error } = await uploadResume(fd);
     setUploading(false);
     if (!resume) return setUploadError(error ?? "Could not upload the resume. Try again.");
-    setImportFrom(resume.id);
+    if (resume.bank) {
+      setUploaded({ ...resume.bank, resume_id: resume.id, filename: resume.original_filename });
+    }
     setImporting(true);
+    const reloadError = await onSaved();
+    if (reloadError) setError(reloadError);
   }
 
   /** Saves a visit to a bank entry as an edit of it. */
@@ -718,11 +729,12 @@ export function Intake({
 
   const importer = (
     <ImportCard
-      autoStart
-      resumeId={importFrom}
+      result={uploaded}
+      autoStart={!uploaded}
       onSaved={onSaved}
       onClose={() => {
         setImporting(false);
+        setUploaded(undefined);
         setImported(true);
         setRewalk((n) => n + 1);
       }}
