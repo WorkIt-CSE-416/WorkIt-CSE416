@@ -1,8 +1,9 @@
 // Client for WorkIt's own FastAPI backend. Every call here reuses an
 // endpoint that already exists for the webapp (backend/app/routers/auth.py,
-// profiles.py, resumes.py) — this file adds no new backend surface, it just
-// calls the same ones the Next.js server already calls, straight from the
-// extension's background service worker instead of a Server Action.
+// profiles.py, resumes.py, auto_apply.py) — this file adds no new backend
+// surface, it just calls the same ones the Next.js server already calls,
+// straight from the extension's background service worker instead of a
+// Server Action.
 //
 // That only works because MV3 background workers bypass CORS for origins
 // listed in manifest.json's host_permissions — the backend needed zero
@@ -149,4 +150,14 @@ export async function getAutofillProfile({ force = false } = {}) {
   return fresh;
 }
 
-export { ApiError };
+/**
+ * GET .../applications/next — the oldest queued application whose job
+ * posting is open (its `job.apply_url` is the page to open), or null when
+ * the queue is empty.
+ * @param {string} applicantId
+ */
+export async function nextApplication(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/applications/next`);
+}
+
+export { ApiError, me };

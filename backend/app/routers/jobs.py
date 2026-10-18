@@ -119,6 +119,9 @@ async def read_filters(
     # Seasons as GET /jobs/facets lists them ("summer-2027", or "2027"); any.
     start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors", "not_ruled_out"] | None = None,
+    # All Filters' "Auto Apply Supported": only job postings auto apply can
+    # fill (Greenhouse for now, app/auto_apply/hosts.py).
+    auto_apply: bool = False,
     # /search's words, read by the role resolver (JobFilters.query_roles).
     q: str | None = Query(None, max_length=200),
     applicant_id: uuid.UUID | None = Depends(get_signed_in_applicant_id),
@@ -153,6 +156,7 @@ async def read_filters(
         # plain IN. A season no posting names matches nothing, as it should.
         start_terms=(await terms_in(db, start_term)) if start_term else None,
         visa=visa,
+        auto_apply_only=auto_apply,
         query_companies=search.companies,
         query_roles=search.roles,
         query_role_words=search.role_words,

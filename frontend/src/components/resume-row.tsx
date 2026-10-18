@@ -10,7 +10,7 @@ import type { ResumeItem } from "@/lib/resume-actions";
 
 /** One resume row. The loading placeholder, the in-flight upload and the
  *  empty list (in My Profile's page.tsx and the Auto Apply page's
- *  applying-resume.tsx) are the same 52px box, so nothing jumps when the
+ *  resume-list.tsx) are the same 52px box, so nothing jumps when the
  *  real row arrives. */
 export const RESUME_ROW =
   "border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2";
@@ -45,9 +45,9 @@ const ROW_ACTION = "rounded-control hover:bg-hover size-8";
  * A touch screen has no hover, so there those stars stay visible. A hidden
  * star still holds its place, so nothing shifts when it appears.
  *
- * My Profile passes every action. A screen that only shows a resume (the
- * Auto Apply page) passes onPreview alone: the primary's star still marks
- * it, but there is no star to click and no delete.
+ * My Profile passes every action. A screen that only shows a resume passes
+ * onPreview alone: the primary's star still marks it, but there is no star
+ * to click and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;

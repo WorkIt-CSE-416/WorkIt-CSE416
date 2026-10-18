@@ -29,6 +29,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/select-field";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * The kit's specimens that hold state or take a function, which a server page
@@ -137,6 +138,46 @@ export function SelectFieldSpecimen() {
         options={["Design", "Engineering", "Marketing", "Operations"]}
       />
     </div>
+  );
+}
+
+/** A real toast in the window's corner: one plain, one with an action, as
+ *  Live Activity raises it. Undo here only raises a second toast. */
+export function ToastSpecimen() {
+  const toast = useToast();
+
+  return (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => toast.show({ message: "Your resume is saved." })}
+      >
+        Show a Toast
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() =>
+          toast.show({
+            message: (
+              <>
+                <span className="font-medium">Software Engineer Intern</span> from{" "}
+                <span className="font-medium">Acme</span> is removed from Auto Apply.
+              </>
+            ),
+            action: {
+              label: "Undo",
+              onClick: () => {
+                toast.show({ message: "Software Engineer Intern is back in the queue." });
+              },
+            },
+          })
+        }
+      >
+        Show One With Undo
+      </Button>
+    </>
   );
 }
 

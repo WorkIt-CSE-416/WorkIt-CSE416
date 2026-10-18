@@ -20,6 +20,14 @@ import { sessionCookieOptions } from "@/lib/supabase/cookies";
  * file still boots and renders its fixtures.
  */
 export async function proxy(request: NextRequest) {
+  // The business side is hidden until it ships (KAN-239): every business
+  // path lands on /coming-soon. It runs before the env check so a clone with
+  // no env file is gated too. Delete this block to bring the business side
+  // back, and uncomment the switcher in components/account-type-switcher.tsx.
+  if (isBusinessPath(request.nextUrl.pathname)) {
+    return NextResponse.redirect(new URL("/coming-soon", request.url));
+  }
+
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -49,6 +57,12 @@ export async function proxy(request: NextRequest) {
   await supabase.auth.getClaims();
 
   return response;
+}
+
+function isBusinessPath(pathname: string) {
+  return ["/company", "/onboarding/company"].some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
 }
 
 export const config = {
