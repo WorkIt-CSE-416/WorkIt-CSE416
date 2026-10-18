@@ -345,6 +345,51 @@ before on the same text. Read without roles, as the stored text is, 205 of the
 13,257 stored descriptions fail it (77 before): Workday's text without its markup
 is not what production reads. `PAGE_VERSION` 15 re-reads every stored page.
 
+## What a line says (fix 4, 2026-10-17)
+
+A heading decides a line's section, but employers mix: on the board gold
+postings, 57% of the misplaced lines sat under a heading the parser read right,
+saying something else. `_said` moves such a line by what it says, after the pay
+and equal-opportunity rules, in this order:
+
+| Rule | Moves | Boards | Workday |
+|---|---|---|---|
+| A nice-to-have ("is a plus", "preferred", "desirable") | Requirements, Responsibilities to Preferred Qualifications | +5 −1 | +9 −0 |
+| A qualification ("Strong analytical skills", "Standard knowledge of…", "Bachelor's degree") | Responsibilities to Requirements | +0 −0 | +11 −0 |
+| Work eligibility (authorization, sponsorship, citizenship, clearance) | Details, the intro, Overview, Pay to Requirements | +3 −0 | +2 −1 |
+| A perk named outright (401(k), PTO, health insurance) | out of any kept section | +0 −0 | +1 −0 |
+| How to apply | out of any kept section | +5 −2 | +7 −1 |
+
+(Gold lines fixed and broken by each rule alone.) A nice-to-have aside inside a
+requirement stays a requirement: "Fluent in English and German (any additional
+language is a plus)" and "Programming skills in C++ and/or python. Julia is a
+plus!" both are. The apply rule takes only a line about applying: "Ability to
+apply critical thinking skills" is a qualification, and a summary that ends
+"Apply today!" stays the role's, so a long line counts only when it opens with
+the ask. Discrimination boilerplate ("prohibits discrimination based on …
+citizenship") is now an equal-opportunity line, which the eligibility rule
+would otherwise have shown under Requirements. Dropped: a where-and-when rule
+(location and schedule sentences to Details) broke more gold lines than it fixed
+(boards +2 −7, Workday +2 −3).
+
+| | Before | After |
+|---|---|---|
+| Boards: lines shown where they belong | 82.0% | 82.5% |
+| Workday: lines shown where they belong | 70.1% | 72.0% |
+| Workday: wrong under Responsibilities | 10.7% | 6.2% |
+
+On the 13,257 stored descriptions, 6,011 change, mostly by preferred items and
+qualifications moving out of the wrong list; random samples of each rule's moves
+read right. An application deadline is now left out with the rest of how to
+apply, as the guide files it. On the 467 fetched HTML descriptions, 12 fail
+`kept(kept(text, roles)) == kept(text, roles)`, as many as before the rules.
+
+**Still open.** The rest is meaning a pattern cannot read: a summary under a
+company heading, a requirement worded as a duty. A model that labels each line
+would reach it, but would run on every scraped posting (a backend import step,
+since the scraper uses the standard library only), cost tokens on each, and
+answer differently run to run, so it is a separate decision.
+
 ## What WorkIt keeps (decided 2026-10-17)
 
 Xiang asked for this to be decided before anything was dropped, because dropped

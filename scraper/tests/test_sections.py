@@ -603,6 +603,79 @@ class TestRoles:
         assert kept(stored) == stored
 
 
+class TestWhatALineSays:
+    """Fix 4: a line moves out of the section its heading put it in by what it says."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Experience with automated testing is a plus.",
+            "Spanish language proficiency is preferred",
+            "Bachelor's degree (preferred)",
+            "No experience required. Previous internship experience, a plus.",
+        ],
+    )
+    def test_a_nice_to_have_goes_to_preferred(self, line: str) -> None:
+        # As the scraper reads them: a heading, then a list.
+        text, roles = f"Requirements\nA CS degree\n{line}", ("h", "li", "li")
+
+        assert kept(text, roles) == (
+            f"Requirements\n• A CS degree\nPreferred Qualifications\n• {line}"
+        )
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # A requirement with a nice-to-have aside stays a requirement.
+            "Fluent in English and German (any additional language is a plus).",
+            "Programming skills in C++ and/or python. Julia is a plus!",
+            "Previous internship experience required. Finance internship preferred.",
+        ],
+    )
+    def test_a_requirement_with_an_aside_stays(self, line: str) -> None:
+        assert kept(f"Requirements\n{line}") == f"Requirements\n{line}"
+
+    def test_a_qualification_in_a_duties_list_goes_to_requirements(self) -> None:
+        # First Quality lists its qualifications under "Principal Accountabilities".
+        text = (
+            "Responsibilities\nPrepare equipment proposals.\n"
+            "Standard knowledge of cost accounting principles."
+        )
+
+        assert kept(text) == (
+            "Responsibilities\nPrepare equipment proposals.\n"
+            "Requirements\nStandard knowledge of cost accounting principles."
+        )
+
+    def test_a_work_eligibility_line_goes_to_requirements(self) -> None:
+        text = "Responsibilities\nShip code\nDetails\nVisa sponsorship is not available."
+
+        assert kept(text) == (
+            "Responsibilities\nShip code\nRequirements\nVisa sponsorship is not available."
+        )
+
+    def test_a_named_perk_and_an_apply_line_are_left_out(self) -> None:
+        text = (
+            "Responsibilities\nShip code\nReceive a competitive 401(k) match\n"
+            "Requirements\nA CS degree\nTo apply, submit your resume and transcript."
+        )
+
+        assert kept(text) == "Responsibilities\nShip code\nRequirements\nA CS degree"
+
+    def test_a_line_that_only_mentions_applying_stays(self) -> None:
+        line = "Ability to apply critical thinking skills to client work"
+
+        assert kept(f"Requirements\n{line}") == f"Requirements\n{line}"
+
+    def test_discrimination_boilerplate_is_not_an_eligibility_line(self) -> None:
+        text = (
+            "Responsibilities\nShip code\nPay\nThe company prohibits discrimination based "
+            "on race, religion or citizenship."
+        )
+
+        assert kept(text) == "Responsibilities\nShip code"
+
+
 class TestHeadingVoice:
     """A heading in the company's voice opens no section about the reader."""
 
