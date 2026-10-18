@@ -825,9 +825,10 @@ a `NOT EXISTS`); auto apply's matches leave out every stage but `saved`
   a `saved` row only, a 409 otherwise. A saved insert names `applied_at`
   NULL, as a queued one does. Live Activity asks for every stage but saved;
   the Applications board asks for saved and applied.
-- **Apply `17ea74fa4573` before the deploy that writes `saved`.** It only
+- **`17ea74fa4573` goes on before the deploy that writes `saved`.** It only
   adds the value, so the code running before it never meets it; deployed
-  first, every Save answers 500.
+  first, every Save answers 500. Applied to the shared database on
+  2026-10-18, before the Save feature merged.
 - **`applied_at` is NULL until the applicant applies**, and the
   `job_applications_applied_dated` CHECK keeps an `applied` row dated.
 - **The defaults (`stage` `applied`, `applied_at` `now()`) are for applied
