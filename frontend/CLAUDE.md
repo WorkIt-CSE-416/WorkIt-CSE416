@@ -63,10 +63,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   clone with no env file is gated too. The root page's hiring card still
   shows and lands there. `components/account-type-switcher.tsx` has its
   toggle commented out and always submits `applicant`, so login, signup and
-  choose-account-type show no Company option; the brand panel's hiring line
-  is commented out too. The company code stays in place. To bring it back,
-  delete the proxy block and `app/coming-soon/`, then uncomment those two
-  components. The API still accepts company signups; the gate is the UI only.
+  choose-account-type show no Company option. The company code stays in
+  place. To bring it back, delete the proxy block and `app/coming-soon/`,
+  then uncomment the switcher's toggle. The API still accepts company
+  signups; the gate is the UI only.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
