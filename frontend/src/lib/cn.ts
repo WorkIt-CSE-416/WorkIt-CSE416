@@ -45,6 +45,7 @@ const twMerge = extendTailwindMerge({
         "ring-fill",
         "swing",
         "typing",
+        "shimmer",
         "status-ping",
         "arrive",
         "leave",

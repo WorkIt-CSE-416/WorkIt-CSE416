@@ -56,8 +56,9 @@ The greeting is the Dashboard's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-The seeker panel holds only the search (Dashboard, Jobs, Applications,
-Calendar, My Profile), with no caption over it. Settings, Help and Sign Out, once its General
+The seeker panel holds only the search (Dashboard, Jobs, Auto Apply,
+Applications, Calendar, Resumes & Experiences, My Profile), with no
+caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
@@ -132,17 +133,19 @@ the server and the browser print the same.
 
 **Every choice of one among a few is `ui/segmented-control.tsx`**: the
 Calendar's Month, Week and Agenda, the Dashboard's range, the Applications
-layouts, the sign-in card's Applicant or Company, and the company chart's
-range. A pill-shaped track (a 5% ink wash, so it reads on the white page and
+layouts, the sign-in card's Applicant or Company, the company chart's
+range, and Resumes & Experiences' two views. A pill-shaped track (a 5% ink wash, so it reads on the white page and
 the off-white auth card alike, and no outline) with a white thumb that slides
 to the chosen option on the 300ms glide (`docs/motion.md`), and jumps under
 reduced motion. The options are equal width, so the thumb is placed with CSS
 alone and the server renders it in place. `SegmentedLinks` is for a choice
 kept in the URL: the thumb moves on the click, before anything else answers.
-Every caller today passes `shallow`, which moves the query in place
+Every caller but one passes `shallow`, which moves the query in place
 (`components/shallow-routing.tsx`) for content the page already holds, so
 the content redraws with the thumb; without it, the page goes back to the
-server and the content follows a round trip later. `SegmentedToggle` is for component state, on Base UI's
+server and the content follows a round trip later. The one is Resumes &
+Experiences' switcher (`(seeker)/resumes/header.tsx`): its options are two
+routes, and each reads its own data on the server. `SegmentedToggle` is for component state, on Base UI's
 ToggleGroup for its arrow keys and single tab stop; a null value hides the
 thumb. An icon option is a rendered element, not a component, since a server
 page passes the options. Build a new segmented choice from it rather than
@@ -173,6 +176,11 @@ size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
 `positive`) while painting the mockups' styling, plus `shape="pill"` for the
 seeker Dashboard's fully rounded actions, so a component pasted from the
 shadcn docs composes without edits and still looks like WorkIt.
+Every variant at a size is one box (sm 32px, default 36px, lg 42px), and the
+Button sizes its glyphs to keep it so: an icon with no `size-*` class is
+16px (14px at `inline`, `xs` and `section`). Lucide's own 24px stretched about 30 sm
+buttons to 38px, so the bank's My Resumes button stood taller than Fill With Scout beside it
+(KAN-249); give an icon a size only when it must differ.
 `shadcn/button.tsx` is a re-export pointing back at it, and an ESLint rule keeps
 app code on the canonical path — likewise for `badge` and `card`, which are not
 re-exports.

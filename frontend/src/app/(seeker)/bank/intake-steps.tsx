@@ -17,6 +17,14 @@ import { sectionOf } from "./sections";
  * A skipped section counts toward the percentage, as in the prototype: the
  * bar measures the sections the student has dealt with, and a student with
  * no awards should still reach 100%. Its segment stays striped, not filled.
+ *
+ * `compact` (Scout's panel, KAN-249) is the segments alone, thinner, for
+ * the stage card (`draft-preview.tsx`) that names the section and the step
+ * and holds Skip above them. A segment still jumps, so it needs no Back.
+ * The panel had drawn the bar, "Step 1 of 6 · Education" and a Skip in one
+ * place and the draft with another Skip in a card under it; the two read as
+ * unrelated and took room its chat needed. With no current section (every
+ * one dealt with) it says how many are done beside the bar.
  */
 
 /** The order intake walks: not the bank's, which puts Experience second. */
@@ -42,6 +50,7 @@ export function StepBar({
   skipped,
   lead,
   busy = false,
+  compact = false,
   onJump,
   onSkip,
 }: {
@@ -55,8 +64,11 @@ export function StepBar({
   lead?: string;
   /** While WorkIt answers: a late reply must not land on another section. */
   busy?: boolean;
+  /** The segments alone, for Scout's panel's stage card. */
+  compact?: boolean;
   onJump: (section: Section) => void;
-  onSkip: () => void;
+  /** Omitted in `compact`, where the stage card has Skip. */
+  onSkip?: () => void;
 }) {
   const stateOf = (s: Section): State =>
     s === current
@@ -84,6 +96,38 @@ export function StepBar({
           ? "Over halfway there. Keep it up!"
           : "Nice work. Keep going!";
 
+  const where = current ? (
+    <>
+      Step {index + 1 + offset} of {steps} ·{" "}
+      <span className="text-brand font-semibold">{sectionOf(current).label}</span>
+    </>
+  ) : (
+    `${finished + offset} of ${steps} steps done`
+  );
+
+  const segments = WALK.map((s, i) => (
+    <Segment
+      key={s}
+      label={sectionOf(s).label}
+      short={SHORT[s]}
+      state={states[i]}
+      fill={states[i] === "done" ? 100 : states[i] === "current" ? currentFill : 0}
+      compact={compact}
+      onClick={states[i] === "current" || busy ? undefined : () => onJump(s)}
+    />
+  ));
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-3">
+        <ol aria-label="Intake steps" className="flex flex-1 items-center gap-1">
+          {segments}
+        </ol>
+        {!current && <p className="text-note text-ink-meta shrink-0">{where}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-start gap-2">
@@ -99,19 +143,10 @@ export function StepBar({
 
         <ol aria-label="Intake steps" className="flex flex-1 items-start gap-1.5">
           {lead && <Segment label={lead} state="done" fill={100} />}
-          {WALK.map((s, i) => (
-            <Segment
-              key={s}
-              label={sectionOf(s).label}
-              short={SHORT[s]}
-              state={states[i]}
-              fill={states[i] === "done" ? 100 : states[i] === "current" ? currentFill : 0}
-              onClick={states[i] === "current" || busy ? undefined : () => onJump(s)}
-            />
-          ))}
+          {segments}
         </ol>
 
-        {current ? (
+        {current && onSkip ? (
           <button
             type="button"
             onClick={onSkip}
@@ -126,16 +161,7 @@ export function StepBar({
       </div>
 
       <div className="flex items-center justify-between gap-3 px-11">
-        <p className="text-note text-ink-meta @3xl/main:hidden">
-          {current ? (
-            <>
-              Step {index + 1 + offset} of {steps} ·{" "}
-              <span className="text-brand font-semibold">{sectionOf(current).label}</span>
-            </>
-          ) : (
-            `${finished + offset} of ${steps} steps done`
-          )}
-        </p>
+        <p className="text-note text-ink-meta @3xl/main:hidden">{where}</p>
         <p className="text-note text-ink-meta ml-auto hidden @xl/main:block">
           {cheer} <span className="text-brand font-semibold tabular-nums">{percent}%</span>
         </p>
@@ -149,12 +175,15 @@ function Segment({
   short,
   state,
   fill,
+  compact = false,
   onClick,
 }: {
   label: string;
   short?: string;
   state: State;
   fill: number;
+  /** Thin, with no name under it: the stage card names the section. */
+  compact?: boolean;
   onClick?: () => void;
 }) {
   const note = state === "todo" ? "" : ` (${state})`;
@@ -166,11 +195,16 @@ function Segment({
         disabled={!onClick}
         aria-label={`${onClick ? "Go to " : ""}${label}${note}`}
         aria-current={state === "current" ? "step" : undefined}
-        className="focus-visible:ring-brand-ring block w-full rounded-full py-2 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-default"
+        // The thin bar keeps the full bar's 28px hit area.
+        className={cn(
+          "focus-visible:ring-brand-ring block w-full rounded-full focus-visible:ring-2 focus-visible:outline-none disabled:cursor-default",
+          compact ? "py-2.75" : "py-2",
+        )}
       >
         <span
           className={cn(
-            "ease-glide block h-3 overflow-hidden rounded-full transition-transform duration-200",
+            "ease-glide block overflow-hidden rounded-full transition-transform duration-200",
+            compact ? "h-1.5" : "h-3",
             onClick && "group-hover:scale-y-125",
             state === "skipped"
               ? "bg-[repeating-linear-gradient(135deg,var(--color-brand-tint)_0_5px,var(--color-panel)_5px_10px)]"
@@ -183,16 +217,18 @@ function Segment({
           />
         </span>
       </button>
-      <span
-        aria-hidden
-        className={cn(
-          "text-meta hidden truncate text-center @3xl/main:block",
-          state === "current" ? "text-brand font-semibold" : "text-ink-meta",
-        )}
-      >
-        {state === "done" && "✓ "}
-        {short ?? label}
-      </span>
+      {!compact && (
+        <span
+          aria-hidden
+          className={cn(
+            "text-meta hidden truncate text-center @3xl/main:block",
+            state === "current" ? "text-brand font-semibold" : "text-ink-meta",
+          )}
+        >
+          {state === "done" && "✓ "}
+          {short ?? label}
+        </span>
+      )}
     </li>
   );
 }

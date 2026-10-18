@@ -159,8 +159,8 @@ export function PhoneEditor({
       <header className="bg-surface/95 border-border-subtle flex flex-col gap-2 border-b px-4 pt-3 pb-2 backdrop-blur">
         <div className="flex items-center gap-2">
           <Link
-            href="/bank"
-            aria-label="Back to Experience Bank"
+            href="/resumes"
+            aria-label="Back to Resumes"
             className="text-ink -ml-2 flex size-11 items-center justify-center rounded-full"
           >
             <ArrowLeft className="size-5" />

@@ -21,6 +21,14 @@ import { cn } from "@/lib/cn";
  * a 32px Save. Every variant at a size is now the same box: sm 32px, default
  * 36px, lg 42px.
  *
+ * ICONS ARE SIZED HERE TOO. A glyph with no size class takes 16px (14px in
+ * the `inline` and `xs` sizes, whose text is 12px, and in `section`, which
+ * matches SectionLink's arrow). Lucide draws at 24px by
+ * default, and an unsized one stretched an sm button to 38px: My Resumes
+ * stood 6px taller than Fill With Scout beside it, and the same held for
+ * about 30 buttons (Open, PDF, Word, Edit, Save Entry...). A call site that
+ * sets its own `size-*` keeps it.
+ *
  * Every focus ring is solid (see --color-brand-ring in globals.css), and the
  * filled variants hold theirs 2px off the fill with ring-offset-2: a solid ring
  * touching a fill of its own colour reads as a bigger button, not as focus.
@@ -76,7 +84,7 @@ import { cn } from "@/lib/cn";
  * happened; see frontend/docs/motion.md.
  */
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -123,12 +131,15 @@ export const buttonVariants = cva(
          *  ::after widens the hit area past the 16px text without moving
          *  anything around it. */
         inline:
-          "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
-        /** `inline` at SectionLink's 13px, with its 14px glyph. */
+          "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
+        /** `inline` at SectionLink's 13px, with its 14px glyph. The glyph
+         *  rule takes the base's `:not([class*='size-'])` modifier, so cn()
+         *  merges the two; as a bare `[&_svg]` it was a weaker selector than
+         *  the base's 16px, which won (KAN-249). */
         section:
-          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg]:size-3.5",
+          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
         /** UNMEASURED — extrapolated between `inline` and `sm`. */
-        xs: "text-note gap-1 px-2 py-1",
+        xs: "text-note gap-1 px-2 py-1 [&_svg:not([class*='size-'])]:size-3.5",
         sm: "text-label gap-2 px-2.5 py-1.5",
         default: "text-label gap-2 px-3 py-2",
         lg: "text-body gap-2 px-4 py-2.5",
