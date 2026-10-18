@@ -23,7 +23,7 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SegmentedToggle> / <SegmentedLinks>"
-          role="One choice among a few, its thumb sliding to the pick: sm (32px) and lg (44px)"
+          role="One choice among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
         >
           <SegmentedSpecimen />
         </Row>

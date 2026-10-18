@@ -81,7 +81,7 @@ export function ApplyingResume({
   return (
     <section aria-labelledby="applying-resume" className="mt-6 max-w-2xl">
       {/* The button stands beside the row, its bottom on the row's, so the
-          two read as one control strip. It is lg (42px), the page's one main
+          two read as one control strip. It is lg (48px), the page's one main
           action: stretched to the row's 52px it was the largest button in
           the app (KAN-251). Its width is fixed (208px, the widest label's)
           so the row does not shift when Start becomes Pause. On a phone it

@@ -28,16 +28,17 @@ const DUPLICATED_PRIMITIVES = ["Button", "Badge", "Card", "Select"];
  * BUTTON AND CHIP BOXES ARE SET IN ONE PLACE (KAN-251). A className on a
  * Button, ButtonLink, Chip or ChipLink, or passed to buttonClasses() or
  * chipClasses(), may place it (w-full, shrink-0, mt-4) but never change its
- * box: no height, padding, radius, type size or square size. Overrides like
+ * box: no height, padding, radius, type size, line height, border width or
+ * square size, written with or without `!`. Overrides like
  * these made a 52px Start Auto Apply and pill buttons on the Dashboard; a
  * button that needs another box needs a size in ui/button.tsx, where every
  * screen can find it. Only plain string classes are checked; keep overrides
  * out of cn() and template strings too.
  */
 const BOX_CLASS =
-  "/(^|[\\s:])(h|min-h|max-h|size|p|px|py|pt|pb|pl|pr|ps|pe|rounded(-[a-z0-9]+)?|text-(body|label|note|meta|base|caption|subtitle|heading|title|display))(-|\\s|$)/";
+  "/(^|[\\s:!])(h|min-h|max-h|size|p|px|py|pt|pb|pl|pr|ps|pe|leading|border(-[xytrblse])?-[0-9]+|rounded(-[a-z0-9]+)?|text-(body|label|note|meta|base|caption|subtitle|heading|title|display|figure|hero|xs|sm|lg|[2-9]?xl))(-|\\s|$|!)/";
 const BOX_MESSAGE =
-  "Do not change a button's or chip's box (height, padding, radius, type size) at the call site. Pick a size in ui/button.tsx or ui/chip.tsx; className may only place it.";
+  "Do not change a button's or chip's box (height, padding, radius, type size, line height, border width) at the call site. Pick a size in ui/button.tsx or ui/chip.tsx; className may only place it.";
 
 const eslintConfig = defineConfig([
   ...nextVitals,

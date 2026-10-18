@@ -21,7 +21,7 @@ export default function ButtonsPage() {
     <KitPage {...SECTIONS.buttons}>
       <Group
         title="Button or Chip"
-        note="A button acts: it saves, opens, sends or goes somewhere, and it is a rounded rectangle. A chip is a choice made in place, a filter, a toggle or an offered answer, and it is a pill. A badge is a pill too, but it is a label you cannot press. Both are 36px at their usual size, so a row of them lines up."
+        note="A button acts: it saves, opens, sends or goes somewhere, and it is a rounded rectangle. A chip is a choice made in place, a filter, a toggle or an offered answer, and it is a pill. A badge is a pill too, but it is a label you cannot press. An sm button and a chip are both 36px, so a row of them lines up."
       >
         <Row name="sm <Button> beside a <Chip>" role="One height in one row">
           <Button size="sm">
@@ -47,14 +47,17 @@ export default function ButtonsPage() {
 
       <Group
         title="Sizes"
-        note="Pick a size by where the button sits, never by how big it should look. Every variant at a size is the same box, a text-only one included. An icon with no size class is 16px (14px at inline and xs)."
+        note="Pick a size by where the button sits, never by how big it should look. Every variant at a size is the same box, a text-only one included. An icon with no size class is 16px (14px at inline, xs and section)."
       >
         {BUTTON_SIZES.map(({ size, note }) => (
           <Row key={size} name={`size="${size}"`} role={note}>
             <Button size={size}>Apply Now</Button>
-            <Button size={size} variant="secondary">
-              <SparkleIcon /> Ask Scout
-            </Button>
+            {/* inline has no box, and no screen draws a bordered one. */}
+            {size !== "inline" && (
+              <Button size={size} variant="secondary">
+                <SparkleIcon /> Ask Scout
+              </Button>
+            )}
           </Row>
         ))}
       </Group>
@@ -78,9 +81,9 @@ export default function ButtonsPage() {
         ))}
         <Row name='<Chip size="lg">' role="42px, 16px type: onboarding's answers">
           <Chip size="lg" pressed>
-            <CheckIcon /> Remote
+            <CheckIcon /> $35+/hr
           </Chip>
-          <Chip size="lg">Hybrid</Chip>
+          <Chip size="lg">$45+/hr</Chip>
         </Row>
         <Row name="<ChipLink pressed>" role="A filter kept in the URL; says it is on in words">
           <ChipLink href="/design-kit/buttons" pressed>

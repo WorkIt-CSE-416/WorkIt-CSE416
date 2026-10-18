@@ -815,7 +815,7 @@ function AddContact({
       placeholder={label}
       onBlur={(e) => save(e.currentTarget)}
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand h-8 w-36 rounded-lg px-2 ring-1 outline-none focus:ring-2"
+      className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand h-9 w-36 rounded-lg px-2 ring-1 outline-none focus:ring-2"
     />
   );
 }

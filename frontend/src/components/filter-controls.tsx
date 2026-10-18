@@ -468,7 +468,7 @@ function MoneyField({
   return (
     <div
       className={cn(
-        "border-border focus-within:ring-brand-ring text-body flex h-8 w-36 items-center gap-1 rounded-md border px-2.5 focus-within:ring-2",
+        "border-border focus-within:ring-brand-ring text-body flex h-9 w-36 items-center gap-1 rounded-md border px-2.5 focus-within:ring-2",
         size === "lg" && "text-subtitle h-11 w-44 px-3.5 font-normal",
       )}
     >

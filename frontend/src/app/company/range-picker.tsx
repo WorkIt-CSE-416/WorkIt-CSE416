@@ -108,13 +108,13 @@ export function RangePicker() {
     >
       {/* ONE WIDTH FOR EVERY WINDOW. The label runs from "Sep 2, 2026" to
           "Jun 25 – Aug 28, 2026", and a button sized to it pushed Export and
-          the heading row around each time the range changed. w-52 holds the
+          the heading row around each time the range changed. w-53 holds the
           longest label the series can produce (139px of text plus the icons
-          and padding); the label starts after the calendar and the chevron
-          keeps the right edge. */}
+          and sm's padding, which grew 4px in KAN-251); the label starts after
+          the calendar and the chevron keeps the right edge. */}
       <PopoverTrigger
         render={
-          <Button variant="secondary" size="sm" className="w-52 justify-start">
+          <Button variant="secondary" size="sm" className="w-53 justify-start">
             <CalendarIcon className="size-3.5" />
             <span className="min-w-0 flex-1 truncate text-left">{formatRange(range)}</span>
             <ChevronDownIcon className="text-ink-subtle size-3.5" />

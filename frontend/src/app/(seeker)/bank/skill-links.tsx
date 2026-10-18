@@ -24,21 +24,29 @@ export function SkillLinksField({
 }) {
   if (skills.length === 0) return null;
   return (
-    <fieldset className="flex flex-col gap-2">
+    // min-w-0: a fieldset is as wide as its widest child by default, so a
+    // one-line chip would widen it past the card and max-w-full would hold
+    // nothing back.
+    <fieldset className="flex min-w-0 flex-col gap-2">
       <legend className={FIELD_LABEL}>Skills Used Here</legend>
       <div className="flex flex-wrap gap-2">
         {skills.map((skill) => {
           const linked = value.includes(skill.id);
           return (
+            // A chip is one line (KAN-251), so a long name (up to 60
+            // characters) ends in an ellipsis inside the row's width rather
+            // than running past the card on a phone; the title shows it whole.
             <Chip
               key={skill.id}
               pressed={linked}
+              title={skill.name}
+              className="max-w-full"
               onClick={() =>
                 onChange(linked ? value.filter((v) => v !== skill.id) : [...value, skill.id])
               }
             >
               {linked && <Check aria-hidden />}
-              {skill.name}
+              <span className="truncate">{skill.name}</span>
             </Chip>
           );
         })}

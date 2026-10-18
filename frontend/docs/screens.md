@@ -231,7 +231,7 @@ tiles) the four numbers run across the top in a grid of their own (the
 first filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
-pill) over Up Next, then Activity two thirds wide beside Waiting (three
+button) over Up Next, then Activity two thirds wide beside Waiting (three
 columns, one per verdict: on track, follow up, likely closed, each labelled
 under it, so no legend; it was a half-ring gauge, whose round-capped parts
 left grey slivers between them and past its ends, then four columns, whose

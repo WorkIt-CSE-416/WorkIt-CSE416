@@ -187,8 +187,10 @@ and `card`, which are not re-exports.
 **A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
 acts (saves, opens, sends, goes somewhere); a chip is a choice made in
 place: a filter, a toggle, or an answer offered. A badge is a pill too, but
-a label, never pressed, and a segmented control's track is a pill because it
-is a choice as well. **Pick a button's size by where it sits**: `sm` (36px)
+a label, and a segmented control's track is a pill because it is a choice as
+well. Two pills act on purpose: the Calendar's Today, drawn to match its
+round arrows, and Next Up's date, a badge inside a link to that day on the
+Calendar. **Pick a button's size by where it sits**: `sm` (36px)
 for an action in a card, a row, a page's header or a panel; `default`
 (42px, a text field's height, so a form's buttons line up with its fields)
 in a form or a dialog; `lg` (48px) for the one main action of a page or the
@@ -203,8 +205,10 @@ are the question itself, onboarding's filter steps. Its roles: `choice` with `pr
 toggles, `suggestion` for an offered answer, `primary` for the one most
 people take, and `ChipLink` for a filter kept in the URL. **A call site
 never changes a button's or chip's box**: a `no-restricted-syntax` rule in
-`eslint.config.mjs` (BOX_CLASS) refuses a height, padding, radius or type
-size in its `className`, which may only place it or colour a state. That is
+`eslint.config.mjs` (BOX_CLASS) refuses a height, padding, radius, type
+size, line height or border width in its `className` (as a plain string;
+it cannot read `cn()` or a template string), which may only place it or
+colour a state. That is
 what ended the Dashboard's pill buttons, a 52px Start Auto Apply, the
 welcome page's stretched buttons (now choice cards) and five hand-drawn
 pills at three heights. `/design-kit/buttons` shows every size and chip with
