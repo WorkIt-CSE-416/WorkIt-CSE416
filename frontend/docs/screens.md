@@ -405,7 +405,9 @@ in red (`auto-apply/opened-note.ts`, shared with the job card). A window
 already on that job stays as it is, so Start never wipes a form in
 progress. Pause and Resume only move the state: nothing fills
 a form yet. It is off until the list has a resume, and while a batch is
-queueing. The state (`idle`, `running`, `paused`) is held in
+queueing. It never waits on the window's page load: the note says how many
+jobs it queued at once and adds the window's result when it lands. The
+state (`idle`, `running`, `paused`) is held in
 `auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
 Started, Live (a green dot that rings out) or Paused; a return visit starts
 idle, so Start queues another batch. The brand fill marks

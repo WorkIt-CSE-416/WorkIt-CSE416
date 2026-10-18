@@ -32,8 +32,10 @@ const RUN_LABEL: Record<RunState, string> = {
  * refreshes the route so the list shows them. Then it asks the extension's
  * runner to open the oldest queued application's apply_url in a window
  * behind this one (openNextApplication), and says what happened
- * (./opened-note.ts); Live Activity marks it Working in Browser. Nothing
- * fills the form yet, and Pause and Resume only move this state
+ * (./opened-note.ts); Live Activity marks it Working in Browser. The click
+ * waits for the queueing only: the window opens after it settles, as on the
+ * job card (./auto-apply-button.tsx), so the button never waits on a page
+ * load. Nothing fills the form yet, and Pause and Resume only move this state
  * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
  * so a return visit starts idle, and Start queues another batch.
  */
@@ -45,6 +47,17 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
   // One batch at a time: `pending` disables the button a render late, so a
   // fast double click on Start queued two batches.
   const queueing = useRef(false);
+
+  /** Not awaited: `run/open` answers only once the window's page loads (up
+   *  to 30 seconds), and inside the transition that kept Start disabled and
+   *  held back the refreshed list. The note gains the result when it lands. */
+  async function openInBrowser(queued: string) {
+    const opened = await openNextApplication();
+    setNote({
+      text: `${queued} ${openedNote(opened)}`,
+      error: !opened.opened && opened.reason !== "queue_empty",
+    });
+  }
 
   function toggle() {
     if (run !== "idle") {
@@ -66,11 +79,8 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
           result.queued === 0
             ? "No new matches to queue."
             : `Queued ${result.queued} ${result.queued === 1 ? "job" : "jobs"}.`;
-        const opened = await openNextApplication();
-        setNote({
-          text: `${queued} ${openedNote(opened)}`,
-          error: !opened.opened && opened.reason !== "queue_empty",
-        });
+        setNote({ text: queued, error: false });
+        void openInBrowser(queued);
       } finally {
         queueing.current = false;
       }
