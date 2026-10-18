@@ -2,20 +2,20 @@
 
 import { apiUpload, apiGet, apiDelete } from "@/lib/api";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
+import type { ImportResult } from "@/lib/bank-actions";
 import { getApplicantSession } from "@/lib/session";
 
 export type ResumeItem = {
   id: string;
   original_filename: string | null;
   raw_text?: string | null;
-  /** The parser's own reading, never edited (KAN-211); the bank holds the
-   *  student's checked facts. */
-  parsed_json?: unknown;
   storage_path: string;
   status: string;
   /** The applicant's primary resume — the one the profile shows. */
   is_default: boolean;
   created_at: string | null;
+  /** Upload only: what its reading wrote into the experience bank (ADR 0003). */
+  bank?: ImportResult;
 };
 
 // A server action is an endpoint any page script can call with any argument.
@@ -95,7 +95,8 @@ export async function getResumeFileUrl(
   }
 }
 
-// The API reads the file itself; the client never sends parsed content.
+// The API reads the file itself and writes what it read into the experience
+// bank; the client never sends parsed content.
 export async function uploadResume(
   formData: FormData,
 ): Promise<{ resume: ResumeItem | null; error: string | null }> {

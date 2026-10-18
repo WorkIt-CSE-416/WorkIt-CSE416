@@ -1,9 +1,8 @@
 """
-Import (KAN-211): turn the heuristic parser's reading of an uploaded resume
-into draft entries and draft skills. Model parsing (KAN-222) does the same
-from the model's reading. No database, no HTTP. The router
-adds the "Already in your bank" flags and saves nothing; the student saves
-each draft through the bank's own routes.
+Import (KAN-211, ADR 0003): turn the heuristic parser's reading of an
+uploaded resume into entries and skills for the bank. Model parsing (KAN-222)
+does the same from the model's reading. No database, no HTTP: the caller
+writes the result with `services/bank.py`'s `merge_import`.
 
 Drafts keep the resume's words. The only changes are the ones a draft must
 pass to be a valid entry: text clipped to the field's length, at most 30
@@ -13,6 +12,7 @@ one.
 """
 
 import datetime
+import logging
 import re
 
 from pydantic import ValidationError
@@ -20,11 +20,13 @@ from workit_scout.identity import Identity, placeholders_in
 from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
-from app.schemas.bank import DraftEntry, DraftSkill, ModelReading
+from app.schemas.bank import DraftEntry, ModelReading
+from app.utils.resume_parser import parse_resume
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
 _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
+logger = logging.getLogger(__name__)
 
 
 def _clip(value: str | None, limit: int = _SHORT) -> str | None:
@@ -138,18 +140,32 @@ def parsed_skills(parsed: ParsedResume) -> list[tuple[str, str | None]]:
     return pairs + [(tool, None) for project in parsed.projects for tool in project.technologies]
 
 
-def draft_skills(skills: list[tuple[str, str | None]], bank_names: set[str]) -> list[DraftSkill]:
-    """One draft per skill name, ignoring case, from (name, group) pairs;
-    `bank_names` are the bank's skill names, lowercased."""
+def skill_pairs(skills: list[tuple[str, str | None]]) -> list[tuple[str, str | None]]:
+    """(name, group) pairs clipped to the field limits, one per name,
+    ignoring case."""
     seen: set[str] = set()
-    out: list[DraftSkill] = []
+    out: list[tuple[str, str | None]] = []
     for raw_name, group in skills:
         name = _clip(raw_name, _NAME)
         if not name or name.lower() in seen:
             continue
         seen.add(name.lower())
-        out.append(DraftSkill(name=name, group=_clip(group, _NAME), in_bank=name.lower() in bank_names))
+        out.append((name, _clip(group, _NAME)))
     return out
+
+
+def read(raw_text: str | None) -> tuple[list[DraftEntry], list[tuple[str, str | None]]]:
+    """The parser's entries and skills from an upload's stored text. A text
+    the parser cannot read, or a parser crash, reads as nothing: an upload
+    never fails because of its reading."""
+    try:
+        parsed = parse_resume(raw_text) if raw_text else None
+    except Exception:
+        logger.exception("Resume parsing failed")
+        parsed = None
+    if parsed is None:
+        return [], []
+    return draft_entries(parsed), skill_pairs(parsed_skills(parsed))
 
 
 # --- Model parsing (KAN-222) ---------------------------------------------------

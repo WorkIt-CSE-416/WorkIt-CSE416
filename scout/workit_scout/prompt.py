@@ -42,9 +42,10 @@ NO_UPLOAD = (
     "They have not uploaded a resume either. Suggest adding what they have done "
     "on the Experience Bank page when it would help."
 )
-UPLOAD_WAITING = (
-    "They have uploaded a resume but have not imported it. Suggest importing it "
-    "on the Experience Bank page when it would help."
+UPLOAD_UNREAD = (
+    "They have uploaded a resume, but WorkIt could not read any entries from it. "
+    "Suggest Import Again on that resume on My Profile and then Read It With AI, "
+    "or adding what they have done on the Experiences page, when it would help."
 )
 
 
@@ -68,7 +69,7 @@ def facts(resume: ResumeFacts | None, job: JobFacts | None) -> str:
     if stated:
         parts.append("From their experience bank:\n\n" + stated)
     else:
-        parts.append(f"{EMPTY_BANK} {UPLOAD_WAITING if resume.has_upload else NO_UPLOAD}")
+        parts.append(f"{EMPTY_BANK} {UPLOAD_UNREAD if resume.has_upload else NO_UPLOAD}")
 
     if job is not None:
         stated = [

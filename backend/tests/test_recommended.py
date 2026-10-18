@@ -97,8 +97,8 @@ async def test_the_embedding_input_follows_the_spec(student, gemini, database):
     async with database() as session:
         await session.execute(
             text(
-                "INSERT INTO resumes (id, applicant_id, status, raw_text, parsed_json)"
-                " VALUES (:id, :a, 'parsed', 'Sam Seeker', '{\"skills\": [{\"skill_name\": \"COBOL\"}]}')"
+                "INSERT INTO resumes (id, applicant_id, status, raw_text)"
+                " VALUES (:id, :a, 'parsed', 'Sam Seeker. Skills: COBOL')"
             ),
             {"id": uuid.uuid4(), "a": me},
         )

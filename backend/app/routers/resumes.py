@@ -1,11 +1,14 @@
 """Resumes under /applicants/{applicant_id}/resumes: upload, list, delete.
 
-Upload (POST) extracts text from a PDF or DOCX and parses it into structured
-JSON (`parsed_json`), always from the file: the client never sends parsed
-content, and nothing edits it afterwards (KAN-211 retired the profile's
-parsed-JSON editor; resume facts are edited in the experience bank, which
-import fills from `raw_text`). `GET .../{resume_id}` returns one resume's
-`parsed_json` (the list omits it).
+Upload (POST) extracts text from a PDF or DOCX into `raw_text`, always from
+the file (the client never sends parsed content), reads it with the
+heuristic parser and writes what it read into the experience bank with
+`services/bank.py`'s `merge_import`, in the same transaction as the row
+(ADR 0003). The response's `bank` says what it wrote (`ImportResult`); the
+parser's reading is not kept anywhere else. The model never reads an upload
+by itself: the student asks for that through Import Again
+(`POST /applicants/{id}/bank/import`). `GET .../{resume_id}` returns one
+resume as the list does.
 `PUT .../{resume_id}/default` makes it the default resume
 (`applicant_profiles.default_resume_id`; the list reports it as `is_default`),
 clearing a base resume that was the default. Upload answers 409 when the
@@ -31,12 +34,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
 from app.deps import assert_applicant_owns, get_current_account
-from app.models.dto import ParsedResume, ResumeStatus
+from app.models.dto import ResumeStatus
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
-from app.services import built_resumes, sent_resumes
-from app.utils.resume_parser import count_sections, parse_resume
+from app.schemas.bank import ImportResult
+from app.services import bank, bank_import, built_resumes, sent_resumes
+from app.services.usage import Feature, uses_left
+from app.utils.resume_parser import count_sections
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -179,16 +184,6 @@ async def _extract(contents: bytes, ext: str) -> str | None:
     return await asyncio.to_thread(extract, contents)
 
 
-def _safe_parse(raw_text: str | None) -> ParsedResume | None:
-    if not raw_text:
-        return None
-    try:
-        return parse_resume(raw_text)
-    except Exception:
-        logger.exception("Resume parsing failed")
-        return None
-
-
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
 
@@ -229,7 +224,7 @@ async def upload_resume(
 
     # raw_text always comes from the file, never from the client
     raw_text = await _extract(contents, ext)
-    parsed = _safe_parse(raw_text)
+    entries, skills = bank_import.read(raw_text)
 
     # Resume ORM object
     resume = Resume(
@@ -237,16 +232,16 @@ async def upload_resume(
         applicant_id=applicant_id,
         original_filename=file.filename,
         raw_text=raw_text,
-        parsed_json=parsed.model_dump(mode="json") if parsed else None,
         storage_path=storage_path,
-        status=ResumeStatus.parsed if parsed else ResumeStatus.parse_failed,
+        status=ResumeStatus.parsed if entries or skills else ResumeStatus.parse_failed,
         created_at=datetime.now(UTC),
     )
 
-    # track for insertion
-    session.add(resume)
-    # send SQL to Postgres and commit transaction
+    # The row and what it adds to the bank commit together (ADR 0003).
     try:
+        session.add(resume)
+        merged = await bank.merge_import(session, applicant_id, entries, skills)
+        left = await uses_left(session, applicant_id, Feature.PARSING)
         await session.commit()
     except Exception:
         await session.rollback()
@@ -266,11 +261,17 @@ async def upload_resume(
         "applicant_id": str(resume.applicant_id),
         "original_filename": resume.original_filename,
         "raw_text": resume.raw_text,
-        "parsed_json": resume.parsed_json,
         "storage_path": resume.storage_path,
         "status": resume.status,
         "is_default": False,
         "created_at": resume.created_at.isoformat() if resume.created_at else None,
+        "bank": ImportResult(
+            found=len(entries) + len(skills),
+            entries_added=merged.entries_added,
+            entries_updated=merged.entries_updated,
+            skills_added=merged.skills_added,
+            uses_left=left,
+        ).model_dump(),
     }
 
 
@@ -289,23 +290,27 @@ async def list_resumes(
     )
 
     resumes = result.scalars().all()
+    default_id = await _default_id(session, applicant_id)
+    return [_item(r, default_id) for r in resumes]
+
+
+async def _default_id(session: AsyncSession, applicant_id: uuid.UUID) -> uuid.UUID | None:
     # The primary resume lives on the profile, not on the resume rows.
-    default_id = await session.scalar(
+    return await session.scalar(
         select(Applicant_Profile.default_resume_id).where(Applicant_Profile.id == applicant_id)
     )
 
-    return [
-        {
-            "id": str(r.id),
-            "applicant_id": str(r.applicant_id),
-            "original_filename": r.original_filename,
-            "storage_path": r.storage_path,
-            "status": r.status,
-            "is_default": r.id == default_id,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-        }
-        for r in resumes
-    ]
+
+def _item(r: Resume, default_id: uuid.UUID | None) -> dict:
+    return {
+        "id": str(r.id),
+        "applicant_id": str(r.applicant_id),
+        "original_filename": r.original_filename,
+        "storage_path": r.storage_path,
+        "status": r.status,
+        "is_default": r.id == default_id,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
 
 
 async def _get_owned_resume(
@@ -321,7 +326,6 @@ async def _get_owned_resume(
     return resume
 
 
-# The list leaves parsed_json out to stay small; the profile reads it per resume.
 @router.get("/applicants/{applicant_id}/resumes/{resume_id}")
 async def get_resume(
     applicant_id: uuid.UUID,
@@ -331,7 +335,7 @@ async def get_resume(
 ):
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
-    return {"id": str(resume.id), "parsed_json": resume.parsed_json}
+    return _item(resume, await _default_id(session, applicant_id))
 
 
 @router.put("/applicants/{applicant_id}/resumes/{resume_id}/default")

@@ -296,12 +296,14 @@ def test_an_empty_bank_is_said_plainly_instead_of_left_blank():
     assert "The job they are asking about" not in fake.system_prompt
 
 
-def test_an_empty_bank_says_when_an_upload_is_waiting_to_be_imported():
+def test_an_empty_bank_with_an_upload_says_the_upload_was_not_read():
+    # An upload fills the bank itself (ADR 0003), so an empty bank beside an
+    # upload means the parser found nothing in it.
     fake = ScriptedLLM(["ok"])
     collect(fake, "Am I a fit?", resume=bank_facts({"entries": [], "skills": []}, has_upload=True))
     assert EMPTY_BANK in fake.system_prompt
-    assert "have uploaded a resume" in fake.system_prompt
-    assert "import" in fake.system_prompt
+    assert "could not read any entries" in fake.system_prompt
+    assert "Read It With AI" in fake.system_prompt
 
 
 def test_a_job_without_a_description_says_so():
