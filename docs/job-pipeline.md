@@ -197,9 +197,10 @@ then Overview, Responsibilities, Requirements, Preferred Qualifications, Pay
 and Details, in that order and under those fixed headings. A line the
 employer's page listed is stored as "• item", and the page's own markup tells
 the scraper which lines are headings and which are list items. The company's pitch,
-benefits, legal notices and how to apply are left out: about 30% of the text. The
-facts above are read from the whole text first, so leaving text out never loses
-one. Then a long description is cut at 8,000 characters, ending in " …". The
+benefits, legal notices and how to apply are left out: about 30% of the text. When
+that would keep under a tenth of a description, the headings were misread, and
+the whole description is stored instead. The facts above are read from the whole
+text first, so leaving text out never loses one. Then a long description is cut at 8,000 characters, ending in " …". The
 rules and the measurements are in `scraper/docs/sections.md`.
 
 ---

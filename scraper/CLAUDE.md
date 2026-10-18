@@ -179,11 +179,20 @@ section is kept or left out.
   gold lines than it breaks, in both groups (`docs/sections.md`, fix 4).
   Re-run the heading audit and `kept(kept(text)) == kept(text)` on the whole feed
   after any change (`docs/sections.md`, "Fixes after the first review").
+- **Hiding job text is worse than misfiling it.** A left-out section runs on
+  until a heading a pattern names, so one unnamed heading after "About Us" hid
+  SharkNinja's whole job, from the page and from search, matching, Scout and
+  Tailor. Two rules stop that: a marked heading no pattern names ends the
+  company's section and opens Overview, and a description that keeps under a
+  tenth of its text is kept whole (`docs/sections.md`, "Hiding less job text").
 - **Correctness is scored against a gold test set** (`tests/test_sections_gold.py`,
   80 labeled postings in two groups: 50 from Greenhouse, Ashby and Lever, and 30
-  from Workday, which is most of the feed): run its report after any change. Its floors only
-  ever go up; a change that lowers a score is a regression even if it fixes the
-  posting it was written for.
+  from Workday, which is most of the feed): run its report after any change. It
+  scores where each line shows and how much job text the stored text hides. Its
+  floors only go up and its ceilings only come down; a change that worsens one is
+  a regression even if it fixes the posting it was written for. The one
+  exception is a trade recorded in the test and in `docs/sections.md`, as on
+  2026-10-17.
 
 ## Filter changes need a real title
 

@@ -385,10 +385,76 @@ apply, as the guide files it. On the 467 fetched HTML descriptions, 12 fail
 `kept(kept(text, roles)) == kept(text, roles)`, as many as before the rules.
 
 **Still open.** The rest is meaning a pattern cannot read: a summary under a
-company heading, a requirement worded as a duty. A model that labels each line
-would reach it, but would run on every scraped posting (a backend import step,
-since the scraper uses the standard library only), cost tokens on each, and
-answer differently run to run, so it is a separate decision.
+company heading, a requirement worded as a duty. Where that stands is under
+"Hiding less job text" below.
+
+## Hiding less job text (2026-10-17)
+
+The gold score counts where each line shows, so a posting that lost its whole job
+scored like one with a few lines misfiled. Read as stored, the parser hid 6.9% of
+the board postings' job lines (gold Overview, Responsibilities, Requirements and
+Preferred Qualifications) and 9.0% of Workday's. On the same four postings
+(two SharkNinja, two Marvell), JobRight showed 29 duties and WorkIt none. A hidden
+line is gone from the page, search, matching, Scout and Tailor, while a misfiled
+one is still read, so these rules trade a little placement for less hidden text:
+
+- **A marked heading no pattern names ends the company's section**, and what
+  follows shows under Overview (`_walk`). SharkNinja's "About Us" ran on through
+  "AI at SharkNinja" and "This role:", so its duties and requirements were filed
+  with the company's pitch. Only after the company's section: after benefits and
+  notices too, it put 40 lines of perks and notices under Overview in five gold
+  postings ("And More:", "What You'll Experience"), for one posting's role (ASDA),
+  and Workday's placement fell to 70.4%. A heading straight after such a guess
+  opens its own section, so SharkNinja's slogan, then "Candidate Privacy Notice",
+  does not file the notice as its Overview.
+- **A description that keeps under a tenth of its text is kept whole**
+  (`_KEEP_WHOLE_BELOW`), as one that keeps nothing about the job already was.
+  SharkNinja kept its "Education:" line, 2 lines of 45, so the older rule let it
+  through. 36 of the 13,257 stored descriptions kept under 10%; whole, a student
+  sees the job under the employer's own headings.
+- **"What you can expect" is Responsibilities**, not benefits: 116 of the 138
+  stored postings with it describe the job under it, Marvell's 88 among them, and
+  every Marvell posting lost its duties. "What you can expect from us" stays
+  benefits (Pure Storage). The other 22 list perks (Kyndryl, CrowdStrike), which
+  now show as duties; Cantina's six are the gold set's only ones.
+
+Two headings looked like causes and were kept, by measurement:
+
+- **"The Company"**: all 54 stored postings with it put the company's pitch
+  under it. The Zurn Elkay posting that kept 1% has no job text at all, and is
+  now kept whole.
+- **"What you'll gain"** stays benefits. As Responsibilities, Workday's wrong
+  lines under Responsibilities rose from 6.2% to 13.5%; as no heading at all,
+  those under Requirements rose from 19.0% to 23.8%. Either way, only 0.5 points
+  fewer job lines were hidden.
+
+| | Before | After |
+|---|---|---|
+| Boards: lines shown where they belong | 82.5% | 81.7% |
+| Boards: job lines hidden | 6.9% | 3.7% |
+| Boards: wrong under Responsibilities | 15.5% | 18.7% |
+| Workday: lines shown where they belong | 72.0% | 72.6% |
+| Workday: job lines hidden | 9.0% | 5.2% |
+
+This is the one trade the gold test records: the boards' placement floor fell
+from 82% to 81.5% and its Responsibilities ceiling rose from 16% to 19%
+(Cantina's perks). The hidden share has its own ceilings now, 4% and 5.5%, which
+only come down. Read without their HTML, 240 of the 13,257 stored descriptions
+change, and none keeps under 10% (the median keeps 73.7%). On the 467 fetched
+HTML descriptions, 12 fail `kept(kept(text, roles)) == kept(text, roles)`, as
+before.
+
+**Still open.** What is left needs a line's meaning. A model that labels each
+line would reach it. It was deferred on 2026-10-17 for want of a budget. A trial
+on the gold set fits a free plan: Groq's `gpt-oss-120b` allows 200,000 tokens a
+day, about one run. Labeling the whole feed does not: the stored descriptions are
+about 16 million tokens. It would run in the backend's import, since the scraper
+uses the standard library only. Ask it for a section per line number, not
+rewritten text, so nothing on the page is invented. Store the labels once per
+description, so the page does not change between runs. For comparison, JobRight
+runs a model on every posting. Its pages hold fields a model fills (a written
+summary, duties and qualifications copied word for word) and no copy of the
+posting.
 
 ## What WorkIt keeps (decided 2026-10-17)
 
@@ -415,7 +481,8 @@ Two guards keep the format readable by the backend, each with a test:
 - **A line that is only a kept heading is dropped from the text**, so the backend
   never reads a content line as the start of a section.
 - **A description that keeps nothing is kept whole.** Every heading naming a
-  left-out section means the headings were misread. Measured: 2 of 1,094.
+  left-out section means the headings were misread. Measured: 2 of 1,094. So is
+  one that keeps under a tenth of its text ("Hiding less job text").
 
 `Job Description`, the heading Workday puts over a whole posting, opens no
 section; without that, Bose's company pitch was filed as the role's overview.
