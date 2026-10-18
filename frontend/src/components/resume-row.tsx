@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 import type { ResumeItem } from "@/lib/resume-actions";
 
 /** One resume row. The loading placeholder, the in-flight upload and the
- *  empty list (in My Profile's page.tsx and the Auto Apply page's
+ *  empty list (in the Resumes view's your-resumes.tsx and the Auto Apply page's
  *  resume-list.tsx) are the same 52px box, so nothing jumps when the
  *  real row arrives. */
 export const RESUME_ROW =
@@ -43,7 +43,7 @@ export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
  * keyboard focus. A touch screen has no hover, so there those stars stay
  * visible. A hidden star still holds its place, so nothing shifts when it
  * appears. With no `onMakePrimary`, a resume that is not primary shows none.
- * My Profile's uploads and the Resumes view's built resumes (KAN-258) draw
+ * The Resumes view's uploads and built resumes (KAN-258) draw
  * it alike; the row must carry `group`.
  */
 export function PrimaryStar({
@@ -82,13 +82,13 @@ export function PrimaryStar({
  * One uploaded resume, with its preview, primary, Import Updated Resume and
  * delete actions.
  *
- * The star (`PrimaryStar`) marks the primary resume: the one the profile's
- * Work Experience and Skills show. Import Updated Resume (`onUpdate`) opens
+ * The star (`PrimaryStar`) marks the primary resume: the default one auto
+ * apply attaches when a job has no tailored resume. Import Updated Resume (`onUpdate`) opens
  * the caller's dialog for a newer version of this file, which replaces it
  * and merges into the experience bank (ADR 0003). The stored file never
  * changes by itself, so reading it again would only read the same text.
  *
- * My Profile passes every action. A screen that only shows a resume passes
+ * The Resumes view passes every action. A screen that only shows a resume passes
  * onPreview alone: the primary's star still marks it, but there is no star
  * to click, no update and no delete.
  */

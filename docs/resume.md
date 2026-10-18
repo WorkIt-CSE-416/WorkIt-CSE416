@@ -77,7 +77,7 @@ and several resumes add up to one bank. Dates fill only as a set, when the
 bank entry has none. **Import Again** (intake's Use One I Uploaded, the
 Jobs page's empty-bank card) reads a stored upload the same way, so a
 parser fix reaches old uploads. **Import Updated Resume**, on each upload's
-row on My Profile, takes a newer version of that file: it replaces the
+row on the Resumes view, takes a newer version of that file: it replaces the
 file on the same row and merges the new reading the same way.
 Deleting an upload leaves the bank as it is.
 
@@ -171,8 +171,8 @@ applicant_profiles
 - **Repeats merge by a hash taken before rendering**: the view, the template
   id and the header's identity text (sha256). The same hash for the same
   built resume (and the same job posting, null for a download) returns the
-  last sent resume, with no render and no upload, so the Sent list stays
-  short. The name is not in the hash: it is not printed on the page.
+  last sent resume, with no render and no upload, so the kept files stay
+  few. The name is not in the hash: it is not printed on the page.
 - **The sources are a record, not an owner.** Deleting the built or uploaded
   resume nulls the link and keeps the sent resume, with the name it had.
   At most one source is set (`sent_resumes_one_source`).

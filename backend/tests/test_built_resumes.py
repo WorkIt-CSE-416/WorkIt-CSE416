@@ -66,7 +66,7 @@ async def test_generate_makes_a_base_resume_the_list_reads_back(student):
     assert made["name"] == "General SWE"
     assert made["template"] == "jakes"
     assert made["job_posting_id"] is None
-    assert made["is_default"] is False
+    assert made["is_default"] is True  # the student's only resume
 
     listed = (await client.get(f"{me}/built-resumes")).json()
     assert [(r["id"], r["name"]) for r in listed] == [(made["id"], "General SWE")]
@@ -301,8 +301,12 @@ async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monke
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
     monkeypatch.setattr("app.routers.resumes._extract", _no_text)
     client, me = student
-    uploaded = (await _upload(client, me)).json()["id"]
+    upload = (await _upload(client, me)).json()
+    uploaded = upload["id"]
+    assert upload["is_default"] is True  # the student's only resume
     built = await _generate(client, me)
+    # A second resume leaves the default where it was.
+    assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [False]
 
     assert (await client.put(f"{me}/resumes/{uploaded}/default")).status_code == 200
     assert (await client.put(f"{me}/built-resumes/{built}/default")).status_code == 200
@@ -313,10 +317,15 @@ async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monke
     assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [False]
     assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [True]
 
-    # Deleting the default base resume leaves no default.
+    # Deleting the default base resume makes the one left the default.
     await client.put(f"{me}/built-resumes/{built}/default")
     await client.delete(f"{me}/built-resumes/{built}")
-    assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [False]
+    assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [True]
+
+    # And deleting an uploaded resume makes the base resume left the default.
+    built = await _generate(client, me)
+    await client.delete(f"{me}/resumes/{uploaded}")
+    assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [True]
 
 
 async def test_an_entry_says_how_many_built_resumes_show_it(student, database):

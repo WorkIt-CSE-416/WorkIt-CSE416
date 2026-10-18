@@ -251,7 +251,7 @@ Find files with a directory listing; these are the rules for where code goes.
   before a parser fix gets the fix. It can bring back a bullet the student
   deleted; that is the student's explicit click.
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
-  with a file, from My Profile's row: a newer version replaces the row's
+  with a file, from an upload's row on the Resumes view: a newer version replaces the row's
   file and is read and merged as an upload is. The row keeps its id and
   primary star, and its `created_at` becomes now, the upload date the row
   shows. The file goes to a new Storage path: a sent resume may point at the
@@ -327,6 +327,13 @@ Find files with a directory listing; these are the rules for where code goes.
   (`services/built_resumes.py`'s `check_room`, called by Generate and by
   upload before anything is written; 409 with the reason). Tailored and sent
   resumes do not count.
+- **A student's only resume is the default** (`services/built_resumes.py`'s
+  `default_if_only`): upload, Generate (Tailor's too) and both deletes call
+  it, so the last resume left after a delete takes the star. With two or
+  more it changes nothing. Before it, a student with one resume and no star
+  click had no default, and auto apply attached nothing. It is not
+  backfilled: an older account with one resume and no default gets it on
+  its next add or delete.
 - **Every model feature counts its daily uses through `app/services/usage.py`**
   (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
   it succeeds, so a failed or rejected call costs the student nothing.

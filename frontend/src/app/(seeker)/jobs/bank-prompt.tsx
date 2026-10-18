@@ -37,7 +37,7 @@ export async function BankPrompt() {
             <FileUp /> Import Your Resume
           </ButtonLink>
         ) : (
-          <ButtonLink href="/profile" size="sm">
+          <ButtonLink href="/resumes" size="sm">
             <FileUp /> Upload a Resume
           </ButtonLink>
         )}
