@@ -45,7 +45,7 @@ _MATCHED_HEADINGS = frozenset(
 _OTHER_HEADINGS = frozenset({"Pay", "Details", "Benefits", "How to Apply", "About the Company"})
 
 
-def _matched_part(description: str) -> str | None:
+def _matched_part(description: str, *, keep_headings: bool = False) -> str | None:
     '''the text under the matched headings, after the intro when there is no
     Overview, or None when no line is a matched heading. A description stored
     before KAN-229 that uses one of those words as a heading of its own is read
@@ -53,14 +53,18 @@ def _matched_part(description: str) -> str | None:
     intro: list[str] = []
     lines: list[str] = []
     seen = reading = False
+    has_content = False
     for line in description.split("\n"):
         if line in _MATCHED_HEADINGS or line in _OTHER_HEADINGS:
             seen, reading = True, line in _MATCHED_HEADINGS
+            if reading and keep_headings:
+                lines.append(line)
         elif not seen:
             intro.append(line)
         elif reading:
             lines.append(line)
-    if not "\n".join(lines).strip():
+            has_content |= bool(line.strip())
+    if not has_content:
         # Only the intro under none of them, then Pay or an extra: the intro is
         # the job, and the perks after it must not stand in for it.
         return ("\n".join(intro).strip() or None) if seen else None
@@ -69,14 +73,15 @@ def _matched_part(description: str) -> str | None:
     return "\n".join(lines).strip()
 
 
-def job_part(description: str | None) -> str:
+def job_part(description: str | None, *, keep_headings: bool = False) -> str:
     """What a posting says about the job itself (`_matched_part`), or its whole
     description when it was stored with none of the fixed headings. What the
     embedding, the keywords and Tailor read, so a perks list or the company's
-    pitch never steers them."""
+    pitch never steers them. Model prompts keep headings to distinguish required
+    from preferred qualifications; embeddings can omit them."""
     if not description:
         return ""
-    return _matched_part(description) or description
+    return _matched_part(description, keep_headings=keep_headings) or description
 
 
 def job_text(title: str, description: str | None) -> str:

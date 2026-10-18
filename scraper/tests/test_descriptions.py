@@ -60,6 +60,16 @@ class TestText:
 
 
 class TestLines:
+    def test_closing_a_list_closes_its_implicit_items(self) -> None:
+        full, roles = providers._described(
+            "<h3>Requirements</h3><ul><li>Python<li>C++</ul>"
+            "<p><b>Benefits</b></p><p>Free lunch</p>"
+        )
+        assert roles == ("h", "li", "li", "b", "p")
+        assert providers._page("Intern", full, roles=roles).description == (
+            "Requirements\n• Python\n• C++\nBenefits\nFree lunch"
+        )
+
     def test_each_line_carries_its_role_in_the_html(self) -> None:
         markup = (
             "<h3>What you'll do</h3><ul><li>Build <b>robots</b></li></ul>"

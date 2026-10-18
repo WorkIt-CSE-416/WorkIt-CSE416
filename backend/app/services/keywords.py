@@ -76,7 +76,8 @@ async def extract(job: Job_Post, llm: LLM) -> list[Keyword]:
     student's text, so the seam gets an empty Identity, which still removes
     any email, URL or phone. It reads the job's own sections (`job_part`), not
     the perks or the company's pitch kept after them."""
-    posting = f"{job.title}\n\n{job_part(job.description)[:MAX_DESCRIPTION_CHARS]}".strip()
+    description = job_part(job.description, keep_headings=True)[:MAX_DESCRIPTION_CHARS]
+    posting = f"{job.title}\n\n{description}".strip()
     prompt = [{"role": "system", "content": PROMPT}, {"role": "user", "content": posting}]
     return _cleaned(await llm.complete_json(prompt, KeywordReading, identity=Identity()))
 
