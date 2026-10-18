@@ -196,12 +196,14 @@ are in `docs/auth.md`.
   layout, never a module variable**: sign-out leaving the shell is what drops
   it, and a module variable would show one account's resumes to the next
   person in that tab.
-- **Resume facts are edited in the experience bank only** (KAN-211). No
-  screen edits an uploaded resume's `parsed_json`; an upload reaches the bank
-  through import's drafts (`(seeker)/bank/import-card.tsx`). Two editors of
-  the same facts drift apart, and built resumes read the bank.
-  "Read It Again with AI" (KAN-222) shows only while the import response's
-  `uses_left` is above 0, and a failed AI reading keeps the shown drafts.
+- **Resume facts are edited in the experience bank only** (KAN-211). An
+  upload writes its reading into the bank itself (ADR 0003); no screen holds
+  a second copy of an upload's facts to edit. Two editors of the same facts
+  drift apart, and built resumes read the bank. Every screen that reports an
+  import says it with `lib/import-summary.ts`, from the upload's `bank` or
+  Import Again's response. "Read It With AI" (KAN-222) runs only on a click,
+  never on its own, and shows only while `uses_left` is above 0; a failed
+  reading writes nothing and says why.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never

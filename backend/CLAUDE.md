@@ -38,6 +38,7 @@ uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
 uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
+uv run python -m app.scripts.import_uploads    old uploads → empty banks, once (--dry-run rolls back; the user runs it)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -81,6 +82,17 @@ module docstring has the steps.
   `job_role_tags`, resolved from its title (KAN-155).
 - A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
   table sizes read right after one are inflated.
+
+### The upload backfill
+
+`app.scripts.import_uploads` fills the bank from resumes uploaded before an
+upload did it itself (KAN-240). **Claude never runs it against a shared
+database**, same rule as the feed import: the user runs it, `--dry-run`
+first. It fills only a student whose bank is empty (no entries, no skills):
+anyone else already imported or typed their facts, and a merge would add a
+resume's original wording beside bullets they reworded. Each student's
+uploads go newest first, so the newest resume's fields win. Parser only: the
+model would spend the students' daily uses. A second run fills nothing.
 
 ### Tests
 
@@ -222,23 +234,38 @@ Find files with a directory listing; these are the rules for where code goes.
   A resume's header prints them from `built_resumes.load_header_identity`
   (`resume_render.HeaderIdentity`): display, never model input, so the
   two names stay apart.
-- **Import never writes** (KAN-211). `POST /applicants/{id}/bank/import`
-  re-reads an uploaded resume's stored `raw_text` with the heuristic parser
-  and returns draft entries and skills (`services/bank_import.py` maps them,
-  pure); the student saves each through the bank's own routes. It re-parses
-  rather than reading `parsed_json`, so a resume uploaded before the parser
-  learned a section still imports it. A draft must already be a valid
-  `POST /entries` body: the mapper clips text to the field limits and drops
-  dates that do not fit together rather than send a draft that answers 422.
-- **Model parsing** (KAN-222) is import's `read_with_ai: true`, and its
-  fallback when the parser finds no entries. It counts a `PARSING` use only
-  when the reading succeeds; the response always carries `read_by` and
-  `uses_left`. An asked-for reading answers 429 at the limit and 503 when the
-  model fails; the fallback stays quiet and keeps the parser's reading. The
-  prompt and checks are in `services/bank_import.py`; the rules are in
-  `app/utils/CLAUDE.md`, "The model upgrade path". Tests:
-  `tests/test_bank_import.py` (checked drafts, no identity data in the
-  prompt, an invalid or failed reply counts nothing, the cap and the share).
+- **An upload fills the bank** (KAN-240, `../docs/adr/0003-upload-fills-the-experience-bank.md`).
+  `POST .../resumes` extracts `raw_text`, reads it with the heuristic
+  parser (`services/bank_import.py`'s `read`, pure) and writes it with
+  `services/bank.py`'s `merge_import`, in the same transaction as the
+  resume row: if the commit fails, nothing is kept and the Storage file is
+  removed. The parser's reading is stored nowhere else (`parsed_json` is
+  gone). The response's `bank` says what went in, with `found` (what the
+  reading found, written or not) so the screen can tell "read nothing"
+  from "already in your bank". A reading never fails an upload: a parser
+  crash reads as nothing.
+- **Import merges, never copies.** `merge_import` adds an entry the bank
+  lacks; one that `find_duplicate` matches gains only the fields it has
+  empty and the bullets it lacks (ignoring case and spacing), so what the
+  student fixed stays fixed and several resumes add up to one bank. Dates
+  fill only as a set, when the bank entry has none: a merge never pairs one
+  resume's start with another's end. A fill that clashes with a kept field
+  (a GPA above the bank's scale) is dropped, and the bullets still go in.
+- **Import Again** is `POST /applicants/{id}/bank/import`: the same read and
+  merge on a stored upload, from My Profile's row. It re-reads `raw_text`,
+  so a resume uploaded before a parser fix gets the fix. It can bring back a
+  bullet the student deleted; that is the student's explicit click.
+- **The model reads a resume only when the student asks** (KAN-222, ADR
+  0003): Import Again's `read_with_ai: true`, "Read It With AI". Upload and
+  a plain Import Again never fall back to it, even when the parser finds
+  nothing. It counts a `PARSING` use only when the reading succeeds,
+  committed with the bank writes; it answers 429 at the limit and 503 when
+  the model fails, and then writes nothing. The prompt and checks are in
+  `services/bank_import.py`; the rules are in `app/utils/CLAUDE.md`, "The
+  model upgrade path". Tests: `tests/test_bank_import.py` (the upload's
+  writes, the merge, Import Again, no model unasked, no identity data in
+  the prompt, an invalid or failed reply writes and counts nothing, the cap
+  and the share, the backfill).
 - **Every resume feature reads the built resume view**
   (`app/services/resume_view.py`, KAN-207): one pure function from the bank
   and a built resume's choices to what the resume shows. The PDF, the Word
@@ -588,6 +615,14 @@ free tier). Render with a Dockerfile is the fallback.
 - **Apply `e1c4a7b9d215` before deploying KAN-215.** It adds
   `job_postings.keywords` and `keywords_hash`, which the model maps, so
   company job creation and the feed import fail on a database without them.
+- **Apply `3f7a2c9d1e84` only AFTER deploying KAN-240.** It drops
+  `resumes.parsed_json`, which the code before KAN-240 names in every
+  upload's INSERT, so applying it first makes every resume upload answer
+  500. The order: merge and deploy, then `uv run alembic upgrade head`, then
+  the backfill above (`--dry-run` first). The Chrome autofiller still reads
+  `parsed_json` through `GET .../resumes/{id}`, which now returns no such
+  key; its owner is moving it to the bank (`../autofiller_extension/`, not
+  ours to change).
 - **Apply `5753545063f3` before deploying KAN-207.** It adds
   `applicant_profiles.default_built_resume_id`, which the model maps, so the
   new code's signup INSERT fails on a database without it

@@ -148,8 +148,10 @@ Each turn the API hands `agent.run` two sets of facts, rendered by
   backend. That mapping is the privacy boundary: links (a project's
   included), locations and bullet variants never cross it, and there is
   **no fallback to an uploaded resume**. For an empty bank the block says so
-  and says whether an upload exists (`ResumeFacts.has_upload`), so Scout can
-  point at import instead of guessing. The block keeps the heading "The
+  and says whether an upload exists (`ResumeFacts.has_upload`). An upload
+  fills the bank itself (ADR 0003), so an empty bank beside one means the
+  parser read nothing: Scout points at Import Again and Read It With AI on
+  My Profile instead of guessing. The block keeps the heading "The
   user's resume" because the frozen prompt's grounding rules name it so.
 - **The job** — when the panel sends a `job_id` (an "Ask Scout" click, and every
   message after it), the feed's row for it, description included. Descriptions

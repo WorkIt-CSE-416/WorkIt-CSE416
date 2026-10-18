@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Star } from "lucide-react";
+import { Eye, Import, Star } from "lucide-react";
 
 import { PdfIcon, TrashIcon } from "@/components/icons";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -79,28 +79,34 @@ export function PrimaryStar({
 }
 
 /**
- * One uploaded resume, with its preview, primary and delete actions.
+ * One uploaded resume, with its preview, primary, Import Again and delete
+ * actions.
  *
  * The star (`PrimaryStar`) marks the primary resume: the one the profile's
- * Work Experience and Skills show.
+ * Work Experience and Skills show. Import Again reads the file into the
+ * experience bank once more (ADR 0003), merging what the bank has.
  *
  * My Profile passes every action. A screen that only shows a resume passes
  * onPreview alone: the primary's star still marks it, but there is no star
- * to click and no delete.
+ * to click, no import and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
   deleting?: boolean;
+  importing?: boolean;
   onPreview: () => void;
   onMakePrimary?: () => void;
+  onImport?: () => void;
   onDelete?: () => void;
 };
 
 export function ResumeRow({
   resume,
   deleting = false,
+  importing = false,
   onPreview,
   onMakePrimary,
+  onImport,
   onDelete,
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
@@ -116,7 +122,7 @@ export function ResumeRow({
         <p className="text-note text-ink-meta">{uploadedOn(resume.created_at)}</p>
       </div>
       <Badge tone={status.tone}>{status.label}</Badge>
-      {/* No gap between the three: each is a 32px box already. */}
+      {/* No gap between them: each is a 32px box already. */}
       <div className="flex shrink-0 items-center">
         <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
         <IconButton
@@ -127,6 +133,17 @@ export function ResumeRow({
         >
           <Eye aria-hidden className="size-4" />
         </IconButton>
+        {onImport && (
+          <IconButton
+            label={`Import ${name} again into Experiences`}
+            tooltip="Import again into Experiences"
+            className={ROW_ACTION}
+            disabled={importing}
+            onClick={onImport}
+          >
+            <Import aria-hidden className="size-4" />
+          </IconButton>
+        )}
         {onDelete && (
           <IconButton
             label={`Delete ${name}`}
