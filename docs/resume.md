@@ -171,8 +171,8 @@ applicant_profiles
 - **Repeats merge by a hash taken before rendering**: the view, the template
   id and the header's identity text (sha256). The same hash for the same
   built resume (and the same job posting, null for a download) returns the
-  last sent resume, with no render and no upload, so the Sent list stays
-  short. The name is not in the hash: it is not printed on the page.
+  last sent resume, with no render and no upload, so the kept files stay
+  few. The name is not in the hash: it is not printed on the page.
 - **The sources are a record, not an owner.** Deleting the built or uploaded
   resume nulls the link and keeps the sent resume, with the name it had.
   At most one source is set (`sent_resumes_one_source`).

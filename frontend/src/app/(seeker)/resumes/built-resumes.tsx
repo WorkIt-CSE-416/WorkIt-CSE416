@@ -7,20 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { generateResume, listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
-import type { SentResume } from "@/lib/sent-resume-actions";
 
 import { BuiltResumeRow } from "./built-resume-row";
 import { ResumesHeader } from "./header";
-import { SentResumes } from "./sent-resumes";
 import { YourResumes } from "./your-resumes";
 
 /**
  * The Resumes view of Resumes & Experiences: its header, with Generate
  * Resume beside the switcher, then the cards: Your Resumes (./your-
  * resumes.tsx: the base resumes, KAN-207, and the uploads with their
- * dropzone), Tailored Resumes when there is one (KAN-217), and Sent
- * (KAN-208). The header is drawn here because Generate changes this
- * component's lists. Generate makes a base resume from the whole bank in
+ * dropzone), and Tailored Resumes when there is one (KAN-217). The Sent
+ * card (KAN-208) went on 2026-10-18: sent resumes are still kept, and a job
+ * posting's page says which one the student sent there. The header is
+ * drawn here because Generate changes this component's lists. Generate makes a base resume from the whole bank in
  * Jake's Resume, named "Resume #N" by the API until the student renames it.
  * The 5-resume limit is the API's: its refusal shows as the error.
  *
@@ -32,11 +31,9 @@ import { YourResumes } from "./your-resumes";
 export function BuiltResumes({
   initial,
   initialUploaded,
-  initialSent,
 }: {
   initial: BuiltResume[];
   initialUploaded: ResumeItem[];
-  initialSent: SentResume[];
 }) {
   const [resumes, setResumes] = useState(initial);
   const [uploaded, setUploaded] = useState(initialUploaded);
@@ -95,7 +92,6 @@ export function BuiltResumes({
             </ul>
           </Card>
         )}
-        <SentResumes initial={initialSent} />
       </div>
     </>
   );

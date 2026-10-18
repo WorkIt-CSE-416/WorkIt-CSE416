@@ -836,13 +836,13 @@ in Docs (suggested answers in the chat, not a banner).
 ## Resumes (`/resumes`)
 
 `(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
-resumes the bank makes and the uploads, in cards, Your Resumes, Tailored Resumes when there
-is one, then Sent, under the shared header with Generate Resume (it was the
+resumes the bank makes and the uploads, in cards, Your Resumes, then Tailored
+Resumes when there is one, under the shared header with Generate Resume (it was the
 base resumes' card's own Generate). They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
 lit there and the phone editor's back arrow lands here. The page needs
-the built list, the uploaded list and the Sent list: if any fails it
+the built list and the uploaded list: if either fails it
 shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 
 - **Your Resumes** (`your-resumes.tsx`), every resume the student keeps:
@@ -913,8 +913,7 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   Default badge for the same setting (the API's one default resume,
   uploaded or base).
 - **The day**: when the resume was last edited ("Last edited Oct 20"), or
-  when it was made until its first edit ("Made Oct 17"); on Sent, the file
-  and the day it was sent ("PDF · Sent Oct 13"). The year shows only when it
+  when it was made until its first edit ("Made Oct 17"). The year shows only when it
   is not this one, as on an upload's row and in the tracker. With it, "Last
   edited" wrapped on a phone. Both days together said one day twice for a resume
   edited the day it was made, and the made day mattered less. The
@@ -923,27 +922,23 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   "Last edited" is the API's `edited_at`, the last change to the resume
   itself (what shows, its order, its wording or its name); a fix in the
   bank changes every resume and does not count. The days are the student's
-  own (`LocalDate` in `(seeker)/local-time.tsx`); Sent printed the UTC
-  day, so a resume sent on an evening showed the next day.
+  own (`LocalDate` in `(seeker)/local-time.tsx`); the UTC day showed a
+  resume sent on an evening as sent the next day.
 - **Rename** opens the name in place, in a field with Cancel and Save Name
   at the field's height, as the bank's Skills form is drawn; Escape cancels
   and an unchanged name saves nothing. A sent resume keeps the name it went
   out under.
-- **Delete asks first**, on a resume and on a Sent row, drawn as a bank
+- **Delete asks first**, on every resume, drawn as a bank
   entry's confirm is (`delete-confirm.tsx`, which Experiences uses too): the
-  question, then Delete Resume (or Delete Sent Resume) and Keep It, the two
+  question, then Delete Resume and Keep It, the two
   buttons wrapping as one, since wrapped apart Keep It sat alone on a line.
   Both went at one click until KAN-258. Deleting a resume keeps the files
   already sent from it.
-- **Sent** (`sent-resumes.tsx`, KAN-208), the last card, which owns its
-  list. Every PDF or Word file the student downloaded or applied with
-  (KAN-220), newest first, with its name then and its line ("PDF · Sent
-  Oct 13", "Word · Sent Oct 13"). Each downloads the kept file again or is
-  deleted; none is edited. A repeat download of unchanged content adds no
-  row. **A Sent row keeps its icon by the name on a phone**
-  (`row-layout.tsx`): from @xl/main the name, Download and Delete share one
-  line; narrower, Delete stays at the top right beside the name, as a bank
-  entry's icons do, and Download takes the line under it.
+- **No Sent card since 2026-10-18.** It listed every file the student
+  downloaded or applied with (KAN-208), to download again or delete. Sent
+  resumes are still kept, on every download and Apply, and a job posting's
+  page still says "You sent <name> on <date>"; no screen lists them all or
+  deletes one now.
 
 ## Resume editor
 

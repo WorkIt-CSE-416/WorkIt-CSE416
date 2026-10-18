@@ -29,7 +29,7 @@ export function openDownload(url: string) {
  * Every download keeps a sent resume (KAN-208) and comes back as a Storage
  * link. A PDF whose text has characters the font cannot draw is held for
  * Download Anyway (user story 53); Cancel deletes the sent resume it just
- * made, so the Sent list holds only files the student took.
+ * made, so the kept sent resumes are only files the student took.
  */
 export function useResumeDownload(resumeId: string) {
   const [busy, setBusy] = useState<Format | null>(null);

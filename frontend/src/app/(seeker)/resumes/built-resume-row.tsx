@@ -144,7 +144,7 @@ export function BuiltResumeRow({
           onDelete={remove}
           onKeep={() => setConfirming(false)}
         >
-          Delete this resume? Files you already sent stay in Sent.
+          Delete this resume? Files you already sent are kept.
         </DeleteConfirm>
       )}
       {error && (

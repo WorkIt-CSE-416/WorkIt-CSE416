@@ -544,8 +544,9 @@ limit.
 `prepare_resume` keeps the file as a sent resume linked to the job posting,
 as Apply does:
 
-- **The student sees what went out.** The Sent list and the job posting
-  page's "You sent <name> on <date>" show it, the same as for Apply.
+- **The student sees what went out.** The job posting page's "You sent
+  <name> on <date>" shows it, the same as for Apply. (The Resumes view's
+  Sent list showed it too, until it was removed on 2026-10-18.)
 - **A retry makes nothing new.** When Chrome closes and the run starts
   again, unchanged content returns the same sent resume.
 - **It is fast.** A built resume renders in the request (Tectonic, about
@@ -868,7 +869,7 @@ Tailoring with its review, the PDF render and the resume editor are built
   bullet that gained a claim, and the limit is 2 a day. Until this is
   decided, the run never tailors.
 - **Skip and the sent resume.** Skip keeps the sent resume, as Apply does.
-  The Sent list then shows a resume that went to no employer. Delete it on
-  Skip instead?
+  The job posting page then says a resume was sent that went to no
+  employer. Delete it on Skip instead?
 - **The uploaded resume as a fallback.** It is the student's own file, but
   the bank may say more. Ask the student to Generate a base resume first?
