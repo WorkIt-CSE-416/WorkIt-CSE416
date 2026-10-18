@@ -2,7 +2,6 @@ import { formatDistanceToNowStrict } from "date-fns";
 
 import type { ExperienceLevel, JobType, Recommendation, WorkStyle } from "./data";
 
-
 const JOB_TYPE_LABEL: Record<JobType, string> = {
   full_time: "Full-Time",
   part_time: "Part-Time",
