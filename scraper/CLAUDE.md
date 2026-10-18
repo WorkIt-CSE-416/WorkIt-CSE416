@@ -170,7 +170,8 @@ section is kept or left out.
   Re-run the heading audit and `kept(kept(text)) == kept(text)` on the whole feed
   after any change (`docs/sections.md`, "Fixes after the first review").
 - **Correctness is scored against a gold test set** (`tests/test_sections_gold.py`,
-  50 hand-checked postings): run its report after any change. Its floors only
+  80 labeled postings in two groups: 50 from Greenhouse, Ashby and Lever, and 30
+  from Workday, which is most of the feed): run its report after any change. Its floors only
   ever go up; a change that lowers a score is a regression even if it fixes the
   posting it was written for.
 

@@ -265,6 +265,27 @@ products, office and hiring event as Responsibilities. On the whole feed it
 changes only Perpay's five postings; on the gold set, wrong lines under
 Responsibilities fall from 20.3% to 18.4% and the total from 79.9% to 80.3%.
 
+**Workday postings (added the same day).** The 50 above came from Greenhouse,
+Ashby and Lever, but Workday is 74% of the jobs WorkIt stores (9,782 of 13,284
+on 2026-10-17), and 80 of the 87 descriptions that still failed
+`kept(kept(text)) == kept(text)` were Workday's. So 30 Workday postings were added,
+drawn at random from the stored jobs, one per company, fetched whole from
+Workday's API. Two model-assisted labelers labeled every line blind and agreed on
+98.7% (1,335 of 1,353); the 18 lines they split on were settled against the
+guide, and a random 60 of the agreed lines were re-read against it. The test
+scores the two groups apart (`ats`), each with its own floors.
+
+| | Boards (50) | Workday (30) |
+|---|---|---|
+| Lines shown where they belong | 80.3% | 66.6% |
+| Wrong under Responsibilities | 18.4% | 13.8% |
+| Wrong under Requirements | 10.9% | 33.7% |
+| Wrong under Pay | 20.0% | 41.7% |
+
+Workday's largest errors: left-out text (benefits, company) shown under
+Requirements (44 lines), role and duty text dropped (34 and 32), and duty lines
+shown as requirements (27).
+
 ## What WorkIt keeps (decided 2026-10-17)
 
 Xiang asked for this to be decided before anything was dropped, because dropped

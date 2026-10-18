@@ -1,11 +1,19 @@
 """The section parser scored against a gold test set (KAN-229, 2026-10-17).
 
-`fixtures/sections_gold.json` holds 50 real postings, one per company, each line
-labeled with the section it belongs to by what it says. 46 were drawn at random
-from the 2026-10-16 feed; Tenstorrent, Perpay, TensorWave and Neuralink were added
-because a review found them misparsed. The labels were drafted blind (without
-seeing the parser's answer) by five model-assisted labelers from one guide
-(`docs/sections.md`, "The gold test set") and spot-checked by hand; treat a
+`fixtures/sections_gold.json` holds real postings, one per company, each line
+labeled with the section it belongs to by what it says, in two groups scored apart:
+
+- **Boards** (50, `ats` greenhouse, ashby or lever): 46 drawn at random from the
+  2026-10-16 feed; Tenstorrent, Perpay, TensorWave and Neuralink were added
+  because a review found them misparsed. Drafted blind (without seeing the
+  parser's answer) by five model-assisted labelers and spot-checked by hand.
+- **Workday** (30, `ats` workday, 2026-10-17): drawn at random, one per company,
+  from the jobs stored that day. Workday is 74% of the stored jobs and had no
+  posting here, so the boards' score said nothing about most of the feed. Each
+  line was labeled blind by two model-assisted labelers; a third settled the
+  lines they disagreed on, and a sample was checked by hand.
+
+Every label follows one guide (`docs/sections-gold-guide.md`). Treat a
 disagreement as a question about the label as well as the parser.
 
 Scored where a student sees each line: under which fixed heading, in the
@@ -58,11 +66,16 @@ def fits(predicted: str, gold: str) -> bool:
     return predicted == "intro" and gold in ("intro", "Overview", "left out")
 
 
-def score() -> dict:
-    postings = json.loads(GOLD.read_text())
+def postings(group: str) -> list[dict]:
+    """The gold postings of one group: "workday", or "boards" for every other."""
+    every = json.loads(GOLD.read_text())
+    return [p for p in every if (p["ats"] == "workday") == (group == "workday")]
+
+
+def score(group: str = "boards") -> dict:
     right = total = 0
     shown_as: Counter[tuple[str, str]] = Counter()  # (predicted place, gold place)
-    for posting in postings:
+    for posting in postings(group):
         found = labels(posting["text"])
         for index, gold in enumerate(posting["labels"]):
             if gold is None or found[index] is None:
@@ -94,7 +107,12 @@ def score() -> dict:
 
 @pytest.fixture(scope="module")
 def result() -> dict:
-    return score()
+    return score("boards")
+
+
+@pytest.fixture(scope="module")
+def workday() -> dict:
+    return score("workday")
 
 
 def test_every_gold_posting_is_labeled_whole() -> None:
@@ -114,23 +132,39 @@ def test_wrong_content_under_a_core_heading_stays_rare(result: dict, heading: st
     assert result["per_heading"][heading]["wrong"] <= WRONG_CEILING[heading]
 
 
-#: The scores when the test was written (see the module docstring), 2026-10-17:
-#: 80.3% of 1,724 lines shown where they belong; of the lines shown under
+def test_workday_line_accuracy_holds(workday: dict) -> None:
+    assert workday["accuracy"] >= WORKDAY_ACCURACY_FLOOR
+
+
+@pytest.mark.parametrize("heading", ["Responsibilities", "Requirements", "Pay"])
+def test_workday_wrong_content_under_a_core_heading_stays_rare(
+    workday: dict, heading: str
+) -> None:
+    assert workday["per_heading"][heading]["wrong"] <= WORKDAY_WRONG_CEILING[heading]
+
+
+#: The scores when each group was added (see the module docstring), 2026-10-17.
+#: Boards: 80.3% of 1,724 lines shown where they belong; of the lines shown under
 #: Responsibilities, Requirements and Pay, 18.4%, 10.9% and 20.0% belong elsewhere.
 ACCURACY_FLOOR = 0.80
 WRONG_CEILING = {"Responsibilities": 0.185, "Requirements": 0.11, "Pay": 0.20}
+#: Workday: 66.6% of 1,346 lines; 13.8%, 33.7% and 41.7% wrong under the same three.
+WORKDAY_ACCURACY_FLOOR = 0.66
+WORKDAY_WRONG_CEILING = {"Responsibilities": 0.14, "Requirements": 0.34, "Pay": 0.42}
 
 
 def report() -> None:
-    r = score()
-    print(f"{r['lines']} lines, {r['accuracy']:.1%} shown where they belong\n")
-    print(f"{'heading':26} {'shown':>6} {'wrong':>7} {'belongs':>8} {'missed':>7}")
-    for h, s in r["per_heading"].items():
-        print(f"{h:26} {s['shown']:6} {s['wrong']:7.1%} {s['belongs']:8} {s['missed']:7.1%}")
-    print("\nmost common misplacements (shown as <- belongs in):")
-    for (p, g), n in r["pairs"].most_common():
-        if not fits(p, g):
-            print(f"  {n:4}  {p:26} <- {g}")
+    for group in ("boards", "workday"):
+        r = score(group)
+        print(f"{group}: {r['lines']} lines, {r['accuracy']:.1%} shown where they belong\n")
+        print(f"{'heading':26} {'shown':>6} {'wrong':>7} {'belongs':>8} {'missed':>7}")
+        for h, s in r["per_heading"].items():
+            print(f"{h:26} {s['shown']:6} {s['wrong']:7.1%} {s['belongs']:8} {s['missed']:7.1%}")
+        print("\nmost common misplacements (shown as <- belongs in):")
+        for (p, g), n in r["pairs"].most_common():
+            if not fits(p, g):
+                print(f"  {n:4}  {p:26} <- {g}")
+        print()
 
 
 if __name__ == "__main__":
