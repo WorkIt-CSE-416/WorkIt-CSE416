@@ -198,6 +198,21 @@ export const COLOR_GROUPS: ColorGroup[] = [
     ],
   },
   {
+    title: "Stage Card",
+    note: "Intake's stage card at the top of Scout's panel on the Experiences page, and its step chips, which onboarding shows with names. The card is the brand tint, the deepest lavender that keeps meta text at AA; the draft is a white card in the chat below it. A step chip is white with an outline, dashed once its section is skipped; a corner badge says what became of the section, a check on the done green or a dash on --color-ink-faint; the current chip is --color-brand, ringed. Both colours are new because the old ones fail on the tint: the app's pale greys vanish on it and --color-positive is 2.38:1. The ready dot beside a draft takes the done green.",
+    tokens: [
+      { token: "--color-stage-card", role: "→ --color-brand-tint · the stage card's fill" },
+      {
+        token: "--color-step-done",
+        role: "A done section's badge, and the ready dot · white check on it 3.81:1",
+      },
+      {
+        token: "--color-step-outline",
+        role: "A step chip's edge, dashed when skipped · 1.66:1 on the card",
+      },
+    ],
+  },
+  {
     title: "Borders",
     tokens: [
       { token: "--color-border", role: "Card outline" },

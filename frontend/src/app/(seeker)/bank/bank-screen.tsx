@@ -79,6 +79,29 @@ export function BankScreen({
   const scoutOpen = useScout().open;
   const marked = scoutOpen ? focus : null;
 
+  // Scout moving to another section (a step chip, or a save or Skip moving
+  // on) brings that section's top into view, its heading first (KAN-257).
+  // The marked row used to scroll itself to the nearest edge, which landed
+  // the page on a section's foot or middle. Within one section, the next
+  // entry Scout visits scrolls only as far as it needs to be seen.
+  const markedSection = marked?.section;
+  const markedEntry = marked?.entryId;
+  const lastSection = useRef<Section | undefined>(undefined);
+  useEffect(() => {
+    const moved = markedSection !== lastSection.current;
+    lastSection.current = markedSection;
+    if (!markedSection) return;
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+    const target = moved
+      ? document.getElementById(`section-${markedSection}`)
+      : markedEntry
+        ? document.getElementById(`entry-${markedEntry}`)
+        : null;
+    target?.scrollIntoView({ block: moved ? "start" : "nearest", behavior });
+  }, [markedSection, markedEntry]);
+
   useEffect(() => {
     if (!autoImport) return;
     setScoutOpen(true);
@@ -198,14 +221,15 @@ export function BankScreen({
         const entries = bank.entries.filter((e) => e.section === section.id);
         const adding = editing?.kind === "new" && editing.section === section.id;
         const here = marked?.section === section.id ? marked : null;
-        const scoutAdding = here !== null && !here.entryId;
         return (
           <Card
             as="section"
             key={section.id}
+            id={`section-${section.id}`}
             aria-labelledby={`bank-${section.id}`}
             selected={here !== null}
-            className="transition-colors duration-200"
+            // 16px of room above the heading when Scout scrolls it to the top.
+            className="scroll-mt-4 transition-colors duration-200"
           >
             <div className="flex items-baseline justify-between gap-3">
               <h2 id={`bank-${section.id}`} className="text-subtitle text-ink">
@@ -221,13 +245,17 @@ export function BankScreen({
               )}
             </div>
 
-            {entries.length === 0 && !adding && !scoutAdding && (
+            {entries.length === 0 && !adding && (
               <p className="text-body text-ink-meta mt-2">Nothing here yet.</p>
             )}
 
             <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
               {entries.map((entry) => (
-                <ScoutMarked key={entry.id} active={here?.entryId === entry.id}>
+                <ScoutMarked
+                  key={entry.id}
+                  id={`entry-${entry.id}`}
+                  active={here?.entryId === entry.id}
+                >
                   {editing?.kind === "edit" && editing.entry.id === entry.id ? (
                     <EntryEditor
                       initial={draftOf(entry)}
@@ -247,14 +275,6 @@ export function BankScreen({
                   )}
                 </ScoutMarked>
               ))}
-              {scoutAdding && (
-                <ScoutMarked active>
-                  <p className="text-body text-ink font-medium break-words">
-                    {here.title || `New ${section.label} entry`}
-                  </p>
-                  <p className="text-note text-ink-meta">Filling in as you talk to Scout</p>
-                </ScoutMarked>
-              )}
             </ul>
 
             {adding && (
@@ -281,23 +301,28 @@ export function BankScreen({
 }
 
 /**
- * A bank row, marked while Scout works on it: a brand tint with a band of
- * light crossing it (`animate-shimmer`), and a scroll into view, so the
- * student sees which entry the panel's questions are about and that Scout
- * is at work on it. The shimmer replaced a "With Scout" tag (KAN-249), which
- * read as one more line of the entry rather than as Scout acting on it; a
- * screen reader still hears it. Reduced motion keeps the tint, still.
+ * A bank row, marked while Scout visits it: a brand tint with a band of
+ * light crossing it (`animate-shimmer`), so the student sees which entry the
+ * panel's questions are about and that Scout is at work on it. The page
+ * scrolls it into view (BankScreen). The shimmer replaced a "With Scout" tag
+ * (KAN-249), which read as one more line of the entry rather than as Scout
+ * acting on it; a screen reader still hears it. Reduced motion keeps the
+ * tint, still. A new entry gets no row: the section card's brand outline
+ * says where Scout is (KAN-257), and a "New Education entry, Filling in as
+ * you talk to Scout" row only repeated it.
  */
-function ScoutMarked({ active, children }: { active: boolean; children: ReactNode }) {
-  const ref = useRef<HTMLLIElement>(null);
-  useEffect(() => {
-    if (!active) return;
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    ref.current?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
-  }, [active]);
+function ScoutMarked({
+  id,
+  active,
+  children,
+}: {
+  id: string;
+  active: boolean;
+  children: ReactNode;
+}) {
   return (
     <li
-      ref={ref}
+      id={id}
       aria-current={active ? "true" : undefined}
       className={cn(
         // isolate: the band paints over the tint and under the text.

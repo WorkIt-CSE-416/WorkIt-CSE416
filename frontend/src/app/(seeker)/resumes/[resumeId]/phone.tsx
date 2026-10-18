@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Scissors,
-  Sparkles,
   Undo2,
   X,
   ZoomIn,
@@ -15,6 +14,7 @@ import {
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
@@ -229,7 +229,7 @@ export function PhoneEditor({
               Not on This Resume {waiting > 0 && <span className="text-ink-meta">({waiting})</span>}
             </Button>
             <Button variant="outline" onClick={() => setAsking(true)}>
-              <Sparkles /> Ask WorkIt
+              <SparkleIcon /> Ask WorkIt
             </Button>
           </div>
         </div>
@@ -294,7 +294,7 @@ export function PhoneEditor({
           <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
             {actions}
             <Button variant="outline" size="sm" onClick={() => setAsking(true)}>
-              <Sparkles /> Ask WorkIt About This Line
+              <SparkleIcon /> Ask WorkIt About This Line
             </Button>
           </div>
         </Sheet>

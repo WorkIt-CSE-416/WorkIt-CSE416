@@ -429,6 +429,39 @@
   --color-streak-3: var(--color-brand);
   --color-streak-4: var(--color-brand-active);
 
+  /* Intake's stage card and step chips (KAN-257) ----------------------------
+   * The stage card is the block at the top of Scout's panel on the
+   * Experiences page: the section's name, its step and the step chips. It was
+   * white on the panel's white and read as one more line of the chat. Its
+   * fill is the brand tint, the deepest lavender that keeps --color-ink-meta
+   * ("Step 1 of 6") at AA: 4.76:1, where --color-rail-selected drops it to
+   * 4.47:1. The draft is a white card in the chat, under WorkIt's newest
+   * line.
+   *
+   * A step chip is white with a --color-step-outline edge, dashed when its
+   * section was skipped. A corner badge says what became of the section: a
+   * white check on --color-step-done, or a white dash on --color-ink-faint
+   * for a skip. The current chip is --color-brand, ringed. Each white glyph
+   * clears the 3:1 a glyph needs on its badge (3.81:1 and 3.11:1), and a
+   * chip's own glyph clears it on the chip's white (--color-ink-faint is
+   * 3.11:1).
+   *
+   * Both colours are new because the old ones failed on a lavender, where the
+   * step bar these chips replaced was drawn: the app's pale greys vanish on it
+   * (--color-inert-tint is 1.01:1 on the tint) and --color-positive is
+   * 2.38:1. The green is the hex --color-positive-hover holds today; the roles
+   * are unrelated and either may move. The ready dot wears it too. The
+   * draft's "Ready to save" is words, so it takes --color-positive-ink, the
+   * green made for text, as --color-brand-ink is the brand's.
+   *
+   *                   tint   white
+   *   done badge      3.25   3.81
+   *   current chip    5.33   6.26   (--color-brand)
+   *   chip outline    1.66   1.95 */
+  --color-stage-card: var(--color-brand-tint);
+  --color-step-done: #139564;
+  --color-step-outline: #b4bac4;
+
   /* Board type -----------------------------------------------------------
    * A step above --text-title, which the board still uses for its column
    * headings — so the page name and the column names cannot be confused. */

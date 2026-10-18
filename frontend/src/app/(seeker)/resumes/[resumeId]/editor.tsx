@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, EyeOff, Scissors, Sparkles, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, EyeOff, Scissors, Undo2 } from "lucide-react";
 import localFont from "next/font/local";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TextLink } from "@/components/ui/text-link";
@@ -627,7 +628,7 @@ function Bar({
       </span>
       {onAsk && (
         <Button variant="outline" size="sm" onClick={onAsk}>
-          <Sparkles /> Ask WorkIt
+          <SparkleIcon /> Ask WorkIt
         </Button>
       )}
     </div>

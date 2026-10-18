@@ -524,7 +524,8 @@ every section to reach a resume, and the page read as two pages in one.
 Scout button or Fill With Scout opens it. On this page the panel shows
 intake in place of Scout's job chat (`components/scout/scout-takeover.tsx`)
 and widens to 448px (460px of room with its gap). Three bands, top to
-bottom: the stage card (`draft-preview.tsx`), the chat, the composer.
+bottom: the stage card (the step chips), the chat (with the draft in it,
+`draft-preview.tsx`), the composer.
 
 **The resume question comes first, alone** (KAN-249), when the bank is
 empty and no draft is kept: WorkIt's greeting asks "Have a resume?" with
@@ -543,39 +544,68 @@ first version of KAN-249 had it, a student whose bank held one entry had
 no way to import a resume. The first version also asked about the resume
 and Education at once, which read as two tasks on one screen.
 
-**The stage card is the one block above the chat** (KAN-249): the
-section's icon and name, "Step 1 of 6", "Skip Section" (a new entry) or
-"Leave As Is" (a visit) at the right, the panel's only Skip, and the step
-bar's segments under them, thin (`compact`; a segment still jumps, so
-there is no Back). Skip is disabled, not hidden, while WorkIt answers or a
-save runs. Once WorkIt has a title, the draft opens under a hairline: its
-title and state ("Filling in as you talk", "Ready to save"), the entry as
-the bank lists it, fading each line in as WorkIt fills it, "Still needed"
-chips, Edit and Save Entry; it folds to its title row. Before that there
-is nothing to show or save, and Edit sits beside Skip instead, so the
-student can still type the entry into the form when WorkIt cannot answer
-(the API's "Fill in the card yourself"). With no section open the card
-holds the bar alone. It replaced a step bar with its own Back, step line and Skip over a
+**The stage card is the one block above the chat, and it only finds the
+way** (KAN-249, KAN-257): the current section's name and "Step 1 of 6" over
+the step chips (`compact`; a chip still jumps, so there is no Back). The
+current chip carries the section's icon. With no section open it reads
+"Your Sections" and how many are done. It is lavender
+(`--color-stage-card`): white on the panel's white, behind a ring of the
+same pale tint, it read as one more line of the chat.
+**The draft and its actions live in the chat** (KAN-257), under WorkIt's
+newest line, the way an assistant's answer carries what it made. Once
+WorkIt has a title, it is a white card: the title, the status and the
+entry, each line fading in as WorkIt fills it, and in its foot Skip Section
+(or "Leave As Is" on a visit), Edit and Save Entry. There is one, and it
+follows WorkIt's newest line, so it sits by the composer and never goes
+stale higher up. Before a title there is nothing to preview, so the same
+ways on are suggestion chips under WorkIt's question: Fill In Myself (the
+form, for when WorkIt cannot answer: the API's "Fill in the card
+yourself") and Skip Section. Skip is disabled, not hidden, while WorkIt
+answers or a save runs. The draft, Edit and Skip had been pinned in the
+stage card above the chat, where they crowded a card that is for finding
+your way and stood apart from the conversation they answer. Before that
+(KAN-249), a step bar with its own Back, step line and Skip sat over a
 separate draft card with a second Skip, the section named again, a hint
 line and a disabled Save Entry: two blocks that read as unrelated, which
 left the chat about 300px at 800px tall. A student happy with an entry
 looked for "next" near it and found only the step bar's small Skip, which
-is why Skip sits with the section it skips.
+is why Skip sits with the draft it skips.
+**The draft reads from most to least important** (KAN-257): the title;
+what the entry is with, in the darker body grey (a school's degree and
+GPA, a job's or club's organization, a certification's issuer); when and
+where, in the meta grey; then a school's college, coursework and honors,
+or a project's link without its `https://`; then two bullets of two lines
+each. Every line under the title had been the same small grey, so a
+school's degree read like its coursework, and the dates floated right on
+the organization's line, alone at the edge of an empty row for an
+import's school, which has none. **Under the title, the status says what
+the draft still needs** (`DraftStatus`): "Still needed: Start Date" in the
+bank's warning amber, or "Ready to save" in green once WorkIt has no
+questions and nothing is missing, and nothing while WorkIt asks about
+optional facts. It replaced a pulsing dot with "Filling in as you talk",
+which said nothing the chat did not, and a row of dashed "Still needed"
+chips at the card's foot. The form over the panel shows the same status.
 **The page marks what Scout is working on** while the panel is open
 (`Intake`'s `onFocus`, `ScoutMarked` in `bank-screen.tsx`): the section card
-takes the brand outline, and a visited entry, or a new entry shown as a
-row with the draft's title, takes a brand tint with a band of light
-crossing it (`animate-shimmer`), so it reads as Scout at work on it. A
-"With Scout" tag did this until KAN-249 and read as one more line of the
-entry; a screen reader still hears it, and reduced motion keeps the tint
-still. The marked row scrolls into view (instantly under reduced motion). Gemini in
+takes the brand outline, and a visited entry takes a brand tint with a band
+of light crossing it (`animate-shimmer`), so it reads as Scout at work on
+it. A "With Scout" tag did this until KAN-249 and read as one more line of
+the entry; a screen reader still hears it, and reduced motion keeps the
+tint still. A new entry gets no row (KAN-257): the outline already says
+where Scout is, and a "New Education entry, Filling in as you talk to
+Scout" row only repeated it. **When Scout moves to another section** (a
+step chip, or a save or Skip moving on), **the page scrolls that section's
+top into view** (instantly under reduced motion); within one section, the
+next entry Scout visits scrolls only as far as it needs to be seen. The
+marked row had scrolled itself to the nearest edge, which landed the page
+on a section's foot or middle. Gemini in
 Docs and Grammarly mark the text their side panel acts on the same way;
-before this, the student could not tell which entry the questions meant. The chips are
+before this, the student could not tell which entry the questions meant. The status's list is
 `sections.ts`'s `neededFacts`: only what intake asks about (a school's or
 job's dates, a job's or role's organization, a school's degree and field,
 bullets) and the title. An optional field such as a school's college never shows; an early
 version listed every empty field and asked for "College or Department".
-Before the draft has a title the chips stay hidden, since the chat's
+Before the draft has a title the status stays hidden, since the chat's
 question is the next step. Edit opens the
 full form over the panel, with Back to Chat (Escape goes back too). The
 import review opens in the chat's place. A save
@@ -645,6 +675,18 @@ in Docs (suggested answers in the chat, not a banner).
   required. Each section adds its own fields (`sections.ts` names the
   title and organization for each). Months use the browser's month picker,
   which falls back to a `YYYY-MM` text box where there is none.
+  **Two columns at every width** (KAN-257): a pair of short fields shares
+  a row (the start and end, with the end month under End; a degree and its
+  field; a GPA and its scale), a long one takes the row, and the
+  organization and location pair up where the form is wide (the bank
+  page). A school leads with its degree, dates and GPA and ends with its
+  optional college, location, coursework and honors. In Scout's panel the
+  form had been one column of up to thirteen boxes, with the college and
+  location ahead of the dates intake was asking about. Chrome's empty
+  month prints its dashes in the placeholder grey (in ink they read as a
+  broken field), coursework is a box that grows with its text and turns a
+  line break into a comma (a one-line field cut the list off), and a GPA
+  has no spin arrows.
   **Bullets read as the list they make** (KAN-249): each is a box with its
   bullet mark drawn in, and under them a dashed box of the same size, Add
   Bullet Point, whose + sits under the marks. The box it makes takes the
@@ -701,21 +743,36 @@ in Docs (suggested answers in the chat, not a banner).
   (`lib/local-drafts.ts`), so a reload keeps it; Sign Out and the login
   page clear every key under its prefix, so the next person in the browser
   never sees it. The chat is never stored anywhere.
-- **Intake's step bar** (`intake-steps.tsx`, KAN-214), after variant G: one
-  segment per section in the order intake walks (Education, Projects,
-  Leadership & Activities, Experience, Awards, Certifications: user story
-  41, not the bank's order), Back on the left, Skip on the right (in Scout's
-  panel, the segments alone inside the stage card, as above). A segment
-  jumps to its section; the bar is disabled while WorkIt answers or a save
-  runs, so a late reply never lands on another section. It starts at 25%
-  and fills as sections are done; the current segment fills as its draft
-  grows (a title, each answer, full when WorkIt has no questions left).
+- **Intake's step bar** (`intake-steps.tsx`, KAN-214): one step per
+  section in the order intake walks (Education, Projects, Leadership &
+  Activities, Experience, Awards, Certifications: user story 41, not the
+  bank's order), Back on the left, Skip on the right (in Scout's panel, the
+  steps alone inside the stage card, as above). A step jumps to its
+  section; the steps are disabled while WorkIt answers or a save runs, so
+  a late reply never lands on another section. The percentage starts at
+  25% and grows as sections are dealt with.
   **A skipped section counts toward the percentage** (settled in KAN-214,
   as the prototype does): the bar measures sections dealt with, so a
-  student with no awards still reaches 100%. Its segment is striped, not
-  filled, and a later save in it marks it done. Skip and a jump drop the
-  unsaved draft, as in the prototype. Skipped sections persist beside the
-  draft in `lib/local-drafts.ts`.
+  student with no awards still reaches 100%; a later save in it marks it
+  done. Skip and a jump drop the unsaved draft, as in the prototype.
+  Skipped sections persist beside the draft in `lib/local-drafts.ts`.
+  **The steps are icon chips** (KAN-257), the same in both bars: a 32px
+  round button per section with its own glyph (the chat's chapter icons),
+  on a line from the first to the last. One signal per meaning: where the
+  walk is, the chip filled with the brand and ringed; what became of the
+  section, a corner badge (a green check for done, a grey dash for
+  skipped, with a dashed edge); which section, the glyph, a tooltip with
+  the name and status in Title Case ("Projects · Not Started"; lower case
+  read as a broken sentence), and the name under the chip in onboarding.
+  Only a save changes
+  a badge, so a visit to a done entry ("Leave As Is") keeps its check and
+  its share of the percentage. The draft's own progress is the draft
+  card's status ("Still needed: Start Date"), not the bar's. It replaced a
+  bar of thin segments, unlabelled in the panel, where a 6px sliver was the
+  target for a jump and colour carried everything: done green, untouched
+  grey, skipped hatched, the current one ringed or filling in brand as its
+  draft grew. Visiting a done section had turned it purple, as if it had
+  come undone, and dropped it from the percentage.
 - **Walking.** The bank page always walks, in the step bar's order: a
   section with entries is passed over, except that each entry with gaps
   (`sections.ts`'s `gapQuestions`: no dates for a school or job; no organization for a job or
@@ -935,7 +992,9 @@ slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
 the panel is open. `chat.tsx` holds the message bubble, typing dots and
 composer (with the mic, `use-speech-input`) and WorkIt's mark, shared with
-intake on the bank page and the editor assistant; each takes who is talking
+intake on the bank page and the editor assistant; the panel's header wears
+the same mark (KAN-257), where a brand-tint circle with a hand-drawn
+sparkle had made the panel and its chat look like two assistants; each takes who is talking
 as a prop. `stream.ts` mirrors the API's NDJSON events, which
 `app/api/scout/` (the one route handler, since the reply streams) forwards with
 the session's token. `reply-text` renders a reply's **bold** and "- " bullets,

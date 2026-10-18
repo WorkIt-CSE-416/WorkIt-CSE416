@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowUp, Mic, Sparkles } from "lucide-react";
+import { ArrowUp, Mic } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
@@ -46,14 +47,16 @@ export function Message({
 }
 
 /** WorkIt's mark: the brand gradient with a sparkle, beside its lines in
- *  intake and the editor assistant (the intake prototype's variant G). */
+ *  intake and the editor assistant (the intake prototype's variant G), and
+ *  in Scout's panel header. The sparkle is `SparkleIcon`, the one glyph
+ *  for Scout and AI (KAN-257). */
 export function WorkItMark() {
   return (
     <span
       aria-hidden
       className="from-brand to-brand-pale text-on-brand flex size-8 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br shadow-[0_4px_12px_rgb(109_63_216/0.35)]"
     >
-      <Sparkles className="size-4" />
+      <SparkleIcon className="size-4" />
     </span>
   );
 }

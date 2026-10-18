@@ -1,21 +1,15 @@
 "use client";
 
 import {
-  BadgeCheck,
-  Briefcase,
   ChevronLeft,
   FileText,
   FileUp,
-  GraduationCap,
-  Lightbulb,
   MessageSquareText,
   PartyPopper,
+  Pencil,
   SkipForward,
-  Trophy,
-  Users,
-  type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scout/chat";
 import { Button } from "@/components/ui/button";
@@ -31,15 +25,16 @@ import {
   writeLocalDraft,
 } from "@/lib/local-drafts";
 
-import { Dot, DraftPreview } from "./draft-preview";
+import { Dot, DraftPreview, DraftStatus } from "./draft-preview";
 import { EntryEditor } from "./entry-editor";
 import { editSteps } from "./entry-save";
 import { ImportCard } from "./import-card";
-import { StepBar, WALK } from "./intake-steps";
+import { ICONS, StepBar, WALK } from "./intake-steps";
 import {
   draftOf,
   emptyDraft,
   gapQuestions,
+  neededFacts,
   savable,
   sectionOf,
   SECTIONS,
@@ -97,10 +92,11 @@ import {
  * Docked (`docked`): the bank page renders intake in Scout's panel
  * (components/scout/scout-takeover.tsx), which is too narrow for the card's
  * column. The panel's header replaces intake's own. Three bands: the stage
- * card (`draft-preview.tsx`: the section, its step, Skip, the step bar's
- * segments and a read-only preview of the draft), the chat on the panel's
- * own surface, and the composer. The form opens over the panel on the
- * preview's Edit, so it never sits on the chat. With an empty bank the
+ * card (the section, its step and the step chips, nothing to act on), the
+ * chat on the panel's own surface, with the draft and its actions under
+ * WorkIt's newest line (`draft-preview.tsx`), and the composer. The form
+ * opens over the panel on Edit or Fill In Myself, so it never sits on the
+ * chat. With an empty bank the
  * resume question is a stage of its own first: the greeting asks it, its
  * answers (Upload Resume, Use One I Uploaded, Start Without One) sit under
  * it, and no section or stage card shows until one is picked (KAN-249).
@@ -133,15 +129,6 @@ type Target = { section: Section } | { entry: BankEntry };
  *  alone: the first section waits for the answer (`resumeStage`). */
 const OFFER_GREETING =
   "Hi! I'll help you fill your experience bank, one thing at a time. Have a resume? I can read it first, then ask only about the rest.";
-
-const ICONS: Record<Section, LucideIcon> = {
-  education: GraduationCap,
-  experience: Briefcase,
-  projects: Lightbulb,
-  leadership: Users,
-  awards: Trophy,
-  certifications: BadgeCheck,
-};
 
 /** WorkIt's first line for each section. Fixed text, not a model turn, so it
  *  costs nothing and is not sent: the API counts follow-ups from its own. */
@@ -204,7 +191,7 @@ function mergeReply(current: EntryDraft, sent: EntryDraft, reply: EntryDraft): E
 
 /** What intake is working on, for the page to mark: a bank entry it is
  *  visiting, or a new entry in a section. */
-export type IntakeFocus = { section: Section; entryId?: string; title: string };
+export type IntakeFocus = { section: Section; entryId?: string };
 
 export function Intake({
   filled,
@@ -247,8 +234,6 @@ export function Intake({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
   const [sheet, setSheet] = useState(false);
-  // Docked only: the draft's preview is folded to one line.
-  const [folded, setFolded] = useState(false);
   const [skipped, setSkipped] = useState<Section[]>([]);
   const [importing, setImporting] = useState(autoImport);
   // The upload to import; unset reads the default one.
@@ -318,12 +303,9 @@ export function Intake({
   // The import review replaces the card, so nothing is being worked on.
   const focusSection = importing ? undefined : draft?.section;
   const focusEntry = kept?.entryId;
-  const focusTitle = draft?.title ?? "";
   useEffect(() => {
-    onFocus?.(
-      focusSection ? { section: focusSection, entryId: focusEntry, title: focusTitle } : null,
-    );
-  }, [onFocus, focusSection, focusEntry, focusTitle]);
+    onFocus?.(focusSection ? { section: focusSection, entryId: focusEntry } : null);
+  }, [onFocus, focusSection, focusEntry]);
 
   /** The walk's next stop at or after `from`, in WALK's order: a bank entry
    *  with gaps not yet visited, else a section with no entries. `from`
@@ -605,15 +587,6 @@ export function Intake({
     />
   );
 
-  // The current segment grows with the draft: a head start, more once it has
-  // a title, more with each answer, and full when WorkIt has no questions.
-  const asked = messages.filter((m) => m.role === "assistant").length;
-  const currentFill = !draft
-    ? 0
-    : kept?.done
-      ? 100
-      : Math.min(85, (draft.title ? 35 : 12) + asked * 20);
-
   const uploadStrip = offerImport && !importing && (
     <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
       <FileUp aria-hidden className="text-brand size-5 shrink-0" />
@@ -704,17 +677,19 @@ export function Intake({
   const stepBar = (
     <StepBar
       current={draft?.section ?? null}
-      currentFill={currentFill}
       filled={filled}
       skipped={skipped}
       lead={lead}
       busy={answering || saving}
-      // Docked, the stage card names the step and has Skip.
+      // Docked, the stage card is the chips alone; Skip is in the chat.
       compact={docked}
       onJump={jump}
       onSkip={docked ? undefined : skip}
     />
   );
+
+  // WorkIt's newest line, which the draft (docked) sits under.
+  const lastWorkIt = lines.findLastIndex((l) => l.kind === "text" && l.role === "assistant");
 
   const importer = (
     <ImportCard
@@ -730,19 +705,22 @@ export function Intake({
   );
 
   /** The chat: WorkIt's lines, with `intro` after its greeting (`greeting`
-   *  in place of the usual one), then `tray` (the draft's way in) above the
-   *  composer. The class names size and frame the box and its lines. */
+   *  in place of the usual one), `latest` under WorkIt's newest line (the
+   *  draft, docked), then `tray` (the draft's way in) above the composer.
+   *  The class names size and frame the box and its lines. */
   const chat = ({
     className,
     logClassName,
     greeting,
     intro,
+    latest,
     tray,
   }: {
     className: string;
     logClassName?: string;
     greeting?: string;
     intro?: ReactNode;
+    latest?: ReactNode;
     tray?: ReactNode;
   }) => (
     <div
@@ -765,9 +743,13 @@ export function Intake({
               : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right.")}
         </WorkItLine>
         {intro}
+        {lastWorkIt < 0 && latest}
 
         {lines.map((line, i) => (
-          <ChatLine key={i} line={line} follows={continues(lines, i)} />
+          <Fragment key={i}>
+            <ChatLine line={line} follows={continues(lines, i)} />
+            {i === lastWorkIt && latest}
+          </Fragment>
         ))}
 
         {answering && (
@@ -847,12 +829,42 @@ export function Intake({
   );
 
   if (docked) {
-    const Icon = draft ? ICONS[draft.section] : null;
+    // Under WorkIt's newest line: the draft and its actions once it has a
+    // title; before that, the same ways on as suggestion chips under the
+    // question, so a section can still be skipped or filled in by hand.
+    const latest = draft && !importing && (
+      <div className="pl-10.5">
+        {draft.title.trim() ? (
+          <DraftPreview
+            draft={draft}
+            done={kept?.done ?? false}
+            saving={saving}
+            busy={saving || answering}
+            error={saveError}
+            duplicate={duplicate}
+            skipLabel={kept?.entryId ? "Leave As Is" : "Skip Section"}
+            onEdit={() => setSheet(true)}
+            onSave={() => save(draft)}
+            onSkip={skip}
+          />
+        ) : (
+          <div className="animate-fade flex flex-wrap gap-2">
+            <Chip variant="suggestion" onClick={() => setSheet(true)}>
+              <Pencil aria-hidden /> Fill In Myself
+            </Chip>
+            <Chip variant="suggestion" onClick={skip} disabled={saving || answering}>
+              <SkipForward aria-hidden /> Skip Section
+            </Chip>
+          </div>
+        )}
+      </div>
+    );
+
     return (
-      // Its own container, so the step bar and chips size to the panel.
-      // Three bands: the stage card (the section, its step, Skip, the
-      // progress and the draft), the chat, the composer. The form opens over
-      // all three on Edit. During the resume stage only the chat shows.
+      // Its own container, so the step chips size to the panel. Three bands:
+      // the stage card (the step chips alone), the chat (with the draft and
+      // its actions under WorkIt's newest line), the composer. The form opens
+      // over all three on Edit. During the resume stage only the chat shows.
       <section
         aria-labelledby="intake-title"
         className="@container/main relative flex min-h-0 flex-1 flex-col gap-3 pt-1"
@@ -864,31 +876,7 @@ export function Intake({
         {fileField}
         {!resumeStage && (
           <div className="px-4">
-            {draft && Icon && !importing ? (
-              <DraftPreview
-                draft={draft}
-                done={kept?.done ?? false}
-                folded={folded}
-                saving={saving}
-                error={saveError}
-                duplicate={duplicate}
-                step={`Step ${WALK.indexOf(draft.section) + 1} of ${WALK.length}`}
-                progress={stepBar}
-                icon={<Icon className="size-4" />}
-                onFold={() => setFolded((f) => !f)}
-                onEdit={() => setSheet(true)}
-                onSave={() => save(draft)}
-                onSkip={skip}
-                skipLabel={kept?.entryId ? "Leave As Is" : "Skip Section"}
-                skipDisabled={saving || answering}
-              />
-            ) : (
-              // No section open (each one dealt with, or an import under
-              // way): the bar alone, in the stage card's frame.
-              <div className="bg-panel ring-brand-tint rounded-2xl px-3.5 py-1 ring-1">
-                {stepBar}
-              </div>
-            )}
+            <div className="bg-stage-card rounded-2xl px-3.5 py-3">{stepBar}</div>
           </div>
         )}
         {importing ? (
@@ -905,6 +893,7 @@ export function Intake({
             logClassName: "pt-3 [mask-image:linear-gradient(to_bottom,transparent,black_12px)]",
             greeting: greetedWithOffer ? OFFER_GREETING : undefined,
             intro: importOffer,
+            latest,
           })
         )}
 
@@ -1054,9 +1043,9 @@ function Chapter({ section }: { section: Section }) {
 }
 
 /** The draft entry card: the shared entry editor under a header that says
- *  which section it is and whether WorkIt has more to ask. It is its own
- *  `@container/main`, so the editor lays out for the card's width rather
- *  than the page's. */
+ *  which section it is and what the draft still needs (`DraftStatus`, as
+ *  the draft in the chat says it). It is its own `@container/main`, so the editor
+ *  lays out for the card's width rather than the page's. */
 function DraftCard({
   draft,
   done,
@@ -1098,10 +1087,7 @@ function DraftCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-label text-ink">{sectionOf(draft.section).label}</p>
-          <p className="text-note text-ink-meta flex items-center gap-1.5">
-            <Dot ready={done} />
-            {done ? "Looks good! Ready to save" : "Filling in as you talk…"}
-          </p>
+          <DraftStatus needed={neededFacts(draft)} done={done} />
         </div>
       </div>
       <EntryEditor
