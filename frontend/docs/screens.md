@@ -116,7 +116,8 @@ under the panel picker's field. It is Base UI's Combobox, not a Select, since a
 Select whose rows come and go undoes an untick (below). A pick keeps the typed
 search, as the panel's picker does, and each open starts empty. A picked state narrows its country, in the panel as in the row. Start
 Date offers seasons (Summer 2027), grouped by the API from the terms postings
-use; Visa offers Sponsors Visas and Hide Jobs That Rule Me Out. No option shows
+use; Visa offers Sponsors Visas alone (Hide Jobs That Rule Me Out went in
+KAN-275, as two visa filters read as one). No option shows
 a job count, in the row or the panel (removed 2026-10-17, KAN-252, as clutter);
 the panel's Show N Jobs is the one count. GET /jobs/facets still sends them.
 Location, fed by GET /jobs/locations, is a Popover of two
@@ -1288,15 +1289,14 @@ aria-hidden, and it holds still under reduced motion.
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
 Start Date and Salary use All Filters' own pickers
 (`components/filter-controls.tsx`), so the saved answers fill the feed's
-filters with no translation. Two questions offer less than All Filters
+filters with no translation. Two questions differ from All Filters
 (KAN-275). Start Date lists only seasons still ahead: no bare year ("2027
 (Season Not Stated)") and no season already under way, both dropped in
 `page.tsx`. Visa Sponsorship is two any-of tiles, No Visa Sponsorship and
 Sponsor Visas, while the saved preference stays one `visa`: Sponsor Visas
-alone saves `sponsors`, and any other pick saves no visa filter. A saved
-`not_ruled_out` has no tile, so the form drops it rather than save it unseen,
-and a lone No Visa Sponsorship comes back unpicked when a finished seeker
-opens the page again, since it saves as nothing. They share All Filters' rules too, from
+alone saves `sponsors`, and any other pick saves no visa filter. A lone No
+Visa Sponsorship comes back unpicked when a finished seeker opens the page
+again, since it saves as nothing. They share All Filters' rules too, from
 `filter-query.ts`: `payUnits` picks the salary's units from the job types,
 and `statesNarrowCountries` saves United States and California as
 California. A fixed choice is a `ChoiceTile`

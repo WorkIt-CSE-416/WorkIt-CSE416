@@ -133,15 +133,9 @@ export function OnboardingForm({
   /** Set once the seeker changes step. The question the page opens on is not
    *  focused: nothing has changed under the reader yet. */
   const moved = useRef(false);
-  // A saved "not_ruled_out" (from the Jobs page) has no tile here, so it
-  // drops rather than being saved again unseen.
-  const sponsors = initial.visa === "sponsors";
-  const [answers, setAnswers] = useState<FeedFilters>({
-    ...initial,
-    visa: sponsors ? "sponsors" : null,
-  });
+  const [answers, setAnswers] = useState<FeedFilters>(initial);
   // Kept here, not in the step, so Back and Next keep the picks.
-  const [visaPicks, setVisaPicks] = useState<VisaPick[]>(sponsors ? ["sponsors"] : []);
+  const [visaPicks, setVisaPicks] = useState<VisaPick[]>(initial.visa ? ["sponsors"] : []);
   const [resume, setResume] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

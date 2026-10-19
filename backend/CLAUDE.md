@@ -630,6 +630,13 @@ free tier). Render with a Dockerfile is the fallback.
   meets it and applying it early is safe; deployed first, every Save button
   answers 500. Applied to the shared database on 2026-10-18, with KAN-240's
   `3f7a2c9d1e84` under it, after KAN-240's deploy.
+- **Apply `c785e96ac011` (KAN-275) just before the deploy that drops
+  `not_ruled_out`.** It clears every saved `not_ruled_out` visa preference
+  and narrows the CHECK to `sponsors`. Until the deploy, the old
+  onboarding's "Hide Jobs That Rule Me Out" tile fails its save on the
+  CHECK. Deployed first is worse: the new `JobPreferences` refuses a saved
+  `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
+  migration runs.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
