@@ -197,6 +197,35 @@ def test_highlights_positive_before_negative():
             assert max(pos_indices) < min(neg_indices)
 
 
+def test_a_weak_match_with_no_reasons_gets_caveats():
+    hl = generate_highlights(
+        "Technical Product Designer", None, None, ["Python", "SQL"], None,
+        semantic=None, skill_overlap=0.0, title_fit=0.2, eligibility=1.0,
+        has_titles=True,
+    )
+    assert hl == [
+        {"text": "None of your skills appear in this posting", "met": False},
+        {"text": "Title isn't close to your past roles", "met": False},
+    ]
+
+
+def test_caveats_never_join_a_match_with_reasons():
+    hl = generate_highlights(
+        "Software Engineer", None, None, ["Python", "SQL"], "CS",
+        semantic=None, skill_overlap=0.5, title_fit=0.2, eligibility=1.0,
+        matched_skills=["Python"], has_titles=True,
+    )
+    assert hl == [{"text": "Posting mentions your skills: Python", "met": True}]
+
+
+def test_no_title_caveat_without_titles_to_compare():
+    hl = generate_highlights(
+        "Analyst", None, None, ["Excel"], None,
+        semantic=None, skill_overlap=0.0, title_fit=0.0, eligibility=1.0,
+    )
+    assert hl == [{"text": "None of your skills appear in this posting", "met": False}]
+
+
 def test_highlights_empty_bank():
     hl = generate_highlights(
         "Analyst", None, None, [], None,

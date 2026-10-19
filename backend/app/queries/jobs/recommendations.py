@@ -156,6 +156,7 @@ async def score_jobs(
             row.title, row.min_years_experience, row.start_term,
             skills, field_of_study, semantic_val, skill_norm, t_fit, elig,
             matched_skills=matched_skills,
+            has_titles=bool(titles or field_of_study),
         )
 
         listing = to_listing(row)
