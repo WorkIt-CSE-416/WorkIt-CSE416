@@ -9,7 +9,12 @@ resume answers `NotFound`), and flushes but never commits.
   `check_room` runs before anything is written, on Generate and on upload.
 - **The default resume** is `applicant_profiles.default_resume_id` (an
   uploaded resume) or `default_built_resume_id` (a base resume), never both:
-  setting one clears the other, and a check constraint backs it.
+  setting one clears the other, and a check constraint backs it. A student
+  with exactly one resume has it as the default (`default_if_only`).
+- **Names and edits** (KAN-258): a resume made with no name is "Resume #N"
+  (`next_name`), and `rename` changes it. A resume's `updated_at` is when it
+  last changed itself (`touch`): its choice rows have their own, which the
+  list would have to read row by row.
 """
 
 import dataclasses
@@ -81,12 +86,27 @@ async def check_room(session: AsyncSession, applicant_id: uuid.UUID) -> None:
         raise ResumeLimitReached
 
 
-async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str) -> Built_Resume:
+NUMBERED = re.compile(r"Resume #(\d+)")
+
+
+async def next_name(session: AsyncSession, applicant_id: uuid.UUID) -> str:
+    """The name of a resume made with no name: "Resume #N", one past the
+    highest number the student's resumes carry, so a new resume never takes
+    the name of one still there. Every one was "Base Resume" until KAN-258,
+    so a student's list read as one name repeated."""
+    names = await session.scalars(select(Built_Resume.name).where(Built_Resume.applicant_id == applicant_id))
+    used = [int(match[1]) for name in names if (match := NUMBERED.fullmatch(name))]
+    return f"Resume #{max(used, default=0) + 1}"
+
+
+async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str | None = None) -> Built_Resume:
     """A base resume with every bank entry, bullet and skill, in the bank's
     order (the fixed section order, newest first), except a copy of an entry
     already on it (`copy_key`), which waits hidden in "Not on This Resume":
-    two copies of one job sent a resume to two pages."""
+    two copies of one job sent a resume to two pages. With no name it is
+    "Resume #N" (`next_name`)."""
     await check_room(session, applicant_id)
+    name = name or await next_name(session, applicant_id)
     resume = Built_Resume(id=uuid.uuid4(), applicant_id=applicant_id, name=name, template=DEFAULT_TEMPLATE)
     session.add(resume)
     # No relationship() orders the inserts (models/CLAUDE.md): the resume
@@ -100,6 +120,7 @@ async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str) ->
             choices.entries[entry.row.id] = dataclasses.replace(choices.entries[entry.row.id], shown=False)
         seen.add(copy_key(entry.row))
     await write_choices(session, resume.id, choices)
+    await default_if_only(session, applicant_id)
     await session.refresh(resume)
     return resume
 
@@ -121,6 +142,27 @@ async def write_choices(session: AsyncSession, resume_id: uuid.UUID, choices: Ch
            for i, c in choices.skills.items()]
     )
     await session.flush()
+    await touch(session, resume_id)
+
+
+async def touch(session: AsyncSession, resume_id: uuid.UUID) -> None:
+    """Mark the resume changed now: its `updated_at` is the list's "Last
+    edited" (KAN-258), and a change to its choice rows alone leaves it as it
+    was. now() is the transaction's start, so a resume made and written in
+    one request stays unedited, its `updated_at` equal to its `created_at`."""
+    await session.execute(update(Built_Resume).where(Built_Resume.id == resume_id).values(updated_at=func.now()))
+
+
+async def rename(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, name: str) -> Built_Resume:
+    """Give the resume a new name (KAN-258). A sent resume keeps the name it
+    was sent under, so the Sent list still says what went out."""
+    resume = await get_resume(session, applicant_id, resume_id)
+    resume.name = name
+    await session.flush()
+    # The flush expires updated_at, the database's now(); reading it
+    # expired would lazy-load, which fails in async code.
+    await session.refresh(resume)
+    return resume
 
 
 async def list_resumes(session: AsyncSession, applicant_id: uuid.UUID) -> list[Built_Resume]:
@@ -191,9 +233,10 @@ async def get_resume(session: AsyncSession, applicant_id: uuid.UUID, resume_id: 
 
 async def delete_resume(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID) -> None:
     """Its choice rows go with it; a default pointing at it is cleared
-    (ON DELETE SET NULL)."""
+    (ON DELETE SET NULL), and the one resume left, if one is, becomes it."""
     await session.delete(await get_resume(session, applicant_id, resume_id))
     await session.flush()
+    await default_if_only(session, applicant_id)
 
 
 async def default_built_id(session: AsyncSession, applicant_id: uuid.UUID) -> uuid.UUID | None:
@@ -220,6 +263,28 @@ async def set_default(
         update(Applicant_Profile)
         .where(Applicant_Profile.id == applicant_id)
         .values(default_resume_id=uploaded_id, default_built_resume_id=built_id)
+    )
+
+
+async def default_if_only(session: AsyncSession, applicant_id: uuid.UUID) -> None:
+    """A student with one resume (uploaded or base) has it as the default,
+    so auto apply and Apply have a resume without a star click first. Called
+    after every add and delete; with two or more it changes nothing."""
+    # The session does not autoflush (app/db.py): a resume added but not
+    # flushed would not be counted.
+    await session.flush()
+    uploaded = (await session.scalars(
+        select(Resume.id).where(Resume.applicant_id == applicant_id).limit(2))).all()
+    base = (await session.scalars(
+        select(Built_Resume.id).where(
+            Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id.is_(None)
+        ).limit(2))).all()
+    if len(uploaded) + len(base) != 1:
+        return
+    await session.execute(
+        update(Applicant_Profile)
+        .where(Applicant_Profile.id == applicant_id)
+        .values(default_resume_id=next(iter(uploaded), None), default_built_resume_id=next(iter(base), None))
     )
 
 
@@ -313,6 +378,8 @@ async def update_choices(
     for change in skills:
         apply(row(Built_Resume_Skill, "skill_id", change["skill_id"], skill_ids), change, "skill_id")
     await session.flush()
+    if entries or bullets or skills:
+        await touch(session, resume_id)
 
 
 async def load_view(

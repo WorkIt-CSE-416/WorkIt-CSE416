@@ -67,6 +67,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   place. To bring it back, delete the proxy block and `app/coming-soon/`,
   then uncomment the switcher's toggle. The API still accepts company
   signups; the gate is the UI only.
+- **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
+  archived for now** (KAN-261): the tracker stores no dated events or
+  follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
+  sidebar row is commented out, and all their code stays. `docs/screens.md`
+  (Calendar, Seeker Dashboard) says how to bring them back.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -76,6 +81,15 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
+- **The application tracker is live and has no fixture** (KAN-261): saved
+  and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
+  cached per request by `getTracker` in `data.ts`). Interviewing, Offer and
+  dated events stay empty until the API stores them; a failed read shows an
+  error, never stand-in cards. A job's application
+  stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
+  one read per page. Auto Apply never picks a saved job for a batch; only
+  the job's own Auto Apply click queues it.
+  `docs/screens.md`, Applications, has the rest.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
@@ -139,8 +153,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
-  `formatDate` in `lib/format-date.ts` formats in UTC and suits date-only
-  strings only.
+  `LocalDate` and `When` in `(seeker)/local-time.tsx` do it for a seeker
+  screen. `formatDate` in `lib/format-date.ts` formats in UTC and suits
+  date-only strings only.
 
 ## Auth and the API
 
@@ -193,14 +208,20 @@ are in `docs/auth.md`.
   action runs.
 - **My Profile's cache (`(seeker)/profile-cache.tsx`) lives in the seeker
   layout, never a module variable**: sign-out leaving the shell is what drops
-  it, and a module variable would show one account's resumes to the next
+  it, and a module variable would show one account's profile to the next
   person in that tab.
-- **Resume facts are edited in the experience bank only** (KAN-211). No
-  screen edits an uploaded resume's `parsed_json`; an upload reaches the bank
-  through import's drafts (`(seeker)/bank/import-card.tsx`). Two editors of
-  the same facts drift apart, and built resumes read the bank.
-  "Read It Again with AI" (KAN-222) shows only while the import response's
-  `uses_left` is above 0, and a failed AI reading keeps the shown drafts.
+- **Resume facts are edited in the experience bank only** (KAN-211). An
+  upload writes its reading into the bank itself (ADR 0003); no screen holds
+  a second copy of an upload's facts to edit. Two editors of the same facts
+  drift apart, and built resumes read the bank. Every screen that reports an
+  import says it with `lib/import-summary.ts`, from the `bank` of an upload
+  or an Import Updated Resume, or Import Again's response. An upload's row
+  on the Resumes view offers Import Updated Resume (a newer file for that
+  row), never a re-read of the stored file, which only ever read the same
+  text. "Read It With
+  AI" (KAN-222) runs only on a click, never on its own, and shows only
+  while `uses_left` is above 0; a failed reading writes nothing and says
+  why.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
@@ -210,10 +231,12 @@ are in `docs/auth.md`.
   (`lib/sent-resume-actions.ts`, KAN-208), PDF or Word (`"docx"`), never
   `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
   downloads the file. A download cancelled at the missing-character warning
-  deletes the sent resume it just made (`created`), so the "Sent" list holds
-  only files the student took. Apply on the posting detail goes through
+  deletes the sent resume it just made (`created`), so only files the
+  student took are kept. Apply on the posting detail goes through
   `applyWithResume` (KAN-220) and keeps its sent resume: the student is
-  told it is in the Sent list, so it is never deleted behind their back.
+  told WorkIt kept a copy, so it is never deleted behind their back. No
+  screen lists sent resumes since the Resumes view's Sent card went
+  (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
   (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also

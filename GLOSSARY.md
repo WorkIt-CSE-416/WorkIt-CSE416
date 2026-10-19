@@ -41,11 +41,11 @@ A built resume that is not linked to a job posting. Tailoring starts from one.
 _Avoid_: base built resume, master resume, general resume
 
 **Uploaded resume**:
-A file the student brought in. It is read-only, can be applied with as it is, and can be imported into the experience bank.
+A file the student brought in. It is read-only, can be applied with as it is, and fills the experience bank when it is uploaded.
 _Avoid_: original resume, parsed resume
 
 **Import**:
-To turn an uploaded resume into draft entries the student reviews and saves. It never writes to the experience bank by itself.
+To read an uploaded resume and write its entries and skills into the experience bank, merging an entry the bank already has instead of copying it. Upload imports once; Import Again reads a stored upload again (ADR 0003).
 _Avoid_: parse, sync, auto-fill
 
 **Sent resume**:
@@ -73,7 +73,7 @@ The guided conversation in which Scout asks a student about one thing they did a
 _Avoid_: onboarding, chat import, AI builder
 
 **Draft entry**:
-A proposed entry, from intake or from importing an uploaded resume, that the student has not saved yet. It is not part of the experience bank.
+A proposed entry from intake that the student has not saved yet. It is not part of the experience bank.
 _Avoid_: suggestion, pending entry
 
 **Truth rule**:

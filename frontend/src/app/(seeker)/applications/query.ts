@@ -95,7 +95,8 @@ export function filterApplications(
 }
 
 /** The list's rows in `sort` order. What has no value to sort by (nothing
- *  scheduled, not applied yet) goes last, in the fixture's own order. */
+ *  scheduled, not applied yet, no match score) goes last, in the order it
+ *  came in. */
 export function sortApplications(apps: Application[], sort: Sort, now: Date) {
   const key: Record<Sort, (app: Application) => number> = {
     next: (app) => {
@@ -103,7 +104,7 @@ export function sortApplications(apps: Application[], sort: Sort, now: Date) {
       return next ? sortKey(next.at) : Infinity;
     },
     applied: (app) => (app.appliedOn ? -sortKey(app.appliedOn) : Infinity),
-    match: (app) => -app.match,
+    match: (app) => (app.match != null ? -app.match : Infinity),
   };
 
   return [...apps].sort((a, b) => {

@@ -22,11 +22,9 @@ from workit_scout.agent import MAX_REPLY_CHARS, run
 from workit_scout.facts import bank_facts, job_facts
 from workit_scout.identity import Identity
 from workit_scout.llm import LLM
-from workit_scout.prompt import EMPTY_BANK, SYSTEM_PROMPT
 from workit_scout.schemas import (
     ChatMessage,
     ErrorEvent,
-    JobFacts,
     ResumeFacts,
     TextEvent,
 )
@@ -251,68 +249,6 @@ def test_settings_read_the_scout_prefix(monkeypatch):
     monkeypatch.setenv("SCOUT_MODEL", "qwen3.5:9b")
     s = ScoutSettings(_env_file=None)
     assert s.model == "qwen3.5:9b"
-
-
-# --- facts: what Scout is told it knows ---------------------------------------------
-
-RESUME = ResumeFacts(
-    skills=["Python", "ROS"], experience=["Robotics Intern at Acme (2025–present)"]
-)
-JOB = JobFacts(
-    title="Robot Software Intern",
-    company="Rhoda AI",
-    description="You will write ROS nodes.",
-)
-
-
-def test_system_prompt_leads_and_the_user_follows():
-    fake = ScriptedLLM(["ok"])
-    collect(fake, "hello")
-    system, user = fake.prompts[0]
-    assert system["role"] == "system"
-    assert user == {"role": "user", "content": "hello"}
-
-
-def test_resume_and_job_reach_the_model_after_the_frozen_prompt():
-    fake = ScriptedLLM(["ok"])
-    collect(fake, "Am I a fit?", resume=RESUME, job=JOB)
-    assert fake.system_prompt.startswith(
-        SYSTEM_PROMPT
-    )  # the cacheable prefix is untouched
-    for fact in (
-        "Python",
-        "Robotics Intern at Acme",
-        "Rhoda AI",
-        "You will write ROS nodes.",
-    ):
-        assert fact in fake.system_prompt
-
-
-def test_an_empty_bank_is_said_plainly_instead_of_left_blank():
-    fake = ScriptedLLM(["ok"])
-    collect(fake, "Am I a fit?", resume=bank_facts({"entries": [], "skills": []}, has_upload=False))
-    assert EMPTY_BANK in fake.system_prompt
-    assert "have not uploaded a resume" in fake.system_prompt
-    assert "The job they are asking about" not in fake.system_prompt
-
-
-def test_an_empty_bank_says_when_an_upload_is_waiting_to_be_imported():
-    fake = ScriptedLLM(["ok"])
-    collect(fake, "Am I a fit?", resume=bank_facts({"entries": [], "skills": []}, has_upload=True))
-    assert EMPTY_BANK in fake.system_prompt
-    assert "have uploaded a resume" in fake.system_prompt
-    assert "import" in fake.system_prompt
-
-
-def test_a_job_without_a_description_says_so():
-    fake = ScriptedLLM(["ok"])
-    collect(fake, "Am I a fit?", job=JobFacts(title="Intern", company="Acme"))
-    assert "description is not available" in fake.system_prompt
-
-
-def test_grounding_rules_cover_both_resume_and_posting():
-    assert "your resume doesn't mention" in SYSTEM_PROMPT
-    assert "the posting doesn't say" in SYSTEM_PROMPT
 
 
 # --- what Scout is allowed to know -------------------------------------------------

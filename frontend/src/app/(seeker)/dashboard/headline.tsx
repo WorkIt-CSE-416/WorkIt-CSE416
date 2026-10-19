@@ -40,9 +40,8 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
  *
  * ONLY NEW ROLES AND SAVED LINK: their figures are the ones their
  * destinations show, the Jobs page filtered by date posted and the saved
- * applications. Applications and Interviews are a separate fixture from the
- * tracker's twelve applications, so a link would open a list that disagrees
- * with its number. A linked tile is one target, its label the link stretched
+ * applications. Applications and Interviews are still a fixture, apart from
+ * the tracker, so a link would open a list that disagrees with its number. A linked tile is one target, its label the link stretched
  * over it, and lifts under the pointer like the Applications grid's cards.
  *
  * Its own tile rather than components/stat-tile.tsx, which the company

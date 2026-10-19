@@ -5,11 +5,16 @@ resume) live in `app/services/built_resumes.py`; what shows on a resume is
 `app/services/resume_view.py`.
 
 POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 BuiltResumeResponse
-       Generate: a base resume with every bank entry, bullet and skill.
+       Generate: a base resume with every bank entry, bullet and skill. With
+       no name it is "Resume #N", one past the highest number in use.
        409 {detail} when the student already has 5 resumes (uploaded plus base).
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
-       page no longer lists (story 90's "Posting closed").
+       page no longer lists (story 90's "Posting closed"). `edited_at` is
+       the last change to the resume itself (its choices or its name); it
+       equals `created_at` until the first one.
+PATCH  /applicants/{id}/built-resumes/{rid}        BuiltResumeRename -> BuiltResumeResponse
+       Rename (KAN-258). Its sent resumes keep the name they went out under.
 DELETE /applicants/{id}/built-resumes/{rid}        -> 204
 PUT    /applicants/{id}/built-resumes/{rid}/default -> {"default_built_resume_id"}
        Makes a base resume the default resume, clearing an uploaded default.
@@ -61,6 +66,7 @@ from app.models.jobs import Job_Post
 from app.routers.scout import get_llm
 from app.schemas.built_resume import (
     BuiltResumeCreate,
+    BuiltResumeRename,
     BuiltResumeResponse,
     ChoicesResponse,
     ChoicesUpdate,
@@ -92,7 +98,8 @@ DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.docu
 def _response(row: Built_Resume, default_id: uuid.UUID | None, closed: bool = False) -> BuiltResumeResponse:
     return BuiltResumeResponse(
         id=row.id, name=row.name, template=row.template, job_posting_id=row.job_posting_id,
-        is_default=row.id == default_id, created_at=row.created_at, posting_closed=closed,
+        is_default=row.id == default_id, created_at=row.created_at, edited_at=row.updated_at,
+        posting_closed=closed,
     )
 
 
@@ -129,8 +136,9 @@ async def generate(
         resume = await service.generate(session, applicant_id, body.name)
     except service.ResumeLimitReached as exc:
         raise HTTPException(409, str(exc))
+    default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
-    return _response(resume, None)
+    return _response(resume, default_id)
 
 
 @router.get("", response_model=list[BuiltResumeResponse])
@@ -141,6 +149,23 @@ async def list_built_resumes(
     default_id = await service.default_built_id(session, applicant_id)
     closed = await service.closed_postings(session, applicant_id)
     return [_response(r, default_id, r.id in closed) for r in await service.list_resumes(session, applicant_id)]
+
+
+@router.patch("/{resume_id}", response_model=BuiltResumeResponse)
+async def rename_built_resume(
+    resume_id: uuid.UUID,
+    body: BuiltResumeRename,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> BuiltResumeResponse:
+    try:
+        resume = await service.rename(session, applicant_id, resume_id, body.name)
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    await _commit(session, "Failed to rename the resume")
+    default_id = await service.default_built_id(session, applicant_id)
+    closed = resume.id in await service.closed_postings(session, applicant_id)
+    return _response(resume, default_id, closed)
 
 
 @router.delete("/{resume_id}", status_code=204)

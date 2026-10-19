@@ -42,8 +42,9 @@ import { MatchBadge } from "./match-badge";
  * Everything it shows arrives worked out: the steps and which one is next are
  * computed on the server (`timelineOf` in ../tracker.ts) against the request's
  * time, and only the dates are formatted here, in the viewer's own zone. The
- * company tile arrives rendered, because its icon is a component and a
- * component cannot cross into a client one as a prop.
+ * company tile arrives rendered, so the page decides how a company is drawn.
+ * Nothing writes a summary yet, and nothing scores a tracked job, so both
+ * slots stay empty for now (KAN-261).
  *
  * Each step wears its kind's stage colour (KIND_STAGE), the same as the
  * Dashboard's Up Next: a step behind is filled with a check, the one the
@@ -103,16 +104,20 @@ export function DetailPanel({
             {application.status && (
               <span className="text-note text-ink-meta">{application.status}</span>
             )}
-            <span className="ml-auto">
-              <MatchBadge score={application.match} />
-            </span>
+            {application.match != null && (
+              <span className="ml-auto">
+                <MatchBadge score={application.match} />
+              </span>
+            )}
           </div>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto overscroll-contain p-5">
-          <p className="text-body text-ink-muted">{application.summary}</p>
+          {application.summary && (
+            <p className="text-body text-ink-muted mb-6">{application.summary}</p>
+          )}
 
-          <h3 className="text-subtitle text-ink mt-6">Timeline</h3>
+          <h3 className="text-subtitle text-ink">Timeline</h3>
           {/* One rail for the whole list, drawn by the <ol> through the
               centre of the 16px dots, as Work Experience draws its own. It
               draws itself down while the steps arrive. */}

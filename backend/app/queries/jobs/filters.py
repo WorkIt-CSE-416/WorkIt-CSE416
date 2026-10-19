@@ -24,7 +24,8 @@ with no location is by ?location=.
 A signed-in applicant's applied jobs (job_applications, KAN-232) are left
 out by applied_by; auto apply's matches leave out every job the applicant has
 an application for at any stage, queued or skipped too, by
-no_application_by.
+no_application_by, saved jobs (KAN-261) too: a batch never picks a job the
+applicant saved. The feed keeps a saved job in.
 """
 
 import datetime
@@ -154,7 +155,9 @@ class JobFilters:
     applied_by: uuid.UUID | None = None
     # Auto apply's matches (auto_apply/pipeline.py): every job this applicant
     # has an application for, at any stage, is left out, so a new batch
-    # never queues a job twice or one they skipped.
+    # never queues a job twice or one they skipped. A saved job is left out
+    # too (KAN-261): saving is the applicant's bookmark, and only their own
+    # Auto Apply click queues it.
     no_application_by: uuid.UUID | None = None
     # Only job postings on a hiring system the extension fills
     # (AUTO_APPLY_SUPPORTED): auto apply's matches always, and the Jobs

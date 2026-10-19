@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Star } from "lucide-react";
+import { Eye, Import, Star } from "lucide-react";
 
 import { PdfIcon, TrashIcon } from "@/components/icons";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 import type { ResumeItem } from "@/lib/resume-actions";
 
 /** One resume row. The loading placeholder, the in-flight upload and the
- *  empty list (in My Profile's page.tsx and the Auto Apply page's
+ *  empty list (in the Resumes view's your-resumes.tsx and the Auto Apply page's
  *  resume-list.tsx) are the same 52px box, so nothing jumps when the
  *  real row arrives. */
 export const RESUME_ROW =
@@ -34,26 +34,70 @@ function uploadedOn(createdAt: string | null) {
   return `Uploaded ${day}`;
 }
 
-const ROW_ACTION = "rounded-control hover:bg-hover size-8";
+/** A row's icon actions: 32px boxes, side by side with no gap. */
+export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
 
 /**
- * One uploaded resume, with its preview, primary and delete actions.
+ * The primary resume's star. On the primary it is filled and always
+ * visible; on the others it appears while the row is hovered or the star has
+ * keyboard focus. A touch screen has no hover, so there those stars stay
+ * visible. A hidden star still holds its place, so nothing shifts when it
+ * appears. With no `onMakePrimary`, a resume that is not primary shows none.
+ * The Resumes view's uploads and built resumes (KAN-258) draw
+ * it alike; the row must carry `group`.
+ */
+export function PrimaryStar({
+  name,
+  primary,
+  onMakePrimary,
+}: {
+  name: string;
+  primary: boolean;
+  onMakePrimary?: () => void;
+}) {
+  if (primary)
+    return (
+      <span title="Primary resume" className="text-brand flex size-8 items-center justify-center">
+        <Star aria-hidden className="size-4 fill-current" />
+        <span className="sr-only">Primary resume</span>
+      </span>
+    );
+  if (!onMakePrimary) return null;
+  return (
+    <IconButton
+      label={`Make ${name} your primary resume`}
+      tooltip="Make primary"
+      className={cn(
+        ROW_ACTION,
+        "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+      )}
+      onClick={onMakePrimary}
+    >
+      <Star aria-hidden className="size-4" />
+    </IconButton>
+  );
+}
+
+/**
+ * One uploaded resume, with its preview, primary, Import Updated Resume and
+ * delete actions.
  *
- * The star marks the primary resume — the one the profile's Work Experience
- * and Skills show. On the primary it is filled and always visible; on the
- * others it appears while the row is hovered or the star has keyboard focus.
- * A touch screen has no hover, so there those stars stay visible. A hidden
- * star still holds its place, so nothing shifts when it appears.
+ * The star (`PrimaryStar`) marks the primary resume: the default one auto
+ * apply attaches when a job has no tailored resume. Import Updated Resume (`onUpdate`) opens
+ * the caller's dialog for a newer version of this file, which replaces it
+ * and merges into the experience bank (ADR 0003). The stored file never
+ * changes by itself, so reading it again would only read the same text.
  *
- * My Profile passes every action. A screen that only shows a resume passes
+ * The Resumes view passes every action. A screen that only shows a resume passes
  * onPreview alone: the primary's star still marks it, but there is no star
- * to click and no delete.
+ * to click, no update and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
   deleting?: boolean;
   onPreview: () => void;
   onMakePrimary?: () => void;
+  onUpdate?: () => void;
   onDelete?: () => void;
 };
 
@@ -62,6 +106,7 @@ export function ResumeRow({
   deleting = false,
   onPreview,
   onMakePrimary,
+  onUpdate,
   onDelete,
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
@@ -77,31 +122,9 @@ export function ResumeRow({
         <p className="text-note text-ink-meta">{uploadedOn(resume.created_at)}</p>
       </div>
       <Badge tone={status.tone}>{status.label}</Badge>
-      {/* No gap between the three: each is a 32px box already. */}
+      {/* No gap between them: each is a 32px box already. */}
       <div className="flex shrink-0 items-center">
-        {resume.is_default ? (
-          <span
-            title="Primary resume"
-            className="text-brand flex size-8 items-center justify-center"
-          >
-            <Star aria-hidden className="size-4 fill-current" />
-            <span className="sr-only">Primary resume</span>
-          </span>
-        ) : (
-          onMakePrimary && (
-            <IconButton
-              label={`Make ${name} your primary resume`}
-              tooltip="Make primary"
-              className={cn(
-                ROW_ACTION,
-                "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
-              )}
-              onClick={onMakePrimary}
-            >
-              <Star aria-hidden className="size-4" />
-            </IconButton>
-          )
-        )}
+        <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
         <IconButton
           label={`${action} ${name}`}
           tooltip={action}
@@ -110,6 +133,16 @@ export function ResumeRow({
         >
           <Eye aria-hidden className="size-4" />
         </IconButton>
+        {onUpdate && (
+          <IconButton
+            label={`Import Updated Resume for ${name}`}
+            tooltip="Import Updated Resume"
+            className={ROW_ACTION}
+            onClick={onUpdate}
+          >
+            <Import aria-hidden className="size-4" />
+          </IconButton>
+        )}
         {onDelete && (
           <IconButton
             label={`Delete ${name}`}

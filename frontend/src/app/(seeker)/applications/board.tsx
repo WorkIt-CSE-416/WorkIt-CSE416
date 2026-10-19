@@ -3,12 +3,13 @@ import Link from "next/link";
 import { EllipsisIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CompanyTile } from "@/components/ui/company-tile";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, type StageKey } from "../stage-colors";
-import { nextEvent, sinceLabel, type Application } from "../tracker";
+import { LocalDate } from "../local-time";
+import { nextEvent, sinceOf, type Application } from "../tracker";
+import { ApplicationTile } from "./application-tile";
 import { MatchBadge } from "./match-badge";
 import { NextStep } from "./next-step";
 import { applicationsHref, type ApplicationsQuery } from "./query";
@@ -64,7 +65,7 @@ function ApplicationCard({
   /** Its place in the entrance cascade, in ms. */
   delay: number;
 }) {
-  const { Icon } = item;
+  const since = sinceOf(item);
 
   return (
     <Card
@@ -84,7 +85,7 @@ function ApplicationCard({
           title clamps at two lines and the block holds two lines' height, so
           every card's summary starts at the same depth. */}
       <div className="flex items-start gap-2.5">
-        <CompanyTile Icon={Icon} size="sm" tone="outline" />
+        <ApplicationTile application={item} size="sm" />
         <div className="min-h-15 min-w-0 flex-1">
           <h3 className="text-subtitle text-ink line-clamp-2 leading-5">
             <Link
@@ -108,8 +109,10 @@ function ApplicationCard({
       <NextStep next={nextEvent(item, now)} />
 
       <div className="border-border-subtle flex items-center justify-between gap-2 border-t pt-2.5">
-        <p className="text-note text-ink-meta min-w-0 truncate">{sinceLabel(item)}</p>
-        <MatchBadge score={item.match} />
+        <p className="text-note text-ink-meta min-w-0 truncate">
+          {since.verb} <LocalDate at={since.at} />
+        </p>
+        {item.match != null && <MatchBadge score={item.match} />}
       </div>
 
       {/* Also not in the design. An offer has a date it expires on, so the one
@@ -230,7 +233,11 @@ export function ApplicationsBoard({
                   ))}
                 </ul>
               ) : (
-                <p className="text-note text-ink-meta px-1 pb-2">No matches in {title}.</p>
+                // "No matches" only while a search narrows the board; an
+                // empty stage with no search just has nothing in it yet.
+                <p className="text-note text-ink-meta px-1 pb-2">
+                  {query.q ? `No matches in ${title}.` : `Nothing in ${title} yet.`}
+                </p>
               )}
             </section>
           );
