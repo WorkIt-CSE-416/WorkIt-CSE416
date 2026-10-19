@@ -8,6 +8,7 @@ import { getAccessToken } from "@/lib/session";
 type Item = {
   kind: "graduation_window" | "degree" | "sponsorship";
   label: string;
+  importance: "required" | "preferred" | "stated";
   status: "matches" | "potential_mismatch" | "needs_confirmation" | "not_stated";
   explanation: string;
   evidence: string | null;
@@ -23,6 +24,12 @@ const STATUS = {
   potential_mismatch: "Potential mismatch",
   needs_confirmation: "Needs confirmation",
   not_stated: "Not found in available text",
+};
+
+const IMPORTANCE = {
+  required: "Required",
+  preferred: "Preferred, not required",
+  stated: "Statement from the posting",
 };
 
 async function loadChecklist(jobId: string): Promise<Checklist | "signed_out" | null> {
@@ -85,6 +92,9 @@ export async function EligibilityCard({ jobId }: { jobId: string }) {
         {checklist.items.map((item, index) => (
           <li key={`${item.kind}-${index}`}>
             <p className="text-body text-ink font-semibold">{item.label}</p>
+            {item.evidence && (
+              <p className="text-body text-ink-meta">{IMPORTANCE[item.importance]}</p>
+            )}
             <p className="text-body text-ink">{STATUS[item.status]}</p>
             <p className="text-body text-ink-meta">{item.explanation}</p>
 
