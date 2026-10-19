@@ -59,8 +59,9 @@ import { Reflow } from "./reflow";
  * application's own page (./[jobId]); the role is the link, stretched across the row.
  */
 const TH = "px-4 text-note text-ink-meta font-medium";
-/** A plain fact cell: one line of grey note text. */
-const TD = "px-4 text-note text-ink-meta";
+/** A plain fact cell: one line of note text in ink, as easy to read as the
+ *  role; it was grey, which read as disabled (KAN-256). */
+const TD = "px-4 text-note text-ink";
 
 /** Each optional column, from the one that stays longest to the first to go,
  *  as the page's width (@container/main) reaches it. */
@@ -178,7 +179,7 @@ export function ApplicationsList({
                       name is the student's own and can run long. */}
                   <TableCell className={cn(TD, SHOW.resume)}>
                     {app.resume ? (
-                      <span className="text-ink block max-w-40 truncate" title={app.resume}>
+                      <span className="block max-w-40 truncate" title={app.resume}>
                         {app.resume}
                       </span>
                     ) : (
@@ -189,14 +190,10 @@ export function ApplicationsList({
                     {app.location ?? "Not listed"}
                   </TableCell>
                   <TableCell className={cn(TD, SHOW.pay)}>{app.pay ?? "Not listed"}</TableCell>
-                  {/* Closed in ink, so the rare closed posting stands out
-                      from a column of Open. */}
+                  {/* Closed in medium weight, so the rare closed posting
+                      stands out from a column of Open. */}
                   <TableCell className={cn(TD, SHOW.posting)}>
-                    {app.open === false ? (
-                      <span className="text-ink font-medium">Closed</span>
-                    ) : (
-                      "Open"
-                    )}
+                    {app.open === false ? <span className="font-medium">Closed</span> : "Open"}
                   </TableCell>
                   <TableCell className={cn(TD, SHOW.applied)}>
                     {app.appliedOn ? <LocalDate at={app.appliedOn} /> : "Not yet"}
