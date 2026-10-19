@@ -20,6 +20,37 @@ from app.services.eligibility import checklist, extract
 WINDOW = "Must graduate between December 2026 and June 2027."
 
 
+@pytest.mark.parametrize("description", [
+    "Graduating students must be available between June 2027 and August 2027.",
+    "Our graduate internship runs between December 2026 and June 2027.",
+])
+def test_availability_and_program_dates_are_not_graduation_windows(description):
+    assert extract(description) == []
+
+
+@pytest.mark.parametrize("prefix", [
+    "Must graduate", "Students graduating", "Graduation",
+    "Expected graduation date", "Graduation date must be", "Graduation date is",
+])
+def test_explicit_graduation_date_grammar(prefix):
+    description = f"{prefix} between December 2026 and June 2027."
+    requirement, = extract(description)
+    assert requirement.earliest_month == date(2026, 12, 1)
+    assert requirement.latest_month == date(2027, 6, 1)
+    assert requirement.evidence == description
+
+
+def test_preferred_window_retains_importance_in_checklist_response():
+    description = "Preferred Qualifications\nGraduate between December 2026 and June 2027."
+    response = checklist(
+        extract(description),
+        [Education(end_month=date(2027, 8, 1), end_kind="expected")],
+        description_available=True,
+    ).model_dump(mode="json")
+    assert response["items"][0]["importance"] == "preferred"
+    assert response["items"][0]["status"] == "potential_mismatch"
+
+
 def result(description=WINDOW, education=None):
     return checklist(
         extract(description), education or [], description_available=bool(description)

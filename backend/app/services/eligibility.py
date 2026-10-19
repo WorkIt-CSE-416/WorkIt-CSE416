@@ -25,7 +25,9 @@ MONTHS = {
 MONTH_PATTERN = "|".join(MONTHS)
 
 GRADUATION_WINDOW = re.compile(
-    rf"\bgraduat(?:ing|ion|e)\b[^.;\n]{{0,80}}?"
+    # Bind the dates to graduation itself, not nearby internship availability.
+    rf"\b(?:graduat(?:ing|e)\s+|"
+    rf"graduation(?:\s+date)?\s+(?:(?:must\s+be|is|expected)\s+)?)"
     rf"\bbetween\s+(?P<start_month>{MONTH_PATTERN})\s+"
     rf"(?P<start_year>20\d{{2}})\s+and\s+"
     rf"(?P<end_month>{MONTH_PATTERN})\s+"
