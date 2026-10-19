@@ -162,7 +162,9 @@ layer). Under the pointer its edge tints, its shadow rises and its title
 turns brand, but it does not lift: a card just under the sticky heading and
 filters lifted into them and was cut off. The id is
 the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
-The page is the mock's `JobDetailHeader` with the card's own facts
+The page is capped at 70rem (1120px), a little wider than the other reading
+pages' `max-w-app`, which left its facts and checklist cramped (KAN-279).
+It is the mock's `JobDetailHeader` with the card's own facts
 (`listingFacts` in `listing-card.tsx`) and the employer's 40px logo and
 16px name, then one
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
