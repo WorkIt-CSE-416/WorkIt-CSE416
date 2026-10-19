@@ -102,18 +102,32 @@ export function JobViewHeader({ job }: { job: JobListing }) {
 }
 
 /** Under the header: what was sent and when it was applied to, the
- *  eligibility checklist, and About the Role. */
-export function JobViewBody({ view, job }: { view: JobView; job: JobListing }) {
+ *  eligibility checklist, and About the Role. `descriptionOnly` keeps About
+ *  the Role alone: the application page's Job Description tab (KAN-256),
+ *  where the notes and the checklist are the application's business, not
+ *  the posting's, and pushed the description down. */
+export function JobViewBody({
+  view,
+  job,
+  descriptionOnly = false,
+}: {
+  view: JobView;
+  job: JobListing;
+  descriptionOnly?: boolean;
+}) {
   const { sent, applied } = view;
   const lastSent = sent[0];
   const places = placesOf(job.location_label ?? job.location);
 
   return (
     <>
-      {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
-      {applied?.appliedAt && <AppliedNote at={applied.appliedAt} />}
-
-      <EligibilityCard jobId={job.id} />
+      {!descriptionOnly && (
+        <>
+          {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
+          {applied?.appliedAt && <AppliedNote at={applied.appliedAt} />}
+          <EligibilityCard jobId={job.id} />
+        </>
+      )}
 
       <Section title="About the Role">
         {/* The card names one place and how many more; here, all of them. */}

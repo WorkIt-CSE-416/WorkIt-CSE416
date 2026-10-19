@@ -518,18 +518,20 @@ the header and the Job Description tab are the parts `/jobs/[jobId]` draws
 drift apart. Only Back differs (Back to Applications, `JobActionBar`'s
 `back` slot). No match rail, as on the job page: an earlier draft added the
 Jobs card's ring, which made the same job look different by how it was
-opened. Analytics and explanations go on the second tab only. Under the
-header, two tabs, each a URL (`?tab=application`):
+opened. Analytics and explanations go on the Your Application tab only.
+Under the header, two tabs, each a URL (`?tab=job` for the second):
 
-- **Job Description**: the job page's body, unchanged (the sent and applied
-  notes, the eligibility checklist, About the Role).
-- **Your Application**: At a Glance (stage, match, posting, saved and
+- **Your Application**, the default: At a Glance (stage, match, posting, saved and
   applied dates, the resume sent), Timing (elapsed days: waiting to hear
   back, save to apply, posted before applying; or since saving and since
   posting for a saved job), What You Sent (every sent resume linked to the
   posting), and the timeline (`applications/timeline.tsx`, also drawn by the
   Calendar's panel). It says plainly that WorkIt does not keep the answers
   typed into the employer's form: neither Apply nor auto apply stores them.
+- **Job Description**: About the Role alone (`JobViewBody`'s
+  `descriptionOnly`). The job page's sent and applied notes and its
+  eligibility checklist stay off: they pushed the description down and are
+  the application's record, which the first tab already holds.
 
 The application comes from `getTracker`, so its score, resume and stage
 match its row. A job the seeker has not saved or applied to is not found. A

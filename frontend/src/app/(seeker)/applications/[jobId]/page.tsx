@@ -45,13 +45,15 @@ type Tab = "job" | "application";
  * Description tab are the job page's own parts (../../jobs/[jobId]/job-view),
  * so the role looks exactly as it does on /jobs/[jobId]; only Back goes to
  * Applications. No match rail, as on the job page. Under the header, two
- * tabs, a URL each (`?tab=application`), so a tab can be linked to and
- * survives a reload:
+ * tabs, a URL each (`?tab=job` for the second), so a tab can be linked to
+ * and survives a reload:
  *
- *   Job Description   the job page's body: sent and applied notes, the
- *                     eligibility checklist, About the Role
- *   Your Application  the analytics: what was sent, the timing and the
- *                     timeline (./your-application.tsx)
+ *   Your Application  the default: the analytics, what was sent, the timing
+ *                     and the timeline (./your-application.tsx)
+ *   Job Description   About the Role alone (`descriptionOnly`): the job
+ *                     page's sent and applied notes and its eligibility
+ *                     checklist stay off, so the description reads as the
+ *                     posting, not as the seeker's record
  *
  * The application comes from the tracker's own read (`getTracker`, cached per
  * request), so the score, the resume and the stage match the list's row
@@ -67,7 +69,8 @@ export default async function ApplicationPage({
   searchParams,
 }: PageProps<"/applications/[jobId]">) {
   const { jobId } = await params;
-  const tab: Tab = (await searchParams).tab === "application" ? "application" : "job";
+  // Your Application leads: it is what this page adds to the job's own.
+  const tab: Tab = (await searchParams).tab === "job" ? "job" : "application";
   const [{ applications, error }, view] = await Promise.all([getTracker(), loadJobView(jobId)]);
   const { job } = view;
 
@@ -124,15 +127,15 @@ export default async function ApplicationPage({
         value={tab}
         className="mt-6"
         options={[
-          { value: "job", label: "Job Description", href: base },
-          { value: "application", label: "Your Application", href: `${base}?tab=application` },
+          { value: "application", label: "Your Application", href: base },
+          { value: "job", label: "Job Description", href: `${base}?tab=job` },
         ]}
       />
 
       {tab === "application" ? (
         <YourApplication app={app} job={job} sent={view.sent} now={getNow()} />
       ) : job ? (
-        <JobViewBody view={view} job={job} />
+        <JobViewBody view={view} job={job} descriptionOnly />
       ) : (
         <Section title="About the Role">
           <p className="text-body text-ink-meta mt-3">
