@@ -1,7 +1,8 @@
 import * as React from "react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/react";
-import { Check, FileText, LoaderCircle, RotateCcw, Send, Sparkles } from "lucide-react";
+import { Check, FileText, LoaderCircle, RotateCcw, Send } from "lucide-react";
 import { autofillFeature } from "./feature-data";
+import { SparkleIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 /**
@@ -187,7 +188,7 @@ export default function AutofillVisual() {
 }
 
 const buttonLabel: Record<Stage, { icon: React.ElementType; text: string; spin?: boolean }> = {
-  idle: { icon: Sparkles, text: "Autofill with WorkIt" },
+  idle: { icon: SparkleIcon, text: "Autofill with WorkIt" },
   filling: { icon: LoaderCircle, text: "Filling in from your profile", spin: true },
   review: { icon: Send, text: "Send application" },
   sending: { icon: LoaderCircle, text: "Sending", spin: true },
