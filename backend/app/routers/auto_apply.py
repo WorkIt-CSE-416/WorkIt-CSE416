@@ -21,7 +21,8 @@ POST /applicants/{id}/applications  {"job_id": ...}
 GET  /applicants/{id}/applications?stage=queued&stage=needs_you
      The applications, newest first (every stage without ?stage=), each
      with its job posting's listing and `open` (false once it closed).
-     ?scored=true adds `match`, the Jobs page's score, and its `highlights`
+     ?scored=true adds `match`, the Jobs page's score, its `highlights` and
+     its `score_breakdown`
      to each open one
      (the Applications page; null while the experience bank is empty).
 GET  /applicants/{id}/applications/next

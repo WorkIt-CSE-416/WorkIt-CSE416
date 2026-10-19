@@ -2,7 +2,7 @@ import { CheckIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { matchColor, matchTier } from "@/lib/match";
 
-import type { Highlight } from "./data";
+import type { Highlight, ScoreBreakdown } from "./data";
 
 /**
  * The scored rail down the right of a recommendation.
@@ -113,14 +113,71 @@ function Dot() {
   );
 }
 
+/** The breakdown's rows, in the order they weigh: each part's label. */
+const PARTS = [
+  ["semantic", "Overall Fit"],
+  ["skill_overlap", "Skills"],
+  ["title_fit", "Title Fit"],
+  ["eligibility", "Eligibility"],
+] as const;
+
+/**
+ * How a score was worked out (KAN-256): each part's points out of its share,
+ * with a bar, then the posting-age multiplier when it took anything off. The
+ * application's page draws it under the tier, so a weak score with no
+ * reasons still says where its points came from. Overall Fit needs the
+ * embedding: without one its share moves to the other parts, and the row
+ * says it wasn't measured rather than showing a 0 that reads as a verdict.
+ */
+function Breakdown({ breakdown }: { breakdown: ScoreBreakdown }) {
+  return (
+    <dl className="border-border-subtle mt-1 flex w-full flex-col gap-2 border-t pt-3">
+      {PARTS.map(([key, label]) => {
+        const part = breakdown[key];
+        const out = Math.round(part.weight * 100);
+        const share = part.weight > 0 ? Math.min(1, part.points / (part.weight * 100)) : 0;
+        return (
+          <div key={key}>
+            <div className="text-meta flex items-baseline justify-between gap-2">
+              <dt className="text-ink-muted">{label}</dt>
+              <dd className="text-ink font-medium tabular-nums">
+                {out > 0 ? `${Math.round(part.points)} / ${out}` : "Not measured"}
+              </dd>
+            </div>
+            {out > 0 && (
+              <div aria-hidden="true" className="bg-border mt-1 h-1 overflow-hidden rounded-full">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${share * 100}%`, background: matchColor(share * 100) }}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {breakdown.freshness_multiplier < 1 && (
+        <div className="text-meta flex items-baseline justify-between gap-2">
+          <dt className="text-ink-muted">Posting Age</dt>
+          <dd className="text-ink font-medium tabular-nums">
+            ×{breakdown.freshness_multiplier.toFixed(2)}
+          </dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
 export function MatchRail({
   score,
   highlights,
+  breakdown = null,
   standalone = false,
 }: {
   /** Null draws the placeholder rail; see "WITH NO SCORE" above. */
   score: number | null;
   highlights: Highlight[];
+  /** How the score was worked out, drawn under the tier when given. */
+  breakdown?: ScoreBreakdown | null;
   /** A rounded card that floats on its own — the job detail page's layout,
    *  which sits it beside the facts rather than flush against a bigger
    *  card's edge. Default false keeps the recommendation feed's flush rail
@@ -170,6 +227,8 @@ export function MatchRail({
           {matchTier(score)}
         </p>
       )}
+
+      {score !== null && breakdown && <Breakdown breakdown={breakdown} />}
 
       {/* No reasons, no list: an empty one drew a stray rule under the tier. */}
       {score !== null && highlights.length > 0 && (

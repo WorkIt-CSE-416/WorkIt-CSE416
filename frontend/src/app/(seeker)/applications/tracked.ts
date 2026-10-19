@@ -78,7 +78,16 @@ function payOf(job: JobListing) {
 
 /** One stored application as a tracker card, with the resume it sent. */
 function toApplication(
-  { job, stage, added_at, applied_at, open, match, highlights }: Stored<"saved" | "applied">,
+  {
+    job,
+    stage,
+    added_at,
+    applied_at,
+    open,
+    match,
+    highlights,
+    score_breakdown,
+  }: Stored<"saved" | "applied">,
   resume: string | null,
 ) {
   return {
@@ -98,6 +107,7 @@ function toApplication(
     // never disagrees with the feed.
     match: match ?? null,
     highlights: highlights ?? [],
+    breakdown: score_breakdown ?? null,
     savedOn: added_at,
     appliedOn: applied_at,
     events: [],

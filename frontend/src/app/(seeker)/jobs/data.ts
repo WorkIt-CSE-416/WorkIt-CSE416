@@ -89,6 +89,24 @@ export type Highlight = {
   met: boolean;
 };
 
+/** One part of a match score: its 0-1 value (null when it couldn't be
+ *  measured), its share of the score, and the points it earned on the 0-100
+ *  scale before the posting-age multiplier. backend/app/services/matching/
+ *  scoring.py's ScoreComponent. */
+export type ScoreComponent = { value: number | null; weight: number; points: number };
+
+/** How a match score was worked out, as the API sends it with `match`. */
+export type ScoreBreakdown = {
+  semantic: ScoreComponent;
+  skill_overlap: ScoreComponent;
+  title_fit: ScoreComponent;
+  eligibility: ScoreComponent;
+  freshness_multiplier: number;
+  weighted_score: number;
+  score_before_rounding: number;
+  final_score: number;
+};
+
 function hoursAgo(hours: number) {
   return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 }

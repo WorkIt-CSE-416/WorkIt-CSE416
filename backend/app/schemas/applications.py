@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.models.dto import application_stage
 from app.schemas.jobs import Highlight, JobListing
+from app.services.matching.scoring import ScoreBreakdown
 
 
 class JobApplied(BaseModel):
@@ -43,6 +44,9 @@ class Application(BaseModel):
     # Up to 3 reasons behind `match`, as the Jobs page card lists them; empty
     # whenever `match` is null.
     highlights: list[Highlight] = []
+    # How `match` was worked out, as the Jobs page scored it: each part's
+    # points and the posting-age multiplier. Null whenever `match` is.
+    score_breakdown: ScoreBreakdown | None = None
 
 
 class BatchRequest(BaseModel):

@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, format, getYear, parseISO } from "date-fns";
-import type { Highlight } from "./jobs/data";
+import type { Highlight, ScoreBreakdown } from "./jobs/data";
 import type { StageKey } from "./stage-colors";
 
 /**
@@ -68,6 +68,8 @@ export type Application = {
   /** The reasons behind `match`, as the Jobs page card lists them; empty
    *  without a score. */
   highlights?: Highlight[];
+  /** How `match` was worked out; null without a score. */
+  breakdown?: ScoreBreakdown | null;
   /** When it was saved (or added): the first entry on its timeline. */
   savedOn: string;
   /** When it was sent, or null while it is only saved. */
