@@ -3,9 +3,9 @@ import Link from "next/link";
 
 import { ArrowRightIcon } from "@/components/icons";
 import { buttonClasses } from "@/components/ui/button";
-import { CompanyTile } from "@/components/ui/company-tile";
 import { cn } from "@/lib/cn";
 
+import { ApplicationTile } from "../applications/application-tile";
 import { getApplications, getNow } from "../applications/data";
 import { DetailPanel } from "../applications/detail-panel";
 import { SEEKER_GUTTER } from "../gutter";
@@ -29,14 +29,14 @@ export const metadata: Metadata = {
  * render in the browser (./calendar-view.tsx) and read the view and the day
  * from the URL themselves, so changing either moves the URL in place and
  * never comes back here; this page passes them every entry from the tracker
- * fixture and draws the parts that need no zone.
+ * (../applications/data.ts) and draws the parts that need no zone.
  *
  * An entry opens its application's detail panel, the same one Applications
  * opens, here over the calendar, with a way across to Applications.
  */
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
   const query = parseCalendarQuery(await searchParams);
-  const applications = getApplications();
+  const applications = await getApplications();
   const open = query.app ? applications.find((app) => app.id === query.app) : undefined;
 
   return (
@@ -68,7 +68,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
             summary: open.summary,
             match: open.match,
           }}
-          tile={<CompanyTile Icon={open.Icon} size="md" tone="outline" />}
+          tile={<ApplicationTile application={open} size="md" />}
           steps={timelineOf(open, getNow())}
           closeHref={calendarHref({ view: query.view, date: query.date })}
           footer={

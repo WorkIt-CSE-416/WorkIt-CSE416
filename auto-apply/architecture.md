@@ -95,7 +95,7 @@ everything up to that click and nothing after it ("Decisions", below).
 | Form filling | Chrome extension, started from its popup. Fills text fields, dropdowns and repeated sections. Never submits | `autofiller_extension/` |
 | Webapp ↔ extension link | `externally_connectable`. Today it only answers "installed and signed in?" | `frontend/src/lib/autofill-extension.ts` |
 | Auto Apply page | "Resume List" (every resume the student has, with the pick rule under it), Start Auto Apply, and Live Activity from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
-| Applications screen | UI only, over a fixture (`data.ts`) | `frontend/src/app/(seeker)/applications/` |
+| Applications screen | Saved and Applied columns live from `GET .../applications?stage=saved&stage=applied` (KAN-261); Interviewing and Offer empty until the API stores those stages | `frontend/src/app/(seeker)/applications/` |
 
 **Built since:** the queue (`job_applications.stage`), its routes, and the
 webapp's use of them (Auto Apply buttons, Start Auto Apply, Live Activity).
@@ -299,7 +299,9 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    application for this student (queued, applied, skipped) stays out. Without
    this, every click returns the same 10. `get_matches` and `start_batch`
    set `JobFilters.no_application_by`, so a job posting with an application
-   at any stage is never scored.
+   at any stage is never scored, a saved one (KAN-261) too: saving never
+   queues a job by itself. Only the student's own Auto Apply click queues a
+   saved job, which moves it to `queued`.
 3. **Freeze the batch at Start.** Pick the 10 once and save them as `queued`
    applications. New job postings arrive every 3 hours and scores change, so
    a list read during the run could change under it. A saved batch also lets
@@ -585,15 +587,22 @@ disagree. Migration `c0467afe819c` added:
 
 | Column | Type | Notes |
 |---|---|---|
-| `stage` | enum `application_stage` | `queued`, `needs_you`, `skipped`, `applied`. Default `applied`, for the Applied button's older inserts; a queued insert names its stage and writes `applied_at` NULL. Rows from before are `applied` |
-| `created_at` | timestamptz | When the row was made: the queue's order |
+| `stage` | enum `application_stage` | `saved` (KAN-261, `17ea74fa4573`), `queued`, `needs_you`, `skipped`, `applied`. Default `applied`, for the Applied button's older inserts; a queued or saved insert names its stage and writes `applied_at` NULL. Rows from before are `applied` |
+| `created_at` | timestamptz | When the row was made: the queue's order. Queueing a saved row moves it to now, so a job saved last month doesn't jump the queue |
 | `applied_at` | timestamptz **null** now | Set when the student clicks **Submitted** or the Applied button; `NULL` while queued. A CHECK keeps an `applied` row dated |
 
 - **The Jobs page hides `applied` rows only** (`JobFilters.applied_by`). A
-  queued job stays on it; matches leave out every stage
+  saved or queued job stays on it; matches leave out every stage, saved too
   (`JobFilters.no_application_by`).
-- **The Applied button turns a queued, skipped or needs_you row applied**
-  (`mark_applied`, an upsert); an applied row keeps its first date.
+- **The Applied button turns a saved, queued, skipped or needs_you row
+  applied** (`mark_applied`, an upsert); an applied row keeps its first date.
+- **A saved row is the Save button's, not a run's** (KAN-261). A batch
+  never picks it. A job's own Auto Apply click does: `queue_applications`
+  turns it `queued` (`ON CONFLICT DO UPDATE ... WHERE stage = 'saved'`) and
+  leaves every other stage alone; Save never moves a
+  later stage back, and Unsave deletes a saved row only. Live Activity asks
+  for every stage but saved. Taking a queued job out of the queue deletes
+  its row, so a job that was saved before it was queued is no longer saved.
 - **A closed job posting keeps its application.** Closing is a status, not
   a delete, so the row and the listing stay; `fetch_next_application` passes
   over it and `GET .../applications` marks it `open: false`. Only a deleted

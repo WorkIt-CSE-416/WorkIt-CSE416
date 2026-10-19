@@ -176,8 +176,17 @@ stops it). Apply Without a Resume leaves for the employer's posting at once.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
-Ask Scout asks about the role, Share copies the page's link, Save
-and Report stay inert. The card's own row has Not Interested, Save, Ask
+Ask Scout asks about the role, Share copies the page's link, and Report
+stays inert. Save (KAN-261) keeps the job posting in the Saved column on My
+Applications, on the card and the page alike (`jobs/save-job-button.tsx`,
+over the drawing-only `components/save-button.tsx`): the bookmark fills at
+once and empties again, with a toast, if the API refuses, and a second
+click takes it back out. It reads its first state from the same stage the
+Auto Apply button gets, so it costs no fetch of its own. A job posting
+already queued or applied stays as it is, and a toast says where it is.
+Saving never queues a job: Start Auto Apply's batches skip saved jobs, and
+only the job's own Auto Apply button queues one. The
+card's own row has Not Interested, Save, Ask
 Scout, Auto Apply, Tailor My Resume and Apply Now. Tailor My Resume is the
 page's button on the card too (KAN-241): it opens `/jobs/[jobId]/tailor`
 and reads "Your Tailored Resume" once the student has one for that job
@@ -272,6 +281,18 @@ too, with nothing for a screen reader. A live fetch in a page calls
 
 /dashboard is the seeker's home: sign-in lands there.
 
+**Next Up, Up Next and Waiting are archived for now** (KAN-261), and the
+header's Find Jobs button is gone (the sidebar's Jobs row and New Matches'
+All Jobs lead there). The tracker stores no dated events yet, so Next Up and
+Up Next only said "nothing scheduled", and Waiting's buckets were a fixture.
+Under the numbers, New Matches runs the full width with Activity under it.
+From `@4xl/main` New Matches has a fixed height (`h-96`, set in the page's
+`PLACE`) and its list scrolls inside it: the tile is built to take its
+height from a neighbour, so alone on a row it would collapse.
+The archived tiles' code stays (`next-up-hero.tsx`, `up-next.tsx`,
+`getUpNext`, `waiting.tsx`, `WAITING`); `PLACE` in `dashboard/page.tsx` says
+how to bring them back. The notes below still describe them.
+
 **The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
 reference the user picked: white tiles with no outline on the white page
 panel, set apart by a soft violet-tinted `--shadow-tile` alone,
@@ -313,12 +334,11 @@ padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
 the tile's side instead of beside the Apply buttons. There is no
 pipeline section: its
 funnel only restated the headline numbers. Fixtures are in
-`(seeker)/dashboard/data.ts` until the tracker is real, except Next Up and Up
-Next, which take the tracker fixture's upcoming events (`getUpNext`); Next
-Up wears its application's company tile (`companyIconOf`, the outlined
-`CompanyTile` the Applications detail panel draws at the same size). The
-fixture keeps an interview first on any day of the week: its follow-up sits four days
-out, since a weekend slides tomorrow's interview to Monday. Next
+`(seeker)/dashboard/data.ts` until the tracker stores stages past applied,
+except Saved, which counts the live saved jobs, and Next Up and Up Next,
+which take the tracker's upcoming events (`getUpNext`). The tracker stores
+no dated events yet, so Next Up reads "You're All Caught Up" with Browse
+Jobs, and Up Next "Nothing else scheduled." Next
 Up's View Details button opens that application's detail panel and its date that week on
 the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
 All the Agenda; Waiting's Follow Up opens the Applications list filtered to
@@ -329,12 +349,12 @@ followed up or closed once the tracker has a backend. The headline numbers are A
 (`getHeadline` in `dashboard/data.ts`); New Roles and Saved replaced
 Response Rate and Offers, which for a student sit near zero all season. New
 Roles is the live feed, `GET /jobs/count?posted_within=` for the range and
-the window before it, cached five minutes; Saved counts the tracker's saved
-applications and ignores the range. Only those two tiles link (to the Jobs
-page filtered by date posted, and to the saved applications), since their
-figures are what their destinations show; Applications and Interviews are a
-separate fixture from the tracker's twelve applications, so a link would
-open a list that disagrees with its number. Its range is `?range=`, moved in place: the
+the window before it, cached five minutes; Saved counts the seeker's live
+saved jobs (KAN-261), ignores the range, and shows a dash when they can't be
+read. Only those two tiles link (to the Jobs page filtered by date posted,
+and to the saved applications), since their figures are what their
+destinations show; Applications and Interviews are a separate fixture from
+the tracker, so a link would open a list that disagrees with its number. Its range is `?range=`, moved in place: the
 headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the
@@ -362,19 +382,33 @@ sent application.
 
 ## Applications
 
-/applications is the tracker: a board, grid and list over the fixture in
+/applications is the tracker: a board, grid and list over
 `applications/data.ts`, every choice in the URL, `?app=` opening one
 application in the detail panel. `(seeker)/tracker.ts` is the tracker's shape
 and date logic; `local-time.tsx` prints its dates in the viewer's own zone and
 links them to the Calendar.
 
-**Application dates are real dates.** The tracker fixture
-(`(seeker)/applications/data.ts`) dates every application against the
-request (`getApplications` and `getNow`, both `cache()`d), on a New York
-clock, so the sample search is always mid-flight; a timed event that lands on
-a weekend moves to the Monday after. The shape is `(seeker)/tracker.ts`, and
-it is what the tracker's backend should return: an ISO instant for something
-at a time, a bare ISO date for something due on a day. The server decides
+**The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
+reads the seeker's saved and applied jobs from the API
+(`GET /applicants/{id}/applications?stage=saved&stage=applied`, the list Live
+Activity reads too), written by a job's Save button and its Applied button
+or auto apply; `getTracker` in `data.ts` caches it per request. Interviewing
+and Offer stay empty until the API stores those stages, and nothing on this
+page moves a card between stages. A card is its job posting: its id is the
+posting's, its tile the company's own logo (`application-tile.tsx`; initials
+without one), and its panel links to the posting while it is open ("Posting
+Closed" after). It has no summary or match score yet, so those slots stay
+empty and Sort by Match keeps the API's order. The page has three empty
+states: the API failed, nothing tracked yet (Find Jobs), and filters that
+hide everything (Clear Filters). The mock cards and their stand-in company
+glyphs were removed with the fixture.
+
+**Application dates are real dates.** Saved and applied dates are the
+instants the API stored (`getNow`, `cache()`d, is what the pages compare
+against). The shape is `(seeker)/tracker.ts`: an ISO instant for something
+at a time, a bare ISO date for something due on a day. `<LocalDate>` reads a
+bare date in UTC in the browser too, since on a local clock it is the day
+before in the Americas. The server decides
 what is upcoming against `getNow()` (a day-only entry stays upcoming until
 its day has ended in UTC-12) but never which day an instant falls on: it
 prints the UTC date, and `<When>` in `(seeker)/local-time.tsx` swaps in the
@@ -486,6 +520,16 @@ statuses and the routes are in `auto-apply/architecture.md`, "The run" and
 "API routes".
 
 ## Calendar
+
+**The Calendar is hidden for now** (KAN-261): `src/proxy.ts` sends
+`/calendar` to the Dashboard, its sidebar row is commented out, and the
+Applications panel's Show on Calendar button is gone. The tracker stores no
+dated events yet, so it could only show the days jobs were applied to. Its
+code stays in place. To bring it back, delete the proxy block, uncomment the
+sidebar row and its import, and put Show on Calendar back in
+`applications/page.tsx` (its comment there says what it linked to). A card's
+next step still links to the Calendar if an application ever has an event,
+so bring the Calendar back before the tracker stores events.
 
 **The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
 application went in, interviews, offers and their deadlines, closing dates

@@ -1,23 +1,24 @@
-import { getApplications, getNow } from "../applications/data";
+import { getApplications, getNow, getTracker } from "../applications/data";
 import { countJobsPostedWithin } from "../jobs/listings";
 import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
 import type { AppliedDay } from "./streak-model";
 
 /**
- * The seeker Dashboard's fixtures: the headline numbers per window, the year
- * of applications behind Activity's streak, what is waiting, and Up Next. All
- * of it stands in for the application tracker, which has no backend yet.
- * New Roles (in `getHeadline`) reads the live job feed here; New Matches and
- * the profile strength card read the live API too, beside the components
- * that fetch them.
+ * The seeker Dashboard's data: the headline numbers per window, the year of
+ * applications behind Activity's streak, what is waiting, and Up Next. Most
+ * of it is still fixtures, standing in for tracker stages no route stores
+ * yet. New Roles (in `getHeadline`) reads the live job feed here, and Saved
+ * the live tracker (KAN-261); New Matches and the profile strength card read
+ * the live API too, beside the components that fetch them.
  *
- * UP NEXT IS DERIVED FROM THE TRACKER'S OWN FIXTURE (../applications/data.ts),
- * not written again here, so the Dashboard and the board name the same
- * companies and the same dates. The season-level numbers below cannot come
- * from it: the board holds twelve cards, which is a week of a search, not a
- * season of one. When the tracker lands, both pages read it, and this file
- * becomes the fetch.
+ * UP NEXT IS DERIVED FROM THE TRACKER (../applications/data.ts), not written
+ * again here, so the Dashboard and the board name the same companies and the
+ * same dates. The tracker stores no dated events yet (interviews,
+ * deadlines), so Up Next is empty and Next Up says the seeker is caught up.
+ * The numbers below that are still fixtures (Applications, Interviews,
+ * Waiting, Activity) become reads of the tracker once it stores those
+ * stages.
  */
 
 /* Headline numbers ------------------------------------------------------- */
@@ -39,7 +40,7 @@ export type DashboardStat = {
 };
 
 /** Applications sent and interviews held, per window, with the window before
- *  it: the tracker's fixture until it has a backend. */
+ *  it: a fixture until the tracker can count them per window. */
 const APPLICATIONS: Record<RangeKey, [number, number | null]> = {
   week: [5, 7],
   month: [18, 12],
@@ -67,14 +68,16 @@ const NEW_ROLES_HREF: Record<RangeKey, string> = {
  *
  * New Roles is the live feed: what was posted in the range (GET /jobs/count),
  * against the window before it (twice the range, less the range). Saved is the
- * tracker's saved jobs not yet applied to, which is the same in every range.
- * Applications and Interviews stay fixtures until the tracker has a backend.
+ * seeker's live saved jobs not yet applied to (KAN-261), the same in every
+ * range, and a dash when they can't be read. Applications and Interviews stay
+ * fixtures until the tracker stores those stages.
  */
 export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> {
   const now = getNow();
-  const [week, twoWeeks, month, twoMonths, season] = await Promise.all(
-    [7, 14, 30, 60, rangeDays("season", now)].map(countJobsPostedWithin),
-  );
+  const [[week, twoWeeks, month, twoMonths, season], tracker] = await Promise.all([
+    Promise.all([7, 14, 30, 60, rangeDays("season", now)].map(countJobsPostedWithin)),
+    getTracker(),
+  ]);
   const before = (range: number | null, both: number | null) =>
     range != null && both != null ? both - range : null;
   const newRoles: Record<RangeKey, [number | null, number | null]> = {
@@ -82,7 +85,10 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
     month: [month, before(month, twoMonths)],
     season: [season, null],
   };
-  const saved = getApplications().filter((app) => app.stage === "saved").length;
+  const saved =
+    tracker.error != null
+      ? null
+      : tracker.applications.filter((app) => app.stage === "saved").length;
 
   const tiles = (range: RangeKey): DashboardStat[] => [
     {
@@ -213,8 +219,8 @@ const SHOWN = 5;
  * The five chosen are then shown soonest first, by their real times, so Next
  * Up is always the very next thing whatever its kind.
  */
-export function getUpNext(): UpNextItem[] {
-  const upcoming = upcomingEvents(getApplications(), getNow());
+export async function getUpNext(): Promise<UpNextItem[]> {
+  const upcoming = upcomingEvents(await getApplications(), getNow());
   const byKind = KIND_ORDER.map((kind) => upcoming.filter((event) => event.kind === kind));
   const rounds = Math.max(0, ...byKind.map((events) => events.length));
 
@@ -224,10 +230,4 @@ export function getUpNext(): UpNextItem[] {
     .flat()
     .slice(0, SHOWN)
     .sort((a, b) => upcoming.indexOf(a) - upcoming.indexOf(b));
-}
-
-/** The stand-in logo of the application an Up Next item belongs to: the glyph
- *  the Applications board and detail panel draw in their company tile. */
-export function companyIconOf(item: UpNextItem) {
-  return getApplications().find((app) => app.id === item.applicationId)?.Icon;
 }

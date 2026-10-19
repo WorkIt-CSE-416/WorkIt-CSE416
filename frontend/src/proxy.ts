@@ -27,6 +27,13 @@ export async function proxy(request: NextRequest) {
   if (isBusinessPath(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL("/coming-soon", request.url));
   }
+  // The Calendar is hidden for now (KAN-261): the tracker stores no dated
+  // events yet, so it could only show the days jobs were applied to. Its code
+  // stays in app/(seeker)/calendar/. Delete this block and uncomment its row
+  // in app/(seeker)/seeker-sidebar.tsx to bring it back.
+  if (isPathUnder(request.nextUrl.pathname, ["/calendar"])) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
 
   let response = NextResponse.next({ request });
 
@@ -60,9 +67,12 @@ export async function proxy(request: NextRequest) {
 }
 
 function isBusinessPath(pathname: string) {
-  return ["/company", "/onboarding/company"].some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  return isPathUnder(pathname, ["/company", "/onboarding/company"]);
+}
+
+/** Whether `pathname` is one of `prefixes` or anything under one. */
+function isPathUnder(pathname: string, prefixes: string[]) {
+  return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 export const config = {

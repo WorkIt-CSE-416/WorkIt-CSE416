@@ -12,11 +12,12 @@ import {
 } from "@/components/shadcn/table";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { CompanyTile } from "@/components/ui/company-tile";
 import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
-import { nextEvent, shortDay, type Application } from "../tracker";
+import { LocalDate } from "../local-time";
+import { nextEvent, type Application } from "../tracker";
+import { ApplicationTile } from "./application-tile";
 import { MatchBadge } from "./match-badge";
 import { NextStep } from "./next-step";
 import { applicationsHref, sortApplications, type ApplicationsQuery, type Sort } from "./query";
@@ -119,8 +120,6 @@ export function ApplicationsList({
 
         <TableBody>
           {rows.map((app, i) => {
-            const { Icon } = app;
-
             return (
               // Fades in down the table on arrival (a row cannot rise: its
               // transform does not reliably paint), 25ms apart, and glides to
@@ -136,7 +135,7 @@ export function ApplicationsList({
                     scrolls sideways inside the card. */}
                   <TableCell className="w-full max-w-0 px-4 py-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <CompanyTile Icon={Icon} size="sm" tone="outline" />
+                      <ApplicationTile application={app} size="sm" />
                       <div className="min-w-0">
                         <Link
                           href={applicationsHref(query, { app: app.id })}
@@ -156,10 +155,10 @@ export function ApplicationsList({
                     <NextStep next={nextEvent(app, now)} truncate className="w-48" />
                   </TableCell>
                   <TableCell className="text-note text-ink-meta hidden px-4 @2xl/main:table-cell">
-                    {app.appliedOn ? shortDay(app.appliedOn) : "Not yet"}
+                    {app.appliedOn ? <LocalDate at={app.appliedOn} /> : "Not yet"}
                   </TableCell>
                   <TableCell className="hidden px-4 @3xl/main:table-cell">
-                    <MatchBadge score={app.match} />
+                    {app.match != null && <MatchBadge score={app.match} />}
                   </TableCell>
                 </TableRow>
               </Reflow>

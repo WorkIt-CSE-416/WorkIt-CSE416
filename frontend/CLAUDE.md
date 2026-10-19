@@ -67,6 +67,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   is commented out too. The company code stays in place. To bring it back,
   delete the proxy block and `app/coming-soon/`, then uncomment those two
   components. The API still accepts company signups; the gate is the UI only.
+- **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
+  archived for now** (KAN-261): the tracker stores no dated events or
+  follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
+  sidebar row is commented out, and all their code stays. `docs/screens.md`
+  (Calendar, Seeker Dashboard) says how to bring them back.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -76,6 +81,15 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
+- **The application tracker is live and has no fixture** (KAN-261): saved
+  and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
+  cached per request by `getTracker` in `data.ts`). Interviewing, Offer and
+  dated events stay empty until the API stores them; a failed read shows an
+  error, never stand-in cards. A job's application
+  stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
+  one read per page. Auto Apply never picks a saved job for a batch; only
+  the job's own Auto Apply click queues it.
+  `docs/screens.md`, Applications, has the rest.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
