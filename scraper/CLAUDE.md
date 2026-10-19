@@ -344,8 +344,9 @@ Read once per board from its board page and kept in `jobs.json`.
 match `frontend/next.config.ts`'s `images.remotePatterns` exactly**: `next/image`
 throws on any other host, which fails the whole Jobs page. Workday has no
 pattern: its logo is a wide banner, so its cards show the favicon of the website
-its careers site links. Read `docs/logos.md` before changing how a logo or
-website is found.
+its careers site links. **Raise `logos.VERSION` with any new place to find a logo
+or website**, or boards already stored as having none never get it. Read
+`docs/logos.md` before changing how a logo or website is found.
 
 ## The page
 
