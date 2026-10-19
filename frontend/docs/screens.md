@@ -804,7 +804,7 @@ in Docs (suggested answers in the chat, not a banner).
   a gap card whose entry has been deleted since (saving it found no entry,
   and it hid the walk's questions about the import). When no
   stop is left, the student picks from the chips.
-- **Intake is not part of onboarding** since KAN-275: onboarding's second
+- **Intake is not part of onboarding** since KAN-275: the wizard's last
   step is a resume upload (Applicant onboarding, below). Intake had run
   there from KAN-214, always walking, with a done "Profile" step in its step
   bar.
@@ -1128,7 +1128,7 @@ stays escaped text otherwise).
 
 ## Applicant onboarding
 
-/onboarding/applicant is a two-step wizard (KAN-231), outside both shells:
+/onboarding/applicant is a three-step wizard (KAN-231), outside both shells:
 Scout asks each step's question on a lavender left half
 (`onboarding/applicant/story-panel.tsx`, a band across the top below lg) and
 the fields answer it on the right, with Back and Next pinned to the foot.
@@ -1137,10 +1137,10 @@ its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
 Step 1 is Role, Job Type and Workplace (all required), and Experience,
 Start Date and Location; step 2 is Salary Range and Visa Sponsorship (both
-optional), with Continue in place of Next. Start Date shows only once
+optional); step 3 is Resume (KAN-275), with Skip and Continue in place of
+Next. Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
-only the jobs that name one, which a new-grad role rarely does. The resume
-step follows the wizard (below). Preference Tags, free-text skills, were dropped
+only the jobs that name one, which a new-grad role rarely does. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
 **The left half moves, from lg.** Above the question a showcase
@@ -1183,25 +1183,27 @@ beside one. `text-subtitle`, the answers' size, carries a 600 weight of its
 own, so each answer sets its weight; without it the typed salary and search
 text came out semibold.
 
-**Continue saves the answers (KAN-231)** as the seeker's preferences (`PUT
-/applicants/{id}/preferences`, which also marks onboarding complete), then
-opens the resume step. A
-failed save leaves the seeker on the page to retry. Date Posted is not asked:
-a saved "past 24 hours" would empty the feed within days. Sign-in sends an
-applicant here until they finish (`docs/auth.md`); a finished one coming back
-from the resume step's "Back to Profile" finds the wizard filled with their
-saved answers, and Continue saves the edits.
+**The resume step (KAN-275)** is the Resumes view's dropzone
+(`components/resume-upload.tsx`), inside the wizard so it keeps Scout's
+panel and the footer's Back. Picking a file only holds it, with a Remove;
+Continue is disabled until one is picked, and Skip is the way on without
+one. It replaced intake (KAN-214), whose chat asked about each section in
+turn, on its own page and in another design: one upload fills most of the
+bank in one step, and intake still runs on the Experiences view for what the
+resume missed.
 
-**The resume step (`onboarding/applicant/resume/`, KAN-275)** is the Resumes
-view's dropzone (`components/resume-upload.tsx`) under a "Your Resume" title.
-Picking a file uploads it at once through `uploadResume`; the API reads it
-into the experience bank as it reads any upload (ADR 0003), then the step
-opens /jobs, whose Recommended view scores the saved filters' jobs against
-the bank just filled. Skip opens /jobs too, with the bank as it is. A failed
-upload stays on the step and says why, in the API's words (a sixth upload's
-409 among them). It replaced intake (KAN-214), whose chat asked about each
-section in turn: one upload fills most of the bank in one step, and intake
-still runs on the Experiences view for what the resume missed.
+**Continue or Skip saves the answers (KAN-231)** as the seeker's preferences
+(`PUT /applicants/{id}/preferences`, which also marks onboarding complete).
+Continue then uploads the file through `uploadResume`, and the API reads it
+into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
+whose Recommended view scores the saved filters' jobs against the bank. The
+answers save first: a failed save or upload leaves the seeker on the step,
+saying why in the API's words (a sixth upload's 409 among them), and a retry
+saves the answers again harmlessly. Date Posted is not asked: a saved "past
+24 hours" would empty the feed within days. Sign-in sends an applicant here
+until they finish (`docs/auth.md`); a finished one who opens the page again
+finds the wizard filled with their saved answers, and Continue saves the
+edits.
 
 ## Company screens
 

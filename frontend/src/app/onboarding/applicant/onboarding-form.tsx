@@ -19,13 +19,16 @@ import {
   BriefcaseIcon,
   CalendarIcon,
   CoinIcon,
+  FileIcon,
   LevelIcon,
   PinIcon,
   RoleIcon,
   VisaIcon,
   workStyleIcon,
 } from "@/components/icons";
+import { ResumeUpload } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
+import { uploadResume } from "@/lib/resume-actions";
 
 import { savePreferences } from "./actions";
 import { ChoiceTile } from "./choice-tile";
@@ -43,15 +46,19 @@ import { StoryPanel } from "./story-panel";
  * Visa Sponsorship has its own two tiles (VISA_PICKS below). Start
  * Date is asked only once Internship is picked, and dropping Internship
  * clears it: a saved season keeps only the jobs that name one, which a
- * new-grad role rarely does. Continue saves them
- * as the seeker's preferences, which marks onboarding done, then opens the
- * resume step (./resume, KAN-275), whose upload fills the experience bank
- * matching reads; it, or its Skip, opens the Jobs page's Recommended view.
- * Date Posted is not asked: a saved "past 24 hours" would empty the feed
- * within days.
+ * new-grad role rarely does. Date Posted is not asked: a saved "past 24
+ * hours" would empty the feed within days.
  *
- * `initial` is the seeker's saved preferences, so coming back from the
- * resume step ("Back to Profile") edits them rather than starting over.
+ * THE LAST STEP IS A RESUME (KAN-275), the Resumes view's dropzone, and it
+ * replaced intake's chat (KAN-214). Continue saves the answers as the
+ * seeker's preferences, which marks onboarding done, then uploads the picked
+ * file; the API reads it into the experience bank matching reads (ADR 0003).
+ * Skip saves the answers alone. Either opens the Jobs page's Recommended
+ * view. The answers save first, so a failed upload leaves onboarding done and
+ * this step to retry from; saving them again changes nothing.
+ *
+ * `initial` is the seeker's saved preferences, so a finished seeker who comes
+ * back edits them rather than starting over.
  */
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -73,6 +80,14 @@ const STEPS: { question: ReactNode; line: string }[] = [
       </>
     ),
     line: "Tell me your pay floor and visa needs, and I'll filter for both.",
+  },
+  {
+    question: (
+      <>
+        Last, <strong>upload your resume</strong> and I&apos;ll fill in your experiences.
+      </>
+    ),
+    line: "One file, and I'll know what you've done. No resume yet? Skip it.",
   },
 ];
 
@@ -112,15 +127,18 @@ export function OnboardingForm({
   });
   // Kept here, not in the step, so Back and Next keep the picks.
   const [visaPicks, setVisaPicks] = useState<VisaPick[]>(sponsors ? ["sponsors"] : []);
+  const [resume, setResume] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const set = (change: Partial<FeedFilters>) => setAnswers((a) => ({ ...a, ...change }));
   const last = step === STEPS.length - 1;
-  // Only step 1 asks anything required.
-  const canNext =
-    step > 0 ||
-    (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
+  // Step 1 asks the required answers; the resume step's Continue needs a
+  // file, and Skip is the way on without one.
+  const canNext = last
+    ? resume != null
+    : step > 0 ||
+      (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
 
   function goTo(next: number) {
     setStep(next);
@@ -129,20 +147,26 @@ export function OnboardingForm({
     window.scrollTo({ top: 0 });
   }
 
-  /** Saving the answers is what finishes onboarding; a failed save leaves
-   *  this page to retry from. */
-  async function finish() {
+  /** Saving the answers is what finishes onboarding, then the resume, if
+   *  one was picked, uploads. A failure leaves this page to retry from. */
+  async function finish(file: File | null) {
     setSaving(true);
     setError(null);
     // A picked state narrows its country, as All Filters' Apply does.
     const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
-    if (saveError) {
-      setSaving(false);
-      setError(saveError);
-      return;
+    if (saveError) return fail(saveError);
+    if (file) {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { error: uploadError } = await uploadResume(fd);
+      if (uploadError) return fail(uploadError);
     }
-    // The resume step is next (KAN-275); it opens the matches.
-    router.push("/onboarding/applicant/resume");
+    router.push("/jobs");
+  }
+
+  function fail(message: string) {
+    setSaving(false);
+    setError(message);
   }
 
   // FROM LG THE SCREEN IS ONE WINDOW TALL AND ONLY THE RIGHT COLUMN SCROLLS,
@@ -189,12 +213,22 @@ export function OnboardingForm({
               }}
             />
           )}
+          {step === 2 && (
+            <Field Icon={FileIcon} label="Resume">
+              <ResumeUpload
+                file={resume}
+                onFileChange={setResume}
+                onRemove={() => setResume(null)}
+                busy={saving}
+              />
+            </Field>
+          )}
         </div>
 
         <div className="bg-panel border-border-subtle sticky bottom-0 border-t">
           <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-6 py-4">
             {step > 0 ? (
-              <Button variant="outline" size="lg" onClick={() => goTo(step - 1)}>
+              <Button variant="outline" size="lg" disabled={saving} onClick={() => goTo(step - 1)}>
                 Back
               </Button>
             ) : (
@@ -206,13 +240,18 @@ export function OnboardingForm({
                   {error}
                 </p>
               )}
+              {last && (
+                <Button variant="outline" size="lg" disabled={saving} onClick={() => finish(null)}>
+                  Skip
+                </Button>
+              )}
               {/* lg and rectangular, as every page's one main action is
                   (KAN-251); the wizard's two buttons were pills. */}
               <Button
                 size="lg"
                 className="min-w-32"
                 disabled={!canNext || saving}
-                onClick={() => (last ? finish() : goTo(step + 1))}
+                onClick={() => (last ? finish(resume) : goTo(step + 1))}
               >
                 {saving ? "Saving…" : last ? "Continue" : "Next"}
               </Button>
