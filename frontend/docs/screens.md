@@ -537,8 +537,10 @@ URL (`?tab=job` for the second):
   side from 576px of card, stacked under it. It replaced three loose
   sections (facts, a floating match box, three stat boxes) that read as
   clutter. Under it, What You Sent lists every sent resume linked to the
-  posting, and says plainly that WorkIt does not keep the answers typed
-  into the employer's form: neither Apply nor auto apply stores them.
+  posting, or, with none, a dashed placeholder box (the upload dropzone's
+  outline) saying "No resume sent yet". It replaced two lines of
+  explanation. Neither Apply nor auto apply keeps the answers typed into
+  the employer's form, so the tab cannot show them.
 - **Job Description**: About the Role alone (`JobViewBody`'s
   `descriptionOnly`). The job page's sent and applied notes and its
   eligibility checklist stay off: they pushed the description down and are

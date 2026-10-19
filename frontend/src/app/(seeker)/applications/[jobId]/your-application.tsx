@@ -1,3 +1,4 @@
+import { FileIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
@@ -37,10 +38,6 @@ function daysBetween(from: string, to: string | Date) {
  * what the seeker sent, from what the API already keeps. No new
  * table: the stage and its dates are the application's row, the resumes are
  * the sent resumes linked to the job posting.
- *
- * WHAT IS NOT KEPT, SAID PLAINLY. Neither the Apply flow nor auto apply
- * stores the answers typed into the employer's form, so the tab says so
- * rather than leaving the seeker to wonder where they went.
  *
  * THE NUMBERS ARE ELAPSED DAYS, worked out on the server against the
  * request's time (`getNow`): how long the posting was up before the seeker
@@ -156,14 +153,13 @@ export function YourApplication({
             ))}
           </ul>
         ) : (
-          <p className="text-body text-ink-meta mt-3">
-            No resume went to this posting through WorkIt. Apply Now and auto apply keep the one
-            they send.
-          </p>
+          // A placeholder in the upload dropzone's dashed outline: the slot a
+          // sent resume fills, rather than a paragraph about why it's empty.
+          <div className="border-border-strong bg-well rounded-card mt-3 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
+            <FileIcon className="text-ink-meta size-5" />
+            <p className="text-body text-ink-meta">No resume sent yet</p>
+          </div>
         )}
-        <p className="text-note text-ink-meta mt-3">
-          WorkIt doesn&apos;t keep the answers typed into the employer&apos;s form yet.
-        </p>
       </Section>
     </>
   );
