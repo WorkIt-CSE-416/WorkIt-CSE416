@@ -23,7 +23,7 @@ import { getApplied, getJobListing, type JobListing } from "../listings";
 import { JobActionBar } from "./action-bar";
 import { ApplyButton } from "./apply-button";
 import { JobDescription } from "./description";
-import { EligibilityCard } from "./eligibility";
+import { KeyRequirementsCard } from "./key-requirements";
 import { AppliedNote, BackToJobs, MoreActions } from "./page-actions";
 import { SentNote } from "./sent-note";
 
@@ -136,7 +136,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
       {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
       {applied?.appliedAt && <AppliedNote at={applied.appliedAt} />}
 
-      <EligibilityCard jobId={job.id} />
+      <KeyRequirementsCard jobId={job.id} minYearsExperience={job.min_years_experience} />
 
       <Section title="About the Role">
         {/* The card names one place and how many more; here, all of them. */}
