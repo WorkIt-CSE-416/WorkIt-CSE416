@@ -680,7 +680,13 @@ def _said(key: str, line: str) -> str | None:
     # work in the UK" sat under "What you'll gain", and left the page with it.
     if key in ("logistics", INTRO, "role", "pay", *EXTRA) and _ELIGIBILITY.search(line):
         return "requirements"
-    if key in _JOB_KEYS and key != "pay" and _BENEFIT.search(line):
+    # A requirement can name a benefits product as domain experience.
+    if (
+        key in _JOB_KEYS
+        and key != "pay"
+        and _BENEFIT.search(line)
+        and not _REQUIRES.search(line)
+    ):
         return "benefits"
     if key in _JOB_KEYS and _applying(line):
         return "apply"

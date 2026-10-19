@@ -59,8 +59,9 @@ DESCRIPTION_CHARS = 8000
 #: 15: the HTML's list items and headings guide the sections, and a list item is
 #: stored as "• item" (`plain_lines`); with it, unreleased, a line moved by what it
 #: says and less job text hidden, and the learned headings (`docs/sections.md`).
-# Re-read lower-bound salary annotations and implicitly closed HTML lists.
-PAGE_VERSION = 16
+# 16: lower-bound salary annotations and implicitly closed HTML lists.
+# 17: preserve explicit requirements that mention benefits products.
+PAGE_VERSION = 17
 
 
 class BoardNotFound(Exception):
