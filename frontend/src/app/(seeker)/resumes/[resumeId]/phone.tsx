@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Pointer,
-  Sparkles,
   Undo2,
   X,
   ZoomIn,
@@ -14,6 +13,7 @@ import {
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate, RenderBox, RenderedPdf } from "@/lib/built-resume-actions";
@@ -247,7 +247,7 @@ export function PhoneEditor({
             </Button>
             {/* The primary action, filled as on the desktop bar. */}
             <Button onClick={() => setAsking(true)}>
-              <Sparkles /> Ask WorkIt
+              <SparkleIcon /> Ask WorkIt
             </Button>
           </div>
         </div>
@@ -312,7 +312,7 @@ export function PhoneEditor({
           <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
             {actions}
             <Button size="sm" onClick={() => setAsking(true)}>
-              <Sparkles /> Ask WorkIt About This Line
+              <SparkleIcon /> Ask WorkIt About This Line
             </Button>
           </div>
         </Sheet>

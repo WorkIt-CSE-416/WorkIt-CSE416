@@ -3,11 +3,11 @@
 import { MessageCircle, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { ArrowRightIcon, CloseIcon, SparkleIcon } from "@/components/icons";
+import { ArrowRightIcon, CloseIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
-import { Composer, Message, Typing } from "./chat";
+import { Composer, Message, Typing, WorkItMark } from "./chat";
 import { ReplyText } from "./reply-text";
 import { closeScout, sendToScout, useScout } from "./scout-store";
 import { SCOUT_SLOT_ID } from "./scout-takeover";
@@ -135,12 +135,9 @@ export function ScoutPanel() {
         )}
       >
         <header className="flex shrink-0 items-center gap-3 px-4 pt-4 pb-1">
-          <span
-            aria-hidden="true"
-            className="bg-brand-tint text-brand flex size-9 shrink-0 items-center justify-center rounded-full"
-          >
-            <SparkleIcon className="size-4" />
-          </span>
+          {/* The mark beside every line the assistant says, so the panel and
+              its chat wear one (KAN-257); a brand-tint circle stood here. */}
+          <WorkItMark />
           <div className="min-w-0">
             <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
             <p className="text-note text-ink-meta">

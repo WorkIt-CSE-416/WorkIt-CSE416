@@ -105,6 +105,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
+- **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
+  KAN-257): every Scout or AI control, and WorkIt's mark in the chat and
+  the panel header, draws it. An ESLint rule refuses Lucide's `Sparkles`
+  imported anywhere else; a hand-drawn sparkle beside Lucide's had given
+  the assistant two marks (`docs/design.md`, Brand and icons).
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -268,8 +273,10 @@ are in `docs/auth.md`.
 section, card and dialog headings; empty-state titles; buttons and links that
 act as actions; menu items; tabs and segments; filter and field labels and
 their options; column headers; badges, pills and stage names; and an
-accessible name with no visible text. Sentence case only for helper text,
-descriptions and subtitles, tooltips (so an icon button's label too),
+accessible name with no visible text. A tooltip that only pairs a name with
+its status is two labels, so Title Case too: intake's step chips say
+"Projects · Not Started" (KAN-257). Sentence case only for helper text,
+descriptions and subtitles, other tooltips (so an icon button's label too),
 placeholders, empty-state body copy, error and validation messages, and a
 measured value or annotation outside a badge ("Over 7 days", "vs last week").
 Fixture data stays as written. A label that doubles as a value, like the

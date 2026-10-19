@@ -1,7 +1,7 @@
-import { Ban, CloudOff, Sparkles } from "lucide-react";
+import { Ban, CloudOff } from "lucide-react";
 
 import { AutofillBadge } from "@/components/autofill-badge";
-import { ExternalLinkIcon } from "@/components/icons";
+import { ExternalLinkIcon, SparkleIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -122,7 +122,7 @@ export function ListingCard({
             variant="secondary"
             size="sm"
           >
-            <Sparkles className="size-4" />
+            <SparkleIcon className="size-4" />
             {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
           </ButtonLink>
 
