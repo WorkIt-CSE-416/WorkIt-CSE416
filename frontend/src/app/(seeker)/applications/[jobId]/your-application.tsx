@@ -94,7 +94,9 @@ export function YourApplication({
         aria-label="Your Application"
         className={cn("@container mt-6", STAGE_COLOR[app.stage].panel)}
       >
-        <div className="flex flex-col gap-4 @xl:flex-row @xl:items-start">
+        {/* Stretched, not top-aligned: the match box runs the full height of the
+            left side, so it never stops short and leaves an empty corner. */}
+        <div className="flex flex-col gap-4 @xl:flex-row">
           <div className="min-w-0 flex-1">
             {/* The stage as the board's column headers drew it: its glyph on
                 a solid disc, then its name. A badge's fill is the card's own
@@ -134,12 +136,18 @@ export function YourApplication({
             <Timeline steps={timeline(app, sent)} horizontal className="mt-5" />
 
             {/* The counts: a figure over its words, a rounded white box
-                each. */}
+                each. justify-end puts the figure at the top (the column is
+                reversed), so the figures line up when one label wraps. */}
             <dl className={cn("mt-5 grid gap-3", COLUMNS[stats.length])}>
               {stats.map(({ label, days }) => (
                 // The figure first to the eye, the words first to a screen
                 // reader (a <dt> leads its <dd>).
-                <Card key={label} padding="md" elevated={false} className="flex flex-col-reverse">
+                <Card
+                  key={label}
+                  padding="md"
+                  elevated={false}
+                  className="flex flex-col-reverse justify-end"
+                >
                   <dt className="text-note text-ink-meta mt-0.5">{label}</dt>
                   <dd className="text-title text-ink font-bold tabular-nums">{days}</dd>
                 </Card>
@@ -152,8 +160,9 @@ export function YourApplication({
               score={app.match}
               highlights={app.highlights ?? []}
               standalone
-              // A rounded white box on the tinted card, like the counts.
-              className="bg-panel"
+              // A rounded white box on the tinted card, like the counts, its
+              // ring and reasons centred in the stretched height.
+              className="bg-panel @xl:justify-center"
             />
           )}
         </div>
