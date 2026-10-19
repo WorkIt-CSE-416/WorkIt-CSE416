@@ -247,6 +247,14 @@ export function putBack(item: TrayItem): ChoicesUpdate {
 }
 
 /** The page-count chip: "1 page", or "2 pages · 3 lines over 1 page". */
+/** The phone's short count, "3 lines over" (or "2 pages" with no estimate),
+ *  for its top bar beside the back arrow. */
+export function shortPageLabel(pages: number, linesOver: number) {
+  return linesOver > 0
+    ? `${linesOver} ${linesOver === 1 ? "line" : "lines"} over`
+    : `${pages} pages`;
+}
+
 export function pageLabel(pages: number, linesOver: number) {
   if (pages <= 1) return "1 page";
   const over =

@@ -160,9 +160,12 @@ class application_stage(enum.StrEnum):
     Auto apply moves it (auto-apply/architecture.md, "The run"): queued by a
     batch or a job's Auto Apply button, then applied when the student clicks
     Submitted, skipped when they click Skip, needs_you when the fill failed.
-    The Applied button sets applied straight away. A new value is an
-    ALTER TYPE and a coordinated deploy (models/CLAUDE.md)
+    The Applied button sets applied straight away. Save sets saved (KAN-261),
+    which counts as no application yet: queueing or applying moves it on. A
+    new value is an ALTER TYPE and a coordinated deploy (models/CLAUDE.md)
     '''
+    # added by 17ea74fa4573
+    saved= "saved"
     queued= "queued"
     needs_you= "needs_you"
     skipped= "skipped"

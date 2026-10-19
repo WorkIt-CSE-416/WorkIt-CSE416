@@ -150,12 +150,12 @@ The model is the parser's upgrade path, and it is built: import's model
 parsing (`app/services/bank_import.py`, `read_with_model`) sends the stored
 `raw_text` and the `ModelReading` schema through `LLM.complete_json`, the
 provider seam that removes identity data from every message first. It runs
-when the student asks ("Read It Again with AI", `read_with_ai: true`) and as
-the fallback when this parser finds no entries. Rules:
+only when the student asks ("Read It With AI", Import Again's
+`read_with_ai: true`), never as a fallback (ADR 0003). Rules:
 
-- **This parser stays first and stays free.** The model costs a parsing use
-  (cap 1 a day, 10% of the pool), so it only runs on request or after this
-  parser finds nothing. A resume that parses wrong still becomes a fixture
+- **This parser stays first and stays free.** Every upload and every plain
+  Import Again runs it alone; the model costs a parsing use (cap 1 a day,
+  10% of the pool), so it waits for the student's click. A resume that parses wrong still becomes a fixture
   here before the parser changes; the model is not a reason to stop fixing it.
 - **The model's reading is checked, never trusted.** `ModelReading` is loose so
   one odd field does not throw away the whole reply (a `null` list, which
@@ -166,8 +166,9 @@ the fallback when this parser finds no entries. Rules:
 - **It never sees links.** URLs reach the model as `[link]`, so the model
   schema has no `link` field and a field holding a placeholder is emptied.
   Project links come only from this parser.
-- `parsed_json` on upload is still this parser alone; the model reads only
-  through import, which writes nothing.
+- Either reading goes straight into the experience bank through
+  `services/bank.py`'s `merge_import`; nothing keeps the reading itself
+  (`resumes.parsed_json` was dropped in KAN-240).
 
 ## Text extraction (lives in `app/routers/resumes.py`, not here)
 

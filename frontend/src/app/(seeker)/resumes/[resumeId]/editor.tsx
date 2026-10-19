@@ -1,11 +1,10 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, EyeOff, Scissors, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, EyeOff, MousePointerClick, Undo2 } from "lucide-react";
 import localFont from "next/font/local";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SparkleIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TextLink } from "@/components/ui/text-link";
 import { updateEntry, type Bank } from "@/lib/bank-actions";
@@ -22,7 +21,14 @@ import {
 import { cn } from "@/lib/cn";
 import { updateProfile } from "@/lib/profile-actions";
 
+import {
+  DownloadMenu,
+  DownloadNotes,
+  useResumeDownload,
+  type ResumeDownload,
+} from "../download-menu";
 import { Assistant } from "./assistant";
+import { FitNotice, FitToast } from "./fit-notice";
 import {
   ENTRY_CODECS,
   HEADER_CODECS,
@@ -141,6 +147,23 @@ export function Editor({
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [fitUndo, setFitUndo] = useState<ChoicesUpdate | null>(null);
+  // The resume's PDF and Word downloads, here since KAN-258 (../download-menu.tsx)
+  const download = useResumeDownload(resumeId);
+  // Over one page, a toast says so when the editor opens and again when an
+  // edit pushes the resume over (./fit-notice.tsx, KAN-258). The last count
+  // is kept in state, so the change is caught while rendering, not after.
+  const over = rendered.page_count > 1;
+  const [toast, setToast] = useState(over);
+  const [wasOver, setWasOver] = useState(over);
+  if (over !== wasOver) {
+    setWasOver(over);
+    setToast(over);
+  }
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(false), 10_000);
+    return () => clearTimeout(timer);
+  }, [toast]);
   const latest = useRef(0);
   const started = useRef<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -434,44 +457,63 @@ export function Editor({
     />
   );
 
+  // A phone shows it only with no line's sheet open, which it would cover.
+  const fitToast = toast && !(phone && selected) && (
+    <FitToast
+      pages={rendered.page_count}
+      linesOver={rendered.lines_over}
+      disabled={saving}
+      onFit={() => {
+        setToast(false);
+        fit();
+      }}
+      onClose={() => setToast(false)}
+      className={phone ? "inset-x-4 bottom-24" : "right-6 bottom-6 w-[22rem]"}
+    />
+  );
+
   if (phone) {
     const start = line && startText(line);
     return (
-      <PhoneEditor
-        rendered={rendered}
-        bank={bank}
-        choices={choices}
-        selected={selected}
-        line={line}
-        box={box}
-        text={start == null ? null : draft?.key === selected ? draft.text : start}
-        saving={saving}
-        elapsed={elapsed}
-        error={error}
-        fitUndo={fitUndo}
-        actions={
-          line && (
-            <LineActions
-              line={line}
-              choices={choices}
-              header={header}
-              onApply={apply}
-              onSaveHeader={saveHeader}
-              onHide={hide}
-              up={move(bank, choices, line, -1)}
-              down={move(bank, choices, line, 1)}
-            />
-          )
-        }
-        assistant={assistant(undefined, "h-full rounded-none ring-0")}
-        onSelect={select}
-        onType={(text) => selected && type(selected, text)}
-        onFlush={flush}
-        onApply={apply}
-        onFit={fit}
-        onUndoFit={undoFit}
-        onDrawn={drawn}
-      />
+      <>
+        <PhoneEditor
+          rendered={rendered}
+          bank={bank}
+          choices={choices}
+          selected={selected}
+          line={line}
+          box={box}
+          text={start == null ? null : draft?.key === selected ? draft.text : start}
+          saving={saving}
+          elapsed={elapsed}
+          error={error}
+          fitUndo={fitUndo}
+          download={download}
+          actions={
+            line && (
+              <LineActions
+                line={line}
+                choices={choices}
+                header={header}
+                onApply={apply}
+                onSaveHeader={saveHeader}
+                onHide={hide}
+                up={move(bank, choices, line, -1)}
+                down={move(bank, choices, line, 1)}
+              />
+            )
+          }
+          assistant={assistant(undefined, "h-full rounded-none ring-0")}
+          onSelect={select}
+          onType={(text) => selected && type(selected, text)}
+          onFlush={flush}
+          onApply={apply}
+          onFit={fit}
+          onUndoFit={undoFit}
+          onDrawn={drawn}
+        />
+        {fitToast}
+      </>
     );
   }
 
@@ -493,6 +535,7 @@ export function Editor({
           saving={saving}
           elapsed={elapsed}
           fitUndo={fitUndo}
+          download={download}
           onApply={apply}
           onSaveHeader={saveHeader}
           onClose={() => select(null)}
@@ -505,6 +548,7 @@ export function Editor({
             {error}
           </p>
         )}
+        <DownloadNotes download={download} />
         <div
           ref={pages}
           data-keeps-selection
@@ -534,13 +578,15 @@ export function Editor({
       >
         {assistant(() => setAsking(false), "animate-rise h-full")}
       </div>
+      {fitToast}
     </div>
   );
 }
 
 /** The sticky bar above the page: the selected line's actions, or the
- *  page-count chip and Fit to One Page. Sticky, so a line's actions never
- *  cover the lines around it (user story 63). */
+ *  page-count chip and Fit to One Page, then Download and Ask WorkIt at its
+ *  end. Sticky, so a line's actions never cover the lines around it (user
+ *  story 63), and Download stays in reach down a two-page resume. */
 function Bar({
   line,
   box,
@@ -551,6 +597,7 @@ function Bar({
   saving,
   elapsed,
   fitUndo,
+  download,
   onApply,
   onSaveHeader,
   onClose,
@@ -567,6 +614,7 @@ function Bar({
   saving: boolean;
   elapsed: number | null;
   fitUndo: ChoicesUpdate | null;
+  download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
   onSaveHeader: (changes: Partial<Header>) => void;
   onClose: () => void;
@@ -578,7 +626,10 @@ function Bar({
   return (
     <div
       data-keeps-selection
-      className="bg-surface/95 ring-border-subtle sticky top-2 z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-2xl p-1.5 pl-3 shadow-sm ring-1 backdrop-blur"
+      // The brand tint, not the surface: a secondary button is filled with
+      // the surface colour, so on a surface bar Download and Done showed only
+      // as outlines (KAN-258).
+      className="bg-brand-tint/95 ring-brand-pale sticky top-2 z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-2xl p-1.5 pl-3 shadow-sm ring-1 backdrop-blur"
       // A press on a button keeps focus in the field, so it does not blur and save first
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).closest("button")) e.preventDefault();
@@ -606,31 +657,44 @@ function Bar({
         </>
       ) : (
         <>
-          <Badge tone={rendered.page_count <= 1 ? "positive" : "warning"}>
-            {rendered.page_count <= 1 && <Check className="mr-1 size-3" />}
-            {pageLabel(rendered.page_count, rendered.lines_over)}
-          </Badge>
+          {/* The way in, first and in ink with a brand glyph: as a grey note
+              after the page count it read as fine print (KAN-258). */}
+          <span className="text-label text-ink flex items-center gap-1.5 font-medium">
+            <MousePointerClick aria-hidden className="text-brand size-4 shrink-0" />
+            Click a line to edit it.
+          </span>
+          {/* The page count only when it is a problem, joined to its fix. A
+              green "1 page" said what the page itself shows, and stood
+              apart from everything else in the bar (KAN-258). */}
           {rendered.page_count > 1 && (
-            <Button variant="outline" size="sm" onClick={onFit} disabled={saving}>
-              <Scissors /> Fit to One Page
-            </Button>
+            <FitNotice
+              label={pageLabel(rendered.page_count, rendered.lines_over)}
+              onFit={onFit}
+              disabled={saving}
+            />
           )}
           {fitUndo && (
             <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
               <Undo2 /> Undo
             </Button>
           )}
-          <span className="text-note text-ink-meta">Click a line to edit it.</span>
         </>
       )}
-      <span className="text-note text-ink-meta ml-auto pr-2" aria-live="polite">
-        {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
-      </span>
-      {onAsk && (
-        <Button variant="outline" size="sm" onClick={onAsk}>
-          <SparkleIcon /> Ask WorkIt
-        </Button>
-      )}
+      {/* The bar's end wraps as one, so on a narrow page Download and Ask
+          WorkIt stay together at the right rather than Ask WorkIt alone. */}
+      <div className="ml-auto flex items-center gap-2">
+        <span className="text-note text-ink-meta pr-2" aria-live="polite">
+          {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
+        </span>
+        <DownloadMenu download={download} />
+        {/* The editor's primary action, so the brand fill: it was an outline,
+            as quiet as Fit to One Page (KAN-258). */}
+        {onAsk && (
+          <Button size="sm" onClick={onAsk}>
+            <SparkleIcon /> Ask WorkIt
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

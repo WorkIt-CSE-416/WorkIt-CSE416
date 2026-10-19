@@ -27,6 +27,7 @@ import {
   getJobLocations,
   getRecommendedPage,
   getSavedFilters,
+  getTailoredJobIds,
   type FeedPage,
 } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
@@ -76,11 +77,17 @@ function recommendedHref(filters: FeedFilters): string {
  * cover /jobs/[jobId].
  */
 async function Feed({ filters, view }: { filters: FeedFilters; view: View }) {
-  // The seeker's applications beside the first page, for the cards' Auto
-  // Apply buttons: started now, awaited with whichever page is drawn.
+  // The seeker's applications and tailored resumes beside the first page,
+  // for the cards' Auto Apply and Tailor buttons: started now, awaited with
+  // whichever page is drawn.
   const stages = getApplicationStages();
+  const tailored = getTailoredJobIds();
   if (view === "recommended") {
-    const [page, byJob] = await Promise.all([getRecommendedPage(filtersQuery(filters), 0), stages]);
+    const [page, byJob, tailoredIds] = await Promise.all([
+      getRecommendedPage(filtersQuery(filters), 0),
+      stages,
+      tailored,
+    ]);
     if (page) {
       // `view=recommended` in Load More's query keeps its kept pages apart
       // from the plain feed's (./feed-list).
@@ -92,13 +99,14 @@ async function Feed({ filters, view }: { filters: FeedFilters; view: View }) {
           query={query}
           retryHref={recommendedHref(filters)}
           stages={byJob}
+          tailored={tailoredIds}
         />
       );
     }
   }
   // An empty bank (the API's 404) shows the plain feed; BankPrompt above it
   // already asks the student to fill the bank.
-  const [page, byJob] = await Promise.all([getJobListings(filters), stages]);
+  const [page, byJob, tailoredIds] = await Promise.all([getJobListings(filters), stages, tailored]);
   return (
     <Results
       page={page}
@@ -106,6 +114,7 @@ async function Feed({ filters, view }: { filters: FeedFilters; view: View }) {
       query={filtersQuery(filters)}
       retryHref={`/jobs${filtersQuery(filters)}`}
       stages={byJob}
+      tailored={tailoredIds}
       plain
     />
   );
@@ -117,6 +126,7 @@ function Results({
   query,
   retryHref,
   stages,
+  tailored,
   plain = false,
 }: {
   page: FeedPage;
@@ -124,6 +134,7 @@ function Results({
   query: string;
   retryHref: string;
   stages: Record<string, ApplicationStage>;
+  tailored: string[];
   /** The plain feed's Load More rather than the scored one's. */
   plain?: boolean;
 }) {
@@ -160,6 +171,7 @@ function Results({
         more={more}
         query={query}
         stages={stages}
+        tailored={tailored}
         source={plain ? "feed" : "recommended"}
       />
     </>

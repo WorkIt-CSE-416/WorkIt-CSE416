@@ -1,33 +1,53 @@
 """
-The jobs an applicant has marked as applied (KAN-232), one job_applications
-row each. The job posting's page reads and sets it with its Applied button;
-GET /jobs, /jobs/count and /jobs/recommended leave those jobs out for that
-applicant (queries/jobs/filters.py, JobFilters.applied_by).
+The jobs an applicant has marked as applied (KAN-232) or saved (KAN-261), one
+job_applications row each. The job posting's page reads and sets the first
+with its Applied button, and every job surface the second with its Save
+button. GET /jobs, /jobs/count and /jobs/recommended leave the applied jobs
+out for that applicant (queries/jobs/filters.py, JobFilters.applied_by); a
+saved job stays in, with its Save button filled.
 
 GET  /jobs/{job_id}/applied  {"applied_at": null} until the applicant marks it.
 POST /jobs/{job_id}/applied  marks it, and answers when. A job queued for
                              auto apply becomes applied. Marking it again
                              keeps the first date: the day they applied
-                             doesn't move.
+                             doesn't move. A saved job becomes applied.
+POST   /jobs/{job_id}/saved  the Save button: keeps the job as saved and
+                             answers {"stage": "saved"}. A job that already
+                             has an application keeps it and answers that
+                             stage (queued, applied...): saving never moves
+                             one back.
+DELETE /jobs/{job_id}/saved  takes it back out of saved: 204, and also when
+                             it was never saved. 409 when it is past saved
+                             (queued, applied...): that is a record, not a
+                             bookmark.
+
+The Applications board reads saved and applied jobs through auto apply's
+list, GET /applicants/{id}/applications?stage=saved&stage=applied
+(routers/auto_apply.py).
 
 Applicant accounts only (403 for a company's); the applicant is the token's,
 never a path or body field. A job that isn't open (closed, a company's own,
-no such job) is a 404 to mark, as GET /jobs/{job_id} is to read.
+no such job) is a 404 to mark or save, as GET /jobs/{job_id} is to read.
 
-Its own router, beside jobs.py's, for the same /jobs prefix: the two paths
+Its own router, beside jobs.py's, for the same /jobs prefix: the paths
 here have one more segment than GET /jobs/{job_id}, so neither shadows the
 other whatever the order they're registered in.
 """
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.deps import get_current_account
-from app.queries.applications import fetch_applied_at, mark_applied
-from app.schemas.applications import JobApplied
+from app.queries.applications import (
+    fetch_applied_at,
+    mark_applied,
+    save_job,
+    unsave_job,
+)
+from app.schemas.applications import JobApplied, JobSaved
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter(prefix="/jobs", tags=["applications"])
@@ -62,3 +82,33 @@ async def post_applied(
     if applied_at is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That job isn't open any more.")
     return JobApplied(applied_at=applied_at)
+
+
+@router.post("/{job_id}/saved", response_model=JobSaved)
+async def post_saved(
+    job_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> JobSaved:
+    """Saves this job for the signed-in applicant."""
+    applicant_id = _applicant_only(account)
+    stage = await save_job(db, applicant_id, job_id)
+    if stage is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That job isn't open any more.")
+    return JobSaved(stage=stage)
+
+
+@router.delete("/{job_id}/saved", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_saved(
+    job_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> Response:
+    """Takes this job out of the signed-in applicant's saved jobs."""
+    applicant_id = _applicant_only(account)
+    stage = await unsave_job(db, applicant_id, job_id)
+    if stage is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"That job is {stage}, so it stays in your applications."
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

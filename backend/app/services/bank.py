@@ -11,7 +11,8 @@ place:
   it. A later bullet-variant change must not call it: variants never reach
   the embedding.
 - The duplicate check (`find_duplicate`) matches section, title and
-  organization, ignoring case. Import and intake use it to flag drafts.
+  organization, ignoring case. Intake uses it to flag a draft; import
+  (`merge_import`) merges into the entry it finds.
 - A skill link (KAN-216) joins a skill to an entry of the same applicant.
   Adding or removing one does not clear the embedding: the embedding text
   holds skills and entries, never which skill goes with which entry.
@@ -26,6 +27,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,6 +43,7 @@ from app.models.dto import bank_section, entry_end_kind
 from app.schemas.bank import (
     BankResponse,
     BulletResponse,
+    EntryCreate,
     EntryFields,
     EntryResponse,
     SkillResponse,
@@ -364,6 +367,96 @@ async def delete_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id:
     await session.delete(await _owned_skill(session, applicant_id, skill_id))
     await clear_embedding(session, applicant_id)
     await session.flush()
+
+
+@dataclass
+class Merged:
+    """What `merge_import` changed in the bank."""
+
+    entries_added: int = 0
+    entries_updated: int = 0
+    skills_added: int = 0
+
+
+# An import fills these only when the bank entry has none of them, so a merge
+# never pairs one resume's start with another resume's end.
+_DATES = ("start_month", "end_month", "end_kind")
+# EntryCreate's cap on bullets, kept when a merge appends to an entry.
+_MAX_BULLETS = 30
+
+
+def _blank(value: object) -> bool:
+    return value is None or value == []
+
+
+def _same_words(text: str) -> str:
+    return " ".join(text.split()).lower()
+
+
+async def _merge_entry(session: AsyncSession, applicant_id: uuid.UUID, existing: Entry, draft: EntryCreate) -> bool:
+    """Give a bank entry the fields it has empty and the bullets it lacks
+    (ignoring case and spacing). A field the bank holds keeps its value: the
+    student may have fixed it. True when anything changed."""
+    row = existing.row
+    changes = {
+        name: getattr(draft, name)
+        for name in EntryFields.model_fields
+        if name not in _DATES and _blank(getattr(row, name)) and not _blank(getattr(draft, name))
+    }
+    if all(getattr(row, name) is None for name in _DATES) and any(getattr(draft, name) for name in _DATES):
+        changes.update({name: getattr(draft, name) for name in _DATES})
+    changed = False
+    if changes:
+        try:
+            await update_entry(session, applicant_id, row.id, changes)
+            changed = True
+        except ValidationError:
+            # The filled fields clash with the kept ones (a GPA above the
+            # bank's scale): the entry stays as it was, the bullets still go in.
+            pass
+    have = {_same_words(b.text) for b in existing.bullets}
+    room = _MAX_BULLETS - len(existing.bullets)
+    for text in draft.bullets:
+        if room <= 0:
+            break
+        if _same_words(text) in have:
+            continue
+        have.add(_same_words(text))
+        await add_bullet(session, applicant_id, row.id, text)
+        room -= 1
+        changed = True
+    return changed
+
+
+async def merge_import(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    entries: Sequence[EntryCreate],
+    skills: Sequence[tuple[str, str | None]],
+) -> Merged:
+    """Write an import into the bank (ADR 0003). An entry the bank lacks is
+    added; one that `find_duplicate` matches is merged, never copied, so
+    several resumes add up to one bank. A skill is added when the bank has
+    none of that name, ignoring case."""
+    merged = Merged()
+    for draft in entries:
+        existing = await find_duplicate(session, applicant_id, draft.section, draft.title, draft.organization)
+        if existing is None:
+            await create_entry(session, applicant_id, draft, draft.bullets, allow_duplicate=True)
+            merged.entries_added += 1
+        elif await _merge_entry(session, applicant_id, existing, draft):
+            merged.entries_updated += 1
+    taken = {
+        name.lower()
+        for name in await session.scalars(select(Bank_Skill.name).where(Bank_Skill.applicant_id == applicant_id))
+    }
+    for name, group in skills:
+        if name.lower() in taken:
+            continue
+        taken.add(name.lower())
+        await add_skill(session, applicant_id, name, group)
+        merged.skills_added += 1
+    return merged
 
 
 async def linked_entry_ids(session: AsyncSession, skill_id: uuid.UUID) -> list[uuid.UUID]:

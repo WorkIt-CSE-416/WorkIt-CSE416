@@ -17,6 +17,9 @@ export type BuiltResume = {
   job_posting_id: string | null;
   is_default: boolean;
   created_at: string;
+  /** The last change to the resume itself (what shows, its order, its
+   *  wording or its name); `created_at` until the first one (KAN-258). */
+  edited_at: string;
   /** A tailored resume whose posting the Jobs page no longer lists. */
   posting_closed: boolean;
 };
@@ -58,10 +61,22 @@ export async function listBuiltResumes(): Promise<Result<BuiltResume[]>> {
   return call<BuiltResume[]>("");
 }
 
-/** Generate: a base resume with everything in the bank. Refused (the
- *  API's message in `error`) when the student already has 5 resumes. */
+/** Generate: a base resume with everything in the bank, "Resume #N" when
+ *  no name is given. Refused (the API's message in `error`) when the
+ *  student already has 5 resumes. */
 export async function generateResume(name?: string): Promise<Result<BuiltResume>> {
   return call<BuiltResume>("", { method: "POST", body: JSON.stringify(name ? { name } : {}) });
+}
+
+/** A new name for the resume (KAN-258); its sent resumes keep theirs. */
+export async function renameBuiltResume(
+  resumeId: string,
+  name: string,
+): Promise<Result<BuiltResume>> {
+  return call<BuiltResume>(`/${id(resumeId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
 }
 
 export async function deleteBuiltResume(resumeId: string): Promise<{ error: string | null }> {

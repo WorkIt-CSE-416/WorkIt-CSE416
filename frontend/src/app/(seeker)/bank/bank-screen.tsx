@@ -26,6 +26,7 @@ import {
   type Skill,
 } from "@/lib/bank-actions";
 
+import { DeleteConfirm } from "../resumes/delete-confirm";
 import { EntryEditor } from "./entry-editor";
 import { editSteps, type SaveStep } from "./entry-save";
 import { Intake, type IntakeFocus } from "./intake";
@@ -419,20 +420,14 @@ function EntryView({
       )}
 
       {confirming && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-note text-ink-muted">
-            Delete this entry and its bullets?{" "}
-            {confirming.resumes === 0
-              ? "No built resume shows it."
-              : `It comes off ${confirming.resumes === 1 ? "the 1 built resume" : `all ${confirming.resumes} built resumes`} that show it.`}
-          </span>
-          <Button size="sm" variant="destructive" onClick={remove}>
-            Delete Entry
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => setConfirming(null)}>
-            Keep It
-          </Button>
-        </div>
+        <DeleteConfirm label="Delete Entry" onDelete={remove} onKeep={() => setConfirming(null)}>
+          Delete this entry and its bullets?{" "}
+          {confirming.resumes === 0
+            ? "No built resume shows it."
+            : confirming.resumes === 1
+              ? "It comes off the 1 built resume that shows it."
+              : `It comes off all ${confirming.resumes} built resumes that show it.`}
+        </DeleteConfirm>
       )}
       {error && (
         <p role="alert" className="text-note text-danger mt-1">

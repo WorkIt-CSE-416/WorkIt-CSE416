@@ -5,6 +5,7 @@ Tectonic; the PDF render's own tests are in test_resume_render.py, and the
 render route's tests below skip without Tectonic (backend/CLAUDE.md, Tests).
 """
 
+import datetime
 import uuid
 
 import httpx
@@ -65,7 +66,7 @@ async def test_generate_makes_a_base_resume_the_list_reads_back(student):
     assert made["name"] == "General SWE"
     assert made["template"] == "jakes"
     assert made["job_posting_id"] is None
-    assert made["is_default"] is False
+    assert made["is_default"] is True  # the student's only resume
 
     listed = (await client.get(f"{me}/built-resumes")).json()
     assert [(r["id"], r["name"]) for r in listed] == [(made["id"], "General SWE")]
@@ -300,8 +301,12 @@ async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monke
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
     monkeypatch.setattr("app.routers.resumes._extract", _no_text)
     client, me = student
-    uploaded = (await _upload(client, me)).json()["id"]
+    upload = (await _upload(client, me)).json()
+    uploaded = upload["id"]
+    assert upload["is_default"] is True  # the student's only resume
     built = await _generate(client, me)
+    # A second resume leaves the default where it was.
+    assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [False]
 
     assert (await client.put(f"{me}/resumes/{uploaded}/default")).status_code == 200
     assert (await client.put(f"{me}/built-resumes/{built}/default")).status_code == 200
@@ -312,10 +317,15 @@ async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monke
     assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [False]
     assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [True]
 
-    # Deleting the default base resume leaves no default.
+    # Deleting the default base resume makes the one left the default.
     await client.put(f"{me}/built-resumes/{built}/default")
     await client.delete(f"{me}/built-resumes/{built}")
-    assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [False]
+    assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [True]
+
+    # And deleting an uploaded resume makes the base resume left the default.
+    built = await _generate(client, me)
+    await client.delete(f"{me}/resumes/{uploaded}")
+    assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [True]
 
 
 async def test_an_entry_says_how_many_built_resumes_show_it(student, database):
@@ -456,3 +466,53 @@ async def test_recommendations_work_when_the_default_is_a_base_resume(student, m
 
     # The recommender reads the bank (KAN-212), whichever resume is the default.
     assert (await client.get(f"/jobs/recommended/{applicant_id}")).status_code == 200
+
+
+def _at(value: str) -> datetime.datetime:
+    return datetime.datetime.fromisoformat(value)
+
+
+async def test_a_resume_made_with_no_name_is_numbered_past_the_highest_in_use(student):
+    """KAN-258: every resume made with no name was "Base Resume"."""
+    client, me = student
+    first = (await client.post(f"{me}/built-resumes", json={})).json()
+    second = (await client.post(f"{me}/built-resumes", json={})).json()
+    assert (first["name"], second["name"]) == ("Resume #1", "Resume #2")
+
+    # A deleted number is not handed out again while a higher one is left.
+    assert (await client.delete(f"{me}/built-resumes/{first['id']}")).status_code == 204
+    assert (await client.post(f"{me}/built-resumes", json={})).json()["name"] == "Resume #3"
+
+
+async def test_rename_changes_the_name_and_frees_its_number(student):
+    client, me = student
+    resume_id = (await client.post(f"{me}/built-resumes", json={})).json()["id"]
+
+    res = await client.patch(f"{me}/built-resumes/{resume_id}", json={"name": "  Data Science  "})
+    assert res.status_code == 200
+    renamed = res.json()
+    assert renamed["name"] == "Data Science"
+    assert _at(renamed["edited_at"]) > _at(renamed["created_at"])
+    assert [r["name"] for r in (await client.get(f"{me}/built-resumes")).json()] == ["Data Science"]
+
+    assert (await client.patch(f"{me}/built-resumes/{resume_id}", json={"name": "   "})).status_code == 422
+    assert (await client.patch(f"{me}/built-resumes/{uuid.uuid4()}", json={"name": "X"})).status_code == 404
+    # No resume holds "Resume #1" any more, so the next one takes it.
+    assert (await client.post(f"{me}/built-resumes", json={})).json()["name"] == "Resume #1"
+
+
+async def test_edited_at_is_created_at_until_the_resume_itself_changes(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    made = (await client.get(f"{me}/built-resumes")).json()[0]
+    assert _at(made["edited_at"]) == _at(made["created_at"])
+
+    bank = (await client.get(f"{me}/bank")).json()
+    bullet = next(e for e in bank["entries"] if e["title"] == "Software Intern")["bullets"][0]["id"]
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                             json={"bullets": [{"bullet_id": bullet, "shown": False}]})
+    assert res.status_code == 200
+
+    edited = (await client.get(f"{me}/built-resumes")).json()[0]
+    assert _at(edited["edited_at"]) > _at(edited["created_at"])

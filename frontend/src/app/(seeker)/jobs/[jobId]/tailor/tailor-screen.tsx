@@ -81,8 +81,8 @@ export function TailorScreen({
         <h2 className="text-subtitle text-ink">Saved: {result.resume.name}</h2>
         <MatchCount matched={result.matched} missing={result.missing} />
         <p className="text-body text-ink-muted mt-2">
-          Your tailored resume is with your base resumes, under Resumes. Download it there as a PDF
-          or a Word file.
+          Your tailored resume is under Resumes, in Tailored Resumes. Open it there to download it
+          as a PDF or a Word file.
         </p>
         <div className="mt-3 flex gap-3">
           <ButtonLink href="/resumes" size="sm">

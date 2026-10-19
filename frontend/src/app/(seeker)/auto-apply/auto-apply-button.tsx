@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { openNextApplication, showRunTab, useRunnerJob } from "@/lib/autofill-extension";
 
-import { dequeueJob, queueJob, type ApplicationStage } from "./actions";
+import { dequeueJob, queueJob, type ApplicationStage, type RunStage } from "./actions";
 import { openedNote } from "./opened-note";
 
 /** What the button says once the job posting has an application. */
-const STAGE_LABEL: Record<ApplicationStage, string> = {
+const STAGE_LABEL: Record<RunStage, string> = {
   queued: "Queued",
   needs_you: "Needs You",
   skipped: "Skipped",
@@ -26,7 +26,8 @@ const STAGE_LABEL: Record<ApplicationStage, string> = {
  * queueJob), and the Auto Apply page lists it in Live Activity.
  *
  * `stage` is the application the server read as it drew the page (null:
- * none). With one, the button names its stage. Queued is a toggle: a second
+ * none). A saved job (its Save button, KAN-261) counts as none: a click
+ * queues it. With one, the button names its stage. Queued is a toggle: a second
  * click takes the job out of the queue (dequeueJob) and the button reads
  * Auto Apply again. Any later stage is off: needs you, skipped and applied
  * are what happened, not a plan, so the button never undoes them. A stale
@@ -52,7 +53,7 @@ export function AutoApplyButton({
   jobId,
   title,
   company,
-  stage: saved,
+  stage: initial,
 }: {
   jobId: string;
   title: string;
@@ -60,7 +61,7 @@ export function AutoApplyButton({
   stage: ApplicationStage | null;
 }) {
   const toast = useToast();
-  const [stage, setStage] = useState(saved);
+  const [stage, setStage] = useState<RunStage | null>(initial === "saved" ? null : initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   // One click at a time: `disabled={pending}` lands a render late, so a

@@ -303,11 +303,14 @@ finished the contract: its code reads `job_role_tags` instead, and
 `824f0b2e3d84` drops both columns, applied only **after** that code is
 deployed (`backend/CLAUDE.md`, Commands).
 
-### 5.5 `job_applications`, one row per job posting an applicant applied to (KAN-232)
+### 5.5 `job_applications`, one row per job posting an applicant saved or applied to (KAN-232, KAN-261)
 
 An applicant id and a job posting id, with a `stage`, `created_at` and
 `applied_at`. The applicant writes an `applied` row with the Applied button
-on the job posting's page (section 7.2). Auto apply writes `queued` rows and
+on the job posting's page (section 7.2), and a `saved` row with a Save button
+(on the card and the page). A saved row counts as no application yet: the
+Applied button or auto apply moves it on, and saving never moves a later
+stage back. Auto apply writes `queued` rows and
 moves them to `applied`, `skipped` or `needs_you`
 (`auto-apply/architecture.md`, "Data model"); `applied_at` stays empty until
 the applicant applies. A join table, not an array of applicant ids on the job
@@ -322,7 +325,7 @@ Deleting the applicant or the job posting deletes its rows.
 All public, no sign-in needed (they serve public job postings). A signed-in
 applicant's token is read when sent: `GET /jobs`, `/jobs/count` and
 `/jobs/recommended` then leave out the job postings that applicant marked as
-applied (stage `applied`; a job only queued for auto apply stays in). Without a token, or with a bad or company one, nothing is left out.
+applied (stage `applied`; a job only saved, or queued for auto apply, stays in). Without a token, or with a bad or company one, nothing is left out.
 
 Every job posting the API sends carries `auto_apply`: true when its
 `apply_url` is on a hiring system auto apply can fill, which is Greenhouse
@@ -339,7 +342,9 @@ queue take only those job postings (`backend/app/auto_apply/hosts.py`).
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
 | `GET /jobs/{id}/applied` | Applicants only: when they marked it applied, or null |
-| `POST /jobs/{id}/applied` | Applicants only: marks it applied, a queued one too; a second mark keeps the first date |
+| `POST /jobs/{id}/applied` | Applicants only: marks it applied, a queued or saved one too; a second mark keeps the first date |
+| `POST /jobs/{id}/saved` | Applicants only: saves it, and answers its stage; one already queued or applied keeps that stage |
+| `DELETE /jobs/{id}/saved` | Applicants only: takes it out of saved; 409 once it is past saved |
 
 ### Filters (`GET /jobs` and `GET /jobs/count`)
 
@@ -391,7 +396,7 @@ can't be shown as matching a fact it never stated.
 | **Opening it** | A click anywhere on a card |
 | **Header** | The same facts as the card, and the company logo |
 | **About the Role** | The description, with headings and bullet lists recovered from the plain text |
-| **Actions** | Apply Now (the company's own page), Ask Scout, Share (copies the link). Save and Report aren't built yet. |
+| **Actions** | Apply Now (the company's own page), Ask Scout, Share (copies the link), Save (keeps the job posting in the Saved column on My Applications; a second click takes it out). Report isn't built yet. |
 | **Applied** | Signed-in applicants only, last in the header's actions (top right). A click records the job posting in `job_applications` and the button becomes "Applied at 10/15/2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
 | **Back to Jobs** | Returns to the list you came from, with its filters |
 

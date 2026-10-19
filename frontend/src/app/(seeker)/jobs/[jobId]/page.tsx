@@ -7,7 +7,6 @@ import { CompanyLogo } from "@/components/company-logo";
 import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { NOT_LISTED } from "@/components/job-posting-card";
-import { SaveButton } from "@/components/save-button";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -20,6 +19,7 @@ import { SEEKER_GUTTER } from "../../gutter";
 import { placesOf } from "../format";
 import { getApplicationStage } from "../../auto-apply/applications";
 import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
+import { SaveJobButton } from "../save-job-button";
 import { ListingsError, listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
 import { ApplyButton } from "./apply-button";
@@ -61,8 +61,8 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * student has one for this posting (at most one each). Applied, last in the
  * row, is a signed-in applicant's own record that they applied (KAN-232): it
  * becomes "Applied at 10/15/2026" and the job leaves their feed; anyone else
- * gets no Applied button. Save and Report are still
- * inert, as on the card (KAN-65 makes saving real). No match rail: nothing
+ * gets no Applied button. Save keeps the job on My
+ * Applications' Saved column, as on the card (KAN-261). Report is still inert. No match rail: nothing
  * scores a role yet, and an empty ring here would read as a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
@@ -104,7 +104,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
           <>
             {/* Outlined like the feed card's icon actions. On a narrow card
                 these sit left and Apply Now right, on a row of their own. */}
-            <SaveButton title={job.title} />
+            <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
             <IconButton
               label={`Report ${job.title}`}
               tooltip="Report"

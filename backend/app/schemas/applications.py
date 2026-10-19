@@ -15,6 +15,13 @@ class JobApplied(BaseModel):
     applied_at: datetime.datetime | None
 
 
+class JobSaved(BaseModel):
+    """POST /jobs/{job_id}/saved: the job's stage after the save. saved, or
+    the stage it already had (queued, applied...), which saving keeps."""
+
+    stage: application_stage
+
+
 # --- Auto apply (routers/auto_apply.py) ---
 
 

@@ -1,21 +1,16 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { SearchIcon } from "@/components/icons";
-import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
-import { appliedDays, companyIconOf, getHeadline, getUpNext } from "./data";
+import { appliedDays, getHeadline } from "./data";
 import { Headline } from "./headline";
 import { NewMatches, NewMatchesSkeleton } from "./new-matches";
-import { NextUpHero } from "./next-up-hero";
 import { RangeSwitch } from "./range-switch";
 import { Streak } from "./streak";
-import { UpNext } from "./up-next";
-import { Waiting } from "./waiting";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -23,18 +18,27 @@ export const metadata: Metadata = {
 };
 
 /**
- * Where each tile under the numbers sits. Stacked, every tile is the full
- * width. From @3xl/main the grid is two columns and Next Up and Waiting pair
- * up, packed by grid-flow-dense. From @4xl/main it is three: New Matches
- * across two of them and two rows, Next Up over Up Next in the third, then
- * Activity across two beside Waiting.
+ * Where each tile under the numbers sits: one column at every width, New
+ * Matches across the page and Activity under it.
+ *
+ * NEW MATCHES GETS ITS OWN HEIGHT FROM @4xl/main. The tile is built to add no
+ * height of its own there (`h-0 min-h-full`, ./new-matches.tsx) and fill a
+ * row its neighbours sized; alone on a row it would collapse to nothing. So
+ * the page sets a fixed height (24rem, about six rows) and lets its list
+ * scroll inside it, as it did beside Next Up. Below @4xl/main it shows five
+ * rows and sets no height.
+ *
+ * NEXT UP, UP NEXT AND WAITING ARE ARCHIVED FOR NOW (KAN-261), their code
+ * kept. Next Up and Up Next went with the Calendar: the tracker stores no
+ * dated events yet, so both only ever said "nothing scheduled". Waiting's
+ * buckets were a fixture with no tracker data behind them. They stood in a
+ * third column (Next Up over Up Next, Waiting under them), New Matches
+ * spanning the first two columns and two rows, Activity across two beside
+ * Waiting. To bring them back, render <NextUpHero> and <UpNext> from
+ * getUpNext(), and <Waiting>, again, and restore that grid from git.
  */
 const PLACE = {
-  matches: "@3xl/main:col-span-2 @4xl/main:col-start-1 @4xl/main:row-span-2 @4xl/main:row-start-1",
-  nextUp: "@4xl/main:col-start-3 @4xl/main:row-start-1",
-  upNext: "@3xl/main:col-span-2 @4xl/main:col-span-1 @4xl/main:col-start-3 @4xl/main:row-start-2",
-  activity: "@3xl/main:col-span-2 @4xl/main:col-start-1 @4xl/main:row-start-3",
-  waiting: "@4xl/main:col-start-3 @4xl/main:row-start-3",
+  matches: "@4xl/main:h-96 @4xl/main:min-h-0",
 };
 
 /**
@@ -54,9 +58,12 @@ const PLACE = {
  * across the top in their own grid; under them is a grid of three columns:
  *
  *   Applications (violet)   New Roles       Interviews   Saved
- *   New Matches, two columns wide, scrolling      Next Up
- *   inside its tile to end level with them        Up Next
- *   Activity, two columns wide                    Waiting (a column per verdict)
+ *   New Matches, the full width
+ *   Activity, the full width
+ *
+ * Next Up, Up Next and Waiting are archived for now (PLACE above says why
+ * and how to bring them back); the notes below still describe them, for that
+ * day.
  *
  * The first number is the one filled tile. Next Up is a reminder: its
  * commitment in violet over one filled button. The tiles are placed by row and
@@ -76,7 +83,7 @@ const PLACE = {
  * DENSE ON PURPOSE. The page is capped at --container-dashboard (1440px)
  * rather than the 1024px reading pages use, which on a laptop left a fifth of
  * the page empty. The greeting sits open above the grid with the range switch
- * and Find Jobs at its right.
+ * at its right.
  *
  * There is no pipeline section. A funnel of Applied, Heard Back,
  * Interviewing and Offer counts sat between the lists and New Matches, and
@@ -91,18 +98,19 @@ const PLACE = {
  * them in place without asking the server for the page again. Next Up, Up
  * Next, New Matches and Waiting are about now.
  *
- * Most of it is fixtures (./data.ts) until the application tracker has a
- * backend; New Roles and New Matches are the live feed.
+ * Most of it is fixtures (./data.ts) until the application tracker stores
+ * stages past applied; New Roles and New Matches are the live feed, and
+ * Saved the live tracker (KAN-261).
  *
  * The grid breaks on @container/main, the page's own width, since the panel
  * takes 256px of the window when open. Up Next moves its dates at
  * @md/upnext, keyed to its own tile.
  */
 export default async function DashboardPage() {
-  // New Roles reads the live feed; asked for alongside the account, not after.
+  // New Roles and Saved read the API; asked for alongside the account, not
+  // after.
   const [account, stats] = await Promise.all([getCurrentAccount(), getHeadline()]);
   const firstName = account?.full_name.split(" ")[0];
-  const [next, ...later] = getUpNext();
 
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -120,31 +128,22 @@ export default async function DashboardPage() {
           <p className="text-body text-ink-meta mt-1">Here&apos;s where your search stands.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <RangeSwitch />
-          {/* sm, as every page header's action, and the height of the range
-              switch beside it. It was a large pill until KAN-251. */}
-          <ButtonLink href="/jobs" size="sm">
-            <SearchIcon />
-            Find Jobs
-          </ButtonLink>
-        </div>
+        {/* Find Jobs sat beside it until KAN-261: the sidebar's Jobs row and
+            New Matches' All Jobs already lead there. */}
+        <RangeSwitch />
       </header>
 
       {/* The numbers, in a grid of their own: four across, while the tiles
-          under them are in thirds. */}
+          under them are one column. */}
       <div className="mt-6 grid grid-cols-2 gap-4 @4xl/main:grid-cols-4">
         <Headline stats={stats} />
       </div>
 
-      <div className="mt-4 grid grid-flow-row-dense grid-cols-1 gap-4 @3xl/main:grid-cols-2 @4xl/main:grid-cols-3">
-        <NextUpHero item={next} Icon={next && companyIconOf(next)} className={PLACE.nextUp} />
-        <UpNext items={later} className={PLACE.upNext} />
+      <div className="mt-4 grid grid-cols-1 gap-4">
         <Suspense fallback={<NewMatchesSkeleton className={PLACE.matches} />}>
           <NewMatches className={PLACE.matches} />
         </Suspense>
-        <Waiting className={PLACE.waiting} />
-        <Streak days={appliedDays()} className={PLACE.activity} />
+        <Streak days={appliedDays()} />
       </div>
     </div>
   );

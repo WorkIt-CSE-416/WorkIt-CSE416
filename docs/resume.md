@@ -6,8 +6,8 @@ to Brian's separate work"), so this doc owns the full resume domain.
 
 ## The experience bank replaces the content tables (KAN-206)
 
-The `resume_*` content tables below were never built; an uploaded resume
-keeps its parser output in `resumes.parsed_json`. Resume facts now live in
+The `resume_*` content tables below were never built; an upload's reading
+goes into the experience bank (ADR 0003). Resume facts now live in
 the **experience bank** (terms: `GLOSSARY.md`), stored once per student and
 not per resume, so a built resume is a live view of it (ADR 0001):
 
@@ -62,24 +62,37 @@ applicant_profiles
   wording is a choice of that resume. Making a local wording the original
   is still edited by hand in the bank's own bullet field.
 
-### Import fills the bank from an upload (KAN-211)
+### An upload fills the bank (KAN-240, ADR 0003)
 
-An uploaded resume reaches the bank only through **import**: the heuristic
-parser reads the upload's stored text again, and the API returns draft
-entries that the student checks and saves one by one or with "Save all".
-Import writes nothing itself. A draft that matches a bank entry (the
-duplicate check) shows "Already in your bank" and "Save all" skips it. The
-parser reads all seven sections, Leadership & Activities and Awards
-included. The profile page's parsed-JSON editor is gone, so the bank is the
-only place to edit resume facts; `resumes.parsed_json` is now the parser's
-own output, never edited, and stays only until the recommender and Scout
-read the bank.
+Every upload is **imported** at once: the heuristic parser reads its text
+and the API writes the entries and skills into the bank, in the same
+transaction as the `resumes` row. Nothing waits for review; the student
+fixes an entry in the bank, where every fact is edited. The parser reads all
+seven sections, Leadership & Activities and Awards included.
 
-**Model parsing** (KAN-222): when the parser finds no entries, the API reads
-the upload with AI instead, and "Read It Again with AI" on the drafts asks
-for that reading on purpose. The model gets the text with identity data
-removed, and each entry it returns is checked against the entry schema. It
-costs one AI reading a day (the parsing cap), counted only when it works.
+An entry the bank already has (the duplicate check: section, title and
+organization, ignoring case) is **merged, never copied**: it gains only the
+fields it has empty and the bullets it lacks, so the student's fixes stay
+and several resumes add up to one bank. Dates fill only as a set, when the
+bank entry has none. **Import Again** (intake's Use One I Uploaded, the
+Jobs page's empty-bank card) reads a stored upload the same way, so a
+parser fix reaches old uploads. **Import Updated Resume**, on each upload's
+row on the Resumes view, takes a newer version of that file: it replaces the
+file on the same row and merges the new reading the same way.
+Deleting an upload leaves the bank as it is.
+
+KAN-211 had import return drafts the student saved one by one, and wrote
+nothing itself. Students uploaded, saw nothing happen and never found the
+review, so the bank stayed empty. The parser's own copy,
+`resumes.parsed_json`, was dropped with it: two stores of the same facts
+drift apart.
+
+**Model parsing** (KAN-222): "Read It With AI", after an upload or an
+Import Again, reads the resume with the model and merges its entries the
+same way. Only the student's click runs it; nothing falls back to it. The
+model gets the text with identity data removed, and each entry it returns is
+checked against the entry schema. It costs one AI reading a day (the parsing
+cap), counted only when it works.
 
 ## Built resumes (KAN-207)
 
@@ -117,6 +130,16 @@ applicant_profiles
   model proposes it and when the student approves it.
 - **The limit is 5 uploaded plus base resumes.** Tailored and sent resumes
   do not count. The API checks before writing, on Generate and on upload.
+- **A name, and when it last changed** (KAN-258). A resume made with no
+  name is "Resume #N", one past the highest number the student's resumes
+  carry; every one was "Base Resume" before, so a list of them read as one
+  name repeated. The student renames it on the Resumes page, and a sent
+  resume keeps the name it went out under. `updated_at` is the resume's
+  last edit (its choices or its name), which the list shows as "Last
+  edited". It needs no new column, since every table has `updated_at`, but
+  a write to a choice row leaves the resume's own row as it was, so the
+  service marks the resume itself (`touch`). A fix in the bank changes
+  every resume and does not count as an edit to one.
 - **The default resume is one of two pointers.** It was
   `applicant_profiles.default_resume_id`, a foreign key to `resumes`, and it
   can now be a base resume too. A single id column could not keep a foreign
@@ -148,8 +171,8 @@ applicant_profiles
 - **Repeats merge by a hash taken before rendering**: the view, the template
   id and the header's identity text (sha256). The same hash for the same
   built resume (and the same job posting, null for a download) returns the
-  last sent resume, with no render and no upload, so the Sent list stays
-  short. The name is not in the hash: it is not printed on the page.
+  last sent resume, with no render and no upload, so the kept files stay
+  few. The name is not in the hash: it is not printed on the page.
 - **The sources are a record, not an owner.** Deleting the built or uploaded
   resume nulls the link and keeps the sent resume, with the name it had.
   At most one source is set (`sent_resumes_one_source`).
@@ -173,7 +196,7 @@ The rest of this file is the original design for uploaded resumes.
 ```
 profiles              (KAN-50)  — auth identity
   └── applicant_profiles (KAN-50)  — stable contact info, links
-        └── resumes                — file metadata, raw_text, parsed_json blob
+        └── resumes                — file metadata, raw_text
               └── resume_education        — schools, degrees
               └── resume_experience       — jobs held
               └── resume_skills           — skill tags
@@ -188,9 +211,10 @@ the first upload — correct onboarding order (contact info first, then resume).
 ## Upload → parse → verify flow
 
 1. User uploads a file (PDF, DOCX, etc.) → stored at `resumes.storage_path`.
-2. Parser extracts text → `resumes.raw_text`, structured output → `resumes.parsed_json`, status → `parsed`.
-3. (Superseded: the content tables were never built. Import turns the
-   upload into bank drafts the student reviews; see above.)
+2. The API extracts text → `resumes.raw_text`; the parser reads it, status →
+   `parsed` (`parse_failed` when it finds nothing).
+3. (Superseded: the content tables were never built.) What the parser read
+   is merged into the experience bank in the same transaction; see above.
 
 ## Re-upload behavior
 
@@ -244,7 +268,7 @@ One row per uploaded resume file or pasted resume snapshot.
 | `file_hash` | `text` | SHA-256 hash of the uploaded file. Optional. |
 | `status` | `resume_status` | Default `uploaded`. |
 | `raw_text` | `text` | Extracted or pasted resume text. |
-| `parsed_json` | `jsonb` | Raw parser output — not user-verified. |
+| `parsed_json` | `jsonb` | Dropped in KAN-240 (`3f7a2c9d1e84`): the reading goes into the experience bank. |
 | `is_default` | `boolean` | Default false. One default per applicant. |
 | `created_at` | `timestamptz` | Default now. |
 | `updated_at` | `timestamptz` | Default now. |
