@@ -185,7 +185,13 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
   and must match `scraper/workit_scraper/logos.py`; an unlisted host throws
-  and fails the whole page.
+  and fails the whole page. It measures each logo on load: a square mark
+  fills the tile edge to edge, a wide wordmark sits on white with padding.
+  Framed with padding, square marks on their own colour (Figma, Cloudflare)
+  looked shrunk. The image is hidden until measured, and next/image only
+  reports the load once the browser has decoded it, which a hidden browser
+  tab (the Browser pane when it is not shown) can hold back, so check it
+  with the page visible.
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,
   `addTransitionType`): the App Router runs React canary and `@types/react`'s
   stable entry lacks them.
