@@ -137,11 +137,7 @@ export function YourApplication({
           </div>
 
           {app.match != null ? (
-            <MatchRail
-              score={app.match}
-              highlights={app.highlights ?? []}
-              breakdown={app.breakdown}
-            />
+            <MatchRail score={app.match} highlights={app.highlights ?? []} />
           ) : null}
         </div>
       </Card>

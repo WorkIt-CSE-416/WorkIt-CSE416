@@ -188,7 +188,7 @@ async def list_applications(
     first: the Auto Apply page's Live Activity and the Applications page.
 
     With `score_for` (the applicant's own account), each open job posting
-    gets the Jobs page's `match`, its `highlights` and its `score_breakdown`, from the same scoring (fetch_recommended),
+    gets the Jobs page's `match` and its `highlights`, from the same scoring (fetch_recommended),
     so a card's score never differs from the feed's (KAN-256). A closed job
     posting has none, and none has one while the experience bank is empty.
     Only on request: it can embed the bank, which the queue's reads never
@@ -206,13 +206,7 @@ async def list_applications(
         return applications
     by_id = {job.id: job for job in scored}
     return [
-        a.model_copy(
-            update={
-                "match": job.match,
-                "highlights": job.highlights,
-                "score_breakdown": job.score_breakdown,
-            }
-        )
+        a.model_copy(update={"match": job.match, "highlights": job.highlights})
         if (job := by_id.get(a.job.id))
         else a
         for a in applications

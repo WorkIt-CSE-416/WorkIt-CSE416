@@ -409,9 +409,7 @@ def test_list_applications_takes_the_jobs_page_score_for_open_postings(monkeypat
     assert kwargs["filters"].job_ids == [uuid.UUID(scored.job.id), uuid.UUID(unscored.job.id)]
     assert [a.match for a in apps] == [73, None, None]
     assert [h.text for h in apps[0].highlights] == ["Python"]
-    assert apps[0].score_breakdown is not None
     assert apps[1].highlights == []
-    assert apps[1].score_breakdown is None
 
 
 def test_list_applications_with_an_empty_bank_has_no_scores(monkeypatch):

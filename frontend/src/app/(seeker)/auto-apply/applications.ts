@@ -6,7 +6,7 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 import { getApplicantSession } from "@/lib/session";
 
-import type { Highlight, ScoreBreakdown } from "../jobs/data";
+import type { Highlight } from "../jobs/data";
 import type { JobListing } from "../jobs/listings";
 import type { ApplicationStage, RunStage } from "./actions";
 
@@ -34,8 +34,6 @@ export type Application<Stage extends ApplicationStage = ApplicationStage> = {
   match?: number | null;
   /** Up to 3 reasons behind `match`, as the Jobs page card lists them. */
   highlights?: Highlight[];
-  /** How `match` was worked out, with it. */
-  score_breakdown?: ScoreBreakdown | null;
 };
 
 const UNREACHABLE = "Could not reach the server.";

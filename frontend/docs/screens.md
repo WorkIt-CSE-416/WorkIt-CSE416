@@ -530,14 +530,8 @@ URL (`?tab=job` for the second):
   is: the body on the left (the stage, a one-line status such as "Waiting
   to Hear Back", when it was applied or saved and the resume sent, then the
   timeline left to right through `Timeline`'s `horizontal`), the match rail
-  flush on the right (`MatchRail` with its `breakdown`: each part's points
-  out of its share, Overall Fit, Skills, Title Fit and Eligibility, with a
-  bar, then the posting-age multiplier; and the reasons when there are any.
-  `?scored=true` sends `score_breakdown` and `highlights` with `match`. The
-  breakdown is there because most weak scores have no reasons to list, and
-  the rail then said nothing about where its points came from. Overall Fit
-  reads "Not measured" without an embedding, as on a laptop with no
-  Ollama), and the day counts as one ruled strip along
+  flush on the right (`MatchRail`, with its reasons: `?scored=true` sends
+  `highlights` with `match`), and the day counts as one ruled strip along
   the body's foot (waiting to hear back, save to apply, posted before
   applying; or since saving and since posting for a saved job). Side by
   side from 576px of card, stacked under it. It replaced three loose
