@@ -191,7 +191,22 @@ Visa sponsorship has three answers, or none when the job posting doesn't say:
 | `no_sponsorship` | It says it doesn't, or needs US work authorization |
 | `citizens_only` | It needs US citizenship (often for a security clearance) |
 
-Long descriptions are cut at 8,000 characters, ending in " …".
+A description keeps only what says what the job is (KAN-229). The scraper finds
+its headings ("What you'll do", "Who you are", "Benefits") and stores the intro,
+then Overview, Responsibilities, Requirements, Preferred Qualifications, Pay
+and Details, in that order and under those fixed headings. After them come
+Benefits, How to Apply and About the Company: the job posting's page shows them
+last, folded, and job matching, its keywords and Tailor never read them. Only
+legal notices are left out. A line the employer's page listed is stored as
+"• item", and the page's own markup tells the scraper which lines are headings
+and which are list items. When the job's own sections would keep under a tenth
+of a description, the headings were misread, and the whole description is
+stored instead. A heading the rules don't know
+("Role Purpose") is looked up in a list of labels a model gave once and the team
+reviewed (`scraper/workit_scraper/learned_headings.json`); the scrape itself
+never calls a model. The facts above are read from the whole
+text first, so leaving text out never loses one. Then a long description is cut at 8,000 characters, ending in " …". The
+rules and the measurements are in `scraper/docs/sections.md`.
 
 ---
 
@@ -227,7 +242,7 @@ table. Scraped ones have no `company_id`.
 | Column | Holds |
 |---|---|
 | `title`, `company_name`, `apply_url`, `company_logo_url` | What the card shows; `apply_url` is unique |
-| `description` | The full text, for the job posting's page and Scout |
+| `description` | The kept sections under their fixed headings (section 3), for the job posting's page, search and Scout. Matching, its keywords and Tailor read only the job's sections, never Benefits, How to Apply or About the Company |
 | `location_raw` | The location as the company job board wrote it |
 | `location_label` | The card's version, "San Francisco, CA", written by the import (section 5.2) |
 | `work_style` | `remote`, `hybrid`, `onsite`, or empty |
@@ -238,7 +253,7 @@ table. Scraped ones have no `company_id`.
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
-| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Recommended view ranks by them (KAN-231) |
+| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Recommended view ranks by them (KAN-231). The embedding reads the title, Overview (or the intro when there is none), Responsibilities, Requirements and Preferred Qualifications (KAN-229) |
 | `keywords`, `keywords_hash` | Tailor's keywords (KAN-215): at most 20, each required or preferred, read from the description by the model the first time a student's resume is matched against the job posting, with a hash of the description they came from. A new description makes them stale, and the import clears them |
 
 ### 5.2 `job_locations`, one row per place a job posting is in
@@ -306,10 +321,10 @@ deployed (`backend/CLAUDE.md`, Commands).
 ### 5.5 `job_applications`, one row per job posting an applicant saved or applied to (KAN-232, KAN-261)
 
 An applicant id and a job posting id, with a `stage`, `created_at` and
-`applied_at`. The applicant writes an `applied` row with the Applied button
-on the job posting's page (section 7.2), and a `saved` row with a Save button
+`applied_at`. The applicant writes an `applied` row by answering "Did You
+Apply?" after Apply Now opens the employer's posting (section 7.2), and a `saved` row with a Save button
 (on the card and the page). A saved row counts as no application yet: the
-Applied button or auto apply moves it on, and saving never moves a later
+application confirmation or auto apply moves it on, and saving never moves a later
 stage back. Auto apply writes `queued` rows and
 moves them to `applied`, `skipped` or `needs_you`
 (`auto-apply/architecture.md`, "Data model"); `applied_at` stays empty until
@@ -396,8 +411,8 @@ can't be shown as matching a fact it never stated.
 | **Opening it** | A click anywhere on a card |
 | **Header** | The same facts as the card, and the company logo |
 | **About the Role** | The description, with headings and bullet lists recovered from the plain text |
-| **Actions** | Apply Now (the company's own page), Ask Scout, Share (copies the link), Save (keeps the job posting in the Saved column on My Applications; a second click takes it out). Report isn't built yet. |
-| **Applied** | Signed-in applicants only, last in the header's actions (top right). A click records the job posting in `job_applications` and the button becomes "Applied at 10/15/2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
+| **Actions** | One row under the title: Save, a "…" menu (Copy Link, Report), Ask Scout, Auto Apply, Tailor My Resume and Apply Now (the company's own page). Save keeps the job posting in the Saved column on My Applications; a second click takes it out. Report isn't built yet. |
+| **Applied** | Signed-in applicants only. After Apply Now opens the company's page, the dialog asks "Did You Apply?". Yes records the job posting in `job_applications`, and the page reads "You applied on Oct 17, 2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
 | **Back to Jobs** | Returns to the list you came from, with its filters |
 
 ### 7.3 Coming back

@@ -167,7 +167,41 @@ The page is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. Apply Now (`[jobId]/apply-button.tsx`,
+says so and links to the whole posting. Its paragraphs and list items are
+ink, the headings' colour, not body copy's lighter ink-muted: a posting is
+long reading, and the grey was hard to read (2026-10-17). Each of KAN-229's
+fixed section headings (Overview, Responsibilities, Requirements, Preferred
+Qualifications, Pay, Details) draws an icon beside it in brand purple
+(`SECTION_ICONS`; Pay reuses the salary fact's coin). All Filters' section
+icons stay grey: there they label controls, here they mark where to read.
+Section titles are 16px bold with a 20px icon, a step under "About the
+Role"; an employer's subheading is 14px semibold. List bullets are ink, like
+the text. **A sectioned description always shows Overview, Responsibilities,
+Requirements and Pay** (`withCoreSections`, KAN-229 fix 5); Preferred
+Qualifications and Details only when the posting has them. A missing core
+section says why, as far as WorkIt can tell: pay the hiring system sent as a
+field shows as the card's pay "(from <company>'s listing, not the posting's
+text)"; a description cut at 8,000 characters says the section may be further
+down; anything else says it isn't under its own heading and may be in the text
+above, since a heading the scraper doesn't know ("Role Purpose") leaves its
+text in the section before it. All
+three link to the full posting. It never says a posting lacks something, since
+the text may hold it in a paragraph the scraper could not place. A fixed
+heading always reads as a heading, even straight before an employer's own
+("Requirements" then "Required Qualifications"), which the two-in-a-row rule
+read as list items. In such a
+description, any other heading the employer wrote is a smaller subheading with
+no icon; a description stored before KAN-229 draws its headings as before.
+**Benefits, How to Apply and About the Company come last, folded**
+(`EXTRA_SECTIONS`, 2026-10-18): one "More from the posting" row, bordered like a
+card, names the ones the posting has and opens on a click (a `<details>`, so the
+keyboard and a screen reader work without code); inside, each has its own
+purple icon (a gift, a paper plane, a building, not On-Site's). The job's own
+sections stay first and open, since they are what a student reads first, and
+matching never reads the folded ones. Only the job's headings make a
+description sectioned, so an old one with its own "Benefits" line draws as
+before.
+Apply Now (`[jobId]/apply-button.tsx`,
 KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
@@ -176,7 +210,14 @@ stops it). Apply Without a Resume leaves for the employer's posting at once.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
-Ask Scout asks about the role, Share copies the page's link, and Report
+The job's actions sit in one bar with Back, pinned at the top from md
+(`[jobId]/action-bar.tsx`, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply,
+Tailor My Resume and Apply Now. Below md the bar scrolls away and wraps.
+The header card below holds who is hiring, the title and facts; its logo never
+shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
+two columns under 448px, with unstated facts leaving their slots empty.
+The "…" menu (`MoreActions`, `[jobId]/page-actions.tsx`) holds Copy Link
+and Report. Ask Scout asks about the role, Copy Link copies the page's link, and Report
 stays inert. Save (KAN-261) keeps the job posting in the Saved column on My
 Applications, on the card and the page alike (`jobs/save-job-button.tsx`,
 over the drawing-only `components/save-button.tsx`): the bookmark fills at
@@ -234,10 +275,15 @@ on the click rather than the visit, so a job opened from elsewhere after a
 look at /resumes does not go Back there). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
 would change a moment after the page loads.
-**Applied** (KAN-232), last in the header's actions, shows for a signed-in
-applicant only (`getApplied` answers null for anyone else). A click calls
-`markApplied` (`jobs/actions.ts`), and the button becomes "Applied at
-10/15/2026", the viewer's own day after hydration (`AppliedOn`). The job then
+**Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
+When a signed-in applicant leaves for the employer's posting from Apply Now's
+dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
+behind the new tab and asks "Did You Apply?". Yes, I Applied calls
+`markApplied` (`jobs/actions.ts`); Not Yet closes it. A job already marked is
+never asked about again, and anyone else's dialog just closes. The page then
+reads "You applied on Oct 17, 2026" under the header (`AppliedNote`), the
+viewer's own day after hydration. An Applied button in the header did this
+before, and one misclick took a job off the feed with no undo. The job then
 leaves that applicant's feed, /search and count, because `listings.ts` sends
 their token with those reads (`viewerToken`) and the API filters on it. There
 is no undo yet.

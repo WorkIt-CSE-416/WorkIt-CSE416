@@ -34,6 +34,7 @@ from datetime import UTC, date, datetime, timedelta
 from html.parser import HTMLParser
 
 from workit_scraper import details, web
+from workit_scraper.sections import kept
 
 TIMEOUT_S = 25
 
@@ -53,7 +54,14 @@ DESCRIPTION_CHARS = 8000
 #: 11: a Workday posting's requisition number (`Page.requisition`). 12: pay with
 #: cents ("$61,900.00 to $141,000.00") read as the whole range, not its low end.
 #: 13: pay words as whole words ("quota-based" is not "base"), and a sentence's own.
-PAGE_VERSION = 13
+#: 14: the description keeps only its kept sections, under fixed headings, and a pay
+#: range whose low end carries its unit ("$50/hr - $70/hr") reads whole (KAN-229).
+#: 15: the HTML's list items and headings guide the sections, and a list item is
+#: stored as "• item" (`plain_lines`); with it, unreleased, a line moved by what it
+#: says and less job text hidden, and the learned headings (`docs/sections.md`).
+# 16: lower-bound salary annotations and implicitly closed HTML lists.
+# 17: preserve explicit requirements that mention benefits products.
+PAGE_VERSION = 17
 
 
 class BoardNotFound(Exception):
@@ -314,40 +322,93 @@ def _iso(value: object) -> str | None:
 
 
 class _TextOnly(HTMLParser):
-    """An HTML fragment's text, with a line break wherever a block ended."""
+    """An HTML fragment's text, with a line break wherever a block ended, and the
+    tags open around each piece of it."""
 
     BLOCKS = {"p", "div", "li", "br", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "tr"}
+    #: Tags that never close, so are never open around text.
+    VOID = {"br", "img", "hr", "input", "meta", "link", "wbr", "col", "area", "base", "source"}
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.parts: list[str] = []
+        self.parts: list[tuple[str, tuple[str, ...]]] = []
+        self.open: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: object) -> None:
-        self.handle_endtag(tag)
+        if tag in self.BLOCKS:
+            self.parts.append(("\n", ()))
+        if tag not in self.VOID:
+            self.open.append(tag)
+
+    def handle_startendtag(self, tag: str, attrs: object) -> None:
+        # "<br/>": a start and an end, two breaks, as before tags were tracked.
+        if tag in self.BLOCKS:
+            self.parts.extend((("\n", ()), ("\n", ())))
 
     def handle_endtag(self, tag: str) -> None:
         if tag in self.BLOCKS:
-            self.parts.append("\n")
+            self.parts.append(("\n", ()))
+        for index in range(len(self.open) - 1, -1, -1):
+            if self.open[index] == tag:
+                del self.open[index:]
+                break
 
     def handle_data(self, data: str) -> None:
-        self.parts.append(data)
+        self.parts.append((data, tuple(self.open)))
 
 
-def plain_text(markup: str | None) -> str | None:
-    """Plain text from a description that may be HTML, whole.
+def plain_lines(markup: str | None) -> list[tuple[str, str]]:
+    """A description's plain-text lines, each with its role in the HTML: "h" inside a
+    heading tag, "li" inside a list item, "b" when all of it is bold, "p" otherwise.
+
+    The text is `plain_text`'s, line for line. The roles are what the HTML says and
+    the text alone cannot: the section parser used to guess them from a line's
+    shape, and took Workday's list item "Good interpersonal skills" for a heading
+    (`sections._walk`). Plain text in, every line is "p".
 
     Unescaped once before parsing because Greenhouse entity-escapes its HTML
     ("&lt;p&gt;"), which the parser would otherwise keep as literal text.
     """
     if not markup:
-        return None
+        return []
     parser = _TextOnly()
     parser.feed(html.unescape(markup))
     parser.close()
-    lines = (
-        re.sub(r"[ \t\xa0]+", " ", line).strip() for line in "".join(parser.parts).splitlines()
-    )
-    return "\n".join(line for line in lines if line) or None
+    text = "".join(piece for piece, _ in parser.parts)
+    # The tags open around each character, to read each line's role from.
+    around = [tags for piece, tags in parser.parts for _ in piece]
+    lines, start = [], 0
+    for raw in text.splitlines(keepends=True):
+        body = raw.rstrip("\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029")
+        line = re.sub(r"[ \t\xa0]+", " ", body).strip()
+        if line:
+            tags = [around[start + k] for k, char in enumerate(body) if not char.isspace()]
+            lines.append((line, _line_role(tags)))
+        start += len(raw)
+    return lines
+
+
+def _line_role(tags: list[tuple[str, ...]]) -> str:
+    """One line's role from the tags open around each of its characters."""
+    if any(re.fullmatch(r"h[1-6]", tag) for open_tags in tags for tag in open_tags):
+        return "h"
+    if any("li" in open_tags for open_tags in tags):
+        return "li"
+    if tags and all("strong" in open_tags or "b" in open_tags for open_tags in tags):
+        return "b"
+    return "p"
+
+
+def plain_text(markup: str | None) -> str | None:
+    """Plain text from a description that may be HTML, whole: a line wherever a
+    block ended."""
+    return "\n".join(line for line, _ in plain_lines(markup)) or None
+
+
+def _described(markup: str | None) -> tuple[str | None, tuple[str, ...]]:
+    """A description's plain text and its lines' roles (`plain_lines`), for `_page`."""
+    lines = plain_lines(markup)
+    return "\n".join(line for line, _ in lines) or None, tuple(role for _, role in lines)
 
 
 def cap(plain: str | None) -> str | None:
@@ -361,19 +422,22 @@ def _page(
     title: str,
     full: str | None,
     *,
+    roles: tuple[str, ...] | None = None,
     stated_type: str | None = None,
     stated_style: str | None = None,
     stated_pay: details.Pay | None = None,
     offices: tuple[str, ...] = (),
     requisition: str | None = None,
 ) -> Page:
-    """A Page from a posting's whole text: facts read first, description cut after."""
+    """A Page from a posting's whole text: facts read from all of it first, then the
+    description is its kept sections (`sections.kept`), cut after. `roles` is each
+    line's role in the HTML (`plain_lines`), when the provider sent HTML."""
     facts = details.read(
         title, full, stated_type=stated_type, stated_style=stated_style, stated_pay=stated_pay
     )
     return Page(
         version=PAGE_VERSION,
-        description=cap(full),
+        description=cap(kept(full, roles)),
         facts=facts,
         offices=offices,
         requisition=requisition,
@@ -462,6 +526,7 @@ def ashby(token: str, company: str) -> list[Job]:
         if not row.get("isListed", True):
             continue
         title = (row.get("title") or "").strip()
+        full, roles = _described(row.get("descriptionPlain") or row.get("descriptionHtml"))
         jobs.append(
             Job(
                 ats="ashby",
@@ -475,7 +540,8 @@ def ashby(token: str, company: str) -> list[Job]:
                 posted_at=_iso(row.get("publishedAt")),
                 page=_page(
                     title,
-                    plain_text(row.get("descriptionPlain") or row.get("descriptionHtml")),
+                    full,
+                    roles=roles,
                     stated_type=details.job_type_label(row.get("employmentType")),
                     # Some boards leave `workplaceType` unset but still flag `isRemote`.
                     stated_style=_work_style(
@@ -498,6 +564,7 @@ def lever(token: str, company: str) -> list[Job]:
     for row in payload:
         categories = row.get("categories") or {}
         title = (row.get("text") or "").strip()
+        full, roles = _described(_lever_markup(row))
         jobs.append(
             Job(
                 ats="lever",
@@ -511,7 +578,8 @@ def lever(token: str, company: str) -> list[Job]:
                 posted_at=_iso(row.get("createdAt")),
                 page=_page(
                     title,
-                    _lever_description(row),
+                    full,
+                    roles=roles,
                     stated_type=details.job_type_label(categories.get("commitment")),
                     # Some boards put the work model in `commitment` ("Remote").
                     stated_style=_work_style(row.get("workplaceType"), categories.get("location"))
@@ -523,15 +591,21 @@ def lever(token: str, company: str) -> list[Job]:
     return jobs
 
 
-def _lever_description(row: dict) -> str | None:
+def _lever_markup(row: dict) -> str:
     """Lever splits a posting in three: an intro (`descriptionPlain`), titled lists
     that usually hold the requirements (`lists`, HTML items), and a closing
-    (`additionalPlain`). The intro alone is often just a company blurb."""
+    (`additionalPlain`). The intro alone is often just a company blurb. A list's
+    title is its heading, so it is marked as one."""
     sections = [row.get("descriptionPlain") or ""]
     for block in row.get("lists") or []:
-        sections.append(f"<p>{block.get('text') or ''}</p><ul>{block.get('content') or ''}</ul>")
+        sections.append(f"<h3>{block.get('text') or ''}</h3><ul>{block.get('content') or ''}</ul>")
     sections.append(row.get("additionalPlain") or "")
-    return plain_text("<br>".join(section for section in sections if section))
+    return "<br>".join(section for section in sections if section)
+
+
+def _lever_description(row: dict) -> str | None:
+    """A Lever posting's whole text (`_lever_markup`)."""
+    return plain_text(_lever_markup(row))
 
 
 def _place(*parts: object) -> str:
@@ -602,11 +676,13 @@ def describe_workable(job: Job) -> Job:
     # 2026-10-10: "full" (14), "temporary" (12), "other" (3), "part" (2), none (3).
     # Temporary and other say nothing about hours, so the description decides.
     kind = str(payload.get("type") or "")
+    full, roles = _described("".join(sections))
     return replace(
         job,
         page=_page(
             job.title,
-            plain_text("".join(sections)),
+            full,
+            roles=roles,
             stated_type=details.job_type_label(
                 {"full": "full_time", "part": "part_time"}.get(kind, kind)
             ),
@@ -630,6 +706,9 @@ def recruitee(token: str, company: str) -> list[Job]:
     jobs = []
     for row in payload.get("offers") or []:
         title = (row.get("title") or "").strip()
+        full, roles = _described(
+            "<br>".join(row.get(field) or "" for field in ("description", "requirements"))
+        )
         jobs.append(
             Job(
                 ats="recruitee",
@@ -643,11 +722,8 @@ def recruitee(token: str, company: str) -> list[Job]:
                 posted_at=_iso(row.get("published_at") or row.get("created_at")),
                 page=_page(
                     title,
-                    plain_text(
-                        "<br>".join(
-                            row.get(field) or "" for field in ("description", "requirements")
-                        )
-                    ),
+                    full,
+                    roles=roles,
                     stated_type=details.job_type_label(row.get("employment_type_code")),
                     stated_style=_recruitee_work_style(row),
                     stated_pay=_recruitee_pay(row),
@@ -747,12 +823,14 @@ def describe_bamboohr(job: Job) -> Job:
     assert isinstance(payload, dict)
     opening = (payload.get("result") or {}).get("jobOpening") or {}
     compensation = str(opening.get("compensation") or "")
+    full, roles = _described(opening.get("description"))
     return replace(
         job,
         posted_at=_iso(opening.get("datePosted")) or job.posted_at,
         page=_page(
             job.title,
-            plain_text(opening.get("description")),
+            full,
+            roles=roles,
             stated_type=details.job_type_label(opening.get("employmentStatusLabel")),
             stated_style=_BAMBOOHR_STYLE.get(str(opening.get("locationType"))),
             # Free text in a field that is only ever pay ("$90,000 to $115,000",
@@ -950,12 +1028,14 @@ def describe_workday(job: Job) -> Job:
         for place in [info.get("location"), *(info.get("additionalLocations") or [])]
         if place
     )
+    full, roles = _described(info.get("jobDescription"))
     return replace(
         job,
         posted_at=_iso(info.get("startDate")) or job.posted_at,
         page=_page(
             job.title,
-            plain_text(info.get("jobDescription")),
+            full,
+            roles=roles,
             stated_type=details.job_type_label(info.get("timeType")),
             stated_style=_workday_work_style(info.get("remoteType"))
             or _work_style(None, job.location),
@@ -970,11 +1050,13 @@ def describe_greenhouse(job: Job) -> Job:
     description, the offices, pay ranges and any employment-type field."""
     payload = _get_json(job_url("greenhouse", job.token, job.external_id))
     assert isinstance(payload, dict)
+    full, roles = _described(payload.get("content"))
     return replace(
         job,
         page=_page(
             job.title,
-            plain_text(payload.get("content")),
+            full,
+            roles=roles,
             stated_type=_greenhouse_job_type(payload.get("metadata") or []),
             # Greenhouse has no work-model field, but boards name one as the
             # location: Cloudflare's "In-Office", others' "Hybrid".

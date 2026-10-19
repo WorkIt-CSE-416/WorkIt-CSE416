@@ -114,8 +114,16 @@ Most gaps were honest -- 444 of 474 without pay, 267 of 311 internships without 
   2,392 reads changed, each read: Cisco's 24 back to none, Valon's intern to its
   stated $60 an hour (its new grad's card keeps Ashby's own pay field), and Cadence's
   Montreal co-op (two copies, one role) from none to CA$30 an hour, the low end of
-  "The hourly range ... is from $30CAD to $45CAD". Neither "$45 and $65" nor
-  "$30CAD to $45CAD" reads as a range yet. `PAGE_VERSION` went to 13.
+  "The hourly range ... is from $30CAD to $45CAD". `PAGE_VERSION` went to 13.
+- **A range's low end may carry its unit or code, and "between … and" is a range**
+  (`_LOW_END`, `_BETWEEN`, KAN-229, 2026-10-17). "$50/hr - $70/hr" (Tenstorrent),
+  "$30CAD to $45CAD" (Cadence) and "between $45 and $65" (Toyota Research
+  Institute) each read as the low end alone, so the card printed "$50/hr". "and"
+  joins a range only after "between": "$40/hr and a $2,000 stipend" is pay and a
+  perk. On the 2026-10-16 snapshot 16 of 1,094 reads changed, each read: every one
+  went from its low end to its whole range (Tenstorrent 3, SK Hynix 4, Harvey 3,
+  Nuro 2, ZipRecruiter, Toyota Research Institute, Schonfeld, Sphinx Defense), and
+  none went the other way. `PAGE_VERSION` 14 covers it.
 - **A LinkedIn tag (`#LI-Hybrid`) is the employer's own work-style label** and wins;
   **Hybrid beside On site is Hybrid** (Lyft: "in-office on a hybrid schedule, 3 days
   per week"); naming weekdays onsite is hybrid. Greenhouse boards add a "Working

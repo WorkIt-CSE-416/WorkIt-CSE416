@@ -13,29 +13,26 @@ import { Fact } from "@/components/ui/fact";
 import type { JobPosting } from "./data";
 
 /**
- * The icon-and-label facts under the header's title, always two columns —
- * the inspiration screenshot's three rows of two, not a wrapping row. Plain,
- * no rule or fill of its own: `JobDetailHeader` supplies both, since the rule
- * now separates the title from this row and the rail beside it together,
- * rather than each owning a fragment of it.
+ * The icon-and-label facts under the header's title, laid out as the feed
+ * card's (`JobPostingCard`, KAN-157): two fixed rows of three, location, job
+ * type and salary, then work style, level and when it starts, each in the same
+ * column on every job. A fact the posting doesn't state leaves its slot empty
+ * rather than letting the next fact slide into it. Under 448px of card it is
+ * two columns and the empty slots close up, as the card's do.
  *
- * Capped at the same 68ch measure as the company line under it, counted in
- * that line's text-note so the two end on one edge. Without a cap a job with
- * no rail (nothing has scored it) spread its two columns across the whole
- * card, about 455px apart, so a value and its neighbour no longer read as a
- * pair. With the cap the facts sit the same way whether a rail is beside them
- * or not.
+ * It used to be two columns with empty facts left out, so the six moved around
+ * from job to job (Neuralink's location, salary and level stacked in one
+ * column) and read differently from the card the seeker had just clicked
+ * (2026-10-17). Plain, no rule or fill of its own: `JobDetailHeader` supplies
+ * both.
  *
  * Location, job type, salary, work style and level draw the same glyphs as
- * `JobPostingCard` on the seeker feed (see the job facts note in
- * components/icons.tsx), because this is the expanded view of the same
- * posting that card is a row for, and a detail page that describes a job
- * differently than its own card does is the inconsistency a "detail" view
- * exists to resolve, not add. The sixth fact is when it starts.
+ * `JobPostingCard` (see the job facts note in components/icons.tsx), because
+ * this is the expanded view of the same posting that card is a row for.
  */
 export function JobFacts({ posting }: { posting: JobPosting }) {
   return (
-    <div className="text-note grid max-w-[68ch] grid-cols-2 gap-x-6 gap-y-2">
+    <div className="text-note grid grid-cols-2 gap-x-4 gap-y-2 @md:grid-cols-3">
       <JobFact Icon={PinIcon} value={posting.locationCity} />
       <JobFact Icon={BriefcaseIcon} value={posting.jobType} />
       <JobFact Icon={CoinIcon} value={posting.salary} />
@@ -46,12 +43,21 @@ export function JobFacts({ posting }: { posting: JobPosting }) {
   );
 }
 
-/** A `Fact` whose value also rides in a title, so one its column truncates
- *  (a long live location on a phone) can still be read whole on hover. */
+/** One slot: a stated fact is its glyph and value, with the whole value in a
+ *  title in case its column cuts it short. An unstated one is the same slot
+ *  drawn invisibly, so its row keeps its height and the facts after it keep
+ *  their columns; under 448px of card it steps out of the grid and they close
+ *  up, as the feed card's `FactSlot` does. */
 function JobFact({ Icon, value }: { Icon: ComponentType<{ className?: string }>; value: string }) {
-  // A live posting can leave a fact unstated (no salary, no start date); its
-  // place is left out rather than drawn as a glyph beside nothing.
-  if (!value) return null;
+  if (!value) {
+    return (
+      <span aria-hidden="true" className="@max-md:hidden">
+        <Fact Icon={Icon} className="invisible">
+          {" "}
+        </Fact>
+      </span>
+    );
+  }
   return (
     <Fact Icon={Icon}>
       <span title={value}>{value}</span>
