@@ -1,0 +1,288 @@
+"use client";
+
+import { Bell, FileText, Target, WandSparkles, type LucideIcon } from "lucide-react";
+import {
+  AnimatePresence,
+  MotionConfig,
+  motion,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "motion/react";
+import Link from "next/link";
+import { useRef, useState, type ComponentType } from "react";
+
+import { cn } from "@/lib/cn";
+
+import AutofillVisual from "./autofill-visual";
+import { features, skillTags, type FeatureId } from "./feature-data";
+import { useMediaQuery } from "./hooks";
+import MagnifiedTags from "./magnified-tags";
+import ResumeVisual from "./resume-visual";
+import UpdatesVisual from "./updates-visual";
+
+function SkillsVisual() {
+  return <MagnifiedTags rows={skillTags} className="h-72 sm:h-80" />;
+}
+
+/**
+ * Each stop's tab and colours. The colours are the app's own: violet for
+ * matching, then the advanced blue, positive green and the match pink, so
+ * each stop reads as its own product while staying in the palette.
+ */
+const STOPS: Record<
+  FeatureId,
+  { label: string; icon: LucideIcon; Visual: ComponentType; tint: string; glow: string }
+> = {
+  matching: {
+    label: "Matching",
+    icon: Target,
+    Visual: SkillsVisual,
+    tint: "var(--color-brand-tint)",
+    glow: "var(--color-brand)",
+  },
+  resumes: {
+    label: "Resumes",
+    icon: FileText,
+    Visual: ResumeVisual,
+    tint: "var(--color-advanced-tint)",
+    glow: "var(--color-advanced)",
+  },
+  autofill: {
+    label: "Autofill",
+    icon: WandSparkles,
+    Visual: AutofillVisual,
+    tint: "var(--color-positive-tint)",
+    glow: "var(--color-positive)",
+  },
+  updates: {
+    label: "Updates",
+    icon: Bell,
+    Visual: UpdatesVisual,
+    tint: "var(--color-danger-tint)",
+    glow: "var(--color-match-good)",
+  },
+};
+
+/** A stop's soft, two-blob gradient over its tint. */
+function backdrop(id: FeatureId) {
+  const { tint, glow } = STOPS[id];
+  const blob = (amount: number) => `color-mix(in oklab, ${glow} ${amount}%, transparent)`;
+  return `radial-gradient(55% 65% at 12% 18%, ${blob(38)}, transparent), radial-gradient(50% 60% at 88% 85%, ${blob(30)}, transparent), radial-gradient(40% 50% at 70% 10%, white, transparent), ${tint}`;
+}
+
+// Tailwind's lg breakpoint: pinned from here up, stacked below it.
+const DESKTOP_QUERY = "(min-width: 64rem)";
+/** How much page each stop takes to scroll past while pinned, in vh. */
+const STOP_VH = 80;
+
+/**
+ * The product tour under the hero, after Calendly's: from lg up the section
+ * pins to the screen and scrolling steps through the four features, the
+ * gradient behind the card changing colour with each. The tabs jump to a
+ * stop. Below lg, where a pinned card would not fit the screen, the stops
+ * stack as rounded panels. Copy and animations are the feature carousel's
+ * (feature-data.ts and the *-visual files).
+ */
+export function ProductTour() {
+  // Null until mounted: both layouts render and CSS shows the right one,
+  // so nothing shifts on hydration.
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  return (
+    // reducedMotion="user": the animations' transforms are instant for
+    // visitors who prefer reduced motion.
+    <MotionConfig reducedMotion="user">
+      <section id="features" aria-label="What WorkIt does">
+        {isDesktop !== false && <PinnedTour />}
+        {isDesktop !== true && <StackedTour />}
+      </section>
+    </MotionConfig>
+  );
+}
+
+function PinnedTour() {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+  const [index, setIndex] = useState(0);
+
+  // 0 when the section's top meets the screen's top, 1 when its bottom
+  // meets the screen's bottom: the stretch where the card is pinned.
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  useMotionValueEvent(scrollYProgress, "change", (progress) => {
+    setIndex(Math.min(features.length - 1, Math.max(0, Math.floor(progress * features.length))));
+  });
+
+  // The panel grows into place as it scrolls up to the top.
+  const { scrollYProgress: entry } = useScroll({
+    target: ref,
+    offset: ["start end", "start start"],
+  });
+  const scale = useTransform(entry, [0, 1], reduceMotion ? [1, 1] : [0.9, 1]);
+
+  const jumpTo = (stop: number) => {
+    const section = ref.current;
+    if (!section) return;
+    const top = section.getBoundingClientRect().top + window.scrollY;
+    const span = section.offsetHeight - window.innerHeight;
+    // The middle of the stop's stretch, so a small scroll does not leave it.
+    window.scrollTo({
+      top: top + ((stop + 0.5) / features.length) * span,
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  };
+
+  const active = features[index];
+  const { Visual } = STOPS[active.id];
+
+  return (
+    <div
+      ref={ref}
+      className="hidden lg:block"
+      style={{ height: `calc(100dvh + ${(features.length - 1) * STOP_VH}vh)` }}
+    >
+      <div className="sticky top-0 flex h-dvh flex-col px-6 pt-22 pb-6">
+        <motion.div
+          style={{ scale }}
+          className="relative isolate flex flex-1 flex-col items-center justify-center overflow-hidden rounded-[3rem] px-8"
+        >
+          {/* One backdrop per stop, crossfading, so the colour shift is smooth. */}
+          {features.map((feature, i) => (
+            <div
+              key={feature.id}
+              aria-hidden="true"
+              className="absolute inset-0 -z-10 transition-opacity duration-700 ease-out motion-reduce:transition-none"
+              style={{ background: backdrop(feature.id), opacity: i === index ? 1 : 0 }}
+            />
+          ))}
+
+          <div role="tablist" aria-label="Features" className="flex gap-3">
+            {features.map((feature, i) => {
+              const { icon: Icon, label } = STOPS[feature.id];
+              const selected = i === index;
+              return (
+                <button
+                  key={feature.id}
+                  type="button"
+                  role="tab"
+                  id={`tour-tab-${feature.id}`}
+                  aria-selected={selected}
+                  aria-controls="tour-panel"
+                  aria-label={label}
+                  onClick={() => jumpTo(i)}
+                  className={cn(
+                    "relative flex size-12 items-center justify-center rounded-2xl ring-1 transition-colors duration-300",
+                    selected
+                      ? "text-ink bg-white shadow-md ring-white"
+                      : "text-ink-meta bg-white/50 ring-white/70 hover:bg-white/80",
+                  )}
+                >
+                  <Icon className="size-5" aria-hidden="true" />
+                  {/* The notch that ties the selected tab to the card. */}
+                  {selected && (
+                    <motion.span
+                      layoutId="tour-notch"
+                      aria-hidden="true"
+                      className="absolute top-full mt-2.5 size-3 rotate-45 rounded-[3px] bg-white"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            id="tour-panel"
+            role="tabpanel"
+            aria-labelledby={`tour-tab-${active.id}`}
+            className="mt-4 grid w-full max-w-5xl grid-cols-[2fr_3fr] items-center gap-8 rounded-[2rem] bg-white p-6 shadow-xl shadow-slate-900/5"
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={active.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: reduceMotion ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
+                className="pl-4"
+              >
+                <StopCopy id={active.id} />
+              </motion.div>
+            </AnimatePresence>
+
+            <div
+              className="relative flex h-[clamp(20rem,calc(100dvh-15rem),40rem)] items-center justify-center overflow-hidden rounded-[1.5rem] p-6"
+              style={{ background: backdrop(active.id) }}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={active.id}
+                  className="flex w-full justify-center"
+                  initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
+                  transition={{ duration: reduceMotion ? 0 : 0.35, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <Visual />
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function StackedTour() {
+  return (
+    <div className="space-y-2 px-2 sm:space-y-4 sm:px-6 lg:hidden">
+      {features.map((feature) => {
+        const { Visual } = STOPS[feature.id];
+        return (
+          <div
+            key={feature.id}
+            className="overflow-hidden rounded-[2rem] p-2 sm:p-4"
+            style={{ background: backdrop(feature.id) }}
+          >
+            <div className="rounded-[1.5rem] bg-white p-6">
+              <StopCopy id={feature.id} />
+            </div>
+            <div className="flex justify-center px-2 py-8">
+              <Visual />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A stop's label chip, title, description and link. */
+function StopCopy({ id }: { id: FeatureId }) {
+  const feature = features.find((item) => item.id === id) ?? features[0];
+  const { icon: Icon, label, glow } = STOPS[id];
+  return (
+    <>
+      <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
+        <span
+          className="flex size-6 items-center justify-center rounded-md text-white"
+          style={{ background: glow }}
+        >
+          <Icon className="size-3.5" aria-hidden="true" />
+        </span>
+        {label}
+      </p>
+      <h2 className="text-ink mt-4 text-3xl font-semibold tracking-tight text-balance">
+        {feature.title}
+      </h2>
+      <p className="text-ink-meta mt-3 text-pretty">{feature.description}</p>
+      <Link
+        href="/signup"
+        className="text-ink mt-6 inline-flex items-center gap-1.5 border-b border-current pb-0.5 text-sm font-medium"
+      >
+        Try it free <span aria-hidden="true">→</span>
+      </Link>
+    </>
+  );
+}
