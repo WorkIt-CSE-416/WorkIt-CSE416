@@ -519,7 +519,11 @@ drift apart. Only Back differs (Back to Applications, `JobActionBar`'s
 `back` slot). No match rail, as on the job page: an earlier draft added the
 Jobs card's ring, which made the same job look different by how it was
 opened. Analytics and explanations go on the Your Application tab only.
-Under the header, two tabs, each a URL (`?tab=job` for the second):
+**The bar holds the tabs once there is nothing to do**: an applied job, or a
+closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
+shows the tabs beside Back instead. A saved job with an open posting keeps
+the job page's actions, and its tabs sit under the header. Two tabs, each a
+URL (`?tab=job` for the second):
 
 - **Your Application**, the default: At a Glance (stage, match, posting, saved and
   applied dates, the resume sent), Timing (elapsed days: waiting to hear

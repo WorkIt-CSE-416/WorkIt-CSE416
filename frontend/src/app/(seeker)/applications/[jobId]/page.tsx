@@ -6,7 +6,6 @@ import { ArrowLeftIcon } from "@/components/icons";
 import { CompanyLogo } from "@/components/company-logo";
 import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
-import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Section } from "@/components/ui/section";
@@ -21,7 +20,6 @@ import {
   JobViewHeader,
   loadJobView,
 } from "../../jobs/[jobId]/job-view";
-import { MoreActions } from "../../jobs/[jobId]/page-actions";
 import type { Application } from "../../tracker";
 import { getNow, getTracker } from "../data";
 import { YourApplication } from "./your-application";
@@ -44,9 +42,9 @@ type Tab = "job" | "application";
  * THE JOB'S OWN PAGE, WITH TWO TABS. The action bar, the header and the Job
  * Description tab are the job page's own parts (../../jobs/[jobId]/job-view),
  * so the role looks exactly as it does on /jobs/[jobId]; only Back goes to
- * Applications. No match rail, as on the job page. Under the header, two
- * tabs, a URL each (`?tab=job` for the second), so a tab can be linked to
- * and survives a reload:
+ * Applications. No match rail, as on the job page. Two tabs, a URL each
+ * (`?tab=job` for the second), so a tab can be linked to and survives a
+ * reload:
  *
  *   Your Application  the default: the analytics, what was sent, the timing
  *                     and the timeline (./your-application.tsx)
@@ -54,6 +52,11 @@ type Tab = "job" | "application";
  *                     page's sent and applied notes and its eligibility
  *                     checklist stay off, so the description reads as the
  *                     posting, not as the seeker's record
+ *
+ * THE BAR HOLDS THE TABS ONCE THERE IS NOTHING TO DO. An applied job, or a
+ * closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the
+ * bar shows the tabs beside Back instead. A saved job with an open posting
+ * keeps the job page's actions, and its tabs sit under the header.
  *
  * The application comes from the tracker's own read (`getTracker`, cached per
  * request), so the score, the resume and the stage match the list's row
@@ -92,19 +95,26 @@ export default async function ApplicationPage({
   const app = applications.find((a) => a.id === jobId);
   if (!app) notFound();
   const base = `/applications/${encodeURIComponent(jobId)}`;
+  // Only a saved job with an open posting still has something to do: Apply,
+  // Tailor, Save. An applied job, or a closed posting, gets the tabs in the
+  // bar in their place.
+  const actionable = job != null && app.stage === "saved";
+  const tabs = (className?: string) => (
+    <SegmentedLinks
+      label="Application Tabs"
+      value={tab}
+      className={className}
+      options={[
+        { value: "application", label: "Your Application", href: base },
+        { value: "job", label: "Job Description", href: `${base}?tab=job` },
+      ]}
+    />
+  );
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <JobActionBar back={<BackToApplications className="group/back" />}>
-        {job ? (
-          <JobViewActions view={view} job={job} />
-        ) : (
-          // A closed posting can't be saved, tailored or applied to.
-          <>
-            <MoreActions title={app.role} />
-            <AskScoutButton id={app.id} title={app.role} company={app.company} />
-          </>
-        )}
+        {actionable ? <JobViewActions view={view} job={job} /> : tabs()}
       </JobActionBar>
 
       {job ? (
@@ -122,15 +132,7 @@ export default async function ApplicationPage({
         />
       )}
 
-      <SegmentedLinks
-        label="Application Tabs"
-        value={tab}
-        className="mt-6"
-        options={[
-          { value: "application", label: "Your Application", href: base },
-          { value: "job", label: "Job Description", href: `${base}?tab=job` },
-        ]}
-      />
+      {actionable && tabs("mt-6")}
 
       {tab === "application" ? (
         <YourApplication app={app} job={job} sent={view.sent} now={getNow()} />
