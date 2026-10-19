@@ -18,6 +18,7 @@ import {
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
+import { rememberReturnTo } from "../jobs/[jobId]/page-actions";
 import { LocalDate } from "../local-time";
 import { DeleteConfirm } from "./delete-confirm";
 import { DownloadNotes, useResumeDownload } from "./download-menu";
@@ -181,7 +182,8 @@ export function BuiltResumeRow({
 
 /**
  * The job posting a tailored resume was made for. Above the card's
- * stretched link, so a press on it opens the posting, not the editor.
+ * stretched link, so a press on it opens the posting, not the editor. The
+ * click makes the posting page's Back return here (rememberReturnTo).
  */
 function PostingLink({ resume }: { resume: BuiltResume }) {
   const label = resume.posting_company
@@ -191,6 +193,7 @@ function PostingLink({ resume }: { resume: BuiltResume }) {
   return (
     <Link
       href={`/jobs/${encodeURIComponent(resume.job_posting_id)}`}
+      onClick={() => rememberReturnTo("/resumes")}
       className="text-brand hover:text-brand-hover relative z-10 underline-offset-2 hover:underline"
     >
       {label}

@@ -219,7 +219,10 @@ once beside the first page (`getApplicationStages`) and hand the stages to
 each card, Load More's too. A stale one is harmless: a click answers the real
 stage. Back returns to the list the seeker came from: the feed, filters and all, or
 the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
-the last one visited in sessionStorage). It says only "Back", whatever the
+the last one visited in sessionStorage), or the Resumes page when a
+tailored resume's posting link opened it (`rememberReturnTo`, KAN-268, set
+on the click rather than the visit, so a job opened from elsewhere after a
+look at /resumes does not go Back there). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
 would change a moment after the page loads.
 **Applied** (KAN-232), last in the header's actions, shows for a signed-in
