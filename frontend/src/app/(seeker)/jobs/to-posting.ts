@@ -11,8 +11,8 @@ import type { JobListing } from "./listings";
  */
 
 /** A fact's words, or nothing where the posting doesn't say (the header
- *  leaves that fact out). */
-const text = (value: string | null | typeof NOT_LISTED | undefined) =>
+ *  leaves that fact out). The job page reads the pay through it too. */
+export const factText = (value: string | null | typeof NOT_LISTED | undefined) =>
   typeof value === "string" ? value : "";
 
 /** The live role in the shape the shared header reads. What only a fixture
@@ -24,12 +24,12 @@ export function toPosting(job: JobListing): JobPosting {
     companyName: job.company,
     title: job.title,
     status: "Open",
-    jobType: text(facts.jobType),
-    workStyle: text(facts.workStyle),
-    level: text(facts.experienceLevel),
-    starts: text("startTerm" in facts ? facts.startTerm : facts.minYearsExperience),
-    locationCity: text(facts.location),
-    salary: text(facts.salary),
+    jobType: factText(facts.jobType),
+    workStyle: factText(facts.workStyle),
+    level: factText(facts.experienceLevel),
+    starts: factText("startTerm" in facts ? facts.startTerm : facts.minYearsExperience),
+    locationCity: factText(facts.location),
+    salary: factText(facts.salary),
     postedAt: job.posted_at ?? "",
     updatedAt: job.posted_at ?? "",
     companyAbout: "",

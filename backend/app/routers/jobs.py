@@ -82,6 +82,7 @@ from app.queries.jobs.listings import fetch_count, fetch_listing, fetch_listings
 from app.queries.jobs.recommendations import score_jobs
 from app.queries.jobs.search import read_search, terms_in
 from app.schemas.auth import AuthenticatedAccount
+from app.schemas.eligibility import Education, EligibilityChecklist
 from app.schemas.jobs import (
     JobCount,
     JobFacets,
@@ -94,6 +95,7 @@ from app.schemas.jobs import (
     ScoredJob,
     SeasonKey,
 )
+from app.services import eligibility, postings
 from app.services.bank import load_bank
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -281,6 +283,49 @@ async def recommended_jobs(
         )
     except EmptyBank as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@router.get(
+    "/{job_id}/eligibility",
+    response_model=EligibilityChecklist,
+)
+async def get_job_eligibility(
+    job_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> EligibilityChecklist:
+    # Verifies applicant account type. Identity comes from the token.
+    assert_applicant_owns(account, account.id)
+
+    job = await postings.listed(db, job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=404,
+            detail="That job isn't open any more.",
+        )
+
+    bank = await load_bank(db, account.id)
+
+    education = [
+        Education(
+            degree=entry.row.degree,
+            field_of_study=entry.row.field_of_study,
+            end_month=entry.row.end_month,
+            end_kind=entry.row.end_kind,
+        )
+        for entry in bank.entries
+        if entry.row.section == dto.bank_section.education
+    ]
+
+    requirements = eligibility.extract(job.description)
+
+    return eligibility.checklist(
+        requirements,
+        education,
+        description_available=bool(
+            job.description and job.description.strip()
+        ),
+    )
 
 
 # Last, so the paths above ("/count", "/facets", "/locations", "/roles") are matched as

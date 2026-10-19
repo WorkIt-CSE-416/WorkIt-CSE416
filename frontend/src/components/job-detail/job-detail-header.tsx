@@ -24,9 +24,11 @@ type JobDetailHeaderProps = {
    *  leaves this off and keeps "Posted …". The day is the viewer's own, set
    *  in the browser by `ClosesOn`, since `closesAt` is a full timestamp. */
   showDeadline?: boolean;
-  /** Save, Report, Share and Apply Now on the seeker side; the status badge
-   *  and Edit on the company side. */
-  actions: ReactNode;
+  /** The status badge and Edit on the company side, beside the title. The
+   *  seeker page passes none: its actions sit in the bar pinned above this card
+   *  (`[jobId]/action-bar.tsx`), where the card's six controls once squeezed
+   *  the title to a word a line (KAN-246). */
+  actions?: ReactNode;
   /** The right rail this job's audience gets: `MatchRail` (`standalone`) for
    *  a seeker, `ApplicantOverviewPanel` for the company managing the
    *  posting, each its own rounded card, sitting beside the facts. Omit it
@@ -61,7 +63,10 @@ type JobDetailHeaderProps = {
  * and the company shell has no `@container/main` to measure. Narrower than
  * that, the actions drop to a full-width row of their own under the title,
  * and the rail stacks under the facts, so neither squeezes the title or the
- * facts into a sliver beside it.
+ * facts into a sliver beside it. The row wraps rather than overflowing. The
+ * seeker page passes no actions: its six sit in the bar pinned above the card,
+ * since beside the title they took the row's whole width, the title wrapped a
+ * word a line and the posted date ran under the buttons (KAN-246).
  *
  * `actions` and `rail` are the only things that differ between the company
  * and seeker pages that render this; everything else is shared.
@@ -89,7 +94,9 @@ export function JobDetailHeader({
       <div className="flex flex-col gap-3 @xl:flex-row @xl:items-start @xl:justify-between @xl:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            {tile}
+            {/* Never narrower than itself: in a crowded row the mark was
+                squeezed to an empty sliver. */}
+            <span className="flex shrink-0">{tile}</span>
 
             {/* Under 448px of card the timing takes its own line with no dot,
                 as on the feed card, rather than wrapping "ago" alone. */}
@@ -117,11 +124,13 @@ export function JobDetailHeader({
           <h1 className="text-display text-ink mt-2">{posting.title}</h1>
         </div>
 
-        {/* Wraps on a phone: the seeker's seven actions, and even the
-            application page's three (KAN-256), ran off the card's edge. */}
-        <div className="flex w-full flex-wrap items-center gap-2 @xl:w-auto @xl:shrink-0">
-          {actions}
-        </div>
+        {/* Wraps rather than overflows: a row wider than the card ran under
+            the company line and the posted date (KAN-246). */}
+        {actions && (
+          <div className="flex w-full flex-wrap items-center gap-2 @xl:w-auto @xl:shrink-0">
+            {actions}
+          </div>
+        )}
       </div>
 
       <div className="border-border-subtle flex flex-col gap-4 border-t pt-4 @xl:flex-row @xl:items-start">

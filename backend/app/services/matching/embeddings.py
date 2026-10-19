@@ -29,9 +29,66 @@ _MAX_CHARS = 6000   # NOTE: MAX CHARACTER ON EMBED. Need to consider increasing 
 _URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:batchEmbedContents"
 
 
+# The headings the scraper stores a description under (KAN-229,
+# scraper/workit_scraper/sections.py `KEPT`), each alone on its line. Part of
+# the feed's contract: renamed on one side only, every posting embeds its
+# whole description again. Matching reads the role and what it asks for; the
+# pay and the details are left out, and so is the intro unless the posting has
+# no Overview: then the intro is where it states the role (19 of the scraper's
+# 50 gold postings keep role or requirement lines there). The extras the
+# scraper keeps after them (Benefits, How to Apply, About the Company,
+# `sections.EXTRA`) are for the job posting's page: matching, the keywords and
+# Tailor never read them (`job_part`).
+_MATCHED_HEADINGS = frozenset(
+    {"Overview", "Responsibilities", "Requirements", "Preferred Qualifications"}
+)
+_OTHER_HEADINGS = frozenset({"Pay", "Details", "Benefits", "How to Apply", "About the Company"})
+
+
+def _matched_part(description: str, *, keep_headings: bool = False) -> str | None:
+    '''the text under the matched headings, after the intro when there is no
+    Overview, or None when no line is a matched heading. A description stored
+    before KAN-229 that uses one of those words as a heading of its own is read
+    from there; the scraper's own whole-text fallback never has one'''
+    intro: list[str] = []
+    lines: list[str] = []
+    seen = reading = False
+    has_content = False
+    for line in description.split("\n"):
+        if line in _MATCHED_HEADINGS or line in _OTHER_HEADINGS:
+            seen, reading = True, line in _MATCHED_HEADINGS
+            if reading and keep_headings:
+                lines.append(line)
+        elif not seen:
+            intro.append(line)
+        elif reading:
+            lines.append(line)
+            has_content |= bool(line.strip())
+    if not has_content:
+        # Only the intro under none of them, then Pay or an extra: the intro is
+        # the job, and the perks after it must not stand in for it.
+        return ("\n".join(intro).strip() or None) if seen else None
+    if "Overview" not in description.split("\n"):
+        lines = intro + lines
+    return "\n".join(lines).strip()
+
+
+def job_part(description: str | None, *, keep_headings: bool = False) -> str:
+    """What a posting says about the job itself (`_matched_part`), or its whole
+    description when it was stored with none of the fixed headings. What the
+    embedding, the keywords and Tailor read, so a perks list or the company's
+    pitch never steers them. Model prompts keep headings to distinguish required
+    from preferred qualifications; embeddings can omit them."""
+    if not description:
+        return ""
+    return _matched_part(description, keep_headings=keep_headings) or description
+
+
 def job_text(title: str, description: str | None) -> str:
-    '''what a posting is embedded from: its title, then its description'''
-    return f"{title}\n\n{description or ''}".strip()
+    '''what a posting is embedded from: its title, then its role (its intro
+    when it has no Overview), responsibilities, requirements and preferred
+    qualifications, or its whole description when it has none of them'''
+    return f"{title}\n\n{job_part(description)}".strip()
 
 
 def model_key() -> str:

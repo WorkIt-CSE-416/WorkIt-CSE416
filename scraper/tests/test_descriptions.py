@@ -59,6 +59,47 @@ class TestText:
         assert cut.endswith("word …")
 
 
+class TestLines:
+    def test_closing_a_list_closes_its_implicit_items(self) -> None:
+        full, roles = providers._described(
+            "<h3>Requirements</h3><ul><li>Python<li>C++</ul><p><b>Benefits</b></p><p>Free lunch</p>"
+        )
+        assert roles == ("h", "li", "li", "b", "p")
+        assert providers._page("Intern", full, roles=roles).description == (
+            "Requirements\n• Python\n• C++\nBenefits\nFree lunch"
+        )
+
+    def test_each_line_carries_its_role_in_the_html(self) -> None:
+        markup = (
+            "<h3>What you'll do</h3><ul><li>Build <b>robots</b></li></ul>"
+            "<p><strong>Requirements</strong></p><p>A CS degree</p>"
+        )
+
+        assert providers.plain_lines(markup) == [
+            ("What you'll do", "h"),
+            ("Build robots", "li"),
+            ("Requirements", "b"),
+            ("A CS degree", "p"),
+        ]
+
+    def test_the_text_is_plain_texts_line_for_line(self) -> None:
+        markup = "<p>Intro<br/>more</p><ul><li>One</li><li><p>Two</p></li></ul>"
+
+        assert "\n".join(line for line, _ in providers.plain_lines(markup)) == plain_text(markup)
+
+    def test_plain_text_in_is_all_paragraphs(self) -> None:
+        assert providers.plain_lines("Intro\n- Python") == [("Intro", "p"), ("- Python", "p")]
+
+    def test_a_page_stores_a_list_item_with_its_bullet(self) -> None:
+        full, roles = providers._described(
+            "<h3>Responsibilities</h3><ul><li>Build robots</li><li>Write tests</li></ul>"
+        )
+
+        page = providers._page("Intern", full, roles=roles)
+
+        assert page.description == "Responsibilities\n• Build robots\n• Write tests"
+
+
 class TestLever:
     def test_requirements_in_lists_are_kept(self) -> None:
         # Lever's intro is often a company blurb; the requirements live in `lists`.

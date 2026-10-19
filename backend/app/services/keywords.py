@@ -21,6 +21,7 @@ from workit_scout.llm import LLM
 
 from app.models.jobs import Job_Post
 from app.schemas.keywords import Keyword, KeywordReading
+from app.services.matching.embeddings import job_part
 from app.services.resume_view import ResumeView
 
 MAX_KEYWORDS = 20
@@ -73,8 +74,10 @@ async def extract(job: Job_Post, llm: LLM) -> list[Keyword]:
     is read from its title. Raises `ScoutUnavailable` (or `InvalidReply`)
     when no model answers or the answer fails the schema. The posting is no
     student's text, so the seam gets an empty Identity, which still removes
-    any email, URL or phone."""
-    posting = f"{job.title}\n\n{(job.description or '')[:MAX_DESCRIPTION_CHARS]}".strip()
+    any email, URL or phone. It reads the job's own sections (`job_part`), not
+    the perks or the company's pitch kept after them."""
+    description = job_part(job.description, keep_headings=True)[:MAX_DESCRIPTION_CHARS]
+    posting = f"{job.title}\n\n{description}".strip()
     prompt = [{"role": "system", "content": PROMPT}, {"role": "user", "content": posting}]
     return _cleaned(await llm.complete_json(prompt, KeywordReading, identity=Identity()))
 

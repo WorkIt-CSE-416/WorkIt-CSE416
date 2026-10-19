@@ -121,13 +121,49 @@ class TestPayWords:
 
     def test_the_amounts_sentence_is_its_label(self) -> None:
         # Toyota Research Institute: "pay range" opens the sentence, 85 characters
-        # before the amount. ("$45 and $65" is not read as a range, so $45.)
+        # before the amount; "between $45 and $65" is a range (TestRangeEnds).
         text = (
             "The pay range for this position at commencement of employment is expected to "
             "be between $45 and $65/hour for California-based roles; however, base pay "
             "offered may vary"
         )
-        assert details.pay(text) == Pay("USD", 45, 45, "hour")
+        assert details.pay(text) == Pay("USD", 45, 65, "hour")
+
+
+class TestRangeEnds:
+    """A range whose low end carries its unit or code, or that says "between … and",
+    is a range (KAN-229, 2026-10-17). Each was read as its low end alone, 16 roles on
+    the 2026-10-16 feed. Every string is from the posting named."""
+
+    def test_a_low_end_with_its_unit(self) -> None:
+        # Tenstorrent (3 roles), Harvey, SK Hynix (4), ZipRecruiter.
+        text = (
+            "Compensation for all interns at Tenstorrent ranges from $50/hr - $70/hr "
+            "including base and variable compensation."
+        )
+        assert details.pay(text) == Pay("USD", 50, 70, "hour")
+        assert details.pay("- Pay: $62/hr-$72/hr in San Francisco and New York") == Pay(
+            "USD", 62, 72, "hour"
+        )
+        assert details.pay("COMPENSATION: $35/hr - $45/hr") == Pay("USD", 35, 45, "hour")
+        text = "The US base pay range for this full-time position is $45.00/hr - $50.00/hr."
+        assert details.pay(text) == Pay("USD", 45, 50, "hour")
+
+    def test_between_one_amount_and_another(self) -> None:
+        # Schonfeld, Sphinx Defense.
+        text = "The annual base pay for this role is expected to be between $100,000 and $110,000"
+        assert details.pay(text) == Pay("USD", 100000, 110000, "year")
+        text = "This role is between $75,000 and $112,000 base salary."
+        assert details.pay(text) == Pay("USD", 75000, 112000, "year")
+
+    def test_a_low_end_with_its_currency_code(self) -> None:
+        # Cadence's Montreal co-op, as card-facts.md quotes it.
+        text = "The hourly range for this position is from $30CAD to $45CAD"
+        assert details.pay(text) == Pay("CAD", 30, 45, "hour")
+
+    def test_and_without_between_is_not_a_range(self) -> None:
+        # Constructed: two sums joined by "and" are pay and a perk, not a range.
+        assert details.pay("$40/hr and a $2,000 relocation stipend") == Pay("USD", 40, 40, "hour")
 
 
 class TestJobType:
@@ -1040,14 +1076,26 @@ class TestSponsorship:
 
 
 class TestConstructedGuards:
-    """Constructed guards for KAN-168's fixes and one pay shape, not seen live: each
-    bug was real, but no posting on 2026-10-09 (or, for the pay, on 2026-10-10) said
-    it this way."""
+    """Constructed guards for sponsorship and pay fixes, not seen live.
+
+    These sentences reproduce review findings without claiming a live posting
+    used the exact wording, including ranges with metadata on only one bound.
+    """
 
     def test_cents_on_one_end_of_a_range(self) -> None:
         # Reported as read "50,000 to 50,000"; the cached postings write cents on
         # both ends or neither.
         assert details.pay("Salary: $50,000.00 - $70,000") == Pay("USD", 50000, 70000, "year")
+
+    def test_range_keeps_lower_bound_currency_and_period(self) -> None:
+        assert details.pay("$30CAD to $45 per hour") == Pay("CAD", 30, 45, "hour")
+        assert details.pay("Salary: $1000/week - $2000") == Pay("USD", 1000, 2000, "week")
+        assert details.pay("$50/hr - $70") == Pay("USD", 50, 70, "hour")
+        assert details.pay("$1000/month - $2000") == Pay("USD", 1000, 2000, "month")
+
+    def test_lower_bound_period_does_not_hide_non_pay_upper_suffix(self) -> None:
+        assert details.pay("Salary: $50/hr - $70 million") is None
+        assert details.pay("Salary: $50/hr - $70 billion") is None
 
     INTERN = "Software Engineer Intern"
 

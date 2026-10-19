@@ -9,6 +9,7 @@ python3 -m workit_scraper              # scrape, then write the page and feed.js
 python3 -m workit_scraper --full       # the same, quiet boards included
 python3 -m workit_scraper --offline    # no network; rewrite both from jobs.json
 python3 build_boards.py                # add the boards the curated lists name now
+GROQ_API_KEY=... python3 label_headings.py  # label the headings no rule names
 uvx pytest                             # the tests
 ```
 
@@ -92,8 +93,8 @@ boards are read over several runs: `docs/workday.md`.
 
 ## A posting's own page is read once, and only for kept postings
 
-A posting's own text is one value, `providers.Page`: the description (cut to
-`DESCRIPTION_CHARS` for Scout), the card's `details.Facts`, and on Greenhouse
+A posting's own text is one value, `providers.Page`: the description (its kept
+sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
 Recruitee send it with the board's list. Greenhouse, Workable, BambooHR and
 Workday do not (`providers.JOB_URL`): Greenhouse's `content=true` would send
@@ -143,6 +144,74 @@ real posting and the measurements behind them.
   filled ones. That caught three regressions.
 - **`sponsorship`'s four values are part of the feed's contract** with
   `backend/app/schemas/jobs.py`: a new value is a change on both sides.
+
+## Description sections
+
+A stored description is its kept sections under fixed headings (KAN-229):
+`providers._page` stores `cap(sections.kept(full))`. `sections.split` reads a
+description into role, responsibilities, requirements, preferred, pay, benefits,
+legal and the rest by its headings, and `kept` keeps the intro, Overview,
+Responsibilities, Requirements, Preferred Qualifications, Pay and Details, then
+the extras (`EXTRA`: Benefits, How to Apply, About the Company), in that order.
+Only legal notices are left out. The extras are for the job posting's page,
+shown last and folded; the backend's matching, keywords and Tailor stop at their
+headings (`job_part`), so add a heading to `KEPT` and to the backend's
+`_OTHER_HEADINGS` in the same change, or its text reaches matching. Read `docs/sections.md` before changing a pattern, a rule or `KEPT`:
+it has the measurements, the heading audit that found the misses, and why each
+section is kept or left out.
+
+- **`KEPT`'s headings are part of the feed's contract.** The backend's
+  `job_text` finds what matching reads by those exact lines; rename one on
+  both sides in the same change.
+- **A short line that names a section is not always a heading.** List items do
+  it ("Commuter benefits", "Competitive salary"), so a heading of the open
+  section, or one straight after a heading, is content. Without that, one
+  posting's whole benefits list vanished.
+- **The HTML's structure guides the sections.** `providers.plain_lines` gives
+  each line its role in the HTML (heading tag, bold, list item, paragraph) beside
+  `plain_text`'s unchanged text, and `kept(text, roles)` uses it: a list item never
+  opens a section, a marked heading is read by its words alone, and a list item is
+  stored as "• item". A provider that sends HTML passes the roles to `_page`; one
+  that does not (Ashby's plain field) is read by shape as before.
+- **Facts still come from the whole text.** `details.read` runs before
+  anything is left out, so a pay line under Benefits still reaches the card.
+- **Headings decide most lines, what a line says decides the rest**
+  (`_sorted_lines`, `_said`): an inline "Overview: …" label moves its own line,
+  a pay sentence goes to Pay from any section, an equal-opportunity line is
+  dropped, a nice-to-have goes to Preferred Qualifications, a qualification in a
+  duties list and a work-eligibility line go to Requirements, and a named perk
+  and a how-to-apply line leave the job's sections for Benefits and How to
+  Apply, and a work-eligibility line in an extra goes to Requirements (ASDA's
+  right to work sat under "What you'll gain"). Each rule is kept only if it fixes more
+  gold lines than it breaks, in both groups (`docs/sections.md`, fix 4).
+  Re-run the heading audit and `kept(kept(text)) == kept(text)` on the whole feed
+  after any change (`docs/sections.md`, "Fixes after the first review").
+- **Hiding job text is worse than misfiling it.** A left-out section runs on
+  until a heading a pattern names, so one unnamed heading after "About Us" hid
+  SharkNinja's whole job, from the page and from search, matching, Scout and
+  Tailor. Two rules stop that: a marked heading no pattern names ends the
+  company's section and opens Overview, and a description that keeps under a
+  tenth of its text is kept whole (`docs/sections.md`, "Hiding less job text").
+- **A heading no pattern names is looked up in `learned_headings.json`**, the
+  labels a model gave once (`label_headings.py`, Groq's `openai/gpt-oss-20b`
+  with a key of its own, never Scout's, so a first run never spends Scout's
+  quota). Patterns always win, and "none" keeps a line as content. **A learned
+  label never sends job text where it should not go:** one naming legal cannot
+  end a job section, and one naming an extra cannot end a section matching
+  reads (out of Pay or Details it may). It is a committed file, never a call during the scrape: Groq
+  takes about 30 requests a minute, a run reads thousands of pages, and each
+  page is stored once. After a run, review the diff (a list item labeled as a
+  heading splits its list), score the gold set with the per-label effect, set a
+  label that loses gold lines to "none", and bump `PAGE_VERSION`, or stored
+  postings never get the new labels (`docs/sections.md`, "Learned headings").
+- **Correctness is scored against a gold test set** (`tests/test_sections_gold.py`,
+  80 labeled postings in two groups: 50 from Greenhouse, Ashby and Lever, and 30
+  from Workday, which is most of the feed): run its report after any change. It
+  scores where each line shows and how much job text the stored text hides. Its
+  floors only go up and its ceilings only come down; a change that worsens one is
+  a regression even if it fixes the posting it was written for. The one
+  exception is a trade recorded in the test and in `docs/sections.md`, as on
+  2026-10-17.
 
 ## Filter changes need a real title
 
@@ -255,6 +324,9 @@ page. The backend's `app/scripts/import_jobs.py` loads it into `job_postings`;
 the backend imports none of this package. So **`feed.row()` is the whole
 contract**: its fields match `backend/app/schemas/jobs.py`, a field is added in
 both or neither, and a new column needs its migration.
+
+`description` has a format too: the kept sections under `sections.KEPT`'s
+headings, which the backend's matching reads by name (Description sections).
 
 Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's
 labels. `feed.WORK_STYLE` is indexed, not `.get`: a new label should fail the

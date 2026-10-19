@@ -1,15 +1,21 @@
 "use client";
 
-import { Share2 } from "lucide-react";
+import { Flag, Link2 } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
-import { ArrowLeftIcon } from "@/components/icons";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { ArrowLeftIcon, EllipsisIcon } from "@/components/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
+import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { formatDate } from "@/lib/format-date";
 
 import { restoreScrollOn } from "../../scroll-memory";
-import { markApplied } from "../actions";
 
 /** The page a job's page was last opened from this session: the feed,
  *  filters and all, the Auto Apply page, or the Resumes page. */
@@ -108,89 +114,90 @@ export function BackToJobs({ className }: { className?: string }) {
   );
 }
 
-/** Share: copies this page's link, and says so in its tooltip for a moment.
- *  A clipboard the browser refuses (an insecure origin, a denied
- *  permission) says that instead. */
-export function ShareButton({ title }: { title: string }) {
+/**
+ * The header's "…" menu (KAN-250): the job's less used actions, so the row
+ * keeps only what a seeker acts on (Save, Ask Scout, Auto Apply, Tailor My
+ * Resume, Apply Now). Eight buttons in one row pushed into the company line,
+ * cut off the posted date and squeezed the title to a word a line (KAN-246).
+ *
+ * Copy Link copies this page's link, and a note under the trigger says so for
+ * a moment: the menu has closed by then, so it cannot say it itself. The note
+ * floats rather than sitting in the row, which shifted every button after it
+ * for two seconds. A
+ * clipboard the browser refuses (an insecure origin, a denied permission) says
+ * that instead. Report is still inert, as it was as its own button.
+ */
+export function MoreActions({ title }: { title: string }) {
   const [said, setSaid] = useState<"Link copied" | "Couldn't copy the link" | null>(null);
   useEffect(() => {
     if (!said) return;
     const timer = setTimeout(() => setSaid(null), 2000);
     return () => clearTimeout(timer);
   }, [said]);
+
   return (
-    <IconButton
-      label={`Copy a link to ${title}`}
-      tooltip={said ?? "Copy link"}
-      variant="outline"
-      className="size-9 shrink-0"
-      onClick={() =>
-        // Inside a promise, so a missing clipboard (an http address on a
-        // phone, where navigator.clipboard is undefined) lands in the catch.
-        Promise.resolve()
-          .then(() => navigator.clipboard.writeText(window.location.href))
-          .then(() => setSaid("Link copied"))
-          .catch(() => setSaid("Couldn't copy the link"))
-      }
-    >
-      <Share2 className="size-4" />
-    </IconButton>
+    <span className="relative flex shrink-0">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <IconButton
+              label={`More actions for ${title}`}
+              tooltip="More actions"
+              variant="outline"
+              className="size-8 shrink-0"
+            >
+              <EllipsisIcon className="size-4" />
+            </IconButton>
+          }
+        />
+        <DropdownMenuContent align="start" className="w-44">
+          <DropdownMenuItem
+            onClick={() =>
+              // Inside a promise, so a missing clipboard (an http address on a
+              // phone, where navigator.clipboard is undefined) lands in the catch.
+              Promise.resolve()
+                .then(() => navigator.clipboard.writeText(window.location.href))
+                .then(() => setSaid("Link copied"))
+                .catch(() => setSaid("Couldn't copy the link"))
+            }
+          >
+            <Link2 className="text-ink-meta size-4" />
+            Copy Link
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <Flag className="text-ink-meta size-4" />
+            Report
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <span
+        role="status"
+        className="text-note text-ink-meta pointer-events-none absolute top-full left-0 mt-1 whitespace-nowrap"
+      >
+        {said}
+      </span>
+    </span>
   );
 }
 
-/** "10/15/2026" for a saved instant. */
-const DAY: Intl.DateTimeFormatOptions = { month: "2-digit", day: "2-digit", year: "numeric" };
-
-/** "Applied at 10/15/2026", on the viewer's own calendar. The server (UTC)
- *  prints its UTC day and the browser swaps in its own after hydration, as
- *  ClosesOn does (frontend/CLAUDE.md on timestamps). */
-function AppliedOn({ iso }: { iso: string }) {
+/**
+ * "You applied on Oct 17, 2026" (KAN-242): the signed-in applicant's own
+ * record that they applied, under the header beside "You sent …" rather than a
+ * button in the row, where a misclick marked a job applied and took it off the
+ * feed. Apply Now's dialog asks once the seeker leaves for the employer's
+ * posting (./apply-button). The day is the viewer's own: the server renders
+ * the UTC day and the browser swaps in its local one, as SentNote does.
+ */
+export function AppliedNote({ at }: { at: string }) {
   const day = useSyncExternalStore(
     noSubscription,
-    () => new Date(iso).toLocaleDateString("en-US", DAY),
-    () => new Date(iso).toLocaleDateString("en-US", { ...DAY, timeZone: "UTC" }),
+    () =>
+      new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    () => formatDate(at),
   );
-  return <p className="text-label text-ink-meta shrink-0 whitespace-nowrap">Applied at {day}</p>;
-}
-
-/** Applied: marks this job as applied for the signed-in applicant (KAN-232),
- *  which takes it off their Jobs page, search and matches. Once marked it is
- *  the date instead, and stays so: there is no undo yet. A failure keeps the
- *  button and says why beside it. */
-export function AppliedButton({
-  jobId,
-  appliedAt: saved,
-}: {
-  jobId: string;
-  appliedAt: string | null;
-}) {
-  const [appliedAt, setAppliedAt] = useState(saved);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  if (appliedAt) return <AppliedOn iso={appliedAt} />;
   return (
-    <>
-      {error && (
-        <p role="alert" className="text-note text-ink-meta">
-          {error}
-        </p>
-      )}
-      <Button
-        variant="secondary"
-        size="lg"
-        className="shrink-0"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            const result = await markApplied(jobId);
-            setError(result.error);
-            if (result.appliedAt) setAppliedAt(result.appliedAt);
-          })
-        }
-      >
-        Applied
-      </Button>
-    </>
+    <p className="text-note text-ink-meta mt-3">
+      You applied on <time dateTime={at}>{day}</time>.
+    </p>
   );
 }
