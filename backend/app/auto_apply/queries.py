@@ -209,7 +209,7 @@ async def pick_resume(
     """
     The resume to attach to this applicant's application for this job
     (auto-apply/architecture.md, "Picking the resume"): the one tailored to
-    the job posting, else the default resume, a base or an uploaded one
+    the job posting, else the default resume, a built or an uploaded one
     (set_default keeps one pointer, never both). None when there is neither,
     or the default upload has no stored file: the form is filled without one.
     """

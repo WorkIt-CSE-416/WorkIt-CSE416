@@ -36,8 +36,8 @@ import { useProfileCache } from "../profile-cache";
  * is set in ./layout.tsx, because a client page cannot export metadata.
  *
  * Resumes are not kept here. The Resume card (the uploads and their
- * dropzone) moved to the Resumes view's Your Resumes card on 2026-10-18,
- * beside the base resumes that share its limit of 5, and Application
+ * dropzone) moved to the Resumes view's Your Uploaded Resumes card on 2026-10-18,
+ * beside the base resumes, and Application
  * Settings (an Autofill switch that saved nothing) went the same day. Resume
  * facts are edited in the experience bank (/bank), never here (KAN-211).
  *

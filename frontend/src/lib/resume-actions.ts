@@ -80,14 +80,38 @@ export async function setPrimaryResume(resumeId: string): Promise<{ error: strin
   }
 }
 
+// A new name for the upload (KAN-268). The API keeps the file's extension
+// on it, so a DOCX still downloads as one.
+export async function renameResume(
+  resumeId: string,
+  name: string,
+): Promise<{ resume: ResumeItem | null; error: string | null }> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiFetch(
+      resumePath(id, resumeId),
+      { method: "PATCH", body: JSON.stringify({ name }) },
+      token,
+    );
+    if (!res.ok) return { resume: null, error: await extractErrorMessage(res) };
+    const resume: ResumeItem = await res.json();
+    return { resume, error: null };
+  } catch {
+    return { resume: null, error: "Could not reach the server." };
+  }
+}
+
 // A short-lived link to the uploaded file: a PDF opens in the browser's
-// viewer, a DOCX downloads under its original name.
+// viewer, a DOCX downloads under its name. With `download`, a PDF downloads
+// too (the row's Download button, KAN-268).
 export async function getResumeFileUrl(
   resumeId: string,
+  download = false,
 ): Promise<{ url: string | null; error: string | null }> {
   try {
     const { id, token } = await getApplicantSession();
-    const res = await apiGet(`${resumePath(id, resumeId)}/file`, token);
+    const query = download ? "?download=true" : "";
+    const res = await apiGet(`${resumePath(id, resumeId)}/file${query}`, token);
     if (!res.ok) return { url: null, error: await extractErrorMessage(res) };
     const { url } = await res.json();
     return { url, error: null };
