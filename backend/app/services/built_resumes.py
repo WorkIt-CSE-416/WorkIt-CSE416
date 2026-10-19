@@ -184,16 +184,26 @@ async def count_showing_entry(session: AsyncSession, applicant_id: uuid.UUID, en
     ) or 0
 
 
-async def closed_postings(session: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
-    """The ids of the applicant's tailored resumes whose posting the Jobs
-    page no longer lists: "Posting closed" (story 90). The resume stays
+@dataclasses.dataclass(frozen=True)
+class TailoredPosting:
+    """A tailored resume's posting, as its card shows it (KAN-268). `closed`
+    when the Jobs page no longer lists it: "Posting closed" (story 90),
+    and its page answers 404, so the card drops the link. The resume stays
     usable; only Tailor needs a listed posting."""
-    rows = await session.scalars(
-        select(Built_Resume.id)
+
+    title: str
+    company: str | None
+    closed: bool
+
+
+async def tailored_postings(session: AsyncSession, applicant_id: uuid.UUID) -> dict[uuid.UUID, TailoredPosting]:
+    """Each of the applicant's tailored resumes' postings, by resume id."""
+    rows = await session.execute(
+        select(Built_Resume.id, Job_Post.title, Job_Post.company_name, LISTED.label("listed"))
         .join(Job_Post, Job_Post.id == Built_Resume.job_posting_id)
-        .where(Built_Resume.applicant_id == applicant_id, ~LISTED)
+        .where(Built_Resume.applicant_id == applicant_id)
     )
-    return set(rows)
+    return {r.id: TailoredPosting(r.title, r.company_name, not r.listed) for r in rows}
 
 
 async def latest_base(session: AsyncSession, applicant_id: uuid.UUID) -> Built_Resume | None:

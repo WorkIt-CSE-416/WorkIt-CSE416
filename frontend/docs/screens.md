@@ -914,7 +914,11 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   a primary tailored to another posting as "Tailored resume". It gets a
   "Posting Closed" badge once the Jobs
   page no longer lists its posting (story 90, the API's `posting_closed`).
-  It still opens and downloads; only Tailor needs a live posting.
+  It still opens and downloads; only Tailor needs a live posting. Its day
+  line names the posting it was made for ("Made Oct 17 · For Intern at
+  Acme", the API's `posting_title` and `posting_company`, KAN-268), a link
+  to the posting's page above the card's stretched link; once the posting
+  closes the name stays as plain text, since that page is a 404.
 - **Each built resume is a row drawn as an upload's is**
   (KAN-258, `resumes/built-resume-row.tsx`), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
   (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot

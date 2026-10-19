@@ -27,7 +27,9 @@ import { DownloadNotes, useResumeDownload } from "./download-menu";
  * name and its day, then the star, Rename, Download PDF and Delete.
  * Download PDF is the editor's PDF download (`useResumeDownload`: a sent
  * resume, with the missing-character warning under the row), on the card
- * since KAN-268. A tailored resume takes the star too since then. The whole card is
+ * since KAN-268. A tailored resume takes the star too since then, and its
+ * day line names the job posting it was made for, a link to that posting's
+ * page while the Jobs page lists it (a closed one's page is a 404). The whole card is
  * one target: the name's link stretches over it (`after:inset-0`), the
  * icons sit above that, and the card lifts under the pointer as every
  * whole-target card does (`docs/motion.md`).
@@ -107,9 +109,15 @@ export function BuiltResumeRow({
             {/* One day: when it was last edited, or made until the first edit.
                 Both together said one day twice for a resume edited the day
                 it was made, and the made day mattered less. */}
-            <p className="text-note text-ink-meta">
+            <p className="text-note text-ink-meta truncate">
               {edited ? "Last edited" : "Made"}{" "}
               <LocalDate at={edited ? resume.edited_at : resume.created_at} />
+              {resume.job_posting_id && resume.posting_title && (
+                <>
+                  {" · For "}
+                  <PostingLink resume={resume} />
+                </>
+              )}
             </p>
           </div>
           {/* Story 90: the resume still opens and downloads; only Tailor needs a live posting. */}
@@ -168,6 +176,25 @@ export function BuiltResumeRow({
         </p>
       )}
     </li>
+  );
+}
+
+/**
+ * The job posting a tailored resume was made for. Above the card's
+ * stretched link, so a press on it opens the posting, not the editor.
+ */
+function PostingLink({ resume }: { resume: BuiltResume }) {
+  const label = resume.posting_company
+    ? `${resume.posting_title} at ${resume.posting_company}`
+    : resume.posting_title;
+  if (resume.posting_closed || !resume.job_posting_id) return <>{label}</>;
+  return (
+    <Link
+      href={`/jobs/${encodeURIComponent(resume.job_posting_id)}`}
+      className="text-brand hover:text-brand-hover relative z-10 underline-offset-2 hover:underline"
+    >
+      {label}
+    </Link>
   );
 }
 

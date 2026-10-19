@@ -175,7 +175,7 @@ async def done(
         resume=BuiltResumeResponse(
             id=resume.id, name=resume.name, template=resume.template, job_posting_id=resume.job_posting_id,
             is_default=resume.id == default_id, created_at=resume.created_at,
-            edited_at=resume.updated_at,
+            edited_at=resume.updated_at, posting_title=job.title, posting_company=job.company_name,
         ),
         matched=matched,
         missing=missing,

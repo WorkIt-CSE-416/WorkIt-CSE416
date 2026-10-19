@@ -248,7 +248,7 @@ async def _no_text(contents, ext):
     return ""
 
 
-async def test_a_tailored_resume_says_when_its_posting_has_closed(student, database):
+async def test_a_tailored_resume_names_its_posting_and_says_when_it_has_closed(student, database):
     client, me = student
     applicant_id = uuid.UUID(me.split("/")[2])
     base = await _generate(client, me)
@@ -268,14 +268,16 @@ async def test_a_tailored_resume_says_when_its_posting_has_closed(student, datab
         )
         await session.commit()
 
-    async def closed() -> dict[str, bool]:
-        return {r["id"]: r["posting_closed"] for r in (await client.get(f"{me}/built-resumes")).json()}
+    async def postings() -> dict[str, tuple]:
+        rows = (await client.get(f"{me}/built-resumes")).json()
+        return {r["id"]: (r["posting_title"], r["posting_company"], r["posting_closed"]) for r in rows}
 
-    assert await closed() == {base: False, str(tailored): False}
+    # The card names the posting and links to it (KAN-268).
+    assert await postings() == {base: (None, None, False), str(tailored): ("Intern", "Acme", False)}
     async with database() as session:
         await session.execute(text("UPDATE job_postings SET status = 'closed' WHERE id = :p"), {"p": posting})
         await session.commit()
-    assert await closed() == {base: False, str(tailored): True}
+    assert await postings() == {base: (None, None, False), str(tailored): ("Intern", "Acme", True)}
 
 
 async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monkeypatch):

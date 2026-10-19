@@ -22,6 +22,10 @@ export type BuiltResume = {
   edited_at: string;
   /** A tailored resume whose posting the Jobs page no longer lists. */
   posting_closed: boolean;
+  /** A tailored resume's posting, which its card names and links to
+   *  (KAN-268); null on a base resume. */
+  posting_title: string | null;
+  posting_company: string | null;
 };
 
 /**
