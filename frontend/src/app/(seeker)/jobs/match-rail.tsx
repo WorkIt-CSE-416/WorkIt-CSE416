@@ -117,6 +117,7 @@ export function MatchRail({
   score,
   highlights,
   standalone = false,
+  className,
 }: {
   /** Null draws the placeholder rail; see "WITH NO SCORE" above. */
   score: number | null;
@@ -126,6 +127,9 @@ export function MatchRail({
    *  card's edge. Default false keeps the recommendation feed's flush rail
    *  unchanged. */
   standalone?: boolean;
+  /** Placement or a different fill: the application page's tinted card
+   *  sets it on white (KAN-256), so it doesn't sit grey on violet. */
+  className?: string;
 }) {
   return (
     <aside
@@ -133,6 +137,7 @@ export function MatchRail({
       className={cn(
         "bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 p-4 @xl:w-52",
         standalone ? "rounded-card border" : "border-t @xl:border-t-0 @xl:border-l",
+        className,
       )}
     >
       <MatchRing score={score} />

@@ -536,7 +536,13 @@ URL (`?tab=job` for the second):
   applying; or since saving and since posting for a saved job). Side by
   side from 576px of card, stacked under it. It replaced three loose
   sections (facts, a floating match box, three stat boxes) that read as
-  clutter. Under it, What You Sent lists every sent resume linked to the
+  clutter. The card takes its stage's panel tint (`STAGE_COLOR[stage].panel`,
+  violet for Applied, grey for Saved), so it reads as the seeker's record
+  rather than a second white card under the job's header. On the tint the
+  stage is its glyph on a solid disc and its name, as the board's column
+  headers drew it, since a badge's fill is the tint itself; the match rail
+  sits on white, and the count strip and the rail are ruled off in a faint
+  ink (`ink/10`) that shows on any tint. Under it, What You Sent lists every sent resume linked to the
   posting, or, with none, a dashed placeholder box (the upload dropzone's
   outline) saying "No resume sent yet". It replaced two lines of
   explanation. Neither Apply nor auto apply keeps the answers typed into

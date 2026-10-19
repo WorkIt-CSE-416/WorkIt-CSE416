@@ -8,7 +8,7 @@ import type { SentResume } from "@/lib/sent-resume-actions";
 import type { JobListing } from "../../jobs/listings";
 import { MatchRail } from "../../jobs/match-rail";
 import { LocalDate } from "../../local-time";
-import { STAGE_COLOR, STAGE_LABEL } from "../../stage-colors";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "../../stage-colors";
 import { sortKey, type Application, type TimelineStep } from "../../tracker";
 import { Timeline } from "../timeline";
 
@@ -73,6 +73,7 @@ export function YourApplication({
     }
   }
   const closed = app.open === false;
+  const StageIcon = STAGE_ICON[app.stage];
 
   return (
     <>
@@ -80,18 +81,36 @@ export function YourApplication({
           match rail flush on the right edge (side by side from 576px of
           card, stacked under it), and the day counts as one ruled strip
           along the body's foot. It replaced three loose sections (facts, a
-          floating match box, three stat boxes) that read as clutter. */}
+          floating match box, three stat boxes) that read as clutter.
+
+          TINTED BY ITS STAGE (the board column's panel: violet for Applied,
+          grey for Saved), so it reads as the seeker's record, not a second
+          white card under the job's own header. */}
       <Card
         as="section"
         padding="none"
         aria-label="Your Application"
-        className="@container mt-6 overflow-hidden"
+        className={cn("@container mt-6 overflow-hidden", STAGE_COLOR[app.stage].panel)}
       >
         <div className="flex flex-col @xl:flex-row">
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="p-5">
+              {/* The stage as the board's column headers drew it: its glyph on
+                  a solid disc, then its name. A badge's fill is the card's
+                  own tint, so a badge vanished into it. */}
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "flex size-6 shrink-0 items-center justify-center rounded-full text-white",
+                    STAGE_COLOR[app.stage].fill,
+                  )}
+                >
+                  <StageIcon className="size-3.5" />
+                </span>
+                <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
+                  {STAGE_LABEL[app.stage]}
+                </span>
                 {closed && <Badge tone="inert">Posting Closed</Badge>}
               </div>
               <h2 className="text-title text-ink mt-3 font-bold">
@@ -118,7 +137,7 @@ export function YourApplication({
                 apart, so they read as one row of numbers rather than boxes. */}
             <dl
               className={cn(
-                "border-border-subtle divide-border-subtle mt-auto grid divide-y border-t @md:divide-x @md:divide-y-0",
+                "border-ink/10 divide-ink/10 mt-auto grid divide-y border-t @md:divide-x @md:divide-y-0",
                 COLUMNS[stats.length],
               )}
             >
@@ -134,7 +153,13 @@ export function YourApplication({
           </div>
 
           {app.match != null ? (
-            <MatchRail score={app.match} highlights={app.highlights ?? []} />
+            <MatchRail
+              score={app.match}
+              highlights={app.highlights ?? []}
+              // White on the tinted card, ruled off it in the same faint ink
+              // as the count strip.
+              className="bg-panel border-ink/10"
+            />
           ) : null}
         </div>
       </Card>
