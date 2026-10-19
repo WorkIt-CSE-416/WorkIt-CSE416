@@ -77,6 +77,19 @@ class TestExtract:
         bare = page.replace('"https://workablehr.s3.amazonaws.com/uploads/account/logo/', '"x')
         assert logos.extract("workable", bare) == logos.favicon("huggingface.co")
 
+    def test_workday_home_page_gives_its_favicon(self) -> None:
+        # NVIDIA's careers site, 2026-10-19: no square logo, a "Home" link to nvidia.com.
+        page = (
+            '"header":{"homePageURL":"https://www.nvidia.com/en-us/about-nvidia/careers/",'
+            '"homeLinkText":"Home","logoUri":"/NVIDIAExternalCareerSite/assets/logo"}'
+        )
+        assert logos.extract("workday", page) == logos.favicon("www.nvidia.com")
+
+    def test_a_workday_home_page_on_workday_itself_is_no_website(self) -> None:
+        # Arlo's "Arlo Home" is its own careers site, whose icon is Workday's.
+        page = '"header":{"homePageURL":"https://arlo.wd12.myworkdayjobs.com/External_Careers"}'
+        assert logos.extract("workday", page) is None
+
     def test_a_board_without_a_logo(self) -> None:
         # Axios's Greenhouse board carries no uploaded logo.
         assert logos.extract("greenhouse", "<html><h1>Axios</h1></html>") is None
@@ -184,6 +197,31 @@ class TestFetch:
         assert sharp == {
             "ashby/bedrock-robotics": "https://app.ashbyhq.com/api/images/org-theme-logo/b.png"
         }
+
+    def test_a_workday_site_with_no_home_page_falls_back_to_its_privacy_policy(self) -> None:
+        # KBR's careers site, 2026-10-19: no "Home" link, a privacy notice on kbr.com.
+        approot = (
+            b'{"footer":{"socialLinksList":[{"label":"LinkedIn","uri":'
+            b'"https://www.linkedin.com/company/kbr-inc/"}],"privacyPolicy":{"uri":'
+            b'"https://www.kbr.com/document/8536"}},"header":{"homePageURL":null}}'
+        )
+        found = fetch(
+            ("workday", "kbr.wd5/kbr_careers", "KBR"),
+            {"https://kbr.wd5.myworkdayjobs.com/wday/cxs/kbr/kbr_careers/approot": approot},
+        )
+        assert found == {"workday/kbr.wd5/kbr_careers": logos.favicon("kbr.com")}
+
+    def test_a_workday_privacy_policy_on_a_vendor_names_no_website(self) -> None:
+        # Barclays' is a PDF on its careers-site vendor's CDN.
+        approot = (
+            b'{"footer":{"privacyPolicy":{"uri":"https://tbcdn.talentbrew.com/company/13015/'
+            b'v1_0/pdf/Candidate_Privacy_Notice.pdf"}},"header":{"homePageURL":null}}'
+        )
+        found = fetch(
+            ("workday", "barclays.wd3/external_career_site_barclays", "Barclays"),
+            {"https://barclays.wd3.myworkdayjobs.com/": approot},
+        )
+        assert found == {"workday/barclays.wd3/external_career_site_barclays": None}
 
     def test_an_unreadable_board_is_left_for_the_next_run(self) -> None:
         assert fetch(("lever", "gone", "Gone"), {}) == {}

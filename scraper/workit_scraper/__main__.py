@@ -224,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         stats = replace(stats, kept=len(fresh))
         run = store.update(previous, fresh, read, stats, now)
         # Only boards with a job on the page need a logo, and each is read once.
-        # Recruitee, BambooHR and Workday have none we read (`logos.PAGE`).
+        # Recruitee and BambooHR have none we read (`logos.PAGE`).
         unread = sorted(
             {
                 (j.ats, j.token, j.company)
