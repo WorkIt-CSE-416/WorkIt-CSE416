@@ -77,90 +77,85 @@ export function YourApplication({
 
   return (
     <>
-      {/* ONE CARD, built as the Jobs page card is: the body on the left, the
-          match rail flush on the right edge (side by side from 576px of
-          card, stacked under it), and the day counts as one ruled strip
-          along the body's foot. It replaced three loose sections (facts, a
-          floating match box, three stat boxes) that read as clutter.
+      {/* ONE TINTED CARD for the seeker's record, holding rounded white
+          boxes: the status and timeline on the left with the day counts
+          under them, one box each, and the match in a box of its own on the
+          right (side by side from 576px of card, stacked under it). The
+          boxes are the app's rounded cards on white, so the figures stand
+          off the tint; ruled, square cells read as a spreadsheet. It
+          replaced three loose sections that read as clutter.
 
           TINTED BY ITS STAGE (the board column's panel: violet for Applied,
           grey for Saved), so it reads as the seeker's record, not a second
           white card under the job's own header. */}
       <Card
         as="section"
-        padding="none"
+        padding="lg"
         aria-label="Your Application"
-        className={cn("@container mt-6 overflow-hidden", STAGE_COLOR[app.stage].panel)}
+        className={cn("@container mt-6", STAGE_COLOR[app.stage].panel)}
       >
-        <div className="flex flex-col @xl:flex-row">
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="p-5">
-              {/* The stage as the board's column headers drew it: its glyph on
-                  a solid disc, then its name. A badge's fill is the card's
-                  own tint, so a badge vanished into it. */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "flex size-6 shrink-0 items-center justify-center rounded-full text-white",
-                    STAGE_COLOR[app.stage].fill,
-                  )}
-                >
-                  <StageIcon className="size-3.5" />
-                </span>
-                <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
-                  {STAGE_LABEL[app.stage]}
-                </span>
-                {closed && <Badge tone="inert">Posting Closed</Badge>}
-              </div>
-              <h2 className="text-title text-ink mt-3 font-bold">
-                {app.appliedOn ? "Waiting to Hear Back" : "Not Applied Yet"}
-              </h2>
-              <p className="text-body text-ink-meta mt-1">
-                {app.appliedOn ? (
-                  <>
-                    You applied on <LocalDate at={app.appliedOn} />
-                  </>
-                ) : (
-                  <>
-                    You saved it on <LocalDate at={app.savedOn} />
-                  </>
+        <div className="flex flex-col gap-4 @xl:flex-row @xl:items-start">
+          <div className="min-w-0 flex-1">
+            {/* The stage as the board's column headers drew it: its glyph on
+                a solid disc, then its name. A badge's fill is the card's own
+                tint, so a badge vanished into it. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-full text-white",
+                  STAGE_COLOR[app.stage].fill,
                 )}
-                {" · "}
-                {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
-              </p>
-
-              <Timeline steps={timeline(app, sent)} horizontal className="mt-5" />
+              >
+                <StageIcon className="size-3.5" />
+              </span>
+              <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
+                {STAGE_LABEL[app.stage]}
+              </span>
+              {closed && <Badge tone="inert">Posting Closed</Badge>}
             </div>
-
-            {/* The counts: a figure over its words, one column each, ruled
-                apart, so they read as one row of numbers rather than boxes. */}
-            <dl
-              className={cn(
-                "border-ink/10 divide-ink/10 mt-auto grid divide-y border-t @md:divide-x @md:divide-y-0",
-                COLUMNS[stats.length],
+            <h2 className="text-title text-ink mt-3 font-bold">
+              {app.appliedOn ? "Waiting to Hear Back" : "Not Applied Yet"}
+            </h2>
+            <p className="text-body text-ink-meta mt-1">
+              {app.appliedOn ? (
+                <>
+                  You applied on <LocalDate at={app.appliedOn} />
+                </>
+              ) : (
+                <>
+                  You saved it on <LocalDate at={app.savedOn} />
+                </>
               )}
-            >
+              {" · "}
+              {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
+            </p>
+
+            <Timeline steps={timeline(app, sent)} horizontal className="mt-5" />
+
+            {/* The counts: a figure over its words, a rounded white box
+                each. */}
+            <dl className={cn("mt-5 grid gap-3", COLUMNS[stats.length])}>
               {stats.map(({ label, days }) => (
                 // The figure first to the eye, the words first to a screen
                 // reader (a <dt> leads its <dd>).
-                <div key={label} className="flex flex-col-reverse px-5 py-4">
+                <Card key={label} padding="md" elevated={false} className="flex flex-col-reverse">
                   <dt className="text-note text-ink-meta mt-0.5">{label}</dt>
                   <dd className="text-title text-ink font-bold tabular-nums">{days}</dd>
-                </div>
+                </Card>
               ))}
             </dl>
           </div>
 
-          {app.match != null ? (
+          {app.match != null && (
             <MatchRail
               score={app.match}
               highlights={app.highlights ?? []}
-              // White on the tinted card, ruled off it in the same faint ink
-              // as the count strip.
-              className="bg-panel border-ink/10"
+              standalone
+              // A rounded white box on the tinted card, like the counts.
+              className="bg-panel"
             />
-          ) : null}
+          )}
         </div>
       </Card>
 

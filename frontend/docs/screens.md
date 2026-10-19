@@ -526,23 +526,22 @@ shows the tabs beside Back instead. A saved job with an open posting keeps
 the job page's actions, and its tabs sit under the header. Two tabs, each a
 URL (`?tab=job` for the second):
 
-- **Your Application**, the default. One card, built as the Jobs page card
-  is: the body on the left (the stage, a one-line status such as "Waiting
-  to Hear Back", when it was applied or saved and the resume sent, then the
-  timeline left to right through `Timeline`'s `horizontal`), the match rail
-  flush on the right (`MatchRail`, with its reasons: `?scored=true` sends
-  `highlights` with `match`), and the day counts as one ruled strip along
-  the body's foot (waiting to hear back, save to apply, posted before
-  applying; or since saving and since posting for a saved job). Side by
-  side from 576px of card, stacked under it. It replaced three loose
-  sections (facts, a floating match box, three stat boxes) that read as
-  clutter. The card takes its stage's panel tint (`STAGE_COLOR[stage].panel`,
-  violet for Applied, grey for Saved), so it reads as the seeker's record
-  rather than a second white card under the job's header. On the tint the
-  stage is its glyph on a solid disc and its name, as the board's column
-  headers drew it, since a badge's fill is the tint itself; the match rail
-  sits on white, and the count strip and the rail are ruled off in a faint
-  ink (`ink/10`) that shows on any tint. Under it, What You Sent lists every sent resume linked to the
+- **Your Application**, the default. One card tinted by its stage
+  (`STAGE_COLOR[stage].panel`: violet for Applied, grey for Saved), so it
+  reads as the seeker's record rather than a second white card under the
+  job's header. On the tint: the stage as its glyph on a solid disc and its
+  name (the board's column headers; a badge's fill is the tint itself), a
+  one-line status such as "Waiting to Hear Back", when it was applied or
+  saved and the resume sent, the timeline left to right (`Timeline`'s
+  `horizontal`), and the day counts (waiting to hear back, save to apply,
+  posted before applying; or since saving and since posting for a saved
+  job). The counts and the match are rounded white boxes on the tint: each
+  count a `Card`, the match the Jobs page card's `MatchRail` with
+  `standalone` on white, with its reasons (`?scored=true` sends
+  `highlights` with `match`). Ruled, square cells were tried first and read
+  as a spreadsheet next to the app's rounded cards. The match sits right of
+  the rest from 576px of card and under it below that. Under the card,
+  What You Sent lists every sent resume linked to the
   posting, or, with none, a dashed placeholder box (the upload dropzone's
   outline) saying "No resume sent yet". It replaced two lines of
   explanation. Neither Apply nor auto apply keeps the answers typed into
