@@ -1,6 +1,6 @@
 "use client";
 
-import { Import, Star } from "lucide-react";
+import { FileDown, Import, Star } from "lucide-react";
 
 import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
@@ -65,8 +65,8 @@ export function PrimaryStar({
 }
 
 /**
- * One uploaded resume, with its primary, Rename, Import Updated Resume and
- * delete actions. The whole card is one target, as a built resume's is
+ * One uploaded resume, with its primary, Rename, Download, Import Updated
+ * Resume and delete actions. The whole card is one target, as a built resume's is
  * (KAN-268): the name's button stretches over it (`after:inset-0`) and
  * previews the file, the icons sit above that, and the card lifts under
  * the pointer (`docs/motion.md`). An eye button previewed it until then.
@@ -82,7 +82,7 @@ export function PrimaryStar({
  *
  * The Resumes view passes every action. A screen that only shows a resume passes
  * onPreview alone: the primary's star still marks it, but there is no star
- * to click, no rename, no update and no delete.
+ * to click, no rename, no download, no update and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
@@ -90,6 +90,7 @@ type ResumeRowProps = {
   onPreview: () => void;
   onMakePrimary?: () => void;
   onRename?: () => void;
+  onDownload?: () => void;
   onUpdate?: () => void;
   onDelete?: () => void;
 };
@@ -100,6 +101,7 @@ export function ResumeRow({
   onPreview,
   onMakePrimary,
   onRename,
+  onDownload,
   onUpdate,
   onDelete,
 }: ResumeRowProps) {
@@ -139,6 +141,16 @@ export function ResumeRow({
             onClick={onRename}
           >
             <PencilIcon className="size-4" />
+          </IconButton>
+        )}
+        {onDownload && (
+          <IconButton
+            label={`Download ${name}`}
+            tooltip={resume.storage_path.endsWith(".pdf") ? "Download PDF" : "Download"}
+            className={ROW_ACTION}
+            onClick={onDownload}
+          >
+            <FileDown aria-hidden className="size-4" />
           </IconButton>
         )}
         {onUpdate && (

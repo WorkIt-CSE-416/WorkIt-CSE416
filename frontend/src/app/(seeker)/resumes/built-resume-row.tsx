@@ -1,5 +1,6 @@
 "use client";
 
+import { FileDown } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
@@ -19,10 +20,14 @@ import { cn } from "@/lib/cn";
 
 import { LocalDate } from "../local-time";
 import { DeleteConfirm } from "./delete-confirm";
+import { DownloadNotes, useResumeDownload } from "./download-menu";
 
 /**
  * One built resume, drawn as an uploaded one's row is: the file mark, the
- * name and its day, then the star, Rename and Delete. The whole card is
+ * name and its day, then the star, Rename, Download PDF and Delete.
+ * Download PDF is the editor's PDF download (`useResumeDownload`: a sent
+ * resume, with the missing-character warning under the row), on the card
+ * since KAN-268. A tailored resume takes the star too since then. The whole card is
  * one target: the name's link stretches over it (`after:inset-0`), the
  * icons sit above that, and the card lifts under the pointer as every
  * whole-target card does (`docs/motion.md`).
@@ -39,6 +44,7 @@ export function BuiltResumeRow({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const download = useResumeDownload(resume.id);
 
   async function makePrimary() {
     setError(null);
@@ -110,14 +116,11 @@ export function BuiltResumeRow({
           {resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
           {/* Above the stretched link, so a press on an icon is the icon's. */}
           <div className="relative z-10 flex shrink-0 items-center">
-            {/* Only a base resume can be the primary (the API refuses a tailored one). */}
-            {!resume.job_posting_id && (
-              <PrimaryStar
-                name={resume.name}
-                primary={resume.is_default}
-                onMakePrimary={makePrimary}
-              />
-            )}
+            <PrimaryStar
+              name={resume.name}
+              primary={resume.is_default}
+              onMakePrimary={makePrimary}
+            />
             <IconButton
               label={`Rename ${resume.name}`}
               tooltip="Rename"
@@ -125,6 +128,15 @@ export function BuiltResumeRow({
               onClick={() => setRenaming(true)}
             >
               <PencilIcon className="size-4" />
+            </IconButton>
+            <IconButton
+              label={`Download ${resume.name} as a PDF`}
+              tooltip={download.busy === "pdf" ? "Making PDF…" : "Download PDF"}
+              className={ROW_ACTION}
+              disabled={download.busy !== null}
+              onClick={() => download.pick("pdf")}
+            >
+              <FileDown aria-hidden className="size-4" />
             </IconButton>
             <IconButton
               label={`Delete ${resume.name}`}
@@ -137,6 +149,9 @@ export function BuiltResumeRow({
           </div>
         </div>
       )}
+      <div className="mt-2 empty:hidden">
+        <DownloadNotes download={download} />
+      </div>
       {confirming && (
         <DeleteConfirm
           label="Delete Resume"

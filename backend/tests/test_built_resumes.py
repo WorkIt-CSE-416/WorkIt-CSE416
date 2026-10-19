@@ -309,6 +309,32 @@ async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monke
     assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [True]
 
 
+async def test_a_tailored_resume_can_be_the_default(student, database):
+    """KAN-268: the API refused a tailored resume's star until then."""
+    client, me = student
+    base = await _generate(client, me)
+    async with database() as session:
+        posting = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
+                " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
+            )
+        )
+        tailored = await session.scalar(
+            text(
+                "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
+                " VALUES (:a, 'Tailored', 'jakes', :p) RETURNING id"
+            ),
+            {"a": uuid.UUID(me.split("/")[2]), "p": posting},
+        )
+        await session.commit()
+
+    assert (await client.put(f"{me}/built-resumes/{tailored}/default")).status_code == 200
+    stars = {r["id"]: r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()}
+    assert stars == {str(tailored): True, base: False}
+    assert (await client.put(f"{me}/built-resumes/{uuid.uuid4()}/default")).status_code == 404
+
+
 async def test_an_entry_says_how_many_built_resumes_show_it(student, database):
     """Story 18: the delete confirm names the resumes an entry is on."""
     client, me = student

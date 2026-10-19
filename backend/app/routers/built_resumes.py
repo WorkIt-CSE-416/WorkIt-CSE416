@@ -16,7 +16,8 @@ PATCH  /applicants/{id}/built-resumes/{rid}        BuiltResumeRename -> BuiltRes
        Rename (KAN-258). Its sent resumes keep the name they went out under.
 DELETE /applicants/{id}/built-resumes/{rid}        -> 204
 PUT    /applicants/{id}/built-resumes/{rid}/default -> {"default_built_resume_id"}
-       Makes a base resume the default resume, clearing an uploaded default.
+       Makes a base or tailored resume the default resume, clearing an
+       uploaded default. A tailored one could not be until KAN-268.
 GET    /applicants/{id}/built-resumes/{rid}/render -> RenderResponse
        {pdf (base64), page_count, lines_over, missing_characters, boxes}: the characters
        the template's font cannot draw, for the warning before download, and

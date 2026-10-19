@@ -9,7 +9,8 @@ resume answers `NotFound`), and flushes but never commits.
   limit (KAN-268; base resumes counted until then). `check_room` runs on
   upload, before anything is written.
 - **The default resume** is `applicant_profiles.default_resume_id` (an
-  uploaded resume) or `default_built_resume_id` (a base resume), never both:
+  uploaded resume) or `default_built_resume_id` (a base or a tailored
+  resume; a tailored one could not be the default until KAN-268), never both:
   setting one clears the other, and a check constraint backs it. A student
   with exactly one resume has it as the default (`default_if_only`).
 - **Names and edits** (KAN-258): a resume made with no name is "Resume #N"
@@ -242,13 +243,12 @@ async def set_default(
     uploaded_id: uuid.UUID | None = None,
     built_id: uuid.UUID | None = None,
 ) -> None:
-    """Point the default at one resume and clear the other pointer. The
-    caller has checked the resume is the applicant's; a built one must be a
-    base resume."""
+    """Point the default at one resume and clear the other pointer. A built
+    one may be tailored (KAN-268): the student picked it, and Apply and auto
+    apply still take the resume tailored to a posting first. Raises NotFound
+    for another applicant's built resume."""
     if built_id is not None:
-        row = await get_resume(session, applicant_id, built_id)
-        if row.job_posting_id is not None:
-            raise NotFound
+        await get_resume(session, applicant_id, built_id)
     await session.execute(
         update(Applicant_Profile)
         .where(Applicant_Profile.id == applicant_id)

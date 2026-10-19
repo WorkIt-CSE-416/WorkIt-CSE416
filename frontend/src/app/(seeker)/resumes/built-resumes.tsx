@@ -15,7 +15,7 @@ import { YourResumes } from "./your-resumes";
 
 /**
  * The Resumes view of Resumes & Experiences: its header, with Generate
- * Resume beside the switcher, then the cards: Your Resumes (./your-
+ * Resume beside the switcher, then the cards: Your Uploaded Resumes (./your-
  * resumes.tsx: the uploads with their dropzone), Generated Resumes (the
  * base resumes, KAN-207), and Tailored Resumes when there is one
  * (KAN-217). Generated and uploaded resumes shared one card until KAN-268,
@@ -93,7 +93,7 @@ export function BuiltResumes({
               {error}
             </p>
           )}
-          {/* Nothing to list holds the first row's place, as Your Resumes'
+          {/* Nothing to list holds the first row's place, as Your Uploaded Resumes'
               empty box does. */}
           {base.length === 0 ? (
             <div className={RESUME_ROW}>

@@ -291,7 +291,8 @@ change here must keep:
   limit of 5, which is uploads only (`../services/built_resumes.py`).
 - **The default resume is two pointers, at most one set.**
   `applicant_profiles.default_resume_id` (an uploaded resume) and
-  `default_built_resume_id` (a base resume), each `ON DELETE SET NULL`, with
+  `default_built_resume_id` (a base or tailored resume; tailored since
+  KAN-268), each `ON DELETE SET NULL`, with
   the check `applicant_profiles_one_default_resume`. One column could not
   carry a foreign key to two tables; setting one clears the other
   (`set_default`). Code that reads "the default" checks both: a base default

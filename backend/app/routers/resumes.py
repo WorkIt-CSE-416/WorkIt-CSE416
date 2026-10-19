@@ -27,7 +27,8 @@ the default without a click: upload and delete set it
 student already has 5 uploads; generated resumes do not count (KAN-268,
 `app/services/built_resumes.py`).
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
-download under the original filename for a DOCX.
+download under the original filename for a DOCX. `?download=true` makes a PDF
+download too: the row's Download button (KAN-268).
 `DELETE .../{resume_id}` removes the row, and its stored file unless a sent
 resume still uses it (`app/services/sent_resumes.py`, KAN-208).
 """
@@ -41,7 +42,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -469,18 +470,19 @@ async def set_default_resume(
 async def get_resume_file_url(
     applicant_id: uuid.UUID,
     resume_id: uuid.UUID,
+    download: bool = Query(False),
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
     """A short-lived link to the uploaded file, for the profile's preview. A
     browser shows a PDF itself; it can't show a DOCX, so that link downloads
-    the file under the name it was uploaded with."""
+    the file under its name, as every link does with `download`."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     if not resume.storage_path:
         raise HTTPException(404, "Resume file not found")
     options = (
-        {} if resume.storage_path.endswith(".pdf")
+        {} if resume.storage_path.endswith(".pdf") and not download
         else {"download": resume.original_filename or True}
     )
     try:

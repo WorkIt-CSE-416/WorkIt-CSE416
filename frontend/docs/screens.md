@@ -836,7 +836,7 @@ in Docs (suggested answers in the chat, not a banner).
 ## Resumes (`/resumes`)
 
 `(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
-resumes the bank makes and the uploads, in cards, Your Resumes, then
+resumes the bank makes and the uploads, in cards, Your Uploaded Resumes, then
 Generated Resumes, then Tailored Resumes when there is one, under the shared header with Generate Resume (it was the
 base resumes' card's own Generate). They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
@@ -845,7 +845,8 @@ lit there and the phone editor's back arrow lands here. The page needs
 the built list and the uploaded list: if either fails it
 shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 
-- **Your Resumes** (`your-resumes.tsx`), the uploads, newest first, under
+- **Your Uploaded Resumes** (`your-resumes.tsx`; "Your Resumes" until
+  KAN-268), the uploads, newest first, under
   an "n of 5" badge of uploads alone (the API's limit; generated resumes
   counted toward it until KAN-268), with the upload dropzone in a narrow track beside the
   list from @4xl (under the heading, before the rows, below it). It held
@@ -870,7 +871,7 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   carry; every one was "Base Resume" until KAN-258, so the list read as one
   name repeated. Generate has no limit (KAN-268); a failed one shows its
   message as Generated Resumes' error.
-- **Uploads** in Your Resumes: picking a file uploads it at once
+- **Uploads** in Your Uploaded Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
   parsed content. **The upload fills the experience bank** (ADR 0003): a
   note under the dropzone says what went in ("Added 6 entries and 2 skills
@@ -887,7 +888,10 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   eye button did this until KAN-268. The row's icons are a star that makes
   it primary (`setPrimaryResume`), **Rename** (the pencil, the same form as
   a generated resume's; `renameResume`, and the API keeps the file's
-  extension on the name), **Import Updated Resume** and Delete, which asks
+  extension on the name), **Download** (the stored file through
+  `getResumeFileUrl(id, true)`, which makes even a PDF download; an upload
+  keeps no sent resume, since its file never changes), **Import Updated
+  Resume** and Delete, which asks
   first in the line under the row, as a base resume's does. Import Updated
   Resume names the row after its new file again. Import Updated
   Resume opens `resumes/update-resume-dialog.tsx`: a dropzone for a newer
@@ -904,21 +908,27 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 - **Tailored Resumes** (KAN-258), after Generated Resumes, only while
   the student has one: each is made for one job posting with Tailor
   (KAN-217). They sat in Base Resumes with a Tailored tag until KAN-258,
-  under a name they do not have. A tailored resume has no star (only a base
-  resume can be the primary), and a "Posting Closed" badge once the Jobs
+  under a name they do not have. A tailored resume takes the star like any
+  other since KAN-268 (the API refused it before); Apply and auto apply
+  still send a posting's own tailored resume first, and Apply's list shows
+  a primary tailored to another posting as "Tailored resume". It gets a
+  "Posting Closed" badge once the Jobs
   page no longer lists its posting (story 90, the API's `posting_closed`).
   It still opens and downloads; only Tailor needs a live posting.
 - **Each built resume is a row drawn as an upload's is**
   (KAN-258, `resumes/built-resume-row.tsx`), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
   (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
   drift apart: the PDF mark, the name, one line with one day, then the
-  star, Rename and Delete. **The whole card opens the resume editor**: the
+  star, Rename, **Download PDF** and Delete. **The whole card opens the resume editor**: the
   name's link stretches over it and the icons sit above that link, and it
   lifts under the pointer as every whole-target card does (`docs/motion.md`).
-  It held Open, PDF and Word buttons until KAN-258; downloading moved into
-  the editor. The star works as an upload's does and uses its word,
-  "primary": filled on the primary resume, shown on the others under the
-  pointer or on a touch screen. The view said "default" and showed a
+  It held Open, PDF and Word buttons until KAN-258, when downloading moved
+  into the editor; KAN-268 put Download PDF back on the card. It is the
+  editor's PDF download (`useResumeDownload`: a sent resume), and its
+  missing-character warning shows under the row; Word stays in the editor.
+  The star works as an upload's does and uses its word, "primary": filled
+  on the primary resume, an outline on the others, always shown (KAN-268;
+  it showed only under the pointer before). The view said "default" and showed a
   Default badge for the same setting (the API's one default resume,
   uploaded or base).
 - **The day**: when the resume was last edited ("Last edited Oct 20"), or

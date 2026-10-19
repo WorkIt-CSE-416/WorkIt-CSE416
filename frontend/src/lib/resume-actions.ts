@@ -102,13 +102,16 @@ export async function renameResume(
 }
 
 // A short-lived link to the uploaded file: a PDF opens in the browser's
-// viewer, a DOCX downloads under its original name.
+// viewer, a DOCX downloads under its name. With `download`, a PDF downloads
+// too (the row's Download button, KAN-268).
 export async function getResumeFileUrl(
   resumeId: string,
+  download = false,
 ): Promise<{ url: string | null; error: string | null }> {
   try {
     const { id, token } = await getApplicantSession();
-    const res = await apiGet(`${resumePath(id, resumeId)}/file`, token);
+    const query = download ? "?download=true" : "";
+    const res = await apiGet(`${resumePath(id, resumeId)}/file${query}`, token);
     if (!res.ok) return { url: null, error: await extractErrorMessage(res) };
     const { url } = await res.json();
     return { url, error: null };

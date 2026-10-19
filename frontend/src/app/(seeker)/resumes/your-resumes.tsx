@@ -15,6 +15,7 @@ import { importSummary } from "@/lib/import-summary";
 import { previewResume } from "@/lib/preview-resume";
 import {
   deleteResume,
+  getResumeFileUrl,
   renameResume,
   setPrimaryResume,
   uploadResume,
@@ -23,6 +24,7 @@ import {
 
 import { RenameForm } from "./built-resume-row";
 import { DeleteConfirm } from "./delete-confirm";
+import { openDownload } from "./download-menu";
 import { UpdateResumeDialog } from "./update-resume-dialog";
 
 // The API's limit, on uploads alone: generated resumes count for nothing
@@ -30,7 +32,8 @@ import { UpdateResumeDialog } from "./update-resume-dialog";
 const MAX_RESUMES = 5;
 
 /**
- * Your Resumes, the Resumes view's first card: the files the student
+ * Your Uploaded Resumes (Your Resumes until KAN-268), the Resumes view's
+ * first card: the files the student
  * uploaded, under an "n of 5" count of uploads alone: generated resumes
  * have counted for nothing since KAN-268. It was My Profile's Resume card until
  * 2026-10-18, beside a "Your Resumes" card of base resumes alone: one limit
@@ -40,8 +43,9 @@ const MAX_RESUMES = 5;
  * page.
  *
  * Uploads are newest first. A click on the row previews the file; each
- * has Rename, Import Updated Resume (./update-resume-dialog.tsx) and
- * Delete. Picking a file in the dropzone uploads it at
+ * has Rename, Download (the stored file as it is: an upload keeps no sent
+ * resume, since its file never changes), Import Updated Resume
+ * (./update-resume-dialog.tsx) and Delete. Picking a file in the dropzone uploads it at
  * once; the API reads it into the experience bank (ADR 0003), and a note
  * under the dropzone says what went in, with Read It With AI while the
  * student has an AI reading left. The model never reads a resume unasked.
@@ -128,7 +132,7 @@ export function YourResumes({
       <div>
         <div className="flex items-center justify-between gap-4">
           <h2 id="resumes-yours" className="text-subtitle text-ink">
-            Your Resumes
+            Your Uploaded Resumes
           </h2>
           <Badge variant="tag" pill>
             {count} of {MAX_RESUMES}
@@ -255,6 +259,13 @@ function UploadedRow({
     setError(await previewResume(resume));
   }
 
+  async function download() {
+    setError(null);
+    const { url, error } = await getResumeFileUrl(resume.id, true);
+    if (url) openDownload(url);
+    else setError(error ?? "Could not download the resume.");
+  }
+
   async function makePrimary() {
     setError(null);
     const { error } = await setPrimaryResume(resume.id);
@@ -289,6 +300,7 @@ function UploadedRow({
           onPreview={preview}
           onMakePrimary={makePrimary}
           onRename={() => setRenaming(true)}
+          onDownload={download}
           onUpdate={onUpdate}
           onDelete={() => setConfirming(true)}
         />
