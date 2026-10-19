@@ -17,7 +17,9 @@
     inset 0 1px 0 rgb(255 255 255 / 0.8),
     inset 0 0 0 1px color-mix(in oklab, var(--color-landing-brand-400) 50%, transparent);
 
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* The app's own face (Plus Jakarta Sans, globals.css), not the marketing
+   * site's Inter: the page and the app read as one product. */
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   color: var(--color-ink);
   background: white;
 }
@@ -112,7 +114,8 @@ html:has(.landing) {
 }
 
 /*
- * The hero city (hero-city.tsx, city-model.ts). A 1600x460 strip pinned to
+ * The hero city (hero-city.tsx, city-model.ts). A 1600x560 strip (100px of
+ * it above the ground's origin, for the tallest side towers) pinned to
  * the hero panel's bottom: at its 1600px design scale from lg up, so its
  * per-column height caps keep it clear of the text, cropped at the sides on
  * narrower panels; scaled to the panel's width below lg, where page.tsx's
@@ -137,7 +140,8 @@ html:has(.landing) {
   left: 50%;
   bottom: 0;
   width: 115cqw;
-  aspect-ratio: 1600 / 460;
+  /* STRIP_WIDTH / STRIP_HEIGHT in city-model.ts. */
+  aspect-ratio: 1600 / 560;
   transform: translateX(-50%);
   pointer-events: none;
   mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
@@ -224,7 +228,7 @@ html:has(.landing) {
 
 .hero-city .grid {
   fill: none;
-  stroke: rgb(76 39 163 / 0.09);
+  stroke: rgb(76 39 163 / 0.14);
   stroke-width: 1;
 }
 .hero-city .streak {

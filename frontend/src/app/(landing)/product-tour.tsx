@@ -11,7 +11,14 @@ import {
   useTransform,
 } from "motion/react";
 import Link from "next/link";
-import { useRef, useState, type ComponentType } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -101,8 +108,55 @@ export function ProductTour() {
   );
 }
 
+/**
+ * Scales its content down to the height of `box` (the pinned visual area,
+ * minus its padding), so a tall visual such as the resume card fits on a
+ * short laptop screen instead of losing its top and bottom to the area's
+ * overflow clip. A transform, so the content keeps its own layout; it is
+ * centred by the area's flex. Never scales up.
+ */
+function FitHeight({
+  box,
+  children,
+}: {
+  box: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(1);
+
+  useEffect(() => {
+    const el = ref.current;
+    const area = box.current;
+    if (!el || !area) return;
+    const measure = () => {
+      const style = getComputedStyle(area);
+      const room =
+        area.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      // offsetHeight ignores the transform, so this is the unscaled height.
+      setFit(el.offsetHeight > 0 ? Math.min(1, room / el.offsetHeight) : 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [box]);
+
+  return (
+    <div
+      ref={ref}
+      className="flex w-full justify-center"
+      style={{ transform: fit < 1 ? `scale(${fit})` : undefined }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function PinnedTour() {
   const ref = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
 
@@ -156,7 +210,13 @@ function PinnedTour() {
             />
           ))}
 
-          <div role="tablist" aria-label="Features" className="flex gap-3">
+          {/* Labelled tabs in one pill, so the row reads as the tour's steps
+              rather than as loose dots above the card. */}
+          <div
+            role="tablist"
+            aria-label="Features"
+            className="flex gap-1 rounded-full bg-white/50 p-1 ring-1 ring-white/70"
+          >
             {features.map((feature, i) => {
               const { icon: Icon, label } = STOPS[feature.id];
               const selected = i === index;
@@ -168,24 +228,22 @@ function PinnedTour() {
                   id={`tour-tab-${feature.id}`}
                   aria-selected={selected}
                   aria-controls="tour-panel"
-                  aria-label={label}
                   onClick={() => jumpTo(i)}
                   className={cn(
-                    "relative flex size-12 items-center justify-center rounded-2xl ring-1 transition-colors duration-300",
-                    selected
-                      ? "text-ink bg-white shadow-md ring-white"
-                      : "text-ink-meta bg-white/50 ring-white/70 hover:bg-white/80",
+                    "relative flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors duration-300",
+                    selected ? "text-ink" : "text-ink-meta hover:text-ink",
                   )}
                 >
-                  <Icon className="size-5" aria-hidden="true" />
-                  {/* The notch that ties the selected tab to the card. */}
+                  {/* The white fill slides between tabs. */}
                   {selected && (
                     <motion.span
-                      layoutId="tour-notch"
+                      layoutId="tour-tab-fill"
                       aria-hidden="true"
-                      className="absolute top-full mt-2.5 size-3 rotate-45 rounded-[3px] bg-white"
+                      className="absolute inset-0 -z-10 rounded-full bg-white shadow-md"
                     />
                   )}
+                  <Icon className="size-4" aria-hidden="true" />
+                  {label}
                 </button>
               );
             })}
@@ -197,7 +255,11 @@ function PinnedTour() {
             aria-labelledby={`tour-tab-${active.id}`}
             className="mt-4 grid w-full max-w-5xl grid-cols-[2fr_3fr] items-center gap-8 rounded-[2rem] bg-white p-6 shadow-xl shadow-slate-900/5"
           >
-            <AnimatePresence mode="wait" initial={false}>
+            {/* No initial={false} on these: it blocks the first animation of
+                every motion element inside, so the Matching rows sat still at
+                their end value until a tab switch remounted them. The first
+                stop's fade-in runs below the fold instead, unseen. */}
+            <AnimatePresence mode="wait">
               <motion.div
                 key={active.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -211,10 +273,11 @@ function PinnedTour() {
             </AnimatePresence>
 
             <div
+              ref={boxRef}
               className="relative flex h-[clamp(20rem,calc(100dvh-15rem),40rem)] items-center justify-center overflow-hidden rounded-[1.5rem] p-6"
               style={{ background: backdrop(active.id) }}
             >
-              <AnimatePresence mode="wait" initial={false}>
+              <AnimatePresence mode="wait">
                 <motion.div
                   key={active.id}
                   className="flex w-full justify-center"
@@ -223,7 +286,9 @@ function PinnedTour() {
                   exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
                   transition={{ duration: reduceMotion ? 0 : 0.35, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  <Visual />
+                  <FitHeight box={boxRef}>
+                    <Visual />
+                  </FitHeight>
                 </motion.div>
               </AnimatePresence>
             </div>
