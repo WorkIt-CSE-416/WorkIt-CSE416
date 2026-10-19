@@ -10,7 +10,7 @@ POST /applicants/{id}/tailor       TailorRun {job_posting_id} -> TailorProposal
      extraction inside the run is part of it, not a second use.
      404 a posting the Jobs page does not list (unknown, draft, paused,
      closed); 409 {detail} empty bank (send the student to
-     intake) or, when a base resume must be generated, the 5-resume limit;
+     intake);
      429 at the Tailor limit; 503 when the model fails or answers out of
      schema (nothing counted).
 POST /applicants/{id}/tailor/done  TailorDone -> TailorResult {resume, matched, missing}
@@ -97,10 +97,7 @@ async def run(
     tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
     source = tailored or await built_resumes.latest_base(session, applicant_id)
     if source is None:
-        try:
-            source = await built_resumes.generate(session, applicant_id)
-        except built_resumes.ResumeLimitReached as exc:
-            raise HTTPException(409, str(exc))
+        source = await built_resumes.generate(session, applicant_id)
     choices = await built_resumes.load_choices(session, source.id)
     ranks = await tailor.rank_bullets(session, applicant_id, tailor.posting_text(job, found))
 
@@ -178,7 +175,7 @@ async def done(
         resume=BuiltResumeResponse(
             id=resume.id, name=resume.name, template=resume.template, job_posting_id=resume.job_posting_id,
             is_default=resume.id == default_id, created_at=resume.created_at,
-            edited_at=resume.updated_at,
+            edited_at=resume.updated_at, posting_title=job.title, posting_company=job.company_name,
         ),
         matched=matched,
         missing=missing,

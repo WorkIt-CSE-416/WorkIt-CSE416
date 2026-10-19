@@ -7,7 +7,7 @@ import { extractErrorMessage } from "@/lib/auth";
 import { getApplicantSession } from "@/lib/session";
 
 import type { JobListing } from "../jobs/listings";
-import type { ApplicationStage } from "./actions";
+import type { ApplicationStage, RunStage } from "./actions";
 
 /**
  * The signed-in seeker's applications, from the API's auto apply routes
@@ -16,11 +16,13 @@ import type { ApplicationStage } from "./actions";
  * every read forwards the session's token. Mutations are in ./actions.
  *
  * An application is one job_applications row, named by its job id: the job
- * posting's listing, where it stands, and when.
+ * posting's listing, where it stands, and when. The Applications board reads
+ * the saved and applied ones through the same list
+ * (../applications/tracked.ts).
  */
-export type Application = {
+export type Application<Stage extends ApplicationStage = ApplicationStage> = {
   job: JobListing;
-  stage: ApplicationStage;
+  stage: Stage;
   /** When it was queued, or marked applied: an ISO instant. */
   added_at: string;
   applied_at: string | null;
@@ -30,32 +32,44 @@ export type Application = {
 
 const UNREACHABLE = "Could not reach the server.";
 
-/** Every application, newest first, for Live Activity. */
-export async function getApplications(): Promise<
-  { applications: Application[]; error: null } | { applications: null; error: string }
+/** The applications in `stages` (every stage when empty), newest first. */
+export async function getApplications<Stage extends ApplicationStage = ApplicationStage>(
+  stages: readonly Stage[] = [],
+): Promise<
+  { applications: Application<Stage>[]; error: null } | { applications: null; error: string }
 > {
   // Request time, not build time, as every live fetch (frontend/CLAUDE.md).
   await connection();
   try {
     const { id, token } = await getApplicantSession();
-    const res = await apiGet(`/applicants/${id}/applications`, token);
+    const query = new URLSearchParams(stages.map((stage) => ["stage", stage])).toString();
+    const res = await apiGet(`/applicants/${id}/applications${query ? `?${query}` : ""}`, token);
     if (!res.ok) return { applications: null, error: await extractErrorMessage(res) };
-    return { applications: (await res.json()) as Application[], error: null };
+    return { applications: (await res.json()) as Application<Stage>[], error: null };
   } catch {
     return { applications: null, error: UNREACHABLE };
   }
 }
 
-/** Each job id's stage, for a list of Auto Apply buttons (the feed's cards).
- *  Empty when it can't be read: the buttons then start as Auto Apply, and a
- *  click still answers the real stage. */
+/** What auto apply has run or will run, for Live Activity: every stage but
+ *  saved, which is only the Save button's. */
+const RUN_STAGES: readonly RunStage[] = ["queued", "needs_you", "skipped", "applied"];
+
+export function getRunApplications() {
+  return getApplications(RUN_STAGES);
+}
+
+/** Each job id's stage, for a list of Auto Apply and Save buttons (the
+ *  feed's cards). Empty when it can't be read: the buttons then start as
+ *  Auto Apply and unsaved, and a click still answers the real stage. */
 export async function getApplicationStages(): Promise<Record<string, ApplicationStage>> {
   const { applications } = await getApplications();
   return Object.fromEntries((applications ?? []).map((a) => [a.job.id, a.stage]));
 }
 
 /** One job posting's stage (GET .../applications/{job_id}), for the Auto
- *  Apply button on its page: null when the seeker has no application for it,
+ *  Apply and Save buttons on its page: null when the seeker has no
+ *  application for it,
  *  or when it can't be read. */
 export async function getApplicationStage(jobId: string): Promise<ApplicationStage | null> {
   try {

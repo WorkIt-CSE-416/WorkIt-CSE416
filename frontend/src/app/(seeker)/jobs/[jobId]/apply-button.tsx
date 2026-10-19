@@ -65,11 +65,18 @@ export function ApplyButton({
     }
     const list: Choice[] = [
       ...(built.data ?? [])
-        .filter((r) => r.job_posting_id == null || r.job_posting_id === jobId)
+        // A resume tailored to another posting shows only as the primary
+        // (KAN-268): the student starred it, so it is theirs to send.
+        .filter((r) => r.job_posting_id == null || r.job_posting_id === jobId || r.is_default)
         .map((r) => ({
           key: `built:${r.id}`,
           label: r.name,
-          kind: r.job_posting_id ? "Tailored to this job" : "Built resume",
+          kind:
+            r.job_posting_id === jobId
+              ? "Tailored to this job"
+              : r.job_posting_id
+                ? "Tailored resume"
+                : "Built resume",
           source: { builtResumeId: r.id },
           isDefault: r.is_default,
         })),

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSyncExternalStore, type ReactNode } from "react";
 
 import { calendarHref, type CalendarView } from "./calendar/query";
-import { describeWhen, describeWhenOnServer, localDay } from "./tracker";
+import { describeWhen, describeWhenOnServer, isAllDay, localDay } from "./tracker";
 
 /**
  * Dates as the viewer's own clock reads them, for the server components that
@@ -38,12 +38,15 @@ export function When({ at }: { at: string }) {
  * `formatDate` alone prints the UTC day, which is already tomorrow for a
  * resume sent on an evening in the Americas (KAN-258). The year shows only
  * when it is not this one, as the tracker's days and an upload's resume row
- * read: with it, a resume card's "Last edited" wrapped on a phone.
+ * read: with it, a resume card's "Last edited" wrapped on a phone. A bare
+ * date ("2026-10-14", a deadline due on a day) is the same day everywhere, so
+ * the browser reads it in UTC too: on a local clock it is the day before in
+ * the Americas.
  */
 export function LocalDate({ at }: { at: string }) {
   const day = useSyncExternalStore(
     noSubscription,
-    () => dayOf(at),
+    () => dayOf(at, isAllDay(at) ? "UTC" : undefined),
     () => dayOf(at, "UTC"),
   );
 

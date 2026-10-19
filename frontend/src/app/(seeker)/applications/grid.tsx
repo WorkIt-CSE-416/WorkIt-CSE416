@@ -2,10 +2,11 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { CompanyTile } from "@/components/ui/company-tile";
 
 import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
-import { nextEvent, sinceLabel, type Application } from "../tracker";
+import { LocalDate } from "../local-time";
+import { nextEvent, sinceOf, type Application } from "../tracker";
+import { ApplicationTile } from "./application-tile";
 import { NextStep } from "./next-step";
 import { applicationsHref, type ApplicationsQuery } from "./query";
 import { Reflow } from "./reflow";
@@ -20,8 +21,8 @@ import { Reflow } from "./reflow";
  * structure: a tinted header block naming the thing, a body, and a ruled
  * footer pairing a date with a status pill. The mockup's footer pairs a face
  * with the pill; the date takes that slot here, since in the seeker's own
- * tracker the only face to show is someone else's, unexplained on one card in
- * twelve.
+ * tracker the only face to show is someone else's, unexplained on most
+ * cards.
  *
  * THE BODY IS THE NEXT STEP, not the mockup's labelled progress bar. Progress
  * was fixed per stage (Saved 25%, Applied 50% and so on), so the bar only
@@ -60,7 +61,8 @@ function GridCard({
   now: Date;
   delay: number;
 }) {
-  const { Icon, stage } = item;
+  const { stage } = item;
+  const since = sinceOf(item);
 
   return (
     <Card
@@ -72,7 +74,7 @@ function GridCard({
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="bg-well border-border-subtle flex items-start gap-2 border-b p-3">
-        <CompanyTile Icon={Icon} size="sm" tone="outline" />
+        <ApplicationTile application={item} size="sm" />
         <div className="min-w-0 flex-1 @xl/main:min-h-15">
           <h2 className="text-subtitle text-ink line-clamp-2 leading-5">
             <Link
@@ -93,7 +95,9 @@ function GridCard({
         {/* mt-auto rather than a fixed margin, so every footer in a row sits on
             one line even if a label above it wraps. */}
         <div className="border-border-subtle mt-auto flex items-center justify-between gap-2 border-t pt-2.5">
-          <p className="text-note text-ink-meta min-w-0 truncate">{sinceLabel(item)}</p>
+          <p className="text-note text-ink-meta min-w-0 truncate">
+            {since.verb} <LocalDate at={since.at} />
+          </p>
           <Badge tone={STAGE_COLOR[stage].tone}>{STAGE_LABEL[stage]}</Badge>
         </div>
       </div>

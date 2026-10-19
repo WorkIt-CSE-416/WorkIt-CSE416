@@ -38,7 +38,7 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 | **Base resume** | A resume built from the experience bank (`built_resumes` with no `job_posting_id`, KAN-207). Its default is `applicant_profiles.default_built_resume_id` |
 | **Tailored resume** | A built resume for one job posting (`built_resumes.job_posting_id`), made with Tailor (KAN-217). At most one per job posting |
 | **Uploaded resume** | A file the student uploaded (`resumes`). Its default is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
-| **Default resume** | The one resume the student starred, a base or an uploaded one: the Resumes view calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two. A student's only resume is the default with no star click (`built_resumes.default_if_only`, on every add and delete) |
+| **Default resume** | The one resume the student starred, a built (base or tailored) or an uploaded one: the Resumes view calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two. A student's only resume is the default with no star click (`built_resumes.default_if_only`, on every add and delete) |
 | **Sent resume** | The exact file a student downloaded or applied with, kept in `sent_resumes` (KAN-208). With `job_posting_id` it records what went to that job posting (Apply, KAN-220) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
@@ -95,7 +95,7 @@ everything up to that click and nothing after it ("Decisions", below).
 | Form filling | Chrome extension, started from its popup. Fills text fields, dropdowns and repeated sections. Never submits | `autofiller_extension/` |
 | Webapp ↔ extension link | `externally_connectable`. Today it only answers "installed and signed in?" | `frontend/src/lib/autofill-extension.ts` |
 | Auto Apply page | "Resume List" (every resume the student has, with the pick rule under it), Start Auto Apply, and Live Activity from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
-| Applications screen | UI only, over a fixture (`data.ts`) | `frontend/src/app/(seeker)/applications/` |
+| Applications screen | Saved and Applied columns live from `GET .../applications?stage=saved&stage=applied` (KAN-261); Interviewing and Offer empty until the API stores those stages | `frontend/src/app/(seeker)/applications/` |
 
 **Built since:** the queue (`job_applications.stage`), its routes, and the
 webapp's use of them (Auto Apply buttons, Start Auto Apply, Live Activity).
@@ -299,7 +299,9 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    application for this student (queued, applied, skipped) stays out. Without
    this, every click returns the same 10. `get_matches` and `start_batch`
    set `JobFilters.no_application_by`, so a job posting with an application
-   at any stage is never scored.
+   at any stage is never scored, a saved one (KAN-261) too: saving never
+   queues a job by itself. Only the student's own Auto Apply click queues a
+   saved job, which moves it to `queued`.
 3. **Freeze the batch at Start.** Pick the 10 once and save them as `queued`
    applications. New job postings arrive every 3 hours and scores change, so
    a list read during the run could change under it. A saved batch also lets
@@ -536,8 +538,8 @@ This is Apply's order (11.1), so a job posting gets the same resume from
 the Apply button and from auto apply. Apply then falls back to the first
 resume in its list; the run does not guess, so a student with resumes but no
 default gets none, and the Resume List says to star one. The run never
-generates a base resume: that is slow, and it counts toward the 5-resume
-limit.
+generates a base resume: that is slow, and the student never asked for
+it.
 
 ### 11.4 Keeping the file
 
@@ -585,15 +587,22 @@ disagree. Migration `c0467afe819c` added:
 
 | Column | Type | Notes |
 |---|---|---|
-| `stage` | enum `application_stage` | `queued`, `needs_you`, `skipped`, `applied`. Default `applied`, for the Applied button's older inserts; a queued insert names its stage and writes `applied_at` NULL. Rows from before are `applied` |
-| `created_at` | timestamptz | When the row was made: the queue's order |
+| `stage` | enum `application_stage` | `saved` (KAN-261, `17ea74fa4573`), `queued`, `needs_you`, `skipped`, `applied`. Default `applied`, for the Applied button's older inserts; a queued or saved insert names its stage and writes `applied_at` NULL. Rows from before are `applied` |
+| `created_at` | timestamptz | When the row was made: the queue's order. Queueing a saved row moves it to now, so a job saved last month doesn't jump the queue |
 | `applied_at` | timestamptz **null** now | Set when the student clicks **Submitted** or the Applied button; `NULL` while queued. A CHECK keeps an `applied` row dated |
 
 - **The Jobs page hides `applied` rows only** (`JobFilters.applied_by`). A
-  queued job stays on it; matches leave out every stage
+  saved or queued job stays on it; matches leave out every stage, saved too
   (`JobFilters.no_application_by`).
-- **The Applied button turns a queued, skipped or needs_you row applied**
-  (`mark_applied`, an upsert); an applied row keeps its first date.
+- **The Applied button turns a saved, queued, skipped or needs_you row
+  applied** (`mark_applied`, an upsert); an applied row keeps its first date.
+- **A saved row is the Save button's, not a run's** (KAN-261). A batch
+  never picks it. A job's own Auto Apply click does: `queue_applications`
+  turns it `queued` (`ON CONFLICT DO UPDATE ... WHERE stage = 'saved'`) and
+  leaves every other stage alone; Save never moves a
+  later stage back, and Unsave deletes a saved row only. Live Activity asks
+  for every stage but saved. Taking a queued job out of the queue deletes
+  its row, so a job that was saved before it was queued is no longer saved.
 - **A closed job posting keeps its application.** Closing is a status, not
   a delete, so the row and the listing stay; `fetch_next_application` passes
   over it and `GET .../applications` marks it `open: false`. Only a deleted

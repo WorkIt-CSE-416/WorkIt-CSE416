@@ -93,6 +93,9 @@ export function UpNext({ items, className }: { items: UpNextItem[]; className?: 
           );
         })}
       </ul>
+      {items.length === 0 && (
+        <p className="text-note text-ink-meta mt-3">Nothing else scheduled.</p>
+      )}
     </SectionCard>
   );
 }

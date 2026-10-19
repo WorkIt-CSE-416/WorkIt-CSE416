@@ -1,5 +1,6 @@
 "use client";
 
+import { FileDown } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
@@ -17,12 +18,19 @@ import {
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
+import { rememberReturnTo } from "../jobs/[jobId]/page-actions";
 import { LocalDate } from "../local-time";
 import { DeleteConfirm } from "./delete-confirm";
+import { DownloadNotes, useResumeDownload } from "./download-menu";
 
 /**
  * One built resume, drawn as an uploaded one's row is: the file mark, the
- * name and its day, then the star, Rename and Delete. The whole card is
+ * name and its day, then the star, Rename, Download PDF and Delete.
+ * Download PDF is the editor's PDF download (`useResumeDownload`: a sent
+ * resume, with the missing-character warning under the row), on the card
+ * since KAN-268. A tailored resume takes the star too since then, and its
+ * day line names the job posting it was made for, a link to that posting's
+ * page while the Jobs page lists it (a closed one's page is a 404). The whole card is
  * one target: the name's link stretches over it (`after:inset-0`), the
  * icons sit above that, and the card lifts under the pointer as every
  * whole-target card does (`docs/motion.md`).
@@ -39,6 +47,7 @@ export function BuiltResumeRow({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const download = useResumeDownload(resume.id);
 
   async function makePrimary() {
     setError(null);
@@ -101,23 +110,26 @@ export function BuiltResumeRow({
             {/* One day: when it was last edited, or made until the first edit.
                 Both together said one day twice for a resume edited the day
                 it was made, and the made day mattered less. */}
-            <p className="text-note text-ink-meta">
+            <p className="text-note text-ink-meta truncate">
               {edited ? "Last edited" : "Made"}{" "}
               <LocalDate at={edited ? resume.edited_at : resume.created_at} />
+              {resume.job_posting_id && resume.posting_title && (
+                <>
+                  {" · For "}
+                  <PostingLink resume={resume} />
+                </>
+              )}
             </p>
           </div>
           {/* Story 90: the resume still opens and downloads; only Tailor needs a live posting. */}
           {resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
           {/* Above the stretched link, so a press on an icon is the icon's. */}
           <div className="relative z-10 flex shrink-0 items-center">
-            {/* Only a base resume can be the primary (the API refuses a tailored one). */}
-            {!resume.job_posting_id && (
-              <PrimaryStar
-                name={resume.name}
-                primary={resume.is_default}
-                onMakePrimary={makePrimary}
-              />
-            )}
+            <PrimaryStar
+              name={resume.name}
+              primary={resume.is_default}
+              onMakePrimary={makePrimary}
+            />
             <IconButton
               label={`Rename ${resume.name}`}
               tooltip="Rename"
@@ -125,6 +137,15 @@ export function BuiltResumeRow({
               onClick={() => setRenaming(true)}
             >
               <PencilIcon className="size-4" />
+            </IconButton>
+            <IconButton
+              label={`Download ${resume.name} as a PDF`}
+              tooltip={download.busy === "pdf" ? "Making PDF…" : "Download PDF"}
+              className={ROW_ACTION}
+              disabled={download.busy !== null}
+              onClick={() => download.pick("pdf")}
+            >
+              <FileDown aria-hidden className="size-4" />
             </IconButton>
             <IconButton
               label={`Delete ${resume.name}`}
@@ -137,6 +158,9 @@ export function BuiltResumeRow({
           </div>
         </div>
       )}
+      <div className="mt-2 empty:hidden">
+        <DownloadNotes download={download} />
+      </div>
       {confirming && (
         <DeleteConfirm
           label="Delete Resume"
@@ -157,12 +181,33 @@ export function BuiltResumeRow({
 }
 
 /**
+ * The job posting a tailored resume was made for. Above the card's
+ * stretched link, so a press on it opens the posting, not the editor. The
+ * click makes the posting page's Back return here (rememberReturnTo).
+ */
+function PostingLink({ resume }: { resume: BuiltResume }) {
+  const label = resume.posting_company
+    ? `${resume.posting_title} at ${resume.posting_company}`
+    : resume.posting_title;
+  if (resume.posting_closed || !resume.job_posting_id) return <>{label}</>;
+  return (
+    <Link
+      href={`/jobs/${encodeURIComponent(resume.job_posting_id)}`}
+      onClick={() => rememberReturnTo("/resumes")}
+      className="text-brand hover:text-brand-hover relative z-10 underline-offset-2 hover:underline"
+    >
+      {label}
+    </Link>
+  );
+}
+
+/**
  * The resume's name, open for typing (KAN-258): Rename turns the card into
- * this form, as Edit opens a bank entry in place, with the bank's form
+ * this form, a built resume's or an upload's (KAN-268), as Edit opens a bank entry in place, with the bank's form
  * buttons at a field's height. A name left as it was closes the form with
  * no call; Escape or Cancel keeps the name.
  */
-function RenameForm({
+export function RenameForm({
   id,
   name,
   saving,

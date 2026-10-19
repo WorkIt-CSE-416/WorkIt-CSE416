@@ -122,13 +122,19 @@ function gpaScale(gpa: number, scale: number | null): string {
   return `/${scale.toFixed(Math.max(places(gpa), places(scale)))}`;
 }
 
+/** "B.S. in Computer Science · GPA 3.81/4.00": a school's degree, field and
+ *  GPA on one line, or null when it has none of them. */
+export function degreeLine(entry: EntryFields): string | null {
+  const degree = [entry.degree, entry.field_of_study].filter(Boolean).join(" in ");
+  const gpa = entry.gpa != null ? `GPA ${entry.gpa}${gpaScale(entry.gpa, entry.gpa_scale)}` : null;
+  return [degree, gpa].filter(Boolean).join(" · ") || null;
+}
+
 /** The lines under an entry's title and place: degree and GPA, coursework,
  *  honors, issuer and link. The bank list and import's drafts both show them. */
 export function entryDetails(entry: EntryFields): string[] {
-  const degree = [entry.degree, entry.field_of_study].filter(Boolean).join(" in ");
-  const gpa = entry.gpa != null ? `GPA ${entry.gpa}${gpaScale(entry.gpa, entry.gpa_scale)}` : null;
   return [
-    [degree, gpa].filter(Boolean).join(" · "),
+    degreeLine(entry),
     entry.coursework.length ? `Coursework: ${entry.coursework.join(", ")}` : null,
     entry.honors && `Honors: ${entry.honors}`,
     entry.issuer && `Issued by ${entry.issuer}`,

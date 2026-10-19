@@ -1,9 +1,6 @@
-import type { ComponentType } from "react";
-
 import { CalendarIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import { CompanyTile } from "@/components/ui/company-tile";
 import { cn } from "@/lib/cn";
 
 import { DayLink, When } from "../local-time";
@@ -21,10 +18,8 @@ import { SectionCard } from "./section-card";
  * violet blocks side by side competed, so the colour moved into the title and
  * the button.
  *
- * The company's tile sits beside the title: the outlined stand-in logo the
- * Applications detail panel draws at the same size beside its 20px title
- * (components/ui/company-tile.tsx), so the two screens show a company the
- * same way.
+ * It draws no company tile: the tracker's stand-in glyphs went with its
+ * fixture (KAN-261), and an Up Next item carries no logo yet.
  *
  * The button opens this application's detail panel on /applications, so the
  * one thing that most needs the seeker is one click from its whole timeline.
@@ -36,12 +31,9 @@ import { SectionCard } from "./section-card";
  */
 export function NextUpHero({
   item,
-  Icon,
   className,
 }: {
   item: UpNextItem | undefined;
-  /** The company's stand-in logo, from its application. */
-  Icon?: ComponentType<{ className?: string }>;
   /** Where the page puts it on the grid. */
   className?: string;
 }) {
@@ -53,7 +45,6 @@ export function NextUpHero({
 
       {item ? (
         <div className="mt-3 flex items-start gap-3">
-          {Icon && <CompanyTile Icon={Icon} size="md" tone="outline" />}
           <div className="min-w-0">
             <p className="text-title text-brand-ink font-semibold">{item.title}</p>
             <p className="text-body text-ink-meta mt-0.5">

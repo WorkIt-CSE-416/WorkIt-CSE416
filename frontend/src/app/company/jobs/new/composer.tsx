@@ -34,7 +34,7 @@ import { EyeIcon } from "./icons";
 import { fromCompanyJob, toJobPayload } from "./payload";
 import { JobPreview } from "./preview";
 import { ScreeningQuestions } from "./screening-questions";
-import { Stepper } from "./stepper";
+import { Stepper } from "@/components/stepper";
 import { CloseJobDialog } from "../close-job-dialog";
 import { STATUS_LABEL, STATUS_TONE } from "../data";
 

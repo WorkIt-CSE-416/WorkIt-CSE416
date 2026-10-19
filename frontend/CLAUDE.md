@@ -61,11 +61,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
   clone with no env file is gated too. `components/account-type-switcher.tsx`
-  has its toggle commented out and always submits `applicant`, so login, signup and
-  choose-account-type show no Company option; the brand panel's hiring line
-  is commented out too. The company code stays in place. To bring it back,
-  delete the proxy block and `app/coming-soon/`, then uncomment those two
-  components. The API still accepts company signups; the gate is the UI only.
+  has its toggle commented out and always submits `applicant`, so login,
+  signup and choose-account-type show no Company option. The company code
+  stays in place. To bring it back, delete the proxy block and
+  `app/coming-soon/`, then uncomment the switcher's toggle. The API still
+  accepts company signups; the gate is the UI only.
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
@@ -107,11 +107,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `page.tsx`) on every resize, nudging a card inward or skipping it; a
   fixed breakpoint once hid them on every laptop-width window. Measure text
   runs, not elements: a block line's box spans the full width. Violet is
-  the wireframes' alone; keep roofs and
-  spires neutral. It does not use `ui/` components, Title Case or the
-  type tokens; those rules are for app screens. Rules in `landing.css` that set
-  `display` or a size sit in `@layer components`, or they beat a `hidden`
-  or `h-12` utility on the same element. Its animations use `motion`
+  the wireframes' alone; keep roofs and spires neutral. It does not use
+  `ui/` components, Title Case or the type tokens; those rules are for app
+  screens. Rules in `landing.css` that set `display` or a size sit in
+  `@layer components`, or they beat a `hidden` or `h-12` utility on the
+  same element. Its animations use `motion`
   (`motion/react`), which only this route imports; the feature animations
   expect the tour's `MotionConfig reducedMotion="user"` around them. What
   differs from the site, and why: the Applicant / Company switcher is left
@@ -121,6 +121,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   site's own server; every call to action goes to `/signup`, `/login` or
   `signInWithOAuth`. The testimonial and FAQ still hold the site's
   placeholder copy.
+- **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
+  archived for now** (KAN-261): the tracker stores no dated events or
+  follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
+  sidebar row is commented out, and all their code stays. `docs/screens.md`
+  (Calendar, Seeker Dashboard) says how to bring them back.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -130,6 +135,15 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
+- **The application tracker is live and has no fixture** (KAN-261): saved
+  and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
+  cached per request by `getTracker` in `data.ts`). Interviewing, Offer and
+  dated events stay empty until the API stores them; a failed read shows an
+  error, never stand-in cards. A job's application
+  stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
+  one read per page. Auto Apply never picks a saved job for a batch; only
+  the job's own Auto Apply click queues it.
+  `docs/screens.md`, Applications, has the rest.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
@@ -145,6 +159,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
+- **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
+  KAN-257): every Scout or AI control, and Scout's mark in the chat and
+  the panel header, draws it. An ESLint rule refuses Lucide's `Sparkles`
+  imported anywhere else; a hand-drawn sparkle beside Lucide's had given
+  the assistant two marks (`docs/design.md`, Brand and icons).
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -308,8 +327,10 @@ are in `docs/auth.md`.
 section, card and dialog headings; empty-state titles; buttons and links that
 act as actions; menu items; tabs and segments; filter and field labels and
 their options; column headers; badges, pills and stage names; and an
-accessible name with no visible text. Sentence case only for helper text,
-descriptions and subtitles, tooltips (so an icon button's label too),
+accessible name with no visible text. A tooltip that only pairs a name with
+its status is two labels, so Title Case too: intake's step chips say
+"Projects · Not Started" (KAN-257). Sentence case only for helper text,
+descriptions and subtitles, other tooltips (so an icon button's label too),
 placeholders, empty-state body copy, error and validation messages, and a
 measured value or annotation outside a badge ("Over 7 days", "vs last week").
 Fixture data stays as written. A label that doubles as a value, like the

@@ -261,6 +261,13 @@ Find files with a directory listing; these are the rules for where code goes.
   (2026-10-18): the stored file never changes, so re-reading it with the
   same parser only said "already in your bank". Tests:
   `tests/test_bank_import.py`.
+- **Rename** is `PATCH /applicants/{id}/resumes/{resume_id}` with
+  `{"name"}` (KAN-268). It writes `original_filename`, the name every
+  screen shows and a DOCX downloads under, so it adds the stored file's
+  extension when the name lacks it: without it a renamed DOCX downloads
+  as a file no program opens. There is no separate name column, so Import
+  Updated Resume names the row after the new file again. Tests:
+  `tests/test_bank_import.py`.
 - **The model reads a resume only when the student asks** (KAN-222, ADR
   0003): Import Again's `read_with_ai: true`, "Read It With AI". Upload and
   a plain Import Again never fall back to it, even when the parser finds
@@ -323,10 +330,11 @@ Find files with a directory listing; these are the rules for where code goes.
   is removed only when `file_in_use` says no row needs it**: the uploaded
   resume delete and the sent resume delete both check it, because a sent
   resume can point at an uploaded resume's file.
-- **The resume limit is 5, uploaded plus base resumes**
-  (`services/built_resumes.py`'s `check_room`, called by Generate and by
-  upload before anything is written; 409 with the reason). Tailored and sent
-  resumes do not count.
+- **The resume limit is 5 uploads** (`services/built_resumes.py`'s
+  `check_room`, called by upload before anything is written; 409 with the
+  reason). Built resumes (base and tailored) and sent resumes do not count,
+  so Generate, and Tailor's Generate, are never refused for it. Base
+  resumes counted until KAN-268.
 - **A student's only resume is the default** (`services/built_resumes.py`'s
   `default_if_only`): upload, Generate (Tailor's too) and both deletes call
   it, so the last resume left after a delete takes the star. With two or
@@ -502,7 +510,7 @@ Find files with a directory listing; these are the rules for where code goes.
   - **One run is one `TAILOR` use**, counted after the model answers and
     the proposals are built; a keyword extraction inside the run is not a
     second use. A run with no base resume generates one first (saved with
-    the count; the 5-resume limit applies).
+    the count).
 - **The editor assistant** (KAN-221) is `routers/assistant.py` (`POST
   .../built-resumes/{rid}/assistant`) over `services/assistant.py`. The
   model only **reads** the student's message into one action (fit, hide,
@@ -617,10 +625,11 @@ free tier). Render with a Dockerfile is the fallback.
   table, so this order lets `upgrade head` still create it there. A local
   database that applied `5cc3189af108` first reads the resume builder's tables
   as applied; recreate it from `upgrade head`.
-- **Apply `17ea74fa4573` (the `saved` stage, KAN-261) before the deploy
+- **`17ea74fa4573` (the `saved` stage, KAN-261) goes on before the deploy
   that writes it.** It only adds an enum value, so the running code never
   meets it and applying it early is safe; deployed first, every Save button
-  answers 500.
+  answers 500. Applied to the shared database on 2026-10-18, with KAN-240's
+  `3f7a2c9d1e84` under it, after KAN-240's deploy.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.

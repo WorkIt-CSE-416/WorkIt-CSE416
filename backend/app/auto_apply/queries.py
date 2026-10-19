@@ -46,9 +46,9 @@ async def queue_applications(
     """
     Saves as queued each of `job_ids` that is listed (open, scraped), is on a
     hiring system auto apply fills (AUTO_APPLY_SUPPORTED), and has no
-    application of this applicant yet; answers the ones it queued. One with
-    an application at any stage keeps it: queueing never moves an applied or
-    skipped job back.
+    application of this applicant yet, or only a saved one (KAN-261);
+    answers the ones it queued. One with an application at any other stage
+    keeps it: queueing never moves an applied or skipped job back.
     """
     if not job_ids:
         return set()
@@ -65,7 +65,15 @@ async def queue_applications(
     queued = await db.scalars(
         insert(Job_Application)
         .from_select(["applicant_id", "job_id", "stage", "applied_at"], listed)
-        .on_conflict_do_nothing(index_elements=["applicant_id", "job_id"])
+        # A saved job is no application yet: it becomes queued. RETURNING
+        # names it as queued too, so the button and the batch count it. Its
+        # created_at moves to now, since that orders the queue: kept, a job
+        # saved last month would jump ahead of everything queued since.
+        .on_conflict_do_update(
+            index_elements=["applicant_id", "job_id"],
+            set_={"stage": application_stage.queued, "created_at": func.now()},
+            where=Job_Application.stage == application_stage.saved,
+        )
         .returning(Job_Application.job_id)
     )
     return set(queued)
@@ -201,7 +209,7 @@ async def pick_resume(
     """
     The resume to attach to this applicant's application for this job
     (auto-apply/architecture.md, "Picking the resume"): the one tailored to
-    the job posting, else the default resume, a base or an uploaded one
+    the job posting, else the default resume, a built or an uploaded one
     (set_default keeps one pointer, never both). None when there is neither,
     or the default upload has no stored file: the form is filled without one.
     """

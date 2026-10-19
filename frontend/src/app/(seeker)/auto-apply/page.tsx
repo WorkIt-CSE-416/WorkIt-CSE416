@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
 import { activityOf } from "./activity-list";
-import { getApplications } from "./applications";
+import { getRunApplications } from "./applications";
 import { AutoApplyPanel } from "./auto-apply-panel";
 import { LiveActivity } from "./live-activity";
 
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
  */
 export default async function AutoApplyPage() {
   const now = new Date();
-  const { applications, error } = await getApplications();
+  const { applications, error } = await getRunApplications();
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>

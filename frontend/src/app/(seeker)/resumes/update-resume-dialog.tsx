@@ -1,9 +1,9 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
 import {
   Dialog,
@@ -126,7 +126,7 @@ export function UpdateResumeDialog({
           <DialogFooter>
             {result.uses_left > 0 && (
               <Button variant="secondary" disabled={busy !== null} onClick={readWithAi}>
-                <Sparkles /> {busy === "reading" ? "Reading…" : "Read It With AI"}
+                <SparkleIcon /> {busy === "reading" ? "Reading…" : "Read It With AI"}
               </Button>
             )}
             <Button disabled={busy !== null} onClick={() => onOpenChange(false)}>

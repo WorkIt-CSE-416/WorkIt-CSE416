@@ -608,3 +608,33 @@ def test_a_model_reading_with_null_lists_still_counts():
     assert [(d.title, d.coursework, d.bullets) for d in model_drafts(reading)] == [
         ("Intern", [], ["Built a tool."]),
     ]
+
+
+# --- Rename (KAN-268) -----------------------------------------------------------
+
+
+async def test_a_rename_keeps_the_files_extension(student, database):
+    client, applicant_id, _ = student
+    resume_id = await _seed_resume(database, applicant_id, RESUME_TEXT)
+    url = f"/applicants/{applicant_id}/resumes/{resume_id}"
+
+    res = await client.patch(url, json={"name": "  Mechanical  "})
+    assert (res.status_code, res.json()["original_filename"]) == (200, "Mechanical.pdf")
+    # A name that already ends in it is left as typed, in any case.
+    res = await client.patch(url, json={"name": "Final.PDF"})
+    assert res.json()["original_filename"] == "Final.PDF"
+    assert (await client.get(url)).json()["original_filename"] == "Final.PDF"
+
+
+async def test_a_rename_refuses_a_blank_name_and_another_students_resume(student, database):
+    client, applicant_id, _ = student
+    resume_id = await _seed_resume(database, applicant_id, RESUME_TEXT)
+    async with database() as session:
+        other = await _seed_applicant(session)
+    theirs = await _seed_resume(database, other, RESUME_TEXT)
+
+    blank = await client.patch(f"/applicants/{applicant_id}/resumes/{resume_id}", json={"name": "  "})
+    assert blank.status_code == 422
+    stolen = await client.patch(f"/applicants/{applicant_id}/resumes/{theirs}", json={"name": "Mine"})
+    assert stolen.status_code == 404
+    assert (await client.get(f"/applicants/{applicant_id}/resumes/{resume_id}")).json()["original_filename"] == "resume.pdf"

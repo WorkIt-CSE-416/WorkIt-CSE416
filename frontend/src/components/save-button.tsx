@@ -18,15 +18,23 @@ import { cn } from "@/lib/cn";
  * The label names the job for a screen reader, which meets the button without
  * its card, while the tooltip stays short for a pointer already inside that
  * card.
+ *
+ * It only draws the state. What a click does is the caller's: the job
+ * surfaces wrap it in `(seeker)/jobs/save-job-button.tsx`, which saves the
+ * job through the API (KAN-261); the design kit draws it alone.
  */
 export function SaveButton({
   title,
   saved = false,
+  onClick,
+  disabled,
   className,
 }: {
   /** The job's title, for the accessible name: "Save Staff Frontend Engineer". */
   title: string;
   saved?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
   className?: string;
 }) {
   return (
@@ -35,6 +43,10 @@ export function SaveButton({
       className={cn("size-9 shrink-0", saved && "text-brand hover:text-brand-hover", className)}
       label={saved ? `Remove ${title} from saved` : `Save ${title}`}
       tooltip={saved ? "Remove from saved" : "Save"}
+      // A toggle: pressed while saved.
+      aria-pressed={saved}
+      onClick={onClick}
+      disabled={disabled}
     >
       <BookmarkIcon filled={saved} className="size-4" />
     </IconButton>

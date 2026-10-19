@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Sparkles, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useState } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -110,7 +111,7 @@ export function TailorScreen({
           </p>
         )}
         <Button className="mt-3" onClick={run} disabled={running}>
-          <Sparkles /> {running ? "Tailoring…" : "Tailor My Resume"}
+          <SparkleIcon /> {running ? "Tailoring…" : "Tailor My Resume"}
         </Button>
         <p className="text-note text-ink-meta mt-2">
           Each run uses one of today&apos;s 2 Tailor runs.

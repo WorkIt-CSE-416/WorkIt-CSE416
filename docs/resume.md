@@ -128,8 +128,9 @@ applicant_profiles
   Tailor changes only what shows, the order, which variant shows and which
   skills show. Every wording passes the truth-rule check twice: when the
   model proposes it and when the student approves it.
-- **The limit is 5 uploaded plus base resumes.** Tailored and sent resumes
-  do not count. The API checks before writing, on Generate and on upload.
+- **The limit is 5 uploaded resumes.** Built resumes (base and tailored)
+  and sent resumes do not count (KAN-268; base resumes counted before).
+  The API checks before writing, on upload.
 - **A name, and when it last changed** (KAN-258). A resume made with no
   name is "Resume #N", one past the highest number the student's resumes
   carry; every one was "Base Resume" before, so a list of them read as one

@@ -127,3 +127,12 @@ def test_file_url_shows_a_pdf_and_downloads_a_docx_by_name(fakes, path, name, op
     assert res.status_code == 200
     assert res.json()["url"] == f"https://storage.example/{path}"
     assert storage.signed == [(path, options)]
+
+
+def test_file_url_downloads_a_pdf_when_asked(fakes):
+    """The row's Download button (KAN-268): a PDF that would show inline."""
+    client, storage, session = fakes
+    session.row = Resume(
+        id=uuid.uuid4(), applicant_id=APPLICANT, storage_path="a/1.pdf", original_filename="cv.pdf")
+    assert client.get(f"{URL}/{session.row.id}/file?download=true").status_code == 200
+    assert storage.signed == [("a/1.pdf", {"download": "cv.pdf"})]
