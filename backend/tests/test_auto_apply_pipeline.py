@@ -15,6 +15,7 @@ from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank
 from app.schemas.applications import Application
+from app.schemas.jobs import Highlight
 from app.services.bank import NotFound as ResumeNotFound
 from app.services.sent_resumes import Sent
 from tests.test_auto_apply_rules import GH, job
@@ -389,7 +390,16 @@ def test_list_applications_takes_the_jobs_page_score_for_open_postings(monkeypat
     fake_applications(monkeypatch, [scored, unscored, closed])
     calls = []
     monkeypatch.setattr(
-        pipeline, "fetch_recommended", fake_recommended([job(scored.job.id, GH, match=73)], calls)
+        pipeline,
+        "fetch_recommended",
+        fake_recommended(
+            [
+                job(scored.job.id, GH, match=73).model_copy(
+                    update={"highlights": [Highlight(text="Python", met=True)]}
+                )
+            ],
+            calls,
+        ),
     )
 
     apps = asyncio.run(pipeline.list_applications(None, APPLICANT, score_for=ACCOUNT))
@@ -398,6 +408,8 @@ def test_list_applications_takes_the_jobs_page_score_for_open_postings(monkeypat
     # The open postings only: a closed one is no longer on the Jobs page.
     assert kwargs["filters"].job_ids == [uuid.UUID(scored.job.id), uuid.UUID(unscored.job.id)]
     assert [a.match for a in apps] == [73, None, None]
+    assert [h.text for h in apps[0].highlights] == ["Python"]
+    assert apps[1].highlights == []
 
 
 def test_list_applications_with_an_empty_bank_has_no_scores(monkeypatch):

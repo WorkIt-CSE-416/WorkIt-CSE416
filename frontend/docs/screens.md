@@ -477,7 +477,8 @@ when a posting disappears, and the API does not send it. Columns drop out as
 the page narrows, least scanned first (Pay, Location, Posting, Resume,
 Applied, then Match), and all eight show from 1024px of page, so the page
 takes the Dashboard's width (`max-w-dashboard`), not a reading page's. The score is the Jobs page's own: `?scored=true` makes the
-API run `fetch_recommended` over the tracked job postings
+API run `fetch_recommended` over the tracked job postings (and send each
+one's `highlights`)
 (`JobFilters.job_ids`), so a card never disagrees with the feed. A closed
 posting has no score, and neither does any card while the experience bank is
 empty. A summary line and the next step ("Nothing scheduled" on every live
@@ -525,12 +526,15 @@ shows the tabs beside Back instead. A saved job with an open posting keeps
 the job page's actions, and its tabs sit under the header. Two tabs, each a
 URL (`?tab=job` for the second):
 
-- **Your Application**, the default: At a Glance (stage, match, posting, saved and
-  applied dates, the resume sent), Timing (elapsed days: waiting to hear
-  back, save to apply, posted before applying; or since saving and since
-  posting for a saved job), What You Sent (every sent resume linked to the
-  posting), and the timeline (`applications/timeline.tsx`, also drawn by the
-  Calendar's panel). It says plainly that WorkIt does not keep the answers
+- **Your Application**, the default. At a Glance leads: the timeline left
+  to right (`Timeline`'s `horizontal`: Saved, each resume sent, Applied),
+  the stage, posting and resume under it, and the match in a card of its
+  own on the right (the Jobs page card's `MatchRail`, with its reasons:
+  `?scored=true` sends `highlights` with `match`), so the score stands out.
+  They stack under 672px of page. Then Timing (elapsed days: waiting to
+  hear back, save to apply, posted before applying; or since saving and
+  since posting for a saved job) and What You Sent (every sent resume linked
+  to the posting). It says plainly that WorkIt does not keep the answers
   typed into the employer's form: neither Apply nor auto apply stores them.
 - **Job Description**: About the Role alone (`JobViewBody`'s
   `descriptionOnly`). The job page's sent and applied notes and its

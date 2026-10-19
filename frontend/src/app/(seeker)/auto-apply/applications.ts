@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 import { getApplicantSession } from "@/lib/session";
 
+import type { Highlight } from "../jobs/data";
 import type { JobListing } from "../jobs/listings";
 import type { ApplicationStage, RunStage } from "./actions";
 
@@ -31,6 +32,8 @@ export type Application<Stage extends ApplicationStage = ApplicationStage> = {
   /** The Jobs page's match score (0-100), when read with `scored`: null for
    *  a closed posting and while the experience bank is empty. */
   match?: number | null;
+  /** Up to 3 reasons behind `match`, as the Jobs page card lists them. */
+  highlights?: Highlight[];
 };
 
 const UNREACHABLE = "Could not reach the server.";

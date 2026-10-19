@@ -171,7 +171,8 @@ export function MatchRail({
         </p>
       )}
 
-      {score !== null && (
+      {/* No reasons, no list: an empty one drew a stray rule under the tier. */}
+      {score !== null && highlights.length > 0 && (
         <ul className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3">
           {highlights.map((highlight) => (
             <li key={highlight.text} className="flex items-start gap-1.5">

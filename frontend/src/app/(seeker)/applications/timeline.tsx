@@ -19,17 +19,47 @@ import type { TimelineStep } from "../tracker";
  * It arrives in order: the rail draws down as the steps rise in one after
  * another, from `startDelay`, and the step it is waiting on pulses three
  * times with its Next badge popping in, so the eye lands there.
+ *
+ * `horizontal` lays it left to right, a step a column with its words under
+ * its dot, for the top of the application's page, where it shares At a
+ * Glance with the facts (KAN-256). Each step draws the rail to the next one;
+ * the row scrolls sideways rather than squeezing a long timeline.
  */
 export function Timeline({
   steps,
   startDelay = 0,
+  horizontal = false,
   className,
 }: {
   steps: TimelineStep[];
+  horizontal?: boolean;
   /** When the first step rises, in ms: after whatever opens it. */
   startDelay?: number;
   className?: string;
 }) {
+  if (horizontal) {
+    return (
+      // overflow-y-hidden: the steps rise in from below, which flashed a
+      // vertical scrollbar in the row on a phone.
+      <div className={cn("overflow-x-auto overflow-y-hidden", className)}>
+        <ol
+          className="grid"
+          style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(8rem, 1fr))` }}
+        >
+          {steps.map((step, i) => (
+            <Step
+              key={step.id}
+              step={step}
+              delay={startDelay + Math.min(i, 8) * 40}
+              horizontal
+              last={i === steps.length - 1}
+            />
+          ))}
+        </ol>
+      </div>
+    );
+  }
+
   return (
     // One rail for the whole list, drawn by the <ol> through the centre of
     // the 16px dots, as Work Experience draws its own.
@@ -51,14 +81,33 @@ export function Timeline({
   );
 }
 
-function Step({ step, delay }: { step: TimelineStep; delay: number }) {
+function Step({
+  step,
+  delay,
+  horizontal = false,
+  last = false,
+}: {
+  step: TimelineStep;
+  delay: number;
+  horizontal?: boolean;
+  /** The last step on a horizontal row draws no rail after it. */
+  last?: boolean;
+}) {
   const stage: StageKey = step.kind === "saved" ? "saved" : KIND_STAGE[step.kind];
   const filled = step.state !== "later";
   const next = step.state === "next";
 
   return (
     <li
-      className="animate-rise relative flex items-start gap-3"
+      className={cn(
+        "animate-rise relative flex items-start",
+        horizontal ? "flex-col gap-2 pr-4" : "gap-3",
+        // The rail to the next step: from this dot's right edge to the next
+        // one's left, through the centre of the 16px dots.
+        horizontal &&
+          !last &&
+          "before:bg-border before:animate-draw-x before:absolute before:top-[9px] before:right-0 before:left-5 before:h-0.5 before:origin-left before:content-['']",
+      )}
       style={{ animationDelay: `${delay}ms` }}
     >
       <span

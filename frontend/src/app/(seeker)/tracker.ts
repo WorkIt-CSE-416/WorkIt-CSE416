@@ -1,4 +1,5 @@
 import { differenceInCalendarDays, format, getYear, parseISO } from "date-fns";
+import type { Highlight } from "./jobs/data";
 import type { StageKey } from "./stage-colors";
 
 /**
@@ -64,6 +65,9 @@ export type Application = {
   /** 0-100, the Jobs page's score, read in the bands in @/lib/match. Null
    *  for a closed posting and while the experience bank is empty. */
   match: number | null;
+  /** The reasons behind `match`, as the Jobs page card lists them; empty
+   *  without a score. */
+  highlights?: Highlight[];
   /** When it was saved (or added): the first entry on its timeline. */
   savedOn: string;
   /** When it was sent, or null while it is only saved. */
