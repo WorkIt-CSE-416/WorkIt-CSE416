@@ -526,16 +526,19 @@ shows the tabs beside Back instead. A saved job with an open posting keeps
 the job page's actions, and its tabs sit under the header. Two tabs, each a
 URL (`?tab=job` for the second):
 
-- **Your Application**, the default. At a Glance leads: the timeline left
-  to right (`Timeline`'s `horizontal`: Saved, each resume sent, Applied),
-  the stage, posting and resume under it, and the match in a card of its
-  own on the right (the Jobs page card's `MatchRail`, with its reasons:
-  `?scored=true` sends `highlights` with `match`), so the score stands out.
-  They stack under 672px of page. Then Timing (elapsed days: waiting to
-  hear back, save to apply, posted before applying; or since saving and
-  since posting for a saved job) and What You Sent (every sent resume linked
-  to the posting). It says plainly that WorkIt does not keep the answers
-  typed into the employer's form: neither Apply nor auto apply stores them.
+- **Your Application**, the default. One card, built as the Jobs page card
+  is: the body on the left (the stage, a one-line status such as "Waiting
+  to Hear Back", when it was applied or saved and the resume sent, then the
+  timeline left to right through `Timeline`'s `horizontal`), the match rail
+  flush on the right (`MatchRail`, with its reasons: `?scored=true` sends
+  `highlights` with `match`), and the day counts as one ruled strip along
+  the body's foot (waiting to hear back, save to apply, posted before
+  applying; or since saving and since posting for a saved job). Side by
+  side from 576px of card, stacked under it. It replaced three loose
+  sections (facts, a floating match box, three stat boxes) that read as
+  clutter. Under it, What You Sent lists every sent resume linked to the
+  posting, and says plainly that WorkIt does not keep the answers typed
+  into the employer's form: neither Apply nor auto apply stores them.
 - **Job Description**: About the Role alone (`JobViewBody`'s
   `descriptionOnly`). The job page's sent and applied notes and its
   eligibility checklist stay off: they pushed the description down and are

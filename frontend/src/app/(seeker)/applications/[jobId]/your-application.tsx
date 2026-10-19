@@ -1,8 +1,7 @@
-import type { ReactNode } from "react";
-
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
+import { cn } from "@/lib/cn";
 import type { SentResume } from "@/lib/sent-resume-actions";
 
 import type { JobListing } from "../../jobs/listings";
@@ -14,6 +13,14 @@ import { Timeline } from "../timeline";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** The strip's columns from 448px of card, by how many counts it has: a
+ *  literal class each, so Tailwind sees them. */
+const COLUMNS: Record<number, string> = {
+  1: "@md:grid-cols-1",
+  2: "@md:grid-cols-2",
+  3: "@md:grid-cols-3",
+};
+
 /** Days from `from` to `to`, rounded, never below 0. Counted in elapsed
  *  time, not calendar days, so the server needs no time zone to say it.
  *  Rounded rather than cut, as the header's "Posted 8 days ago" is: cut,
@@ -24,10 +31,10 @@ function daysBetween(from: string, to: string | Date) {
 }
 
 /**
- * The Your Application tab (KAN-256): At a Glance (the timeline across the
- * top with the stage, posting and resume under it, and the match in its own
- * card on the right), how long each step
- * took, and what the seeker sent, from what the API already keeps. No new
+ * The Your Application tab (KAN-256): one card, built as the Jobs page card
+ * is (the status, the facts and the timeline on the left, the match rail
+ * flush on the right, the day counts as a ruled strip along the foot), then
+ * what the seeker sent, from what the API already keeps. No new
  * table: the stage and its dates are the application's row, the resumes are
  * the sent resumes linked to the job posting.
  *
@@ -54,62 +61,86 @@ export function YourApplication({
 }) {
   const stats: { label: string; days: number }[] = [];
   if (app.appliedOn) {
-    stats.push({ label: "Days Waiting to Hear Back", days: daysBetween(app.appliedOn, now) });
-    stats.push({ label: "Days From Save to Apply", days: daysBetween(app.savedOn, app.appliedOn) });
+    stats.push({ label: "Days waiting to hear back", days: daysBetween(app.appliedOn, now) });
+    stats.push({ label: "Days from save to apply", days: daysBetween(app.savedOn, app.appliedOn) });
     if (job?.posted_at) {
       stats.push({
-        label: "Days Posted Before You Applied",
+        label: "Days posted before you applied",
         days: daysBetween(job.posted_at, app.appliedOn),
       });
     }
   } else {
-    stats.push({ label: "Days Since You Saved It", days: daysBetween(app.savedOn, now) });
+    stats.push({ label: "Days since you saved it", days: daysBetween(app.savedOn, now) });
     if (job?.posted_at) {
-      stats.push({ label: "Days Since It Was Posted", days: daysBetween(job.posted_at, now) });
+      stats.push({ label: "Days since it was posted", days: daysBetween(job.posted_at, now) });
     }
   }
+  const closed = app.open === false;
 
   return (
     <>
-      {/* The timeline across the top, then the facts in one row under it:
-          one block, so where the application stands and how it got there
-          read together. The dates live on the timeline, not in the facts. */}
-      <Section title="At a Glance">
-        {/* The timeline and the facts on the left, the match in a card of its
-            own on the right, so the score stands out: the Jobs page card's
-            rail, with the same reasons. Under the page's 672px they stack. */}
-        <div className="mt-4 flex flex-col gap-5 @2xl/main:flex-row @2xl/main:items-start">
-          <div className="min-w-0 flex-1">
-            <Timeline steps={timeline(app, sent)} horizontal />
-            <dl className="border-border-subtle mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 @xl/main:grid-cols-3">
-              <Glance label="Stage">
+      {/* ONE CARD, built as the Jobs page card is: the body on the left, the
+          match rail flush on the right edge (side by side from 576px of
+          card, stacked under it), and the day counts as one ruled strip
+          along the body's foot. It replaced three loose sections (facts, a
+          floating match box, three stat boxes) that read as clutter. */}
+      <Card
+        as="section"
+        padding="none"
+        aria-label="Your Application"
+        className="@container mt-6 overflow-hidden"
+      >
+        <div className="flex flex-col @xl:flex-row">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="p-5">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
-              </Glance>
-              <Glance label="Posting">{app.open === false ? "Closed" : "Open"}</Glance>
-              <Glance label="Resume Sent">{app.resume ?? "Not sent"}</Glance>
-              {/* No card without a score: the rail's placeholder says
-                  "Score Coming Soon", which an empty bank is not. */}
-              {app.match == null && <Glance label="Match">Not scored</Glance>}
+                {closed && <Badge tone="inert">Posting Closed</Badge>}
+              </div>
+              <h2 className="text-title text-ink mt-3 font-bold">
+                {app.appliedOn ? "Waiting to Hear Back" : "Not Applied Yet"}
+              </h2>
+              <p className="text-body text-ink-meta mt-1">
+                {app.appliedOn ? (
+                  <>
+                    You applied on <LocalDate at={app.appliedOn} />
+                  </>
+                ) : (
+                  <>
+                    You saved it on <LocalDate at={app.savedOn} />
+                  </>
+                )}
+                {" · "}
+                {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
+              </p>
+
+              <Timeline steps={timeline(app, sent)} horizontal className="mt-5" />
+            </div>
+
+            {/* The counts: a figure over its words, one column each, ruled
+                apart, so they read as one row of numbers rather than boxes. */}
+            <dl
+              className={cn(
+                "border-border-subtle divide-border-subtle mt-auto grid divide-y border-t @md:divide-x @md:divide-y-0",
+                COLUMNS[stats.length],
+              )}
+            >
+              {stats.map(({ label, days }) => (
+                // The figure first to the eye, the words first to a screen
+                // reader (a <dt> leads its <dd>).
+                <div key={label} className="flex flex-col-reverse px-5 py-4">
+                  <dt className="text-note text-ink-meta mt-0.5">{label}</dt>
+                  <dd className="text-title text-ink font-bold tabular-nums">{days}</dd>
+                </div>
+              ))}
             </dl>
           </div>
-          {app.match != null && (
-            <div className="shrink-0 @2xl/main:w-56">
-              <MatchRail score={app.match} highlights={app.highlights ?? []} standalone />
-            </div>
-          )}
-        </div>
-      </Section>
 
-      <Section title="Timing">
-        <ul className="mt-3 grid gap-3 @xl/main:grid-cols-3">
-          {stats.map(({ label, days }) => (
-            <Card as="li" key={label} padding="sm" elevated={false}>
-              <p className="text-heading text-ink tabular-nums">{days}</p>
-              <p className="text-note text-ink-meta mt-1">{label}</p>
-            </Card>
-          ))}
-        </ul>
-      </Section>
+          {app.match != null ? (
+            <MatchRail score={app.match} highlights={app.highlights ?? []} />
+          ) : null}
+        </div>
+      </Card>
 
       <Section title="What You Sent">
         {sent.length > 0 ? (
@@ -135,15 +166,6 @@ export function YourApplication({
         </p>
       </Section>
     </>
-  );
-}
-
-function Glance({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-note text-ink-meta">{label}</dt>
-      <dd className="text-body text-ink mt-1 truncate">{children}</dd>
-    </div>
   );
 }
 

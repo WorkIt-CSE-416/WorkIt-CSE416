@@ -23,7 +23,8 @@ import type { TimelineStep } from "../tracker";
  * `horizontal` lays it left to right, a step a column with its words under
  * its dot, for the top of the application's page, where it shares At a
  * Glance with the facts (KAN-256). Each step draws the rail to the next one;
- * the row scrolls sideways rather than squeezing a long timeline.
+ * the row scrolls sideways rather than squeezing a long timeline. A step is
+ * at most 192px wide, so two dots never sit a whole card apart.
  */
 export function Timeline({
   steps,
@@ -44,7 +45,7 @@ export function Timeline({
       <div className={cn("overflow-x-auto overflow-y-hidden", className)}>
         <ol
           className="grid"
-          style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(8rem, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(8rem, 12rem))` }}
         >
           {steps.map((step, i) => (
             <Step
