@@ -18,7 +18,17 @@ does a company account, which the API refuses (403). All Jobs
 only**: bare /jobs redirects to `?view=recommended` plus the saved filters,
 where the row shows them checked; from then on the URL is the truth, so Clear
 All clears rather than bringing the saved ones back. Load More pages whichever
-view drew the list (`FeedList`'s `source`).
+view drew the list (`FeedList`'s `source`). **Saved preferences never keep a
+job type that no saved level carries** (`dropUnmatchedJobTypes` in
+jobs/filter-query.ts, KAN-278): every Student posting is an Internship and no
+other posting is, so a saved Student with Full-Time matched no job, and the
+page opened on "No Roles Match These Filters". Job Type is in All Filters
+only, so the seeker could not see the pick that emptied the feed, and
+clearing and re-picking the row's filters "fixed" it. Experience wins
+because the row shows it. The rule runs when preferences are saved and when
+they are read (so preferences saved before it are repaired on the next
+visit), never on live picks: a pair the seeker makes on the page gets the
+empty state.
 
 /jobs and /search filter on the server by the query (/search's ?q= is read by
 the API's role resolver: roles, a typo corrected, then text and company):
@@ -1357,7 +1367,10 @@ text came out semibold.
 /applicants/{id}/preferences`, which also marks onboarding complete), then
 opens intake (KAN-214), whose Finish opens /jobs: the Recommended view applies
 the saved filters and scores what they keep against the bank just filled. A
-failed save leaves the seeker on the page to retry. Date Posted is not asked:
+failed save leaves the seeker on the page to retry. A job type that no picked
+level carries (Student with Full-Time) is left out of the save (Jobs page
+section, KAN-278), so a seeker who comes back finds that tile unpicked.
+Date Posted is not asked:
 a saved "past 24 hours" would empty the feed within days. Sign-in sends an
 applicant here until they finish (`docs/auth.md`); a finished one coming back
 from intake's "Back to Pay & Visa" (`?step=2`) finds the wizard on its second

@@ -35,11 +35,11 @@ here:
   it's built. Every competitor in the market research hits this same wall
   and solves it the same way.
 - **The webapp's role is a thin, optional bridge** (`frontend/src/lib/
-  autofill-extension.ts`, `frontend/src/components/autofill-badge.tsx`),
-  using Chrome's `externally_connectable` to ask "are you here, and signed
-  in", and (the Auto Apply page's Start) to ask the runner to open the next
-  queued application — nothing more. It shows a small badge next to a
-  job's Apply button when the answer is yes. The extension's core function
+  autofill-extension.ts`), using Chrome's `externally_connectable` to ask
+  the runner to open the next queued application, which job its tab shows,
+  and to switch to that tab — nothing more. The job cards' "Autofill ready"
+  badge, the bridge's one use of `ping`, was removed (KAN-278); the
+  background script still answers `ping`, with no webapp caller. The extension's core function
   never depends on this bridge: it works from its own popup on whatever
   page the user is on, bridge or no bridge.
 
