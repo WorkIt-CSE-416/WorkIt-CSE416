@@ -1,9 +1,9 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
@@ -92,7 +92,7 @@ export function ImportCard({
         </Button>
         {result && result.uses_left > 0 && (
           <Button variant="secondary" size="sm" onClick={() => run(true)} disabled={busy}>
-            <Sparkles /> {busy ? "Reading…" : "Read It With AI"}
+            <SparkleIcon /> {busy ? "Reading…" : "Read It With AI"}
           </Button>
         )}
       </div>

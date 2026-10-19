@@ -27,6 +27,16 @@ import { SkillLinksField } from "./skill-links";
  *
  * Only the title is required, so a student can save an entry with a section
  * and a title and add the rest later. The API checks everything again.
+ *
+ * THE LAYOUT (KAN-257) is two columns at every width. A pair of short
+ * fields shares a row (the start and end, a degree and its field, a GPA and
+ * its scale) and a long one takes the row; the organization and location
+ * pair up where the form is wide. A school leads with its degree, dates and
+ * GPA, the facts a resume prints first, and its optional college and
+ * location follow. In Scout's panel the form was one column of up to
+ * thirteen boxes, with the college and location ahead of the dates intake
+ * was asking about. An empty month prints its dashes in the placeholder
+ * grey, coursework wraps in a box that grows, and a GPA has no spin arrows.
  */
 
 const END_OPTIONS = [
@@ -99,17 +109,13 @@ export function EntryEditor({
     onSave(savable(draft), skillIds);
   }
 
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
-      <div className="grid gap-3 @lg/main:grid-cols-2">
-        <TextField
-          id={field("title")}
-          label={section.title}
-          required
-          maxLength={200}
-          value={draft.title}
-          onChange={(e) => set({ title: e.target.value })}
-        />
+  const education = draft.section === "education";
+
+  // Stacked where the form is narrow (Scout's panel), side by side where it
+  // is wide (the bank page).
+  const place = (
+    <>
+      <div className="col-span-2 @lg/main:col-span-1">
         <TextField
           id={field("organization")}
           label={section.organization}
@@ -117,6 +123,8 @@ export function EntryEditor({
           value={draft.organization ?? ""}
           onChange={(e) => set({ organization: text(e.target.value) })}
         />
+      </div>
+      <div className="col-span-2 @lg/main:col-span-1">
         <TextField
           id={field("location")}
           label="Location"
@@ -125,42 +133,64 @@ export function EntryEditor({
           value={draft.location ?? ""}
           onChange={(e) => set({ location: text(e.target.value) })}
         />
+      </div>
+    </>
+  );
 
-        {draft.section === "awards" ? (
-          <MonthField
-            id={field("award-date")}
-            label="Award Date"
-            value={draft.award_date}
-            onChange={(award_date) => set({ award_date })}
-          />
-        ) : (
-          <>
+  const dates =
+    draft.section === "awards" ? (
+      <MonthField
+        id={field("award-date")}
+        label="Award Date"
+        value={draft.award_date}
+        onChange={(award_date) => set({ award_date })}
+      />
+    ) : (
+      <>
+        <MonthField
+          id={field("start")}
+          label="Start Month"
+          value={draft.start_month}
+          onChange={(start_month) => set({ start_month })}
+        />
+        <SelectField
+          id={field("end-kind")}
+          label="End"
+          options={END_OPTIONS}
+          value={draft.end_kind ?? "none"}
+          onValueChange={(v) => set({ end_kind: v === "none" ? null : (v as EndKind) })}
+        />
+        {/* Under End, the choice it belongs to. */}
+        {draft.end_kind && draft.end_kind !== "present" && (
+          <div className="col-start-2">
             <MonthField
-              id={field("start")}
-              label="Start Month"
-              value={draft.start_month}
-              onChange={(start_month) => set({ start_month })}
+              id={field("end")}
+              label={draft.end_kind === "expected" ? "Expected Month" : "End Month"}
+              required
+              value={draft.end_month}
+              onChange={(end_month) => set({ end_month })}
             />
-            <SelectField
-              id={field("end-kind")}
-              label="End"
-              options={END_OPTIONS}
-              value={draft.end_kind ?? "none"}
-              onValueChange={(v) => set({ end_kind: v === "none" ? null : (v as EndKind) })}
-            />
-            {draft.end_kind && draft.end_kind !== "present" && (
-              <MonthField
-                id={field("end")}
-                label={draft.end_kind === "expected" ? "Expected Month" : "End Month"}
-                required
-                value={draft.end_month}
-                onChange={(end_month) => set({ end_month })}
-              />
-            )}
-          </>
+          </div>
         )}
+      </>
+    );
 
-        {draft.section === "education" && (
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3">
+      {/* No spin arrows on a GPA: nobody steps through one. */}
+      <div className="grid grid-cols-2 gap-3 [&_input::-webkit-inner-spin-button]:appearance-none [&_input::-webkit-outer-spin-button]:appearance-none [&_input[type=number]]:[appearance:textfield]">
+        <div className="col-span-2">
+          <TextField
+            id={field("title")}
+            label={section.title}
+            required
+            maxLength={200}
+            value={draft.title}
+            onChange={(e) => set({ title: e.target.value })}
+          />
+        </div>
+
+        {education && (
           <>
             <TextField
               id={field("degree")}
@@ -177,6 +207,13 @@ export function EntryEditor({
               value={draft.field_of_study ?? ""}
               onChange={(e) => set({ field_of_study: text(e.target.value) })}
             />
+          </>
+        )}
+        {!education && place}
+        {dates}
+
+        {education && (
+          <>
             <TextField
               id={field("gpa")}
               label="GPA"
@@ -198,41 +235,50 @@ export function EntryEditor({
               value={draft.gpa_scale ?? ""}
               onChange={(e) => set({ gpa_scale: number(e.target.value) })}
             />
-            <ListField
-              id={field("coursework")}
-              label="Coursework"
-              value={draft.coursework}
-              onChange={(coursework) => set({ coursework })}
-            />
-            <TextField
-              id={field("honors")}
-              label="Honors"
-              placeholder="Dean's List, cum laude"
-              maxLength={500}
-              value={draft.honors ?? ""}
-              onChange={(e) => set({ honors: text(e.target.value) })}
-            />
+            {place}
+            <div className="col-span-2">
+              <ListField
+                id={field("coursework")}
+                label="Coursework"
+                value={draft.coursework}
+                onChange={(coursework) => set({ coursework })}
+              />
+            </div>
+            <div className="col-span-2">
+              <TextField
+                id={field("honors")}
+                label="Honors"
+                placeholder="Dean's List, cum laude"
+                maxLength={500}
+                value={draft.honors ?? ""}
+                onChange={(e) => set({ honors: text(e.target.value) })}
+              />
+            </div>
           </>
         )}
         {draft.section === "projects" && (
-          <TextField
-            id={field("link")}
-            label="Link"
-            type="url"
-            placeholder="https://"
-            maxLength={500}
-            value={draft.link ?? ""}
-            onChange={(e) => set({ link: text(e.target.value) })}
-          />
+          <div className="col-span-2">
+            <TextField
+              id={field("link")}
+              label="Link"
+              type="url"
+              placeholder="https://"
+              maxLength={500}
+              value={draft.link ?? ""}
+              onChange={(e) => set({ link: text(e.target.value) })}
+            />
+          </div>
         )}
         {draft.section === "certifications" && (
-          <TextField
-            id={field("issuer")}
-            label="Issuer"
-            maxLength={200}
-            value={draft.issuer ?? ""}
-            onChange={(e) => set({ issuer: text(e.target.value) })}
-          />
+          <div className="col-span-2">
+            <TextField
+              id={field("issuer")}
+              label="Issuer"
+              maxLength={200}
+              value={draft.issuer ?? ""}
+              onChange={(e) => set({ issuer: text(e.target.value) })}
+            />
+          </div>
         )}
       </div>
 
@@ -359,7 +405,9 @@ export function EntryEditor({
 }
 
 /** A "YYYY-MM" month. Browsers without a month picker show a text box, so
- *  the pattern and placeholder say what to type there. */
+ *  the pattern and placeholder say what to type there. Chrome draws an empty
+ *  one as "--------- ----" in the ink colour, which read as a broken field;
+ *  in the placeholder grey it reads as the shape to fill in. */
 function MonthField({
   id,
   label,
@@ -374,20 +422,28 @@ function MonthField({
   required?: boolean;
 }) {
   return (
-    <TextField
-      id={id}
-      label={label}
-      type="month"
-      placeholder="YYYY-MM"
-      pattern="\d{4}-(0[1-9]|1[0-2])"
-      required={required}
-      value={value ?? ""}
-      onChange={(e) => onChange(text(e.target.value))}
-    />
+    <div
+      data-empty={!value}
+      className="data-[empty=true]:[&_input::-webkit-datetime-edit]:text-ink-meta"
+    >
+      <TextField
+        id={id}
+        label={label}
+        type="month"
+        placeholder="YYYY-MM"
+        pattern="\d{4}-(0[1-9]|1[0-2])"
+        required={required}
+        value={value ?? ""}
+        onChange={(e) => onChange(text(e.target.value))}
+      />
+    </div>
   );
 }
 
-/** Course names, typed separated by commas, kept as a list. */
+/** Course names, typed separated by commas, kept as a list. A box that
+ *  grows with its text, as a bullet's does, so a long list wraps in view;
+ *  a one-line field cut it off after two or three courses. A typed or
+ *  pasted line break becomes a comma, since the list has no lines. */
 function ListField({
   id,
   label,
@@ -401,20 +457,30 @@ function ListField({
 }) {
   const [typed, setTyped] = useState(value.join(", "));
   return (
-    <TextField
-      id={id}
-      label={label}
-      placeholder="Data Structures, Operating Systems"
-      value={typed}
-      onChange={(e) => {
-        setTyped(e.target.value);
-        onChange(
-          e.target.value
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-        );
-      }}
-    />
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className={FIELD_LABEL}>
+        {label}
+      </label>
+      <textarea
+        id={id}
+        rows={1}
+        placeholder="Data Structures, Operating Systems"
+        className={cn(
+          FIELD_CONTROL,
+          "block field-sizing-content min-h-10.5 resize-none px-3.5 py-2.5",
+        )}
+        value={typed}
+        onChange={(e) => {
+          const next = e.target.value.replace(/\s*\n\s*/g, ", ");
+          setTyped(next);
+          onChange(
+            next
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+          );
+        }}
+      />
+    </div>
   );
 }

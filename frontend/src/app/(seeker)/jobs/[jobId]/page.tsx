@@ -1,7 +1,8 @@
-import { Flag, Sparkles } from "lucide-react";
+import { Flag } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { SparkleIcon } from "@/components/icons";
 import { CompanyLogo } from "@/components/company-logo";
 import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
@@ -129,7 +130,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
               size="sm"
               className="shrink-0"
             >
-              <Sparkles className="size-4" />
+              <SparkleIcon className="size-4" />
               {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
             </ButtonLink>
             <ApplyButton

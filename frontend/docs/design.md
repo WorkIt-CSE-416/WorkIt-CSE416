@@ -116,6 +116,15 @@ KAN-252) is drawn on Lucide's 24-unit grid with `createLucideIcon`, never as
 a bare `<svg>`, so it takes the same stroke and sizing. `components/hero-arcs.tsx`
 is the corner arcs on the company Dashboard's violet hero.
 
+**Scout and every AI action share one mark** (KAN-257): `SparkleIcon`,
+Lucide's Sparkles, on the top bar's launcher, Ask Scout, Fill With Scout,
+Tailor My Resume and Read It Again with AI, and inside Scout's
+mark (`components/scout/chat.tsx`), the gradient tile beside every
+assistant line and in Scout's panel header. The bar and the panel drew a
+filled sparkle by hand while the chat and the AI buttons drew Lucide's, so
+the assistant wore two marks. An ESLint rule refuses `Sparkles` imported
+from lucide-react anywhere but `icons.tsx`.
+
 ## Colour
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
@@ -136,6 +145,19 @@ They paint strokes, dots and bars, never text; the tier words stay ink-muted.
 Stages and statuses own violet, blue, amber, green, grey and red, so a new
 score display takes `matchColor()` and a new stage display takes its stage
 map, never the other's.
+
+Intake's step chips say what became of each section with a corner badge
+in two of those (KAN-257): a check on `--color-step-done` green, a dash on
+`--color-ink-faint` grey for a skip, on a white chip with a
+`--color-step-outline` edge (dashed when skipped). The brand marks where
+the walk is, as a filled, ringed chip, and never stands for a state. The
+chips sit on the stage card's lavender, `--color-stage-card`, in Scout's
+panel, so their colours are measured there: the app's pale greys vanish on
+that lavender and `--color-positive` is 2.38:1 on it. The ready dot takes
+the done green;
+the draft's "Ready to save" is words, so it takes `--color-positive-ink`,
+and "Still needed" takes `--color-warning`, as the bank's own warnings do.
+`globals.css` has the numbers.
 
 ## Components
 

@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowDown, ArrowUp, EyeOff, MousePointerClick, Sparkles, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, EyeOff, MousePointerClick, Undo2 } from "lucide-react";
 import localFont from "next/font/local";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { TextLink } from "@/components/ui/text-link";
 import { updateEntry, type Bank } from "@/lib/bank-actions";
@@ -690,7 +691,7 @@ function Bar({
             as quiet as Fit to One Page (KAN-258). */}
         {onAsk && (
           <Button size="sm" onClick={onAsk}>
-            <Sparkles /> Ask Scout
+            <SparkleIcon /> Ask Scout
           </Button>
         )}
       </div>
