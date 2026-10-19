@@ -1,10 +1,10 @@
 "use client";
 
-import { FileText, Sparkles } from "lucide-react";
+import { FileText } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { PdfIcon } from "@/components/icons";
+import { PdfIcon, SparkleIcon } from "@/components/icons";
 import { RESUME_ROW, ResumeRow } from "@/components/resume-row";
 import { ResumeUpload } from "@/components/resume-upload";
 import { Badge } from "@/components/ui/badge";
@@ -170,7 +170,7 @@ export function YourResumes({
                 disabled={importingId !== null}
                 onClick={() => handleReadWithAi(imported.resume_id)}
               >
-                <Sparkles /> {importingId ? "Reading…" : "Read It With AI"}
+                <SparkleIcon /> {importingId ? "Reading…" : "Read It With AI"}
               </Button>
             )}
           </div>

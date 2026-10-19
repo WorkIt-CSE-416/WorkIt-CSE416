@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     });
   } catch {
     return Response.json(
-      { detail: "WorkIt can't answer right now. Try again in a minute." },
+      { detail: "Scout can't answer right now. Try again in a minute." },
       { status: 502 },
     );
   }

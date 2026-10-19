@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 
 import {
   EXPERIENCE_OPTIONS,
@@ -13,7 +13,6 @@ import {
   WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
-import { signOut } from "@/app/actions";
 import { SalaryPicker, SearchPicker, type PickOption } from "@/components/filter-controls";
 import {
   BriefcaseIcon,
@@ -27,17 +26,21 @@ import {
   workStyleIcon,
 } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
+import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
 import { uploadResume } from "@/lib/resume-actions";
 
 import { savePreferences } from "./actions";
 import { ChoiceTile } from "./choice-tile";
+import { SignedInAs } from "./signed-in-as";
+import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
 
 /**
- * The applicant onboarding wizard (KAN-231): three short steps, Scout asking
- * each one's question on the left (./story-panel) and the fields answering it
- * on the right.
+ * The applicant onboarding wizard (KAN-231): three short steps, each one's
+ * question on the left (./story-panel) and the fields answering it on the
+ * right, under the step rail (./steps.ts). Each new question takes focus, so
+ * a screen reader hears it.
  *
  * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, experience, job type, start
  * date, workplace, location, salary and visa are a `FeedFilters`, with the
@@ -63,7 +66,9 @@ import { StoryPanel } from "./story-panel";
 
 type Glyph = ComponentType<{ className?: string }>;
 
-/** Each step's question, and the line Scout types in its bubble above it. */
+/** Each step's question, and the tip Scout types in its bubble below it: a
+ *  tip, not the question again, which is what made the two hard to tell
+ *  apart (KAN-259). */
 const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
@@ -71,15 +76,15 @@ const STEPS: { question: ReactNode; line: string }[] = [
         To get started, <strong>what type of role</strong> are you looking for?
       </>
     ),
-    line: "Hi, I'm Scout. Tell me what you're after and I'll do the digging.",
+    line: "Hi, I'm Scout. Pick everything that fits, and I'll do the digging.",
   },
   {
     question: (
       <>
-        Next, <strong>what matters most</strong> in your next job?
+        Next, what <strong>pay and visa sponsorship</strong> do you need?
       </>
     ),
-    line: "Tell me your pay floor and visa needs, and I'll filter for both.",
+    line: "Both are optional. Leave them open and I won't filter on pay or visa.",
   },
   {
     question: (
@@ -108,16 +113,26 @@ export function OnboardingForm({
   places,
   seasons,
   initial = NO_FILTERS,
+  email,
+  startStep = 0,
 }: {
   roles: PickOption[];
   places: PickOption[];
   /** The Start Date options, GET /jobs/facets' seasons. */
   seasons: PickOption[];
   initial?: FeedFilters;
+  /** Who is signed in, for the line at the foot (./signed-in-as). */
+  email: string | null;
+  /** The step to open on: Pay & Visa for ?step=2 (./page). */
+  startStep?: number;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(startStep);
   const column = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  /** Set once the seeker changes step. The question the page opens on is not
+   *  focused: nothing has changed under the reader yet. */
+  const moved = useRef(false);
   // A saved "not_ruled_out" (from the Jobs page) has no tile here, so it
   // drops rather than being saved again unseen.
   const sponsors = initial.visa === "sponsors";
@@ -140,7 +155,15 @@ export function OnboardingForm({
     : step > 0 ||
       (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
 
+  // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
+  // to stay on the footer's button, which only changed its label, and the new
+  // question went unannounced.
+  useEffect(() => {
+    if (moved.current) heading.current?.focus({ preventScroll: true });
+  }, [step]);
+
   function goTo(next: number) {
+    moved.current = true;
     setStep(next);
     // The column scrolls from lg, the page below it.
     column.current?.scrollTo({ top: 0 });
@@ -178,9 +201,9 @@ export function OnboardingForm({
     <main className="flex min-h-svh flex-1 flex-col lg:h-svh lg:flex-none lg:flex-row">
       <StoryPanel
         step={step}
-        total={STEPS.length}
         question={STEPS[step].question}
         line={STEPS[step].line}
+        headingRef={heading}
       />
 
       <div
@@ -188,17 +211,15 @@ export function OnboardingForm({
         data-panel-scroll
         className="bg-panel flex flex-1 flex-col lg:min-h-0 lg:flex-[7] lg:[scrollbar-gutter:stable_both-edges] lg:overflow-y-auto"
       >
-        <form action={signOut} className="flex justify-end px-6 pt-4">
-          <Button type="submit" variant="section" size="sm">
-            Sign Out
-          </Button>
-        </form>
+        {/* THE RAIL HEADS THE FIELDS, beside where the work is done. It was a
+            thin bar and 14px grey "Step 1 of 2" at the foot of the left
+            panel, the screen's smallest type, and went unnoticed (KAN-259). */}
+        <div className="mx-auto w-full max-w-2xl px-6 pt-6 lg:pt-10">
+          <Stepper size="lg" steps={ONBOARDING_STEPS} current={step} />
+        </div>
 
         {/* Keyed on the step so each step's fields rise in. */}
-        <div
-          key={step}
-          className="animate-rise mx-auto w-full max-w-2xl flex-1 px-6 py-6 lg:pt-[8vh]"
-        >
+        <div key={step} className="animate-rise mx-auto w-full max-w-2xl flex-1 px-6 py-8 lg:pt-12">
           {step === 0 && (
             <RoleStep answers={answers} set={set} roles={roles} places={places} seasons={seasons} />
           )}
@@ -224,6 +245,8 @@ export function OnboardingForm({
             </Field>
           )}
         </div>
+
+        <SignedInAs email={email} className="px-6 pb-6" />
 
         <div className="bg-panel border-border-subtle sticky bottom-0 border-t">
           <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-6 py-4">

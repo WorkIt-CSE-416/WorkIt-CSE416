@@ -83,11 +83,11 @@ export const COLOR_GROUPS: ColorGroup[] = [
     title: "Surfaces",
     note: "Login and the app shell disagree about which hex is a page and which is a card, so both scales exist side by side until a designer reconciles them. Every one is a pure grey: the blue casts they were sampled with are gone.",
     tokens: [
-      { token: "--color-canvas", role: "Login page ground" },
+      { token: "--color-canvas", role: "Body ground; the auth screens paint a sky over it" },
       { token: "--color-surface", role: "Login card, and every field fill" },
       { token: "--color-surface-tint", role: "Logo tile, subtle fills" },
       { token: "--color-app", role: "Home and design kit ground; uploaded-file row" },
-      { token: "--color-panel", role: "Top bar and cards" },
+      { token: "--color-panel", role: "Top bar, cards and secondary buttons" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
       { token: "--color-frame", role: "Seeker shell ground, under its floating panels" },
     ],
@@ -194,6 +194,21 @@ export const COLOR_GROUPS: ColorGroup[] = [
       {
         token: "--color-streak-4",
         role: "→ --color-brand-active · Heaviest, the deepest step · 9.88:1 on white",
+      },
+    ],
+  },
+  {
+    title: "Stage Card",
+    note: "Intake's stage card at the top of Scout's panel on the Experiences page, and its step chips, which onboarding shows with names. The card is the brand tint, the deepest lavender that keeps meta text at AA; the draft is a white card in the chat below it. A step chip is white with an outline, dashed once its section is skipped; a corner badge says what became of the section, a check on the done green or a dash on --color-ink-faint; the current chip is --color-brand, ringed. Both colours are new because the old ones fail on the tint: the app's pale greys vanish on it and --color-positive is 2.38:1. The ready dot beside a draft takes the done green.",
+    tokens: [
+      { token: "--color-stage-card", role: "→ --color-brand-tint · the stage card's fill" },
+      {
+        token: "--color-step-done",
+        role: "A done section's badge, and the ready dot · white check on it 3.81:1",
+      },
+      {
+        token: "--color-step-outline",
+        role: "A step chip's edge, dashed when skipped · 1.66:1 on the card",
       },
     ],
   },

@@ -32,7 +32,7 @@
  * `job_posting.md` at all.
  *
  * Beyond the feed and its Apply Now link, nothing reads or writes yet: the
- * filters, the sort, the dismiss and save actions and Ask WorkIt are all
+ * filters, the sort, the dismiss and save actions and Ask Scout are all
  * inert, as they are on search and on the applications board.
  */
 

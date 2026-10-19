@@ -3,8 +3,12 @@
 import { apiGet } from "@/lib/api";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 
+import type { ApplicationStage } from "../auto-apply/actions";
 import { feedQuery, readFilters, readQuery } from "./filter-query";
 import { getFeedPage, getRecommendedPage, viewerToken, type FeedPage } from "./listings";
+
+const SIGNED_OUT = "You're signed out. Sign in again to continue.";
+const UNREACHABLE = "Could not reach the server.";
 
 /** A query string as the record a page's searchParams would be. */
 function paramsOf(query: string): Record<string, string[]> {
@@ -63,7 +67,7 @@ export async function markApplied(
   jobId: string,
 ): Promise<{ appliedAt: string; error: null } | { appliedAt: null; error: string }> {
   const token = await viewerToken();
-  if (!token) return { appliedAt: null, error: "You're signed out. Sign in again to continue." };
+  if (!token) return { appliedAt: null, error: SIGNED_OUT };
   try {
     const res = await apiFetch(
       `/jobs/${encodeURIComponent(jobId)}/applied`,
@@ -73,7 +77,48 @@ export async function markApplied(
     if (!res.ok) return { appliedAt: null, error: await extractErrorMessage(res) };
     return { appliedAt: ((await res.json()) as { applied_at: string }).applied_at, error: null };
   } catch {
-    return { appliedAt: null, error: "Could not reach the server." };
+    return { appliedAt: null, error: UNREACHABLE };
+  }
+}
+
+/**
+ * A job's Save button (./save-job-button): keeps the job as saved for the
+ * signed-in applicant (`POST /jobs/{id}/saved`, KAN-261), so it shows in the
+ * Saved column on My Applications. Answers its stage: saved, or the stage it
+ * already had (queued, applied...), which saving never moves back.
+ */
+export async function saveJob(
+  jobId: string,
+): Promise<{ stage: ApplicationStage; error: null } | { stage: null; error: string }> {
+  const token = await viewerToken();
+  if (!token) return { stage: null, error: SIGNED_OUT };
+  try {
+    const res = await apiFetch(
+      `/jobs/${encodeURIComponent(jobId)}/saved`,
+      { method: "POST" },
+      token,
+    );
+    if (!res.ok) return { stage: null, error: await extractErrorMessage(res) };
+    return { stage: ((await res.json()) as { stage: ApplicationStage }).stage, error: null };
+  } catch {
+    return { stage: null, error: UNREACHABLE };
+  }
+}
+
+/** Takes a job back out of saved (`DELETE /jobs/{id}/saved`). One already
+ *  queued or applied stays, and the API's 409 says why. */
+export async function unsaveJob(jobId: string): Promise<{ error: string | null }> {
+  const token = await viewerToken();
+  if (!token) return { error: SIGNED_OUT };
+  try {
+    const res = await apiFetch(
+      `/jobs/${encodeURIComponent(jobId)}/saved`,
+      { method: "DELETE" },
+      token,
+    );
+    return { error: res.ok ? null : await extractErrorMessage(res) };
+  } catch {
+    return { error: UNREACHABLE };
   }
 }
 

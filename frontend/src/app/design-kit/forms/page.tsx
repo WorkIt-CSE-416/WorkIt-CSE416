@@ -1,3 +1,5 @@
+import { ONBOARDING_STEPS } from "@/app/onboarding/applicant/steps";
+import { Stepper } from "@/components/stepper";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { SearchField } from "@/components/ui/search-field";
 import { TextField } from "@/components/ui/text-field";
@@ -27,6 +29,15 @@ export default function FormsPage() {
           role="One choice among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
         >
           <SegmentedSpecimen />
+        </Row>
+        <Row
+          name="<Stepper>"
+          role="The 1-2-3 rail over a flow: default in the job composer, lg (32px discs) in onboarding"
+        >
+          <div className="flex w-full max-w-lg flex-col gap-5">
+            <Stepper steps={["Basic Details", "Screening", "Review"]} current={1} />
+            <Stepper size="lg" steps={ONBOARDING_STEPS} current={1} />
+          </div>
         </Row>
         <Row name="<SelectField>" role="Label wired by aria-labelledby, WorkIt's field height">
           <SelectFieldSpecimen />
