@@ -63,6 +63,9 @@ absent because it disallows us, and that is the whole reason.
 6. If its board page has a square logo: `logos.PAGE` and `logos.PATTERN`, and
    the image host in `frontend/next.config.ts` (see Logos).
 7. If each company is its own subdomain: its domain in `polite.SHARED_PACE`.
+8. Its name and domain in `hiringSystems` in
+   `frontend/src/app/(landing)/data.ts`: the landing page lists the hiring
+   systems WorkIt reads, and that list must match `LISTING_URL`.
 
 Each reader's test is built from that day's real responses. Workable,
 Recruitee and BambooHR quirks: `docs/providers.md`. Workday's, and how its

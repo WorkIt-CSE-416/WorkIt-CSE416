@@ -60,13 +60,67 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
-  clone with no env file is gated too. The root page's hiring card still
-  shows and lands there. `components/account-type-switcher.tsx` has its
-  toggle commented out and always submits `applicant`, so login, signup and
+  clone with no env file is gated too. `components/account-type-switcher.tsx`
+  has its toggle commented out and always submits `applicant`, so login, signup and
   choose-account-type show no Company option; the brand panel's hiring line
   is commented out too. The company code stays in place. To bring it back,
   delete the proxy block and `app/coming-soon/`, then uncomment those two
   components. The API still accepts company signups; the gate is the UI only.
+- **The page at `/` is the landing page, `app/(landing)/`**, ported from
+  the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
+  in place of the old Job Seeker / Hiring chooser. Its components keep the
+  site's markup, classes, Inter type and copy, with two deliberate changes.
+  **Colour and logo:** the site's numbered blue scale became
+  `landing-brand-50` to `950` in `globals.css`, the same steps in WorkIt
+  violet, so a component copied from the site needs only `brand-N` renamed
+  to `landing-brand-N`. Restyling a component during that recolour was
+  reverted once: the team wants the site's look unless it asks. **Layout,
+  after Calendly's homepage:** every full-width band (hero, grey bands,
+  footer) is a rounded panel inset from the window (`PANEL` and
+  `PANEL_INSET` in `page.tsx`); the header floats as a white rounded bar
+  once the page scrolls (`floating-header.tsx`); and the site's feature
+  carousel and grey product placeholder became one pinned product tour
+  (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
+  through the four features, each with its own app colour; below lg the
+  stops stack, because a pinned card with the resume animation does not fit
+  a phone. The site's placeholder benefit grid and three steps became an
+  expanding card row (`journey.tsx`: Find, Apply, Track, Hear back; the
+  card under the pointer widens) and a hiring-system section
+  (`hiring-systems.tsx`). The site's closing "Be first in line" banner is
+  removed for now. **The hiring-system list in
+  `data.ts` is a claim that WorkIt reads those systems**: it must match
+  `scraper/workit_scraper/providers.py`'s `LISTING_URL`. Its logos come from
+  the Google favicon host `next.config.ts` already allows; Workday's and
+  BambooHR's are only 16px there, so they look soft on a sharp screen.
+  The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
+  `hero-city.tsx` renders it after hydration, since server-rendered its path
+  data would add hundreds of KB to the page): New York-style towers, six of
+  which rise as violet wireframes with a job tag. Its heights are capped per
+  column so nothing reaches the text at its 1600px design scale; it keeps
+  that scale from lg up (cropped at the sides) and shrinks to the panel's
+  width below lg, under the text. A change to the hero's text size or the
+  buttons' width means re-checking those caps (`ceiling` in
+  `city-model.ts`): the buttons once ran wider than the caps assumed and
+  towers rose behind them. Its job cards show only where they fit:
+  `placeCards` in `hero-city.tsx` measures each one against the panel's
+  sides and the text's line boxes (`data-hero-text`, `data-hero-box` in
+  `page.tsx`) on every resize, nudging a card inward or skipping it; a
+  fixed breakpoint once hid them on every laptop-width window. Measure text
+  runs, not elements: a block line's box spans the full width. Violet is
+  the wireframes' alone; keep roofs and
+  spires neutral. It does not use `ui/` components, Title Case or the
+  type tokens; those rules are for app screens. Rules in `landing.css` that set
+  `display` or a size sit in `@layer components`, or they beat a `hidden`
+  or `h-12` utility on the same element. Its animations use `motion`
+  (`motion/react`), which only this route imports; the feature animations
+  expect the tour's `MotionConfig reducedMotion="user"` around them. What
+  differs from the site, and why: the Applicant / Company switcher is left
+  out while the business side is hidden; nav and footer link to this
+  page's sections, since the site's other pages are not in the app; the
+  waitlist form became a sign-up link, since its email went through the
+  site's own server; every call to action goes to `/signup`, `/login` or
+  `signInWithOAuth`. The testimonial and FAQ still hold the site's
+  placeholder copy.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).

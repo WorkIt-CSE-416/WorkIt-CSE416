@@ -649,6 +649,32 @@
   }
 }
 
+/*
+ * The landing page's colour scale (app/(landing)/, the page at /). The page
+ * came from the team's marketing site, whose components are written against
+ * a numbered blue scale (brand-50 to brand-950). This is the same scale in
+ * WorkIt's violet, so those components keep their exact classes and only the
+ * colour changes. Steps the app already has point at its tokens; 300, 400,
+ * 500, 900 and 950 are new steps on the same hue. App screens never use
+ * these, and they have no /design-kit row.
+ *   - landing-brand-50 to 400: fills and tints. Text on them is
+ *     landing-brand-950, never white (white fails contrast).
+ *   - landing-brand-700 and up: text-level accents on a light background.
+ */
+@theme static {
+  --color-landing-brand-50: var(--color-rail);
+  --color-landing-brand-100: var(--color-brand-tint);
+  --color-landing-brand-200: var(--color-brand-pale);
+  --color-landing-brand-300: #c2adf7;
+  --color-landing-brand-400: #a084ee;
+  --color-landing-brand-500: #8460e3;
+  --color-landing-brand-600: var(--color-brand);
+  --color-landing-brand-700: var(--color-brand-hover);
+  --color-landing-brand-800: var(--color-brand-active);
+  --color-landing-brand-900: #3a1e7c;
+  --color-landing-brand-950: #22114b;
+}
+
 /* What collapsing the seeker panel frees, eased over the panel's own 200ms
  * linear (see (seeker)/layout.tsx, "A PAGE KEEPS THE WIDTH"). Registered as a
  * <length> so it can transition at all: an unregistered custom property
