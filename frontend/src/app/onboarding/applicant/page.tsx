@@ -30,6 +30,19 @@ export const metadata: Metadata = {
  * the same cached API calls (../../(seeker)/jobs/listings). Either comes back
  * empty when the API is down, and its picker then says nothing matches.
  */
+/** The month each season starts, 0 for January. */
+const SEASON_START: Record<string, number> = { winter: 0, spring: 2, summer: 5, fall: 8 };
+
+/** Start Date offers only seasons still ahead (KAN-275): a bare year ("2027",
+ *  postings that name no season) says nothing a student can plan by, and a
+ *  season already under way (Fall 2026 in October) is too late to start. All
+ *  Filters still offers both. A month is coarse enough that the server's UTC
+ *  clock does not matter. */
+function upcoming({ value }: { value: string }) {
+  const [season, year] = value.split("-");
+  return year != null && new Date(Number(year), SEASON_START[season]) > new Date();
+}
+
 export default async function ApplicantOnboardingPage() {
   await connection();
   if (!(await getSessionUser())) redirect("/login");
@@ -51,7 +64,7 @@ export default async function ApplicantOnboardingPage() {
         count: p.jobs,
         nested: p.code.includes("-"),
       }))}
-      seasons={facets.start_term.map((t) => ({
+      seasons={facets.start_term.filter(upcoming).map((t) => ({
         value: t.value,
         label: seasonLabel(t.value),
         count: t.jobs,

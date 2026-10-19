@@ -1164,7 +1164,15 @@ reduced motion.
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
 Start Date and Salary use All Filters' own pickers
 (`components/filter-controls.tsx`), so the saved answers fill the feed's
-filters with no translation. They share All Filters' rules too, from
+filters with no translation. Two questions offer less than All Filters
+(KAN-275). Start Date lists only seasons still ahead: no bare year ("2027
+(Season Not Stated)") and no season already under way, both dropped in
+`page.tsx`. Visa Sponsorship is two any-of tiles, No Visa Sponsorship and
+Sponsor Visas, while the saved preference stays one `visa`: Sponsor Visas
+alone saves `sponsors`, and any other pick saves no visa filter. A saved
+`not_ruled_out` has no tile, so the form drops it rather than save it unseen,
+and a lone No Visa Sponsorship comes back unpicked after intake's Back to
+Profile, since it saves as nothing. They share All Filters' rules too, from
 `filter-query.ts`: `payUnits` picks the salary's units from the job types,
 and `statesNarrowCountries` saves United States and California as
 California. A fixed choice is a `ChoiceTile`

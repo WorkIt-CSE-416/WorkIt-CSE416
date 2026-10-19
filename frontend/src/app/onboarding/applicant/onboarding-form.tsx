@@ -10,7 +10,6 @@ import {
   PAY_OPTIONS,
   payUnits,
   statesNarrowCountries,
-  VISA_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
@@ -39,7 +38,9 @@ import { StoryPanel } from "./story-panel";
  *
  * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, experience, job type, start
  * date, workplace, location, salary and visa are a `FeedFilters`, with the
- * same options and pickers as All Filters (components/filter-controls). Start
+ * same options and pickers as All Filters (components/filter-controls), but
+ * for two (KAN-275): Start Date offers upcoming seasons only (./page), and
+ * Visa Sponsorship has its own two tiles (VISA_PICKS below). Start
  * Date is asked only once Internship is picked, and dropping Internship
  * clears it: a saved season keeps only the jobs that name one, which a
  * new-grad role rarely does. Continue saves them
@@ -78,6 +79,15 @@ const STEPS: { question: ReactNode; line: string }[] = [
 const toggle = <T,>(values: T[], value: T) =>
   values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
 
+/** Visa Sponsorship's tiles, any of them (KAN-275). The saved preference is
+ *  still one `visa`: "Sponsor Visas" alone saves ?visa=sponsors, and any
+ *  other pick keeps every job, so it saves no visa filter. */
+type VisaPick = "none" | "sponsors";
+const VISA_PICKS: { value: VisaPick; label: string }[] = [
+  { value: "none", label: "No Visa Sponsorship" },
+  { value: "sponsors", label: "Sponsor Visas" },
+];
+
 export function OnboardingForm({
   roles,
   places,
@@ -93,7 +103,15 @@ export function OnboardingForm({
   const router = useRouter();
   const [step, setStep] = useState(0);
   const column = useRef<HTMLDivElement>(null);
-  const [answers, setAnswers] = useState<FeedFilters>(initial);
+  // A saved "not_ruled_out" (from the Jobs page) has no tile here, so it
+  // drops rather than being saved again unseen.
+  const sponsors = initial.visa === "sponsors";
+  const [answers, setAnswers] = useState<FeedFilters>({
+    ...initial,
+    visa: sponsors ? "sponsors" : null,
+  });
+  // Kept here, not in the step, so Back and Next keep the picks.
+  const [visaPicks, setVisaPicks] = useState<VisaPick[]>(sponsors ? ["sponsors"] : []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,7 +178,17 @@ export function OnboardingForm({
           {step === 0 && (
             <RoleStep answers={answers} set={set} roles={roles} places={places} seasons={seasons} />
           )}
-          {step === 1 && <PriorityStep answers={answers} set={set} />}
+          {step === 1 && (
+            <PriorityStep
+              answers={answers}
+              set={set}
+              visaPicks={visaPicks}
+              setVisaPicks={(picks) => {
+                setVisaPicks(picks);
+                set({ visa: picks.length === 1 && picks[0] === "sponsors" ? "sponsors" : null });
+              }}
+            />
+          )}
         </div>
 
         <div className="bg-panel border-border-subtle sticky bottom-0 border-t">
@@ -304,7 +332,12 @@ function RoleStep({
   );
 }
 
-function PriorityStep({ answers, set }: StepProps) {
+function PriorityStep({
+  answers,
+  set,
+  visaPicks,
+  setVisaPicks,
+}: StepProps & { visaPicks: VisaPick[]; setVisaPicks: (picks: VisaPick[]) => void }) {
   const units = payUnits(answers.jobTypes);
 
   return (
@@ -321,20 +354,12 @@ function PriorityStep({ answers, set }: StepProps) {
         />
       </Field>
       <Field Icon={VisaIcon} label="Visa Sponsorship">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
-          <ChoiceTile
-            kind="radio"
-            pressed={answers.visa == null}
-            onClick={() => set({ visa: null })}
-          >
-            I Don&apos;t Need One
-          </ChoiceTile>
-          {VISA_OPTIONS.map((o) => (
+        <div className="grid grid-cols-2 gap-2 lg:gap-3">
+          {VISA_PICKS.map((o) => (
             <ChoiceTile
               key={o.value}
-              kind="radio"
-              pressed={answers.visa === o.value}
-              onClick={() => set({ visa: o.value })}
+              pressed={visaPicks.includes(o.value)}
+              onClick={() => setVisaPicks(toggle(visaPicks, o.value))}
             >
               {o.label}
             </ChoiceTile>
