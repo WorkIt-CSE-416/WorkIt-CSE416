@@ -2,6 +2,8 @@ import "server-only";
 
 import { apiGet } from "@/lib/api";
 
+import { KeyRequirementsVisibility } from "./key-requirements-visibility";
+
 type Requirement = {
   kind:
     | "graduation_window"
@@ -95,13 +97,7 @@ export async function KeyRequirementsCard({
   if (groups.length === 0) return null;
 
   return (
-    <section
-      aria-labelledby="key-requirements-title"
-      className="border-border mt-6 rounded-xl border p-4"
-    >
-      <h2 id="key-requirements-title" className="text-subtitle text-ink font-semibold">
-        Key Requirements
-      </h2>
+    <KeyRequirementsVisibility>
       <dl className="mt-4 flex flex-col gap-4">
         {groups.map(({ kind, label, highlights }) => (
           <div key={kind}>
@@ -119,6 +115,6 @@ export async function KeyRequirementsCard({
           </div>
         ))}
       </dl>
-    </section>
+    </KeyRequirementsVisibility>
   );
 }
