@@ -163,7 +163,8 @@ turns brand, but it does not lift: a card just under the sticky heading and
 filters lifted into them and was cut off. The id is
 the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
 The page is the mock's `JobDetailHeader` with the card's own facts
-(`listingFacts` in `listing-card.tsx`) and the employer's logo, then one
+(`listingFacts` in `listing-card.tsx`) and the employer's 40px logo and
+16px name, then one
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")

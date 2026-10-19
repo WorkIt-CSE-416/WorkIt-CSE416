@@ -196,7 +196,10 @@ export default function DisplayPage() {
               <JobDetailHeader
                 posting={SAMPLE_POSTING}
                 tile={
-                  <Avatar name={SAMPLE_POSTING.companyName} className="text-meta size-8 rounded" />
+                  <Avatar
+                    name={SAMPLE_POSTING.companyName}
+                    className="text-label rounded-control size-10"
+                  />
                 }
                 showDeadline
                 actions={

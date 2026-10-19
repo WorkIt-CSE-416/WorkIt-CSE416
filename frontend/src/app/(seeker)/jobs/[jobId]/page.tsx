@@ -126,10 +126,14 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
 
       <JobDetailHeader
         posting={toPosting(job)}
-        // The employer's own logo, as on the card, at the header's 32px; its
+        // The employer's own logo, as on the card, at the header's 40px; its
         // initials when it has none.
         tile={
-          <CompanyLogo name={job.company} src={job.logo_url} className="text-meta size-8 rounded" />
+          <CompanyLogo
+            name={job.company}
+            src={job.logo_url}
+            className="text-label rounded-control size-10"
+          />
         }
       />
 
