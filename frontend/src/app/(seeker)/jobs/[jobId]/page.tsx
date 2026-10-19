@@ -103,12 +103,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
         <AskScoutButton id={job.id} title={job.title} company={job.company} />
         {/* Only where auto apply can fill the form (Greenhouse for now). */}
         {job.auto_apply && (
-          <AutoApplyButton
-            jobId={job.id}
-            title={job.title}
-            company={job.company}
-            stage={stage}
-          />
+          <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
         )}
         <ButtonLink
           href={`/jobs/${encodeURIComponent(job.id)}/tailor`}

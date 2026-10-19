@@ -681,12 +681,7 @@ def _said(key: str, line: str) -> str | None:
     if key in ("logistics", INTRO, "role", "pay", *EXTRA) and _ELIGIBILITY.search(line):
         return "requirements"
     # A requirement can name a benefits product as domain experience.
-    if (
-        key in _JOB_KEYS
-        and key != "pay"
-        and _BENEFIT.search(line)
-        and not _REQUIRES.search(line)
-    ):
+    if key in _JOB_KEYS and key != "pay" and _BENEFIT.search(line) and not _REQUIRES.search(line):
         return "benefits"
     if key in _JOB_KEYS and _applying(line):
         return "apply"
