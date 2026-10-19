@@ -138,6 +138,9 @@ export function OnboardingForm({
   const [visaPicks, setVisaPicks] = useState<VisaPick[]>(initial.visa ? ["sponsors"] : []);
   const [resume, setResume] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  // Only while the file is on its way, so the dropzone's "Uploading…" never
+  // shows for Skip or for the answers' save before the upload.
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const set = (change: Partial<FeedFilters>) => setAnswers((a) => ({ ...a, ...change }));
@@ -175,6 +178,7 @@ export function OnboardingForm({
     if (file) {
       const fd = new FormData();
       fd.append("file", file);
+      setUploading(true);
       const { error: uploadError } = await uploadResume(fd);
       if (uploadError) return fail(uploadError);
     }
@@ -183,6 +187,7 @@ export function OnboardingForm({
 
   function fail(message: string) {
     setSaving(false);
+    setUploading(false);
     setError(message);
   }
 
@@ -234,7 +239,7 @@ export function OnboardingForm({
                 file={resume}
                 onFileChange={setResume}
                 onRemove={() => setResume(null)}
-                busy={saving}
+                busy={uploading}
               />
             </Field>
           )}

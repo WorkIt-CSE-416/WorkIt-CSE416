@@ -1316,10 +1316,12 @@ text came out semibold.
 (`components/resume-upload.tsx`), inside the wizard so it keeps Scout's
 panel, the step rail and the footer's Back. Picking a file only holds it,
 with a Remove; Continue is disabled until one is picked, and Skip is the way
-on without one. It replaced intake (KAN-214), whose chat asked about each
-section in turn, on its own page and in another design: one upload fills
-most of the bank in one step, and intake still runs on the Experiences view
-for what the resume missed.
+on without one. The dropzone says "Uploading…" only while the file is on its
+way: it once took the save's busy state too, so Skip read as if it had sent
+a file. The footer's "Saving…" covers the save. It replaced intake
+(KAN-214), whose chat asked about each section in turn, on its own page and
+in another design: one upload fills most of the bank in one step, and intake
+still runs on the Experiences view for what the resume missed.
 
 **Continue or Skip saves the answers (KAN-231)** as the seeker's preferences
 (`PUT /applicants/{id}/preferences`, which also marks onboarding complete).
