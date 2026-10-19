@@ -272,7 +272,12 @@ the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
 the last one visited in sessionStorage), or the Resumes page when a
 tailored resume's posting link opened it (`rememberReturnTo`, KAN-268, set
 on the click rather than the visit, so a job opened from elsewhere after a
-look at /resumes does not go Back there). It says only "Back", whatever the
+look at /resumes does not go Back there). When the seeker came straight from
+that list (`cameFrom`, (seeker)/scroll-memory.tsx), Back goes back in history
+as the browser's Back does: the router redraws the list it kept at once.
+Following the link instead is a fresh visit, which fetches the feed again and,
+on Recommended, scores every job again, so the list sat on its skeleton
+(2026-10-19). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
 would change a moment after the page loads.
 **Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
