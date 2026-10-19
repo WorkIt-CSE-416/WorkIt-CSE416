@@ -13,23 +13,6 @@ export const metadata: Metadata = {
   description: "Tell us what you're looking for so we can match you with the right roles.",
 };
 
-/**
- * /onboarding/applicant — where sign-in sends a seeker until they finish it.
- * Continue leads to intake (./bank, KAN-214), whose Finish opens /jobs.
- *
- * Outside both shells, like /login: a first-time user has no top bar to sit
- * under yet. The whole screen is ./onboarding-form, a split like /login's:
- * Scout's question on the left, the fields on the right.
- *
- * Sign-in sends only an applicant who hasn't finished onboarding here
- * (docs/auth.md); signed out goes to sign-in. A finished applicant can still
- * come back, from intake's "Back to Profile": the form opens on their saved
- * answers, and Continue saves the edits.
- *
- * The Role and Location pickers offer what the Jobs page's filters offer, from
- * the same cached API calls (../../(seeker)/jobs/listings). Either comes back
- * empty when the API is down, and its picker then says nothing matches.
- */
 /** The month each season starts, 0 for January. */
 const SEASON_START: Record<string, number> = { winter: 0, spring: 2, summer: 5, fall: 8 };
 
@@ -43,6 +26,23 @@ function upcoming({ value }: { value: string }) {
   return year != null && new Date(Number(year), SEASON_START[season]) > new Date();
 }
 
+/**
+ * /onboarding/applicant — where sign-in sends a seeker until they finish it.
+ * Continue leads to the resume step (./resume, KAN-275), which opens /jobs.
+ *
+ * Outside both shells, like /login: a first-time user has no top bar to sit
+ * under yet. The whole screen is ./onboarding-form, a split like /login's:
+ * Scout's question on the left, the fields on the right.
+ *
+ * Sign-in sends only an applicant who hasn't finished onboarding here
+ * (docs/auth.md); signed out goes to sign-in. A finished applicant can still
+ * come back, from the resume step's "Back to Profile": the form opens on
+ * their saved answers, and Continue saves the edits.
+ *
+ * The Role and Location pickers offer what the Jobs page's filters offer, from
+ * the same cached API calls (../../(seeker)/jobs/listings). Either comes back
+ * empty when the API is down, and its picker then says nothing matches.
+ */
 export default async function ApplicantOnboardingPage() {
   await connection();
   if (!(await getSessionUser())) redirect("/login");

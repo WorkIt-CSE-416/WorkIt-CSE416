@@ -49,7 +49,6 @@ export function StepBar({
   currentFill,
   filled,
   skipped,
-  lead,
   busy = false,
   compact = false,
   onJump,
@@ -61,8 +60,6 @@ export function StepBar({
   /** Sections with at least one entry in the bank. */
   filled: readonly Section[];
   skipped: readonly Section[];
-  /** A step before the sections, shown done: onboarding's profile form. */
-  lead?: string;
   /** While WorkIt answers: a late reply must not land on another section. */
   busy?: boolean;
   /** The segments alone, for Scout's panel's stage card. */
@@ -85,8 +82,7 @@ export function StepBar({
 
   const index = current ? WALK.indexOf(current) : -1;
   const previous = index > 0 ? WALK[index - 1] : null;
-  const offset = lead ? 1 : 0;
-  const steps = WALK.length + offset;
+  const steps = WALK.length;
 
   const cheer =
     percent === 100
@@ -99,11 +95,11 @@ export function StepBar({
 
   const where = current ? (
     <>
-      Step {index + 1 + offset} of {steps} ·{" "}
+      Step {index + 1} of {steps} ·{" "}
       <span className="text-brand font-semibold">{sectionOf(current).label}</span>
     </>
   ) : (
-    `${finished + offset} of ${steps} steps done`
+    `${finished} of ${steps} steps done`
   );
 
   const segments = WALK.map((s, i) => (
@@ -143,7 +139,6 @@ export function StepBar({
         </button>
 
         <ol aria-label="Intake steps" className="flex flex-1 items-start gap-1.5">
-          {lead && <Segment label={lead} state="done" fill={100} />}
           {segments}
         </ol>
 

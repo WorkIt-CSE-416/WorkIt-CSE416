@@ -804,16 +804,13 @@ in Docs (suggested answers in the chat, not a banner).
   a gap card whose entry has been deleted since (saving it found no entry,
   and it hid the walk's questions about the import). When no
   stop is left, the student picks from the chips.
-- **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
-  profile form's Continue leads there, then Finish leads to /jobs, the
-  Recommended view (KAN-231). It
-  always walks, and its step bar shows the profile form as a done "Profile"
-  step before the sections. It imports `Intake` from the bank route rather
-  than promoting it to `src/components`: intake needs the bank's entry
-  editor and sections, which stay with the bank page.
-- **Students see "Experiences"** (KAN-249), on the bank's view and as the
-  onboarding step's title; it was "Experience Bank" from KAN-214 until
-  then. The glossary term stays "experience bank".
+- **Intake is not part of onboarding** since KAN-275: onboarding's second
+  step is a resume upload (Applicant onboarding, below). Intake had run
+  there from KAN-214, always walking, with a done "Profile" step in its step
+  bar.
+- **Students see "Experiences"** (KAN-249) on the bank's view; it was
+  "Experience Bank" from KAN-214 until then. The glossary term stays
+  "experience bank".
 
 ### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
 
@@ -1142,9 +1139,8 @@ Step 1 is Role, Job Type and Workplace (all required), and Experience,
 Start Date and Location; step 2 is Salary Range and Visa Sponsorship (both
 optional), with Continue in place of Next. Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
-only the jobs that name one, which a new-grad role rarely does. Intake (KAN-214) is onboarding's next step, so the wizard has no resume
-step of its own: intake uploads and imports one into the experience bank,
-which matching reads. Preference Tags, free-text skills, were dropped
+only the jobs that name one, which a new-grad role rarely does. The resume
+step follows the wizard (below). Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
 **The left half moves, from lg.** Above the question a showcase
@@ -1189,13 +1185,23 @@ text came out semibold.
 
 **Continue saves the answers (KAN-231)** as the seeker's preferences (`PUT
 /applicants/{id}/preferences`, which also marks onboarding complete), then
-opens intake (KAN-214), whose Finish opens /jobs: the Recommended view applies
-the saved filters and scores what they keep against the bank just filled. A
+opens the resume step. A
 failed save leaves the seeker on the page to retry. Date Posted is not asked:
 a saved "past 24 hours" would empty the feed within days. Sign-in sends an
 applicant here until they finish (`docs/auth.md`); a finished one coming back
-from intake's "Back to Profile" finds the wizard filled with their saved
-answers, and Continue saves the edits.
+from the resume step's "Back to Profile" finds the wizard filled with their
+saved answers, and Continue saves the edits.
+
+**The resume step (`onboarding/applicant/resume/`, KAN-275)** is the Resumes
+view's dropzone (`components/resume-upload.tsx`) under a "Your Resume" title.
+Picking a file uploads it at once through `uploadResume`; the API reads it
+into the experience bank as it reads any upload (ADR 0003), then the step
+opens /jobs, whose Recommended view scores the saved filters' jobs against
+the bank just filled. Skip opens /jobs too, with the bank as it is. A failed
+upload stays on the step and says why, in the API's words (a sixth upload's
+409 among them). It replaced intake (KAN-214), whose chat asked about each
+section in turn: one upload fills most of the bank in one step, and intake
+still runs on the Experiences view for what the resume missed.
 
 ## Company screens
 

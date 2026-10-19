@@ -75,7 +75,7 @@ import {
  * The step bar, Skip and jump (KAN-214, `intake-steps.tsx`): with `walk`,
  * intake opens on the first section that is neither filled nor skipped and
  * moves to the next one after each save or Skip, in the order WALK gives.
- * The bank page walks when the bank is empty; onboarding always does.
+ * The bank page walks when the bank is empty.
  * Without it, the student picks a section from the chips and comes back to
  * them after each save. Skip and a jump drop the unsaved draft, as in the
  * prototype. A jump or a chip opens the section's bank entry with gaps, if
@@ -218,7 +218,6 @@ export function Intake({
   entries = [],
   onSaved,
   walk = false,
-  lead,
   importable = false,
   autoImport = false,
   docked = false,
@@ -231,8 +230,6 @@ export function Intake({
   onSaved: () => Promise<string | null>;
   /** Lead the student through the sections, one after another. */
   walk?: boolean;
-  /** A step shown done before the sections, in the step bar. */
-  lead?: string;
   /** Offer Import My Resume in the chat. */
   importable?: boolean;
   /** Open the import on mount: the Jobs page's one-click "Import Your Resume". */
@@ -718,7 +715,6 @@ export function Intake({
       currentFill={currentFill}
       filled={filled}
       skipped={skipped}
-      lead={lead}
       busy={answering || saving}
       // Docked, the stage card names the step and has Skip.
       compact={docked}

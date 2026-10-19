@@ -17,7 +17,8 @@ signup or OAuth path.
   `/dashboard`. Saving onboarding's answers (`PUT
   /applicants/{id}/preferences`) is what sets it (KAN-231, which ended
   KAN-141's skip). The onboarding page lets a finished applicant back in,
-  from intake's "Back to Profile", with their saved answers filled in. Companies skip the onboarding check because
+  from the resume step's "Back to Profile", with their saved answers filled
+  in. Companies skip the onboarding check because
   nothing sets their `onboarding_completed_at` yet, so it would send every
   company login to the `/onboarding/company` stub — restore it when company
   onboarding is built. If the account type doesn't match the tab the user

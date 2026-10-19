@@ -44,14 +44,14 @@ import { StoryPanel } from "./story-panel";
  * Date is asked only once Internship is picked, and dropping Internship
  * clears it: a saved season keeps only the jobs that name one, which a
  * new-grad role rarely does. Continue saves them
- * as the seeker's preferences, which marks onboarding done, then opens
- * intake (./bank, KAN-214), which fills the experience bank matching reads
- * and imports a resume; its Finish opens the Jobs page's Recommended view.
- * There is no resume step here: intake asks for one. Date Posted is not
- * asked: a saved "past 24 hours" would empty the feed within days.
+ * as the seeker's preferences, which marks onboarding done, then opens the
+ * resume step (./resume, KAN-275), whose upload fills the experience bank
+ * matching reads; it, or its Skip, opens the Jobs page's Recommended view.
+ * Date Posted is not asked: a saved "past 24 hours" would empty the feed
+ * within days.
  *
- * `initial` is the seeker's saved preferences, so coming back from intake
- * ("Back to Profile") edits them rather than starting over.
+ * `initial` is the seeker's saved preferences, so coming back from the
+ * resume step ("Back to Profile") edits them rather than starting over.
  */
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -141,8 +141,8 @@ export function OnboardingForm({
       setError(saveError);
       return;
     }
-    // Intake is the next step (KAN-214); its Finish opens the matches.
-    router.push("/onboarding/applicant/bank");
+    // The resume step is next (KAN-275); it opens the matches.
+    router.push("/onboarding/applicant/resume");
   }
 
   // FROM LG THE SCREEN IS ONE WINDOW TALL AND ONLY THE RIGHT COLUMN SCROLLS,
