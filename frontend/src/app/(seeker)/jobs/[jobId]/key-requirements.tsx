@@ -3,7 +3,18 @@ import "server-only";
 import { apiGet } from "@/lib/api";
 
 type Requirement = {
-  kind: "graduation_window" | "degree" | "sponsorship" | "citizenship" | "clearance";
+  kind:
+    | "graduation_window"
+    | "degree"
+    | "sponsorship"
+    | "citizenship"
+    | "clearance"
+    | "skills"
+    | "experience"
+    | "enrollment"
+    | "work_arrangement"
+    | "availability"
+    | "gpa";
   evidence: string;
   summary: string | null;
   importance: "required" | "preferred" | "stated";
@@ -12,9 +23,15 @@ type Requirement = {
 const LABELS = {
   degree: "Education",
   graduation_window: "Graduation",
+  enrollment: "Enrollment",
+  experience: "Experience",
+  gpa: "GPA",
   sponsorship: "Work authorization",
   citizenship: "Citizenship",
   clearance: "Security clearance",
+  work_arrangement: "Work arrangement",
+  availability: "Availability",
+  skills: "Key skills",
 };
 
 export async function KeyRequirementsCard({
@@ -32,29 +49,50 @@ export async function KeyRequirementsCard({
     // The full posting remains available if this optional summary cannot load.
   }
 
-  // One row per topic, with original wording so alternatives and negation survive.
+  if (
+    minYearsExperience != null &&
+    !requirements.some(
+      (item) =>
+        item.kind === "experience" &&
+        item.importance !== "preferred" &&
+        (item.summary === `${minYearsExperience}+ years of experience` ||
+          item.summary === `${minYearsExperience} years of experience`),
+    )
+  ) {
+    requirements.push({
+      kind: "experience",
+      summary: `${minYearsExperience}+ ${minYearsExperience === 1 ? "year" : "years"}`,
+      evidence: "",
+      importance: "stated",
+    });
+  }
+
+  // Show concise, supported takeaways instead of repeating the description.
   const groups = Object.entries(LABELS).flatMap(([kind, label]) => {
-    const statements = requirements.filter((item) => item.kind === kind && item.evidence.trim());
+    const statements = requirements.filter((item) => item.kind === kind && item.summary?.trim());
     const priority = { required: 0, stated: 1, preferred: 2 };
     const evidence = [
       ...new Map(
         statements.map((item) => [
-          `${item.importance}:${item.evidence.trim()}`,
+          `${item.importance}:${item.summary}:${item.evidence.trim()}`,
           { ...item, evidence: item.evidence.trim() },
         ]),
       ).values(),
     ].sort((a, b) => priority[a.importance] - priority[b.importance]);
     if (evidence.length === 0) return [];
+    const highlights = evidence.filter(
+      (item, index) => evidence.findIndex((other) => other.summary === item.summary) === index,
+    );
     return [
       {
         kind,
         label,
-        evidence,
+        highlights,
       },
     ];
   });
 
-  if (groups.length === 0 && minYearsExperience == null) return null;
+  if (groups.length === 0) return null;
 
   return (
     <section
@@ -65,36 +103,21 @@ export async function KeyRequirementsCard({
         Key Requirements
       </h2>
       <dl className="mt-4 flex flex-col gap-4">
-        {groups.map(({ kind, label, evidence }) => (
+        {groups.map(({ kind, label, highlights }) => (
           <div key={kind}>
             <dt className="text-body text-ink font-semibold">{label}</dt>
             <dd className="text-body text-ink mt-1">
               <p>
-                {evidence[0].summary || evidence[0].evidence}
-                {evidence[0].importance === "preferred" && " (preferred)"}
+                {highlights
+                  .map(
+                    (item) =>
+                      `${item.summary}${item.importance === "preferred" ? " (preferred)" : ""}`,
+                  )
+                  .join(" · ")}
               </p>
-              {(evidence.length > 1 || evidence[0].summary) && (
-                <details className="mt-2">
-                  <summary className="text-brand cursor-pointer">More from the posting</summary>
-                  {evidence.slice(evidence[0].summary ? 0 : 1).map((statement) => (
-                    <p key={`${statement.importance}:${statement.evidence}`} className="mt-2">
-                      {statement.evidence}
-                      {statement.importance === "preferred" && " (preferred)"}
-                    </p>
-                  ))}
-                </details>
-              )}
             </dd>
           </div>
         ))}
-        {minYearsExperience != null && (
-          <div>
-            <dt className="text-body text-ink font-semibold">Experience</dt>
-            <dd className="text-body text-ink mt-1">
-              {`${minYearsExperience}+ ${minYearsExperience === 1 ? "year" : "years"}`}
-            </dd>
-          </div>
-        )}
       </dl>
     </section>
   );
