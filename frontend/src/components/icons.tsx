@@ -71,8 +71,7 @@ type IconProps = { className?: string };
 /* Chrome ------------------------------------------------------------------ */
 
 /** Scout and every AI action, the one mark for both (KAN-257): the top bar's
- *  launcher, the panel's header, WorkIt's mark in the chat, Ask Scout, Ask
- *  WorkIt, Tailor My Resume and Read It Again with AI. It was a filled
+ *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor My Resume and Read It Again with AI. It was a filled
  *  sparkle drawn by hand in the bar and the panel, beside Lucide's outlined
  *  Sparkles in the chat and on every AI button, so the assistant wore two
  *  marks. Use this, never `Sparkles` from lucide-react directly. */

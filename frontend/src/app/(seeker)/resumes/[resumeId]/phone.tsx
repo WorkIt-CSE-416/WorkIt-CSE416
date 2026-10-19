@@ -35,7 +35,7 @@ import { Tray } from "./tray";
  * The whole layout is sized to the visual viewport, because the iOS keyboard
  * covers the layout viewport instead of shrinking it; sized this way the
  * sheet stays above the keyboard. The desktop editor owns the state and the
- * saves; this file only lays them out. "Ask WorkIt", in the bottom bar and
+ * saves; this file only lays them out. "Ask Scout", in the bottom bar and
  * in a line's sheet, opens the assistant (KAN-221) in its own sheet.
  */
 
@@ -247,7 +247,7 @@ export function PhoneEditor({
             </Button>
             {/* The primary action, filled as on the desktop bar. */}
             <Button onClick={() => setAsking(true)}>
-              <SparkleIcon /> Ask WorkIt
+              <SparkleIcon /> Ask Scout
             </Button>
           </div>
         </div>
@@ -312,7 +312,7 @@ export function PhoneEditor({
           <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
             {actions}
             <Button size="sm" onClick={() => setAsking(true)}>
-              <SparkleIcon /> Ask WorkIt About This Line
+              <SparkleIcon /> Ask Scout About This Line
             </Button>
           </div>
         </Sheet>
@@ -320,7 +320,7 @@ export function PhoneEditor({
 
       {/* Kept mounted while closed, so the chat survives closing it */}
       <div className={cn("absolute inset-x-0 bottom-0 z-50 h-[70%]", !asking && "hidden")}>
-        <Sheet onClose={() => setAsking(false)} title="WorkIt Assistant" fill>
+        <Sheet onClose={() => setAsking(false)} title="Scout" fill>
           {assistant}
         </Sheet>
       </div>

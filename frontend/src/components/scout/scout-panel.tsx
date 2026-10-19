@@ -7,7 +7,7 @@ import { ArrowRightIcon, CloseIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
-import { Composer, Message, Typing, WorkItMark } from "./chat";
+import { Composer, Message, Typing, ScoutMark } from "./chat";
 import { ReplyText } from "./reply-text";
 import { closeScout, sendToScout, useScout } from "./scout-store";
 import { SCOUT_SLOT_ID } from "./scout-takeover";
@@ -137,7 +137,7 @@ export function ScoutPanel() {
         <header className="flex shrink-0 items-center gap-3 px-4 pt-4 pb-1">
           {/* The mark beside every line the assistant says, so the panel and
               its chat wear one (KAN-257); a brand-tint circle stood here. */}
-          <WorkItMark />
+          <ScoutMark />
           <div className="min-w-0">
             <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
             <p className="text-note text-ink-meta">

@@ -584,7 +584,7 @@ export function Editor({
 }
 
 /** The sticky bar above the page: the selected line's actions, or the
- *  page-count chip and Fit to One Page, then Download and Ask WorkIt at its
+ *  page-count chip and Fit to One Page, then Download and Ask Scout at its
  *  end. Sticky, so a line's actions never cover the lines around it (user
  *  story 63), and Download stays in reach down a two-page resume. */
 function Bar({
@@ -681,7 +681,7 @@ function Bar({
         </>
       )}
       {/* The bar's end wraps as one, so on a narrow page Download and Ask
-          WorkIt stay together at the right rather than Ask WorkIt alone. */}
+          Scout stay together at the right rather than Ask Scout alone. */}
       <div className="ml-auto flex items-center gap-2">
         <span className="text-note text-ink-meta pr-2" aria-live="polite">
           {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
@@ -691,7 +691,7 @@ function Bar({
             as quiet as Fit to One Page (KAN-258). */}
         {onAsk && (
           <Button size="sm" onClick={onAsk}>
-            <SparkleIcon /> Ask WorkIt
+            <SparkleIcon /> Ask Scout
           </Button>
         )}
       </div>

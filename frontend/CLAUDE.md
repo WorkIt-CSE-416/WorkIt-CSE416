@@ -63,10 +63,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   clone with no env file is gated too. The root page's hiring card still
   shows and lands there. `components/account-type-switcher.tsx` has its
   toggle commented out and always submits `applicant`, so login, signup and
-  choose-account-type show no Company option; the brand panel's hiring line
-  is commented out too. The company code stays in place. To bring it back,
-  delete the proxy block and `app/coming-soon/`, then uncomment those two
-  components. The API still accepts company signups; the gate is the UI only.
+  choose-account-type show no Company option. The company code stays in
+  place. To bring it back, delete the proxy block and `app/coming-soon/`,
+  then uncomment the switcher's toggle. The API still accepts company
+  signups; the gate is the UI only.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
@@ -106,7 +106,7 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
 - **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
-  KAN-257): every Scout or AI control, and WorkIt's mark in the chat and
+  KAN-257): every Scout or AI control, and Scout's mark in the chat and
   the panel header, draws it. An ESLint rule refuses Lucide's `Sparkles`
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
   the assistant two marks (`docs/design.md`, Brand and icons).

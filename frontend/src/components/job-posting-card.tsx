@@ -109,7 +109,7 @@ import { cn } from "@/lib/cn";
  * match rail took a third of the card.
  *
  * `headerAction`, `actions` and `rail` are slots because what surrounds the
- * card differs by audience. A seeker's card carries a Save / Ask WorkIt /
+ * card differs by audience. A seeker's card carries a Save / Ask Scout /
  * Apply row, and the match rail; the composer's preview carries none of that
  * — the role is not live, so there is nothing to save, match against, or
  * apply to yet.

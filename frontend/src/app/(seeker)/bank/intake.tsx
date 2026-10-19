@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
-import { Composer, Message, Typing, WorkItMark as Mark } from "@/components/scout/chat";
+import { Composer, Message, Typing, ScoutMark as Mark } from "@/components/scout/chat";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { readEvents, type ScoutMessage } from "@/components/scout/stream";
@@ -48,10 +48,10 @@ import {
 } from "./sections";
 
 /**
- * Intake on the bank page (KAN-213): the student tells WorkIt about one thing
+ * Intake on the bank page (KAN-213): the student tells Scout about one thing
  * they did, and a draft entry card fills in as they talk. The look is the
  * intake prototype's variant G (prototype/KAN-193-intake-screen): a lavender
- * chat with WorkIt's mark beside its lines, a chapter line for each section,
+ * chat with Scout's mark beside its lines, a chapter line for each section,
  * the card in a sticky column beside the chat from @4xl/main, and below that
  * a one-line draft that opens as a bottom sheet. The bubbles, typing dots and
  * composer (with its mic) are Scout's own (`components/scout/chat.tsx`).
@@ -74,8 +74,8 @@ import {
  * Without it, the student picks a section from the chips and comes back to
  * them after each save. Skip and a jump drop the unsaved draft, as in the
  * prototype. A jump or a chip opens the section's bank entry with gaps, if
- * it has one not visited yet, as the walk would, so WorkIt asks only for
- * what is missing; otherwise a new card, and WorkIt's first line names the
+ * it has one not visited yet, as the walk would, so Scout asks only for
+ * what is missing; otherwise a new card, and Scout's first line names the
  * entries the section already has. A visited entry is not reopened: a
  * student who declined a school's GPA could otherwise never add another
  * school. Skipped sections are kept beside the draft, so a reload does not
@@ -91,7 +91,7 @@ import {
  * `entries` that has gaps (`gapQuestions`: no dates, no organization for a
  * job or role, no bullets for a job, project or role, no degree, field or
  * GPA for a school): the card opens on
- * the saved entry, WorkIt's first line asks about the gap, and the model,
+ * the saved entry, Scout's first line asks about the gap, and the model,
  * which never asks for what the draft already holds, asks only about the
  * rest. Saving such a visit edits the entry (`editSteps`), never adds one.
  * An entry visited once, saved or skipped, is not visited again on this page.
@@ -101,13 +101,13 @@ import {
  * column. The panel's header replaces intake's own. Three bands: the stage
  * card (the section, its step and the step chips, nothing to act on), the
  * chat on the panel's own surface, with the draft and its actions under
- * WorkIt's newest line (`draft-preview.tsx`), and the composer. The form
+ * Scout's newest line (`draft-preview.tsx`), and the composer. The form
  * opens over the panel on Edit or Fill In Myself, so it never sits on the
  * chat. With an empty bank the
  * resume question is a stage of its own first: the greeting asks it, its
  * answers (Upload Resume, Use One I Uploaded, Start Without One) sit under
  * it, and no section or stage card shows until one is picked (KAN-249).
- * With entries, the walk starts at once and the question is WorkIt's second
+ * With entries, the walk starts at once and the question is Scout's second
  * line, with the two import answers, until the student imports once.
  * Onboarding keeps the page layout.
  */
@@ -132,12 +132,12 @@ type Kept = { draft: EntryDraft; done: boolean; entryId?: string };
 /** Where the walk goes next: a new entry in a section, or a bank entry's gaps. */
 type Target = { section: Section } | { entry: BankEntry };
 
-/** Docked with an empty bank, WorkIt's greeting asks the resume question,
+/** Docked with an empty bank, Scout's greeting asks the resume question,
  *  alone: the first section waits for the answer (`resumeStage`). */
 const OFFER_GREETING =
   "Hi! I'll help you fill your experience bank, one thing at a time. Have a resume? I can read it first, then ask only about the rest.";
 
-/** WorkIt's first line for each section. Fixed text, not a model turn, so it
+/** Scout's first line for each section. Fixed text, not a model turn, so it
  *  costs nothing and is not sent: the API counts follow-ups from its own. */
 const OPENERS: Record<Section, string> = {
   education: "Tell me about your school. Where do you study, and what are you studying?",
@@ -159,7 +159,7 @@ const ANOTHER: Record<Section, string> = {
   certifications: "another certification",
 };
 
-/** WorkIt's first line on a visit to a bank entry with gaps. Fixed text too. */
+/** Scout's first line on a visit to a bank entry with gaps. Fixed text too. */
 function gapOpener(entry: BankEntry): string {
   const [first, ...rest] = gapQuestions(entry);
   const name = [entry.title, entry.organization].filter(Boolean).join(", ");
@@ -205,7 +205,6 @@ export function Intake({
   entries = [],
   onSaved,
   walk = false,
-  lead,
   importable = false,
   autoImport = false,
   docked = false,
@@ -218,8 +217,6 @@ export function Intake({
   onSaved: () => Promise<string | null>;
   /** Lead the student through the sections, one after another. */
   walk?: boolean;
-  /** A step shown done before the sections, in the step bar. */
-  lead?: string;
   /** Offer Import My Resume in the chat. */
   importable?: boolean;
   /** Open the import on mount: the Jobs page's one-click "Import Your Resume". */
@@ -414,7 +411,7 @@ export function Intake({
   }
 
   /** A jump from the step bar or a chip, with the draft dropped: the
-   *  section's first bank entry with gaps not visited yet, so WorkIt asks
+   *  section's first bank entry with gaps not visited yet, so Scout asks
    *  only for what the entry lacks, else a new entry. */
   function jump(section: Section) {
     finish();
@@ -478,7 +475,7 @@ export function Intake({
       if (!res.ok || !res.body) {
         const body: unknown = await res.json().catch(() => null);
         const detail = (body as { detail?: unknown } | null)?.detail;
-        failure = typeof detail === "string" ? detail : "WorkIt couldn't answer. Try again.";
+        failure = typeof detail === "string" ? detail : "Scout couldn't answer. Try again.";
       } else {
         for await (const event of readEvents<IntakeEvent>(res.body)) {
           if (event.type === "text") {
@@ -501,7 +498,7 @@ export function Intake({
         }
       }
     } catch {
-      failure = "WorkIt couldn't be reached. Check your connection and try again.";
+      failure = "Scout couldn't be reached. Check your connection and try again.";
     }
     setAnswering(false);
     setError(failure);
@@ -602,7 +599,7 @@ export function Intake({
     <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
       <FileUp aria-hidden className="text-brand size-5 shrink-0" />
       <p className="text-note text-ink-muted min-w-0 flex-1">
-        Want to pre-fill your entries? Upload your resume. WorkIt fills in what it can, then asks
+        Want to pre-fill your entries? Upload your resume. Scout fills in what it can, then asks
         only about the rest.{" "}
         <button
           type="button"
@@ -631,7 +628,7 @@ export function Intake({
     <input ref={fileInput} type="file" accept=".pdf,.docx" onChange={upload} hidden />
   );
 
-  /** The resume question's answers. Every answer WorkIt offers is a
+  /** The resume question's answers. Every answer Scout offers is a
    *  suggestion Chip, these and the section chips alike (KAN-251); they were
    *  a fill, an outline and a text link. Start Without One only in the
    *  stage, where no section has started yet. */
@@ -664,11 +661,11 @@ export function Intake({
   );
 
   /** Docked with an empty bank, the resume question is a stage of its own
-   *  (KAN-249): WorkIt's greeting asks it (OFFER_GREETING), its three
+   *  (KAN-249): Scout's greeting asks it (OFFER_GREETING), its three
    *  answers sit under it, and no section starts until one is picked. Asked
    *  beside the Education question, as it was, the first screen asked two
    *  things at once. A bank with entries has no stage, since the walk opens
-   *  on its gaps: the question is WorkIt's second line, with its two import
+   *  on its gaps: the question is Scout's second line, with its two import
    *  answers, until the student imports once. Without it, a student whose
    *  bank had an entry had no way to import at all. After Start Without One
    *  it stays answered. */
@@ -678,9 +675,9 @@ export function Intake({
       !importing &&
       !greetedWithOffer && (
         <>
-          <WorkItLine follows>
+          <ScoutLine follows>
             Have a resume? I can read it, fill in what it can, and then ask only about the rest.
-          </WorkItLine>
+          </ScoutLine>
           {resumeAnswers(false)}
         </>
       );
@@ -690,7 +687,6 @@ export function Intake({
       current={draft?.section ?? null}
       filled={filled}
       skipped={skipped}
-      lead={lead}
       busy={answering || saving}
       // Docked, the stage card is the chips alone; Skip is in the chat.
       compact={docked}
@@ -699,8 +695,8 @@ export function Intake({
     />
   );
 
-  // WorkIt's newest line, which the draft (docked) sits under.
-  const lastWorkIt = lines.findLastIndex((l) => l.kind === "text" && l.role === "assistant");
+  // Scout's newest line, which the draft (docked) sits under.
+  const lastScout = lines.findLastIndex((l) => l.kind === "text" && l.role === "assistant");
 
   const importer = (
     <ImportCard
@@ -716,8 +712,8 @@ export function Intake({
     />
   );
 
-  /** The chat: WorkIt's lines, with `intro` after its greeting (`greeting`
-   *  in place of the usual one), `latest` under WorkIt's newest line (the
+  /** The chat: Scout's lines, with `intro` after its greeting (`greeting`
+   *  in place of the usual one), `latest` under Scout's newest line (the
    *  draft, docked), then `tray` (the draft's way in) above the composer.
    *  The class names size and frame the box and its lines. */
   const chat = ({
@@ -748,19 +744,19 @@ export function Intake({
           logClassName,
         )}
       >
-        <WorkItLine>
+        <ScoutLine>
           {greeting ??
             (walk
               ? "Hi! I'll help you fill your experience bank, one thing at a time. You can skip any section."
               : "Hi! Pick a section and tell me about one thing you did. I'll draft the entry while we talk, and you save it when it looks right.")}
-        </WorkItLine>
+        </ScoutLine>
         {intro}
-        {lastWorkIt < 0 && latest}
+        {lastScout < 0 && latest}
 
         {lines.map((line, i) => (
           <Fragment key={i}>
             <ChatLine line={line} follows={continues(lines, i)} />
-            {i === lastWorkIt && latest}
+            {i === lastScout && latest}
           </Fragment>
         ))}
 
@@ -768,7 +764,7 @@ export function Intake({
           <div className="flex items-end gap-2.5">
             <Mark />
             <Message role="assistant" className="bg-panel shadow-card">
-              <Typing who="WorkIt" />
+              <Typing who="Scout" />
             </Message>
           </div>
         )}
@@ -793,7 +789,7 @@ export function Intake({
         )}
       </div>
 
-      {/* A screen reader hears each of WorkIt's lines once. */}
+      {/* A screen reader hears each of Scout's lines once. */}
       <p aria-live="polite" className="sr-only">
         {!answering && lines.at(-1)?.kind === "text" ? lastText(lines) : ""}
       </p>
@@ -805,8 +801,8 @@ export function Intake({
             onSend={send}
             answering={answering}
             disabled={!draft}
-            who="WorkIt"
-            label="Message WorkIt"
+            who="Scout"
+            label="Message Scout"
             placeholder={
               draft
                 ? "Type your answer…"
@@ -841,7 +837,7 @@ export function Intake({
   );
 
   if (docked) {
-    // Under WorkIt's newest line: the draft and its actions once it has a
+    // Under Scout's newest line: the draft and its actions once it has a
     // title; before that, the same ways on as suggestion chips under the
     // question, so a section can still be skipped or filled in by hand.
     const latest = draft && !importing && (
@@ -875,7 +871,7 @@ export function Intake({
     return (
       // Its own container, so the step chips size to the panel. Three bands:
       // the stage card (the step chips alone), the chat (with the draft and
-      // its actions under WorkIt's newest line), the composer. The form opens
+      // its actions under Scout's newest line), the composer. The form opens
       // over all three on Edit. During the resume stage only the chat shows.
       <section
         aria-labelledby="intake-title"
@@ -883,7 +879,7 @@ export function Intake({
       >
         {/* The panel's header names it; this names the region. */}
         <h2 id="intake-title" className="sr-only">
-          Tell WorkIt About It
+          Tell Scout About It
         </h2>
         {fileField}
         {!resumeStage && (
@@ -943,10 +939,10 @@ export function Intake({
         <Mark />
         <div className="min-w-0">
           <h2 id="intake-title" className="text-subtitle text-ink">
-            Tell WorkIt About It
+            Tell Scout About It
           </h2>
           <p className="text-note text-ink-meta">
-            Talk it through, and WorkIt fills in an entry from your own words.
+            Talk it through, and Scout fills in an entry from your own words.
           </p>
         </div>
       </div>
@@ -1009,7 +1005,7 @@ function lastText(lines: Line[]): string {
   return last?.kind === "text" && last.role === "assistant" ? last.content : "";
 }
 
-function WorkItLine({ follows = false, children }: { follows?: boolean; children: ReactNode }) {
+function ScoutLine({ follows = false, children }: { follows?: boolean; children: ReactNode }) {
   return (
     <div className={cn("flex items-end gap-2.5", follows && "-mt-1.5")}>
       {follows ? <span className="w-8 shrink-0" /> : <Mark />}
@@ -1037,7 +1033,7 @@ function ChatLine({ line, follows }: { line: Line; follows: boolean }) {
       </p>
     );
   if (line.role === "user") return <Message role="user">{line.content}</Message>;
-  return <WorkItLine follows={follows}>{line.content}</WorkItLine>;
+  return <ScoutLine follows={follows}>{line.content}</ScoutLine>;
 }
 
 /** A divider that opens each section, so the chat reads in chapters. */
@@ -1085,7 +1081,7 @@ function DraftCard({
         <Mark />
         <p className="text-subtitle text-ink">Your Entry Builds Here</p>
         <p className="text-note text-ink-meta">
-          Tell WorkIt about something you did. It turns into a resume entry as you talk.
+          Tell Scout about something you did. It turns into a resume entry as you talk.
         </p>
       </div>
     );

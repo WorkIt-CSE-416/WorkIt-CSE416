@@ -13,9 +13,12 @@ import { useSpeechInput } from "./use-speech-input";
 /**
  * The chat pieces Scout's panel, intake on the bank page and the editor
  * assistant share: a message bubble, the typing dots, the composer with its
- * mic, and WorkIt's mark beside its lines in intake's look. Each caller
- * names itself through the props (who is thinking, what the box is for), so
- * the pieces never say "Scout" where Scout is not the one talking.
+ * mic, and Scout's mark beside its lines in intake's look. Each caller
+ * names itself through the props (who is thinking, what the box is for).
+ *
+ * ALL THREE ARE SCOUT. Intake and the editor assistant used to call
+ * themselves "WorkIt", so a student met the same sparkle under two names;
+ * WorkIt is the product and Scout its one assistant (KAN-259).
  */
 
 /** A bubble rises in as it arrives. The sender's corner is squared, the way
@@ -46,11 +49,11 @@ export function Message({
   );
 }
 
-/** WorkIt's mark: the brand gradient with a sparkle, beside its lines in
+/** Scout's mark: the brand gradient with a sparkle, beside its lines in
  *  intake and the editor assistant (the intake prototype's variant G), and
  *  in Scout's panel header. The sparkle is `SparkleIcon`, the one glyph
  *  for Scout and AI (KAN-257). */
-export function WorkItMark() {
+export function ScoutMark() {
   return (
     <span
       aria-hidden

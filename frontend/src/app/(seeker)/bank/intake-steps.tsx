@@ -9,7 +9,6 @@ import {
   Lightbulb,
   Minus,
   Trophy,
-  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -51,9 +50,9 @@ import { sectionOf } from "./sections";
  * draft card's own status ("Still needed: Start Date").
  *
  * `compact` (Scout's panel, KAN-249) is the whole of the stage card
- * (KAN-257): the current section's name and "Step 1 of 6" over the chips,
+ * (KAN-257): the current section's name and "Section 1 of 6" over the chips,
  * and nothing to act on but the chips. Edit, Skip and the draft moved into
- * the chat, under WorkIt's latest line (`draft-preview.tsx`), where they had
+ * the chat, under Scout's latest line (`draft-preview.tsx`), where they had
  * crowded a card that is for finding your way. A chip still jumps, so it
  * needs no Back. With no current section (every one dealt with) it reads
  * "Your Sections" and how many are done.
@@ -70,7 +69,7 @@ export const WALK: readonly Section[] = [
 ];
 
 /** Each section's glyph: its step chip, the chat's chapter line, the draft
- *  form's header and the sections WorkIt offers to start. */
+ *  form's header and the sections Scout offers to start. */
 export const ICONS: Record<Section, LucideIcon> = {
   education: GraduationCap,
   experience: Briefcase,
@@ -97,7 +96,6 @@ export function StepBar({
   current,
   filled,
   skipped,
-  lead,
   busy = false,
   compact = false,
   onJump,
@@ -107,9 +105,7 @@ export function StepBar({
   /** Sections with at least one entry in the bank. */
   filled: readonly Section[];
   skipped: readonly Section[];
-  /** A step before the sections, shown done: onboarding's profile form. */
-  lead?: string;
-  /** While WorkIt answers: a late reply must not land on another section. */
+  /** While Scout answers: a late reply must not land on another section. */
   busy?: boolean;
   /** The chips alone, for Scout's panel's stage card. */
   compact?: boolean;
@@ -125,8 +121,6 @@ export function StepBar({
 
   const index = current ? WALK.indexOf(current) : -1;
   const previous = index > 0 ? WALK[index - 1] : null;
-  const offset = lead ? 1 : 0;
-  const steps = WALK.length + offset;
 
   const cheer =
     percent === 100
@@ -137,13 +131,16 @@ export function StepBar({
           ? "Over halfway there. Keep it up!"
           : "Nice work. Keep going!";
 
+  // "Section", not "Step": onboarding's Experiences page has the step rail
+  // above this bar (onboarding/applicant/steps.ts), and two "Step x of y"
+  // counts on one page read as one count gone wrong (KAN-259).
   const where = current ? (
     <>
-      Step {index + 1 + offset} of {steps} ·{" "}
+      Section {index + 1} of {WALK.length} ·{" "}
       <span className="text-brand font-semibold">{sectionOf(current).label}</span>
     </>
   ) : (
-    `${finished + offset} of ${steps} steps done`
+    `${finished} of ${WALK.length} sections done`
   );
 
   // The badges' ring is the colour the bar sits on, so a badge reads as cut
@@ -155,15 +152,9 @@ export function StepBar({
       aria-label="Intake steps"
       // The line the chips sit on runs from the first chip's centre to the
       // last's: half a column in from each end.
-      style={{ "--edge": `${50 / steps}%` } as CSSProperties}
-      className={cn(
-        "before:bg-brand-pale relative grid before:absolute before:top-4 before:right-(--edge) before:left-(--edge) before:h-0.5 before:-translate-y-1/2",
-        lead ? "grid-cols-7" : "grid-cols-6",
-      )}
+      style={{ "--edge": `${50 / WALK.length}%` } as CSSProperties}
+      className="before:bg-brand-pale relative grid grid-cols-6 before:absolute before:top-4 before:right-(--edge) before:left-(--edge) before:h-0.5 before:-translate-y-1/2"
     >
-      {lead && (
-        <StepChip label={lead} icon={UserRound} state="done" ground={ground} named={!compact} />
-      )}
       {WALK.map((s, i) => (
         <StepChip
           key={s}
@@ -188,7 +179,9 @@ export function StepBar({
             {current ? sectionOf(current).label : "Your Sections"}
           </p>
           <p className="text-note text-ink-meta shrink-0">
-            {current ? `Step ${index + 1} of ${steps}` : `${finished} of ${steps} done`}
+            {current
+              ? `Section ${index + 1} of ${WALK.length}`
+              : `${finished} of ${WALK.length} done`}
           </p>
         </div>
         {chips}

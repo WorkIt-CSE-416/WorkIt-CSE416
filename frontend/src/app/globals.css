@@ -44,7 +44,7 @@
    * the lightness it was measured at. The page moves further, down to the
    * app's own ground: once the hue is gone the two were within a point of
    * each other, and one page grey is simpler than two nobody can tell apart. */
-  --color-canvas: #f5f5f5; /* page background behind the card */
+  --color-canvas: #f5f5f5; /* body ground; the auth screens paint a sky over it */
   --color-surface: #f8f8f8; /* card / raised panel — note: not pure white */
   --color-surface-tint: #f1f7fa; /* logo tile, subtle tinted fills */
 
@@ -139,7 +139,7 @@
    * page — with the page a shade deeper than it was (96% against the old 97.5%)
    * so a white card has an edge to sit on now that the hue difference is gone. */
   --color-app: #f5f5f5; /* page behind the cards; uploaded-file row */
-  --color-panel: #ffffff; /* top bar and cards */
+  --color-panel: #ffffff; /* top bar, cards and secondary buttons */
   --color-well: #f7f7f7; /* recessed area — the resume dropzone, match rail */
 
   /* App interaction states -----------------------------------------------
@@ -492,8 +492,8 @@
   --color-ink-faint: #8893a4;
 
   /* 28px, the largest type in the app: a Dashboard's headline figures (stat
-   * tiles, Waiting, Highlights, the status ring's total), the company
-   * profile's name and the auth pitch. */
+   * tiles, Waiting, Highlights, the status ring's total) and the company
+   * profile's name. */
   --text-display: 1.75rem;
   --text-display--line-height: 2rem;
   --text-display--font-weight: 700;
@@ -878,8 +878,10 @@ body {
  * both shells. So it cannot inherit the page colour a shell sets on itself, and
  * this rule is the only way it learns which shell it is holding.
  *
- * Login grounds on --color-canvas and the design kit on --color-app; those are
- * the same #f5f5f5, so the default above is already right for both. The two
+ * The design kit grounds on --color-app, the same #f5f5f5 as the canvas, so
+ * the default above is already right for it. The auth screens paint a sky
+ * over the canvas (components/skyline.tsx) and say so with data-skyline; the
+ * rule after these two gives them its white top. The two
  * signed-in shells are the ones that diverge: they paint their pages with
  * --background, which is white, while the canvas underneath stayed grey.
  * Rubber-band a trackpad there and a grey band opened up — under the bar going
@@ -900,6 +902,12 @@ body:has([data-shell]) {
  * should open more frame, not a white strip. */
 body:has([data-shell="seeker"]) {
   background: var(--color-frame);
+}
+
+/* The auth screens' sky is white overhead, so a bounce past their top opens
+ * white rather than a grey band over it. */
+body:has([data-skyline]) {
+  background: var(--color-panel);
 }
 
 /* -----------------------------------------------------------------------------

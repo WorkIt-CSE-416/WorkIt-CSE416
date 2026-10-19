@@ -14,20 +14,20 @@ import { degreeLine, formatDates, neededFacts, type EntryDraft } from "./section
  * a form. The form opens over the panel on Edit, so the chat keeps the
  * panel's height.
  *
- * IN THE CHAT (KAN-257), under WorkIt's latest line, the way an assistant's
+ * IN THE CHAT (KAN-257), under Scout's latest line, the way an assistant's
  * answer carries what it made: the draft card, and in its foot Skip Section
  * (or "Leave As Is" on a visit), Edit and Save Entry. The card follows
- * WorkIt's newest line, so there is one, near the composer, and it never
- * goes stale higher up the chat. Before WorkIt has a title there is nothing
+ * Scout's newest line, so there is one, near the composer, and it never
+ * goes stale higher up the chat. Before Scout has a title there is nothing
  * to preview, so the chat offers the same actions as suggestion chips under
  * its question (`intake.tsx`). The draft and those buttons used to sit in
  * the stage card above the chat, which crowded a card whose job is finding
  * your way, and parted the actions from the conversation they answer.
  *
  * After Cloudscape's split of inline previews (quick to read, one or two
- * actions in the card) from canvas previews (opened to edit): what WorkIt
+ * actions in the card) from canvas previews (opened to edit): what Scout
  * has understood so far, in plain view. Each line is keyed by its text, so
- * a line WorkIt fills in or changes fades in, and the student sees the
+ * a line Scout fills in or changes fades in, and the student sees the
  * answer land.
  *
  * THE DRAFT'S LINES (KAN-257) run from what matters most to least: the
@@ -61,7 +61,7 @@ export function DraftPreview({
   draft: EntryDraft;
   done: boolean;
   saving: boolean;
-  /** While WorkIt answers or a save runs: a late reply must not land on the
+  /** While Scout answers or a save runs: a late reply must not land on the
    *  next section, so Skip waits. Disabled rather than hidden, so the card
    *  holds still. */
   busy: boolean;
@@ -189,8 +189,8 @@ function linkLabel(url: string): string {
 /**
  * What a draft still needs, in the bank's warning amber, the names the form
  * gives those fields (`neededFacts`, never an optional field); or, once
- * WorkIt has no questions left and nothing is missing, that it is ready, in
- * the positive green. Nothing while WorkIt is still asking about optional
+ * Scout has no questions left and nothing is missing, that it is ready, in
+ * the positive green. Nothing while Scout is still asking about optional
  * facts. The stage card and the form over the panel both show it.
  */
 export function DraftStatus({ needed, done }: { needed: readonly string[]; done: boolean }) {
@@ -212,7 +212,7 @@ export function DraftStatus({ needed, done }: { needed: readonly string[]; done:
   );
 }
 
-/** Whether WorkIt has more to ask: a pulsing brand dot, or a still green
+/** Whether Scout has more to ask: a pulsing brand dot, or a still green
  *  one once the draft is ready, in the step bar's done green (KAN-257).
  *  The one-line draft that opens the form on a narrow onboarding page
  *  shows it. */

@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { Composer, Message, Typing, WorkItMark } from "@/components/scout/chat";
+import { Composer, Message, Typing, ScoutMark } from "@/components/scout/chat";
 import { Chip } from "@/components/ui/chip";
 import { IconButton } from "@/components/ui/icon-button";
 import { askAssistant, type AssistantLine } from "@/lib/assistant-actions";
@@ -167,7 +167,7 @@ export function Assistant({
 
   return (
     <aside
-      aria-label="WorkIt Assistant"
+      aria-label="Scout"
       className={cn(
         "from-brand-tint to-panel ring-brand-tint flex min-h-0 flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1",
         className,
@@ -175,8 +175,8 @@ export function Assistant({
     >
       {onClose && (
         <div className="border-brand-tint flex items-center gap-2.5 border-b px-4 py-3">
-          <WorkItMark />
-          <span className="text-label text-ink font-semibold">WorkIt Assistant</span>
+          <ScoutMark />
+          <span className="text-label text-ink font-semibold">Scout</span>
           <IconButton label="Close" className="ml-auto" onClick={onClose}>
             <X className="size-4" />
           </IconButton>
@@ -202,7 +202,7 @@ export function Assistant({
               {said[i - 1]?.role === "assistant" ? (
                 <span className="w-8 shrink-0" />
               ) : (
-                <WorkItMark />
+                <ScoutMark />
               )}
               <Message
                 role="assistant"
@@ -233,9 +233,9 @@ export function Assistant({
         )}
         {answering && (
           <div className="flex items-end gap-2.5">
-            <WorkItMark />
+            <ScoutMark />
             <Message role="assistant" className="bg-panel shadow-card">
-              <Typing who="WorkIt" />
+              <Typing who="Scout" />
             </Message>
           </div>
         )}
@@ -270,7 +270,7 @@ export function Assistant({
         )}
       </div>
 
-      {/* A screen reader hears each of WorkIt's lines once. */}
+      {/* A screen reader hears each of Scout's lines once. */}
       <p aria-live="polite" className="sr-only">
         {!answering && said.at(-1)?.role === "assistant" ? said.at(-1)!.content : ""}
       </p>
@@ -285,9 +285,9 @@ export function Assistant({
           <Composer
             onSend={send}
             answering={answering}
-            who="WorkIt"
-            label="Message WorkIt"
-            placeholder={line ? "What should change?" : "Ask WorkIt, or pick a line…"}
+            who="Scout"
+            label="Message Scout"
+            placeholder={line ? "What should change?" : "Ask Scout, or pick a line…"}
           />
         </div>
         {usesLeft !== null && (

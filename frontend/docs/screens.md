@@ -635,9 +635,9 @@ bottom: the stage card (the step chips), the chat (with the draft in it,
 `draft-preview.tsx`), the composer.
 
 **The resume question comes first, alone** (KAN-249), when the bank is
-empty and no draft is kept: WorkIt's greeting asks "Have a resume?" with
+empty and no draft is kept: Scout's greeting asks "Have a resume?" with
 Upload Resume, Use One I Uploaded and Start Without One under it, and no
-section or stage card shows until one is picked. **Every answer WorkIt
+section or stage card shows until one is picked. **Every answer Scout
 offers is a suggestion Chip** (`ui/chip.tsx`, KAN-251), these and the
 section chips alike: one size, one look, each with its glyph. The resume
 answers were a fill, an outline and a text link of three heights, the last
@@ -646,7 +646,7 @@ the chat as the student's answer, then the first section starts; an import
 starts the walk on what the resume left out, as before. Upload Resume
 uploads, and the upload fills the bank itself; Use One I Uploaded runs
 Import Again on the default upload. A bank with
-entries has no stage: the walk opens on its gaps at once, and WorkIt's
+entries has no stage: the walk opens on its gaps at once, and Scout's
 second line asks "Have a resume?" with Upload Resume and Use One I
 Uploaded, until the student imports once. With no offer there, as the
 first version of KAN-249 had it, a student whose bank held one entry had
@@ -654,22 +654,22 @@ no way to import a resume. The first version also asked about the resume
 and Education at once, which read as two tasks on one screen.
 
 **The stage card is the one block above the chat, and it only finds the
-way** (KAN-249, KAN-257): the current section's name and "Step 1 of 6" over
+way** (KAN-249, KAN-257): the current section's name and "Section 1 of 6" over
 the step chips (`compact`; a chip still jumps, so there is no Back). The
 current chip carries the section's icon. With no section open it reads
 "Your Sections" and how many are done. It is lavender
 (`--color-stage-card`): white on the panel's white, behind a ring of the
 same pale tint, it read as one more line of the chat.
-**The draft and its actions live in the chat** (KAN-257), under WorkIt's
+**The draft and its actions live in the chat** (KAN-257), under Scout's
 newest line, the way an assistant's answer carries what it made. Once
-WorkIt has a title, it is a white card: the title, the status and the
-entry, each line fading in as WorkIt fills it, and in its foot Skip Section
+Scout has a title, it is a white card: the title, the status and the
+entry, each line fading in as Scout fills it, and in its foot Skip Section
 (or "Leave As Is" on a visit), Edit and Save Entry. There is one, and it
-follows WorkIt's newest line, so it sits by the composer and never goes
+follows Scout's newest line, so it sits by the composer and never goes
 stale higher up. Before a title there is nothing to preview, so the same
-ways on are suggestion chips under WorkIt's question: Fill In Myself (the
-form, for when WorkIt cannot answer: the API's "Fill in the card
-yourself") and Skip Section. Skip is disabled, not hidden, while WorkIt
+ways on are suggestion chips under Scout's question: Fill In Myself (the
+form, for when Scout cannot answer: the API's "Fill in the card
+yourself") and Skip Section. Skip is disabled, not hidden, while Scout
 answers or a save runs. The draft, Edit and Skip had been pinned in the
 stage card above the chat, where they crowded a card that is for finding
 your way and stood apart from the conversation they answer. Before that
@@ -689,8 +689,8 @@ school's degree read like its coursework, and the dates floated right on
 the organization's line, alone at the edge of an empty row for an
 import's school, which has none. **Under the title, the status says what
 the draft still needs** (`DraftStatus`): "Still needed: Start Date" in the
-bank's warning amber, or "Ready to save" in green once WorkIt has no
-questions and nothing is missing, and nothing while WorkIt asks about
+bank's warning amber, or "Ready to save" in green once Scout has no
+questions and nothing is missing, and nothing while Scout asks about
 optional facts. It replaced a pulsing dot with "Filling in as you talk",
 which said nothing the chat did not, and a row of dashed "Still needed"
 chips at the card's foot. The form over the panel shows the same status.
@@ -760,7 +760,7 @@ in Docs (suggested answers in the chat, not a banner).
   here (`docs/resume.md`).
 - **Import Your Resume** (`import-card.tsx`, KAN-240) opens inside intake,
   from the resume question's answers in the chat (the first stage for an
-  empty bank, WorkIt's second line otherwise), offered until the student
+  empty bank, Scout's second line otherwise), offered until the student
   imports once. It says what went into the bank (`lib/import-summary.ts`)
   and holds Continue and, while an AI reading is left, Read It With AI.
   Nothing waits for review: the entries are in the bank, and the page
@@ -830,7 +830,7 @@ in Docs (suggested answers in the chat, not a banner).
   and says "Some changes did not save", because a retry would repeat the
   steps that worked. Intake omits `skills`, so no links show.
 - **Intake** (`intake.tsx`, KAN-213), in the look of the intake prototype's
-  variant G: a lavender chat with WorkIt's gradient mark and a chapter line
+  variant G: a lavender chat with Scout's gradient mark and a chapter line
   per section. On the bank page it is in Scout's panel, in the three bands
   above. In onboarding it leads the page: the draft card sticky beside the
   chat from `@4xl/main` and, below that, a one-line draft that opens as a
@@ -854,7 +854,7 @@ in Docs (suggested answers in the chat, not a banner).
   Activities, Experience, Awards, Certifications: user story 41, not the
   bank's order), Back on the left, Skip on the right (in Scout's panel, the
   steps alone inside the stage card, as above). A step jumps to its
-  section; the steps are disabled while WorkIt answers or a save runs, so
+  section; the steps are disabled while Scout answers or a save runs, so
   a late reply never lands on another section. The percentage starts at
   25% and grows as sections are dealt with.
   **A skipped section counts toward the percentage** (settled in KAN-214,
@@ -884,13 +884,13 @@ in Docs (suggested answers in the chat, not a banner).
   (`sections.ts`'s `gapQuestions`: no dates for a school or job; no organization for a job or
   role; no bullets for a job, project or role; no degree, field or GPA for
   a school, which a resume import often lacks) gets a visit. The card opens
-  on the saved entry, WorkIt's first line asks about the gap, the model is
+  on the saved entry, Scout's first line asks about the gap, the model is
   told what the card has and lacks, and saving edits the entry. Skip on a
   visit passes over that entry only. An entry visited once is not visited
   again on the page. A section with no entries gets the full questions.
   **A jump or a chip visits too**: picking a section opens its first entry
   with gaps not yet visited, never a blank card that asks the student to
-  retell what the bank holds. Otherwise it opens a new card, and WorkIt's
+  retell what the bank holds. Otherwise it opens a new card, and Scout's
   first line names the entries the bank already has there, each once with
   its organization ("Software Engineer Intern (Clever Devices)"): copies
   read as the same title over and over. A visited entry
@@ -905,8 +905,9 @@ in Docs (suggested answers in the chat, not a banner).
 - **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
   profile form's Continue leads there, then Finish leads to /jobs, the
   Recommended view (KAN-231). It
-  always walks, and its step bar shows the profile form as a done "Profile"
-  step before the sections. It imports `Intake` from the bank route rather
+  always walks, and its step bar counts the sections alone ("Section 3 of
+  6"): the page's step rail above it already shows the wizard's two steps
+  done, and a "Profile" segment counted them twice (KAN-259). It imports `Intake` from the bank route rather
   than promoting it to `src/components`: intake needs the bank's entry
   editor and sections, which stay with the bank page.
 - **Students see "Experiences"** (KAN-249), on the bank's view and as the
@@ -1101,18 +1102,18 @@ the sidebar. The phone layout keeps its own back arrow.
   apart from the rest of the bar. Undo is kept in sessionStorage per resume
   (`fit-undo.ts`), so a reload in the same tab still offers it. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
-  the Vercel preview check. **Download** (PDF or Word) and Ask WorkIt end
+  the Vercel preview check. **Download** (PDF or Word) and Ask Scout end
   the bar whether or not a line is selected, so Download stays in reach down
   a two-page resume (`../download-menu.tsx`, KAN-258; it was on each card
   of the Resumes view). It keeps a sent resume and holds a PDF with
   characters the font lacks for Download Anyway, as Download always has;
   the warning and any error show under the bar. The status, Download and
-  Ask WorkIt wrap as one group, so on a narrow page they stay together at
+  Ask Scout wrap as one group, so on a narrow page they stay together at
   the right. **The bar is the brand tint**, not the surface colour, so its
   secondary buttons stand out (`docs/design.md`, Components), and **Ask
   WorkIt is the brand's filled button**, the editor's primary action; it
   was an outline until KAN-258. The phone layout's top and bottom bars take
-  the same tint and its Ask WorkIt buttons the same fill, and its sheets
+  the same tint and its Ask Scout buttons the same fill, and its sheets
   are white.
 - **A toast says it first** (`fit-notice.tsx`, KAN-258): when the editor
   opens on a resume over one page, or an edit pushes one over, a toast at
@@ -1164,12 +1165,12 @@ the sidebar. The phone layout keeps its own back arrow.
   keyboard, and the field does not zoom; and the render time on cellular
   data, read from "Saved, N ms".
 - **The assistant** (`assistant.tsx`, KAN-221; the KAN-195 prototype's
-  variant E) opens from Ask WorkIt in the sticky bar and **docks beside the
+  variant E) opens from Ask Scout in the sticky bar and **docks beside the
   page** from @4xl/main (sticky, never over the page); narrower, it stacks
-  under it. On a phone, Ask WorkIt in the bottom bar or in a line's sheet
+  under it. On a phone, Ask Scout in the bottom bar or in a line's sheet
   opens it in its own sheet. It stays mounted while closed, so closing it
   keeps the chat; nothing is stored. The look is intake's (variant G:
-  lavender panel, WorkIt's mark) and the bubbles, dots and composer are
+  lavender panel, Scout's mark) and the bubbles, dots and composer are
   Scout's `chat.tsx`. It does four things, all through the editor's own
   saves: Fit to One Page, hide and move the selected line, and **Make it
   shorter** for a bullet, which shows the old and new wording with Use This
@@ -1196,7 +1197,7 @@ room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
 the panel is open. `chat.tsx` holds the message bubble, typing dots and
-composer (with the mic, `use-speech-input`) and WorkIt's mark, shared with
+composer (with the mic, `use-speech-input`) and Scout's mark, shared with
 intake on the bank page and the editor assistant; the panel's header wears
 the same mark (KAN-257), where a brand-tint circle with a hand-drawn
 sparkle had made the panel and its chat look like two assistants; each takes who is talking
@@ -1209,9 +1210,11 @@ stays escaped text otherwise).
 ## Applicant onboarding
 
 /onboarding/applicant is a two-step wizard (KAN-231), outside both shells:
-Scout asks each step's question on a lavender left half
-(`onboarding/applicant/story-panel.tsx`, a band across the top below lg) and
-the fields answer it on the right, with Back and Next pinned to the foot.
+each step's question is the page's h1 on a lavender left half
+(`onboarding/applicant/story-panel.tsx`, a band across the top below lg that
+holds the logo and the question alone), and the fields answer it on the
+right, with Back and Next pinned to the foot. Each new question takes focus,
+so a screen reader reads it out; focus used to stay on the footer button.
 From lg the screen is one window tall and only the right column scrolls, with
 its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
@@ -1224,7 +1227,28 @@ step of its own: intake uploads and imports one into the experience bank,
 which matching reads. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
-**The left half moves, from lg.** Above the question a showcase
+**One step rail counts the whole journey (KAN-259).** Both onboarding pages
+head their content with the shared `components/stepper.tsx` at `size="lg"`:
+Role, Pay & Visa, Experiences (`onboarding/applicant/steps.ts`), the third
+step being intake on ./bank. It replaced a thin bar and a 14px grey "Step 1 of
+2" at the foot of the left half: the smallest type on the screen, far from the
+fields, and wrong, since intake then opened six more sections. Intake's own
+bar on ./bank counts its sections ("Section 3 of 6") under the rail.
+
+**The question and Scout stand apart (KAN-259).** The question sits under the
+logo; Scout sits at the left half's foot, from lg only, and types a tip the
+question does not give ("Both are optional..."). They were one block, the
+bubble 28px over the question and asking it again in other words, so it was
+not clear who was asking.
+
+**The way out is quiet (KAN-259).** "Signed in as … Not you? Sign Out"
+(`onboarding/applicant/signed-in-as.tsx`) closes both pages, in the 12px of
+the inline button. Onboarding has no account menu, and sign-in brings an
+unfinished applicant back here, so the screen needs an exit; as a Sign Out
+button at the top right of the form it was the column's first thing and read
+as part of the step.
+
+**The left half moves, from lg.** Between the question and Scout a showcase
 (`onboarding/applicant/showcase.tsx`) cycles three scenes on one clock: a
 mock screen (a matched job, a resume, the applications board) with the
 notification that screen would send tucked over its corner. A scene glides
@@ -1232,10 +1256,10 @@ in, its notification follows a beat later, and both leave together while the
 next arrives (`--animate-arrive` and `--animate-leave`), so the change is a
 crossfade. Two clocks, one per part, drifted out of step. The scenes are
 scaled as a whole to fill the room the panel leaves (up to 1.8x), so a tall
-window gets a big picture; under 0.85x the stage hides and leaves the room to
-the question. Scout types a line in a chat bubble on every step. It is all
-decoration over made-up data, so it is aria-hidden, and it holds still under
-reduced motion.
+window gets a big picture; under 0.85x the stage hides and its room stays
+empty, with the question still at the top. Scout types its tip in a chat
+bubble on every step. It is all decoration over made-up data, so it is
+aria-hidden, and it holds still under reduced motion.
 
 **Its answers are the Jobs page's filters.** Every question takes
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
@@ -1251,8 +1275,9 @@ California. A fixed choice is a `ChoiceTile`
 itself, so the question is `text-hero` (40px) from lg, and the shared pickers
 take `size="lg"` (taller fields); All Filters keeps their default size. The
 right side has three type sizes at every width: 20px for each section title,
-16px for every answer (tiles, chips, pills, typed text) and 14px for every note
-beside one. `text-subtitle`, the answers' size, carries a 600 weight of its
+16px for every answer (tiles, chips, pills, typed text, the rail's step
+names) and 14px for every note beside one, the rail's numbers too; the
+signed-in line at the foot is the one 12px exception. `text-subtitle`, the answers' size, carries a 600 weight of its
 own, so each answer sets its weight; without it the typed salary and search
 text came out semibold.
 
@@ -1263,8 +1288,10 @@ the saved filters and scores what they keep against the bank just filled. A
 failed save leaves the seeker on the page to retry. Date Posted is not asked:
 a saved "past 24 hours" would empty the feed within days. Sign-in sends an
 applicant here until they finish (`docs/auth.md`); a finished one coming back
-from intake's "Back to Profile" finds the wizard filled with their saved
-answers, and Continue saves the edits.
+from intake's "Back to Pay & Visa" (`?step=2`) finds the wizard on its second
+step, filled with their saved answers, and Continue saves the edits. Without
+saved answers `?step=2` opens on the first step, which holds the answers that
+must be given.
 
 ## Company screens
 
