@@ -471,7 +471,12 @@ Location, Pay, Posting, Applied and Match, sorted by Applied unless
 posting (`listSentResumes`, as the posting's own page reads it): Apply and
 auto apply keep one, while the plain Applied button sends none, so it says
 "Not sent". Location and Pay print as the Jobs page's card does
-(`jobs/format.ts`). Posting says Open or Closed and nothing more, because
+(`jobs/format.ts`). The cells are drawn as the job cards draw their facts
+(`ui/fact.tsx`): Resume with a file glyph, Location a pin, Pay a coin and
+Applied a calendar, each value in ink and a missing one ("Not listed",
+"Not sent", "Not yet") in meta grey; Stage, Posting and Match are pills
+(Posting `positive` Open or `inert` Closed). Plain grey text in every cell
+read as bland and hard to scan. Posting says Open or Closed and nothing more, because
 scraped postings state no closing date: `job_postings.closes_at` is only set
 when a posting disappears, and the API does not send it. Columns drop out as
 the page narrows, least scanned first (Pay, Location, Posting, Resume,

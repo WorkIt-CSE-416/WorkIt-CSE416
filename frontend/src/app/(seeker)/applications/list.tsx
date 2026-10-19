@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { SortIcon } from "@/components/icons";
+import { CalendarIcon, CoinIcon, FileIcon, PinIcon, SortIcon } from "@/components/icons";
 import {
   Table,
   TableBody,
@@ -12,6 +12,7 @@ import {
 } from "@/components/shadcn/table";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Fact } from "@/components/ui/fact";
 import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
@@ -175,28 +176,43 @@ export function ApplicationsList({
                   <TableCell className="px-4">
                     <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
                   </TableCell>
-                  {/* Capped and cut, with the whole name on hover: a resume
-                      name is the student's own and can run long. */}
+                  {/* The facts as the job cards draw theirs (ui/fact.tsx): a
+                      grey glyph, then the value in ink. A missing value stays
+                      in meta grey, a step under a real one. The resume is
+                      capped and cut, with the whole name on hover: it is the
+                      student's own and can run long. */}
                   <TableCell className={cn(TD, SHOW.resume)}>
-                    {app.resume ? (
-                      <span className="block max-w-40 truncate" title={app.resume}>
-                        {app.resume}
-                      </span>
-                    ) : (
-                      "Not sent"
-                    )}
+                    <Fact
+                      Icon={FileIcon}
+                      title={app.resume ?? undefined}
+                      className={cn("max-w-44", !app.resume && "text-ink-meta")}
+                    >
+                      {app.resume ?? "Not sent"}
+                    </Fact>
                   </TableCell>
                   <TableCell className={cn(TD, SHOW.location)}>
-                    {app.location ?? "Not listed"}
+                    <Fact Icon={PinIcon} className={cn(!app.location && "text-ink-meta")}>
+                      {app.location ?? "Not listed"}
+                    </Fact>
                   </TableCell>
-                  <TableCell className={cn(TD, SHOW.pay)}>{app.pay ?? "Not listed"}</TableCell>
-                  {/* Closed in medium weight, so the rare closed posting
-                      stands out from a column of Open. */}
+                  <TableCell className={cn(TD, SHOW.pay)}>
+                    <Fact Icon={CoinIcon} className={cn(!app.pay && "text-ink-meta")}>
+                      {app.pay ?? "Not listed"}
+                    </Fact>
+                  </TableCell>
+                  {/* A pill: positive is the badge's tone for a live posting,
+                      inert for one that is over. */}
                   <TableCell className={cn(TD, SHOW.posting)}>
-                    {app.open === false ? <span className="font-medium">Closed</span> : "Open"}
+                    {app.open === false ? (
+                      <Badge tone="inert">Closed</Badge>
+                    ) : (
+                      <Badge tone="positive">Open</Badge>
+                    )}
                   </TableCell>
                   <TableCell className={cn(TD, SHOW.applied)}>
-                    {app.appliedOn ? <LocalDate at={app.appliedOn} /> : "Not yet"}
+                    <Fact Icon={CalendarIcon} className={cn(!app.appliedOn && "text-ink-meta")}>
+                      {app.appliedOn ? <LocalDate at={app.appliedOn} /> : "Not yet"}
+                    </Fact>
                   </TableCell>
                   <TableCell className={cn("px-4", SHOW.match)}>
                     {app.match != null && <MatchBadge score={app.match} />}
