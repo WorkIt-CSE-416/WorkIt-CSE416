@@ -16,16 +16,25 @@ import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
 import { LocalDate } from "../local-time";
-import { nextEvent, type Application } from "../tracker";
+import type { Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
 import { MatchBadge } from "./match-badge";
-import { NextStep } from "./next-step";
-import { applicationsHref, sortApplications, type ApplicationsQuery, type Sort } from "./query";
+import {
+  applicationHref,
+  applicationsHref,
+  sortApplications,
+  type ApplicationsQuery,
+  type Sort,
+} from "./query";
 import { Reflow } from "./reflow";
 
 /**
- * The applications as a table: role and company, stage, next step, the day it
- * went in, and the match, one row each.
+ * The applications as a table, one row each: role and company, stage, the
+ * resume sent, where the job is, its pay, whether its posting is still open,
+ * the day it went in, and the Jobs page's match score (KAN-256). A Next Step
+ * column went: with no dated events stored, it said "Nothing scheduled" on
+ * every row. There is no closing date: scraped postings state none, so
+ * Posting says only Open or Closed.
  *
  * It was a stack of cards holding the grid card's fields, marked in the code
  * as a placeholder. A table is what a list of like records wants: columns a
@@ -34,22 +43,38 @@ import { Reflow } from "./reflow";
  * card, 12px grey headings, rules between rows and no box around each.
  *
  * SORTING IS A LINK, ?sort=, like every other choice on this page, so the
- * table stays a server component and an order can be shared. Three columns
- * sort, each the way it is read: Next Step soonest first, Applied latest
- * first, Match best first. Role and stage do not; the stage filter above the
+ * table stays a server component and an order can be shared. Two columns
+ * sort, each the way it is read: Applied latest first, Match best first.
+ * The rest do not; the stage filter above the
  * table is how a stage is picked out. The heading in force says so in
  * aria-sort as well as in its chevron.
  *
  * Columns drop out as the page narrows (the page's own width, @container/main,
- * not the window's) rather than the table scrolling sideways: Match first,
- * then Applied, then the next step, keeping role and stage, the two things a
- * phone still needs. A row opens its application's detail panel; the role is
- * the link, stretched across the row.
+ * not the window's) rather than the table scrolling sideways, the least
+ * scanned first: Pay, Location, Posting, Resume, Applied, then Match,
+ * keeping role and stage, the two things a phone still needs. Match outlasts
+ * the rest since the list became the primary view (KAN-256): the score is
+ * the fact a seeker scans for. Every column shows from 1024px of page,
+ * which is why the page takes the Dashboard's width. A row opens its
+ * application's own page (./[jobId]); the role is the link, stretched across the row.
  */
 const TH = "px-4 text-note text-ink-meta font-medium";
+/** A plain fact cell: one line of grey note text. */
+const TD = "px-4 text-note text-ink-meta";
+
+/** Each optional column, from the one that stays longest to the first to go,
+ *  as the page's width (@container/main) reaches it. */
+const SHOW = {
+  match: "hidden @lg/main:table-cell",
+  applied: "hidden @xl/main:table-cell",
+  resume: "hidden @2xl/main:table-cell",
+  posting: "hidden @3xl/main:table-cell",
+  location: "hidden @4xl/main:table-cell",
+  pay: "hidden @5xl/main:table-cell",
+};
 
 /** Which way each sortable column runs, for aria-sort and the chevron. */
-const DIRECTION: Record<Sort, "asc" | "desc"> = { next: "asc", applied: "desc", match: "desc" };
+const DIRECTION: Record<Sort, "asc" | "desc"> = { applied: "desc", match: "desc" };
 
 function SortHead({
   sort,
@@ -91,13 +116,11 @@ function SortHead({
 export function ApplicationsList({
   applications,
   query,
-  now,
 }: {
   applications: Application[];
   query: ApplicationsQuery;
-  now: Date;
 }) {
-  const rows = sortApplications(applications, query.sort, now);
+  const rows = sortApplications(applications, query.sort);
 
   return (
     <Card padding="none" className="mt-4 overflow-hidden">
@@ -106,13 +129,14 @@ export function ApplicationsList({
           <TableRow className="hover:bg-transparent">
             <TableHead className={cn(TH, "w-full")}>Role</TableHead>
             <TableHead className={TH}>Stage</TableHead>
-            <SortHead sort="next" query={query} className="hidden @lg/main:table-cell">
-              Next Step
-            </SortHead>
-            <SortHead sort="applied" query={query} className="hidden @2xl/main:table-cell">
+            <TableHead className={cn(TH, SHOW.resume)}>Resume</TableHead>
+            <TableHead className={cn(TH, SHOW.location)}>Location</TableHead>
+            <TableHead className={cn(TH, SHOW.pay)}>Pay</TableHead>
+            <TableHead className={cn(TH, SHOW.posting)}>Posting</TableHead>
+            <SortHead sort="applied" query={query} className={SHOW.applied}>
               Applied
             </SortHead>
-            <SortHead sort="match" query={query} className="hidden @3xl/main:table-cell">
+            <SortHead sort="match" query={query} className={SHOW.match}>
               Match
             </SortHead>
           </TableRow>
@@ -138,8 +162,7 @@ export function ApplicationsList({
                       <ApplicationTile application={app} size="sm" />
                       <div className="min-w-0">
                         <Link
-                          href={applicationsHref(query, { app: app.id })}
-                          scroll={false}
+                          href={applicationHref(app.id)}
                           className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
                         >
                           {app.role}
@@ -151,13 +174,34 @@ export function ApplicationsList({
                   <TableCell className="px-4">
                     <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
                   </TableCell>
-                  <TableCell className="hidden px-4 @lg/main:table-cell">
-                    <NextStep next={nextEvent(app, now)} truncate className="w-48" />
+                  {/* Capped and cut, with the whole name on hover: a resume
+                      name is the student's own and can run long. */}
+                  <TableCell className={cn(TD, SHOW.resume)}>
+                    {app.resume ? (
+                      <span className="text-ink block max-w-40 truncate" title={app.resume}>
+                        {app.resume}
+                      </span>
+                    ) : (
+                      "Not sent"
+                    )}
                   </TableCell>
-                  <TableCell className="text-note text-ink-meta hidden px-4 @2xl/main:table-cell">
+                  <TableCell className={cn(TD, SHOW.location)}>
+                    {app.location ?? "Not listed"}
+                  </TableCell>
+                  <TableCell className={cn(TD, SHOW.pay)}>{app.pay ?? "Not listed"}</TableCell>
+                  {/* Closed in ink, so the rare closed posting stands out
+                      from a column of Open. */}
+                  <TableCell className={cn(TD, SHOW.posting)}>
+                    {app.open === false ? (
+                      <span className="text-ink font-medium">Closed</span>
+                    ) : (
+                      "Open"
+                    )}
+                  </TableCell>
+                  <TableCell className={cn(TD, SHOW.applied)}>
                     {app.appliedOn ? <LocalDate at={app.appliedOn} /> : "Not yet"}
                   </TableCell>
-                  <TableCell className="hidden px-4 @3xl/main:table-cell">
+                  <TableCell className={cn("px-4", SHOW.match)}>
                     {app.match != null && <MatchBadge score={app.match} />}
                   </TableCell>
                 </TableRow>

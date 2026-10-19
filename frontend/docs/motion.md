@@ -43,8 +43,8 @@ moving at `/design-kit/motion`. The rules:
   `company/template.tsx` wrap each section's page. A template remounts when
   the section changes but not when only the query does, so moving between
   sections is an exit and an enter (`page-exit`, `page-enter`) while a filter
-  or `?app=` is not. Inside a page, the Applications results are keyed on
-  their shape (the view, the board's columns, or nothing matching) and swap
+  is not. Inside a page, the Applications results are keyed on
+  their shape (the view, or nothing matching) and swap
   (`swap-enter`, `swap-exit`); within one shape each card or row is keyed by
   its application (`applications/reflow.tsx`) and glides to its new place
   when the list is sorted or filtered (`reflow`). The Calendar keys its
@@ -65,12 +65,13 @@ moving at `/design-kit/motion`. The rules:
   in a microtask after the caller's transition has ended (its router
   reducer is async), so the redraw is an ordinary update and no
   `<ViewTransition>` runs. Anything that depends on the server (a filter,
-  the list's sort, `?app=`) stays a real link.
+  the list's sort) stays a real link.
 - **The root's own crossfade is off** (`::view-transition-old(root)` is
   hidden). Everything outside a `<ViewTransition>` then updates live, which
   is what lets the sidebar's fill glide beside a changing page instead of
   ghosting at both rows. The overlay lets clicks through.
-- **The detail panel slides out before it navigates.** Closing shuts the
+- **The detail panel slides out before it navigates** (the archived
+  Calendar's; Applications opens a page instead, KAN-256). Closing shuts the
   sheet locally and drops `?app=` in `onOpenChangeComplete`, since the
   navigation unmounts it; `applications/detail-panel.tsx` says why it
   remembers the object it closed on rather than the id.

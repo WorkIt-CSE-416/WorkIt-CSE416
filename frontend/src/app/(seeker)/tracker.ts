@@ -48,14 +48,21 @@ export type Application = {
   logoUrl: string | null;
   /** Its job posting's page, while the posting is open. */
   jobHref?: string;
+  /** False once its job posting has closed. Scraped postings state no
+   *  closing date, so this is all the tracker knows about closing. */
+  open?: boolean;
+  /** Where the job is, as the Jobs page prints it; null when unstated. */
+  location?: string | null;
+  /** Its pay, as the Jobs page prints it; null when unstated. */
+  pay?: string | null;
+  /** The name of the resume last sent to its job posting (Apply or auto
+   *  apply); null when none was sent through WorkIt. */
+  resume?: string | null;
   stage: StageKey;
   /** Where it stands within its stage, in the employer's words: "Round 3". */
   status?: string;
-  /** What the seeker would write to remind themselves what the role is.
-   *  Nothing writes it yet. */
-  summary?: string;
-  /** 0-100, read in the bands in @/lib/match. Null until the tracker reads
-   *  the recommender's score. */
+  /** 0-100, the Jobs page's score, read in the bands in @/lib/match. Null
+   *  for a closed posting and while the experience bank is empty. */
   match: number | null;
   /** When it was saved (or added): the first entry on its timeline. */
   savedOn: string;

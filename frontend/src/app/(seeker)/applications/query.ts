@@ -1,31 +1,36 @@
 import { STAGE_ORDER, type StageKey } from "../stage-colors";
-import { nextEvent, sortKey, type Application } from "../tracker";
+import { sortKey, type Application } from "../tracker";
 
 /**
  * What the Applications page is showing, read from its URL: the layout, the
- * stage and search filters, the list's sort, and the application open in the
- * detail panel.
+ * stage and search filters, and the list's sort. ?app= named the application
+ * open in a side panel until KAN-256; it now only redirects to that
+ * application's own page.
  *
  * All of it lives in the query string rather than in component state, so it
  * survives a reload, the back button undoes it, and it can be linked to: the
- * Dashboard's Waiting opens `/applications?view=list&stage=applied`, and Next
- * Up opens one application's panel. It also leaves every view a server
+ * Dashboard's Waiting opens `/applications?view=list&stage=applied`. It also leaves every view a server
  * component; the stage chips and the sort headings are links, and the
  * layout switcher moves ?view= in place (./view-switcher.tsx).
  * The cost is that reading searchParams renders the route per request, which
  * the seeker shell already does.
  */
-export const VIEWS = ["board", "grid", "list"] as const;
+/** The board (./board.tsx) is archived (KAN-256): its code stays, but no
+ *  URL shows it, and an old ?view=board link opens the list. To bring it
+ *  back, add "board" here, its option in ./view-switcher.tsx and its pane in
+ *  ./page.tsx. */
+export const VIEWS = ["list", "grid"] as const;
 export type View = (typeof VIEWS)[number];
 
-/** The board is the view KAN-43 designed first, so a bare URL still shows it. */
-export const DEFAULT_VIEW: View = "board";
+/** The list is the primary view (KAN-256), so a bare URL shows it. */
+export const DEFAULT_VIEW: View = "list";
 
-/** The list's orders. Each runs the way its column is read: the soonest next
- *  step first, the latest application first, the best match first. */
-export const SORTS = ["next", "applied", "match"] as const;
+/** The list's orders. Each runs the way its column is read: the latest
+ *  application first, the best match first. An old ?sort=next link falls back
+ *  to the default (parseQuery). */
+export const SORTS = ["applied", "match"] as const;
 export type Sort = (typeof SORTS)[number];
-export const DEFAULT_SORT: Sort = "next";
+export const DEFAULT_SORT: Sort = "applied";
 
 export type ApplicationsQuery = {
   view: View;
@@ -34,7 +39,8 @@ export type ApplicationsQuery = {
   /** Matched against the role and the company, ignoring case. */
   q: string;
   sort: Sort;
-  /** The application open in the detail panel, by id. */
+  /** An old side-panel link's application, by id: ./page.tsx redirects it
+   *  to the application's own page. */
   app: string | null;
 };
 
@@ -79,6 +85,13 @@ export function applicationsHref(query: ApplicationsQuery, patch: Partial<Applic
   return search ? `/applications?${search}` : "/applications";
 }
 
+/** One application's own page (./[jobId], KAN-256), which a row or card
+ *  opens. It replaced the ?app= side panel; an old ?app= link redirects
+ *  there (./page.tsx). */
+export function applicationHref(id: string) {
+  return `/applications/${encodeURIComponent(id)}`;
+}
+
 /** The applications the filters leave: in a chosen stage (any, when none is
  *  chosen) and matching the search. */
 export function filterApplications(
@@ -94,15 +107,10 @@ export function filterApplications(
   );
 }
 
-/** The list's rows in `sort` order. What has no value to sort by (nothing
- *  scheduled, not applied yet, no match score) goes last, in the order it
- *  came in. */
-export function sortApplications(apps: Application[], sort: Sort, now: Date) {
+/** The list's rows in `sort` order. What has no value to sort by (not
+ *  applied yet, no match score) goes last, in the order it came in. */
+export function sortApplications(apps: Application[], sort: Sort) {
   const key: Record<Sort, (app: Application) => number> = {
-    next: (app) => {
-      const next = nextEvent(app, now);
-      return next ? sortKey(next.at) : Infinity;
-    },
     applied: (app) => (app.appliedOn ? -sortKey(app.appliedOn) : Infinity),
     match: (app) => (app.match != null ? -app.match : Infinity),
   };

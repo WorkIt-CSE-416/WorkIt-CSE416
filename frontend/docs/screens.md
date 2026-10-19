@@ -342,7 +342,8 @@ except Saved, which counts the live saved jobs, and Next Up and Up Next,
 which take the tracker's upcoming events (`getUpNext`). The tracker stores
 no dated events yet, so Next Up reads "You're All Caught Up" with Browse
 Jobs, and Up Next "Nothing else scheduled." Next
-Up's View Details button opens that application's detail panel and its date that week on
+Up's View Details button opens that application's own page (its old
+`?app=` link redirects there) and its date that week on
 the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
 All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
@@ -385,26 +386,57 @@ sent application.
 
 ## Applications
 
-/applications is the tracker: a board, grid and list over
-`applications/data.ts`, every choice in the URL, `?app=` opening one
-application in the detail panel. `(seeker)/tracker.ts` is the tracker's shape
+/applications is the tracker: a list (the default) and a grid over
+`applications/data.ts`, every choice in the URL; a row or card opens the
+application's own page, `/applications/[jobId]`. `(seeker)/tracker.ts` is the tracker's shape
 and date logic; `local-time.tsx` prints its dates in the viewer's own zone and
 links them to the Calendar.
 
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
 reads the seeker's saved and applied jobs from the API
-(`GET /applicants/{id}/applications?stage=saved&stage=applied`, the list Live
-Activity reads too), written by a job's Save button and its Applied button
+(`GET /applicants/{id}/applications?stage=saved&stage=applied&scored=true`,
+the list Live Activity reads too, without `scored`), written by a job's Save button and its Applied button
 or auto apply; `getTracker` in `data.ts` caches it per request. Interviewing
 and Offer stay empty until the API stores those stages, and nothing on this
 page moves a card between stages. A card is its job posting: its id is the
 posting's, its tile the company's own logo (`application-tile.tsx`; initials
 without one), and its panel links to the posting while it is open ("Posting
-Closed" after). It has no summary or match score yet, so those slots stay
-empty and Sort by Match keeps the API's order. The page has three empty
+Closed" after). The page has three empty
 states: the API failed, nothing tracked yet (Find Jobs), and filters that
 hide everything (Clear Filters). The mock cards and their stand-in company
 glyphs were removed with the fixture.
+
+**The list is the primary view and the board is archived** (KAN-256).
+A bare `/applications` shows the list, the switcher offers List then Grid,
+and an old `?view=board` link opens the list. `applications/board.tsx`
+stays, unused. To bring the board back: add `"board"` to `VIEWS` in
+`applications/query.ts`, its option in `view-switcher.tsx`, its pane in
+`page.tsx` (the comment there has it) and its `board:<stages>` key in
+`view-panes.tsx`. In the list, Match outlasts Applied as the page narrows,
+since the score is what a seeker scans for.
+
+**A card shows four facts and nothing else** (KAN-256): the role, the
+company, the day it was saved or sent, and its match score. The grid adds
+the stage pill, which its ungrouped cards would otherwise lose.
+
+**The list is a table of eight columns** (KAN-256): Role, Stage, Resume,
+Location, Pay, Posting, Applied and Match, sorted by Applied unless
+`?sort=match`. Resume is the name of the last sent resume linked to the job
+posting (`listSentResumes`, as the posting's own page reads it): Apply and
+auto apply keep one, while the plain Applied button sends none, so it says
+"Not sent". Location and Pay print as the Jobs page's card does
+(`jobs/format.ts`). Posting says Open or Closed and nothing more, because
+scraped postings state no closing date: `job_postings.closes_at` is only set
+when a posting disappears, and the API does not send it. Columns drop out as
+the page narrows, least scanned first (Pay, Location, Posting, Resume,
+Applied, then Match), and all eight show from 1024px of page, so the page
+takes the Dashboard's width (`max-w-dashboard`), not a reading page's. The score is the Jobs page's own: `?scored=true` makes the
+API run `fetch_recommended` over the tracked job postings
+(`JobFilters.job_ids`), so a card never disagrees with the feed. A closed
+posting has no score, and neither does any card while the experience bank is
+empty. A summary line and the next step ("Nothing scheduled" on every live
+card, as no dated events are stored) were cut as clutter; the
+application's own page keeps the timeline. Bring the next step back once the tracker stores events.
 
 **Application dates are real dates.** Saved and applied dates are the
 instants the API stored (`getNow`, `cache()`d, is what the pages compare
@@ -418,8 +450,9 @@ prints the UTC date, and `<When>` in `(seeker)/local-time.tsx` swaps in the
 viewer's own "Tomorrow, 2:00 PM" after hydration.
 
 **The Applications page keeps every choice in its URL** (`applications/query.ts`):
-`?view=`, `?stage=` (a comma list), `?q=`, the list's `?sort=` and `?app=`,
-the application open in the detail panel. Links and a GET form, not client
+`?view=`, `?stage=` (a comma list), `?q=` and the list's `?sort=`. An old
+`?app=` link (the side panel's) redirects to the application's own page.
+Links and a GET form, not client
 state, so every view stays a server component and the Dashboard can link to a
 filtered list or one application. The layout is the exception in how it
 moves, not in where it lives: the page renders all three layouts, each
@@ -428,8 +461,31 @@ the URL names, and the switcher moves `?view=` in place. Anything else that
 builds a link from the layout (the filter bar, Clear Filters) reads it in the
 browser through `useApplicationsQuery`, since a layout switch never asks the
 server to draw them again. A card or row is one link: its role, stretched
-over it. Its next step is a second, `relative` link to that week on
-the Calendar, which paints over the stretched one.
+over it.
+
+**An application has its own page, `/applications/[jobId]`** (KAN-256),
+which replaced the side panel: the panel had room for a timeline but not
+for the job. The top is the job page's header (`JobDetailHeader`, its facts
+through `jobs/to-posting.ts`, shared with `/jobs/[jobId]`) with the Jobs
+page card's match rail, so the role reads as it did when the seeker found
+it. Its actions are Ask Scout, Tailor My Resume and Apply Now. Under it,
+two tabs, each a URL (`?tab=application`):
+
+- **Job Description**: the posting's text, as on its job page.
+- **Your Application**: At a Glance (stage, match, posting, saved and
+  applied dates, the resume sent), Timing (elapsed days: waiting to hear
+  back, save to apply, posted before applying; or since saving and since
+  posting for a saved job), What You Sent (every sent resume linked to the
+  posting), and the timeline (`applications/timeline.tsx`, also drawn by the
+  Calendar's panel). It says plainly that WorkIt does not keep the answers
+  typed into the employer's form: neither Apply nor auto apply stores them.
+
+The application comes from `getTracker`, so its score, resume and stage
+match its row. A job the seeker has not saved or applied to is not found. A
+closed posting has no job page (`GET /jobs/{id}` answers 404), so the header
+shows what the tracker knows, marked Closed, and the description tab says it
+is gone. The day counts round elapsed time, as "Posted 8 days ago" does:
+cut, an application sent 47 hours ago read as waiting 1 day.
 
 ## Auto Apply
 
@@ -504,7 +560,7 @@ badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Working 
 Browser, Tailoring Resume and Autofilling `advanced` blue, their dot ringing
 three times, and counted under In Progress; Needs Review
 and Couldn't Finish warning amber, as both wait on the seeker; Applied the
-Applied stage's violet, so it reads the same as on the Applications board.
+Applied stage's violet, so it reads the same as on the Applications page.
 The counts above the card use the same dot colours. A queued row has a cross
 beside its badge (`auto-apply/remove-from-queue.tsx`) that takes the job out
 of the queue and refreshes the route; it sits above the row's link, so the
@@ -538,7 +594,8 @@ so bring the Calendar back before the tracker stores events.
 application went in, interviews, offers and their deadlines, closing dates
 and follow-ups, in their kind's stage colour, with a legend. `?view=` picks
 Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
-`?app=` opens the same detail panel Applications does, with a way across.
+`?app=` opens the application in a detail panel (`applications/detail-panel.tsx`,
+now the Calendar's alone), with a way across to its own page.
 Without `?date=` it opens on the viewer's today, which the server cannot
 know, so the views render in the browser behind a placeholder
 (`calendar-view.tsx`, `useHydrated`). They read the view and the day from

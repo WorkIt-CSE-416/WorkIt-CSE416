@@ -117,7 +117,11 @@ export function JobDetailHeader({
           <h1 className="text-display text-ink mt-2">{posting.title}</h1>
         </div>
 
-        <div className="flex w-full items-center gap-2 @xl:w-auto @xl:shrink-0">{actions}</div>
+        {/* Wraps on a phone: the seeker's seven actions, and even the
+            application page's three (KAN-256), ran off the card's edge. */}
+        <div className="flex w-full flex-wrap items-center gap-2 @xl:w-auto @xl:shrink-0">
+          {actions}
+        </div>
       </div>
 
       <div className="border-border-subtle flex flex-col gap-4 border-t pt-4 @xl:flex-row @xl:items-start">

@@ -109,3 +109,9 @@ def test_a_company_cannot_mark_a_job_applied(company_account):
 
 def test_applied_needs_a_job_uuid(company_account):
     assert TestClient(app).post("/jobs/not-a-uuid/applied").status_code == 422
+
+
+def test_job_ids_narrows_to_those_postings():
+    job = uuid.uuid4()
+    (clause,) = matching(JobFilters(job_ids=[job]))
+    assert _sql(clause) == f"job_postings.id IN ('{job.hex}')"

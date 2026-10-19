@@ -72,6 +72,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
   sidebar row is commented out, and all their code stays. `docs/screens.md`
   (Calendar, Seeker Dashboard) says how to bring them back.
+- **The Applications board is archived** (KAN-256): the list is the
+  default view, and `?view=board` opens it. `applications/board.tsx` stays;
+  `docs/screens.md`, Applications, says how to bring it back.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -83,7 +86,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   it with no API running.
 - **The application tracker is live and has no fixture** (KAN-261): saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
-  cached per request by `getTracker` in `data.ts`). Interviewing, Offer and
+  cached per request by `getTracker` in `data.ts`), each with the Jobs
+  page's own match score (`?scored=true`, KAN-256) and the resume last sent
+  to its posting (the sent resumes list; its failure only empties that
+  column). A row or card opens the application's own page,
+  `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
   dated events stay empty until the API stores them; a failed read shows an
   error, never stand-in cards. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from

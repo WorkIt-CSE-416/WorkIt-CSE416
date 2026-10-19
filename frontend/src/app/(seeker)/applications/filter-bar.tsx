@@ -8,7 +8,7 @@ import { ChipLink } from "@/components/ui/chip";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
-import { STAGE_COLOR, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
 import { applicationsHref, DEFAULT_SORT, DEFAULT_VIEW } from "./query";
 import { useApplicationsQuery } from "./view-switcher";
 
@@ -25,9 +25,12 @@ import { useApplicationsQuery } from "./view-switcher";
  * do on its own.
  *
  * A stage chip is a link that toggles its stage in `?stage=`. Several can be
- * on at once, and none on shows every stage. On, a chip takes its stage's
- * tint and a cross; off, it is a white outline with the stage's dot, so the
- * stage colours read the same here as on the board. Its count is how many
+ * on at once, and none on shows every stage. Each chip leads with its
+ * stage's glyph in the stage's colour (STAGE_ICON, KAN-256), the glyph the
+ * detail panel and the Dashboard's Up Next use, so a stage is told by shape
+ * as well as colour; it replaced a coloured dot, which said the stage by
+ * colour alone. On, a chip takes its stage's tint and a cross; off, it is a
+ * white outline. Its count is how many
  * applications the search leaves in that stage, so a chip says what turning
  * it on will show. The chip is a ChipLink (ui/chip.tsx, KAN-251) rather
  * than ui/filter-chip.tsx, whose chevron promises a menu.
@@ -68,6 +71,8 @@ export function FilterBar({ counts }: { counts: Record<StageKey, number> }) {
             ? query.stages.filter((s) => s !== stage)
             : STAGE_ORDER.filter((s) => s === stage || query.stages.includes(s));
 
+          const StageIcon = STAGE_ICON[stage];
+
           return (
             <ChipLink
               key={stage}
@@ -83,10 +88,11 @@ export function FilterBar({ counts }: { counts: Record<StageKey, number> }) {
                   : undefined
               }
             >
-              <span
-                aria-hidden="true"
-                className={cn("size-2 shrink-0 rounded-full", STAGE_COLOR[stage].fill)}
-              />
+              {/* The text colour that reads on the stage's tint, which clears
+                  3:1 on the white of an off chip too. */}
+              <span aria-hidden="true" className={cn("flex", STAGE_COLOR[stage].onTint)}>
+                <StageIcon />
+              </span>
               {STAGE_LABEL[stage]}
               <span className={cn("tabular-nums", !active && "text-ink-subtle")}>
                 {counts[stage]}

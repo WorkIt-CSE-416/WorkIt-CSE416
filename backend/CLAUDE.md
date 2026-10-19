@@ -215,6 +215,11 @@ Find files with a directory listing; these are the rules for where code goes.
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
   the bank's API shape (`routers/bank.py`'s `bank_response`) through
   `workit_scout.facts`. An uploaded resume only feeds import.
+- **A job's match score comes from `fetch_recommended` only**, wherever it
+  shows. The Applications page's cards (KAN-256) get theirs through
+  `GET .../applications?scored=true`, which narrows it to the tracked job
+  postings with `JobFilters.job_ids`. A second scoring path would let a
+  card and the Jobs page show two numbers for one job.
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
   and Done), the keyword match and Apply load a posting through

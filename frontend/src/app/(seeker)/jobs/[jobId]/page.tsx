@@ -4,9 +4,7 @@ import { notFound } from "next/navigation";
 
 import { SparkleIcon } from "@/components/icons";
 import { CompanyLogo } from "@/components/company-logo";
-import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
-import { NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -20,8 +18,9 @@ import { placesOf } from "../format";
 import { getApplicationStage } from "../../auto-apply/applications";
 import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
 import { SaveJobButton } from "../save-job-button";
-import { ListingsError, listingFacts } from "../listing-card";
-import { getApplied, getJobListing, type JobListing } from "../listings";
+import { ListingsError } from "../listing-card";
+import { getApplied, getJobListing } from "../listings";
+import { toPosting } from "../to-posting";
 import { ApplyButton } from "./apply-button";
 import { JobDescription } from "./description";
 import { AppliedButton, BackToJobs, ShareButton } from "./page-actions";
@@ -161,33 +160,4 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
       </Section>
     </div>
   );
-}
-
-/** A fact's words, or nothing where the posting doesn't say (the header
- *  leaves that fact out). */
-const text = (value: string | null | typeof NOT_LISTED | undefined) =>
-  typeof value === "string" ? value : "";
-
-/** The live role in the shape the shared header reads. What only a fixture
- *  carries (an employer blurb, the mock's sections) is empty. */
-function toPosting(job: JobListing): JobPosting {
-  const facts = listingFacts(job);
-  return {
-    id: job.id,
-    companyName: job.company,
-    title: job.title,
-    status: "Open",
-    jobType: text(facts.jobType),
-    workStyle: text(facts.workStyle),
-    level: text(facts.experienceLevel),
-    starts: text("startTerm" in facts ? facts.startTerm : facts.minYearsExperience),
-    locationCity: text(facts.location),
-    salary: text(facts.salary),
-    postedAt: job.posted_at ?? "",
-    updatedAt: job.posted_at ?? "",
-    companyAbout: "",
-    about: "",
-    responsibilities: [],
-    qualifications: [],
-  };
 }

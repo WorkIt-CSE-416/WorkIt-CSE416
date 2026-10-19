@@ -36,6 +36,10 @@ class Application(BaseModel):
     applied_at: datetime.datetime | None
     # False once the job posting has closed: the extension skips it.
     open: bool
+    # The Jobs page's match score (0-100) for this job posting, on ?scored=true
+    # only (KAN-256). Null otherwise, for a closed job posting, and while the
+    # experience bank is empty.
+    match: int | None = None
 
 
 class BatchRequest(BaseModel):

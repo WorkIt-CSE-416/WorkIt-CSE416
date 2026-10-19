@@ -47,8 +47,8 @@ export const STAGE_LABEL: Record<StageKey, string> = {
   offer: "Offer",
 };
 
-/** Each stage's glyph, wherever the stage is labelled: a board column's
- *  header and an Up Next row. */
+/** Each stage's glyph, wherever the stage is labelled: an Applications
+ *  filter chip, a board column's header and an Up Next row. */
 export const STAGE_ICON: Record<StageKey, ComponentType<{ className?: string }>> = {
   saved: BookmarkIcon,
   applied: BriefcaseIcon,
