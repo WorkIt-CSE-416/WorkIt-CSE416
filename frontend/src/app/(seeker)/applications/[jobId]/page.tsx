@@ -15,12 +15,16 @@ import { cn } from "@/lib/cn";
 import { listSentResumes } from "@/lib/sent-resume-actions";
 
 import { SEEKER_GUTTER } from "../../gutter";
+import { JobActionBar } from "../../jobs/[jobId]/action-bar";
 import { ApplyButton } from "../../jobs/[jobId]/apply-button";
 import { JobDescription } from "../../jobs/[jobId]/description";
+import { EligibilityCard } from "../../jobs/[jobId]/eligibility";
+import { MoreActions } from "../../jobs/[jobId]/page-actions";
 import { placesOf } from "../../jobs/format";
 import { getJobListing } from "../../jobs/listings";
 import { MatchRail } from "../../jobs/match-rail";
-import { toPosting } from "../../jobs/to-posting";
+import { listingFacts } from "../../jobs/listing-card";
+import { factText, toPosting } from "../../jobs/to-posting";
 import type { Application } from "../../tracker";
 import { getNow, getTracker } from "../data";
 import { YourApplication } from "./your-application";
@@ -40,7 +44,8 @@ type Tab = "job" | "application";
  * row or card on /applications. It replaced the side panel there: the panel
  * had room for a timeline but not for the job itself.
  *
- * THE JOB'S OWN PAGE, EXPANDED, WITH TWO TABS. The top is the job page's
+ * THE JOB'S OWN PAGE, EXPANDED, WITH TWO TABS. The top is the job page's:
+ * its pinned action bar (`JobActionBar`, with Back to Applications) and its
  * header (`JobDetailHeader`, the same facts through `toPosting`) with the
  * Jobs page card's match rail, so the role reads as it did when the seeker
  * found it. Under it, two tabs, a URL each (`?tab=application`), so a tab can
@@ -94,7 +99,33 @@ export default async function ApplicationPage({
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <BackToApplications />
+      {/* The job page's own bar (KAN-246): Back and the job's actions, held
+          at the top while the description scrolls under them. */}
+      <JobActionBar back={<BackToApplications className="group/back" />}>
+        <MoreActions title={app.role} />
+        <AskScoutButton id={app.id} title={app.role} company={app.company} />
+        {job && (
+          <>
+            <ButtonLink
+              href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+              variant="secondary"
+              size="sm"
+              className="shrink-0"
+            >
+              <SparkleIcon className="size-4" />
+              Tailor My Resume
+            </ButtonLink>
+            <ApplyButton
+              jobId={job.id}
+              title={job.title}
+              applyUrl={job.apply_url}
+              canMarkApplied
+              applied={app.appliedOn != null}
+              className="shrink-0"
+            />
+          </>
+        )}
+      </JobActionBar>
 
       <JobDetailHeader
         posting={job ? toPosting(job) : closedPosting(app)}
@@ -104,30 +135,6 @@ export default async function ApplicationPage({
         // The Jobs page card's rail. The list's read carries the score but
         // not its highlights, so the rail draws the ring alone.
         rail={<MatchRail score={app.match} highlights={[]} standalone />}
-        actions={
-          <>
-            <AskScoutButton id={app.id} title={app.role} company={app.company} />
-            {job && (
-              <>
-                <ButtonLink
-                  href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-                  variant="secondary"
-                  size="sm"
-                  className="shrink-0"
-                >
-                  <SparkleIcon className="size-4" />
-                  Tailor My Resume
-                </ButtonLink>
-                <ApplyButton
-                  jobId={job.id}
-                  title={job.title}
-                  applyUrl={job.apply_url}
-                  className="ml-auto shrink-0 @xl:ml-0"
-                />
-              </>
-            )}
-          </>
-        }
       />
 
       <SegmentedLinks
@@ -141,34 +148,38 @@ export default async function ApplicationPage({
       />
 
       {tab === "job" ? (
-        <Section title="About the Role">
-          {job ? (
-            <>
-              {/* All of its places, as on its job page. */}
-              {placesOf(job.location_label ?? job.location).length > 1 && (
-                <p className="text-body text-ink-muted mt-3">
-                  Open in {placesOf(job.location_label ?? job.location).join(" · ")}.
-                </p>
-              )}
-              {job.description ? (
-                <JobDescription
-                  text={job.description}
-                  company={job.company}
-                  applyUrl={job.apply_url}
-                />
-              ) : (
-                <p className="text-body text-ink-meta mt-3">
-                  This posting has no description here. Apply Now opens it on {job.company}
-                  &apos;s site.
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-body text-ink-meta mt-3">
-              This posting has closed, so its description is no longer on WorkIt.
-            </p>
-          )}
-        </Section>
+        <>
+          {job && <EligibilityCard jobId={job.id} />}
+          <Section title="About the Role">
+            {job ? (
+              <>
+                {/* All of its places, as on its job page. */}
+                {placesOf(job.location_label ?? job.location).length > 1 && (
+                  <p className="text-body text-ink-muted mt-3">
+                    Open in {placesOf(job.location_label ?? job.location).join(" · ")}.
+                  </p>
+                )}
+                {job.description ? (
+                  <JobDescription
+                    text={job.description}
+                    company={job.company}
+                    applyUrl={job.apply_url}
+                    pay={factText(listingFacts(job).salary) || null}
+                  />
+                ) : (
+                  <p className="text-body text-ink-meta mt-3">
+                    This posting has no description here. Apply Now opens it on {job.company}
+                    &apos;s site.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-body text-ink-meta mt-3">
+                This posting has closed, so its description is no longer on WorkIt.
+              </p>
+            )}
+          </Section>
+        </>
       ) : (
         <YourApplication app={app} job={job} sent={sentHere} now={getNow()} />
       )}
@@ -176,9 +187,9 @@ export default async function ApplicationPage({
   );
 }
 
-function BackToApplications() {
+function BackToApplications({ className = "group/back mb-3" }: { className?: string }) {
   return (
-    <ButtonLink href="/applications" variant="secondary" size="sm" className="group/back mb-3">
+    <ButtonLink href="/applications" variant="secondary" size="sm" className={className}>
       <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
       Back to Applications
     </ButtonLink>

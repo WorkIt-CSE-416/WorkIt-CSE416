@@ -511,13 +511,16 @@ over it.
 
 **An application has its own page, `/applications/[jobId]`** (KAN-256),
 which replaced the side panel: the panel had room for a timeline but not
-for the job. The top is the job page's header (`JobDetailHeader`, its facts
-through `jobs/to-posting.ts`, shared with `/jobs/[jobId]`) with the Jobs
-page card's match rail, so the role reads as it did when the seeker found
-it. Its actions are Ask Scout, Tailor My Resume and Apply Now. Under it,
-two tabs, each a URL (`?tab=application`):
+for the job. The top is the job page's own: its pinned action bar
+(`JobActionBar`, with Back to Applications in its `back` slot, and the
+"…" menu, Ask Scout, Tailor My Resume and Apply Now), then its header
+(`JobDetailHeader`, its facts through `jobs/to-posting.ts`, shared with
+`/jobs/[jobId]`) with the Jobs page card's match rail, so the role reads as
+it did when the seeker found it. Under it, two tabs, each a URL
+(`?tab=application`):
 
-- **Job Description**: the posting's text, as on its job page.
+- **Job Description**: the eligibility checklist and the posting's text,
+  as on its job page.
 - **Your Application**: At a Glance (stage, match, posting, saved and
   applied dates, the resume sent), Timing (elapsed days: waiting to hear
   back, save to apply, posted before applying; or since saving and since
