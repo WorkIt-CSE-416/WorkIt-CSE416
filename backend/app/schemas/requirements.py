@@ -5,7 +5,10 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-RequirementKind = Literal["graduation_window", "degree", "sponsorship", "citizenship", "clearance"]
+RequirementKind = Literal[
+    "graduation_window", "degree", "sponsorship", "citizenship", "clearance", "skills",
+    "experience", "enrollment", "work_arrangement", "availability", "gpa",
+]
 
 
 class JobRequirement(BaseModel):
