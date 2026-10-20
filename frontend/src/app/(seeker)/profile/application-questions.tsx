@@ -128,8 +128,9 @@ export function ApplicationQuestions({
                 <div key={q.key} className="min-w-0">
                   {/* The visible label; the picker is named by its own
                       screen-reader label (SelectField's hideLabel), since a
-                      Base UI trigger ignores a <label for>. This one only
-                      makes a click on the words focus the picker. */}
+                      Base UI trigger ignores a <label for>. This one makes
+                      a click on the words open the picker's list, as a
+                      click on the picker does (checked in Chromium). */}
                   <label htmlFor={id} className={FIELD_HEADING}>
                     <Icon className="text-brand size-5 shrink-0" />
                     {q.label}
