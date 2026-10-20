@@ -36,7 +36,14 @@ own 200ms linear, so the page holds its width through the animation; keep
 the two durations equal. A layout that splits into columns uses
 `@3xl/main:` and friends, a card that rearranges itself (the job card) is
 its own `@container`, and both see the same width whether the panel is open
-or not. On Applications and the Calendar the segmented control sits at the
+or not. **One page takes the freed room back: Applications** (KAN-256). Its
+list is a table that scrolls sideways, so more width only shows more
+columns. The page has no width cap and a negative margin of half
+`--panel-gain` on each side, which widens it with the panel's own easing
+while its `@…/main` queries still see the open width, so nothing on it
+reflows. A page whose layout splits or wraps by width keeps the rule;
+reading pages keep `--container-app`, since text past about 80 characters a
+line is hard to follow. On Applications and the Calendar the segmented control sits at the
 top right of the header wherever it fits beside the title, the title
 wrapping first; the Dashboard's range switch sits at the top right of the page, beside the
 greeting, and wraps under it where the page is narrow.
@@ -128,19 +135,22 @@ from lucide-react anywhere but `icons.tsx`.
 ## Colour
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the Dashboard's Up Next, the Applications board, grid, list and detail panel,
-and the Calendar alike; on the board the stage tints the column panel, never the cards
-inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
+the Dashboard's Up Next, the Applications list, grid, Status filter and
+application page (and the archived board), and the Calendar alike. A stage
+in the Status filter (its dropdown and All Filters, KAN-282; chips until
+then) leads with its stage's glyph in the stage's text colour, not a
+coloured dot, so the stage reads by shape too (KAN-256); on the board the stage tints the
+column panel, never the cards inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
 interview is Interviewing's amber, an offer Offer's green, a deadline Saved's
 grey, the applied date and a follow-up Applied's violet. The three views also
-say the same thing about an application: each shows its next step through
-`(seeker)/applications/next-step.tsx` ("Nothing scheduled" when there is
-none). There is no progress bar; it only restated the stage.
+say the same thing about an application (the grid and list, and the board
+when it returns): its role, company, date and match
+score (KAN-256). There is no progress bar; it only restated the stage.
 
 A match score has its own colour and never borrows a stage's. The four
 `--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a
-better match, read only through `matchColor()` in `lib/match.ts`: the board's
-match badge, the job page's match rail and the company Dashboard's match bar.
+better match, read only through `matchColor()` in `lib/match.ts`: the
+Applications match badge, the job page's match rail and the company Dashboard's match bar.
 They paint strokes, dots and bars, never text; the tier words stay ink-muted.
 Stages and statuses own violet, blue, amber, green, grey and red, so a new
 score display takes `matchColor()` and a new stage display takes its stage

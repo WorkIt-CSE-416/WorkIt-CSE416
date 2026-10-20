@@ -224,6 +224,14 @@ lacks, so the Experience filter and counts fail; deployed first, the new code
 meets rows it can't read. KAN-233 first wrote it as one, and review caught it
 before it was applied.
 
+**The column keeps `student`; the filter no longer offers it (KAN-284).**
+`student` meant exactly the internships, so the Jobs page's Student with
+Full-Time matched no job. The Experience Level filter now offers `new_grad`
+("Entry Level / New Grad") and `experienced`, and `queries/jobs/filters.py`'s
+`filter_levels` makes `new_grad` match `student` too: every internship counts
+as entry level. A search's "new grad" (`query_levels`) stays `new_grad` only.
+`?experience=student` is still accepted, for old links and saved preferences.
+
 ## A new column reaches the database before the model that maps it
 
 `deferred=True` keeps a column out of reads, not writes. On an ORM INSERT,
@@ -908,6 +916,13 @@ What that means for the account tables:
 - **`email` is a copy** of `auth.users.email`, kept for display and joins.
   Supabase signs in with its own copy. Nothing changes an email yet; whatever
   first does must update both.
+- **`contact_email` is the email employers see** (KAN-262,
+  `applicant_profiles` only): resume headers and the autofiller print it.
+  NULL means the sign-in `email`, so read it through the model's
+  `email_for_employers`, never `email` directly. It is a separate column,
+  not an edit of `email`, because the seeker may apply with a different
+  address than the one they sign in with, and changing the sign-in email is
+  Supabase's job. Not unique: it signs nobody in.
 - **Global email uniqueness now comes from `auth.users`,** which the old
   per-table `UNIQUE` on `email` could never give. The per-table constraints
   stay as a second check.

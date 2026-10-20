@@ -69,7 +69,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
-  site's markup, classes, Inter type and copy, with two deliberate changes.
+  site's markup, classes and copy, with two deliberate changes, and set the
+  app's own face (`--font-sans`, Plus Jakarta Sans) instead of the site's
+  Inter, so the page and the app read as one product; Google Sans loads only
+  for the Google sign-in button.
   **Colour and logo:** the site's numbered blue scale became
   `landing-brand-50` to `950` in `globals.css`, the same steps in WorkIt
   violet, so a component copied from the site needs only `brand-N` renamed
@@ -95,7 +98,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
-  which rise as violet wireframes with a job tag. Its heights are capped per
+  which rise as violet wireframes with a job tag. The strip's viewBox starts
+  100px above the ground's origin (`STRIP_TOP`): the tallest side towers
+  reach there and were once cut flat at the top. The ground grid runs ten
+  rows behind the back row of buildings and fades out towards the text, so
+  it reads as a plane behind the low centre. Its heights are capped per
   column so nothing reaches the text at its 1600px design scale; it keeps
   that scale from lg up (cropped at the sides) and shrinks to the panel's
   width below lg, under the text. A change to the hero's text size or the
@@ -106,7 +113,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   sides and the text's line boxes (`data-hero-text`, `data-hero-box` in
   `page.tsx`) on every resize, nudging a card inward or skipping it; a
   fixed breakpoint once hid them on every laptop-width window. Measure text
-  runs, not elements: a block line's box spans the full width. Violet is
+  runs, not elements: a block line's box spans the full width. In the
+  pinned product tour, `FitHeight` scales a visual down to the visual
+  area's height, so the resume card fits a short laptop screen; and its
+  `AnimatePresence` must not get `initial={false}`, which blocks the first
+  animation of every motion element inside it: the Matching rows once sat
+  still at their end value until a tab switch remounted them. Violet is
   the wireframes' alone; keep roofs and spires neutral. It does not use
   `ui/` components, Title Case or the type tokens; those rules are for app
   screens. Rules in `landing.css` that set `display` or a size sit in
@@ -126,6 +138,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
   sidebar row is commented out, and all their code stays. `docs/screens.md`
   (Calendar, Seeker Dashboard) says how to bring them back.
+- **The Applications board is archived** (KAN-256): the list is the
+  default view, and `?view=board` opens it. `applications/board.tsx` stays;
+  `docs/screens.md`, Applications, says how to bring it back.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -137,7 +152,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   it with no API running.
 - **The application tracker is live and has no fixture** (KAN-261): saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
-  cached per request by `getTracker` in `data.ts`). Interviewing, Offer and
+  cached per request by `getTracker` in `data.ts`), each with the Jobs
+  page's own match score (`?scored=true`, KAN-256) and the resume last sent
+  to its posting (the sent resumes list; its failure only empties that
+  column). A row or card opens the application's own page,
+  `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
   dated events stay empty until the API stores them; a failed read shows an
   error, never stand-in cards. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
@@ -207,7 +226,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   the page's assistant. The Experience Bank puts intake there. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
-- **The company table (`app/company/table.tsx`) is TanStack Table v9**, and
+- **The company table (`app/company/table.tsx`) and the Applications list
+  (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
   `node_modules/@tanstack/react-table/skills`, not a blog post.
 - **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
@@ -277,6 +297,12 @@ are in `docs/auth.md`.
   `serverActions.bodySizeLimit` in `next.config.ts`, which must stay above
   5 MB plus multipart overhead (`6mb`) or Next rejects the request before the
   action runs.
+- **A profile link becomes an href only through `safeHref`**
+  (`lib/profile-links.ts`, KAN-262), which allows http(s) alone. The API
+  refuses anything else since KAN-262, but a link saved before then may be
+  any text, a `javascript:` one included. The same file holds `webLink`, the
+  browser's copy of the API's check, and `linkText`, the resume header's way
+  of printing a link.
 - **My Profile's cache (`(seeker)/profile-cache.tsx`) lives in the seeker
   layout, never a module variable**: sign-out leaving the shell is what drops
   it, and a module variable would show one account's profile to the next
@@ -309,7 +335,9 @@ are in `docs/auth.md`.
   screen lists sent resumes since the Resumes view's Sent card went
   (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
-  (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
+  (intake's draft entry, KAN-213, and its skipped sections, KAN-214), and
+  so does a per-browser view preference that should leave with the student
+  (the Applications list's column layout, KAN-282): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
   reaches. A draft stored under any other key outlives sign-out.
 - **To test a page behind sign-in, use the shared test account**:

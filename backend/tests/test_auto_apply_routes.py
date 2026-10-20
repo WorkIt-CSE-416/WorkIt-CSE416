@@ -117,6 +117,13 @@ def test_list_reads_the_stages_asked_for(client, monkeypatch):
     res = client.get(BASE + "/applications?stage=queued&stage=needs_you")
     assert res.status_code == 200
     assert calls[0][0][2] == [application_stage.queued, application_stage.needs_you]
+    assert calls[0][1]["score_for"] is None  # the queue's reads never score
+
+
+def test_list_scores_for_the_signed_in_applicant_on_request(client, monkeypatch):
+    calls = step(monkeypatch, "list_applications", [])
+    assert client.get(BASE + "/applications?stage=saved&scored=true").status_code == 200
+    assert calls[0][1]["score_for"].id == APPLICANT
 
 
 def test_next_is_null_when_the_queue_is_empty(client, monkeypatch):

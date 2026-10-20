@@ -21,11 +21,15 @@ import { BackToJobs } from "./page-actions";
  * sits where it did, and a hairline that fades in once something is under it.
  * Above the page's layers, below every popup, which is portaled.
  *
+ * `back` replaces Back to the Jobs page: the application's own page
+ * (/applications/[jobId], KAN-256) draws this bar too, and goes back to
+ * Applications.
+ *
  * BELOW md IT SCROLLS AWAY. On a phone the six actions wrap to three rows
  * beside Back, about 150px held over a 812px screen; the Jobs page stopped
  * holding its heading on a phone for the same reason.
  */
-export function JobActionBar({ children }: { children: ReactNode }) {
+export function JobActionBar({ back, children }: { back?: ReactNode; children: ReactNode }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(false);
 
@@ -63,7 +67,7 @@ export function JobActionBar({ children }: { children: ReactNode }) {
         SEEKER_GUTTER,
       )}
     >
-      <BackToJobs className="group/back" />
+      {back ?? <BackToJobs className="group/back" />}
       <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
     </div>
   );

@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.dto import application_stage
-from app.schemas.jobs import JobListing
+from app.schemas.jobs import Highlight, JobListing
 
 
 class JobApplied(BaseModel):
@@ -36,6 +36,13 @@ class Application(BaseModel):
     applied_at: datetime.datetime | None
     # False once the job posting has closed: the extension skips it.
     open: bool
+    # The Jobs page's match score (0-100) for this job posting, on ?scored=true
+    # only (KAN-256). Null otherwise, for a closed job posting, and while the
+    # experience bank is empty.
+    match: int | None = None
+    # Up to 3 reasons behind `match`, as the Jobs page card lists them; empty
+    # whenever `match` is null.
+    highlights: list[Highlight] = []
 
 
 class BatchRequest(BaseModel):

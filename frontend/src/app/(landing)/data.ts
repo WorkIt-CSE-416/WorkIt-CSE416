@@ -38,11 +38,14 @@ export const site = {
 };
 
 export const hero = {
-  // Each entry is its own line. Non-breaking spaces (\u00a0) keep each beat
-  // together, so on phones the line wraps between beats, never inside one.
-  titleLines: ["From\u00a0resume to\u00a0offer."],
+  // The pipeline in order, one beat per step, each in the past tense: things
+  // WorkIt did for you. Plain spaces: text-balance makes two lines of two
+  // from sm up, and one beat per line on a phone, where a pair of beats is
+  // wider than the screen (a joined pair once overflowed, and overflowing
+  // text is invisible under bg-clip-text).
+  titleLines: ["Tailored. Matched. Applied. Tracked."],
   subtitle:
-    "WorkIt builds a resume tailored to each role, matches you with jobs that fit, fills in your applications, and keeps every one on track.",
+    "WorkIt tailors your resume to each role, finds the jobs that fit, applies for you, and keeps every application on track.",
 };
 
 /**

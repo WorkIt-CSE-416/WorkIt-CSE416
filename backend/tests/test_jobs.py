@@ -586,9 +586,24 @@ def test_each_filter_narrows_its_own_column():
     ]
     assert sql == [
         "job_postings.work_style IN ('onsite')",
-        "job_postings.experience_level IN ('new_grad')",
+        "job_postings.experience_level IN ('new_grad', 'student')",
         "job_postings.job_type IN ('part_time', 'contract')",
     ]
+
+
+def test_entry_level_takes_in_the_internships():
+    # Every internship counts as entry level (KAN-284), so Internship with
+    # Entry Level / New Grad shows the internships rather than no job.
+    (clause,) = matching(JobFilters(levels=["new_grad"]))
+    assert _sql(clause) == "job_postings.experience_level IN ('new_grad', 'student')"
+    (clause,) = matching(JobFilters(levels=["experienced"]))
+    assert _sql(clause) == "job_postings.experience_level IN ('experienced')"
+
+
+def test_a_search_s_new_grad_stays_new_grad():
+    # The words "new grad" name that level, not the filter's option.
+    (clause,) = matching(JobFilters(query_levels=["new_grad"]))
+    assert _sql(clause) == "job_postings.experience_level IN ('new_grad')"
 
 
 def test_internship_is_a_job_type_of_its_own():

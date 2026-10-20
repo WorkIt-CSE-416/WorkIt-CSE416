@@ -180,6 +180,15 @@ strong semantic fit (positive), then years mismatch and start term mismatch
 (negative). Positives sort before negatives, and a negative is never cut by
 the cap of 3.
 
+**A job none of those rules speak for gets caveats** (KAN-256), so a weak
+score never shows with no reasons, on the Jobs page card or the application
+page: "None of your skills appear in this posting" when the bank has skills
+and the posting mentions none, and "Title isn't close to your past roles"
+when the title fit is 0.3 or less and the bank has titles or a field of
+study to compare (`has_titles`; without them a low fit is a blank, not a
+finding). Neither names a skill the job wants: that is the "missing skill"
+caveat above, which needs each job's own skill list.
+
 ## Recommendations — `fetch_recommended()` and `GET /jobs/recommended/{applicant_id}`
 
 Both in `routers/jobs.py`. `fetch_recommended(db, account, filters=,

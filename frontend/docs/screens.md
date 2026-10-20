@@ -20,6 +20,21 @@ where the row shows them checked; from then on the URL is the truth, so Clear
 All clears rather than bringing the saved ones back. Load More pages whichever
 view drew the list (`FeedList`'s `source`).
 
+**Job Type and Experience Level never overlap (KAN-284).** Job Type says
+what kind of job it is (Internship, Full-Time, Part-Time, Contract);
+Experience Level how much experience it asks for (Entry Level / New Grad,
+Experienced). Experience used to offer Student, which meant exactly the
+internships, so Student with Full-Time matched no job; with Job Type in All
+Filters only, a fresh visit on those saved preferences opened on "No Roles
+Match These Filters" and the seeker never saw the pick that caused it. Every
+internship counts as entry level (the API's `filter_levels`), so Internship
+with Entry Level / New Grad shows the internships. A saved preference or link
+that still says `?experience=student` reads as Internship
+(`withLegacyStudent` in jobs/filter-query.ts): beside other job types it
+joins them, alone it becomes them, and with no job type and another level it
+adds nothing. Experienced holds no job until the scraper keeps such roles;
+then it splits into Junior, Mid and Senior.
+
 /jobs and /search filter on the server by the query (/search's ?q= is read by
 the API's role resolver: roles, a typo corrected, then text and company):
 ?location= (repeated ISO
@@ -52,9 +67,10 @@ showed beside it as two thin vertical lines while they scrolled under.
 jobs/filters.tsx draws the row (KAN-170); every facet filters, and Industry is
 gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
-All Filters stays a normal button; never stretch it across the row. Job Type
-is in All Filters only too: the row is 928px at most, and it would need
-about 1,070px. Each facet is at least 144px and as wide as its label needs,
+All Filters stays a normal button; never stretch it across the row. The row
+is 928px at most, room for five facets: Location, Role, Workplace, Job Type
+and Date Posted. Job Type took Experience's place (KAN-284), since it is
+where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs,
 so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
 (KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
 filters" in its tooltip, and turns every filter off, keeping ?view and ?q; a
@@ -89,9 +105,9 @@ jobs/listings.ts), not refetched per change. Each facet button wears the glyph
 the job card draws for its fact (Date Posted a clock, since the card's calendar
 is the start date; Role, which the card doesn't print, a person in a suit and
 tie, drawn for it since Lucide has none, KAN-252), and inside a popup only
-Workplace's options carry glyphs, the card's own three, and Experience's
-(levelIcon: a backpack, the mortarboard, a check badge; KAN-252, asked for
-2026-10-17), as their chips do in the panel. Options are medium weight, as the
+Workplace's options carry glyphs, the card's own three, as their chips do in
+the panel, where Experience Level's do too (levelIcon: the mortarboard, a
+check badge; KAN-252, asked for 2026-10-17). Options are medium weight, as the
 facet buttons are; at body weight they read thin beside the row. A facet's popup is as
 wide as its longest option, never narrower than its button and never wider than
 the screen (FacetPopup, KAN-252): the vendored Select is only the button's
@@ -397,7 +413,8 @@ except Saved, which counts the live saved jobs, and Next Up and Up Next,
 which take the tracker's upcoming events (`getUpNext`). The tracker stores
 no dated events yet, so Next Up reads "You're All Caught Up" with Browse
 Jobs, and Up Next "Nothing else scheduled." Next
-Up's View Details button opens that application's detail panel and its date that week on
+Up's View Details button opens that application's own page (its old
+`?app=` link redirects there) and its date that week on
 the Calendar; an Up Next row opens its day in the Calendar's Agenda, and View
 All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
@@ -440,26 +457,142 @@ sent application.
 
 ## Applications
 
-/applications is the tracker: a board, grid and list over
-`applications/data.ts`, every choice in the URL, `?app=` opening one
-application in the detail panel. `(seeker)/tracker.ts` is the tracker's shape
+/applications is the tracker: a list (the default) and a grid over
+`applications/data.ts`, every choice in the URL; a row or card opens the
+application's own page, `/applications/[jobId]`. `(seeker)/tracker.ts` is the tracker's shape
 and date logic; `local-time.tsx` prints its dates in the viewer's own zone and
 links them to the Calendar.
 
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
 reads the seeker's saved and applied jobs from the API
-(`GET /applicants/{id}/applications?stage=saved&stage=applied`, the list Live
-Activity reads too), written by a job's Save button and its Applied button
+(`GET /applicants/{id}/applications?stage=saved&stage=applied&scored=true`,
+the list Live Activity reads too, without `scored`), written by a job's Save button and its Applied button
 or auto apply; `getTracker` in `data.ts` caches it per request. Interviewing
 and Offer stay empty until the API stores those stages, and nothing on this
 page moves a card between stages. A card is its job posting: its id is the
 posting's, its tile the company's own logo (`application-tile.tsx`; initials
 without one), and its panel links to the posting while it is open ("Posting
-Closed" after). It has no summary or match score yet, so those slots stay
-empty and Sort by Match keeps the API's order. The page has three empty
+Closed" after). The page has three empty
 states: the API failed, nothing tracked yet (Find Jobs), and filters that
 hide everything (Clear Filters). The mock cards and their stand-in company
 glyphs were removed with the fixture.
+
+**The list is the primary view and the board is archived** (KAN-256).
+A bare `/applications` shows the list, the switcher offers List then Grid,
+and an old `?view=board` link opens the list. `applications/board.tsx`
+stays, unused. To bring the board back: add `"board"` to `VIEWS` in
+`applications/query.ts`, its option in `view-switcher.tsx`, its pane in
+`page.tsx` (the comment there has it) and its `board:<stages>` key in
+`view-panes.tsx`. In the list, Match outlasts Applied as the page narrows,
+since the score is what a seeker scans for.
+
+**A card shows four facts and nothing else** (KAN-256): the role, the
+company, the day it was saved or sent, and its match score. The grid adds
+the stage pill, which its ungrouped cards would otherwise lose.
+
+**The list is a table that scrolls sideways** (KAN-256), as a Notion table
+does, rather than dropping columns as the page narrows. In the order job
+trackers read: what and who (Role, with its company), where it stands (Status, Date
+Applied), how good it is (Match), the job's facts (Track, the job type;
+Location; Work Model; Pay Range), where and what was sent (Source, the
+hiring system the posting is on, named from its apply link in
+`applications/tracked.ts`, "Company Site" for any other host; Resume;
+Posting), and Notes / Next Step last, the widest and least scanned.
+**Role is one column holding the company too**: the company's logo, then
+the role (bold, the row's link, cut with the whole title on hover) over the
+company's name in meta grey. KAN-256 split them into two frozen columns,
+Company then Role; together they took about 500px, so few other columns
+showed, and KAN-282 stacked them again. The company is still its own field
+for the filters and the sort. **Role stays frozen** at the left
+while the rest scrolls under it (a sticky cell painting the row's
+background and its hover tint; the edge is a shadow, since a collapsed
+table's borders don't move with a sticky cell). **It freezes from 672px of
+page up only**: at 320px it is about a phone's whole table, and frozen
+there it covered it, so the scroll showed no other column; below 672px it
+scrolls with the rest. A sticky
+cell traps a stretched link, so **the row opens the application on a click
+anywhere** (`applications/clickable-row.tsx`), leaving clicks on links and
+buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
+real link a keyboard reaches. Sorted by Date Applied unless `?sort=` names
+another column (below). Notes / Next Step is a placeholder ("No notes yet") and
+Status is only Saved or Applied until the API stores notes and later
+stages. Resume is the name of the last sent resume linked to the job
+posting (`listSentResumes`, as the posting's own page reads it): Apply and
+auto apply keep one, while the plain Applied button sends none, so it says
+"Not sent". Location and Pay print as the Jobs page's card does
+(`jobs/format.ts`). The cells are drawn as the job cards draw their facts
+(`ui/fact.tsx`): a grey glyph, then the value in ink, and a missing value
+in meta grey; Status, Match and Posting are pills (Posting `positive` Open
+or `inert` Closed). Posting says Open or Closed and nothing more, because
+scraped postings state no closing date: `job_postings.closes_at` is only
+set when a posting disappears, and the API does not send it. The page has
+no width cap and takes back the room a collapsed sidebar frees
+(`docs/design.md`, The two shells), so the table shows as many columns as
+the window allows before the scroll.
+
+**The list can be arranged like a Notion table** (KAN-282). It is a
+TanStack Table v9 (`applications/list.tsx`; `company/table.tsx` says why v8
+examples do not apply), a client component over the rows the server
+filtered.
+
+- **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
+  `filter-bar.tsx`): under the search, a row with a dropdown for Status
+  and one per field (Company, Track, Work Model, Source), each the Jobs
+  page facet's look (glyph, label, chevron, brand tint while it holds a
+  pick) over checkbox rows. Status lists the four stages, each with its
+  stage's glyph in its colour; the fields list every value the tracked
+  applications hold. **Company has a search field** at the top of its
+  list, as the Jobs page's Role dropdown does, since the list grows with
+  every application; a pick keeps the search. The dropdowns step out one
+  at a time from the right as the row narrows (Status from 440px of row,
+  Company 592, Track 744, Work Model 896, Source 1048); at
+  the right end, Clear Filters as an outlined cross (shown while anything
+  is picked or searched; it hands focus to All Filters), All Filters, and
+  Columns in the list view. A phone's row is All Filters and Columns.
+  Status was a row of stage chips with counts (KAN-256), and an earlier
+  draft had one Filter button with every field in its menu; both became
+  dropdowns after the Jobs page on the user's ask (2026-10-19). The
+  chips' counts went with them, as the Jobs page's options carry none.
+- **All Filters** is a panel with every field, as on the Jobs page: Status
+  (with the stages' glyphs), Company (a search
+  picker, since the list grows), then Track, Work Model and Source as
+  option chips. Its picks are a draft until "Show 3 Applications", which
+  counts the draft in the browser (the page hands the bar what each
+  tracked application is filtered on); closing it drops the draft.
+- **Picks**: in one field, any of them; across fields, all. Each is a
+  repeated URL parameter (`?company=`, `?track=`, `?work=`, `?source=`),
+  not a comma list, since a company's name can hold a comma. A pick
+  replaces the URL (ten ticks are not ten steps of Back) and shows at once
+  while the server filters, as the Jobs page's facets do.
+- **Sort**: five headings sort, each one way, the way it is read: Role by
+  its company A to Z, then by role, so a company's roles sit together
+  (`?sort=company`; the heading's tooltip says so), Status furthest along first, Date Applied latest first, Match
+  best first, Pay Range best first (the top of the range as a yearly
+  figure, `payPerYear` in `applications/tracked.ts`, so hourly and yearly
+  pay compare). A missing value goes last either way. A heading moves
+  `?sort=` in place (shallow routing): the table sorts the rows it holds,
+  with no round trip.
+- **Columns**: drag a heading by its label to a new place (a brand bar
+  marks the side it lands on); drag a heading's right edge to resize it,
+  double-click the edge to reset it, or focus the edge and use the arrow
+  keys; hide and show columns from the **Columns** menu at the filter row's
+  right end, which shows only in the list view and also has Reset Columns.
+  Role cannot move or hide. Each column has a fixed width
+  (a fixed table layout) and cuts what does not fit, with the whole value
+  on hover; an empty last column takes the card's spare width, so a resize
+  never stretches the others. A drag needs a mouse: a phone keeps the
+  order it has.
+- **The layout is this browser's** (`applications/column-layout.ts`): order,
+  hidden columns and widths, in localStorage under a `lib/local-drafts.ts`
+  key, so Sign Out clears it. The server draws the default and the stored
+  layout swaps in after hydration. It is not in the URL, since a shared
+  link should carry the view, not the sender's column widths; keeping it
+  per account needs an API change. A layout stored under column ids that
+  are gone (the old Company column) drops them on reading.
+- A resize press cancels the browser's default, and no move starts during
+  a resize: shrinking a column slid the next heading under the pointer,
+  Chrome began dragging that heading, the mouse-up never reached the
+  resize, and the column kept following the pointer.
 
 **Application dates are real dates.** Saved and applied dates are the
 instants the API stored (`getNow`, `cache()`d, is what the pages compare
@@ -473,18 +606,70 @@ prints the UTC date, and `<When>` in `(seeker)/local-time.tsx` swaps in the
 viewer's own "Tomorrow, 2:00 PM" after hydration.
 
 **The Applications page keeps every choice in its URL** (`applications/query.ts`):
-`?view=`, `?stage=` (a comma list), `?q=`, the list's `?sort=` and `?app=`,
-the application open in the detail panel. Links and a GET form, not client
-state, so every view stays a server component and the Dashboard can link to a
-filtered list or one application. The layout is the exception in how it
+`?view=`, `?stage=` (a comma list), `?q=`, the filter fields and
+the list's `?sort=`. An old `?app=` link (the side panel's) redirects to
+the application's own page. The server does the filtering, so the search
+is a GET form and a pick in a dropdown or in All Filters a URL replace,
+and the Dashboard can link to a filtered list or one application. The
+list's column layout is the one choice kept in the browser instead
+(above). The layout is the exception in how it
 moves, not in where it lives: the page renders all three layouts, each
 building its links for itself, `applications/view-panes.tsx` shows the one
 the URL names, and the switcher moves `?view=` in place. Anything else that
-builds a link from the layout (the filter bar, Clear Filters) reads it in the
-browser through `useApplicationsQuery`, since a layout switch never asks the
-server to draw them again. A card or row is one link: its role, stretched
-over it. Its next step is a second, `relative` link to that week on
-the Calendar, which paints over the stretched one.
+builds a link from the layout (the filter bar, Clear Filters, the list's
+sort headings) reads it in the browser through `useApplicationsQuery`,
+since a layout switch never asks the server to draw them again. A card is
+one link: its role, stretched over it; a row opens on a click anywhere
+(above).
+
+**An application has its own page, `/applications/[jobId]`** (KAN-256),
+which replaced the side panel: the panel had room for a timeline but not
+for the job. **Its job half is the job page itself**: the pinned action bar,
+the header and the Job Description tab are the parts `/jobs/[jobId]` draws
+(`jobs/[jobId]/job-view.tsx`: `loadJobView`, `JobViewActions`,
+`JobViewHeader`, `JobViewBody`), so the two pages look the same and cannot
+drift apart. They share the job page's width too (`JOB_PAGE_WIDTH`, 1120px,
+KAN-279). Only Back differs (Back to Applications, `JobActionBar`'s
+`back` slot). No match rail, as on the job page: an earlier draft added the
+Jobs card's ring, which made the same job look different by how it was
+opened. Analytics and explanations go on the Your Application tab only.
+**The bar holds the tabs once there is nothing to do**: an applied job, or a
+closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
+shows the tabs beside Back instead. A saved job with an open posting keeps
+the job page's actions, and its tabs sit under the header. Two tabs, each a
+URL (`?tab=job` for the second):
+
+- **Your Application**, the default. One card tinted by its stage
+  (`STAGE_COLOR[stage].panel`: violet for Applied, grey for Saved), so it
+  reads as the seeker's record rather than a second white card under the
+  job's header. On the tint: the stage as its glyph on a solid disc and its
+  name (the board's column headers; a badge's fill is the tint itself), a
+  one-line status such as "Waiting to Hear Back", when it was applied or
+  saved and the resume sent, the timeline left to right (`Timeline`'s
+  `horizontal`), and the day counts (waiting to hear back, save to apply,
+  posted before applying; or since saving and since posting for a saved
+  job). The counts and the match are rounded white boxes on the tint: each
+  count a `Card`, the match the Jobs page card's `MatchRail` with
+  `standalone` on white, with its reasons (`?scored=true` sends
+  `highlights` with `match`). Ruled, square cells were tried first and read
+  as a spreadsheet next to the app's rounded cards. The match sits right of
+  the rest from 576px of card and under it below that. Under the card,
+  What You Sent lists every sent resume linked to the
+  posting, or, with none, a dashed placeholder box (the upload dropzone's
+  outline) saying "No resume sent yet". It replaced two lines of
+  explanation. Neither Apply nor auto apply keeps the answers typed into
+  the employer's form, so the tab cannot show them.
+- **Job Description**: About the Role alone (`JobViewBody`'s
+  `descriptionOnly`). The job page's sent and applied notes and its
+  Key Requirements card stay off: they pushed the description down and are
+  the application's record, which the first tab already holds.
+
+The application comes from `getTracker`, so its score, resume and stage
+match its row. A job the seeker has not saved or applied to is not found. A
+closed posting has no job page (`GET /jobs/{id}` answers 404), so the header
+shows what the tracker knows, marked Closed, and the description tab says it
+is gone. The day counts round elapsed time, as "Posted 8 days ago" does:
+cut, an application sent 47 hours ago read as waiting 1 day.
 
 ## Auto Apply
 
@@ -559,7 +744,7 @@ badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Working 
 Browser, Tailoring Resume and Autofilling `advanced` blue, their dot ringing
 three times, and counted under In Progress; Needs Review
 and Couldn't Finish warning amber, as both wait on the seeker; Applied the
-Applied stage's violet, so it reads the same as on the Applications board.
+Applied stage's violet, so it reads the same as on the Applications page.
 The counts above the card use the same dot colours. A queued row has a cross
 beside its badge (`auto-apply/remove-from-queue.tsx`) that takes the job out
 of the queue and refreshes the route; it sits above the row's link, so the
@@ -593,7 +778,8 @@ so bring the Calendar back before the tracker stores events.
 application went in, interviews, offers and their deadlines, closing dates
 and follow-ups, in their kind's stage colour, with a legend. `?view=` picks
 Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
-`?app=` opens the same detail panel Applications does, with a way across.
+`?app=` opens the application in a detail panel (`applications/detail-panel.tsx`,
+now the Calendar's alone), with a way across to its own page.
 Without `?date=` it opens on the viewer's today, which the server cannot
 know, so the views render in the browser behind a placeholder
 (`calendar-view.tsx`, `useHydrated`). They read the view and the day from
@@ -616,7 +802,62 @@ link into the Calendar from anywhere else goes through `DayLink` in
 ## My Profile
 
 **My Profile holds the photo and the identity fields**, and a "Resumes &
-Experiences" section that links to both views of that page. **Resumes moved
+Experiences" section that links to both views of that page.
+
+**Contact & Links (KAN-262)** is an open section between the identity band
+and Resumes & Experiences. It lists all six fields under visible labels, two
+columns where the page is wide: Contact Email, Phone, LinkedIn, GitHub,
+Portfolio or Website, Other Link. Each field is drawn like a job posting's
+section heading (16px bold ink beside a 20px brand glyph), its value hanging
+under the heading's text.
+
+- **Two modes, like a form you open.** Reading, each field is text: its
+  value (the email a mail link, the phone a call link, each link opening in
+  a new tab, printed as the resume header prints it: `linkedin.com/in/jake`)
+  or "Not added" in grey. The section's Edit turns every value into a text
+  field in place, the first one focused, with Cancel and Save under them;
+  Escape cancels. Clearing a field and saving removes it.
+- **Tried and dropped on 2026-10-20:** only the filled fields in one row
+  under the name (a seeker with no links saw no sign they could add any,
+  and nothing said which email it was), then an Add button on each empty
+  field (it offered an edit while the section was not being edited).
+- **These fields are edited here only.** The identity band's Edit opens a
+  dialog with Full Name and Headline alone, so no value has two editors.
+- **Example text only where it cannot pass for a saved value**
+  (`you@example.com`, "Your phone number", `your-name`): the sign-in email
+  as Contact Email's placeholder read as already filled in, and so did a
+  realistic headline and phone number. Other Link has no example and no
+  hint: each site named there (Behance, then LeetCode and Devpost) read as
+  the only kind of link it takes.
+
+The identity band holds only the photo, the name and the headline. With no
+headline the line is dropped, so the name centres beside the photo: an empty
+headline line used to leave a gap between the name and the row below.
+
+- **Two emails, on purpose.** The sign-in email belongs to Supabase Auth and
+  is never edited here. The contact email is the one employers see: resume
+  headers print it and the autofiller fills it. Empty means the sign-in
+  email, so the section and every reader fall back to it. The section says
+  "Your sign-in email" under the address whenever it is the sign-in one.
+  In edit mode, a Contact Email that is empty or differs from the sign-in
+  email shows Use Sign-In Email, which fills the field with it, and the hint
+  says which email employers will see. The sign-in email in the field is
+  saved as empty: retyping it by hand left a seeker unsure it was the
+  sign-in one (2026-10-20). A seeker may apply with a different
+  address than the one they sign in with.
+- **Four link fields, named for what hiring systems ask:** LinkedIn,
+  GitHub, Portfolio or Website, and Other Link. Each matches a box that
+  Greenhouse or Lever asks for by name, so the autofiller can fill it. Any
+  other page goes in Other Link, and the section labels it by its site
+  when it knows the site (a LeetCode link reads "LeetCode", `siteName`
+  in `lib/profile-links.ts`). A list of any number of links was weighed and
+  left out: it needs a new table and a rule for which link fills which box.
+- **A link is a web address or nothing.** "linkedin.com/in/jake" gains
+  `https://` on Save, in the section and again in the API; anything that
+  is not an http(s) address is refused with "Enter a web address" under the
+  field. The section never makes an href of a link that fails the check.
+
+**Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
 the Resumes view's Your Resumes card (below), beside the base resumes,
 which then shared its limit of 5. With one limit split across two pages,
@@ -1296,10 +1537,11 @@ so a screen reader reads it out; focus used to stay on the footer button.
 From lg the screen is one window tall and only the right column scrolls, with
 its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
-Step 1 is Role, Job Type and Workplace (all required), and Experience,
-Start Date, Location and Salary Range; step 2, Profile, is the questions
-every application asks (KAN-283, all optional); step 3 is Resume (KAN-275),
-with Skip and Continue in place of
+Step 1 is Role, Job Type and Workplace (all required), and Start Date,
+Experience Level, Location and Salary Range, Experience Level after Job Type
+(KAN-284); step 2, Profile, is the questions every application asks
+(KAN-283, all optional); step 3 is Resume (KAN-275), with Skip and Continue
+in place of
 Next. Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
 only the jobs that name one, which a new-grad role rarely does. Preference Tags, free-text skills, were dropped

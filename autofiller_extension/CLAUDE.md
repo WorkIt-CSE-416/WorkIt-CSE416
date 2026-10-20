@@ -35,11 +35,11 @@ here:
   it's built. Every competitor in the market research hits this same wall
   and solves it the same way.
 - **The webapp's role is a thin, optional bridge** (`frontend/src/lib/
-  autofill-extension.ts`, `frontend/src/components/autofill-badge.tsx`),
-  using Chrome's `externally_connectable` to ask "are you here, and signed
-  in", and (the Auto Apply page's Start) to ask the runner to open the next
-  queued application — nothing more. It shows a small badge next to a
-  job's Apply button when the answer is yes. The extension's core function
+  autofill-extension.ts`), using Chrome's `externally_connectable` to ask
+  the runner to open the next queued application, which job its tab shows,
+  and to switch to that tab — nothing more. The job cards' "Autofill ready"
+  badge, the bridge's one use of `ping`, was removed (KAN-278); the
+  background script still answers `ping`, with no webapp caller. The extension's core function
   never depends on this bridge: it works from its own popup on whatever
   page the user is on, bridge or no bridge.
 
@@ -196,6 +196,11 @@ webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
 /applicants/{id}/resumes[/...]`, and the runner's `GET
 /applicants/{id}/applications/next`. All were already reachable with a
 Bearer token before the extension called them.
+
+**The email it fills is the profile's `contact_email`, else `/auth/me`'s
+sign-in email** (KAN-262). A seeker may apply with a different address than
+the one they sign in with, and My Profile is where they set it. Filling the
+sign-in email always would put the wrong address on every application.
 
 The backend needed **zero CORS changes** for this to work: MV3 extensions
 with a target host listed in `manifest.json`'s `host_permissions` bypass

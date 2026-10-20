@@ -376,7 +376,7 @@ with **and**.
 |---|---|---|
 | `location` | `US`, `US-CA` | A place row there, **or a remote job posting that names no place** (it can be done from anywhere) |
 | `work_style` | `remote` | That work style |
-| `experience` | `student`, `new_grad`, `experienced` | That level |
+| `experience` | `new_grad`, `experienced` | That level. `new_grad` (Entry Level / New Grad) also matches every internship, whose level is `student` (KAN-284); `student` is still accepted, for old links and saved preferences |
 | `job_type` | `full_time`, `internship` | That type; every internship is `internship` (KAN-233) |
 | `role` | `software_engineer`, `civil_engineer` | A job posting tagged with that `job_roles` role in `job_role_tags` (section 5.3, KAN-155). Before KAN-155 this read the scraper's `roles` keys |
 | `posted_within` | `7` | Posted in the last 7 days |

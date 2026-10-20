@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties }
 
 import { cn } from "@/lib/cn";
 
-import { buildCity, STRIP_HEIGHT, STRIP_WIDTH, type City } from "./city-model";
+import { buildCity, STRIP_HEIGHT, STRIP_TOP, STRIP_WIDTH, type City } from "./city-model";
 
 // Built once per page load: the model is deterministic, so every render
 // draws the same city.
@@ -115,14 +115,15 @@ export function HeroCity() {
 
   return (
     <div ref={rootRef} className="hero-city" aria-hidden="true">
-      <svg viewBox={`0 0 ${STRIP_WIDTH} ${STRIP_HEIGHT}`}>
+      <svg viewBox={`0 ${STRIP_TOP} ${STRIP_WIDTH} ${STRIP_HEIGHT}`}>
         <defs>
+          {/* The ground fades out towards the text above it. */}
           <linearGradient
             id="hero-city-fade"
             x1="0"
-            y1="190"
+            y1="50"
             x2="0"
-            y2="300"
+            y2="240"
             gradientUnits="userSpaceOnUse"
           >
             <stop offset="0" stopColor="#ffffff" stopOpacity="0" />
@@ -132,11 +133,16 @@ export function HeroCity() {
             id="hero-city-ground"
             maskUnits="userSpaceOnUse"
             x="0"
-            y="0"
+            y={STRIP_TOP}
             width={STRIP_WIDTH}
             height={STRIP_HEIGHT}
           >
-            <rect width={STRIP_WIDTH} height={STRIP_HEIGHT} fill="url(#hero-city-fade)" />
+            <rect
+              y={STRIP_TOP}
+              width={STRIP_WIDTH}
+              height={STRIP_HEIGHT}
+              fill="url(#hero-city-fade)"
+            />
           </mask>
           <radialGradient id="hero-city-pool">
             <stop offset="0" stopColor="#6d3fd8" stopOpacity="0.5" />
@@ -212,7 +218,7 @@ export function HeroCity() {
           className={cn("tag", typeof placement[tag.company] !== "number" && "invisible")}
           style={vars({
             left: `${(tag.x / STRIP_WIDTH) * 100}%`,
-            top: `${(tag.y / STRIP_HEIGHT) * 100}%`,
+            top: `${((tag.y - STRIP_TOP) / STRIP_HEIGHT) * 100}%`,
             "--md": tag.delay,
           })}
         >

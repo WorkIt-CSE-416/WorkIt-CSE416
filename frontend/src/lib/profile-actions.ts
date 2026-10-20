@@ -7,6 +7,8 @@ import { getApplicantSession } from "@/lib/session";
 export type ApplicantProfile = {
   id: string;
   email: string;
+  /** The email employers see; null means `email`, the sign-in email. */
+  contact_email: string | null;
   full_name: string;
   phone_number: string | null;
   headline: string | null;
