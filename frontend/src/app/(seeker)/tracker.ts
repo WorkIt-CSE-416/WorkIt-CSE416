@@ -64,6 +64,9 @@ export type Application = {
   source?: string | null;
   /** Its pay, as the Jobs page prints it; null when unstated. */
   pay?: string | null;
+  /** The top of its pay as a yearly figure, what the list's Pay Range sort
+   *  reads (KAN-282); null when unstated. */
+  payPerYear?: number | null;
   /** The name of the resume last sent to its job posting (Apply or auto
    *  apply); null when none was sent through WorkIt. */
   resume?: string | null;

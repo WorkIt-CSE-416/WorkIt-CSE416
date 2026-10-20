@@ -1,4 +1,4 @@
-import { LayoutGrid, List, SquareKanban } from "lucide-react";
+import { Columns3, LayoutGrid, List, SquareKanban } from "lucide-react";
 
 type IconProps = { className?: string };
 
@@ -22,4 +22,11 @@ export function GridIcon({ className }: IconProps) {
 
 export function ListIcon({ className }: IconProps) {
   return <List aria-hidden className={className} />;
+}
+
+/* List controls (KAN-282) ------------------------------------------------ */
+
+/** The Columns menu's button: show, hide and reset the list's columns. */
+export function ColumnsIcon({ className }: IconProps) {
+  return <Columns3 aria-hidden className={className} />;
 }

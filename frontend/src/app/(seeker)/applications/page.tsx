@@ -13,7 +13,7 @@ import { getTracker } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
-import { applicationHref, filterApplications, parseQuery, type View } from "./query";
+import { applicationHref, filterApplications, filterOptions, parseQuery } from "./query";
 import { ViewPanes } from "./view-panes";
 import { ViewSwitcher } from "./view-switcher";
 
@@ -28,16 +28,17 @@ export const metadata: Metadata = {
  * (KAN-261). Interviewing and Offer stay empty until the API stores those
  * stages. The board is archived (KAN-256).
  *
- * The URL carries all of it (./query.ts): the view, the stage chips and
- * search in the filter bar, and the list's sort. So every view stays a server
- * component, and the
- * Dashboard can link straight to a filtered list or one application.
+ * The URL carries all of it (./query.ts): the view, the stage chips, search
+ * and Filter button in the filter bar, and the list's sort. So the filtering
+ * stays on the server, and the Dashboard can link straight to a filtered
+ * list or one application. The list's column layout is the browser's own
+ * (./column-layout.ts).
  *
  * BOTH LAYOUTS ARE RENDERED, each with its own links, and
  * ./view-panes.tsx shows the one the URL names. The layout switch moves the
  * URL in place, so a new layout appears with the switch's thumb rather than
  * after this page is drawn again. Filters and the sort still come through
- * here, since the filtering is done on the server.
+ * here, since the filtering is done on the server; the list sorts itself.
  *
  * Nothing here writes. A job's Save button and its Applied button (or auto
  * apply) put it in Saved and Applied; nothing moves a card past Applied yet.
@@ -56,17 +57,13 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const { applications, error } = await getTracker();
   const all = applications ?? [];
 
-  // The search alone, for the chips' counts: each says what turning its
-  // stage on would show. Then the stages too, for the views.
-  const searched = filterApplications(all, { stages: [], q: query.q });
+  // The search and the Filter button, for the chips' counts: each says what
+  // turning its stage on would show. Then the stages too, for the views.
+  const searched = filterApplications(all, { ...query, stages: [] });
   const shown = filterApplications(searched, query);
   const counts = Object.fromEntries(
     STAGE_ORDER.map((stage) => [stage, searched.filter((app) => app.stage === stage).length]),
   ) as Record<StageKey, number>;
-
-  // Each layout's links carry its own layout, so whichever is shown, its
-  // cards and sort headings keep it.
-  const as = (view: View) => ({ ...query, view });
 
   return (
     // EVERY PIXEL THE PANEL GIVES (KAN-256): no width cap, and when the
@@ -93,19 +90,19 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
         <ViewSwitcher />
       </div>
 
-      <FilterBar counts={counts} />
+      <FilterBar counts={counts} options={filterOptions(all, query.filters)} />
 
       {/* The board (./board.tsx) is archived (KAN-256); ./query.ts says how to
           bring it back. Its pane was <ApplicationsBoard applications={shown}
           stages={query.stages.length > 0 ? query.stages : STAGE_ORDER}
-          query={as("board")} />, keyed on query.stages in ./view-panes.tsx. */}
+          query={{ ...query, view: "board" }} />, keyed on query.stages in ./view-panes.tsx. */}
       <ViewPanes
         panes={
           shown.length === 0
             ? null
             : {
                 grid: <ApplicationsGrid applications={shown} />,
-                list: <ApplicationsList applications={shown} query={as("list")} />,
+                list: <ApplicationsList applications={shown} />,
               }
         }
         empty={
