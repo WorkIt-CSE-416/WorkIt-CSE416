@@ -681,6 +681,13 @@ free tier). Render with a Dockerfile is the fallback.
   only adds a table, so the running code never meets it and applying it
   early is safe; deployed first, onboarding's Continue answers 500 and the
   Profile step never loads saved answers.
+- **A new answer bank key needs the API live before the web** (KAN-299).
+  The schema forbids keys it does not know (`extra="forbid"`, which catches
+  a mistyped key), so a web that sends a new one to an older API gets a 422
+  ("Extra inputs are not permitted") on onboarding's Continue and My
+  Profile's Save until the API deploy lands. No migration is involved: the
+  bank is JSONB. Merging deploys both halves with nothing ordering them; if
+  the web lands first, redeploy it after the API, or wait the minutes out.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
