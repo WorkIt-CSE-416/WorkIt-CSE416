@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useOptimistic, useRef, useState } from "react";
 
+import { FieldFacet } from "@/components/field-facet";
 import { CloseIcon, FilterIcon, workStyleIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -15,7 +16,6 @@ import type { StageKey } from "../stage-colors";
 import {
   AllFiltersPanel,
   FIELD_ICON,
-  FieldFacet,
   SearchFacet,
   STATUS_OPTIONS,
   type Picks,

@@ -21,38 +21,32 @@ export const metadata: Metadata = {
  * pipeline it grows into is `auto-apply/architecture.md` at the repo root:
  * match, pick the resume, fill the form with the extension, record.
  *
- * Two sections, under the heading block every seeker screen uses:
+ * The heading block every seeker screen uses, with Start Auto Apply at its
+ * top right (./auto-apply-panel.tsx, KAN-285), then two sections:
  *
  *   Resume List            every resume, since each application gets its
- *                          own pick, and Start Auto Apply beside it, which
- *                          queues a batch of matches
- *                          (./resume-list.tsx, ./auto-apply-panel.tsx)
+ *                          own pick, as a table (./resume-list.tsx)
  *   Live Activity          the seeker's applications from the API
- *                          (./applications.ts), in queue order (oldest
- *                          first, the API's list reversed): each job
- *                          posting queued with a batch or a job's Auto Apply
- *                          button, and where it stands (./activity-list.tsx;
- *                          ./live-activity.tsx adds the one open in the
- *                          extension's tab)
+ *                          (./applications.ts), with their match scores,
+ *                          as a table filtered by status and sorted from
+ *                          the URL (./live-activity.tsx, ./query.ts); queue
+ *                          order by default (oldest first, the API's list
+ *                          reversed): each job posting queued with a batch
+ *                          or a job's Auto Apply button, and where it stands
+ *                          (./activity-list.tsx)
  *
- * The list is drawn here, on the server, against the request's clock, and
- * passed through the client panel; a batch refreshes the route to redraw it.
+ * The rows are read here, on the server, and passed through the client
+ * panel; a batch refreshes the route to redraw them.
  * A failed read says so, never a fixture (backend/CLAUDE.md). A <div>, since
  * SidebarInset is already the <main>.
  */
 export default async function AutoApplyPage() {
-  const now = new Date();
   const { applications, error } = await getRunApplications();
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
-      <h1 className="text-heading text-ink">Auto Apply</h1>
-      <p className="text-body text-ink-meta mt-1">
-        Apply to the jobs that match you, with your resume filled in for you.
-      </p>
-
       <AutoApplyPanel>
         {error != null ? (
           <EmptyState
@@ -70,8 +64,9 @@ export default async function AutoApplyPage() {
         ) : (
           // Queue order, oldest first: the API answers newest first, but the
           // job the extension opens next belongs at the top and a newly
-          // queued one joins at the bottom.
-          <LiveActivity items={[...applications].reverse().map(activityOf)} now={now} />
+          // queued one joins at the bottom. The table's default sort keeps
+          // it (./query.ts, `queue`).
+          <LiveActivity items={[...applications].reverse().map(activityOf)} />
         )}
       </AutoApplyPanel>
     </div>

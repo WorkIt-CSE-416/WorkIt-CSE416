@@ -7,7 +7,9 @@ import { TableRow } from "@/components/shadcn/table";
 import { cn } from "@/lib/cn";
 
 /**
- * A list row that opens its application on a click anywhere in it (KAN-256).
+ * A table row that opens `href` on a click anywhere in it: an application
+ * on the Applications list (KAN-256), a job posting in Auto Apply's Live
+ * Activity (KAN-285).
  *
  * The role's link used to be stretched over the row (an absolute ::after),
  * but the frozen Role cell is `position: sticky`, and a sticky
@@ -15,7 +17,7 @@ import { cn } from "@/lib/cn";
  * to the role's own cell. The row handles the click instead. The role stays
  * a real link, which a keyboard reaches and a middle click opens in a new
  * tab; a click on any link or button inside the row is left to it. A Cmd or
- * Ctrl click opens the application in a new tab, as a link would.
+ * Ctrl click opens it in a new tab, as a link would.
  *
  * `group/row` lets the frozen cells, which paint their own background so the
  * scrolled cells pass under them, follow the row's hover tint.

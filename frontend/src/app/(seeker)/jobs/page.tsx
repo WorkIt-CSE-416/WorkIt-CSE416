@@ -28,6 +28,7 @@ import {
   getRecommendedPage,
   getSavedFilters,
   getTailoredJobIds,
+  isApplicant,
   type FeedPage,
 } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
@@ -45,27 +46,40 @@ export const metadata: Metadata = {
  * WorkIt are still inert. The card and its loading and error states are
  * ./listing-card, which /search shares.
  *
- * TWO VIEWS (KAN-231), chosen by ?view=:
+ * ONE LIST, TWO ORDERS (KAN-288), chosen by ?sort=:
  *
- * - Recommended, the default: the jobs the filters keep, scored against the
- *   seeker's experience bank, best first (GET /jobs/recommended). With an
- *   empty bank it shows the plain feed under the same filters, below
- *   BankPrompt, which asks the student to fill it.
- * - All Jobs (?view=all): the plain feed, newest first.
+ * - Best Match (?sort=match), the default: the jobs the filters keep, scored
+ *   against the seeker's experience bank, best first (GET
+ *   /jobs/recommended). With an empty bank it shows the newest first under
+ *   the same filters, below BankPrompt, which asks the student to fill it.
+ * - Newest (?sort=newest): the plain feed, newest first.
+ *
+ * These were two views, Recommended and All Jobs, behind a switcher
+ * (KAN-231). They drew the same filter row and the same cards, so they read
+ * as one page, and they were merged into one list with a sort. An old
+ * ?view=all link opens Newest; ?view=recommended opens Best Match.
  *
  * SAVED PREFERENCES APPLY ON A FRESH VISIT ONLY. /jobs with no query at all
- * (the sidebar's link, onboarding's Start Matching) redirects to the
- * Recommended view with the seeker's saved preferences written into the URL,
- * where the filter row shows them checked and can loosen them. From then on
- * the URL is the truth: Clear All leaves ?view=recommended, which is "no
- * filters", rather than bringing the saved ones back as it would if an empty
- * filter set meant "use the saved ones". */
+ * (the sidebar's link, onboarding's Start Matching) redirects to Best Match
+ * with the seeker's saved preferences written into the URL, where the filter
+ * row shows them checked and can loosen them. From then on the URL is the
+ * truth: Clear All leaves ?sort=, which is "no filters", rather than bringing
+ * the saved ones back as it would if an empty filter set meant "use the
+ * saved ones". */
 
-type View = "recommended" | "all";
+type Sort = "match" | "newest";
 
-/** The Recommended view under these filters, as a URL. */
-function recommendedHref(filters: FeedFilters): string {
-  return `/jobs?${new URLSearchParams([["view", "recommended"], ...filterEntries(filters)])}`;
+/** The page's order: ?sort=, else an old link's ?view= (All Jobs was the
+ *  newest first), else Best Match. */
+function readSort(params: Record<string, string | string[] | undefined>): Sort {
+  const sort = [params.sort].flat()[0];
+  if (sort === "match" || sort === "newest") return sort;
+  return [params.view].flat()[0] === "all" ? "newest" : "match";
+}
+
+/** The list in this order under these filters, as a URL. */
+function sortHref(sort: Sort, filters: FeedFilters): string {
+  return `/jobs?${new URLSearchParams([["sort", sort], ...filterEntries(filters)])}`;
 }
 
 /**
@@ -76,45 +90,54 @@ function recommendedHref(filters: FeedFilters): string {
  * A Suspense boundary here rather than a route loading.tsx, which would also
  * cover /jobs/[jobId].
  */
-async function Feed({ filters, view }: { filters: FeedFilters; view: View }) {
+async function Feed({ filters, sort }: { filters: FeedFilters; sort: Sort }) {
   // The seeker's applications and tailored resumes beside the first page,
   // for the cards' Auto Apply and Tailor buttons: started now, awaited with
   // whichever page is drawn.
   const stages = getApplicationStages();
   const tailored = getTailoredJobIds();
-  if (view === "recommended") {
-    const [page, byJob, tailoredIds] = await Promise.all([
+  const applicant = isApplicant();
+  if (sort === "match") {
+    const [page, byJob, tailoredIds, canMarkApplied] = await Promise.all([
       getRecommendedPage(filtersQuery(filters), 0),
       stages,
       tailored,
+      applicant,
     ]);
     if (page) {
-      // `view=recommended` in Load More's query keeps its kept pages apart
-      // from the plain feed's (./feed-list).
-      const query = recommendedHref(filters).slice("/jobs".length);
+      // `sort=match` in Load More's query keeps its kept pages apart from
+      // the plain feed's (./feed-list).
+      const query = sortHref("match", filters).slice("/jobs".length);
       return (
         <Results
           page={page}
           filters={filters}
           query={query}
-          retryHref={recommendedHref(filters)}
+          retryHref={sortHref("match", filters)}
           stages={byJob}
           tailored={tailoredIds}
+          canMarkApplied={canMarkApplied}
         />
       );
     }
   }
-  // An empty bank (the API's 404) shows the plain feed; BankPrompt above it
-  // already asks the student to fill the bank.
-  const [page, byJob, tailoredIds] = await Promise.all([getJobListings(filters), stages, tailored]);
+  // Newest, or Best Match with an empty bank (the API's 404): the plain
+  // feed. BankPrompt above it already asks the student to fill the bank.
+  const [page, byJob, tailoredIds, canMarkApplied] = await Promise.all([
+    getJobListings(filters),
+    stages,
+    tailored,
+    applicant,
+  ]);
   return (
     <Results
       page={page}
       filters={filters}
       query={filtersQuery(filters)}
-      retryHref={`/jobs${filtersQuery(filters)}`}
+      retryHref={sortHref(sort, filters)}
       stages={byJob}
       tailored={tailoredIds}
+      canMarkApplied={canMarkApplied}
       plain
     />
   );
@@ -127,6 +150,7 @@ function Results({
   retryHref,
   stages,
   tailored,
+  canMarkApplied,
   plain = false,
 }: {
   page: FeedPage;
@@ -135,6 +159,7 @@ function Results({
   retryHref: string;
   stages: Record<string, ApplicationStage>;
   tailored: string[];
+  canMarkApplied: boolean;
   /** The plain feed's Load More rather than the scored one's. */
   plain?: boolean;
 }) {
@@ -164,7 +189,7 @@ function Results({
       {/* The level between the page's h1 and each card's h3. The card stays
           an h3 because the company preview nests it under headings of its
           own. */}
-      <h2 className="sr-only">{plain ? "Jobs" : "Recommended Jobs"}</h2>
+      <h2 className="sr-only">{plain ? "Newest Jobs" : "Best Matches"}</h2>
       {/* The first page, and a Load More for the rest (./feed-list). */}
       <FeedList
         initial={jobs}
@@ -172,6 +197,7 @@ function Results({
         query={query}
         stages={stages}
         tailored={tailored}
+        canMarkApplied={canMarkApplied}
         source={plain ? "feed" : "recommended"}
       />
     </>
@@ -182,9 +208,9 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   const params = await searchParams;
   if (Object.keys(params).length === 0) {
     const saved = await getSavedFilters();
-    if (saved && isFiltered(saved)) redirect(recommendedHref(saved));
+    if (saved && isFiltered(saved)) redirect(sortHref("match", saved));
   }
-  const view: View = params.view === "all" ? "all" : "recommended";
+  const sort = readSort(params);
   const filters = readFilters(params);
   // Not awaited: the filter row paints at once and the Location facet fills
   // in when its options land.
@@ -202,23 +228,20 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
           heading={
             <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
               <div>
-                <h1 className="text-heading text-ink">
-                  {view === "all" ? "All Jobs" : "Recommended for You"}
-                </h1>
+                <h1 className="text-heading text-ink">Jobs</h1>
                 <p className="text-body text-ink-meta mt-1">
-                  {view === "all"
-                    ? "Every open role in the feed, refreshed every few hours."
-                    : "Roles that fit your preferences, ranked against your experience."}
+                  {sort === "match"
+                    ? "Roles that fit your preferences, ranked against your experience."
+                    : "Every open role in the feed, newest first."}
                 </p>
               </div>
-              {/* Recommended goes to bare /jobs, so it starts from the saved
-                  preferences again; All Jobs starts from no filters. */}
+              {/* Each order keeps the filters as they stand. */}
               <SegmentedLinks
-                label="Jobs View"
-                value={view}
+                label="Sort By"
+                value={sort}
                 options={[
-                  { value: "recommended", label: "Recommended", href: "/jobs" },
-                  { value: "all", label: "All Jobs", href: "/jobs?view=all" },
+                  { value: "match", label: "Best Match", href: sortHref("match", filters) },
+                  { value: "newest", label: "Newest", href: sortHref("newest", filters) },
                 ]}
               />
             </div>
@@ -233,12 +256,12 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
           <BankPrompt />
         </Suspense>
 
-        {/* Keyed by the view and filters, so a new pick shows the skeleton
+        {/* Keyed by the order and filters, so a new pick shows the skeleton
             straight away instead of holding the old list until the narrowed
             one arrives. */}
         <PendingFeed>
-          <Suspense key={`${view}${filtersQuery(filters)}`} fallback={<ListingsSkeleton />}>
-            <Feed filters={filters} view={view} />
+          <Suspense key={`${sort}${filtersQuery(filters)}`} fallback={<ListingsSkeleton />}>
+            <Feed filters={filters} sort={sort} />
           </Suspense>
         </PendingFeed>
       </FeedTransition>

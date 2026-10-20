@@ -1,8 +1,9 @@
 import { ViewTransition, type ReactNode } from "react";
 
 /**
- * One application in a view that can be sorted or filtered: a board card, a
- * grid card, a list row. The caller keys it by the application, so when the
+ * One item in a view that can be sorted or filtered: an Applications board
+ * card, grid card or list row, or a Live Activity row on Auto Apply
+ * (KAN-285). The caller keys it by the item, so when the
  * list changes around it, React sees the same item in a new place: it glides
  * there (`reflow` in globals.css) rather than jumping, and an item the filter
  * drops fades out where it stood (`swap-exit`). One that comes back rises in
@@ -10,7 +11,7 @@ import { ViewTransition, type ReactNode } from "react";
  *
  * Only inside a view that stays on screen. Switching views, or the board's
  * columns, swaps the whole view instead (the keyed <ViewTransition> in
- * ./page.tsx), since a card does not become a row by sliding.
+ * applications/page.tsx), since a card does not become a row by sliding.
  */
 export function Reflow({ children }: { children: ReactNode }) {
   return (

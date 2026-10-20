@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { getAccessToken, getApplicantSession } from "@/lib/session";
+import { getAccessToken, getApplicantSession, getCurrentAccount } from "@/lib/session";
 
 import type { ExperienceLevel, Highlight, JobType, WorkStyle } from "./data";
 import {
@@ -80,7 +80,7 @@ export type JobListing = {
    *  `app/auto_apply/hosts.py` decides). Auto Apply shows only where true. */
   auto_apply: boolean;
   /** WorkIt's score against the seeker's resume, 0-100, and why: only on
-   *  the Recommended view (`getRecommendedPage`), whose API adds them. The
+   *  the Best Match order (`getRecommendedPage`), whose API adds them. The
    *  card's match rail draws its placeholder without them. */
   match?: number;
   highlights?: Highlight[];
@@ -146,7 +146,7 @@ export async function getFeedPage(query: string, offset: number): Promise<FeedPa
 }
 
 /**
- * One page of the Recommended view (KAN-231): the jobs these filters keep,
+ * One page of the Best Match order (KAN-231, KAN-288): the jobs these filters keep,
  * scored against the seeker's experience bank and best first, from GET
  * /jobs/recommended/{id}, which takes the same filters as GET /jobs.
  * `query` is feedQuery's. Null when the bank is empty (the API's 404) or
@@ -171,8 +171,8 @@ export async function getRecommendedPage(query: string, offset: number): Promise
 }
 
 /** The seeker's saved preferences as the feed's filters, or null when they
- *  have saved none or the API can't say: the Recommended view's starting
- *  filters (./page). */
+ *  have saved none or the API can't say: a fresh visit's starting filters
+ *  (./page). */
 export async function getSavedFilters(): Promise<FeedFilters | null> {
   try {
     const { id, token } = await getApplicantSession();
@@ -317,6 +317,15 @@ export async function getApplied(id: string): Promise<{ appliedAt: string | null
   } catch {
     return null;
   }
+}
+
+/** Whether the viewer is an applicant, whom Apply Now's dialog may ask "Did
+ *  You Apply?": the job page's rule (`getApplied` answers an applicant only)
+ *  for a list of cards. A company account can open /jobs and /search too.
+ *  Read from the account the shell already asked for (cached per render), so
+ *  it costs no request. False when the API can't be read. */
+export async function isApplicant(): Promise<boolean> {
+  return (await getCurrentAccount())?.account_type === "applicant";
 }
 
 /** The job ids the seeker has a tailored resume for, so each card's Tailor

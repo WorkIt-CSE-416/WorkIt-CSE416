@@ -8,9 +8,8 @@ import { cn } from "@/lib/cn";
 import type { ResumeItem } from "@/lib/resume-actions";
 
 /** One resume row. The loading placeholder, the in-flight upload and the
- *  empty list (in the Resumes view's your-resumes.tsx and the Auto Apply page's
- *  resume-list.tsx) are the same 52px box, so nothing jumps when the
- *  real row arrives. */
+ *  empty list (in the Resumes view's your-resumes.tsx) are the same 52px
+ *  box, so nothing jumps when the real row arrives. */
 export const RESUME_ROW =
   "border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2";
 

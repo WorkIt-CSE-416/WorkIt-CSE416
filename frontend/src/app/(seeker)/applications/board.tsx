@@ -10,9 +10,9 @@ import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, type StageKey } from "../stage-co
 import { LocalDate } from "../local-time";
 import { sinceOf, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
-import { MatchBadge } from "./match-badge";
+import { MatchBadge } from "@/components/match-badge";
 import { applicationHref, type ApplicationsQuery } from "./query";
-import { Reflow } from "./reflow";
+import { Reflow } from "@/components/reflow";
 
 /**
  * The applications grouped into pipeline columns, in the shadcn kanban layout.

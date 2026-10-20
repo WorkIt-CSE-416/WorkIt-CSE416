@@ -1,17 +1,16 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import {
   BriefcaseIcon,
-  ChevronDownIcon,
   CompanyIcon,
   ExternalLinkIcon,
   SearchIcon,
   workStyleIcon,
 } from "@/components/icons";
+import { facetClasses, FacetLabel, type FacetOption, type Glyph } from "@/components/field-facet";
 import { OptionChip as Chip, SearchPicker } from "@/components/filter-controls";
 import {
   Combobox,
@@ -20,12 +19,7 @@ import {
   ComboboxTrigger,
 } from "@/components/shadcn/combobox";
 import { Dialog, DialogContent, DialogTitle } from "@/components/shadcn/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { cn } from "@/lib/cn";
 
@@ -69,11 +63,6 @@ import {
 
 export type Picks = { stages: StageKey[]; filters: Filters };
 
-type Glyph = ComponentType<{ className?: string }>;
-
-/** One option in a dropdown: a glyph only where it differs by option. */
-export type FacetOption = { value: string; label: string; Icon?: Glyph; iconClassName?: string };
-
 /** Each field's glyph: the one its list cell draws. Work Model's is the
  *  Jobs page's Workplace glyph. */
 export const FIELD_ICON: Record<FilterKey, Glyph> = {
@@ -92,108 +81,6 @@ export const STATUS_OPTIONS: FacetOption[] = STAGE_ORDER.map((stage) => ({
   Icon: STAGE_ICON[stage],
   iconClassName: STAGE_COLOR[stage].onTint,
 }));
-
-/** The Jobs page facet's look: a small secondary button with the brand
- *  tint while it holds a pick and its list is closed. */
-function facetClasses(active: boolean, className?: string) {
-  return cn(
-    buttonClasses({ variant: "secondary", size: "sm" }),
-    "justify-between",
-    active && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
-    className,
-  );
-}
-
-/** A dropdown button's glyph and label, and its pick count for a screen
- *  reader (the tint says it by colour alone). */
-function FacetLabel({
-  Icon,
-  label,
-  active,
-  count,
-}: {
-  Icon: Glyph;
-  label: string;
-  active: boolean;
-  count: number;
-}) {
-  return (
-    <>
-      <span className="flex min-w-0 items-center gap-1.5">
-        <Icon className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")} />
-        <span className="truncate">{label}</span>
-      </span>
-      {count > 0 && <span className="sr-only">, {count} selected</span>}
-    </>
-  );
-}
-
-/** An option's row content: its glyph, if it has one, and its label. */
-function OptionLabel({ option }: { option: FacetOption }) {
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      {option.Icon && (
-        <option.Icon className={cn("size-4 shrink-0", option.iconClassName ?? "text-ink-meta")} />
-      )}
-      <span className="truncate">{option.label}</span>
-    </span>
-  );
-}
-
-/** One dropdown in the row: Status, Track, Work Model or Source. */
-export function FieldFacet({
-  label,
-  Icon,
-  options,
-  values,
-  onChange,
-  className,
-}: {
-  label: string;
-  Icon: Glyph;
-  options: FacetOption[];
-  values: string[];
-  onChange: (values: string[]) => void;
-  className?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const active = values.length > 0 && !open;
-  // In the options' order, whatever order they were ticked in.
-  const ordered = (next: string[]) => options.map((o) => o.value).filter((v) => next.includes(v));
-
-  return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger
-        disabled={options.length === 0}
-        className={facetClasses(active, className)}
-      >
-        <FacetLabel Icon={Icon} label={label} active={active} count={values.length} />
-        <ChevronDownIcon className="text-muted-foreground size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="w-max max-w-[calc(100vw-2rem)] min-w-(--anchor-width)"
-      >
-        {options.map((option) => (
-          <MenuPrimitive.CheckboxItem
-            key={option.value}
-            checked={values.includes(option.value)}
-            onCheckedChange={(on) =>
-              onChange(
-                ordered(on ? [...values, option.value] : values.filter((v) => v !== option.value)),
-              )
-            }
-            closeOnClick={false}
-            className={checkRowClasses}
-          >
-            <OptionLabel option={option} />
-            <CheckRowBox />
-          </MenuPrimitive.CheckboxItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 /**
  * Company's dropdown: the same button and checkbox rows, with a search field

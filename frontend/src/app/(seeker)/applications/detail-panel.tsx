@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
 import type { Application, TimelineStep } from "../tracker";
-import { MatchBadge } from "./match-badge";
+import { MatchBadge } from "@/components/match-badge";
 import { Timeline } from "./timeline";
 
 /**

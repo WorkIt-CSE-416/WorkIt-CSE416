@@ -40,7 +40,8 @@ const UNREACHABLE = "Could not reach the server.";
 
 /** The applications in `stages` (every stage when empty), newest first.
  *  `scored` asks for each one's match score too (the Applications page,
- *  KAN-256): it can embed the bank, so the queue's reads leave it off. */
+ *  KAN-256, and Live Activity): it can embed the bank, so the buttons'
+ *  stage reads leave it off. */
 export async function getApplications<Stage extends ApplicationStage = ApplicationStage>(
   stages: readonly Stage[] = [],
   { scored = false }: { scored?: boolean } = {},
@@ -63,11 +64,12 @@ export async function getApplications<Stage extends ApplicationStage = Applicati
 }
 
 /** What auto apply has run or will run, for Live Activity: every stage but
- *  saved, which is only the Save button's. */
+ *  saved, which is only the Save button's. Scored, since its table has a
+ *  Match column (KAN-285), as the Applications page's list does. */
 const RUN_STAGES: readonly RunStage[] = ["queued", "needs_you", "skipped", "applied"];
 
 export function getRunApplications() {
-  return getApplications(RUN_STAGES);
+  return getApplications(RUN_STAGES, { scored: true });
 }
 
 /** Each job id's stage, for a list of Auto Apply and Save buttons (the

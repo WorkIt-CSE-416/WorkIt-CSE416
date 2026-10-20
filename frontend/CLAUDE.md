@@ -166,7 +166,7 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **A "Back" link to a dynamic page goes back in history when it can.** Next
   keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but
   reuses the one it holds on a history Back. A job page's Back that followed
-  its link re-ran the whole feed fetch and Recommended scoring, so the list
+  its link re-ran the whole feed fetch and Best Match scoring, so the list
   seemed slow to load; `BackToJobs` now calls `router.back()` when
   `cameFrom()` is its target (`docs/screens.md`, Job posting page).
 - **Promote to `src/components` on the second consumer**, not in anticipation;
@@ -229,7 +229,16 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
-  `node_modules/@tanstack/react-table/skills`, not a blog post.
+  `node_modules/@tanstack/react-table/skills`, not a blog post. Auto
+  Apply's two tables (KAN-285) are plain shadcn `Table`s with sort headings:
+  a short table with no column moves gains nothing from TanStack. They
+  share the Applications list's frame and its promoted pieces
+  (`components/clickable-row.tsx`, `match-badge.tsx`, `reflow.tsx`,
+  `field-facet.tsx`); a new seeker table starts from those, not a copy.
+- **A filter whose rows the page already holds moves the URL in place**
+  (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
+  (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
+  Back, as the Applications page's server-side picks replace the URL.
 - **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
   page only** (KAN-209), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
@@ -329,9 +338,11 @@ are in `docs/auth.md`.
   `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
   downloads the file. A download cancelled at the missing-character warning
   deletes the sent resume it just made (`created`), so only files the
-  student took are kept. Apply on the posting detail goes through
-  `applyWithResume` (KAN-220) and keeps its sent resume: the student is
-  told WorkIt kept a copy, so it is never deleted behind their back. No
+  student took are kept. Apply Now goes through `applyWithResume` (KAN-220)
+  wherever it sits: the job posting page, the feed cards on /jobs and
+  /search, and the Dashboard's New Matches (KAN-290). It keeps its sent
+  resume: the student is told WorkIt kept a copy, so it is never deleted
+  behind their back. No
   screen lists sent resumes since the Resumes view's Sent card went
   (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
