@@ -20,6 +20,21 @@ where the row shows them checked; from then on the URL is the truth, so Clear
 All clears rather than bringing the saved ones back. Load More pages whichever
 view drew the list (`FeedList`'s `source`).
 
+**Job Type and Experience Level never overlap (KAN-284).** Job Type says
+what kind of job it is (Internship, Full-Time, Part-Time, Contract);
+Experience Level how much experience it asks for (Entry Level / New Grad,
+Experienced). Experience used to offer Student, which meant exactly the
+internships, so Student with Full-Time matched no job; with Job Type in All
+Filters only, a fresh visit on those saved preferences opened on "No Roles
+Match These Filters" and the seeker never saw the pick that caused it. Every
+internship counts as entry level (the API's `filter_levels`), so Internship
+with Entry Level / New Grad shows the internships. A saved preference or link
+that still says `?experience=student` reads as Internship
+(`withLegacyStudent` in jobs/filter-query.ts): beside other job types it
+joins them, alone it becomes them, and with no job type and another level it
+adds nothing. Experienced holds no job until the scraper keeps such roles;
+then it splits into Junior, Mid and Senior.
+
 /jobs and /search filter on the server by the query (/search's ?q= is read by
 the API's role resolver: roles, a typo corrected, then text and company):
 ?location= (repeated ISO
@@ -52,9 +67,10 @@ showed beside it as two thin vertical lines while they scrolled under.
 jobs/filters.tsx draws the row (KAN-170); every facet filters, and Industry is
 gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
-All Filters stays a normal button; never stretch it across the row. Job Type
-is in All Filters only too: the row is 928px at most, and it would need
-about 1,070px. Each facet is at least 144px and as wide as its label needs,
+All Filters stays a normal button; never stretch it across the row. The row
+is 928px at most, room for five facets: Location, Role, Workplace, Job Type
+and Date Posted. Job Type took Experience's place (KAN-284), since it is
+where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs,
 so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
 (KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
 filters" in its tooltip, and turns every filter off, keeping ?view and ?q; a
@@ -89,9 +105,9 @@ jobs/listings.ts), not refetched per change. Each facet button wears the glyph
 the job card draws for its fact (Date Posted a clock, since the card's calendar
 is the start date; Role, which the card doesn't print, a person in a suit and
 tie, drawn for it since Lucide has none, KAN-252), and inside a popup only
-Workplace's options carry glyphs, the card's own three, and Experience's
-(levelIcon: a backpack, the mortarboard, a check badge; KAN-252, asked for
-2026-10-17), as their chips do in the panel. Options are medium weight, as the
+Workplace's options carry glyphs, the card's own three, as their chips do in
+the panel, where Experience Level's do too (levelIcon: the mortarboard, a
+check badge; KAN-252, asked for 2026-10-17). Options are medium weight, as the
 facet buttons are; at body weight they read thin beside the row. A facet's popup is as
 wide as its longest option, never narrower than its button and never wider than
 the screen (FacetPopup, KAN-252): the vendored Select is only the button's
@@ -1296,8 +1312,8 @@ so a screen reader reads it out; focus used to stay on the footer button.
 From lg the screen is one window tall and only the right column scrolls, with
 its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
-Step 1 is Role, Job Type and Workplace (all required), and Experience,
-Start Date and Location; step 2 is Salary Range and Visa Sponsorship (both
+Step 1 is Role, Job Type and Workplace (all required), and Start Date,
+Experience Level and Location, Experience Level after Job Type (KAN-284); step 2 is Salary Range and Visa Sponsorship (both
 optional); step 3 is Resume (KAN-275), with Skip and Continue in place of
 Next. Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps

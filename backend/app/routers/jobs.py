@@ -40,8 +40,9 @@ The job board's other filters narrow it the same way (JobFilters, KAN-170),
 each by a column every scraped row fills when the posting states it:
 ?work_style=, ?role= (job_roles slugs, "software_engineer"; repeated, any
 of: a job tagged in job_role_tags with any of them, KAN-155),
-?job_type= (internship among them, KAN-233) and ?experience= (student,
-new_grad, experienced; repeated, any of), ?posted_within=
+?job_type= (internship among them, KAN-233) and ?experience= (new_grad,
+experienced; repeated, any of: new_grad takes in the internships, whose
+level is student, KAN-284), ?posted_within=
 (days), and ?min_pay= and ?max_pay= with ?pay_per= (hour or year), a range that
 matches any posting whose own pay range overlaps it. Pay is compared as a yearly
 figure, so an internship paid by the hour, week or month and a new-grad role

@@ -224,6 +224,14 @@ lacks, so the Experience filter and counts fail; deployed first, the new code
 meets rows it can't read. KAN-233 first wrote it as one, and review caught it
 before it was applied.
 
+**The column keeps `student`; the filter no longer offers it (KAN-284).**
+`student` meant exactly the internships, so the Jobs page's Student with
+Full-Time matched no job. The Experience Level filter now offers `new_grad`
+("Entry Level / New Grad") and `experienced`, and `queries/jobs/filters.py`'s
+`filter_levels` makes `new_grad` match `student` too: every internship counts
+as entry level. A search's "new grad" (`query_levels`) stays `new_grad` only.
+`?experience=student` is still accepted, for old links and saved preferences.
+
 ## A new column reaches the database before the model that maps it
 
 `deferred=True` keeps a column out of reads, not writes. On an ORM INSERT,

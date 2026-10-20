@@ -186,7 +186,7 @@ function PanelBody({
             ))}
           </Section>
 
-          <Section Icon={LevelIcon} label="Experience">
+          <Section Icon={LevelIcon} label="Experience Level">
             {EXPERIENCE_OPTIONS.map((o) => (
               <Chip
                 key={o.value}

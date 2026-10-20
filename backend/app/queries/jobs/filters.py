@@ -244,6 +244,20 @@ def word_matches(word: str) -> ColumnElement[bool]:
     )
 
 
+def filter_levels(levels: Sequence[str]) -> list[str]:
+    '''
+    the experience_level values the Experience Level filter's picks match.
+    Every internship counts as entry level (KAN-284), so new_grad ("Entry
+    Level / New Grad") takes in student, the internships' level: Internship
+    with Entry Level shows the internships rather than no job. The filter no
+    longer offers student; an old link or saved preference that still sends
+    it matches the internships alone. A search's "new grad" (query_levels)
+    stays new_grad only: the words name that level, not the filter's option
+    '''
+    wanted = [*levels, "student"] if "new_grad" in levels else list(levels)
+    return list(dict.fromkeys(wanted))
+
+
 def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     '''
     the WHERE clauses for these filters, beyond published and scraped
@@ -256,7 +270,7 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.roles:
         clauses.append(tagged_with(filters.roles))
     if filters.levels:
-        clauses.append(Job_Post.experience_level.in_(filters.levels))
+        clauses.append(Job_Post.experience_level.in_(filter_levels(filters.levels)))
     if filters.job_types:
         clauses.append(job_type_matches(filters.job_types))
     if filters.posted_since is not None:
