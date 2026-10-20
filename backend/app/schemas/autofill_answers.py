@@ -85,8 +85,11 @@ def answers_from_bank(bank: dict) -> AutofillAnswers:
     the read: the bank outlives any one version of the questions."""
     values = {}
     for key, field in AutofillAnswers.model_fields.items():
-        answer = (bank.get(key) or {}).get("answer")
+        # Each entry checked by shape: a bare value or a list would crash
+        # .get() or the set lookup, and fail the student's every read.
+        entry = bank.get(key)
+        answer = entry.get("answer") if isinstance(entry, dict) else None
         allowed = {v for arg in get_args(field.annotation) for v in get_args(arg)}
-        if answer in allowed:
+        if isinstance(answer, str) and answer in allowed:
             values[key] = answer
     return AutofillAnswers(**values)
