@@ -10,8 +10,8 @@ import { JobFacts } from "./job-facts";
 
 type JobDetailHeaderProps = {
   posting: JobPosting;
-  /** The small employer mark before the name, sized to sit on one line with
-   *  it (32px). A BuildingIcon `CompanyTile` for the company viewing its own
+  /** The employer mark before the name, sized to sit on one line with it
+   *  (40px; 32px read as an afterthought beside the title). A BuildingIcon `CompanyTile` for the company viewing its own
    *  posting; the same initials the feed card draws for a seeker viewing
    *  someone else's, since a job carries no logo of its own. */
   tile: ReactNode;
@@ -93,13 +93,15 @@ export function JobDetailHeader({
     <Card as="header" padding="lg" elevated={false} className="@container flex flex-col gap-4">
       <div className="flex flex-col gap-3 @xl:flex-row @xl:items-start @xl:justify-between @xl:gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* Never narrower than itself: in a crowded row the mark was
                 squeezed to an empty sliver. */}
             <span className="flex shrink-0">{tile}</span>
 
             {/* Under 448px of card the timing takes its own line with no dot,
-                as on the feed card, rather than wrapping "ago" alone. */}
+                as on the feed card, rather than wrapping "ago" alone. The name
+                is a size up from the timing (KAN-279): at the timing's 13px
+                the employer read as small print under a 36px title. */}
             <p className="text-label text-ink-meta min-w-0 font-normal">
               {companyHref ? (
                 // Ink, not brand: a name that turns brand on hover/focus
@@ -107,12 +109,12 @@ export function JobDetailHeader({
                 // card's own company name makes.
                 <Link
                   href={companyHref}
-                  className="text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+                  className="text-subtitle text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                 >
                   {posting.companyName}
                 </Link>
               ) : (
-                <span className="text-ink font-medium">{posting.companyName}</span>
+                <span className="text-subtitle text-ink">{posting.companyName}</span>
               )}
               <span aria-hidden="true" className="text-ink-faint mx-1.5 @max-md:hidden">
                 ·

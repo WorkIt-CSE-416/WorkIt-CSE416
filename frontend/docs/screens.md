@@ -162,8 +162,11 @@ layer). Under the pointer its edge tints, its shadow rises and its title
 turns brand, but it does not lift: a card just under the sticky heading and
 filters lifted into them and was cut off. The id is
 the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
-The page is the mock's `JobDetailHeader` with the card's own facts
-(`listingFacts` in `listing-card.tsx`) and the employer's logo, then one
+The page is capped at 70rem (1120px), a little wider than the other reading
+pages' `max-w-app`, which left its facts and checklist cramped (KAN-279).
+It is the mock's `JobDetailHeader` with the card's own facts
+(`listingFacts` in `listing-card.tsx`) and the employer's 40px logo and
+16px name, then one
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
@@ -272,7 +275,12 @@ the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
 the last one visited in sessionStorage), or the Resumes page when a
 tailored resume's posting link opened it (`rememberReturnTo`, KAN-268, set
 on the click rather than the visit, so a job opened from elsewhere after a
-look at /resumes does not go Back there). It says only "Back", whatever the
+look at /resumes does not go Back there). When the seeker came straight from
+that list (`cameFrom`, (seeker)/scroll-memory.tsx), Back goes back in history
+as the browser's Back does: the router redraws the list it kept at once.
+Following the link instead is a fresh visit, which fetches the feed again and,
+on Recommended, scores every job again, so the list sat on its skeleton
+(2026-10-19). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
 would change a moment after the page loads.
 **Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
@@ -529,7 +537,8 @@ for the job. **Its job half is the job page itself**: the pinned action bar,
 the header and the Job Description tab are the parts `/jobs/[jobId]` draws
 (`jobs/[jobId]/job-view.tsx`: `loadJobView`, `JobViewActions`,
 `JobViewHeader`, `JobViewBody`), so the two pages look the same and cannot
-drift apart. Only Back differs (Back to Applications, `JobActionBar`'s
+drift apart. They share the job page's width too (`JOB_PAGE_WIDTH`, 1120px,
+KAN-279). Only Back differs (Back to Applications, `JobActionBar`'s
 `back` slot). No match rail, as on the job page: an earlier draft added the
 Jobs card's ring, which made the same job look different by how it was
 opened. Analytics and explanations go on the Your Application tab only.

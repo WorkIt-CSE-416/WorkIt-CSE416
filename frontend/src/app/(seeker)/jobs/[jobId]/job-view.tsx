@@ -29,6 +29,12 @@ import { SentNote } from "./sent-note";
  */
 export type JobView = Awaited<ReturnType<typeof loadJobView>>;
 
+/** A job's page width, a little wider than the reading pages' `max-w-app`
+ *  (KAN-279): at 1024px the header's six facts felt cramped. About the Role
+ *  keeps its own 68ch measure, so its lines do not grow with it. The job page
+ *  and the application's own page share it, so the two stay identical. */
+export const JOB_PAGE_WIDTH = "mx-auto w-full max-w-[70rem] flex-1 py-6";
+
 /** Everything the job page reads, in parallel. `job` is null for one that has
  *  closed (or never existed); `error` when the API can't be read. */
 export async function loadJobView(jobId: string) {
@@ -92,10 +98,14 @@ export function JobViewHeader({ job }: { job: JobListing }) {
   return (
     <JobDetailHeader
       posting={toPosting(job)}
-      // The employer's own logo, as on the card, at the header's 32px; its
+      // The employer's own logo, as on the card, at the header's 40px; its
       // initials when it has none.
       tile={
-        <CompanyLogo name={job.company} src={job.logo_url} className="text-meta size-8 rounded" />
+        <CompanyLogo
+          name={job.company}
+          src={job.logo_url}
+          className="text-label rounded-control size-10"
+        />
       }
     />
   );

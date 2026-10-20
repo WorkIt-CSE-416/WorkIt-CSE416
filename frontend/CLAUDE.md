@@ -151,6 +151,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.
   `docs/screens.md`, Applications, has the rest.
+- **A "Back" link to a dynamic page goes back in history when it can.** Next
+  keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but
+  reuses the one it holds on a history Back. A job page's Back that followed
+  its link re-ran the whole feed fetch and Recommended scoring, so the list
+  seemed slow to load; `BackToJobs` now calls `router.back()` when
+  `cameFrom()` is its target (`docs/screens.md`, Job posting page).
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**

@@ -7,7 +7,13 @@ import { SEEKER_GUTTER } from "../../gutter";
 import { ListingsError } from "../listing-card";
 import { getJobListing } from "../listings";
 import { JobActionBar } from "./action-bar";
-import { JobViewActions, JobViewBody, JobViewHeader, loadJobView } from "./job-view";
+import {
+  JOB_PAGE_WIDTH,
+  JobViewActions,
+  JobViewBody,
+  JobViewHeader,
+  loadJobView,
+} from "./job-view";
 import { BackToJobs } from "./page-actions";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
@@ -58,7 +64,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
 
   if (error != null) {
     return (
-      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
         <BackToJobs />
         <ListingsError error={error} retryHref={`/jobs/${encodeURIComponent(jobId)}`} />
       </div>
@@ -69,7 +75,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
   // The actions, header and body are ./job-view's, which the application's
   // own page (/applications/[jobId]) draws too.
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
       {/* Back and the job's actions, held at the top while the description
           scrolls under them (./action-bar). */}
       <JobActionBar>

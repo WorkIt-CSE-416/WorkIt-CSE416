@@ -57,7 +57,7 @@ export default async function CompanyJobDetailPage({ params }: PageProps<"/compa
 
       <JobDetailHeader
         posting={posting}
-        tile={<CompanyTile Icon={BuildingIcon} size="sm" tone="outline" />}
+        tile={<CompanyTile Icon={BuildingIcon} size="md" tone="outline" />}
         actions={
           <>
             <Badge variant="status" tone={STATUS_TONE[posting.status]}>

@@ -15,6 +15,7 @@ import { cn } from "@/lib/cn";
 import { SEEKER_GUTTER } from "../../gutter";
 import { JobActionBar } from "../../jobs/[jobId]/action-bar";
 import {
+  JOB_PAGE_WIDTH,
   JobViewActions,
   JobViewBody,
   JobViewHeader,
@@ -79,7 +80,7 @@ export default async function ApplicationPage({
 
   if (applications == null) {
     return (
-      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
         <BackToApplications />
         <EmptyState
           Icon={CloudOff}
@@ -112,7 +113,7 @@ export default async function ApplicationPage({
   );
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
       <JobActionBar back={<BackToApplications className="group/back" />}>
         {actionable ? <JobViewActions view={view} job={job} /> : tabs()}
       </JobActionBar>
@@ -126,7 +127,7 @@ export default async function ApplicationPage({
             <CompanyLogo
               name={app.company}
               src={app.logoUrl}
-              className="text-meta size-8 rounded"
+              className="text-label rounded-control size-10"
             />
           }
         />
