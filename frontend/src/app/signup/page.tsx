@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { AuthAlternatives } from "@/components/auth-alternatives";
 import { Logo } from "@/components/logo";
 import { SkylineBackdrop } from "@/components/skyline";
 import { TextLink } from "@/components/ui/text-link";
+import { redirectIfSignedIn } from "@/lib/session";
 
 import { SignupForm } from "./signup-form";
 
@@ -31,7 +33,12 @@ const FORM_ID = "create-account";
  * The skyline behind it is fixed, so the card scrolls over it once those
  * fields make the page taller than the window.
  */
-export default function SignUpPage() {
+export default async function SignUpPage() {
+  // Request time, not build time: the session check needs the Supabase keys,
+  // which CI's build has none of (the seeker layout's rule).
+  await connection();
+  await redirectIfSignedIn();
+
   return (
     <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
       <SkylineBackdrop />

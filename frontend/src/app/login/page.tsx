@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { AccountTypeSwitcher } from "@/components/account-type-switcher";
 import { AuthAlternatives } from "@/components/auth-alternatives";
 import { Logo } from "@/components/logo";
 import { SkylineBackdrop } from "@/components/skyline";
 import { TextLink } from "@/components/ui/text-link";
+import { redirectIfSignedIn } from "@/lib/session";
 
 import { LoginForm } from "./login-form";
 
@@ -28,7 +30,12 @@ const FORM_ID = "sign-in";
  * every time its height changed, and the control just clicked slid out from
  * under the pointer.
  */
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Request time, not build time: the session check needs the Supabase keys,
+  // which CI's build has none of (the seeker layout's rule).
+  await connection();
+  await redirectIfSignedIn();
+
   return (
     <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
       <SkylineBackdrop />
