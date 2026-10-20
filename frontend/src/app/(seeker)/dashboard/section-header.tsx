@@ -2,7 +2,7 @@ import { SectionLink } from "@/components/ui/section-link";
 
 /**
  * An open section's heading, with its one way onward as a short link at the
- * top right: "View All", "All Jobs", "Follow Up". One component so every
+ * top right: "View All", "Newest Jobs", "Follow Up". One component so every
  * section puts its link in the same place, at the same weight: they had
  * drifted to the bottom of one list and into a sentence-long button on
  * another. The link itself is ui/section-link.tsx, which the company

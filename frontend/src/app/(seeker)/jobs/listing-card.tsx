@@ -74,6 +74,8 @@ export function ListingCard({
   job,
   stage,
   tailored,
+  canMarkApplied,
+  onApplied,
 }: {
   job: JobListing;
   /** The seeker's application for it, for its Save and Auto Apply buttons;
@@ -81,6 +83,11 @@ export function ListingCard({
   stage: ApplicationStage | null;
   /** Whether the seeker has a resume tailored to it, for its Tailor button. */
   tailored: boolean;
+  /** An applicant account, which Apply Now's dialog may ask "Did You
+   *  Apply?". A company account can open /jobs too, and is never asked. */
+  canMarkApplied: boolean;
+  /** Takes the card off its list once the job is marked applied. */
+  onApplied?: () => void;
 }) {
   return (
     <JobPostingCard
@@ -130,15 +137,14 @@ export function ListingCard({
           {/* The job posting page's own dialog (KAN-290): which resume to
               send, then "Did You Apply?". No new-tab glyph: the button opens
               the dialog, and the dialog's links to the employer carry it.
-              Every card here is a signed-in seeker's (the layout sends anyone
-              else to /login), so it may mark the job applied; an applied job
-              is already gone from their feed. */}
+              An applied job is already gone from the seeker's feed. */}
           <ApplyButton
             jobId={job.id}
             title={job.title}
             applyUrl={job.apply_url}
-            canMarkApplied
+            canMarkApplied={canMarkApplied}
             applied={stage === "applied"}
+            onApplied={onApplied}
           />
         </>
       }

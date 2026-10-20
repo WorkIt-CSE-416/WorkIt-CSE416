@@ -239,7 +239,9 @@ straight to the employer and recorded neither. A card's button has no
 new-tab glyph, since it opens the dialog and the dialog's links carry it.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
-linked to this posting, its day in the viewer's zone.
+linked to this posting, its day in the viewer's zone. Only the job's own
+page refreshes on a send (`showsSent`): on a card a refresh reran the whole
+feed, Best Match scoring and all, to redraw nothing.
 The job's actions sit in one bar with Back, pinned at the top from md
 (`[jobId]/action-bar.tsx`, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply,
 Tailor My Resume and Apply Now. Below md the bar scrolls away and wraps.
@@ -322,6 +324,15 @@ before, and one misclick took a job off the feed with no undo. The job then
 leaves that applicant's feed, /search and count, because `listings.ts` sends
 their token with those reads (`viewerToken`) and the API filters on it. There
 is no undo yet.
+The cards ask the same way, but only an applicant account (`isApplicant` in
+`jobs/listings.ts`, the account the shell already read): a company account
+can open /jobs and /search too, and its dialog just closes. A card marked
+applied leaves its list at once, in the browser (`FeedList`, KAN-290
+review), with focus on the next role's title: a refresh redraws only the
+server's first page, so a job from a Load More page stayed listed. The kept
+Load More offset drops by one with it, as the API's later pages move up one,
+so the next Load More skips nothing. New Matches refreshes the route, which
+drops the row.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and
@@ -367,7 +378,7 @@ too, with nothing for a screen reader. A live fetch in a page calls
 
 **Next Up, Up Next and Waiting are archived for now** (KAN-261), and the
 header's Find Jobs button is gone (the sidebar's Jobs row and New Matches'
-All Jobs lead there). The tracker stores no dated events yet, so Next Up and
+Newest Jobs lead there; it read "All Jobs" until KAN-288 retired that view). The tracker stores no dated events yet, so Next Up and
 Up Next only said "nothing scheduled", and Waiting's buckets were a fixture.
 Under the numbers, New Matches runs the full width with Activity under it.
 From `@4xl/main` New Matches has a fixed height (`h-96`, set in the page's
@@ -766,7 +777,9 @@ one client step over the server's rows), in flight.
   company; frozen at the left from 672px of page up, as on Applications),
   Status, Match (the Applications page's `MatchBadge`, "Not scored" without
   one), Date Added (when it was queued or marked applied), Date Applied
-  ("Not yet" until then), and a narrow Actions column at the right end.
+  ("Not yet" until then), and a narrow Actions column at the right end,
+  its heading for a screen reader only: it holds one icon button with its
+  own tooltip, and the word would not fit its 64px.
   Each status badge leads with its own glyph, so a status reads by shape
   as well as colour (2026-10-20): a clock for Queued, a window for Working
   in Browser, the AI sparkle for Tailoring Resume, a pen for Autofilling,
@@ -781,7 +794,8 @@ one client step over the server's rows), in flight.
   background tab", and "Job posting closed". A row in flight has a dot that
   rings out three times beside its badge. The rows fade in down the table
   and glide when the sort or the filter moves them (`components/reflow.tsx`).
-  The body is `aria-live="polite"`.
+  The body is not a live region: a sort or a filter redraws every row, and
+  `aria-live` made a screen reader read them all aloud.
 - **A row opens its job posting on a click anywhere** while the posting is
   open (`components/clickable-row.tsx`, the Applications list's), leaving
   clicks on links and buttons alone; the role is the real link. A closed
@@ -810,7 +824,9 @@ one client step over the server's rows), in flight.
   briefcase), Skipped (a skip).
   Any of the picks shows. While a status is picked, Clear Filters is an
   outlined cross beside it, handing focus to the dropdown; a filter that
-  hides every row shows "No Jobs With That Status" with Clear Filters. A
+  hides every row shows "No Jobs With That Status" with Clear Filters,
+  which hands focus to the dropdown too, as the button leaves with the
+  empty state. A
   row of counts by status sat above the table until the user asked for it
   to go (2026-10-20).
 - **Sort**: five headings sort, each one way, the way it is read: Role by

@@ -166,7 +166,7 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **A "Back" link to a dynamic page goes back in history when it can.** Next
   keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but
   reuses the one it holds on a history Back. A job page's Back that followed
-  its link re-ran the whole feed fetch and Recommended scoring, so the list
+  its link re-ran the whole feed fetch and Best Match scoring, so the list
   seemed slow to load; `BackToJobs` now calls `router.back()` when
   `cameFrom()` is its target (`docs/screens.md`, Job posting page).
 - **Promote to `src/components` on the second consumer**, not in anticipation;
@@ -338,9 +338,11 @@ are in `docs/auth.md`.
   `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
   downloads the file. A download cancelled at the missing-character warning
   deletes the sent resume it just made (`created`), so only files the
-  student took are kept. Apply on the posting detail goes through
-  `applyWithResume` (KAN-220) and keeps its sent resume: the student is
-  told WorkIt kept a copy, so it is never deleted behind their back. No
+  student took are kept. Apply Now goes through `applyWithResume` (KAN-220)
+  wherever it sits: the job posting page, the feed cards on /jobs and
+  /search, and the Dashboard's New Matches (KAN-290). It keeps its sent
+  resume: the student is told WorkIt kept a copy, so it is never deleted
+  behind their back. No
   screen lists sent resumes since the Resumes view's Sent card went
   (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**

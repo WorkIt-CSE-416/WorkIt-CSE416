@@ -49,6 +49,13 @@ type Source = { builtResumeId: string } | { uploadedResumeId: string };
  * employer's site, so this is its one chance to learn which resume went and
  * whether the student applied; a card's Apply Now once linked straight to the
  * employer and recorded neither.
+ *
+ * ONLY THE JOB'S OWN PAGE REFRESHES ON A SEND (`showsSent`): it is the one
+ * screen that says which resume went. On a card a refresh reran the whole
+ * feed, Best Match scoring and all, to redraw nothing. A list that draws its
+ * cards in the browser drops a job marked applied itself (`onApplied`), since
+ * a refresh redraws only the server's first page (./feed-list); anywhere else
+ * a mark refreshes the route.
  */
 export function ApplyButton({
   jobId,
@@ -56,6 +63,8 @@ export function ApplyButton({
   applyUrl,
   canMarkApplied = false,
   applied = false,
+  showsSent = false,
+  onApplied,
   label = "Apply Now",
   "aria-label": ariaLabel,
   className,
@@ -67,6 +76,11 @@ export function ApplyButton({
   canMarkApplied?: boolean;
   /** Marked applied already: the dialog never asks again. */
   applied?: boolean;
+  /** The page says which resume was sent: refresh it once one is. */
+  showsSent?: boolean;
+  /** Takes the job off the caller's list once marked applied, in place of
+   *  refreshing the route. */
+  onApplied?: () => void;
   /** The button's words: New Matches' row has room for "Apply" only. */
   label?: string;
   /** For a short label, the job it applies to, as a screen reader hears it. */
@@ -138,7 +152,7 @@ export function ApplyButton({
     if (!data) return setError(error);
     setSent(data);
     // The page's "You sent <name> on <date>" reads the new sent resume.
-    router.refresh();
+    if (showsSent) router.refresh();
   }
 
   async function confirmApplied() {
@@ -148,7 +162,9 @@ export function ApplyButton({
     setBusy(false);
     if (result.error) return setError(result.error);
     setOpen(false);
-    // The page's "You applied on …" reads the new mark.
+    if (onApplied) return onApplied();
+    // The page's "You applied on …" reads the new mark, and New Matches
+    // drops the job.
     router.refresh();
   }
 

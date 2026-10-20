@@ -129,7 +129,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Find Jobs sat beside it until KAN-261: the sidebar's Jobs row and
-            New Matches' All Jobs already lead there. */}
+            New Matches' Newest Jobs already lead there. */}
         <RangeSwitch />
       </header>
 

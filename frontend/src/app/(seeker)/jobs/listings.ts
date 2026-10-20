@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { getAccessToken, getApplicantSession } from "@/lib/session";
+import { getAccessToken, getApplicantSession, getCurrentAccount } from "@/lib/session";
 
 import type { ExperienceLevel, Highlight, JobType, WorkStyle } from "./data";
 import {
@@ -317,6 +317,15 @@ export async function getApplied(id: string): Promise<{ appliedAt: string | null
   } catch {
     return null;
   }
+}
+
+/** Whether the viewer is an applicant, whom Apply Now's dialog may ask "Did
+ *  You Apply?": the job page's rule (`getApplied` answers an applicant only)
+ *  for a list of cards. A company account can open /jobs and /search too.
+ *  Read from the account the shell already asked for (cached per render), so
+ *  it costs no request. False when the API can't be read. */
+export async function isApplicant(): Promise<boolean> {
+  return (await getCurrentAccount())?.account_type === "applicant";
 }
 
 /** The job ids the seeker has a tailored resume for, so each card's Tailor
