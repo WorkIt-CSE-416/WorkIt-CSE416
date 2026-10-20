@@ -5,35 +5,44 @@ file stays) live in `app/services/sent_resumes.py`. Storage goes through this
 module's `get_supabase()`, so tests patch it here.
 
 POST   /applicants/{id}/sent-resumes            SentResumeCreate
-       {built_resume_id | uploaded_resume_id, job_posting_id?, format?}
-       -> 201 SentResumeDownload: a download, kept as a sent resume: a PDF,
-          or with format "docx" a Word file (a built resume only, else
-          422). Every download the student makes comes through here;
-          GET .../built-resumes/{rid}/render and /docx return the file
-          unkept, for the editor's preview and the tests.
-          With `job_posting_id` it is Apply (KAN-220): the sent resume is
-          linked to that posting. An uploaded resume (Apply only) makes no
-          new file; the sent resume points at the uploaded resume's file.
-       -> 200 SentResumeDownload: the same content was sent before from this
-          built resume; the last sent resume comes back, with no new file.
-       SentResumeDownload is the sent resume plus `url` (a 5-minute link that
-       downloads the file) and `missing_characters` (the font lacks them; a
-       repeat answers []). 422 unless exactly one source is given. 404 for a
+       {built_resume_id | uploaded_resume_id, job_posting_id}
+       -> 201 SentResumeDownload: Apply (KAN-220), the resume kept as a
+          sent resume linked to that posting. A built resume is rendered to
+          a PDF; an uploaded resume makes no new file, the sent resume
+          points at the uploaded resume's file. Only a send comes through
+          here: the editor's Download takes GET .../built-resumes/{rid}/render
+          or /docx and keeps nothing (KAN-267), so `job_posting_id` is
+          required (422 without it).
+       -> 200 SentResumeDownload: the same content was sent to this posting
+          before from this built resume; the last sent resume comes back,
+          with no new file.
+       SentResumeDownload is the sent resume plus its file, as GET .../file
+       answers it, and `missing_characters` (the font lacks them; a repeat
+       answers []). A built resume keeps no PDF: the sent resume is a
+       snapshot (KAN-267), so its file comes back as `data`. 422 unless
+       exactly one source is given. 404 for a
        resume that is not the student's or a posting the Jobs page does not
-       list (unknown, draft, paused, closed),
-       503 when the PDF cannot be made, 502 when Storage refuses the file.
-GET    /applicants/{id}/sent-resumes            -> [SentResumeResponse], newest first
-GET    /applicants/{id}/sent-resumes/{sid}/file -> {"url"}: a 5-minute download link
-DELETE /applicants/{id}/sent-resumes/{sid}      -> 204. Its file goes too, unless
-       another sent resume or an uploaded resume uses it. Sent resumes are
-       never edited.
+       list (unknown, draft, paused, closed), 503 when the PDF cannot be made.
+GET    /applicants/{id}/sent-resumes            -> [SentResumeResponse], newest first;
+       `rebuilt` marks one rebuilt from an uploaded file's text (below)
+GET    /applicants/{id}/sent-resumes/{sid}/file -> SentResumeFile: a stored file
+       as `url`, a 5-minute link that downloads it (`?download=false`: opens
+       it in the browser); a snapshot as `data`, the PDF rendered again
+       (about 0.3 s), with `rebuilt` and the file's `original_text` when it
+       was rebuilt from an uploaded resume replaced or deleted since
+       (routers/resumes.py). 503 when the PDF cannot be made, 502 when
+       Storage cannot sign the link.
+DELETE /applicants/{id}/sent-resumes/{sid}      -> 204. Its file or snapshot goes
+       too, unless another sent resume (or, for a file, an uploaded resume)
+       uses it. The API never edits a sent resume; replacing or deleting
+       its uploaded resume moves it to a snapshot (routers/resumes.py).
 """
 
 import asyncio
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +52,7 @@ from app.models.sent_resume import Sent_Resume
 from app.schemas.sent_resume import (
     SentResumeCreate,
     SentResumeDownload,
+    SentResumeFile,
     SentResumeResponse,
 )
 from app.services import sent_resumes as service
@@ -54,11 +64,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/applicants/{applicant_id}/sent-resumes", tags=["sent-resumes"])
 
 _response = SentResumeResponse.from_row
+RENDER_FAILED = "The PDF could not be made. Try again."
 
 
-async def _signed_url(row: Sent_Resume) -> str:
+async def _file(session: AsyncSession, row: Sent_Resume, *, download: bool = True, pdf: bytes | None = None):
+    """The row's file, or the HTTP error that says why not."""
     try:
-        return await service.file_url(get_supabase().storage, row)
+        return await service.open_file(session, get_supabase().storage, row, download=download, pdf=pdf)
+    except TectonicUnavailable as exc:
+        logger.error("resume render failed: %s", exc)
+        raise HTTPException(503, RENDER_FAILED) from exc
     except Exception:
         logger.exception("Failed to sign sent resume URL", extra={"storage_path": row.storage_path})
         raise HTTPException(502, "Could not open the resume")
@@ -85,36 +100,26 @@ async def send(
                 session, applicant_id, body.uploaded_resume_id, job_posting_id=body.job_posting_id)
         else:
             sent = await service.send_built(
-                session, get_supabase().storage, applicant_id, body.built_resume_id,
-                job_posting_id=body.job_posting_id, file_format=body.format)
+                session, applicant_id, body.built_resume_id, job_posting_id=body.job_posting_id)
     except NotFound:
         raise HTTPException(404, "Resume not found")
     except TectonicUnavailable as exc:
         logger.error("resume render failed: %s", exc)
-        raise HTTPException(503, "The PDF could not be made. Try again, or download the Word file.") from exc
-    except SQLAlchemyError:
-        raise
-    except Exception:
-        logger.exception("Storage upload of a sent resume failed")
-        raise HTTPException(502, "The file could not be saved. Try again.")
+        raise HTTPException(503, RENDER_FAILED) from exc
 
     if sent.created:
+        # Nothing to clean up on a failed commit: a send stores no file (a
+        # built resume's is a snapshot row, an uploaded resume's is its own).
         try:
             await session.commit()
         except SQLAlchemyError:
             await session.rollback()
             logger.exception("Failed to save the sent resume")
-            if sent.row.uploaded_resume_id is None:  # an uploaded resume's file is not ours to remove
-                await _remove_file(sent.row.storage_path)
             raise HTTPException(500, "Failed to save the sent resume")
     else:
         response.status_code = 200
 
-    return SentResumeDownload(
-        **_response(sent.row).model_dump(),
-        url=await _signed_url(sent.row),
-        missing_characters=list(sent.missing_characters),
-    )
+    return SentResumeDownload.of(sent.row, await _file(session, sent.row, pdf=sent.pdf), sent.missing_characters)
 
 
 @router.get("", response_model=list[SentResumeResponse])
@@ -125,17 +130,18 @@ async def list_sent(
     return [_response(r) for r in await service.list_sent(session, applicant_id)]
 
 
-@router.get("/{sent_id}/file")
-async def file_url(
+@router.get("/{sent_id}/file", response_model=SentResumeFile)
+async def open_file(
     sent_id: uuid.UUID,
+    download: bool = Query(True),
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
-) -> dict[str, str]:
+) -> SentResumeFile:
     try:
         row = await service.get_sent(session, applicant_id, sent_id)
     except NotFound:
         raise HTTPException(404, "Sent resume not found")
-    return {"url": await _signed_url(row)}
+    return SentResumeFile.of(await _file(session, row, download=download))
 
 
 @router.delete("/{sent_id}", status_code=204)

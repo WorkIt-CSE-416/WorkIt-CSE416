@@ -39,7 +39,7 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 | **Tailored resume** | A built resume for one job posting (`built_resumes.job_posting_id`), made with Tailor (KAN-217). At most one per job posting |
 | **Uploaded resume** | A file the student uploaded (`resumes`). Its default is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
 | **Default resume** | The one resume the student starred, a built (base or tailored) or an uploaded one: the Resumes view calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two. A student's only resume is the default with no star click (`built_resumes.default_if_only`, on every add and delete) |
-| **Sent resume** | The exact file a student downloaded or applied with, kept in `sent_resumes` (KAN-208). With `job_posting_id` it records what went to that job posting (Apply, KAN-220) |
+| **Sent resume** | The exact file a student applied with, kept in `sent_resumes` (KAN-208): what went to one job posting (Apply, KAN-220, or auto apply). A download keeps nothing (KAN-267) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
 | **Run** | The extension working through the queue, one application at a time |
@@ -88,7 +88,7 @@ everything up to that click and nothing after it ("Decisions", below).
 | Matching | `fetch_recommended()` scores job postings 0–100 against the experience bank, with up to 3 highlights and `min_match`. Also served as `GET /jobs/recommended/{applicant_id}` | `backend/app/routers/jobs.py`, `backend/app/services/matching/` |
 | Experience bank | The student's facts, filled by intake and import. Matching, base resumes and Tailor read it | `backend/app/services/bank.py`, `backend/app/routers/bank.py` |
 | Base and tailored resumes | Built from the bank and rendered to PDF with Tectonic (Jake's Resume). Tailor proposes changes for one job posting; the student accepts or rejects each | `backend/app/services/built_resumes.py`, `services/resume_render/`, `services/tailor.py`, `frontend/src/app/(seeker)/jobs/[jobId]/tailor/` |
-| Sent resumes | `POST .../sent-resumes` keeps the exact file and answers a 5-minute download link. With `job_posting_id` it is Apply | `backend/app/services/sent_resumes.py`, `backend/app/routers/sent_resumes.py` |
+| Sent resumes | `POST .../sent-resumes` (Apply, with `job_posting_id`) keeps the resume sent and answers its file: the PDF itself (`data`) for a built resume, kept as a snapshot (KAN-267), or a 5-minute link (`url`) for an uploaded one | `backend/app/services/sent_resumes.py`, `backend/app/routers/sent_resumes.py` |
 | Uploaded resume | PDF or DOCX in the `Resume` Storage bucket. Feeds the bank's import | `backend/app/routers/resumes.py` |
 | LLM access | Scout's model chain. Daily uses per student and feature; Tailor has 2 a day | `scout/workit_scout/llm.py`, `backend/app/services/usage.py` |
 | Privacy boundary | Identity fields (name, contact details, links) never reach a model: the seam removes them | `backend/app/services/identity.py`, `scout/` |
@@ -208,7 +208,7 @@ Names are not final.
 | 1 | `remove_queued(db, applicant_id, job_id)` | Deletes the application only while it is `queued`, in one statement, so a fill that finishes it meanwhile is never undone. **Built** |
 | 2 | `dequeue_job(db, applicant_id, job_id)` | The Auto Apply button's second click and Live Activity's cross: `remove_queued`, one commit; the job has no application again, so a later batch may pick it. `NotFound` without one, `WrongStage` past queued. **Built** |
 | 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. `list_applications(score_for=account)` adds each open posting's `match` through `fetch_recommended` (`JobFilters.job_ids`); only the Applications page asks, since it can embed the bank. **Built** |
-| 2 | `prepare_resume(db, storage, applicant_id, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`; none, `NotFound`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting → one commit → the sent resume and a 5-minute link, or `None` with no resume. Never tailors. **Built** |
+| 2 | `prepare_resume(db, storage, applicant_id, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`; none, `NotFound`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting → one commit → the sent resume and its file (`data` for a built resume's snapshot, a 5-minute `url` for an uploaded one), or `None` with no resume. Never tailors. **Built** |
 | 2 | `finish_application(db, applicant_id, job_id, outcome)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `set_stage`: submitted → `applied`, skipped → `skipped`, failed → `needs_you`. **Built**, without `record_run`, which waits for `autofill_runs` |
 
 ### 5.3 One step through all three layers
@@ -254,7 +254,7 @@ read and write the queue through the routes, like any other caller.
 runBatch()                       // parent: a loop, nothing else
   → nextApplication()            // GET from the API
   → openApplicationTab(url)      // the run's own background tab, reused
-  → prepareResume(jobId)         // POST to the API: the sent resume and its link
+  → prepareResume(jobId)         // POST to the API: the sent resume and its file
   → fillForm(tabId, file)        // the field engine that exists, plus the file
   → waitForDecision(tabId)       // the student clicks "Submitted" or "Skip"
   → finishApplication(...)       // POST to the API
@@ -355,8 +355,10 @@ student can still finish it.
 1. **next.** The runner asks the API for the next queued application. None
    left: the run goes idle.
 2. **resume.** The runner calls `prepare_resume`. The API picks the resume,
-   keeps it as a sent resume for this job posting and answers a 5-minute
-   link. The background worker downloads the file at once. No resume: the
+   keeps it as a sent resume for this job posting and answers its file: the
+   PDF itself (`data`, base64) for a built resume, or a 5-minute link
+   (`url`) for an uploaded one, which the background worker downloads at
+   once. No resume: the
    run fills the form without one ("The resume"). The run never tailors.
 3. **opening.** It opens `apply_url` in the run's tab ("Chrome limits")
    and waits for the tab's `complete` status. Limit: 30 seconds.
@@ -497,9 +499,10 @@ what exists:
   truth rule (`services/truth_rule.py`, `invented`) drops a wording with a
   number or a tool that is in neither its original bullet nor the bank's
   skills, and Done refuses one (422). Identity fields never reach the model.
-- **Sent resumes** (KAN-208) keep every file a student downloads or applies
-  with, and answer a 5-minute download link. Unchanged content returns the
-  last sent resume, with no new file.
+- **Sent resumes** (KAN-208) keep every resume a student applies with (a
+  download keeps nothing since KAN-267): a built resume as a snapshot
+  rendered again on open, an uploaded one as its own file. Unchanged
+  content returns the last sent resume.
 - **Apply** on the job posting page (KAN-220) offers the tailored resume
   first, else the default, and keeps the one sent as a sent resume linked to
   the job posting.
@@ -631,9 +634,10 @@ This data also shows which hiring systems need adapter work.
 
 **Built** (KAN-283): one JSONB bank of answers per student for the questions
 hiring systems repeat, `backend/app/models/CLAUDE.md`, "The answer bank".
-Onboarding's Profile step fills it: work authorization, sponsorship,
-citizenship and visa status, security clearance, gender, veteran status
-and disability. Contact details and links are not in it: auto apply reads
+Onboarding's Profile step fills it, and My Profile's Application Questions
+edits it later (KAN-269): work authorization, sponsorship,
+citizenship and visa status, security clearance, gender, Hispanic or
+Latino, race, veteran status and disability. Contact details and links are not in it: auto apply reads
 them from `applicant_profiles`, their one home. `GET` and `PATCH /applicants/{id}/autofill-answers` read and
 write it, a key at a time. Still to do: the extension fills forms from it,
 and start date and the other repeated questions get keys. Without it, every

@@ -20,7 +20,7 @@ export default function ShellPage() {
         <Row name="<LogoLockup wordmarkHidden>" role="The collapsed panel: the word fades out">
           <LogoLockup wordmarkHidden />
         </Row>
-        <Row name='<Logo size="bar">' role="Company bar's corner cell: the lockup in ink">
+        <Row name='<Logo size="bar">' role="Company bar's corner cell: the figure in violet">
           <Logo size="bar" />
         </Row>
         <Row name='<Logo size="card">' role="The auth card, the figure in violet">

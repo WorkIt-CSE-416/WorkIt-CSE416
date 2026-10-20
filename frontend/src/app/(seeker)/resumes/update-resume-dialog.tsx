@@ -29,17 +29,22 @@ import { replaceResume, type ResumeItem } from "@/lib/resume-actions";
  *
  * The page mounts it only while open, so each opening starts at the
  * dropzone. It cannot close mid-upload: the result would have nowhere to show.
+ * A file with another upload's text (KAN-267) replaces nothing: the page
+ * closes this and opens the duplicate pop-up, as an upload does.
  */
 export function UpdateResumeDialog({
   resume,
   open,
   onOpenChange,
   onReplaced,
+  onDuplicate,
 }: {
   resume: ResumeItem;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onReplaced: (resume: ResumeItem) => void;
+  /** "Duplicate Resume found: <name>", for the page's pop-up. */
+  onDuplicate: (message: string) => void;
 }) {
   const [busy, setBusy] = useState<"uploading" | "reading" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +58,8 @@ export function UpdateResumeDialog({
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const { resume: updated, error } = await replaceResume(resume.id, fd);
+      const { resume: updated, error, duplicateOf } = await replaceResume(resume.id, fd);
+      if (duplicateOf && error) return onDuplicate(error);
       if (!updated) return setError(error);
       onReplaced(updated);
       if (updated.bank) {

@@ -67,6 +67,9 @@ class RenderResponse(BaseModel):
     before download and the editor's boxes, in page order."""
 
     pdf: str
+    # What a download saves it as: the resume's name, header-safe
+    # (services/built_resumes.file_name)
+    file_name: str
     page_count: int
     # Lines of text past page 1 (0 on a one-page resume), for the page-count
     # chip; an estimate that can run a line or two short (Rendered.lines_over)

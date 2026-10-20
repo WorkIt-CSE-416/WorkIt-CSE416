@@ -70,6 +70,17 @@ async def test_a_patch_writes_only_the_keys_it_sends(client):
     assert (await client.get(client.url_for)).json() == body
 
 
+async def test_ethnicity_and_race_are_saved_and_read_back(client):
+    res = await client.patch(
+        client.url_for, json={"hispanic_latino": "no", "race": "two_or_more"}
+    )
+    assert res.status_code == 200
+    assert res.json()["hispanic_latino"] == "no"
+    assert res.json()["race"] == "two_or_more"
+    body = (await client.get(client.url_for)).json()
+    assert (body["hispanic_latino"], body["race"]) == ("no", "two_or_more")
+
+
 async def test_null_clears_a_key(client):
     await client.patch(client.url_for, json={"security_clearance": "secret", "disability_status": "no"})
     res = await client.patch(client.url_for, json={"security_clearance": None})
@@ -85,7 +96,16 @@ async def test_the_stored_bank_holds_each_answer_alone(client, database):
 
 
 @pytest.mark.parametrize(
-    "body", [{"veteran_status": "maybe"}, {"gender": "other"}, {"favourite_colour": "blue"}, {"needs_sponsorship": True}]
+    "body",
+    [
+        {"veteran_status": "maybe"},
+        {"gender": "other"},
+        {"hispanic_latino": "maybe"},
+        # Hispanic or Latino is its own question, never a race (KAN-299).
+        {"race": "hispanic_latino"},
+        {"favourite_colour": "blue"},
+        {"needs_sponsorship": True},
+    ],
 )
 async def test_an_option_or_key_it_doesnt_offer_is_refused(client, body):
     res = await client.patch(client.url_for, json=body)

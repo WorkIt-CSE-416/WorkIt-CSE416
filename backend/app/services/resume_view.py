@@ -30,6 +30,7 @@ attributes) and sections travel as their string values.
 from __future__ import annotations
 
 import datetime
+import itertools
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -182,6 +183,61 @@ def all_chosen(bank: Any) -> Choices:
             bullets[bullet.id] = BulletChoice(position=i)
     skills = {skill.id: SkillChoice(position=i) for i, skill in enumerate(bank.skills)}
     return Choices(entries, bullets, skills)
+
+
+# A sent resume's snapshot (KAN-267, docs/sent_resume.md) keeps a view as
+# `dataclasses.asdict(view)` through JSON, which writes dates, decimals and
+# ids as strings. These read them back.
+_DATES = ("start_month", "end_month", "award_date")
+_DECIMALS = ("gpa", "gpa_scale")
+
+
+def view_from_json(data: Mapping[str, Any]) -> ResumeView:
+    '''The inverse of `dataclasses.asdict(view)` after a JSON round trip:
+    ISO dates back to `date`, GPA strings to `Decimal`, id strings to
+    `UUID`, lists to tuples.'''
+    def entry(e: Mapping[str, Any]) -> ViewEntry:
+        return ViewEntry(**{
+            **e,
+            "id": uuid.UUID(e["id"]),
+            **{k: datetime.date.fromisoformat(e[k]) if e[k] else None for k in _DATES},
+            **{k: Decimal(e[k]) if e[k] is not None else None for k in _DECIMALS},
+            "coursework": tuple(e["coursework"]),
+            "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"]) for b in e["bullets"]),
+        })
+
+    return ResumeView(
+        tuple(ViewSection(s["section"], tuple(entry(e) for e in s["entries"])) for s in data["sections"]),
+        tuple(ViewSkill(uuid.UUID(k["id"]), k["name"], k["group"]) for k in data["skills"]),
+    )
+
+
+def view_from_reading(entries: Iterable[Any], skills: Iterable[tuple[str, str | None]]) -> ResumeView:
+    '''An uploaded resume as the parser read it (`bank_import.read`: draft
+    entries and (name, group) skills) as a view, for the snapshot a sent
+    resume keeps once its upload is replaced or deleted (KAN-267). Sections
+    in resume order, entries and bullets in the file's, everything shown.
+    Ids come from positions, as the sample resume's do, so the same text
+    always gives the same view.'''
+    ids = (uuid.UUID(int=n) for n in itertools.count(1))
+    by_section: dict[str, list[ViewEntry]] = {}
+    for d in entries:
+        section = _str(d.section) or ""
+        by_section.setdefault(section, []).append(ViewEntry(
+            id=next(ids), section=section, title=d.title, organization=d.organization, location=d.location,
+            start_month=d.start_month, end_month=d.end_month, end_kind=_str(d.end_kind),
+            degree=d.degree, field_of_study=d.field_of_study,
+            # The draft's GPA is a float; a view's is a Decimal, as the bank's.
+            gpa=None if d.gpa is None else Decimal(str(d.gpa)),
+            gpa_scale=None if d.gpa_scale is None else Decimal(str(d.gpa_scale)),
+            coursework=tuple(d.coursework), honors=d.honors, link=d.link, issuer=d.issuer,
+            award_date=d.award_date,
+            bullets=tuple(ViewBullet(next(ids), text) for text in d.bullets),
+        ))
+    return ResumeView(
+        tuple(ViewSection(s, tuple(by_section[s])) for s in SECTIONS if s in by_section),
+        tuple(ViewSkill(next(ids), name, group) for name, group in skills),
+    )
 
 
 # Fit to One Page (KAN-218): what it cuts, least useful first. A base resume

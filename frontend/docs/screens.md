@@ -229,8 +229,12 @@ Apply Now (`jobs/apply-button.tsx`,
 KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
-shows Download Resume and Open the Posting (a link, so no popup blocker
-stops it). Apply Without a Resume leaves for the employer's posting at once.
+shows Open in Resumes and Open the Posting (links in new tabs, so no popup
+blocker stops them and the dialog stays to ask "Did You Apply?"). **The
+dialog downloads nothing** (KAN-267): a student gets resume files on
+Resumes & Experiences only, so Open in Resumes goes to a built resume's
+editor (its Download) or, for an upload, the Resumes view. It had a
+Download Resume button until then. Apply Without a Resume leaves for the employer's posting at once.
 **Every Apply Now opens this dialog** (KAN-290): the page's, the feed card's
 on /jobs and /search, and New Matches' Apply on the Dashboard. WorkIt cannot
 see the employer's site, so the dialog is its one chance to learn which
@@ -315,8 +319,17 @@ would change a moment after the page loads.
 **Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
-behind the new tab and asks "Did You Apply?". Yes, I Applied calls
-`markApplied` (`jobs/actions.ts`); Not Yet closes it. A job already marked is
+behind the new tab and asks "Did You Apply?". **It shows the resume they
+applied with** (KAN-267), under "Resume You Sent": the resumes Pick a
+Resume lists plus No Resume, starting on the one picked at Apply, or No
+Resume after Apply Without a Resume. The student can change it, since they
+may have attached another file on the employer's page. Yes, I Applied keeps
+a resume other than the one sent as a sent resume for this posting first
+(`applyWithResume`), so the page's "You sent <name>" names it, then calls
+`markApplied` (`jobs/actions.ts`); Not Yet closes it. No Resume after a
+send leaves that sent resume as it is: nothing links an application to
+its resume until `job_applications.sent_resume_id` (docs/sent_resume.md,
+step 4). A job already marked is
 never asked about again, and anyone else's dialog just closes. The page then
 reads "You applied on Oct 17, 2026" under the header (`AppliedNote`), the
 viewer's own day after hydration. An Applied button in the header did this
@@ -749,7 +762,7 @@ no filters or sorting: a seeker has a handful of resumes. Built resumes
 each list's default first. **A row opens on a click anywhere**, with no
 button of its own: a built resume's goes to the resume editor, as on
 Resumes (`components/clickable-row.tsx`, its name the link); it never
-downloads here, since every download keeps a sent resume. An uploaded
+downloads here: downloads live in the editor. An uploaded
 one's previews a PDF in a new tab or downloads a DOCX (`previewResume`,
 called from the click, since the tab must open inside it; its name is the
 button a keyboard reaches). Open and Preview buttons and an amber "None is
@@ -892,8 +905,9 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 ## My Profile
 
-**My Profile holds the photo and the identity fields**, and a "Resumes &
-Experiences" section that links to both views of that page.
+**My Profile holds the photo and the identity fields**, the Application
+Questions, and a "Resumes & Experiences" section that links to both views of
+that page.
 
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
@@ -907,7 +921,8 @@ under the heading's text.
   a new tab, printed as the resume header prints it: `linkedin.com/in/jake`)
   or "Not added" in grey. The section's Edit turns every value into a text
   field in place, the first one focused, with Cancel and Save under them;
-  Escape cancels. Clearing a field and saving removes it.
+  Escape cancels. Clearing a field and saving removes it. Save sends what
+  changed since Edit was clicked, as Application Questions does (below).
 - **Tried and dropped on 2026-10-20:** only the filled fields in one row
   under the name (a seeker with no links saw no sign they could add any,
   and nothing said which email it was), then an Add button on each empty
@@ -948,6 +963,35 @@ headline line used to leave a gap between the name and the row below.
   is not an http(s) address is refused with "Enter a web address" under the
   field. The section never makes an href of a link that fails the check.
 
+**Application Questions (KAN-269)** is an open section between Contact &
+Links and Resumes & Experiences: the nine questions onboarding's Profile
+step asks (work authorization, sponsorship, citizenship and visa status,
+clearance, and the voluntary gender, Hispanic or Latino, race, veteran and
+disability self-identification), with the seeker's answers
+(`(seeker)/profile/application-questions.tsx`).
+
+- **The same two modes as Contact & Links.** Reading, each question is its
+  answer's label or "Not answered" in grey. Edit turns every answer into a
+  picker (`ui/select-field.tsx`) in place, the first one focused, each over
+  the question as forms word it, with Cancel and Save; "Not Answered" in a
+  picker clears that answer. Escape cancels, but Escape in a picker's open
+  list closes the list alone: the list is portalled outside the form, and
+  only a key from the form's own fields cancels.
+- **Pickers, not onboarding's tiles**: nine questions of up to seven large
+  tiles made a screen-long form on a page of settings.
+- **Two screens edit these answers, safely.** Onboarding asks them once;
+  this section is where they change after. Both read one question list
+  (`lib/autofill-answers.ts`) and save through one server action
+  (`lib/autofill-answers-actions.ts`), and the API merges only the answers
+  sent, so neither screen erases what the other saved.
+- **Shown only once loaded.** A failed read shows the page's one notice,
+  never nine "Not answered" lines that would pass for real answers.
+- **Save sends what changed since Edit was clicked**, compared with the
+  answers the edit started from, never the latest ones: a return visit
+  shows the cached answers and refetches, and a refetch landing mid-edit
+  made another tab's newer answers look changed, so Save wrote the cached
+  ones back over them (review, 2026-10-20).
+
 **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
 the Resumes view's Your Resumes card (below), beside the base resumes,
@@ -965,8 +1009,8 @@ places to edit the same facts drift apart, and the bank is what built
 resumes read.
 
 **My Profile is cached for the life of the seeker shell.**
-`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL
-and the applicant profile fields) in a provider
+`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
+the applicant profile fields and the Application Questions' answers) in a provider
 in `(seeker)/layout.tsx`. A
 return visit renders it at once and refetches in the background. Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
@@ -1350,7 +1394,7 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   "Experiences", never "bank".
   **Every change to either list reloads both** (`reload` in
   `built-resumes.tsx`): one primary star spans them, and the API makes a
-  student's only resume, uploaded or base, the primary on every add and
+  student's only resume, uploaded, base or tailored, the primary on every add and
   delete, so the page never guesses at stars.
   Generate makes a base resume with every entry, bullet and skill in the
   bank, except a copy of an entry already on it (same section, title,
@@ -1359,10 +1403,20 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   named "Resume #N", one past the highest number the student's resumes
   carry; every one was "Base Resume" until KAN-258, so the list read as one
   name repeated. Generate has no limit (KAN-268); a failed one shows its
-  message as Generated Resumes' error.
+  message as Generated Resumes' error. **A Generate that would make a
+  resume the student already has makes nothing** (KAN-267): a pop-up says
+  "Duplicate Resume found: <name>" with an OK button, and nothing else
+  happens. "The same" is what prints: a new resume holds the whole bank,
+  so it matches only when nothing changed since an earlier Generate.
 - **Uploads** in Your Uploaded Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
-  parsed content. **The upload fills the experience bank** (ADR 0003): a
+  parsed content. **A file whose text the student already uploaded is
+  refused** (KAN-267): nothing is kept, whenever and however the file was
+  exported again, and Generate's pop-up opens, "Duplicate Resume found:
+  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`). Import Updated
+  Resume refuses the text of another upload the same way (its dialog
+  closes and the pop-up opens), but takes its own row's text in a new file.
+  Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
   note under the dropzone says what went in ("Added 6 entries and 2 skills
   from resume.pdf", or "WorkIt couldn't find any entries in …"), links to
   Experiences, and offers **Read It With AI** while the student has an AI
@@ -1423,7 +1477,7 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   on the primary resume, an outline on the others, always shown (KAN-268;
   it showed only under the pointer before). The view said "default" and showed a
   Default badge for the same setting (the API's one default resume,
-  uploaded or base).
+  uploaded, base or tailored).
 - **The day**: when the resume was last edited ("Last edited Oct 20"), or
   when it was made until its first edit ("Made Oct 17"). The year shows only when it
   is not this one, as on an upload's row and in the tracker. With it, "Last
@@ -1448,9 +1502,9 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   already sent from it.
 - **No Sent card since 2026-10-18.** It listed every file the student
   downloaded or applied with (KAN-208), to download again or delete. Sent
-  resumes are still kept, on every download and Apply, and a job posting's
-  page still says "You sent <name> on <date>"; no screen lists them all or
-  deletes one now.
+  resumes are still kept on every Apply (a download keeps nothing since
+  KAN-267), and a job posting's page still says "You sent <name> on
+  <date>"; no screen lists them all or deletes one now.
 
 ## Resume editor
 
@@ -1675,10 +1729,13 @@ aria-hidden, and it holds still under reduced motion.
 
 **Profile asks what every application asks (KAN-283).** Authorization to
 Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
-Clearance, then the voluntary Gender, Veteran Status and Disability, in the
-order real forms ask them, each under the question as forms word it. The options
-are real forms' options (`onboarding/applicant/answers.ts`): gender's are the
-EEO Male, Female and decline plus Non-Binary, which many forms add; veteran
+Clearance, then the voluntary Gender, Hispanic or Latino, Race/Ethnicity,
+Veteran Status and Disability, in the order real forms ask them, each under the question as forms word it. The options
+are real forms' options (`lib/autofill-answers.ts`): gender's are the
+EEO Male, Female and decline plus Non-Binary, which many forms add;
+Hispanic or Latino (KAN-299) is Yes, No or decline, and Race/Ethnicity one
+EEO-1 category or decline, the EEO's own two questions, which every U.S.
+form keeps apart; veteran
 status's three are the U.S. protected veteran self-identification's, disability's
 three are Form CC-305's words. One answer each, as dots; pressing a picked
 answer again clears it. They are not filters: Continue saves them to the

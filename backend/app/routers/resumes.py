@@ -9,11 +9,21 @@ parser's reading is not kept anywhere else. The model never reads an upload
 by itself: the student asks for that through Import Again
 (`POST /applicants/{id}/bank/import`). `GET .../{resume_id}` returns one
 resume as the list does.
+**Duplicates** (KAN-267): an upload whose text matches one of the student's
+uploads (`text_hash`, which says what "matches" means) answers 409
+`{"detail": {"message": "Duplicate Resume found: <name>", "resume_id"}}`
+before anything is stored; Import Updated Resume checks the student's other
+uploads. Checked before the 5-upload limit, so a student at the limit still
+learns the file is already there.
 `PUT .../{resume_id}` (a file, as upload takes it) is Import Updated Resume:
 it replaces the row's file with a newer version and reads it into the bank
 the same way. The row keeps its id, so the primary star stays; the file
 goes to a new Storage path, because a sent resume may still point at the
-old one, which is removed only when nothing uses it. It merges, so an entry
+old one, which is removed only when nothing uses it. **Replace and delete
+freeze first** (KAN-267, `sent_resumes.freeze_upload`): the sent resumes
+that point at the old file become a snapshot of its text, in the same
+commit, so the file is no longer in use and goes; one with no readable
+text keeps the file. It merges, so an entry
 the new version dropped stays in the bank. It answers what upload answers.
 `PATCH .../{resume_id}` ({"name"}) renames it (KAN-268): the name is the
 row's `original_filename`, which every screen shows and a DOCX downloads
@@ -21,7 +31,7 @@ under, so it keeps the stored file's extension. Import Updated Resume
 then names the row after the new file again.
 `PUT .../{resume_id}/default` makes it the default resume
 (`applicant_profiles.default_resume_id`; the list reports it as `is_default`),
-clearing a base resume that was the default. A student's only resume is
+clearing a built resume that was the default. A student's only resume is
 the default without a click: upload and delete set it
 (`built_resumes.default_if_only`). Upload answers 409 when the
 student already has 5 uploads; generated resumes do not count (KAN-268,
@@ -33,9 +43,11 @@ download too: the row's Download button (KAN-268).
 resume still uses it (`app/services/sent_resumes.py`, KAN-208).
 """
 import asyncio
+import hashlib
 import logging
 import re
 import statistics
+import unicodedata
 import uuid
 import zipfile
 from datetime import UTC, datetime
@@ -44,6 +56,7 @@ from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
@@ -199,6 +212,41 @@ async def _extract(contents: bytes, ext: str) -> str | None:
     return await asyncio.to_thread(extract, contents)
 
 
+def text_hash(raw_text: str | None) -> str | None:
+    '''The duplicate check's key (KAN-267): sha256 of the resume's text, so
+    the same resume exported again (new bytes, same words) is caught. NFKC
+    makes a PDF's ligatures plain letters, and every run of whitespace
+    becomes one space, so moved line breaks and column gaps don't count;
+    case does. No text, no hash: such an upload is never matched.
+
+    Changing this or `_extract` makes the hashes already stored stale: an old
+    upload stops matching a new one of the same resume (a duplicate gets
+    through; a new resume is never refused).'''
+    words = " ".join(unicodedata.normalize("NFKC", raw_text or "").split())
+    return hashlib.sha256(words.encode()).hexdigest() if words else None
+
+
+async def _duplicate_of(
+    session: AsyncSession, applicant_id: uuid.UUID, digest: str | None, *, besides: uuid.UUID | None = None
+) -> Resume | None:
+    '''The applicant's uploaded resume with this text, other than `besides`.'''
+    if digest is None:
+        return None
+    query = select(Resume).where(Resume.applicant_id == applicant_id, Resume.text_hash == digest)
+    if besides is not None:
+        query = query.where(Resume.id != besides)
+    return await session.scalar(query)
+
+
+def _duplicate(resume: Resume) -> HTTPException:
+    # A dict detail: the message to show, and which resume it is, for a
+    # screen that selects it (docs/sent_resume.md, flow 1).
+    return HTTPException(409, {
+        "message": f"Duplicate Resume found: {resume.original_filename or 'Uploaded resume'}",
+        "resume_id": str(resume.id),
+    })
+
+
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
 
@@ -212,6 +260,12 @@ async def upload_resume(
     assert_applicant_owns(account, applicant_id)
 
     contents, ext, mime = await _read_upload(file)
+    # raw_text always comes from the file, never from the client. Read before
+    # the Storage upload, so a duplicate leaves no file behind.
+    raw_text = await _extract(contents, ext)
+    digest = text_hash(raw_text)
+    if (same := await _duplicate_of(session, applicant_id, digest)) is not None:
+        raise _duplicate(same)
     # Before the Storage upload, so a rejected sixth leaves no file behind
     try:
         await built_resumes.check_room(session, applicant_id)
@@ -237,8 +291,6 @@ async def upload_resume(
         raise HTTPException(502, "File upload failed")
 
 
-    # raw_text always comes from the file, never from the client
-    raw_text = await _extract(contents, ext)
     entries, skills = bank_import.read(raw_text)
 
     # Resume ORM object
@@ -247,6 +299,7 @@ async def upload_resume(
         applicant_id=applicant_id,
         original_filename=file.filename,
         raw_text=raw_text,
+        text_hash=digest,
         storage_path=storage_path,
         status=ResumeStatus.parsed if entries or skills else ResumeStatus.parse_failed,
         created_at=datetime.now(UTC),
@@ -260,13 +313,26 @@ async def upload_resume(
         await built_resumes.default_if_only(session, applicant_id)
         default_id = await _default_id(session, applicant_id)
         await session.commit()
-    except Exception:
+    except Exception as exc:
         await session.rollback()
         # DB failed - remove the file from Storage
         await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
+        await _raise_if_raced(session, exc, applicant_id, digest)
         raise HTTPException(500, "Failed to save resume record")
 
     return _imported(resume, resume.id == default_id, entries, skills, merged, left)
+
+
+async def _raise_if_raced(
+    session: AsyncSession, exc: Exception, applicant_id: uuid.UUID, digest: str | None,
+    besides: uuid.UUID | None = None,
+) -> None:
+    '''After a failed commit: when another request saved the same text first,
+    `resumes_text_hash_key` refused this one, so say it is a duplicate.'''
+    if isinstance(exc, IntegrityError):
+        same = await _duplicate_of(session, applicant_id, digest, besides=besides)
+        if same is not None:
+            raise _duplicate(same) from exc
 
 
 @router.put("/applicants/{applicant_id}/resumes/{resume_id}")
@@ -278,13 +344,29 @@ async def replace_resume(
     session: AsyncSession = Depends(get_session),
 ):
     """Import Updated Resume: a newer version of the file on this row, read
-    into the bank as an upload is. No limit check, since the count stays."""
+    into the bank as an upload is. No limit check, since the count stays.
+    The duplicate check skips this row: the same text in a new layout is how
+    a student swaps the file."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     contents, ext, mime = await _read_upload(file)
+    raw_text = await _extract(contents, ext)
+    digest = text_hash(raw_text)
+    if (same := await _duplicate_of(session, applicant_id, digest, besides=resume.id)) is not None:
+        raise _duplicate(same)
+    # The old file's sent resumes become a snapshot of its text (KAN-267),
+    # read while the row still holds that text; it commits with the
+    # replacement, and the old file then goes as nothing uses it.
+    try:
+        await sent_resumes.freeze_upload(session, applicant_id, resume)
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("Failed to keep the sent resumes of a replaced resume")
+        raise HTTPException(500, "Failed to save resume record")
 
     # A new path, never the old one: a sent resume may point at the old
-    # file, and a sent resume's file never changes (KAN-208).
+    # file (one with no text stays a file), and a sent resume's file never
+    # changes (KAN-208).
     old_path = resume.storage_path
     storage_path = f"{applicant_id}/{uuid.uuid4()}{ext}"
     client = get_supabase()
@@ -299,11 +381,11 @@ async def replace_resume(
         logger.exception("Storage upload failed", extra={"storage_path": storage_path})
         raise HTTPException(502, "File upload failed")
 
-    raw_text = await _extract(contents, ext)
     entries, skills = bank_import.read(raw_text)
 
     resume.original_filename = file.filename
     resume.raw_text = raw_text
+    resume.text_hash = digest
     resume.storage_path = storage_path
     resume.status = ResumeStatus.parsed if entries or skills else ResumeStatus.parse_failed
     # The row says when its file was uploaded, and this one was uploaded now.
@@ -314,9 +396,10 @@ async def replace_resume(
         left = await uses_left(session, applicant_id, Feature.PARSING)
         default_id = await _default_id(session, applicant_id)
         await session.commit()
-    except Exception:
+    except Exception as exc:
         await session.rollback()
         await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
+        await _raise_if_raced(session, exc, applicant_id, digest, besides=resume_id)
         raise HTTPException(500, "Failed to save resume record")
 
     if old_path and not await sent_resumes.file_in_use(session, old_path):
@@ -509,9 +592,12 @@ async def delete_resume(
 
     resume = await _get_owned_resume(session, applicant_id, resume_id)
 
-    # Delete DB row first (reversible via rollback), then Storage
+    # Delete DB row first (reversible via rollback), then Storage. Its sent
+    # resumes become a snapshot of its text first (KAN-267), in the same
+    # commit, so the file is no longer in use.
     storage_path = resume.storage_path
     try:
+        await sent_resumes.freeze_upload(session, applicant_id, resume)
         await session.delete(resume)
         await built_resumes.default_if_only(session, applicant_id)
         await session.commit()
@@ -519,8 +605,9 @@ async def delete_resume(
         await session.rollback()
         raise HTTPException(500, "Failed to delete resume record")
 
-    # A sent resume that points at this file keeps it (KAN-208); deleting
-    # that sent resume later removes the file once nothing uses it.
+    # A sent resume still pointing at this file (its text gave nothing to
+    # rebuild from) keeps it (KAN-208); deleting that sent resume later
+    # removes the file once nothing uses it.
     if await sent_resumes.file_in_use(session, storage_path):
         return {"detail": "Resume deleted"}
 

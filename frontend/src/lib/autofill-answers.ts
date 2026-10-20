@@ -1,15 +1,18 @@
 /**
- * The questions hiring systems repeat on every application (KAN-283), as
- * onboarding's Profile step asks them, and the shape the API keeps them in
- * (GET and PATCH /applicants/{id}/autofill-answers, the backend's
- * schemas/autofill_answers.py, field for field). Auto apply fills them in;
- * My Profile will show them (KAN-273).
+ * The questions hiring systems repeat on every application (KAN-283), and the
+ * shape the API keeps them in (GET and PATCH /applicants/{id}/autofill-answers,
+ * the backend's schemas/autofill_answers.py, field for field). Onboarding's
+ * Profile step asks them first; My Profile's Application Questions shows and
+ * edits them (KAN-269). Both read this one list, so a new question is one
+ * entry here and one key in the API's schema. Server actions:
+ * ./autofill-answers-actions.
  *
  * Each value is the API's option key, never the label: the label is the words
  * real forms use, so a student recognises the answer they will be filling in,
- * and can change here without touching what is stored. Gender, veteran and
- * disability are voluntary self-identification, so each has its own "decline" answer,
- * which is an answer to fill in, unlike null (not answered).
+ * and can change here without touching what is stored. Gender, Hispanic or
+ * Latino, race, veteran and disability are voluntary self-identification, so
+ * each has its own "decline" answer, which is an answer to fill in, unlike
+ * null (not answered).
  */
 
 export type YesNo = "yes" | "no";
@@ -28,6 +31,16 @@ export type AutofillAnswers = {
   security_clearance:
     "none" | "public_trust" | "confidential" | "secret" | "top_secret" | "ts_sci" | null;
   gender: "male" | "female" | "non_binary" | "declined" | null;
+  hispanic_latino: "yes" | "no" | "declined" | null;
+  race:
+    | "american_indian_alaska_native"
+    | "asian"
+    | "black_african_american"
+    | "native_hawaiian_pacific_islander"
+    | "white"
+    | "two_or_more"
+    | "declined"
+    | null;
   veteran_status: "protected_veteran" | "not_protected_veteran" | "declined" | null;
   disability_status: "yes" | "no" | "declined" | null;
 };
@@ -38,6 +51,8 @@ export const NO_ANSWERS: AutofillAnswers = {
   work_authorization_status: null,
   security_clearance: null,
   gender: null,
+  hispanic_latino: null,
+  race: null,
   veteran_status: null,
   disability_status: null,
 };
@@ -77,6 +92,27 @@ export const GENDER_OPTIONS: Options<"gender"> = [
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
   { value: "non_binary", label: "Non-Binary" },
+  { value: "declined", label: "I Don't Wish to Answer" },
+];
+
+/** The EEO self-identification's Hispanic or Latino question (KAN-299),
+ *  asked before Race/Ethnicity as Greenhouse, Lever and Workday ask it. */
+export const HISPANIC_LATINO_OPTIONS: Options<"hispanic_latino"> = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "declined", label: "I Don't Wish to Answer" },
+];
+
+/** The EEO-1 race categories (KAN-299), one answer, Two or More Races for a
+ *  student of several. Hispanic or Latino is the question above, never one
+ *  of these: the EEO's own split, which every U.S. form keeps. */
+export const RACE_OPTIONS: Options<"race"> = [
+  { value: "american_indian_alaska_native", label: "American Indian or Alaska Native" },
+  { value: "asian", label: "Asian" },
+  { value: "black_african_american", label: "Black or African American" },
+  { value: "native_hawaiian_pacific_islander", label: "Native Hawaiian or Other Pacific Islander" },
+  { value: "white", label: "White" },
+  { value: "two_or_more", label: "Two or More Races" },
   { value: "declined", label: "I Don't Wish to Answer" },
 ];
 
@@ -152,6 +188,22 @@ export const PROFILE_QUESTIONS: ProfileQuestion[] = [
     label: "Gender",
     question: "Voluntary self-identification: what is your gender?",
     options: GENDER_OPTIONS,
+    columns: 2,
+  },
+  {
+    key: "hispanic_latino",
+    label: "Hispanic or Latino",
+    question: "Voluntary self-identification: are you Hispanic or Latino?",
+    options: HISPANIC_LATINO_OPTIONS,
+    columns: 3,
+  },
+  {
+    key: "race",
+    // One name for the question, "Race/Ethnicity", in its label and its
+    // wording alike; Hispanic or Latino stays the question above.
+    label: "Race/Ethnicity",
+    question: "Voluntary self-identification: what is your race or ethnicity?",
+    options: RACE_OPTIONS,
     columns: 2,
   },
   {

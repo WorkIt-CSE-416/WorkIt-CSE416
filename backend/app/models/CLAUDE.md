@@ -321,20 +321,42 @@ change here must keep:
   so every signup INSERT names it: migration `5753545063f3` is applied
   before the code deploys (above, "A new column reaches the database...").
 
+## Uploaded resumes — `resume.py`
+
+- **`text_hash` is the duplicate check's key** (KAN-267): sha256 of the
+  normalized `raw_text`, set by upload and Import Updated Resume only.
+  `resumes_text_hash_key` is a partial unique index on `(applicant_id,
+  text_hash) WHERE text_hash IS NOT NULL`: two uploads of one text per
+  student never both land, and uploads with no text (NULL) never clash.
+  Rows from before `d642d93fcfbc` are NULL, not backfilled. The rule and
+  its normalization: `../../CLAUDE.md`, "A duplicate resume is refused".
+
 ## Sent resumes
 
-`sent_resume.py` (KAN-208): the exact file a student downloaded or applied
-with. Rationale in `../../../docs/resume.md`, "Sent resumes". Invariants:
+`sent_resume.py` (KAN-208): the exact file a student applied with (a
+download kept one too until KAN-267; those rows stay, with no job posting). Rationale in `../../../docs/resume.md`, "Sent resumes". Invariants:
 
-- **A row never changes after it is written**, and its file is never
+- **Its content never changes after it is written**, and its file is never
   overwritten. The API lists and deletes sent resumes, never edits them.
+  The one change is where it is kept: when its uploaded resume is replaced
+  or deleted, `storage_path` gives way to `snapshot_id` (KAN-267).
+- **Its file is exactly one of `storage_path` and `snapshot_id`**
+  (`sent_resumes_one_file`). `resume_snapshots` holds one gzipped JSON per
+  applicant and content (`resume_snapshots_applicant_hash_key`), `source`
+  `built` (exact) or `upload` (parsed, approximate). A snapshot outlives
+  a sent resume only while another uses it: `snapshot_id` is `ON DELETE
+  RESTRICT`, and the service deletes the snapshot with its last sent
+  resume. Rationale: `../../../docs/sent_resume.md`.
 - **`built_resume_id`, `uploaded_resume_id` and `job_posting_id` are
   `ON DELETE SET NULL`**: the record outlives its source. At most one source
   is set (`sent_resumes_one_source`).
 - **`storage_path` may be shared** with an uploaded resume or another sent
   resume, so a file is removed only when no row uses it
   (`../services/sent_resumes.py`'s `file_in_use`). `content_hash` is null on
-  a row from an uploaded resume.
+  a row from an uploaded resume, also once it is a snapshot: a snapshot row
+  with no hash is a rebuilt upload.
+- **`5a6e419367b8` goes on before the deploy that writes snapshots**: the
+  model maps `snapshot_id`, so every sent resume INSERT names it.
 
 ## Locations — countries, states, and the resolver
 
@@ -707,10 +729,11 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
 
 A student's answers to the questions hiring systems repeat on every
 application: work authorization, sponsorship, citizenship and visa status,
-security clearance, and the voluntary gender, veteran and disability
-self-identification. Onboarding's second step (Profile) asks them; auto
-apply's fill reads them (`../../auto-apply/architecture.md`,
-`autofill_answers`), and My Profile will show them (KAN-273).
+security clearance, and the voluntary gender, Hispanic or Latino, race,
+veteran and disability self-identification. Onboarding's second step
+(Profile) asks them; auto apply's fill reads them
+(`../../auto-apply/architecture.md`, `autofill_answers`), and My Profile's
+Application Questions shows and edits them (KAN-269).
 
 - **One JSONB bank per applicant** (primary key `applicant_id`, CASCADE):
   `answers` maps a stable question key to its answer alone
@@ -721,7 +744,7 @@ apply's fill reads them (`../../auto-apply/architecture.md`,
 - **The answer is an option key, never a label** (`"f1_student"`, not
   "F-1 Student"). The keys and their options are `schemas/autofill_answers.py`
   (Literals, so the API refuses anything else with a 422); the labels are the
-  frontend's (`onboarding/applicant/answers.ts`), as are the questions' words.
+  frontend's (`frontend/src/lib/autofill-answers.ts`), as are the questions' words.
 - **No question text is stored** (decided 2026-10-20). The first design kept
   `{question_text, answer}` per key, which copied the same words into every
   student's row for no reader: a fixed key already says which question it
@@ -735,8 +758,13 @@ apply's fill reads them (`../../auto-apply/architecture.md`,
   changed.
 - **A key or option the code no longer knows reads as unanswered**
   (`answers_from_bank`), so the bank outlives any one version of the questions.
-- **Gender, veteran and disability answers are sensitive.** Only their owner
-  reads them (`owned_applicant`), and they never go to a model.
+- **The self-identification answers are sensitive** (gender, Hispanic or
+  Latino, race, veteran, disability). Only their owner reads them
+  (`owned_applicant`), and they never go to a model.
+- **Hispanic or Latino and race are two keys, never one** (KAN-299): the
+  EEO's own split, which every U.S. form keeps, Hispanic or Latino asked
+  first. `race` holds one EEO-1 category, Two or More Races included, and
+  refuses `hispanic_latino` as a value.
 - **Contact details stay on `applicant_profiles`, never in the bank.** Phone,
   LinkedIn, GitHub, portfolio: one fixed set, one value each, which the
   resume header prints and `services/identity.py` keeps from models. The bank
@@ -941,9 +969,8 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - Only `company_profiles.id` has a UUID default (Python `uuid4` plus
   `gen_random_uuid()`); every other insert must supply `id`. The account
   tables must keep having none — their id is the `auth.users` id.
-- `autofill_answers` (above) holds only onboarding's seven questions. The
-  rest that forms repeat (availability, relocation, race and ethnicity
-  self-identification) have no key yet.
+- `autofill_answers` (above) holds only onboarding's nine questions. The
+  rest that forms repeat (availability, relocation) have no key yet.
 - `applicant_profiles.location` and `company_profiles.industry` are absent.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is

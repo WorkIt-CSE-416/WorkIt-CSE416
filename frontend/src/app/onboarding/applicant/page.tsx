@@ -4,10 +4,10 @@ import { redirect } from "next/navigation";
 
 import { seasonLabel } from "@/app/(seeker)/jobs/filter-query";
 import { getJobFacets, getJobLocations, getSavedFilters } from "@/app/(seeker)/jobs/listings";
+import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
 import { OnboardingForm } from "./onboarding-form";
-import { getAutofillAnswers } from "./saved-answers";
 
 export const metadata: Metadata = {
   title: "Set Up Your Profile",
@@ -80,7 +80,7 @@ export default async function ApplicantOnboardingPage({
         count: t.jobs,
       }))}
       initial={saved ?? undefined}
-      initialAnswers={savedAnswers}
+      initialAnswers={savedAnswers.answers}
       email={user.email}
       startStep={params.step === "2" && saved ? 1 : 0}
     />

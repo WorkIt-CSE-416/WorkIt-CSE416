@@ -1,7 +1,8 @@
 """
 GET and PATCH for a student's answers to the questions hiring systems repeat
 (KAN-283): work authorization, sponsorship, citizenship and visa status,
-security clearance, gender, veteran status and disability.
+security clearance, gender, Hispanic or Latino, race, veteran status and
+disability.
 
     GET /applicants/{applicant_id}/autofill-answers
         The saved answers (schemas/autofill_answers.py), every one null when
@@ -12,8 +13,9 @@ security clearance, gender, veteran status and disability.
         key left out keeps its answer. Answers the whole bank after the write.
 
 Onboarding's second step writes them; auto apply's fill and My Profile read
-them. They are the student's own and go to no model: the gender, veteran and
-disability answers are voluntary self-identification, read only by their owner.
+them. They are the student's own and go to no model: the gender, Hispanic or
+Latino, race, veteran and disability answers are voluntary
+self-identification, read only by their owner.
 """
 
 import logging

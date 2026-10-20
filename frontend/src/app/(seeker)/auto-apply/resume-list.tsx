@@ -42,8 +42,7 @@ import { listResumes, type ResumeItem } from "@/lib/resume-actions";
  * default. Built resumes come first, in the API's order with the
  * default moved to the top, then uploaded resumes, the default first. A
  * built resume's row goes to the resume editor, as on /resumes; it never
- * downloads here, since every download keeps a sent resume
- * (frontend/CLAUDE.md). An uploaded one previews in a new tab
+ * downloads here: downloads live in the editor. An uploaded one previews in a new tab
  * (previewResume). Choosing, building and deleting resumes stays on
  * /resumes (uploads too, since 2026-10-18), which Manage leads to.
  *
