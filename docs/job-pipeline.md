@@ -94,7 +94,7 @@ Workday is different in three ways worth knowing:
 |---|---|
 | **Read over several runs** | Reading every Workday company job board whole takes about 22,000 requests (they hold about 430,000 job postings), far more than one run can make politely. So each run reads them for 12 minutes, starting with the ones read longest ago, and the rest wait their turn. The first run read 439 of them, so each is read about every 12 hours, and a new Workday job posting can take that long to appear (a closed one stays as long) |
 | **Some are skipped** | 141 whose `robots.txt` asks crawlers to stay off that careers site (Caterpillar, Citi, CACI, eBay), and 20 too big to read whole: over 5,000 job postings (Accenture, Walmart, Target, CVS), or capped at 2,000 by Workday with no filter to split them by (Airbus, Sysco) |
-| **No logos yet** | Workday's careers-page images are wide banners, so its cards show the company's initials |
+| **Logos from the company's website** | Workday's careers-page images are wide banners, so a card shows the icon of the website the careers site links as its home page or privacy policy. About 3 in 10 link neither, and those cards show the company's initials |
 
 The GitHub lists are only used as a phone book. Every job posting itself is
 read from the company's own job board, so we get job postings the lists never
@@ -435,7 +435,7 @@ browser can't restore your place by itself. The app does it instead:
 | Seven hiring systems. The next biggest in the GitHub lists go unread: Oracle Cloud (about 3,100 apply links), SmartRecruiters (1,700), iCIMS (1,600) | Each hiring system needs its own reader, and SmartRecruiters' `robots.txt` disallows us | A reader per hiring system, where its `robots.txt` allows |
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
-| Workday cards have no logo | Workday's careers-page images are wide banners, and some are SVGs the website's image loader refuses | Find a square image Workday serves |
+| About 3 in 10 Workday cards have no logo | Workday's careers-page images are wide banners, so only the website a careers site links is used, and some link none | Find a square image Workday serves |
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |

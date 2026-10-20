@@ -1,9 +1,10 @@
 """Each company's own logo, read off its public job board page.
 
-The listing APIs carry no logo, but every ATS shows the one the employer uploaded
-on the board's page. Without one -- or with a tiny one -- the company's website's
-favicon, when the board tells us the website: Ashby and Workable name it, a Greenhouse board's job
-descriptions link it, a board may redirect to it, or a person checked it by hand
+The listing APIs carry no logo, but most ATSs show the one the employer uploaded
+on the board's page. Without one -- or with a tiny one, or Workday's wide banner --
+the company's website's favicon, when the board tells us the website: Ashby and
+Workable name it, a Workday careers site links its home page, a Greenhouse board's
+job descriptions link it, a board may redirect to it, or a person checked it by hand
 (`CHECKED_WEBSITES`). We never guess a website from a company name: "Workshop" is not
 workshop.com. Each board is read once, ever: a board already in
 `Store.logos` is never read again, because logos almost never change. Delete the
@@ -19,7 +20,7 @@ import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote, urlsplit
 
-from workit_scraper import web
+from workit_scraper import providers, web
 from workit_scraper.polite import Robots
 
 # `job-boards.`, not `boards.greenhouse.io`: the latter redirects there, and `web.get`
@@ -31,6 +32,10 @@ PAGE = {
     # The account behind the board, as JSON: what Workable's careers page draws
     # its header from, and the company's website besides.
     "workable": "https://apply.workable.com/api/v1/accounts/{}",
+    # The careers site's settings, as JSON: what its header draws from. Its logo
+    # (`/{site}/assets/logo`) is the site's banner, not a square -- NVIDIA's is
+    # 1200x627 -- so only the website it names is read.
+    "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/approot",
     # No Recruitee or BambooHR yet. BambooHR's header logo (Alkira's: 180x36) is
     # served as application/octet-stream from numbered hosts (images7.bamboohr.com),
     # which next/image may refuse; Recruitee's sits inside a 1 MB board page, for
@@ -64,6 +69,10 @@ SMALL_PX = 64
 ASHBY_WEBSITE = re.compile(r'"publicWebsite":"(https?://[^"]+)"')
 # So does a Workable account, as its top-level `url`.
 WORKABLE_WEBSITE = re.compile(r'^\{[^{]*"url":"(https?://[^"]+)"')
+# And a Workday careers site, as the header's "Home" link: half of those sampled.
+WORKDAY_WEBSITE = re.compile(r'"homePageURL":"(https?://[^"]+)"')
+# Some sites' "Home" is the careers site itself, whose icon is Workday's, not theirs.
+WORKDAY_HOSTS = (".myworkdayjobs.com", ".myworkdaysite.com", ".myworkday.com")
 # Boards that state no logo and no website anywhere we read, with the site a person
 # checked by hand -- its homepage names the same company. Only ever consulted when the
 # board itself gives us nothing usable. Checked first, so it also replaces a board's
@@ -105,13 +114,21 @@ def favicon(host: str) -> str:
     return f"https://www.google.com/s2/favicons?domain={quote(host)}&sz=128"
 
 
+def page_url(ats: str, token: str) -> str:
+    return PAGE[ats].format(token, **providers._parts(ats, token))
+
+
 def extract(ats: str, page: str) -> str | None:
-    if match := PATTERN[ats].search(page):
+    # Workday has no pattern: only its website is read.
+    if ats in PATTERN and (match := PATTERN[ats].search(page)):
         return html.unescape(match.group(1))
     if ats == "ashby" and (site := ASHBY_WEBSITE.search(page)):
         return favicon(urlsplit(site.group(1)).netloc)
     if ats == "workable" and (site := WORKABLE_WEBSITE.search(page)):
         return favicon(urlsplit(site.group(1)).netloc)
+    if ats == "workday" and (site := WORKDAY_WEBSITE.search(page)):
+        host = urlsplit(site.group(1)).netloc
+        return None if f".{host}".endswith(WORKDAY_HOSTS) else favicon(host)
     return None
 
 
@@ -130,8 +147,11 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
     again.
     """
     boards = [board for board in boards if board[0] in PAGE]
+    # Each Workday company is its own host, so its robots.txt is read when a worker
+    # gets there, not up front. Only the API path is checked: its careers site was
+    # checked when the board was read (`providers.robots_urls`), or it has no jobs here.
     robots = Robots(
-        [PAGE[ats].format(token) for ats, token, _ in boards]
+        [page_url(ats, token) for ats, token, _ in boards if ats != "workday"]
         + [GREENHOUSE_JOBS.format(token) for ats, token, _ in boards if ats == "greenhouse"]
         + [ASHBY_IMAGES]
     )
@@ -156,7 +176,7 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
         key = f"{ats}/{token}"
         if key in CHECKED_WEBSITES:
             return key, favicon(CHECKED_WEBSITES[key])
-        body, moved = read(PAGE[ats].format(token))
+        body, moved = read(page_url(ats, token))
         if body is None and moved is None:
             return None
         page = body.decode("utf-8", "replace") if body else ""
@@ -174,13 +194,19 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
             # whose name matches the company counts (Accenture's board redirects to a
             # Salesforce host).
             text = moved or ""
-            if ats == "greenhouse":
+            names = (token, company)
+            if ats == "workday":
+                # Its privacy policy may be on the company's site (kbr.com), or not
+                # (talentbrew.com). The tenant, not the token: a site named "careers"
+                # must not make careers.com the company's.
+                text, names = page, (token.split(".")[0], company)
+            elif ats == "greenhouse":
                 jobs = read(GREENHOUSE_JOBS.format(token), timeout=30)[0]
                 if jobs is None:
                     return None
                 contents = (job.get("content") or "" for job in json.loads(jobs)["jobs"])
                 text = " ".join(contents) + " " + text
-            found = stated_site(text, token, company)
+            found = stated_site(text, *names)
             logo = favicon(found) if found else None
         return key, logo
 

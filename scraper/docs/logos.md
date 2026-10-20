@@ -15,7 +15,8 @@ must render with the network off.
 No uploaded logo -- or an Ashby one under 64px, which blurs in the 80px tile (Bedrock
 uploaded 50px) -- and the logo is the company website's favicon via Google's favicon
 service, which answers 404 (so the card's initials) for a site without one. The website
-must come from the board: Ashby's `publicWebsite`, a Workable account's `url`, a Greenhouse board's job descriptions
+must come from the board: Ashby's `publicWebsite`, a Workable account's `url`, a
+Workday careers site's `homePageURL`, a Greenhouse board's job descriptions
 (Scale AI, Vercel), or where the board redirects (Stripe). Descriptions and redirects
 only count when the domain's name is in the board token or company name
 (`logos.stated_site`) -- descriptions also link eeoc.gov and TikTok, and Accenture's
@@ -34,5 +35,20 @@ board page is a script shell, so its logo is read from the account JSON
 (`/api/v1/accounts/{slug}`): `logo` on `workablehr.s3.amazonaws.com` under
 `/uploads/account/logo/`, never its `open_graph_logo`. It is 120px tall, a square or
 a wordmark up to 720 wide (17 of the first 25), which the card letterboxes like any
-other wordmark. Recruitee, BambooHR and Workday
-are not in `logos.PAGE` at all (`providers.md`, `workday.md`).
+other wordmark. Recruitee and BambooHR are not in `logos.PAGE` at all
+(`providers.md`).
+
+**Workday gives only a website.** Its logo is a wide banner (`workday.md`), so
+`logos.PATTERN` has no Workday entry, and no Workday image host is allowed. The
+page read is the careers site's settings JSON
+(`/wday/cxs/{tenant}/{site}/approot`). Its header's `homePageURL` is the "Home"
+link the employer set: trusted like Ashby's `publicWebsite`, unless it points back
+at Workday (Arlo's, Intel's), whose icon is not the company's. With none, the
+whole JSON goes through `stated_site`, which finds a privacy policy on the
+company's site (kbr.com) and skips one on a vendor (Barclays' on talentbrew.com).
+It matches on the tenant, not the token: a site named `careers` must not make
+careers.com the company's site. On 120 boards sampled on 2026-10-19, 112 answered
+and 80 gave a website (57 a home page, 23 a privacy policy or other link). A home
+page is often a careers site (careers.mars.com, hntb.jobs), whose icon is the
+company's, though some are only 16px. Each tenant's robots.txt is read when a
+worker reaches it, not up front, as in the scrape itself.
