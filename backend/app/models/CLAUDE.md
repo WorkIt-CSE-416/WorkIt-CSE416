@@ -717,8 +717,8 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
 
 A student's answers to the questions hiring systems repeat on every
 application: work authorization, sponsorship, citizenship and visa status,
-security clearance, and the voluntary gender, veteran and disability
-self-identification. Onboarding's second step (Profile) asks them; auto
+security clearance, and the voluntary gender, Hispanic or Latino, race,
+veteran and disability self-identification. Onboarding's second step (Profile) asks them; auto
 apply's fill reads them (`../../auto-apply/architecture.md`,
 `autofill_answers`), and My Profile's Application Questions shows and edits
 them (KAN-269).
@@ -746,8 +746,13 @@ them (KAN-269).
   changed.
 - **A key or option the code no longer knows reads as unanswered**
   (`answers_from_bank`), so the bank outlives any one version of the questions.
-- **Gender, veteran and disability answers are sensitive.** Only their owner
-  reads them (`owned_applicant`), and they never go to a model.
+- **The self-identification answers are sensitive** (gender, Hispanic or
+  Latino, race, veteran, disability). Only their owner reads them
+  (`owned_applicant`), and they never go to a model.
+- **Hispanic or Latino and race are two keys, never one** (KAN-299): the
+  EEO's own split, which every U.S. form keeps, Hispanic or Latino asked
+  first. `race` holds one EEO-1 category, Two or More Races included, and
+  refuses `hispanic_latino` as a value.
 - **Contact details stay on `applicant_profiles`, never in the bank.** Phone,
   LinkedIn, GitHub, portfolio: one fixed set, one value each, which the
   resume header prints and `services/identity.py` keeps from models. The bank
@@ -952,9 +957,8 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - Only `company_profiles.id` has a UUID default (Python `uuid4` plus
   `gen_random_uuid()`); every other insert must supply `id`. The account
   tables must keep having none — their id is the `auth.users` id.
-- `autofill_answers` (above) holds only onboarding's seven questions. The
-  rest that forms repeat (availability, relocation, race and ethnicity
-  self-identification) have no key yet.
+- `autofill_answers` (above) holds only onboarding's nine questions. The
+  rest that forms repeat (availability, relocation) have no key yet.
 - `applicant_profiles.location` and `company_profiles.industry` are absent.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is
