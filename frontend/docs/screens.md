@@ -553,7 +553,7 @@ URL (`?tab=job` for the second):
   the employer's form, so the tab cannot show them.
 - **Job Description**: About the Role alone (`JobViewBody`'s
   `descriptionOnly`). The job page's sent and applied notes and its
-  eligibility checklist stay off: they pushed the description down and are
+  Key Requirements card stay off: they pushed the description down and are
   the application's record, which the first tab already holds.
 
 The application comes from `getTracker`, so its score, resume and stage

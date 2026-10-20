@@ -49,8 +49,8 @@ type Tab = "job" | "application";
  *   Your Application  the default: the analytics, what was sent, the timing
  *                     and the timeline (./your-application.tsx)
  *   Job Description   About the Role alone (`descriptionOnly`): the job
- *                     page's sent and applied notes and its eligibility
- *                     checklist stay off, so the description reads as the
+ *                     page's sent and applied notes and its Key
+ *                     Requirements card stay off, so the description reads as the
  *                     posting, not as the seeker's record
  *
  * THE BAR HOLDS THE TABS ONCE THERE IS NOTHING TO DO. An applied job, or a

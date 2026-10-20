@@ -16,13 +16,13 @@ import { SaveJobButton } from "../save-job-button";
 import { factText, toPosting } from "../to-posting";
 import { ApplyButton } from "./apply-button";
 import { JobDescription } from "./description";
-import { EligibilityCard } from "./eligibility";
+import { KeyRequirementsCard } from "./key-requirements";
 import { AppliedNote, MoreActions } from "./page-actions";
 import { SentNote } from "./sent-note";
 
 /**
  * One live role as its job page draws it: the actions, the header and the
- * body (the sent and applied notes, the eligibility checklist, About the
+ * body (the sent and applied notes, the Key Requirements card, About the
  * Role). /jobs/[jobId] and the application's own page (/applications/[jobId],
  * its Job Description tab, KAN-256) both draw the role from here, so the two
  * look the same and cannot drift apart. ./page.tsx says what each part does.
@@ -102,7 +102,7 @@ export function JobViewHeader({ job }: { job: JobListing }) {
 }
 
 /** Under the header: what was sent and when it was applied to, the
- *  eligibility checklist, and About the Role. `descriptionOnly` keeps About
+ *  Key Requirements card, and About the Role. `descriptionOnly` keeps About
  *  the Role alone: the application page's Job Description tab (KAN-256),
  *  where the notes and the checklist are the application's business, not
  *  the posting's, and pushed the description down. */
@@ -125,7 +125,7 @@ export function JobViewBody({
         <>
           {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
           {applied?.appliedAt && <AppliedNote at={applied.appliedAt} />}
-          <EligibilityCard jobId={job.id} />
+          <KeyRequirementsCard jobId={job.id} minYearsExperience={job.min_years_experience} />
         </>
       )}
 
