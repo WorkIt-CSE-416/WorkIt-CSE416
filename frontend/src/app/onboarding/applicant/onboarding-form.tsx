@@ -157,6 +157,12 @@ export function OnboardingForm({
   const moved = useRef(false);
   const [answers, setAnswers] = useState<FeedFilters>(initial);
   const [profile, setProfile] = useState<AutofillAnswers>(initialAnswers);
+  /** What the bank holds as far as this page knows: the saved answers it
+   *  opened on, then whatever its last save sent. Continue sends only what
+   *  differs, so after a save whose next step failed, un-picking an answer
+   *  still clears it. Against the page's first props it sent nothing, and
+   *  the bank kept the answer the seeker took back. */
+  const bankSaved = useRef<AutofillAnswers>(initialAnswers);
   const [resume, setResume] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   // Only while the file is on its way, so the dropzone's "Uploading…" never
@@ -196,13 +202,15 @@ export function OnboardingForm({
     setError(null);
     // Only the answers changed here go to the bank: it merges them into
     // what it holds, so one this page didn't load is never erased.
+    const sent = profile;
     const changed = Object.fromEntries(
-      Object.entries(profile).filter(
-        ([key, value]) => value !== initialAnswers[key as keyof AutofillAnswers],
+      Object.entries(sent).filter(
+        ([key, value]) => value !== bankSaved.current[key as keyof AutofillAnswers],
       ),
     );
     const { error: bankError } = await saveAutofillAnswers(changed);
     if (bankError) return fail(bankError);
+    bankSaved.current = sent;
     // A picked state narrows its country, as All Filters' Apply does.
     const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
     if (saveError) return fail(saveError);
