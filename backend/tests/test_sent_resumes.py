@@ -151,7 +151,12 @@ async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(s
     first = (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).json()
 
     # The same content from another built resume is its own sent resume.
+    # Generate refuses a copy (KAN-267), so the second gets there by an edit:
+    # a skill the first lacks, hidden again.
+    skill = (await client.post(f"{me}/bank/skills", json={"name": "Rust"})).json()["id"]
     other = await _generate(client, me, "Second")
+    hide = {"skills": [{"skill_id": skill, "shown": False}]}
+    assert (await client.patch(f"{me}/built-resumes/{other}/choices", json=hide)).status_code == 200
     assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": other})).status_code == 201
 
     # A fix in the bank changes the view, so the next download is new...

@@ -17,6 +17,8 @@ from workit_scout.testing import ScriptedLLM
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
+from app.routers import resumes as resumes_router
+from app.routers.resumes import text_hash
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services import bank as bank_service
@@ -64,16 +66,20 @@ async def _seed_applicant(session) -> uuid.UUID:
     return applicant_id
 
 
-async def _seed_resume(database, applicant_id: uuid.UUID, raw_text: str | None, *, minutes_ago: int = 0) -> uuid.UUID:
+async def _seed_resume(
+    database, applicant_id: uuid.UUID, raw_text: str | None, *, minutes_ago: int = 0, digest: str | None = None
+) -> uuid.UUID:
     resume_id = uuid.uuid4()
     async with database() as session:
         await session.execute(
             text(
-                "INSERT INTO resumes (id, applicant_id, original_filename, storage_path, status, raw_text, created_at)"
-                " VALUES (:id, :applicant, 'resume.pdf', :path, 'parsed', :raw,"
+                "INSERT INTO resumes (id, applicant_id, original_filename, storage_path, status, raw_text,"
+                " text_hash, created_at)"
+                " VALUES (:id, :applicant, 'resume.pdf', :path, 'parsed', :raw, :digest,"
                 " now() - make_interval(mins => :ago))"
             ),
-            {"id": resume_id, "applicant": applicant_id, "path": f"{applicant_id}/{resume_id}.pdf", "raw": raw_text, "ago": minutes_ago},
+            {"id": resume_id, "applicant": applicant_id, "path": f"{applicant_id}/{resume_id}.pdf", "raw": raw_text,
+             "digest": digest, "ago": minutes_ago},
         )
         await session.commit()
     return resume_id
@@ -246,12 +252,70 @@ async def test_a_second_resume_merges_into_the_entries_the_bank_has(student, upl
     assert sorted(s["name"] for s in saved["skills"]) == ["SolidWorks", "matlab"]
 
 
-async def test_the_same_resume_twice_adds_nothing_the_second_time(student, upload):
+# --- duplicates (KAN-267) ---------------------------------------------------------
+
+
+def test_the_text_hash_ignores_layout_and_ligatures_but_not_words_or_case():
+    assert text_hash("Built a  ﬁle tracker\n\n•Python ") == text_hash("Built a file tracker •Python")
+    assert text_hash("Built a file tracker") != text_hash("Built a file tracker.")
+    assert text_hash("Built a file tracker") != text_hash("built a file tracker")
+    assert text_hash("") is None and text_hash(" \n ") is None and text_hash(None) is None
+
+
+async def test_the_same_resume_twice_is_refused_and_keeps_nothing(student, upload):
     client, applicant_id, bank = student
-    await upload(client, applicant_id, RESUME_TEXT)
-    second = (await upload(client, applicant_id, RESUME_TEXT)).json()["bank"]
-    assert (second["found"], _counts(second)) == (8, (0, 0, 0))
+    first = (await upload(client, applicant_id, RESUME_TEXT, filename="Sam 2026.pdf")).json()
+
+    res = await upload(client, applicant_id, RESUME_TEXT, filename="Sam 2026 (1).pdf")
+    assert res.status_code == 409
+    assert res.json()["detail"] == {"message": "Duplicate Resume found: Sam 2026.pdf", "resume_id": first["id"]}
+    assert list(upload.bucket.files) == [first["storage_path"]]
+    assert [r["id"] for r in (await client.get(f"/applicants/{applicant_id}/resumes")).json()] == [first["id"]]
     assert len((await client.get(bank)).json()["entries"]) == 6
+
+
+async def test_the_same_words_exported_again_are_a_duplicate_and_one_new_word_is_not(student, upload):
+    client, applicant_id, _ = student
+    await upload(client, applicant_id, RESUME_TEXT)
+
+    reflowed = RESUME_TEXT.replace("\n", "\n\n").replace("  ", "    ")
+    assert (await upload(client, applicant_id, reflowed)).status_code == 409
+    assert (await upload(client, applicant_id, UPDATED_TEXT)).status_code == 200
+
+
+async def test_uploads_with_no_text_are_never_duplicates(student, upload):
+    client, applicant_id, _ = student
+    assert (await upload(client, applicant_id, "")).status_code == 200
+    assert (await upload(client, applicant_id, "")).status_code == 200
+
+
+async def test_another_students_copy_of_the_resume_uploads(student, upload, database):
+    client, applicant_id, _ = student
+    async with database() as session:
+        other = await _seed_applicant(session)
+    await _seed_resume(database, other, RESUME_TEXT, digest=text_hash(RESUME_TEXT))
+    assert (await upload(client, applicant_id, RESUME_TEXT)).status_code == 200
+
+
+async def test_two_uploads_at_once_keep_one(student, upload, monkeypatch):
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, RESUME_TEXT)).json()
+
+    # The second request checked before the first was saved: the unique
+    # index refuses it at the commit, and it removes its file.
+    real = resumes_router._duplicate_of
+    checks = []
+
+    async def checked_too_early(*args, **kwargs):
+        checks.append(args)
+        return None if len(checks) == 1 else await real(*args, **kwargs)
+
+    monkeypatch.setattr("app.routers.resumes._duplicate_of", checked_too_early)
+    res = await upload(client, applicant_id, RESUME_TEXT)
+    assert res.status_code == 409
+    assert res.json()["detail"]["resume_id"] == first["id"]
+    assert upload.bucket.removed == [p for p in upload.bucket.files if p != first["storage_path"]]
+    assert len((await client.get(f"/applicants/{applicant_id}/resumes")).json()) == 1
 
 
 async def test_an_upload_the_parser_cannot_read_adds_nothing(student, upload):
@@ -336,6 +400,18 @@ async def test_a_failed_update_keeps_the_old_file_and_removes_the_new_one(studen
     assert upload.bucket.removed == [new_path]
     listed = (await client.get(f"/applicants/{applicant_id}/resumes")).json()
     assert [r["storage_path"] for r in listed] == [first["storage_path"]]
+
+
+async def test_an_update_may_keep_its_own_text_but_not_take_another_resumes(student, upload):
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, RESUME_TEXT, filename="one.pdf")).json()
+    second = (await upload(client, applicant_id, UPDATED_TEXT, filename="two.pdf")).json()
+
+    # The same words in a new file: how a student swaps the layout.
+    assert (await upload(client, applicant_id, RESUME_TEXT, replacing=first["id"])).status_code == 200
+    res = await upload(client, applicant_id, RESUME_TEXT, replacing=second["id"])
+    assert res.status_code == 409
+    assert res.json()["detail"] == {"message": "Duplicate Resume found: resume.pdf", "resume_id": first["id"]}
 
 
 async def test_another_students_resume_cannot_be_updated(student, upload, database):

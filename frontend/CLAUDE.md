@@ -333,6 +333,13 @@ are in `docs/auth.md`.
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
   throws. A new action file under `/applicants/{id}` wraps it with its own
   base path rather than copying the fetch.
+- **An API error's message comes from `extractErrorMessage`** (or
+  `errorMessage` for a body already read), which reads all three shapes of
+  `detail`: a string, Pydantic's list, and an object with `message` plus
+  the row it names (the duplicate resume 409s, KAN-267). Reading
+  `detail` as a string alone showed "Something went wrong" for those.
+  A duplicate upload (`uploadResume`'s `duplicateOf`) is no failure for
+  onboarding: the file is already there.
 - **A built resume's download goes through `sendBuiltResume`**
   (`lib/sent-resume-actions.ts`, KAN-208), PDF or Word (`"docx"`), never
   `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that

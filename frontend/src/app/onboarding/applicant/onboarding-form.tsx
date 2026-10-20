@@ -213,8 +213,11 @@ export function OnboardingForm({
         const fd = new FormData();
         fd.append("file", file);
         setUploading(true);
-        const { error: uploadError } = await uploadResume(fd);
-        if (uploadError) return fail(uploadError);
+        const { error: uploadError, duplicateOf } = await uploadResume(fd);
+        // A duplicate is already uploaded (KAN-267): an upload that reached
+        // the API before a dropped connection, sent again on retry. Not
+        // a reason to keep the student here.
+        if (uploadError && !duplicateOf) return fail(uploadError);
       }
       router.push("/jobs");
     } catch {

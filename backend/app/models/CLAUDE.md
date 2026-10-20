@@ -321,6 +321,16 @@ change here must keep:
   so every signup INSERT names it: migration `5753545063f3` is applied
   before the code deploys (above, "A new column reaches the database...").
 
+## Uploaded resumes — `resume.py`
+
+- **`text_hash` is the duplicate check's key** (KAN-267): sha256 of the
+  normalized `raw_text`, set by upload and Import Updated Resume only.
+  `resumes_text_hash_key` is a partial unique index on `(applicant_id,
+  text_hash) WHERE text_hash IS NOT NULL`: two uploads of one text per
+  student never both land, and uploads with no text (NULL) never clash.
+  Rows from before `d642d93fcfbc` are NULL, not backfilled. The rule and
+  its normalization: `../../CLAUDE.md`, "A duplicate resume is refused".
+
 ## Sent resumes
 
 `sent_resume.py` (KAN-208): the exact file a student downloaded or applied
