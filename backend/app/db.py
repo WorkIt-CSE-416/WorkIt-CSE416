@@ -47,6 +47,10 @@ def get_engine() -> AsyncEngine:
     return create_async_engine(
         settings.app_url,
         poolclass=NullPool, # open as new connection
+        # A database error's text carries the statement's values, and every
+        # route logs it with logger.exception: without this, a failed save
+        # wrote a student's answers, resume text or phone into the logs.
+        hide_parameters=True,
         connect_args={  # connect with Supabase
             "statement_cache_size": 0,
             "prepared_statement_cache_size": 0,

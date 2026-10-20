@@ -589,7 +589,12 @@ Find files with a directory listing; these are the rules for where code goes.
   statement to any free backend: a prepared statement made on one is absent on
   the next, and queries fail intermittently under load, never in development.
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
-  they raise `TypeError: Invalid argument(s)`.
+  they raise `TypeError: Invalid argument(s)`. `hide_parameters=True` keeps
+  the values a statement sent out of its error's text, which every route's
+  `logger.exception` writes to the Vercel logs: a failed answer bank save
+  logged a student's gender and disability answers (KAN-283,
+  `tests/test_autofill_answers.py`). Debug with the SQL, never by turning it
+  off.
 - **CI runs the whole migration chain** on an empty Postgres before the
   database tests, so two heads or a broken migration fail the PR. **Still
   open:** `alembic check` (model drift) is not a CI gate yet

@@ -96,3 +96,32 @@ async def test_an_option_or_key_it_doesnt_offer_is_refused(client, body):
 async def test_another_applicants_bank_is_forbidden(client):
     res = await client.get(f"/applicants/{uuid.uuid4()}/autofill-answers")
     assert res.status_code == 403
+
+
+async def test_a_failed_save_logs_no_answer(database, caplog):
+    # An applicant with no profile row: the insert fails on its foreign key,
+    # as any database error would. SQLAlchemy's error text carries the
+    # statement's values, so without hide_parameters (app/db.py) the log
+    # held the student's self-identification answers.
+    applicant_id = uuid.uuid4()
+    app.dependency_overrides[get_current_account] = lambda: AuthenticatedAccount(
+        id=applicant_id,
+        email="sam@example.com",
+        full_name="Sam Seeker",
+        account_type=AccountType.APPLICANT,
+        onboarding_completed=False,
+    )
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            res = await c.patch(
+                f"/applicants/{applicant_id}/autofill-answers",
+                json={"gender": "non_binary", "disability_status": "yes"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_current_account, None)
+
+    assert res.status_code == 500
+    assert "Saving autofill answers failed" in caplog.text
+    assert "non_binary" not in caplog.text
+    assert "disability_status" not in caplog.text
