@@ -121,6 +121,12 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
 
+**A company's logo is read once per company job board**, from the board's own
+page: the image the company uploaded there, or else the icon of the company's
+website when the board names it (`scraper/docs/logos.md`). A card with neither
+shows the company's initials. A board found with no logo is read again only when
+the logo reader learns a new place to look.
+
 **A job posting only disappears after a complete read of its company job
 board.** If a company job board fails to load, its job postings are kept as
 they were. A Workday company job board is read whole or not at all: every
@@ -436,6 +442,8 @@ browser can't restore your place by itself. The app does it instead:
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
 | About 3 in 10 Workday cards have no logo | Workday's careers-page images are wide banners, so only the website a careers site links is used, and some link none | Find a square image Workday serves |
+| Some Greenhouse and Lever cards have no logo (139 jobs on 2026-10-19, mostly Greenhouse) | The company job board has no uploaded image and names no website we can trust (Arc, MEMX, Muon Space), or names one whose name does not match the company (Graviton: gravitontrading.com) | A person confirms the website and adds it to `logos.CHECKED_WEBSITES` |
+| Recruitee cards have no logo | Its logo sits inside a 1 MB board page, for the one company job board we read | Read it there if more Recruitee companies arrive |
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |

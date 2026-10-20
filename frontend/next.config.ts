@@ -28,11 +28,15 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "app.ashbyhq.com", pathname: "/api/images/**" },
       { protocol: "https", hostname: "lever-client-logos.s3.amazonaws.com" },
       { protocol: "https", hostname: "lever-client-logos.s3.us-west-2.amazonaws.com" },
+      { protocol: "https", hostname: "lever-client-logos.s3-us-west-2.amazonaws.com" },
       {
         protocol: "https",
         hostname: "workablehr.s3.amazonaws.com",
         pathname: "/uploads/account/logo/**",
       },
+      // BambooHR serves logos from images7 and friends, pandabox and the company's
+      // own subdomain, as application/octet-stream; the optimizer sniffs the bytes.
+      { protocol: "https", hostname: "*.bamboohr.com" },
     ],
   },
 };

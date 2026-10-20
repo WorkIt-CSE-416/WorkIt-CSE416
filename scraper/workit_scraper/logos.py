@@ -3,12 +3,14 @@
 The listing APIs carry no logo, but most ATSs show the one the employer uploaded
 on the board's page. Without one -- or with a tiny one, or Workday's wide banner --
 the company's website's favicon, when the board tells us the website: Ashby and
-Workable name it, a Workday careers site links its home page, a Greenhouse board's
-job descriptions link it, a board may redirect to it, or a person checked it by hand
+Workable name it, a Workday careers site links its home page, a Lever board's footer
+links it, a Greenhouse board's logo link or a Greenhouse or Lever board's job
+descriptions link it, a board may redirect to it, or a person checked it by hand
 (`CHECKED_WEBSITES`). We never guess a website from a company name: "Workshop" is not
 workshop.com. Each board is read once, ever: a board already in
 `Store.logos` is never read again, because logos almost never change. Delete the
-`logos` key from jobs.json to read them all again.
+`logos` key from jobs.json to read them all again; a board read with no logo is read
+again once whenever `VERSION` goes up.
 """
 
 from __future__ import annotations
@@ -23,6 +25,11 @@ from urllib.parse import quote, urlsplit
 from workit_scraper import providers, web
 from workit_scraper.polite import Robots
 
+#: Raise it when the reader learns a new place to find a logo or website: the next
+#: live run reads again every board stored with no logo (`__main__`), once. Stored
+#: logos are kept -- an image that worked does not need a second look.
+VERSION = 2
+
 # `job-boards.`, not `boards.greenhouse.io`: the latter redirects there, and `web.get`
 # refuses a cross-origin redirect.
 PAGE = {
@@ -36,10 +43,10 @@ PAGE = {
     # (`/{site}/assets/logo`) is the site's banner, not a square -- NVIDIA's is
     # 1200x627 -- so only the website it names is read.
     "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/approot",
-    # No Recruitee or BambooHR yet. BambooHR's header logo (Alkira's: 180x36) is
-    # served as application/octet-stream from numbered hosts (images7.bamboohr.com),
-    # which next/image may refuse; Recruitee's sits inside a 1 MB board page, for
-    # the one board we read. Their cards show initials.
+    # The careers page carries its header logo as JSON (`poData`).
+    "bamboohr": "https://{}.bamboohr.com/careers",
+    # No Recruitee yet: its logo sits inside a 1 MB board page, for the one board we
+    # read. Its cards show initials.
 }
 # Each pattern only accepts its ATS's own image host, and `favicon` only Google's.
 # frontend/next.config.ts allows exactly these hosts, and next/image throws -- failing
@@ -51,15 +58,22 @@ PATTERN = {
     # The square mark, not `logoWordmarkImageUrl`: the card's tile is square.
     "ashby": re.compile(r'"logoSquareImageUrl":"(https://app\.ashbyhq\.com/api/images/[^"]+)"'),
     # The header logo, not `og:image` -- Lever's is a 1200x630 banner with a tagline.
+    # Older uploads use the bucket's dash host, `s3-us-west-2` (Daniels Health).
     "lever": re.compile(
         r'class="main-header-logo"[^>]*>\s*<img[^>]*\ssrc="'
-        r'(https://lever-client-logos\.s3(?:\.us-west-2)?\.amazonaws\.com/[^"]+)"'
+        r'(https://lever-client-logos\.s3(?:[.-]us-west-2)?\.amazonaws\.com/[^"]+)"'
     ),
     # The account logo, not `open_graph_logo`. 120px tall: 8 of the first 25 read
     # were squares, the rest wordmarks up to 720 wide, which the card letterboxes.
     "workable": re.compile(
         r'"logo":"(https://workablehr\.s3\.amazonaws\.com/uploads/account/logo/[^"]+)"'
     ),
+    # The uploaded header logo, slashes JSON-escaped. Mostly `images7.bamboohr.com`,
+    # some on the company's own subdomain or `pandabox.bamboohr.com`: next.config.ts
+    # allows `*.bamboohr.com`. Served as application/octet-stream, but next/image
+    # sniffs the bytes (PNGs, all 41 read on 2026-10-19). 36 to 120px tall, mostly
+    # wordmarks, which the card letterboxes.
+    "bamboohr": re.compile(r'"logo":\{[^}]*"url":"(https:\\/\\/[\w-]+\.bamboohr\.com\\/[^"]+)"'),
 }
 # Where Ashby serves uploaded logos -- read only to measure one (see `fetch`).
 ASHBY_IMAGES = "https://app.ashbyhq.com/api/images/"
@@ -69,6 +83,12 @@ SMALL_PX = 64
 ASHBY_WEBSITE = re.compile(r'"publicWebsite":"(https?://[^"]+)"')
 # So does a Workable account, as its top-level `url`.
 WORKABLE_WEBSITE = re.compile(r'^\{[^{]*"url":"(https?://[^"]+)"')
+# And a Lever board, as its footer's "{Company} Home Page" link (Zoox: zoox.com).
+LEVER_WEBSITE = re.compile(r'class="main-footer-text"><p><a href="(https?://[^"]+)"')
+# A Greenhouse board's logo links somewhere even with no logo uploaded: usually the
+# company's site (bgeinc.com), sometimes the board itself or a Slack file, so it goes
+# through `stated_site` like the descriptions.
+GREENHOUSE_LOGO_LINK = re.compile(r'"logo":\{"href":"(https?://[^"]+)"')
 # And a Workday careers site, as the header's "Home" link: half of those sampled.
 WORKDAY_WEBSITE = re.compile(r'"homePageURL":"(https?://[^"]+)"')
 # Some sites' "Home" is the careers site itself, whose icon is Workday's, not theirs.
@@ -85,6 +105,10 @@ CHECKED_WEBSITES = {
 }
 # Greenhouse does not, but a board's job descriptions link the company's site.
 GREENHOUSE_JOBS = "https://boards-api.greenhouse.io/v1/boards/{}/jobs?content=true"
+# Nor do some Lever boards, or they hide every hosted page (Aircall: 404), but the
+# postings API stays public and their descriptions link the site. 50 is plenty for
+# boilerplate.
+LEVER_JOBS = "https://api.lever.co/v0/postings/{}?mode=json&limit=50"
 
 
 def stated_site(text: str, *names: str) -> str | None:
@@ -121,11 +145,14 @@ def page_url(ats: str, token: str) -> str:
 def extract(ats: str, page: str) -> str | None:
     # Workday has no pattern: only its website is read.
     if ats in PATTERN and (match := PATTERN[ats].search(page)):
-        return html.unescape(match.group(1))
+        return html.unescape(match.group(1)).replace("\\/", "/")
     if ats == "ashby" and (site := ASHBY_WEBSITE.search(page)):
         return favicon(urlsplit(site.group(1)).netloc)
     if ats == "workable" and (site := WORKABLE_WEBSITE.search(page)):
         return favicon(urlsplit(site.group(1)).netloc)
+    if ats == "lever" and (site := LEVER_WEBSITE.search(page)):
+        host = urlsplit(site.group(1)).netloc
+        return None if f".{host}".endswith(".lever.co") else favicon(host)
     if ats == "workday" and (site := WORKDAY_WEBSITE.search(page)):
         host = urlsplit(site.group(1)).netloc
         return None if f".{host}".endswith(WORKDAY_HOSTS) else favicon(host)
@@ -153,12 +180,14 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
     robots = Robots(
         [page_url(ats, token) for ats, token, _ in boards if ats != "workday"]
         + [GREENHOUSE_JOBS.format(token) for ats, token, _ in boards if ats == "greenhouse"]
+        + [LEVER_JOBS.format(token) for ats, token, _ in boards if ats == "lever"]
         + [ASHBY_IMAGES]
     )
 
     def read(url: str, timeout: float = 15) -> tuple[bytes | None, str | None]:
-        """`(body, None)`; `(None, where)` for a cross-origin redirect we refused to
-        follow; `(None, None)` when robots.txt says no or the read failed."""
+        """`(body, None)`, an empty body for a 404; `(None, where)` for a cross-origin
+        redirect we refused to follow; `(None, None)` when robots.txt says no or the
+        read failed."""
         if not robots.allows(url):
             return None, None
         robots.pace(url)
@@ -167,6 +196,10 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
         except urllib.error.HTTPError as error:
             if 300 <= error.code < 400 and error.filename:
                 return None, error.filename
+            # A page that is gone has no logo, but its board's descriptions may still
+            # name the site (Aircall hides its Lever pages).
+            if error.code == 404:
+                return b"", None
             return None, None
         except Exception:  # noqa: BLE001 - a missing logo must not end the run
             return None, None
@@ -202,10 +235,21 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
                 text, names = page, (token.split(".")[0], company)
             elif ats == "greenhouse":
                 jobs = read(GREENHOUSE_JOBS.format(token), timeout=30)[0]
-                if jobs is None:
+                if not jobs:
                     return None
                 contents = (job.get("content") or "" for job in json.loads(jobs)["jobs"])
-                text = " ".join(contents) + " " + text
+                link = GREENHOUSE_LOGO_LINK.search(page)
+                text = " ".join([link.group(1) if link else "", *contents, text])
+            elif ats == "lever":
+                jobs = read(LEVER_JOBS.format(token), timeout=30)[0]
+                if not jobs:
+                    return None
+                parts = [text]
+                for job in json.loads(jobs):
+                    # Its lists hold the bullets, an "About us" among them.
+                    parts += [job.get("description", ""), job.get("additional", "")]
+                    parts += [item.get("content", "") for item in job.get("lists", [])]
+                text = " ".join(parts)
             found = stated_site(text, *names)
             logo = favicon(found) if found else None
         return key, logo
