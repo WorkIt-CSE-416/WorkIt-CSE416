@@ -75,10 +75,30 @@ header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.
 
 
+**The panel is pinned or opens on hover (KAN-300), in both shells.**
+Pinned, it stays open and the page makes room, as it always did. Unpinned,
+it is the icon rail; pointing at it opens it over the page after 150ms, and
+it closes 300ms after the pointer leaves, so a pointer crossing the rail
+neither flashes it open nor snaps it shut. Tabbing into it opens it at once,
+and focus leaving it or Escape closes it. The page underneath never moves or
+reflows during a hover: the gap beside the panel keeps the rail's width,
+and the seeker page keeps its collapsed `--panel-gain`. The bar's toggle
+pins and unpins (`aria-pressed`, a "Pin sidebar" / "Unpin sidebar"
+tooltip), as does Ctrl or Cmd+B, and the pin is the `sidebar_state` cookie.
+Below md the panel is shadcn's sheet, which has no hover, and works as
+before. `components/hover-sidebar.tsx` wraps shadcn's provider rather than
+editing the vendored one: it opens the provider when pinned or hovering.
+**Size anything by the pinned width with `useSidebarPin`, never shadcn's
+`state`**: a hover sets that to "expanded", and the company bar's corner
+cell, sized by it, widened and pushed the bar on every hover. On the seeker
+shell a hovering panel covers the bar's toggle, so pinning from a hover is
+Ctrl or Cmd+B, or the toggle once the panel closes.
+
 Shared shell parts in `src/components`: `app-sidebar.tsx` (the left panel both
 shells use: shadcn's Sidebar with WorkIt's row spacing and current-item
 marking; each shell passes its own groups and its bar's height as the offset),
 `sidebar-brand.tsx` (the bar's corner cell: the panel toggle and the logo),
+`hover-sidebar.tsx` (the panel's pinned and hover states, below),
 `notifications-menu.tsx` (the bell, a popover holding an empty state) and
 `account-menu.tsx` (a name and email header, the shell's rows, then Sign Out;
 Sign In without `onSignOut`).
