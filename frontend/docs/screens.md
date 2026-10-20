@@ -229,8 +229,12 @@ Apply Now (`jobs/apply-button.tsx`,
 KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
-shows Download Resume and Open the Posting (a link, so no popup blocker
-stops it). Apply Without a Resume leaves for the employer's posting at once.
+shows Open in Resumes and Open the Posting (links in new tabs, so no popup
+blocker stops them and the dialog stays to ask "Did You Apply?"). **The
+dialog downloads nothing** (KAN-267): a student gets resume files on
+Resumes & Experiences only, so Open in Resumes goes to a built resume's
+editor (its Download) or, for an upload, the Resumes view. It had a
+Download Resume button until then. Apply Without a Resume leaves for the employer's posting at once.
 **Every Apply Now opens this dialog** (KAN-290): the page's, the feed card's
 on /jobs and /search, and New Matches' Apply on the Dashboard. WorkIt cannot
 see the employer's site, so the dialog is its one chance to learn which
@@ -315,8 +319,17 @@ would change a moment after the page loads.
 **Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
-behind the new tab and asks "Did You Apply?". Yes, I Applied calls
-`markApplied` (`jobs/actions.ts`); Not Yet closes it. A job already marked is
+behind the new tab and asks "Did You Apply?". **It shows the resume they
+applied with** (KAN-267), under "Resume You Sent": the resumes Pick a
+Resume lists plus No Resume, starting on the one picked at Apply, or No
+Resume after Apply Without a Resume. The student can change it, since they
+may have attached another file on the employer's page. Yes, I Applied keeps
+a resume other than the one sent as a sent resume for this posting first
+(`applyWithResume`), so the page's "You sent <name>" names it, then calls
+`markApplied` (`jobs/actions.ts`); Not Yet closes it. No Resume after a
+send leaves that sent resume as it is: nothing links an application to
+its resume until `job_applications.sent_resume_id` (docs/sent_resume.md,
+step 4). A job already marked is
 never asked about again, and anyone else's dialog just closes. The page then
 reads "You applied on Oct 17, 2026" under the header (`AppliedNote`), the
 viewer's own day after hydration. An Applied button in the header did this
@@ -749,7 +762,7 @@ no filters or sorting: a seeker has a handful of resumes. Built resumes
 each list's default first. **A row opens on a click anywhere**, with no
 button of its own: a built resume's goes to the resume editor, as on
 Resumes (`components/clickable-row.tsx`, its name the link); it never
-downloads here, since every download keeps a sent resume. An uploaded
+downloads here: downloads live in the editor. An uploaded
 one's previews a PDF in a new tab or downloads a DOCX (`previewResume`,
 called from the click, since the tab must open inside it; its name is the
 button a keyboard reaches). Open and Preview buttons and an amber "None is
@@ -1489,9 +1502,9 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   already sent from it.
 - **No Sent card since 2026-10-18.** It listed every file the student
   downloaded or applied with (KAN-208), to download again or delete. Sent
-  resumes are still kept, on every download and Apply, and a job posting's
-  page still says "You sent <name> on <date>"; no screen lists them all or
-  deletes one now.
+  resumes are still kept on every Apply (a download keeps nothing since
+  KAN-267), and a job posting's page still says "You sent <name> on
+  <date>"; no screen lists them all or deletes one now.
 
 ## Resume editor
 

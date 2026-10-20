@@ -26,8 +26,8 @@ import { DownloadNotes, useResumeDownload } from "./download-menu";
 /**
  * One built resume, drawn as an uploaded one's row is: the file mark, the
  * name and its day, then the star, Rename, Download PDF and Delete.
- * Download PDF is the editor's PDF download (`useResumeDownload`: a sent
- * resume, with the missing-character warning under the row), on the card
+ * Download PDF is the editor's PDF download (`useResumeDownload`: it keeps
+ * nothing, with the missing-character warning under the row), on the card
  * since KAN-268. A tailored resume takes the star too since then, and its
  * day line names the job posting it was made for, a link to that posting's
  * page while the Jobs page lists it (a closed one's page is a 404). The whole card is

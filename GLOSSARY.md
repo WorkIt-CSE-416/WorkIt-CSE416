@@ -49,7 +49,7 @@ To read an uploaded resume and write its entries and skills into the experience 
 _Avoid_: parse, sync, auto-fill
 
 **Sent resume**:
-The exact document a student downloaded or applied with, kept unchanged from that moment.
+The exact document a student applied with, kept unchanged from that moment. A download is not one: it keeps nothing.
 _Avoid_: snapshot, submitted copy
 
 **Generate**:

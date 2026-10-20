@@ -166,8 +166,8 @@ def storage(monkeypatch):
 def test_resume_answers_the_kept_resume_and_its_link(client, monkeypatch, storage):
     sent = SentResumeDownload(
         id=uuid.uuid4(), name="General SWE", built_resume_id=uuid.uuid4(), uploaded_resume_id=None,
-        job_posting_id=JOB, created_at=datetime.now(UTC), format="pdf",
-        url="https://storage.test/x.pdf", missing_characters=[],
+        job_posting_id=JOB, created_at=datetime.now(UTC), format="pdf", rebuilt=False,
+        file_name="General SWE.pdf", url="https://storage.test/x.pdf", missing_characters=[],
     )
     calls = step(monkeypatch, "prepare_resume", sent)
     res = client.post(BASE + f"/applications/{JOB}/resume")

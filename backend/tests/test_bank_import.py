@@ -368,18 +368,42 @@ async def test_an_updated_resume_replaces_the_rows_file_and_merges_what_is_new(s
     assert "Wrote the test plan for the bracket" in [b["text"] for b in internship["bullets"]]
 
 
-async def test_an_updated_resume_keeps_the_old_file_a_sent_resume_uses(student, upload, database):
-    client, applicant_id, _ = student
-    first = (await upload(client, applicant_id, RESUME_TEXT)).json()
+async def _sent_from(database, applicant_id, upload: dict) -> uuid.UUID:
+    """A sent resume pointing at the upload's file, as Apply leaves one."""
     async with database() as session:
-        await session.execute(
+        sent = await session.scalar(
             text(
                 "INSERT INTO sent_resumes (applicant_id, storage_path, name, uploaded_resume_id)"
-                " VALUES (:a, :path, 'resume.pdf', :r)"
+                " VALUES (:a, :path, 'resume.pdf', :r) RETURNING id"
             ),
-            {"a": applicant_id, "path": first["storage_path"], "r": uuid.UUID(first["id"])},
+            {"a": applicant_id, "path": upload["storage_path"], "r": uuid.UUID(upload["id"])},
         )
         await session.commit()
+    return sent
+
+
+async def test_an_updated_resume_freezes_the_old_files_sent_resumes_and_removes_it(student, upload, database):
+    """KAN-267: the old file stayed while a sent resume used it. The sent
+    resume becomes a snapshot of the old text, and the file goes."""
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, RESUME_TEXT)).json()
+    sent = await _sent_from(database, applicant_id, first)
+
+    res = await upload(client, applicant_id, UPDATED_TEXT, replacing=first["id"])
+    assert res.status_code == 200
+    assert upload.bucket.removed == [first["storage_path"]]
+    async with database() as session:
+        row = (await session.execute(text(
+            "SELECT s.storage_path, r.source FROM sent_resumes s JOIN resume_snapshots r ON r.id = s.snapshot_id"
+            " WHERE s.id = :id"), {"id": sent})).one()
+    assert tuple(row) == (None, "upload")
+
+
+async def test_an_updated_resume_with_no_text_keeps_the_old_file_a_sent_resume_uses(student, upload, database):
+    # Nothing to rebuild the old file from, so it stays while the sent resume uses it.
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, "")).json()
+    await _sent_from(database, applicant_id, first)
 
     res = await upload(client, applicant_id, UPDATED_TEXT, replacing=first["id"])
     assert res.status_code == 200

@@ -318,23 +318,35 @@ Find files with a directory listing; these are the rules for where code goes.
   about 8 lines were hidden), and without it a test resume lost 3 items
   it had room for. Undo sends the response's `undo` body. Tests:
   `tests/test_resume_editor.py`.
-- **Every download is a sent resume** (KAN-208): `POST
-  /applicants/{id}/sent-resumes` renders through `services/sent_resumes.py`,
-  which hashes the view, template and header text first and returns the last
-  sent resume on a repeat for the same built resume. `format: "docx"`
-  keeps the Word file the same way (its hash adds the format, so a PDF and
-  a Word file of one resume are two sent resumes; a built resume only).
-  `GET .../render` and `.../docx` return the file unkept: the editor's
-  preview and the tests read them, and no download button calls them. The service takes the
-  Storage client from the router and flushes, never commits; when a new row's
-  commit fails, the router removes the uploaded file. **Apply** (KAN-220) is
-  the same POST with `job_posting_id` and exactly one of `built_resume_id`
-  or `uploaded_resume_id` (422 otherwise; 404 for a posting the Jobs page
-  does not list). An uploaded resume makes no new file, so a failed commit must not
-  remove its file: the router removes only a built sent resume's. **A stored file
-  is removed only when `file_in_use` says no row needs it**: the uploaded
-  resume delete and the sent resume delete both check it, because a sent
-  resume can point at an uploaded resume's file.
+- **Only a send is a sent resume; a download keeps nothing** (KAN-267).
+  The editor's Download takes `GET .../built-resumes/{rid}/render` (the PDF,
+  base64, with its `file_name`) or `.../docx` and stores nothing. Every
+  download was kept as a sent resume (KAN-208) until then, PDF or Word,
+  which filled the bucket with files no employer saw. **Apply** (KAN-220)
+  is `POST /applicants/{id}/sent-resumes` with `job_posting_id`, now
+  required (422 without it), and exactly one of `built_resume_id` or
+  `uploaded_resume_id` (422 otherwise; 404 for a posting the Jobs page does
+  not list). Sends are PDFs only: `format` went with the Word downloads,
+  and Word sent resumes kept before stay as they are.
+- **A sent resume's file is a snapshot or a stored file** (KAN-267,
+  `../docs/sent_resume.md`; `services/sent_resumes.py` has the rules). A
+  built resume's send hashes the view, template and header text first (a
+  repeat for the same built resume and posting returns the last sent
+  resume), renders the PDF once for the student, and keeps what it is made
+  from as a `built` snapshot (`resume_snapshots`, gzipped JSON, about 2 KB;
+  one per content, shared across postings). **Nothing goes to Storage**,
+  so a failed commit has no file to clean up. An uploaded resume's send
+  points at the upload's own file until **Import Updated Resume or the
+  delete freezes it** (`freeze_upload`, before the row loses its file, in
+  the same commit): its text, parsed, becomes an `upload` snapshot with
+  the text itself, and the file goes. A file with no text, or one the
+  parser reads nothing from, stays a file. Opening a snapshot renders it
+  again (about 0.3 s; 503 without Tectonic), answered as `data` (base64);
+  a stored file as a 5-minute `url`. `rebuilt` (no content hash, a
+  snapshot) marks an upload's, which is approximate. The service flushes,
+  never commits. **A stored file is removed only when `file_in_use` says
+  no row needs it**, and a snapshot only when no sent resume does
+  (`delete_sent`; its foreign key is RESTRICT).
 - **A duplicate resume is refused** (KAN-267, `../docs/sent_resume.md`),
   409 `{"detail": {"message": "Duplicate Resume found: <name>", ...}}`
   with nothing written. **Upload and Import Updated Resume** compare
@@ -671,6 +683,11 @@ free tier). Render with a Dockerfile is the fallback.
   CHECK. Deployed first is worse: the new `JobPreferences` refuses a saved
   `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
   migration runs.
+- **Apply `5a6e419367b8` (`resume_snapshots`, KAN-267) before the deploy
+  that writes it**, after `d642d93fcfbc`. The model maps
+  `sent_resumes.snapshot_id`, so deployed first, every Apply and auto apply
+  resume answers 500. It only adds a table, a nullable column and a CHECK
+  the existing rows meet, so applying it early is safe.
 - **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a

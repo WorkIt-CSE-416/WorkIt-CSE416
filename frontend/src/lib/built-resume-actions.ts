@@ -48,6 +48,8 @@ export type RenderBox = {
  *  the editor's click targets. */
 export type RenderedPdf = {
   pdf: string;
+  /** What a download saves it as: the resume's name, header-safe. */
+  file_name: string;
   page_count: number;
   /** Lines of text past page 1; an estimate that can run a line or two short. */
   lines_over: number;
@@ -90,8 +92,23 @@ export async function setDefaultBuiltResume(resumeId: string): Promise<{ error: 
   return call(`/${id(resumeId)}/default`, { method: "PUT" });
 }
 
+/** The PDF, for the editor's preview and its Download PDF. Kept nowhere. */
 export async function renderResumePdf(resumeId: string): Promise<Result<RenderedPdf>> {
   return call<RenderedPdf>(`/${id(resumeId)}/render`);
+}
+
+/** A file to save, base64, under the name it saves as. */
+export type ResumeFile = { data: string; contentType: string; fileName: string };
+
+/** The Word file, for the editor's Download Word. Kept nowhere (KAN-267). */
+export async function downloadWordResume(resumeId: string): Promise<Result<ResumeFile>> {
+  return call<ResumeFile>(`/${id(resumeId)}/docx`, undefined, async (res) => ({
+    data: Buffer.from(await res.arrayBuffer()).toString("base64"),
+    contentType: res.headers.get("content-type") ?? "application/octet-stream",
+    // The API names it (Content-Disposition), header-safe already.
+    fileName:
+      /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "Resume.docx",
+  }));
 }
 
 /** A built resume's choice rows (schemas `ChoicesResponse`, KAN-218). A bank

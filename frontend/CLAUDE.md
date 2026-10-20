@@ -340,16 +340,22 @@ are in `docs/auth.md`.
   `detail` as a string alone showed "Something went wrong" for those.
   A duplicate upload (`uploadResume`'s `duplicateOf`) is no failure for
   onboarding: the file is already there.
-- **A built resume's download goes through `sendBuiltResume`**
-  (`lib/sent-resume-actions.ts`, KAN-208), PDF or Word (`"docx"`), never
-  `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
-  downloads the file. A download cancelled at the missing-character warning
-  deletes the sent resume it just made (`created`), so only files the
-  student took are kept. Apply Now goes through `applyWithResume` (KAN-220)
-  wherever it sits: the job posting page, the feed cards on /jobs and
-  /search, and the Dashboard's New Matches (KAN-290). It keeps its sent
-  resume: the student is told WorkIt kept a copy, so it is never deleted
-  behind their back. No
+- **A built resume's download keeps nothing** (KAN-267): the PDF through
+  `renderResumePdf` (base64 and its `file_name`), the Word file through
+  `downloadWordResume` (`lib/built-resume-actions.ts`), saved by the
+  browser from a Blob (`resumes/download-menu.tsx`). Until KAN-267 every
+  download went through `sendBuiltResume` and kept a sent resume in
+  Storage, so the bucket filled with files no employer saw; that action is
+  gone. The missing-character warning still holds a PDF until Download
+  Anyway. Apply Now goes through `applyWithResume` (KAN-220) wherever it
+  sits: the job posting page, the feed cards on /jobs and /search, and the
+  Dashboard's New Matches (KAN-290). It keeps its sent resume: the student
+  is told WorkIt kept a copy, so it is never deleted behind their back.
+  **Resume files download on Resumes & Experiences only** (KAN-267): the
+  editor's Download and an upload's row (`lib/save-file.ts`). The Apply
+  dialog links there (Open in Resumes) and downloads nothing, though the
+  API still answers a send's file (a Storage `url`, or for a snapshot the
+  PDF as `data`) for auto apply. No
   screen lists sent resumes since the Resumes view's Sent card went
   (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**

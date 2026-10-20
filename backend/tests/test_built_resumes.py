@@ -494,11 +494,13 @@ async def test_generate_then_render_gives_a_one_page_pdf_with_the_bank(student):
     _tectonic_or_skip()
     client, me = student
     await _fill_bank(client, me)
-    resume_id = await _generate(client, me)
+    resume_id = await _generate(client, me, "Data/ML: 2027")
 
     res = await client.get(f"{me}/built-resumes/{resume_id}/render")
     assert res.status_code == 200
     body = res.json()
+    # The editor's Download PDF saves it under this (KAN-267), header-safe.
+    assert body["file_name"] == "DataML 2027.pdf"
     assert body["page_count"] == 1
     assert body["missing_characters"] == []
     text = _pdf_text(body["pdf"])

@@ -333,18 +333,30 @@ change here must keep:
 
 ## Sent resumes
 
-`sent_resume.py` (KAN-208): the exact file a student downloaded or applied
-with. Rationale in `../../../docs/resume.md`, "Sent resumes". Invariants:
+`sent_resume.py` (KAN-208): the exact file a student applied with (a
+download kept one too until KAN-267; those rows stay, with no job posting). Rationale in `../../../docs/resume.md`, "Sent resumes". Invariants:
 
-- **A row never changes after it is written**, and its file is never
+- **Its content never changes after it is written**, and its file is never
   overwritten. The API lists and deletes sent resumes, never edits them.
+  The one change is where it is kept: when its uploaded resume is replaced
+  or deleted, `storage_path` gives way to `snapshot_id` (KAN-267).
+- **Its file is exactly one of `storage_path` and `snapshot_id`**
+  (`sent_resumes_one_file`). `resume_snapshots` holds one gzipped JSON per
+  applicant and content (`resume_snapshots_applicant_hash_key`), `source`
+  `built` (exact) or `upload` (parsed, approximate). A snapshot outlives
+  a sent resume only while another uses it: `snapshot_id` is `ON DELETE
+  RESTRICT`, and the service deletes the snapshot with its last sent
+  resume. Rationale: `../../../docs/sent_resume.md`.
 - **`built_resume_id`, `uploaded_resume_id` and `job_posting_id` are
   `ON DELETE SET NULL`**: the record outlives its source. At most one source
   is set (`sent_resumes_one_source`).
 - **`storage_path` may be shared** with an uploaded resume or another sent
   resume, so a file is removed only when no row uses it
   (`../services/sent_resumes.py`'s `file_in_use`). `content_hash` is null on
-  a row from an uploaded resume.
+  a row from an uploaded resume, also once it is a snapshot: a snapshot row
+  with no hash is a rebuilt upload.
+- **`5a6e419367b8` goes on before the deploy that writes snapshots**: the
+  model maps `snapshot_id`, so every sent resume INSERT names it.
 
 ## Locations — countries, states, and the resolver
 
