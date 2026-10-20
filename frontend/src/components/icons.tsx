@@ -19,6 +19,7 @@ import {
   ChevronUp,
   ClipboardCheck,
   Clock,
+  ContactRound,
   Ellipsis,
   ExternalLink,
   FileCheck2,
@@ -51,6 +52,7 @@ import {
   Upload,
   User,
   UserRound,
+  UsersRound,
   X,
   createLucideIcon,
 } from "lucide-react";
@@ -481,6 +483,16 @@ export function GenderIcon({ className }: IconProps) {
   return <UserRound aria-hidden className={className} />;
 }
 
+/** Hispanic or Latino: a contact card. */
+export function HispanicLatinoIcon({ className }: IconProps) {
+  return <ContactRound aria-hidden className={className} />;
+}
+
+/** Race / Ethnicity: a group of people. */
+export function RaceIcon({ className }: IconProps) {
+  return <UsersRound aria-hidden className={className} />;
+}
+
 /** Veteran status: a medal. */
 export function VeteranIcon({ className }: IconProps) {
   return <Medal aria-hidden className={className} />;
@@ -497,6 +509,8 @@ const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
   work_authorization_status: CitizenshipIcon,
   security_clearance: ClearanceIcon,
   gender: GenderIcon,
+  hispanic_latino: HispanicLatinoIcon,
+  race: RaceIcon,
   veteran_status: VeteranIcon,
   disability_status: DisabilityIcon,
 };

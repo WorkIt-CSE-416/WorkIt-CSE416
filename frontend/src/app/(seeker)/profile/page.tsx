@@ -287,7 +287,7 @@ export default function ProfilePage() {
       )}
 
       {/* Shown once both loads settle, as Contact & Links waits for the
-          profile: a failed read shows the notice above, never seven "Not
+          profile: a failed read shows the notice above, never nine "Not
           answered" lines that would pass for the seeker's real answers. */}
       {answers && <ApplicationQuestions answers={answers} onSaved={setAnswers} />}
 
