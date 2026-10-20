@@ -94,7 +94,7 @@ Workday is different in three ways worth knowing:
 |---|---|
 | **Read over several runs** | Reading every Workday company job board whole takes about 22,000 requests (they hold about 430,000 job postings), far more than one run can make politely. So each run reads them for 12 minutes, starting with the ones read longest ago, and the rest wait their turn. The first run read 439 of them, so each is read about every 12 hours, and a new Workday job posting can take that long to appear (a closed one stays as long) |
 | **Some are skipped** | 141 whose `robots.txt` asks crawlers to stay off that careers site (Caterpillar, Citi, CACI, eBay), and 20 too big to read whole: over 5,000 job postings (Accenture, Walmart, Target, CVS), or capped at 2,000 by Workday with no filter to split them by (Airbus, Sysco) |
-| **No logos yet** | Workday's careers-page images are wide banners, so its cards show the company's initials |
+| **Logos from the company's website** | Workday's careers-page images are wide banners, so a card shows the icon of the website the careers site links as its home page or privacy policy. About 3 in 10 link neither, and those cards show the company's initials |
 
 The GitHub lists are only used as a phone book. Every job posting itself is
 read from the company's own job board, so we get job postings the lists never
@@ -120,6 +120,12 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
+
+**A company's logo is read once per company job board**, from the board's own
+page: the image the company uploaded there, or else the icon of the company's
+website when the board names it (`scraper/docs/logos.md`). A card with neither
+shows the company's initials. A board found with no logo is read again only when
+the logo reader learns a new place to look.
 
 **A job posting only disappears after a complete read of its company job
 board.** If a company job board fails to load, its job postings are kept as
@@ -376,7 +382,7 @@ with **and**.
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
 | `start_term` | `summer-2027` | That season; seasons that have ended aren't offered |
-| `visa` | `sponsors` | Says it sponsors. `not_ruled_out` keeps job postings that sponsor or don't say |
+| `visa` | `sponsors` | Says it sponsors. `not_ruled_out` (sponsors or doesn't say) went in KAN-275 |
 | `auto_apply` | `true` | Only job postings auto apply can fill: `auto_apply` true (section 6), Greenhouse for now |
 | `q` | `swe intern stripe` | A company it names by whole name (a typo corrected) narrows to that company's jobs; the roles it names (typos corrected) narrow to jobs tagged with them or whose title says the words that named them ("software" finds "Embedded Software Engineer"); "intern", "new grad", "remote", "summer 2027" and the like narrow their own columns (a start term and "remote" also match a title saying them); every other word must be in the job posting's text or its company's name. Newest first, like the rest of the feed |
 | `limit`, `offset` | `51`, `50` | Paging, for Load More |
@@ -435,7 +441,9 @@ browser can't restore your place by itself. The app does it instead:
 | Seven hiring systems. The next biggest in the GitHub lists go unread: Oracle Cloud (about 3,100 apply links), SmartRecruiters (1,700), iCIMS (1,600) | Each hiring system needs its own reader, and SmartRecruiters' `robots.txt` disallows us | A reader per hiring system, where its `robots.txt` allows |
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
-| Workday cards have no logo | Workday's careers-page images are wide banners, and some are SVGs the website's image loader refuses | Find a square image Workday serves |
+| About 3 in 10 Workday cards have no logo | Workday's careers-page images are wide banners, so only the website a careers site links is used, and some link none | Find a square image Workday serves |
+| Some Greenhouse and Lever cards have no logo (139 jobs on 2026-10-19, mostly Greenhouse) | The company job board has no uploaded image and names no website we can trust (Arc, MEMX, Muon Space), or names one whose name does not match the company (Graviton: gravitontrading.com) | A person confirms the website and adds it to `logos.CHECKED_WEBSITES` |
+| Recruitee cards have no logo | Its logo sits inside a 1 MB board page, for the one company job board we read | Read it there if more Recruitee companies arrive |
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |

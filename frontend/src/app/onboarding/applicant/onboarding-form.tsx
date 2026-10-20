@@ -10,7 +10,6 @@ import {
   PAY_OPTIONS,
   payUnits,
   statesNarrowCountries,
-  VISA_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
@@ -19,14 +18,17 @@ import {
   BriefcaseIcon,
   CalendarIcon,
   CoinIcon,
+  FileIcon,
   LevelIcon,
   PinIcon,
   RoleIcon,
   VisaIcon,
   workStyleIcon,
 } from "@/components/icons";
+import { ResumeUpload } from "@/components/resume-upload";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
+import { uploadResume } from "@/lib/resume-actions";
 
 import { savePreferences } from "./actions";
 import { ChoiceTile } from "./choice-tile";
@@ -35,25 +37,31 @@ import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
 
 /**
- * The applicant onboarding wizard (KAN-231): two short steps, each one's
+ * The applicant onboarding wizard (KAN-231): three short steps, each one's
  * question on the left (./story-panel) and the fields answering it on the
- * right, under the step rail that counts intake as the third step
- * (./steps.ts). Each new question takes focus, so a screen reader hears it.
+ * right, under the step rail (./steps.ts). Each new question takes focus, so
+ * a screen reader hears it.
  *
  * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, experience, job type, start
  * date, workplace, location, salary and visa are a `FeedFilters`, with the
- * same options and pickers as All Filters (components/filter-controls). Start
+ * same options and pickers as All Filters (components/filter-controls), but
+ * for two (KAN-275): Start Date offers upcoming seasons only (./page), and
+ * Visa Sponsorship has its own two tiles (VISA_PICKS below). Start
  * Date is asked only once Internship is picked, and dropping Internship
  * clears it: a saved season keeps only the jobs that name one, which a
- * new-grad role rarely does. Continue saves them
- * as the seeker's preferences, which marks onboarding done, then opens
- * intake (./bank, KAN-214), which fills the experience bank matching reads
- * and imports a resume; its Finish opens the Jobs page's Recommended view.
- * There is no resume step here: intake asks for one. Date Posted is not
- * asked: a saved "past 24 hours" would empty the feed within days.
+ * new-grad role rarely does. Date Posted is not asked: a saved "past 24
+ * hours" would empty the feed within days.
  *
- * `initial` is the seeker's saved preferences, so coming back from intake
- * ("Back to Pay & Visa") edits them rather than starting over.
+ * THE LAST STEP IS A RESUME (KAN-275), the Resumes view's dropzone, and it
+ * replaced intake's chat (KAN-214). Continue saves the answers as the
+ * seeker's preferences, which marks onboarding done, then uploads the picked
+ * file; the API reads it into the experience bank matching reads (ADR 0003).
+ * Skip saves the answers alone. Either opens the Jobs page's Recommended
+ * view. The answers save first, so a failed upload leaves onboarding done and
+ * this step to retry from; saving them again changes nothing.
+ *
+ * `initial` is the seeker's saved preferences, so a finished seeker who comes
+ * back edits them rather than starting over.
  */
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -78,10 +86,27 @@ const STEPS: { question: ReactNode; line: string }[] = [
     ),
     line: "Both are optional. Leave them open and I won't filter on pay or visa.",
   },
+  {
+    question: (
+      <>
+        Last, <strong>upload your resume</strong> and I&apos;ll fill in your experiences.
+      </>
+    ),
+    line: "One file, and I'll know what you've done. No resume yet? Skip it.",
+  },
 ];
 
 const toggle = <T,>(values: T[], value: T) =>
   values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
+
+/** Visa Sponsorship's tiles, any of them (KAN-275). The saved preference is
+ *  still one `visa`: "Sponsor Visas" alone saves ?visa=sponsors, and any
+ *  other pick keeps every job, so it saves no visa filter. */
+type VisaPick = "none" | "sponsors";
+const VISA_PICKS: { value: VisaPick; label: string }[] = [
+  { value: "none", label: "No Visa Sponsorship" },
+  { value: "sponsors", label: "Sponsor Visas" },
+];
 
 export function OnboardingForm({
   roles,
@@ -98,7 +123,7 @@ export function OnboardingForm({
   initial?: FeedFilters;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
-  /** The step to open on: Pay & Visa when intake's Back returns here. */
+  /** The step to open on: Pay & Visa for ?step=2 (./page). */
   startStep?: number;
 }) {
   const router = useRouter();
@@ -109,15 +134,23 @@ export function OnboardingForm({
    *  focused: nothing has changed under the reader yet. */
   const moved = useRef(false);
   const [answers, setAnswers] = useState<FeedFilters>(initial);
+  // Kept here, not in the step, so Back and Next keep the picks.
+  const [visaPicks, setVisaPicks] = useState<VisaPick[]>(initial.visa ? ["sponsors"] : []);
+  const [resume, setResume] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  // Only while the file is on its way, so the dropzone's "Uploading…" never
+  // shows for Skip or for the answers' save before the upload.
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const set = (change: Partial<FeedFilters>) => setAnswers((a) => ({ ...a, ...change }));
   const last = step === STEPS.length - 1;
-  // Only step 1 asks anything required.
-  const canNext =
-    step > 0 ||
-    (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
+  // Step 1 asks the required answers; the resume step's Continue needs a
+  // file, and Skip is the way on without one.
+  const canNext = last
+    ? resume != null
+    : step > 0 ||
+      (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
 
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
@@ -134,20 +167,28 @@ export function OnboardingForm({
     window.scrollTo({ top: 0 });
   }
 
-  /** Saving the answers is what finishes onboarding; a failed save leaves
-   *  this page to retry from. */
-  async function finish() {
+  /** Saving the answers is what finishes onboarding, then the resume, if
+   *  one was picked, uploads. A failure leaves this page to retry from. */
+  async function finish(file: File | null) {
     setSaving(true);
     setError(null);
     // A picked state narrows its country, as All Filters' Apply does.
     const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
-    if (saveError) {
-      setSaving(false);
-      setError(saveError);
-      return;
+    if (saveError) return fail(saveError);
+    if (file) {
+      const fd = new FormData();
+      fd.append("file", file);
+      setUploading(true);
+      const { error: uploadError } = await uploadResume(fd);
+      if (uploadError) return fail(uploadError);
     }
-    // Intake is the next step (KAN-214); its Finish opens the matches.
-    router.push("/onboarding/applicant/bank");
+    router.push("/jobs");
+  }
+
+  function fail(message: string) {
+    setSaving(false);
+    setUploading(false);
+    setError(message);
   }
 
   // FROM LG THE SCREEN IS ONE WINDOW TALL AND ONLY THE RIGHT COLUMN SCROLLS,
@@ -181,7 +222,27 @@ export function OnboardingForm({
           {step === 0 && (
             <RoleStep answers={answers} set={set} roles={roles} places={places} seasons={seasons} />
           )}
-          {step === 1 && <PriorityStep answers={answers} set={set} />}
+          {step === 1 && (
+            <PriorityStep
+              answers={answers}
+              set={set}
+              visaPicks={visaPicks}
+              setVisaPicks={(picks) => {
+                setVisaPicks(picks);
+                set({ visa: picks.length === 1 && picks[0] === "sponsors" ? "sponsors" : null });
+              }}
+            />
+          )}
+          {step === 2 && (
+            <Field Icon={FileIcon} label="Resume">
+              <ResumeUpload
+                file={resume}
+                onFileChange={setResume}
+                onRemove={() => setResume(null)}
+                busy={uploading}
+              />
+            </Field>
+          )}
         </div>
 
         <SignedInAs email={email} className="px-6 pb-6" />
@@ -189,7 +250,7 @@ export function OnboardingForm({
         <div className="bg-panel border-border-subtle sticky bottom-0 border-t">
           <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-6 py-4">
             {step > 0 ? (
-              <Button variant="outline" size="lg" onClick={() => goTo(step - 1)}>
+              <Button variant="outline" size="lg" disabled={saving} onClick={() => goTo(step - 1)}>
                 Back
               </Button>
             ) : (
@@ -201,13 +262,18 @@ export function OnboardingForm({
                   {error}
                 </p>
               )}
+              {last && (
+                <Button variant="outline" size="lg" disabled={saving} onClick={() => finish(null)}>
+                  Skip
+                </Button>
+              )}
               {/* lg and rectangular, as every page's one main action is
                   (KAN-251); the wizard's two buttons were pills. */}
               <Button
                 size="lg"
                 className="min-w-32"
                 disabled={!canNext || saving}
-                onClick={() => (last ? finish() : goTo(step + 1))}
+                onClick={() => (last ? finish(resume) : goTo(step + 1))}
               >
                 {saving ? "Saving…" : last ? "Continue" : "Next"}
               </Button>
@@ -327,7 +393,12 @@ function RoleStep({
   );
 }
 
-function PriorityStep({ answers, set }: StepProps) {
+function PriorityStep({
+  answers,
+  set,
+  visaPicks,
+  setVisaPicks,
+}: StepProps & { visaPicks: VisaPick[]; setVisaPicks: (picks: VisaPick[]) => void }) {
   const units = payUnits(answers.jobTypes);
 
   return (
@@ -344,20 +415,12 @@ function PriorityStep({ answers, set }: StepProps) {
         />
       </Field>
       <Field Icon={VisaIcon} label="Visa Sponsorship">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
-          <ChoiceTile
-            kind="radio"
-            pressed={answers.visa == null}
-            onClick={() => set({ visa: null })}
-          >
-            I Don&apos;t Need One
-          </ChoiceTile>
-          {VISA_OPTIONS.map((o) => (
+        <div className="grid grid-cols-2 gap-2 lg:gap-3">
+          {VISA_PICKS.map((o) => (
             <ChoiceTile
               key={o.value}
-              kind="radio"
-              pressed={answers.visa === o.value}
-              onClick={() => set({ visa: o.value })}
+              pressed={visaPicks.includes(o.value)}
+              onClick={() => setVisaPicks(toggle(visaPicks, o.value))}
             >
               {o.label}
             </ChoiceTile>

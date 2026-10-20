@@ -68,6 +68,20 @@ export function restoreScrollOn(href: string) {
   }
 }
 
+/** This page's address and the one before it, as RememberFeed writes an
+ *  address (path, then the query if there is one), for cameFrom. Module
+ *  variables, not storage: a reload starts the record over, and so does the
+ *  router's cache that cameFrom stands for. */
+let current: string | null = null;
+let previous: string | null = null;
+
+/** The seeker page this one was reached from in this tab, or null on the
+ *  first page drawn. A job page's "Back" goes back in history when this is
+ *  the list it would link to (BackToJobs). */
+export function cameFrom(): string | null {
+  return previous;
+}
+
 export function ScrollMemory() {
   const pathname = usePathname();
   const query = useSearchParams().toString();
@@ -113,6 +127,13 @@ export function ScrollMemory() {
   // A layout effect: a fresh arrival drops the feed's kept pages before the
   // page is drawn, so they never flash.
   useLayoutEffect(() => {
+    // Checked against the last one, so Strict Mode's second run (development
+    // only) doesn't record a page as reached from itself.
+    const address = query ? `${pathname}?${query}` : pathname;
+    if (address !== current) {
+      previous = current;
+      current = address;
+    }
     const key = here();
     let asked = false;
     try {

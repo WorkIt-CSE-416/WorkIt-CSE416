@@ -10,7 +10,7 @@ import type { JobType, WorkStyle } from "./data";
  * codes), ?work_style=, ?role=, ?experience=, ?job_type= (repeated, any of),
  * ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or
  * year, a range either end of which may be open), ?start_term= (seasons,
- * "summer-2027", repeated), ?visa= (sponsors or not_ruled_out) and
+ * "summer-2027", repeated), ?visa= (sponsors) and
  * ?auto_apply=true (only job postings auto apply can fill).
  *
  * READING DROPS WHAT THE API WOULD REFUSE. A value outside the options, a
@@ -21,7 +21,7 @@ import type { JobType, WorkStyle } from "./data";
 
 export type Level = "student" | "new_grad" | "experienced";
 export type PayPer = "hour" | "year";
-export type Visa = "sponsors" | "not_ruled_out";
+export type Visa = "sponsors";
 
 export type FeedFilters = {
   places: string[];
@@ -125,31 +125,6 @@ export function payUnits(jobTypes: readonly JobTypeKey[]): PayPer[] {
   return interns || jobTypes.length === 0 ? ["hour", "year"] : ["year"];
 }
 
-/** The job types each level's postings carry: since KAN-233 every student
- *  posting is an internship and no other posting is (10,610 of each on
- *  2026-10-19). */
-const LEVEL_JOB_TYPES: Record<Level, readonly JobTypeKey[]> = {
-  student: ["internship"],
-  new_grad: ["full_time", "part_time", "contract"],
-  experienced: ["full_time", "part_time", "contract"],
-};
-
-/** Drops a job type that no picked level carries, so saved preferences of
- *  Student and Full-Time keep a student's internships rather than match no
- *  job at all (KAN-278). Experience wins because the row shows it, while Job
- *  Type is in All Filters only, where a seeker never sees the pick that
- *  empties the feed. No level picked keeps every job type. Saved
- *  preferences pass through it on save and on read; live picks on the Jobs
- *  page do not, so a pair the seeker makes there gets the empty state.
- *  Dropping Internship drops the start dates too, as onboarding does. */
-export function dropUnmatchedJobTypes(filters: FeedFilters): FeedFilters {
-  if (filters.levels.length === 0) return filters;
-  const carried = new Set(filters.levels.flatMap((l) => LEVEL_JOB_TYPES[l]));
-  const jobTypes = filters.jobTypes.filter((t) => carried.has(t));
-  const lostInterns = filters.jobTypes.includes("internship") && !jobTypes.includes("internship");
-  return { ...filters, jobTypes, ...(lostInterns ? { startTerms: [] } : {}) };
-}
-
 export const JOB_TYPE_OPTIONS: { value: JobTypeKey; label: string }[] = [
   { value: "full_time", label: "Full-Time" },
   { value: "part_time", label: "Part-Time" },
@@ -163,12 +138,11 @@ export const DATE_POSTED_OPTIONS: { value: number; label: string }[] = [
   { value: 30, label: "Past Month" },
 ];
 
-/** "Sponsors Visas" keeps postings that say they sponsor (a few percent of the
- *  feed); "Hide Jobs That Rule Me Out" drops the ones that say they don't, or
- *  want US citizens only, and keeps the many that say nothing (KAN-168). */
+/** "Sponsors Visas" keeps postings that say they sponsor, a few percent of
+ *  the feed (KAN-168). "Hide Jobs That Rule Me Out", which kept the many that
+ *  say nothing too, went in KAN-275: two visa filters read as one. */
 export const VISA_OPTIONS: { value: Visa; label: string }[] = [
   { value: "sponsors", label: "Sponsors Visas" },
-  { value: "not_ruled_out", label: "Hide Jobs That Rule Me Out" },
 ];
 
 /** Picked from the feed's own pay (2026-10-09): an internship tops out around
@@ -301,10 +275,8 @@ export type SavedPreferences = {
  *  "100000.555" is saved rather than refused. */
 const cents = (n: number | null) => (n == null ? null : Math.round(n * 100) / 100);
 
-/** The filters as the body PUT /applicants/{id}/preferences takes, without
- *  a job type no picked level carries (dropUnmatchedJobTypes). */
-export function preferencesBody(picked: FeedFilters): SavedPreferences {
-  const filters = dropUnmatchedJobTypes(picked);
+/** The filters as the body PUT /applicants/{id}/preferences takes. */
+export function preferencesBody(filters: FeedFilters): SavedPreferences {
   return {
     location: filters.places,
     work_style: filters.workStyles,
@@ -320,14 +292,13 @@ export function preferencesBody(picked: FeedFilters): SavedPreferences {
 }
 
 /** Saved preferences as filters, read through readFilters like any query,
- *  so a saved value the feed no longer offers is dropped, not sent. A job
- *  type saved before KAN-278 that no saved level carries is dropped too. */
+ *  so a saved value the feed no longer offers is dropped, not sent. */
 export function filtersFromPreferences(saved: SavedPreferences): FeedFilters {
   const params: Params = {};
   for (const [key, value] of Object.entries(saved)) {
     if (value != null) params[key] = Array.isArray(value) ? value : String(value);
   }
-  return dropUnmatchedJobTypes(readFilters(params));
+  return readFilters(params);
 }
 
 /** `?location=US-CA&work_style=remote`, or "" for no filters. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { Flag, Link2 } from "lucide-react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { ArrowLeftIcon, EllipsisIcon } from "@/components/icons";
@@ -15,7 +15,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { formatDate } from "@/lib/format-date";
 
-import { restoreScrollOn } from "../../scroll-memory";
+import { cameFrom, restoreScrollOn } from "../../scroll-memory";
 
 /** The page a job's page was last opened from this session: the feed,
  *  filters and all, the Auto Apply page, or the Resumes page. */
@@ -94,15 +94,29 @@ const noSubscription = () => () => {};
  *  browser swaps in the remembered list after hydration (useSyncExternalStore,
  *  as PostedDate does), so the two never disagree; the label is one word for
  *  every list, so nothing visible changes in the swap. Its arrow leans back the
- *  way it goes while hovered. */
+ *  way it goes while hovered.
+ *
+ *  When the seeker came straight from that list (cameFrom), it goes back in
+ *  history, as the browser's Back does, rather than following the link. The
+ *  router keeps the list from when they left it for that, and draws it at
+ *  once; the link is a fresh visit, which asks the API for the whole feed
+ *  again, and the Recommended view scores every job again: slow enough that
+ *  the list seemed stuck on its skeleton (reported 2026-10-19). */
 export function BackToJobs({ className }: { className?: string }) {
   const href = useSyncExternalStore(noSubscription, rememberedFeed, () => "/jobs");
+  const router = useRouter();
   return (
     <ButtonLink
       href={href}
       onClick={(e) => {
         // A modified click opens another tab; this one isn't going back.
-        if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) restoreScrollOn(href);
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (cameFrom() === href) {
+          e.preventDefault();
+          router.back();
+          return;
+        }
+        restoreScrollOn(href);
       }}
       variant="secondary"
       size="sm"

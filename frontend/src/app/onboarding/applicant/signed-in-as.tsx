@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 /**
- * Onboarding's way out, at the foot of both its pages: who is signed in, and
+ * Onboarding's way out, at the foot of the wizard: who is signed in, and
  * Sign Out for anyone who is not them.
  *
  * Onboarding sits outside both shells, so it has no account menu, and sign-in

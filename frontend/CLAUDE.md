@@ -144,6 +144,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.
   `docs/screens.md`, Applications, has the rest.
+- **A "Back" link to a dynamic page goes back in history when it can.** Next
+  keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but
+  reuses the one it holds on a history Back. A job page's Back that followed
+  its link re-ran the whole feed fetch and Recommended scoring, so the list
+  seemed slow to load; `BackToJobs` now calls `router.back()` when
+  `cameFrom()` is its target (`docs/screens.md`, Job posting page).
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
@@ -185,7 +191,13 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
   and must match `scraper/workit_scraper/logos.py`; an unlisted host throws
-  and fails the whole page.
+  and fails the whole page. It measures each logo on load: a square mark
+  fills the tile edge to edge, a wide wordmark sits on white with padding.
+  Framed with padding, square marks on their own colour (Figma, Cloudflare)
+  looked shrunk. The image is hidden until measured, and next/image only
+  reports the load once the browser has decoded it, which a hidden browser
+  tab (the Browser pane when it is not shown) can hold back, so check it
+  with the page visible.
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,
   `addTransitionType`): the App Router runs React canary and `@types/react`'s
   stable entry lacks them.
