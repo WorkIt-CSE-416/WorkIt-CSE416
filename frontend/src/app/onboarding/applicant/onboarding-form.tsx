@@ -10,7 +10,6 @@ import {
   PAY_OPTIONS,
   payUnits,
   statesNarrowCountries,
-  VISA_OPTIONS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
@@ -27,9 +26,28 @@ import {
 } from "@/components/icons";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
-import { savePreferences } from "./actions";
+import { saveAutofillAnswers, savePreferences } from "./actions";
+import {
+  CLEARANCE_OPTIONS,
+  DISABILITY_OPTIONS,
+  GENDER_OPTIONS,
+  NO_ANSWERS,
+  STATUS_OPTIONS,
+  VETERAN_OPTIONS,
+  YES_NO,
+  type AutofillAnswers,
+} from "./answers";
 import { ChoiceTile } from "./choice-tile";
+import {
+  AuthorizationIcon,
+  ClearanceIcon,
+  DisabilityIcon,
+  GenderIcon,
+  StatusIcon,
+  VeteranIcon,
+} from "./icons";
 import { SignedInAs } from "./signed-in-as";
 import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
@@ -40,20 +58,30 @@ import { StoryPanel } from "./story-panel";
  * right, under the step rail that counts intake as the third step
  * (./steps.ts). Each new question takes focus, so a screen reader hears it.
  *
- * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, experience, job type, start
- * date, workplace, location, salary and visa are a `FeedFilters`, with the
+ * STEP 1'S ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, experience, job type,
+ * start date, workplace, location and salary are a `FeedFilters`, with the
  * same options and pickers as All Filters (components/filter-controls). Start
  * Date is asked only once Internship is picked, and dropping Internship
  * clears it: a saved season keeps only the jobs that name one, which a
- * new-grad role rarely does. Continue saves them
- * as the seeker's preferences, which marks onboarding done, then opens
+ * new-grad role rarely does.
+ *
+ * STEP 2 IS WHAT EVERY APPLICATION ASKS (KAN-283): work authorization,
+ * sponsorship, citizenship and visa status, clearance, and the voluntary
+ * gender, veteran and disability self-identification (./answers). They are no
+ * filter: they go to the seeker's answer bank, which auto apply fills forms
+ * from. It used to be Pay & Visa; pay moved to step 1 with the rest of the
+ * role, and the visa filter question left onboarding (a saved one is kept,
+ * and the Jobs page still sets it).
+ *
+ * Continue saves step 1 as the seeker's preferences, which marks onboarding
+ * done, and step 2 to the answer bank, then opens
  * intake (./bank, KAN-214), which fills the experience bank matching reads
  * and imports a resume; its Finish opens the Jobs page's Recommended view.
  * There is no resume step here: intake asks for one. Date Posted is not
  * asked: a saved "past 24 hours" would empty the feed within days.
  *
- * `initial` is the seeker's saved preferences, so coming back from intake
- * ("Back to Pay & Visa") edits them rather than starting over.
+ * `initial` and `initialAnswers` are what the seeker saved, so coming back
+ * from intake ("Back to Profile") edits them rather than starting over.
  */
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -73,10 +101,10 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
-        Next, what <strong>pay and visa sponsorship</strong> do you need?
+        Next, the questions <strong>every application asks</strong>.
       </>
     ),
-    line: "Both are optional. Leave them open and I won't filter on pay or visa.",
+    line: "All optional. Answer once, and I'll fill them in on every application.",
   },
 ];
 
@@ -88,6 +116,7 @@ export function OnboardingForm({
   places,
   seasons,
   initial = NO_FILTERS,
+  initialAnswers = NO_ANSWERS,
   email,
   startStep = 0,
 }: {
@@ -96,9 +125,11 @@ export function OnboardingForm({
   /** The Start Date options, GET /jobs/facets' seasons. */
   seasons: PickOption[];
   initial?: FeedFilters;
+  /** The answer bank as saved (./saved-answers), for step 2. */
+  initialAnswers?: AutofillAnswers;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
-  /** The step to open on: Pay & Visa when intake's Back returns here. */
+  /** The step to open on: Profile when intake's Back returns here. */
   startStep?: number;
 }) {
   const router = useRouter();
@@ -109,6 +140,7 @@ export function OnboardingForm({
    *  focused: nothing has changed under the reader yet. */
   const moved = useRef(false);
   const [answers, setAnswers] = useState<FeedFilters>(initial);
+  const [profile, setProfile] = useState<AutofillAnswers>(initialAnswers);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,8 +171,20 @@ export function OnboardingForm({
   async function finish() {
     setSaving(true);
     setError(null);
-    // A picked state narrows its country, as All Filters' Apply does.
-    const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
+    // Only the answers changed here go to the bank: it merges them into
+    // what it holds, so one this page didn't load is never erased.
+    const changed = Object.fromEntries(
+      Object.entries(profile).filter(
+        ([key, value]) => value !== initialAnswers[key as keyof AutofillAnswers],
+      ),
+    );
+    const [prefs, bank] = await Promise.all([
+      // A picked state narrows its country, as All Filters' Apply does.
+      savePreferences(statesNarrowCountries(answers)),
+      saveAutofillAnswers(changed),
+    ]);
+    // Both writes are whole or per key, so Continue again redoes either.
+    const saveError = prefs.error ?? bank.error;
     if (saveError) {
       setSaving(false);
       setError(saveError);
@@ -181,7 +225,12 @@ export function OnboardingForm({
           {step === 0 && (
             <RoleStep answers={answers} set={set} roles={roles} places={places} seasons={seasons} />
           )}
-          {step === 1 && <PriorityStep answers={answers} set={set} />}
+          {step === 1 && (
+            <ProfileStep
+              answers={profile}
+              set={(change) => setProfile((a) => ({ ...a, ...change }))}
+            />
+          )}
         </div>
 
         <SignedInAs email={email} className="px-6 pb-6" />
@@ -323,19 +372,12 @@ function RoleStep({
           onChange={(next) => set({ places: next })}
         />
       </Field>
-    </>
-  );
-}
-
-function PriorityStep({ answers, set }: StepProps) {
-  const units = payUnits(answers.jobTypes);
-
-  return (
-    <>
+      {/* Pay is part of the role (KAN-283): its units follow the job types
+          picked above. */}
       <Field Icon={CoinIcon} label="Salary Range">
         <SalaryPicker
           size="lg"
-          units={units}
+          units={payUnits(answers.jobTypes)}
           presets={PAY_OPTIONS}
           minPay={answers.minPay}
           maxPay={answers.maxPay}
@@ -343,26 +385,138 @@ function PriorityStep({ answers, set }: StepProps) {
           onChange={(minPay, maxPay, per) => set({ minPay, maxPay, payPer: per })}
         />
       </Field>
-      <Field Icon={VisaIcon} label="Visa Sponsorship">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
-          <ChoiceTile
-            kind="radio"
-            pressed={answers.visa == null}
-            onClick={() => set({ visa: null })}
-          >
-            I Don&apos;t Need One
-          </ChoiceTile>
-          {VISA_OPTIONS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              kind="radio"
-              pressed={answers.visa === o.value}
-              onClick={() => set({ visa: o.value })}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
+    </>
+  );
+}
+
+/** One of the Profile step's questions: one answer of a group, as dots. A
+ *  pressed answer pressed again is cleared, since every one is optional. */
+function OneOf<V extends string>({
+  options,
+  value,
+  onChange,
+  columns = 1,
+}: {
+  options: { value: V; label: string }[];
+  value: V | null;
+  onChange: (next: V | null) => void;
+  columns?: 1 | 2 | 3;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-2 lg:gap-3",
+        columns === 2 && "sm:grid-cols-2",
+        columns === 3 && "sm:grid-cols-3",
+      )}
+    >
+      {options.map((o) => (
+        <ChoiceTile
+          key={o.value}
+          kind="radio"
+          pressed={value === o.value}
+          onClick={() => onChange(value === o.value ? null : o.value)}
+        >
+          {o.label}
+        </ChoiceTile>
+      ))}
+    </div>
+  );
+}
+
+/** Step 2 (KAN-283): what applications ask, in the order forms ask it, the
+ *  voluntary self-identification last. Each hint is the question as a form
+ *  words it, so the seeker knows what their answer will fill in. */
+function ProfileStep({
+  answers,
+  set,
+}: {
+  answers: AutofillAnswers;
+  set: (change: Partial<AutofillAnswers>) => void;
+}) {
+  return (
+    <>
+      <Field
+        Icon={AuthorizationIcon}
+        label="Authorization to Work"
+        hint="Are you legally authorized to work in the United States?"
+      >
+        <OneOf
+          columns={2}
+          options={YES_NO}
+          value={answers.work_authorized_us}
+          onChange={(work_authorized_us) => set({ work_authorized_us })}
+        />
+      </Field>
+      <Field
+        Icon={VisaIcon}
+        label="Visa Sponsorship"
+        hint="Will you now or in the future require sponsorship for employment visa status (e.g., H-1B)?"
+      >
+        <OneOf
+          columns={2}
+          options={YES_NO}
+          value={answers.needs_sponsorship}
+          onChange={(needs_sponsorship) => set({ needs_sponsorship })}
+        />
+      </Field>
+      <Field
+        Icon={StatusIcon}
+        label="Citizenship and Visa Status"
+        hint="What is your current U.S. citizenship or visa status?"
+      >
+        <OneOf
+          columns={2}
+          options={STATUS_OPTIONS}
+          value={answers.work_authorization_status}
+          onChange={(work_authorization_status) => set({ work_authorization_status })}
+        />
+      </Field>
+      <Field
+        Icon={ClearanceIcon}
+        label="Security Clearance"
+        hint="Do you hold an active U.S. government security clearance? Most students pick None."
+      >
+        <OneOf
+          columns={3}
+          options={CLEARANCE_OPTIONS}
+          value={answers.security_clearance}
+          onChange={(security_clearance) => set({ security_clearance })}
+        />
+      </Field>
+      <Field
+        Icon={GenderIcon}
+        label="Gender"
+        hint="Voluntary self-identification. Employers ask it to meet U.S. reporting rules."
+      >
+        <OneOf
+          columns={2}
+          options={GENDER_OPTIONS}
+          value={answers.gender}
+          onChange={(gender) => set({ gender })}
+        />
+      </Field>
+      <Field
+        Icon={VeteranIcon}
+        label="Veteran Status"
+        hint="Voluntary self-identification. Employers ask it to meet U.S. reporting rules."
+      >
+        <OneOf
+          options={VETERAN_OPTIONS}
+          value={answers.veteran_status}
+          onChange={(veteran_status) => set({ veteran_status })}
+        />
+      </Field>
+      <Field
+        Icon={DisabilityIcon}
+        label="Disability"
+        hint="Voluntary self-identification of disability (Form CC-305)."
+      >
+        <OneOf
+          options={DISABILITY_OPTIONS}
+          value={answers.disability_status}
+          onChange={(disability_status) => set({ disability_status })}
+        />
       </Field>
     </>
   );
@@ -378,11 +532,14 @@ function PriorityStep({ answers, set }: StepProps) {
 function Field({
   Icon,
   label,
+  hint,
   required = false,
   children,
 }: {
   Icon: Glyph;
   label: string;
+  /** A 14px note under the label: the question as forms word it. */
+  hint?: string;
   required?: boolean;
   children: ReactNode;
 }) {
@@ -390,6 +547,7 @@ function Field({
   return (
     <section
       aria-labelledby={id}
+      aria-describedby={hint ? `${id}-hint` : undefined}
       className="border-border-subtle border-t py-8 first:border-t-0 first:pt-0"
     >
       <h2 id={id} className="text-title text-ink mb-4 flex items-center gap-2.5 font-semibold">
@@ -403,6 +561,11 @@ function Field({
           <span className="text-body text-ink-faint ml-auto font-normal">Optional</span>
         )}
       </h2>
+      {hint && (
+        <p id={`${id}-hint`} className="text-body text-ink-meta -mt-2 mb-4">
+          {hint}
+        </p>
+      )}
       {children}
     </section>
   );

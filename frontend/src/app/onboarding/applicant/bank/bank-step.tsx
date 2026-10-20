@@ -27,7 +27,7 @@ export function BankStep({ initial }: { initial: Section[] }) {
     <div className="mt-6 flex flex-col gap-5">
       <Intake filled={filled} onSaved={reload} walk />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <TextLink href="/onboarding/applicant?step=2">Back to Pay &amp; Visa</TextLink>
+        <TextLink href="/onboarding/applicant?step=2">Back to Profile</TextLink>
         <ButtonLink href="/jobs" size="lg">
           Finish
         </ButtonLink>

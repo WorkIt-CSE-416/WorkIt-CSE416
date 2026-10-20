@@ -7,6 +7,7 @@ import { getJobFacets, getJobLocations, getSavedFilters } from "@/app/(seeker)/j
 import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
 import { OnboardingForm } from "./onboarding-form";
+import { getAutofillAnswers } from "./saved-answers";
 
 export const metadata: Metadata = {
   title: "Set Up Your Profile",
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
  *
  * Sign-in sends only an applicant who hasn't finished onboarding here
  * (docs/auth.md); signed out goes to sign-in. A finished applicant can still
- * come back, from intake's "Back to Pay & Visa" (?step=2): the form opens on
+ * come back, from intake's "Back to Profile" (?step=2): the form opens on
  * their saved answers, at the second step, and Continue saves the edits. The
  * second step is honoured only with saved answers, since the first holds the
  * answers that must be given and Continue on the second saves without them.
@@ -41,10 +42,11 @@ export default async function ApplicantOnboardingPage({
   const account = await getCurrentAccount();
   if (account?.account_type === "company") redirect("/onboarding/company");
 
-  const [facets, locations, saved, params] = await Promise.all([
+  const [facets, locations, saved, savedAnswers, params] = await Promise.all([
     getJobFacets(),
     getJobLocations(),
     getSavedFilters(),
+    getAutofillAnswers(),
     searchParams,
   ]);
 
@@ -63,6 +65,7 @@ export default async function ApplicantOnboardingPage({
         count: t.jobs,
       }))}
       initial={saved ?? undefined}
+      initialAnswers={savedAnswers}
       email={user.email}
       startStep={params.step === "2" && saved ? 1 : 0}
     />
