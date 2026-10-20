@@ -475,22 +475,29 @@ the stage pill, which its ungrouped cards would otherwise lose.
 
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
 does, rather than dropping columns as the page narrows. In the order job
-trackers read: who and what (Company, Role), where it stands (Status, Date
+trackers read: what and who (Role, with its company), where it stands (Status, Date
 Applied), how good it is (Match), the job's facts (Track, the job type;
 Location; Work Model; Pay Range), where and what was sent (Source, the
 hiring system the posting is on, named from its apply link in
 `applications/tracked.ts`, "Company Site" for any other host; Resume;
 Posting), and Notes / Next Step last, the widest and least scanned.
-Company and Role are separate columns, since a seeker applies to several
-roles at one company, and **both stay frozen** at the left while the rest
-scrolls under them (sticky cells: Company 208px wide, Role after it, each
-painting the row's background and its hover tint; the edge is a shadow,
-since a collapsed table's borders don't move with a sticky cell). A sticky
+**Role is one column holding the company too**: the company's logo, then
+the role (bold, the row's link, cut with the whole title on hover) over the
+company's name in meta grey. KAN-256 split them into two frozen columns,
+Company then Role; together they took about 500px, so few other columns
+showed, and KAN-282 stacked them again. The company is still its own field
+for the filters and the sort. **Role stays frozen** at the left
+while the rest scrolls under it (a sticky cell painting the row's
+background and its hover tint; the edge is a shadow, since a collapsed
+table's borders don't move with a sticky cell). **It freezes from 672px of
+page up only**: at 320px it is about a phone's whole table, and frozen
+there it covered it, so the scroll showed no other column; below 672px it
+scrolls with the rest. A sticky
 cell traps a stretched link, so **the row opens the application on a click
 anywhere** (`applications/clickable-row.tsx`), leaving clicks on links and
 buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
-real link a keyboard reaches. Sorted by Date Applied unless
-`?sort=match`. Notes / Next Step is a placeholder ("No notes yet") and
+real link a keyboard reaches. Sorted by Date Applied unless `?sort=` names
+another column (below). Notes / Next Step is a placeholder ("No notes yet") and
 Status is only Saved or Applied until the API stores notes and later
 stages. Resume is the name of the last sent resume linked to the job
 posting (`listSentResumes`, as the posting's own page reads it): Apply and
@@ -506,6 +513,70 @@ no width cap and takes back the room a collapsed sidebar frees
 (`docs/design.md`, The two shells), so the table shows as many columns as
 the window allows before the scroll.
 
+**The list can be arranged like a Notion table** (KAN-282). It is a
+TanStack Table v9 (`applications/list.tsx`; `company/table.tsx` says why v8
+examples do not apply), a client component over the rows the server
+filtered.
+
+- **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
+  `filter-bar.tsx`): under the search, a row with a dropdown for Status
+  and one per field (Company, Track, Work Model, Source), each the Jobs
+  page facet's look (glyph, label, chevron, brand tint while it holds a
+  pick) over checkbox rows. Status lists the four stages, each with its
+  stage's glyph in its colour; the fields list every value the tracked
+  applications hold. **Company has a search field** at the top of its
+  list, as the Jobs page's Role dropdown does, since the list grows with
+  every application; a pick keeps the search. The dropdowns step out one
+  at a time from the right as the row narrows (Status from 440px of row,
+  Company 592, Track 744, Work Model 896, Source 1048); at
+  the right end, Clear Filters as an outlined cross (shown while anything
+  is picked or searched; it hands focus to All Filters), All Filters, and
+  Columns in the list view. A phone's row is All Filters and Columns.
+  Status was a row of stage chips with counts (KAN-256), and an earlier
+  draft had one Filter button with every field in its menu; both became
+  dropdowns after the Jobs page on the user's ask (2026-10-19). The
+  chips' counts went with them, as the Jobs page's options carry none.
+- **All Filters** is a panel with every field, as on the Jobs page: Status
+  (with the stages' glyphs), Company (a search
+  picker, since the list grows), then Track, Work Model and Source as
+  option chips. Its picks are a draft until "Show 3 Applications", which
+  counts the draft in the browser (the page hands the bar what each
+  tracked application is filtered on); closing it drops the draft.
+- **Picks**: in one field, any of them; across fields, all. Each is a
+  repeated URL parameter (`?company=`, `?track=`, `?work=`, `?source=`),
+  not a comma list, since a company's name can hold a comma. A pick
+  replaces the URL (ten ticks are not ten steps of Back) and shows at once
+  while the server filters, as the Jobs page's facets do.
+- **Sort**: five headings sort, each one way, the way it is read: Role by
+  its company A to Z, then by role, so a company's roles sit together
+  (`?sort=company`; the heading's tooltip says so), Status furthest along first, Date Applied latest first, Match
+  best first, Pay Range best first (the top of the range as a yearly
+  figure, `payPerYear` in `applications/tracked.ts`, so hourly and yearly
+  pay compare). A missing value goes last either way. A heading moves
+  `?sort=` in place (shallow routing): the table sorts the rows it holds,
+  with no round trip.
+- **Columns**: drag a heading by its label to a new place (a brand bar
+  marks the side it lands on); drag a heading's right edge to resize it,
+  double-click the edge to reset it, or focus the edge and use the arrow
+  keys; hide and show columns from the **Columns** menu at the filter row's
+  right end, which shows only in the list view and also has Reset Columns.
+  Role cannot move or hide. Each column has a fixed width
+  (a fixed table layout) and cuts what does not fit, with the whole value
+  on hover; an empty last column takes the card's spare width, so a resize
+  never stretches the others. A drag needs a mouse: a phone keeps the
+  order it has.
+- **The layout is this browser's** (`applications/column-layout.ts`): order,
+  hidden columns and widths, in localStorage under a `lib/local-drafts.ts`
+  key, so Sign Out clears it. The server draws the default and the stored
+  layout swaps in after hydration. It is not in the URL, since a shared
+  link should carry the view, not the sender's column widths; keeping it
+  per account needs an API change. A layout stored under column ids that
+  are gone (the old Company column) drops them on reading.
+- A resize press cancels the browser's default, and no move starts during
+  a resize: shrinking a column slid the next heading under the pointer,
+  Chrome began dragging that heading, the mouse-up never reached the
+  resize, and the column kept following the pointer.
+
 **Application dates are real dates.** Saved and applied dates are the
 instants the API stored (`getNow`, `cache()`d, is what the pages compare
 against). The shape is `(seeker)/tracker.ts`: an ISO instant for something
@@ -518,18 +589,21 @@ prints the UTC date, and `<When>` in `(seeker)/local-time.tsx` swaps in the
 viewer's own "Tomorrow, 2:00 PM" after hydration.
 
 **The Applications page keeps every choice in its URL** (`applications/query.ts`):
-`?view=`, `?stage=` (a comma list), `?q=` and the list's `?sort=`. An old
-`?app=` link (the side panel's) redirects to the application's own page.
-Links and a GET form, not client
-state, so every view stays a server component and the Dashboard can link to a
-filtered list or one application. The layout is the exception in how it
+`?view=`, `?stage=` (a comma list), `?q=`, the filter fields and
+the list's `?sort=`. An old `?app=` link (the side panel's) redirects to
+the application's own page. The server does the filtering, so the search
+is a GET form and a pick in a dropdown or in All Filters a URL replace,
+and the Dashboard can link to a filtered list or one application. The
+list's column layout is the one choice kept in the browser instead
+(above). The layout is the exception in how it
 moves, not in where it lives: the page renders all three layouts, each
 building its links for itself, `applications/view-panes.tsx` shows the one
 the URL names, and the switcher moves `?view=` in place. Anything else that
-builds a link from the layout (the filter bar, Clear Filters) reads it in the
-browser through `useApplicationsQuery`, since a layout switch never asks the
-server to draw them again. A card or row is one link: its role, stretched
-over it.
+builds a link from the layout (the filter bar, Clear Filters, the list's
+sort headings) reads it in the browser through `useApplicationsQuery`,
+since a layout switch never asks the server to draw them again. A card is
+one link: its role, stretched over it; a row opens on a click anywhere
+(above).
 
 **An application has its own page, `/applications/[jobId]`** (KAN-256),
 which replaced the side panel: the panel had room for a timeline but not

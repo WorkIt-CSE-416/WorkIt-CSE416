@@ -35,11 +35,11 @@ import type { EventKind } from "./tracker";
 export type StageKey = "saved" | "applied" | "interviewing" | "offer";
 
 /** The stages in the order a search moves through them: the board's columns
- *  left to right, and the Applications filter's chips. */
+ *  left to right, and the Applications Status filter. */
 export const STAGE_ORDER: StageKey[] = ["saved", "applied", "interviewing", "offer"];
 
 /** Each stage's name, wherever one is printed: a column heading, a badge, a
- *  filter chip. */
+ *  filter option. */
 export const STAGE_LABEL: Record<StageKey, string> = {
   saved: "Saved",
   applied: "Applied",
@@ -48,7 +48,7 @@ export const STAGE_LABEL: Record<StageKey, string> = {
 };
 
 /** Each stage's glyph, wherever the stage is labelled: an Applications
- *  filter chip, a board column's header and an Up Next row. */
+ *  Status filter option, a board column's header and an Up Next row. */
 export const STAGE_ICON: Record<StageKey, ComponentType<{ className?: string }>> = {
   saved: BookmarkIcon,
   applied: BriefcaseIcon,

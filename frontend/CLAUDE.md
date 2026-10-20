@@ -208,7 +208,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   the page's assistant. The Experience Bank puts intake there. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
-- **The company table (`app/company/table.tsx`) is TanStack Table v9**, and
+- **The company table (`app/company/table.tsx`) and the Applications list
+  (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
   `node_modules/@tanstack/react-table/skills`, not a blog post.
 - **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
@@ -310,7 +311,9 @@ are in `docs/auth.md`.
   screen lists sent resumes since the Resumes view's Sent card went
   (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
-  (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
+  (intake's draft entry, KAN-213, and its skipped sections, KAN-214), and
+  so does a per-browser view preference that should leave with the student
+  (the Applications list's column layout, KAN-282): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
   reaches. A draft stored under any other key outlives sign-out.
 - **To test a page behind sign-in, use the shared test account**:

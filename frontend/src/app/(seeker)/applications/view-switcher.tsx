@@ -11,7 +11,12 @@ import { applicationsHref, parseQuery } from "./query";
  *  layout (the switcher, the filter bar, the pane shown) reads it here rather
  *  than from the server's render, which a layout switch never repeats. */
 export function useApplicationsQuery() {
-  return parseQuery(Object.fromEntries(useShallowParams()));
+  const params = useShallowParams();
+  // Every value of a repeated parameter: the filter fields' ?company=A
+  // &company=B (KAN-282). Object.fromEntries kept only the last.
+  return parseQuery(
+    Object.fromEntries([...new Set(params.keys())].map((k) => [k, params.getAll(k)])),
+  );
 }
 
 /**

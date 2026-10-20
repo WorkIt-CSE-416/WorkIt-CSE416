@@ -135,9 +135,10 @@ from lucide-react anywhere but `icons.tsx`.
 ## Colour
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the Dashboard's Up Next, the Applications list, grid, filter chips and
+the Dashboard's Up Next, the Applications list, grid, Status filter and
 application page (and the archived board), and the Calendar alike. A stage
-filter chip leads with its stage's glyph in the stage's text colour, not a
+in the Status filter (its dropdown and All Filters, KAN-282; chips until
+then) leads with its stage's glyph in the stage's text colour, not a
 coloured dot, so the stage reads by shape too (KAN-256); on the board the stage tints the
 column panel, never the cards inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
 interview is Interviewing's amber, an offer Offer's green, a deadline Saved's

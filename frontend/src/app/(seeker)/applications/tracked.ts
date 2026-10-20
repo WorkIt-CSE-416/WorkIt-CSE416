@@ -4,7 +4,7 @@ import { listSentResumes, type SentResume } from "@/lib/sent-resume-actions";
 
 import { getApplications, type Application as Stored } from "../auto-apply/applications";
 import { formatJobType, formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
-import type { JobListing } from "../jobs/listings";
+import type { JobListing, ListingSalaryPeriod } from "../jobs/listings";
 import type { Application } from "../tracker";
 
 /**
@@ -97,6 +97,18 @@ function payOf(job: JobListing) {
   });
 }
 
+/** Pay periods in a year, to put an hourly and a yearly pay on one scale. */
+const PER_YEAR: Record<ListingSalaryPeriod, number> = { hour: 2080, week: 52, month: 12, year: 1 };
+
+/** The top of its pay as a yearly figure, for the list's Pay Range sort
+ *  (KAN-282); null when `payOf` prints nothing. The currency is ignored:
+ *  nearly every posting is in USD. */
+function payPerYearOf(job: JobListing) {
+  const top = job.salary_max ?? job.salary ?? job.salary_min;
+  if (top == null || !job.salary_currency || !job.salary_period) return null;
+  return top * PER_YEAR[job.salary_period];
+}
+
 /** One stored application as a tracker card, with the resume it sent. */
 function toApplication(
   { job, stage, added_at, applied_at, open, match, highlights }: Stored<"saved" | "applied">,
@@ -117,6 +129,7 @@ function toApplication(
     track: job.job_type ? formatJobType(job.job_type) : null,
     source: sourceOf(job.apply_url),
     pay: payOf(job),
+    payPerYear: payPerYearOf(job),
     resume,
     // The Jobs page's own score for the job posting (KAN-256), so a card
     // never disagrees with the feed.
