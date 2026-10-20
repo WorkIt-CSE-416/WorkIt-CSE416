@@ -52,7 +52,10 @@ export type City = {
 };
 
 export const STRIP_WIDTH = 1600;
-export const STRIP_HEIGHT = 460;
+/** The strip's viewBox starts above the ground plane's origin: the tallest
+ *  towers at the sides reach to about -96, and were cut flat at 0. */
+export const STRIP_TOP = -100;
+export const STRIP_HEIGHT = 560;
 
 type P3 = [number, number, number];
 type P2 = [number, number];
@@ -859,14 +862,16 @@ export function buildCity(): City {
     }
   }
 
-  // The ground grid, and four lines a streak of light runs along.
+  // The ground grid, and four lines a streak of light runs along. The grid
+  // runs ten rows behind the back row of buildings (s < 0), so it shows as a
+  // plane behind the low centre of the skyline, fading out towards the text.
   const gseg = (a: [number, number], b: [number, number]) => {
     const p1 = proj(a[0], a[1], 0);
     const p2 = proj(b[0], b[1], 0);
     return `M${pt(p1)}L${pt(p2)}`;
   };
   let grid = "";
-  for (let s = 0; s <= 18; s += 1) {
+  for (let s = -10; s <= 18; s += 1) {
     for (let d = -18; d <= 18; d += 1) {
       if ((s + d) % 2 !== 0) continue;
       const i = (s + d) / 2;

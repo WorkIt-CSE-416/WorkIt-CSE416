@@ -69,7 +69,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
-  site's markup, classes, Inter type and copy, with two deliberate changes.
+  site's markup, classes and copy, with two deliberate changes, and set the
+  app's own face (`--font-sans`, Plus Jakarta Sans) instead of the site's
+  Inter, so the page and the app read as one product; Google Sans loads only
+  for the Google sign-in button.
   **Colour and logo:** the site's numbered blue scale became
   `landing-brand-50` to `950` in `globals.css`, the same steps in WorkIt
   violet, so a component copied from the site needs only `brand-N` renamed
@@ -95,7 +98,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
-  which rise as violet wireframes with a job tag. Its heights are capped per
+  which rise as violet wireframes with a job tag. The strip's viewBox starts
+  100px above the ground's origin (`STRIP_TOP`): the tallest side towers
+  reach there and were once cut flat at the top. The ground grid runs ten
+  rows behind the back row of buildings and fades out towards the text, so
+  it reads as a plane behind the low centre. Its heights are capped per
   column so nothing reaches the text at its 1600px design scale; it keeps
   that scale from lg up (cropped at the sides) and shrinks to the panel's
   width below lg, under the text. A change to the hero's text size or the
@@ -106,7 +113,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   sides and the text's line boxes (`data-hero-text`, `data-hero-box` in
   `page.tsx`) on every resize, nudging a card inward or skipping it; a
   fixed breakpoint once hid them on every laptop-width window. Measure text
-  runs, not elements: a block line's box spans the full width. Violet is
+  runs, not elements: a block line's box spans the full width. In the
+  pinned product tour, `FitHeight` scales a visual down to the visual
+  area's height, so the resume card fits a short laptop screen; and its
+  `AnimatePresence` must not get `initial={false}`, which blocks the first
+  animation of every motion element inside it: the Matching rows once sat
+  still at their end value until a tab switch remounted them. Violet is
   the wireframes' alone; keep roofs and spires neutral. It does not use
   `ui/` components, Title Case or the type tokens; those rules are for app
   screens. Rules in `landing.css` that set `display` or a size sit in

@@ -1,11 +1,8 @@
-import { Google_Sans, Inter } from "next/font/google";
+import { Google_Sans } from "next/font/google";
 
 import { cn } from "@/lib/cn";
 
 import "./landing.css";
-
-/** The marketing site's type, kept with its components. */
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 
 /** Only for the "Sign up with Google / LinkedIn" buttons: Google's branding
  *  guidelines require Google Sans Medium on the Google sign-in button. */
@@ -21,13 +18,7 @@ const googleSans = Google_Sans({
  */
 export default function LandingLayout({ children }: LayoutProps<"/">) {
   return (
-    <div
-      className={cn(
-        "landing flex flex-1 flex-col overflow-x-clip",
-        inter.variable,
-        googleSans.variable,
-      )}
-    >
+    <div className={cn("landing flex flex-1 flex-col overflow-x-clip", googleSans.variable)}>
       {children}
     </div>
   );
