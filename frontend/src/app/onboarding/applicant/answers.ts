@@ -99,3 +99,74 @@ export const DISABILITY_OPTIONS: Options<"disability_status"> = [
   { value: "no", label: "No, I do not have a disability and have not had one in the past" },
   { value: "declined", label: "I do not want to answer" },
 ];
+
+/** One of the Profile step's questions: its key in the bank, the heading
+ *  the step shows, and the question as forms ask it. */
+export type ProfileQuestion = {
+  key: keyof AutofillAnswers;
+  label: string;
+  /** Word for word the API's question_text for this key (the backend's
+   *  schemas/autofill_answers.py, QUESTIONS), so the question the student
+   *  reads is the one stored beside their answer. Change both together. */
+  question: string;
+  options: { value: string; label: string }[];
+  /** How many answers sit in a row from sm up; long ones take a row each. */
+  columns: 1 | 2 | 3;
+};
+
+/** The Profile step, in the order real forms ask: eligibility first, the
+ *  voluntary self-identification last. A new question is one entry here
+ *  and one key in the API's schema. */
+export const PROFILE_QUESTIONS: ProfileQuestion[] = [
+  {
+    key: "work_authorized_us",
+    label: "Authorization to Work",
+    question: "Are you legally authorized to work in the United States?",
+    options: YES_NO,
+    columns: 2,
+  },
+  {
+    key: "needs_sponsorship",
+    label: "Visa Sponsorship",
+    question:
+      "Will you now or in the future require sponsorship for employment visa status (e.g., H-1B visa status)?",
+    options: YES_NO,
+    columns: 2,
+  },
+  {
+    key: "work_authorization_status",
+    label: "Citizenship and Visa Status",
+    question: "What is your current U.S. citizenship or visa status?",
+    options: STATUS_OPTIONS,
+    columns: 2,
+  },
+  {
+    key: "security_clearance",
+    label: "Security Clearance",
+    question: "Do you hold an active U.S. government security clearance? If so, at what level?",
+    options: CLEARANCE_OPTIONS,
+    columns: 3,
+  },
+  {
+    key: "gender",
+    label: "Gender",
+    question: "Voluntary self-identification: what is your gender?",
+    options: GENDER_OPTIONS,
+    columns: 2,
+  },
+  {
+    key: "veteran_status",
+    label: "Veteran Status",
+    question: "Voluntary self-identification: are you a protected veteran?",
+    options: VETERAN_OPTIONS,
+    columns: 1,
+  },
+  {
+    key: "disability_status",
+    label: "Disability",
+    question:
+      "Voluntary self-identification of disability (Form CC-305): do you have a disability, or have you had one in the past?",
+    options: DISABILITY_OPTIONS,
+    columns: 1,
+  },
+];

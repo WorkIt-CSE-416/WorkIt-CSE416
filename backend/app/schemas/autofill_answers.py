@@ -58,6 +58,8 @@ class AutofillAnswers(BaseModel):
 # The question each key answers, as forms ask it: stored beside the answer
 # (models/autofill_answers.py), so the bank still reads on its own if a key's
 # meaning is ever in doubt. Server-side, so the browser can't write its own.
+# The onboarding Profile step shows the same words (frontend
+# onboarding/applicant/answers.ts, PROFILE_QUESTIONS): change both together.
 QUESTIONS: dict[str, str] = {
     "work_authorized_us": "Are you legally authorized to work in the United States?",
     "needs_sponsorship": (

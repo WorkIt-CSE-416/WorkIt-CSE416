@@ -32,16 +32,7 @@ import { cn } from "@/lib/cn";
 import { uploadResume } from "@/lib/resume-actions";
 
 import { saveAutofillAnswers, savePreferences } from "./actions";
-import {
-  CLEARANCE_OPTIONS,
-  DISABILITY_OPTIONS,
-  GENDER_OPTIONS,
-  NO_ANSWERS,
-  STATUS_OPTIONS,
-  VETERAN_OPTIONS,
-  YES_NO,
-  type AutofillAnswers,
-} from "./answers";
+import { NO_ANSWERS, PROFILE_QUESTIONS, type AutofillAnswers } from "./answers";
 import { ChoiceTile } from "./choice-tile";
 import {
   AuthorizationIcon,
@@ -112,7 +103,7 @@ const STEPS: { question: ReactNode; line: string }[] = [
         Next, the questions <strong>every application asks</strong>.
       </>
     ),
-    line: "All optional. Answer once, and I'll fill them in on every application.",
+    line: "All optional. Answer once, and I'll keep them ready for your applications.",
   },
   {
     question: (
@@ -482,9 +473,19 @@ function OneOf<V extends string>({
   );
 }
 
-/** Step 2 (KAN-283): what applications ask, in the order forms ask it, the
- *  voluntary self-identification last. Each hint is the question as a form
- *  words it, so the seeker knows what their answer will fill in. */
+/** Each Profile question's glyph, by its key in the bank. */
+const QUESTION_ICONS: Record<keyof AutofillAnswers, Glyph> = {
+  work_authorized_us: AuthorizationIcon,
+  needs_sponsorship: VisaIcon,
+  work_authorization_status: StatusIcon,
+  security_clearance: ClearanceIcon,
+  gender: GenderIcon,
+  veteran_status: VeteranIcon,
+  disability_status: DisabilityIcon,
+};
+
+/** Step 2 (KAN-283): ./answers' PROFILE_QUESTIONS, each under the question as
+ *  forms word it, so the seeker knows what their answer will fill in. */
 function ProfileStep({
   answers,
   set,
@@ -494,88 +495,17 @@ function ProfileStep({
 }) {
   return (
     <>
-      <Field
-        Icon={AuthorizationIcon}
-        label="Authorization to Work"
-        hint="Are you legally authorized to work in the United States?"
-      >
-        <OneOf
-          columns={2}
-          options={YES_NO}
-          value={answers.work_authorized_us}
-          onChange={(work_authorized_us) => set({ work_authorized_us })}
-        />
-      </Field>
-      <Field
-        Icon={VisaIcon}
-        label="Visa Sponsorship"
-        hint="Will you now or in the future require sponsorship for employment visa status (e.g., H-1B)?"
-      >
-        <OneOf
-          columns={2}
-          options={YES_NO}
-          value={answers.needs_sponsorship}
-          onChange={(needs_sponsorship) => set({ needs_sponsorship })}
-        />
-      </Field>
-      <Field
-        Icon={StatusIcon}
-        label="Citizenship and Visa Status"
-        hint="What is your current U.S. citizenship or visa status?"
-      >
-        <OneOf
-          columns={2}
-          options={STATUS_OPTIONS}
-          value={answers.work_authorization_status}
-          onChange={(work_authorization_status) => set({ work_authorization_status })}
-        />
-      </Field>
-      <Field
-        Icon={ClearanceIcon}
-        label="Security Clearance"
-        hint="Do you hold an active U.S. government security clearance? Most students pick None."
-      >
-        <OneOf
-          columns={3}
-          options={CLEARANCE_OPTIONS}
-          value={answers.security_clearance}
-          onChange={(security_clearance) => set({ security_clearance })}
-        />
-      </Field>
-      <Field
-        Icon={GenderIcon}
-        label="Gender"
-        hint="Voluntary self-identification. Employers ask it to meet U.S. reporting rules."
-      >
-        <OneOf
-          columns={2}
-          options={GENDER_OPTIONS}
-          value={answers.gender}
-          onChange={(gender) => set({ gender })}
-        />
-      </Field>
-      <Field
-        Icon={VeteranIcon}
-        label="Veteran Status"
-        hint="Voluntary self-identification. Employers ask it to meet U.S. reporting rules."
-      >
-        <OneOf
-          options={VETERAN_OPTIONS}
-          value={answers.veteran_status}
-          onChange={(veteran_status) => set({ veteran_status })}
-        />
-      </Field>
-      <Field
-        Icon={DisabilityIcon}
-        label="Disability"
-        hint="Voluntary self-identification of disability (Form CC-305)."
-      >
-        <OneOf
-          options={DISABILITY_OPTIONS}
-          value={answers.disability_status}
-          onChange={(disability_status) => set({ disability_status })}
-        />
-      </Field>
+      {PROFILE_QUESTIONS.map((q) => (
+        <Field key={q.key} Icon={QUESTION_ICONS[q.key]} label={q.label} hint={q.question}>
+          <OneOf
+            columns={q.columns}
+            options={q.options}
+            value={answers[q.key]}
+            // The key's own options, so the value is one of its answers.
+            onChange={(next) => set({ [q.key]: next } as Partial<AutofillAnswers>)}
+          />
+        </Field>
+      ))}
     </>
   );
 }
