@@ -10,16 +10,19 @@ import { useToast } from "@/components/ui/toast";
 import { dequeueJob, queueJob } from "./actions";
 
 /**
- * Live Activity's cross on a queued row: takes the job out of the queue
+ * Live Activity's cross on a queued row, in its Actions cell: takes the job out of the queue
  * (dequeueJob), refreshes the route so the server draws the list without
  * it, and raises a toast with Undo (components/ui/toast.tsx). Undo queues
  * the job again (queueJob), so it comes back as a new queued row, at the
  * bottom: the queue orders by when a job was queued, and this is a new
  * queueing.
  *
- * Only queued rows have a cross: a later stage is a record, not a plan. It
- * sits above the row's stretched link (`relative z-10`), so a click removes
- * and never opens the job posting. A failure says so in a toast too.
+ * Only queued rows have one: a later stage is a record, not a plan. A bare
+ * cross, its name in the tooltip, alone in the narrow Actions column
+ * (KAN-285): beside the badge it read as closing the badge, and a worded
+ * Remove button took width the table needs. The row leaves a click on a button
+ * alone (components/clickable-row.tsx), so a click removes and never opens
+ * the job posting. A failure says so in a toast too.
  *
  * One removal per row at a time (`busy`, a ref): `disabled={pending}` only
  * lands on the next render, so a fast double click sent two removals, and
@@ -52,7 +55,7 @@ export function RemoveFromQueue({
     <IconButton
       label={`Remove ${role} from the queue`}
       tooltip="Remove from queue"
-      className="relative z-10 size-7"
+      className="size-8"
       disabled={pending}
       onClick={() => {
         if (busy.current) return;

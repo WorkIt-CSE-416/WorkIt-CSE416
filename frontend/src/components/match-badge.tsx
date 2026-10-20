@@ -1,7 +1,8 @@
 import { matchColor, matchTier } from "@/lib/match";
 
 /**
- * A card's match score as a pill: a small ring, then the percentage.
+ * A match score as a pill, on the Applications page and Auto Apply's Live
+ * Activity: a small ring, then the percentage.
  *
  * The small version of the Jobs screen's match rail, coloured by the same bands
  * through `matchColor`, so a score reads the same on both screens. It used to
