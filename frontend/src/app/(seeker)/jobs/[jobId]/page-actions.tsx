@@ -199,7 +199,7 @@ export function MoreActions({ title }: { title: string }) {
  * record that they applied, under the header beside "You sent …" rather than a
  * button in the row, where a misclick marked a job applied and took it off the
  * feed. Apply Now's dialog asks once the seeker leaves for the employer's
- * posting (./apply-button). The day is the viewer's own: the server renders
+ * posting (../apply-button). The day is the viewer's own: the server renders
  * the UTC day and the browser swaps in its local one, as SentNote does.
  */
 export function AppliedNote({ at }: { at: string }) {

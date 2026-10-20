@@ -225,12 +225,18 @@ sections stay first and open, since they are what a student reads first, and
 matching never reads the folded ones. Only the job's headings make a
 description sectioned, so an old one with its own "Benefits" line draws as
 before.
-Apply Now (`[jobId]/apply-button.tsx`,
+Apply Now (`jobs/apply-button.tsx`,
 KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
 shows Download Resume and Open the Posting (a link, so no popup blocker
 stops it). Apply Without a Resume leaves for the employer's posting at once.
+**Every Apply Now opens this dialog** (KAN-290): the page's, the feed card's
+on /jobs and /search, and New Matches' Apply on the Dashboard. WorkIt cannot
+see the employer's site, so the dialog is its one chance to learn which
+resume went and whether the student applied; a card's Apply Now once linked
+straight to the employer and recorded neither. A card's button has no
+new-tab glyph, since it opens the dialog and the dialog's links carry it.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.
@@ -402,7 +408,7 @@ Dates and times sit in pills (`<Badge variant="tag" pill>`): Next Up's,
 which links to the Calendar, Up Next's and New Matches' posted time; as 12px
 meta grey in Plus Jakarta Sans they read too faint. A pill sits in its text's
 column, under the title beside a tile or disc, never under the tile itself. New Matches' Apply is a
-filled primary sm button. A KPI tile centres its label on its 36px ring (the ring
+filled primary sm button, and opens Apply Now's dialog (KAN-290). A KPI tile centres its label on its 36px ring (the ring
 hides below 10.5rem of tile), keeps that header row 36px tall, pushes its
 figure to the foot, and gives the line under it a fixed `h-5`, hiding "vs
 last week" where it would wrap, so every figure in a row sits on one line.
