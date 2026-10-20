@@ -1299,8 +1299,9 @@ From lg the screen is one window tall and only the right column scrolls, with
 its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
 Step 1 is Role, Job Type and Workplace (all required), and Experience,
-Start Date and Location; step 2 is Salary Range and Visa Sponsorship (both
-optional), with Continue in place of Next. Start Date shows only once
+Start Date, Location and Salary Range; step 2, Profile, is the questions
+every application asks (KAN-283, all optional), with Continue in place of
+Next. Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
 only the jobs that name one, which a new-grad role rarely does. Intake (KAN-214) is onboarding's next step, so the wizard has no resume
 step of its own: intake uploads and imports one into the experience bank,
@@ -1309,7 +1310,7 @@ which matching reads. Preference Tags, free-text skills, were dropped
 
 **One step rail counts the whole journey (KAN-259).** Both onboarding pages
 head their content with the shared `components/stepper.tsx` at `size="lg"`:
-Role, Pay & Visa, Experiences (`onboarding/applicant/steps.ts`), the third
+Role, Profile, Experiences (`onboarding/applicant/steps.ts`), the third
 step being intake on ./bank. It replaced a thin bar and a 14px grey "Step 1 of
 2" at the foot of the left half: the smallest type on the screen, far from the
 fields, and wrong, since intake then opened six more sections. Intake's own
@@ -1341,7 +1342,22 @@ empty, with the question still at the top. Scout types its tip in a chat
 bubble on every step. It is all decoration over made-up data, so it is
 aria-hidden, and it holds still under reduced motion.
 
-**Its answers are the Jobs page's filters.** Every question takes
+**Profile asks what every application asks (KAN-283).** Authorization to
+Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
+Clearance, then the voluntary Gender, Veteran Status and Disability, in the order
+real forms ask them, each under the question as forms word it. The options
+are real forms' options (`onboarding/applicant/answers.ts`): gender's are the
+EEO Male, Female and decline plus Non-Binary, which many forms add; veteran status's
+three are the U.S. protected veteran self-identification's, disability's
+three are Form CC-305's words. One answer each, as dots; pressing a picked
+answer again clears it. They are not filters: Continue saves them to the
+answer bank (`PATCH /applicants/{id}/autofill-answers`, only the changed
+ones), which auto apply fills forms from. The step was Pay & Visa until
+KAN-283: pay moved to step 1, beside the job types that set its units, and
+the visa filter question left onboarding. A visa filter saved before is
+kept, and the Jobs page still sets it.
+
+**Step 1's answers are the Jobs page's filters.** Every question takes
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
 Start Date and Salary use All Filters' own pickers
 (`components/filter-controls.tsx`), so the saved answers fill the feed's
@@ -1368,7 +1384,7 @@ the saved filters and scores what they keep against the bank just filled. A
 failed save leaves the seeker on the page to retry. Date Posted is not asked:
 a saved "past 24 hours" would empty the feed within days. Sign-in sends an
 applicant here until they finish (`docs/auth.md`); a finished one coming back
-from intake's "Back to Pay & Visa" (`?step=2`) finds the wizard on its second
+from intake's "Back to Profile" (`?step=2`) finds the wizard on its second
 step, filled with their saved answers, and Continue saves the edits. Without
 saved answers `?step=2` opens on the first step, which holds the answers that
 must be given.

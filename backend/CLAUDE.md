@@ -630,6 +630,10 @@ free tier). Render with a Dockerfile is the fallback.
   meets it and applying it early is safe; deployed first, every Save button
   answers 500. Applied to the shared database on 2026-10-18, with KAN-240's
   `3f7a2c9d1e84` under it, after KAN-240's deploy.
+- **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
+  that reads it.** It only adds a table, so the running code never meets
+  it and applying it early is safe; deployed first, onboarding's Continue
+  answers 500 and the Profile step never loads saved answers.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
