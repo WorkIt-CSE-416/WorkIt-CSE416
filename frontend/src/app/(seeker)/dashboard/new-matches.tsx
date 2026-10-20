@@ -1,8 +1,8 @@
 import { CompanyLogo } from "@/components/company-logo";
 import { Badge } from "@/components/ui/badge";
-import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
+import { ApplyButton } from "../jobs/apply-button";
 import { formatPosted } from "../jobs/format";
 import { getJobListings } from "../jobs/listings";
 import { SectionHeader } from "./section-header";
@@ -16,7 +16,7 @@ import { SectionCard } from "./section-card";
  * In a card, like the other lists. A compact list rather than the Jobs
  * page's cards: this is a glance at what
  * arrived, with Jobs one click away for the full card and its actions. Apply
- * goes straight to the employer's posting, as it does there.
+ * opens the same dialog as there (../jobs/apply-button, KAN-290).
  *
  * Its own <Suspense> boundary in the page, because it waits on the API and
  * the fixture cards around it don't. The fallback is NewMatchesSkeleton below:
@@ -108,22 +108,22 @@ export async function NewMatches({ className }: { className?: string }) {
                     )}
                   </div>
                 </div>
-                <a
-                  href={job.apply_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                {/* The job posting page's own dialog (KAN-290), so a role
+                    applied to from here is recorded as one from its page is.
+                    Filled, the primary button's own look: an outlined Apply
+                    beside each role read as an afterthought. sm, as an action
+                    in a row is (KAN-251). Only a signed-in seeker sees the
+                    Dashboard, and the feed already leaves out their applied
+                    jobs. */}
+                <ApplyButton
+                  jobId={job.id}
+                  title={job.title}
+                  applyUrl={job.apply_url}
+                  canMarkApplied
+                  label="Apply"
                   aria-label={`Apply to ${job.title} at ${job.company}`}
-                  // Filled, the primary button's own look: an outlined Apply
-                  // beside each role read as an afterthought. sm, as an
-                  // action in a row is (KAN-251).
-                  className={buttonClasses({
-                    variant: "default",
-                    size: "sm",
-                    className: "shrink-0",
-                  })}
-                >
-                  Apply
-                </a>
+                  className="shrink-0"
+                />
               </li>
             ))}
           </ul>

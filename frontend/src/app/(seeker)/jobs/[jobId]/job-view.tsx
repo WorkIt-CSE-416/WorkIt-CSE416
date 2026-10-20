@@ -14,7 +14,7 @@ import { listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
 import { SaveJobButton } from "../save-job-button";
 import { factText, toPosting } from "../to-posting";
-import { ApplyButton } from "./apply-button";
+import { ApplyButton } from "../apply-button";
 import { JobDescription } from "./description";
 import { KeyRequirementsCard } from "./key-requirements";
 import { AppliedNote, MoreActions } from "./page-actions";

@@ -407,6 +407,7 @@ can't be shown as matching a fact it never stated.
 | **Load More** | The first 50 job postings, then a button adding 50 more with the same filters, until "That's every role that matches." |
 | **Search** | The words go to the API (`q`), so a search covers every job posting, not only the first 50. |
 | **Auto Apply on a card** | Only on a job posting whose `auto_apply` is true (Greenhouse for now; section 6). Its page shows it on the same rule. |
+| **Apply Now on a card** | Opens the same dialog as a job posting's page (section 7.2): pick a resume, then "Did You Apply?". Apply on the Dashboard's New Matches does too. |
 | **Location on a card** | The import's label where there is one ("San Francisco, CA" for "SF"), else the raw text tidied ("Philadelphia, PA"). Several places read "Austin, TX +3 more", with every place listed on the job posting's page. `placesOf` in `jobs/format.ts`. |
 | **Pinned header** | The title and filters stay at the top while the list scrolls; on a phone only the filter row stays. |
 
