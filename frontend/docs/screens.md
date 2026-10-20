@@ -1687,7 +1687,7 @@ aria-hidden, and it holds still under reduced motion.
 Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
 Clearance, then the voluntary Gender, Veteran Status and Disability, in the
 order real forms ask them, each under the question as forms word it. The options
-are real forms' options (`onboarding/applicant/answers.ts`): gender's are the
+are real forms' options (`lib/autofill-answers.ts`): gender's are the
 EEO Male, Female and decline plus Non-Binary, which many forms add; veteran
 status's three are the U.S. protected veteran self-identification's, disability's
 three are Form CC-305's words. One answer each, as dots; pressing a picked
