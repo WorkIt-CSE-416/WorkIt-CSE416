@@ -1259,7 +1259,7 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   "Experiences", never "bank".
   **Every change to either list reloads both** (`reload` in
   `built-resumes.tsx`): one primary star spans them, and the API makes a
-  student's only resume, uploaded or base, the primary on every add and
+  student's only resume, uploaded, base or tailored, the primary on every add and
   delete, so the page never guesses at stars.
   Generate makes a base resume with every entry, bullet and skill in the
   bank, except a copy of an entry already on it (same section, title,
@@ -1276,10 +1276,12 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 - **Uploads** in Your Uploaded Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
   parsed content. **A file whose text the student already uploaded is
-  refused** (KAN-267): the upload's error line says "Duplicate Resume
-  found: <name>" and nothing is kept, whenever and however the file was
-  exported again. Import Updated Resume refuses the text of another upload
-  the same way, but takes its own row's text in a new file. **The upload fills the experience bank** (ADR 0003): a
+  refused** (KAN-267): nothing is kept, whenever and however the file was
+  exported again, and Generate's pop-up opens, "Duplicate Resume found:
+  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`). Import Updated
+  Resume refuses the text of another upload the same way (its dialog
+  closes and the pop-up opens), but takes its own row's text in a new file.
+  Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
   note under the dropzone says what went in ("Added 6 entries and 2 skills
   from resume.pdf", or "WorkIt couldn't find any entries in …"), links to
   Experiences, and offers **Read It With AI** while the student has an AI
@@ -1340,7 +1342,7 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   on the primary resume, an outline on the others, always shown (KAN-268;
   it showed only under the pointer before). The view said "default" and showed a
   Default badge for the same setting (the API's one default resume,
-  uploaded or base).
+  uploaded, base or tailored).
 - **The day**: when the resume was last edited ("Last edited Oct 20"), or
   when it was made until its first edit ("Made Oct 17"). The year shows only when it
   is not this one, as on an upload's row and in the tracker. With it, "Last

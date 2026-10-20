@@ -4,20 +4,13 @@ import { FileText } from "lucide-react";
 import { useState } from "react";
 
 import { RESUME_ROW } from "@/components/resume-row";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { generateResume, listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
 
 import { BuiltResumeRow } from "./built-resume-row";
+import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
 import { ResumesHeader } from "./header";
 import { YourResumes } from "./your-resumes";
 
@@ -35,7 +28,8 @@ import { YourResumes } from "./your-resumes";
  * Generate has no limit: only uploads count toward the 5 (KAN-268). A
  * failed Generate or reload shows as Generated Resumes' error. A Generate
  * that would make a resume the student already has (the API's 409, KAN-267)
- * makes nothing and says so in a pop-up: "Duplicate Resume found: <name>".
+ * makes nothing and says so in a pop-up (./duplicate-resume-dialog.tsx),
+ * the one a duplicate upload gets.
  *
  * Each built resume is a row drawn as an uploaded one's is
  * (`components/resume-row.tsx`), and the whole row opens the resume
@@ -142,16 +136,7 @@ export function BuiltResumes({
           </Card>
         )}
       </div>
-      <Dialog open={duplicate != null} onOpenChange={(open) => !open && setDuplicate(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">{duplicate}</DialogTitle>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose render={<Button>OK</Button>} />
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />
     </>
   );
 }

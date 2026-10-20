@@ -289,24 +289,26 @@ async def set_default(
 
 
 async def default_if_only(session: AsyncSession, applicant_id: uuid.UUID) -> None:
-    """A student with one resume (uploaded or base) has it as the default,
-    so auto apply and Apply have a resume without a star click first. Called
-    after every add and delete; with two or more it changes nothing."""
+    """A student with one resume (uploaded, base or tailored) has it as the
+    default, so auto apply and Apply have a resume without a star click
+    first. Called after every add and delete; with two or more it changes
+    nothing. Tailored resumes count since they can be the default
+    (KAN-268): counting base resumes only left a lone tailored resume with
+    no star, and took the star from a starred tailored resume beside one
+    upload, as if the upload were alone."""
     # The session does not autoflush (app/db.py): a resume added but not
     # flushed would not be counted.
     await session.flush()
     uploaded = (await session.scalars(
         select(Resume.id).where(Resume.applicant_id == applicant_id).limit(2))).all()
-    base = (await session.scalars(
-        select(Built_Resume.id).where(
-            Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id.is_(None)
-        ).limit(2))).all()
-    if len(uploaded) + len(base) != 1:
+    built = (await session.scalars(
+        select(Built_Resume.id).where(Built_Resume.applicant_id == applicant_id).limit(2))).all()
+    if len(uploaded) + len(built) != 1:
         return
     await session.execute(
         update(Applicant_Profile)
         .where(Applicant_Profile.id == applicant_id)
-        .values(default_resume_id=next(iter(uploaded), None), default_built_resume_id=next(iter(base), None))
+        .values(default_resume_id=next(iter(uploaded), None), default_built_resume_id=next(iter(built), None))
     )
 
 

@@ -363,7 +363,12 @@ Find files with a directory listing; these are the rules for where code goes.
   `default_if_only`): upload, Generate (Tailor's too) and both deletes call
   it, so the last resume left after a delete takes the star. With two or
   more it changes nothing. Before it, a student with one resume and no star
-  click had no default, and auto apply attached nothing. It is not
+  click had no default, and auto apply attached nothing. **Every kind
+  counts: uploaded, base and tailored.** It counted base resumes only
+  until KAN-267, from before a tailored resume could be the default
+  (KAN-268): a tailored resume left alone kept an empty star, and beside
+  one upload the upload took the star on every add or delete
+  (`tests/test_built_resumes.py`). It is not
   backfilled: an older account with one resume and no default gets it on
   its next add or delete.
 - **Every model feature counts its daily uses through `app/services/usage.py`**

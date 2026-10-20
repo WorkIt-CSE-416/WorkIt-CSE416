@@ -388,6 +388,55 @@ async def test_a_tailored_resume_can_be_the_default(student, database):
     assert (await client.put(f"{me}/built-resumes/{uuid.uuid4()}/default")).status_code == 404
 
 
+async def _tailored(database, me) -> str:
+    async with database() as session:
+        posting = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
+                " (gen_random_uuid(), 'Intern', 'published', 'Acme', :url) RETURNING id"
+            ),
+            {"url": f"https://example.com/{uuid.uuid4()}"},
+        )
+        tailored = await session.scalar(
+            text(
+                "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
+                " VALUES (:a, 'Tailored', 'jakes', :p) RETURNING id"
+            ),
+            {"a": uuid.UUID(me.split("/")[2]), "p": posting},
+        )
+        await session.commit()
+    return str(tailored)
+
+
+async def test_a_tailored_resume_left_alone_becomes_the_default(student, database):
+    """A tailored resume can be the default since KAN-268, but the one-resume
+    rule still counted base resumes only: deleting the base left the
+    tailored resume with no star."""
+    client, me = student
+    base = await _generate(client, me)
+    tailored = await _tailored(database, me)
+
+    assert (await client.delete(f"{me}/built-resumes/{base}")).status_code == 204
+    assert [(r["id"], r["is_default"]) for r in (await client.get(f"{me}/built-resumes")).json()] == [
+        (tailored, True)]
+
+
+async def test_a_starred_tailored_resume_keeps_its_star_beside_one_upload(student, database, monkeypatch):
+    # The same rule saw an upload and a tailored resume as one resume, so
+    # every add or delete moved the star to the upload.
+    monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
+    monkeypatch.setattr("app.routers.resumes._extract", _no_text)
+    client, me = student
+    upload = (await _upload(client, me)).json()["id"]
+    tailored = await _tailored(database, me)
+    assert (await client.put(f"{me}/built-resumes/{tailored}/default")).status_code == 200
+
+    base = await _another(client, me)  # the seeded tailored resume is empty
+    assert (await client.delete(f"{me}/built-resumes/{base}")).status_code == 204
+    assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [True]
+    assert [(r["id"], r["is_default"]) for r in (await client.get(f"{me}/resumes")).json()] == [(upload, False)]
+
+
 async def test_an_entry_says_how_many_built_resumes_show_it(student, database):
     """Story 18: the delete confirm names the resumes an entry is on."""
     client, me = student

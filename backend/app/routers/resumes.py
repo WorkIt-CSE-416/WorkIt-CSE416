@@ -27,7 +27,7 @@ under, so it keeps the stored file's extension. Import Updated Resume
 then names the row after the new file again.
 `PUT .../{resume_id}/default` makes it the default resume
 (`applicant_profiles.default_resume_id`; the list reports it as `is_default`),
-clearing a base resume that was the default. A student's only resume is
+clearing a built resume that was the default. A student's only resume is
 the default without a click: upload and delete set it
 (`built_resumes.default_if_only`). Upload answers 409 when the
 student already has 5 uploads; generated resumes do not count (KAN-268,

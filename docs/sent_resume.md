@@ -240,8 +240,11 @@ that is how a student swaps in a new layout. The old file stays while a sent
 resume points at it (built today).
 
 Frontend: `apiErrorMessage` (`frontend/src/lib/auth.ts`) reads only a string
-`detail`; it learns to read `detail.message`. The upload UI shows the
-message, and the Apply picker selects the duplicate.
+`detail`; it learns to read `detail.message`. On the Resumes page a
+duplicate upload or Import Updated Resume opens Generate's pop-up
+("Duplicate Resume found: <name>", OK); intake shows it as its error line,
+and onboarding goes on, since the file is already there. The Apply picker
+(not built) selects the duplicate.
 
 ### 2. Generate
 
