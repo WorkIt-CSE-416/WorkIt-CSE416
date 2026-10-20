@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ComponentType, type ReactNode } from "react";
 
+import { useSidebarPin } from "@/components/hover-sidebar";
 import { Logo, LogoLockup } from "@/components/logo";
 import {
   Sidebar,
@@ -299,12 +300,23 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const { isMobile } = useSidebar();
+  const { peeking, hoverProps } = useSidebarPin();
   const floating = variant === "floating";
 
   return (
     <Sidebar
       collapsible="icon"
-      className={cn(floating ? FLOATING : "border-rail-border h-auto", className)}
+      className={cn(
+        floating ? FLOATING : "border-rail-border h-auto",
+        // A peek opens over the page (hover-sidebar.tsx); the docked panel
+        // has only a border, so it takes a shadow to read as above it. The
+        // floating one already has its own.
+        peeking && !floating && "shadow-panel",
+        className,
+      )}
+      // Unpinned on a desktop, pointing at the rail or tabbing into it opens
+      // it over the page. Never on the phone's sheet, which has no hover.
+      {...(!isMobile && hoverProps)}
     >
       {/* The sheet keeps shadcn's lavender, so on a phone the floating panel
           paints its own white to match the panels it opens over. */}
