@@ -28,6 +28,7 @@ import {
   getRecommendedPage,
   getSavedFilters,
   getTailoredJobIds,
+  isApplicant,
   type FeedPage,
 } from "./listings";
 import { SEEKER_GUTTER } from "../gutter";
@@ -95,11 +96,13 @@ async function Feed({ filters, sort }: { filters: FeedFilters; sort: Sort }) {
   // whichever page is drawn.
   const stages = getApplicationStages();
   const tailored = getTailoredJobIds();
+  const applicant = isApplicant();
   if (sort === "match") {
-    const [page, byJob, tailoredIds] = await Promise.all([
+    const [page, byJob, tailoredIds, canMarkApplied] = await Promise.all([
       getRecommendedPage(filtersQuery(filters), 0),
       stages,
       tailored,
+      applicant,
     ]);
     if (page) {
       // `sort=match` in Load More's query keeps its kept pages apart from
@@ -113,13 +116,19 @@ async function Feed({ filters, sort }: { filters: FeedFilters; sort: Sort }) {
           retryHref={sortHref("match", filters)}
           stages={byJob}
           tailored={tailoredIds}
+          canMarkApplied={canMarkApplied}
         />
       );
     }
   }
   // Newest, or Best Match with an empty bank (the API's 404): the plain
   // feed. BankPrompt above it already asks the student to fill the bank.
-  const [page, byJob, tailoredIds] = await Promise.all([getJobListings(filters), stages, tailored]);
+  const [page, byJob, tailoredIds, canMarkApplied] = await Promise.all([
+    getJobListings(filters),
+    stages,
+    tailored,
+    applicant,
+  ]);
   return (
     <Results
       page={page}
@@ -128,6 +137,7 @@ async function Feed({ filters, sort }: { filters: FeedFilters; sort: Sort }) {
       retryHref={sortHref(sort, filters)}
       stages={byJob}
       tailored={tailoredIds}
+      canMarkApplied={canMarkApplied}
       plain
     />
   );
@@ -140,6 +150,7 @@ function Results({
   retryHref,
   stages,
   tailored,
+  canMarkApplied,
   plain = false,
 }: {
   page: FeedPage;
@@ -148,6 +159,7 @@ function Results({
   retryHref: string;
   stages: Record<string, ApplicationStage>;
   tailored: string[];
+  canMarkApplied: boolean;
   /** The plain feed's Load More rather than the scored one's. */
   plain?: boolean;
 }) {
@@ -185,6 +197,7 @@ function Results({
         query={query}
         stages={stages}
         tailored={tailored}
+        canMarkApplied={canMarkApplied}
         source={plain ? "feed" : "recommended"}
       />
     </>

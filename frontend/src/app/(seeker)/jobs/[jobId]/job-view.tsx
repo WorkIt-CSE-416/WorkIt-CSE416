@@ -87,6 +87,7 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
         applyUrl={job.apply_url}
         canMarkApplied={applied != null}
         applied={applied?.appliedAt != null}
+        showsSent
         className="shrink-0"
       />
     </>

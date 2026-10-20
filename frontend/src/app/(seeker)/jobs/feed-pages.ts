@@ -50,10 +50,12 @@ export function readKept(): Kept | null {
   return kept && Date.now() - kept.at < KEPT_FOR ? kept : null;
 }
 
-export function keep(next: Kept) {
-  kept = next;
+/** Keeps `next`, dated now unless it carries the date its pages were
+ *  loaded (a job dropped from them doesn't make them any fresher). */
+export function keep({ at = Date.now(), ...pages }: Omit<Kept, "at"> & { at?: number }) {
+  kept = { ...pages, at };
   try {
-    sessionStorage.setItem(PAGES, JSON.stringify(next));
+    sessionStorage.setItem(PAGES, JSON.stringify(kept));
   } catch {
     /* storage off or full: kept in memory for this visit */
   }

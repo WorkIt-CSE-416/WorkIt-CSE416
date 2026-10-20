@@ -36,7 +36,9 @@ const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
  * this filters and sorts them itself and never asks the server. The Status
  * dropdown is the Applications page's (components/field-facet.tsx), its
  * options the status groups, each with its glyph in its colour; Clear Filters is an outlined
- * cross while a status is picked, which hands focus back to the dropdown.
+ * cross while a status is picked. Both Clear Filters, the cross and the empty
+ * state's button, hand focus back to the dropdown: each leaves the page as
+ * it clears, and focus would otherwise fall to the top of the page.
  * A row of counts by status sat above the table until the user asked for
  * it to go (2026-10-20).
  */
@@ -62,6 +64,10 @@ export function LiveActivity({ items }: { items: ActivityItem[] }) {
     push(activityHref(query, { statuses: statuses as StatusFilter[] }), undefined, {
       replace: true,
     });
+  const clearFilters = () => {
+    statusButton.current?.focus();
+    setStatuses([]);
+  };
 
   return (
     <>
@@ -83,10 +89,7 @@ export function LiveActivity({ items }: { items: ActivityItem[] }) {
             label="Clear filters"
             variant="outline"
             className="animate-fade size-9 shrink-0"
-            onClick={() => {
-              statusButton.current?.focus();
-              setStatuses([]);
-            }}
+            onClick={clearFilters}
           >
             <CloseIcon className="size-4" />
           </IconButton>
@@ -105,7 +108,7 @@ export function LiveActivity({ items }: { items: ActivityItem[] }) {
           title="No Jobs With That Status"
           className="mt-3"
           action={
-            <Button variant="secondary" size="sm" onClick={() => setStatuses([])}>
+            <Button variant="secondary" size="sm" onClick={clearFilters}>
               Clear Filters
             </Button>
           }

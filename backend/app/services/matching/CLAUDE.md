@@ -147,8 +147,9 @@ the recommender reads changed; the scoring did not.
 is left: the nearest to the bank by embedding, ordered in SQL with jobs that
 have no vector last, or the newest when the bank has no vector. Python scoring never runs over
 the whole feed. The cost of the cap: a job ranked past it by semantic alone
-can't surface on its skills or title. The Jobs page's Recommended view sends
-the seeker's saved preferences (KAN-231) as those filters.
+can't surface on its skills or title. The Jobs page's Best Match order sends
+its filter row's picks as those filters: the seeker's saved preferences on a
+fresh visit (KAN-231, KAN-288).
 
 ## The columns
 

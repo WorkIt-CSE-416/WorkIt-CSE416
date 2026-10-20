@@ -322,6 +322,9 @@ export function ActivityTable({
                       onClick={() => onSort(column.sort!)}
                     />
                   ) : (
+                    // Actions is named for a screen reader only: the column
+                    // holds one icon button with its own tooltip, and the
+                    // word would not fit its 64px.
                     <span className="sr-only">{column.label}</span>
                   )}
                 </TableHead>
@@ -330,9 +333,10 @@ export function ActivityTable({
           </TableRow>
         </TableHeader>
 
-        {/* Polite, so a status that changes once this is live is read out
-            after whatever the seeker is doing, not over it. */}
-        <TableBody aria-live="polite">
+        {/* Not a live region: a sort or a filter redraws every row, and a
+            screen reader read them all aloud (KAN-285 review). No status
+            changes in place yet; Start and Remove say what they did. */}
+        <TableBody>
           {items.map((item, i) => (
             <Reflow key={item.id}>
               <Row item={item} index={i} />
