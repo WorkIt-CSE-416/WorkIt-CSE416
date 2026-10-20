@@ -13,27 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { downloadWordResume, renderResumePdf, type ResumeFile } from "@/lib/built-resume-actions";
 
+import { saveFile } from "@/lib/save-file";
+
 type Format = "pdf" | "docx";
-
-/** Opens a Storage link that downloads its file (its Content-Disposition). */
-export function openDownload(url: string) {
-  const link = document.createElement("a");
-  link.href = url;
-  link.rel = "noopener";
-  link.click();
-}
-
-/** Saves a file the API sent as base64, under its name. */
-function saveFile({ data, contentType, fileName }: ResumeFile) {
-  const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-  const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  // After the click has handed the file to the browser's download.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 /**
  * A built resume's download, PDF or Word, in the resume editor: it sat on

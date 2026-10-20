@@ -155,46 +155,23 @@ applicant_profiles
 
 ## Sent resumes (KAN-208)
 
-This section describes what is built. `sent_resume.md` is the KAN-267 plan
-that replaces it: snapshots for built resumes, a link from each application,
-and duplicate checks.
+A sent resume is what a student applied with, kept unchanged: from Apply
+Now on a job posting (KAN-220) or auto apply. Built resumes are live
+views, so without it there would be no record of what an employer
+actually received. **`sent_resume.md` is the design** (KAN-267): a built
+resume's send is a gzipped JSON snapshot rendered again on open, not a
+stored PDF; an uploaded resume's points at the upload's file until that
+upload is replaced or deleted, then becomes a parsed snapshot; a download
+keeps nothing.
 
-A sent resume is the exact file a student applied with, kept unchanged. A
-download kept one too until KAN-267; now it keeps nothing. Built resumes are live views, so without it there would be no
-record of what an employer actually received.
-
-```
-applicant_profiles
-  └── sent_resumes   storage path, name then, time, optional job posting, content hash
-        ├─ built_resume_id     → built_resumes  (ON DELETE SET NULL)
-        └─ uploaded_resume_id  → resumes        (ON DELETE SET NULL)
-```
-
-- **The file is stored, not re-rendered.** An Apply with a built resume
-  renders once and puts the PDF in the `Resume` bucket at `{applicant}/sent/{id}.pdf`. A bank
-  fix, a template change or a renderer upgrade never changes it.
-- **Repeats merge by a hash taken before rendering**: the view, the template
-  id and the header's identity text (sha256). The same hash for the same
-  built resume and the same job posting returns the
-  last sent resume, with no render and no upload, so the kept files stay
-  few. The name is not in the hash: it is not printed on the page.
 - **The sources are a record, not an owner.** Deleting the built or uploaded
   resume nulls the link and keeps the sent resume, with the name it had.
   At most one source is set (`sent_resumes_one_source`).
-- **An uploaded resume's file can outlive it.** Applying with an uploaded
-  resume (KAN-220) writes a row that points at that resume's own file, with
-  no hash. Deleting the uploaded resume keeps the file while a sent resume
-  uses it; deleting the last such sent resume removes it.
-- **Apply keeps a sent resume linked to the posting** (KAN-220). On the
-  Jobs page posting detail, Apply Now asks for a resume (a base resume, the
-  one tailored to that posting, or an uploaded resume), keeps it, and then
-  offers the file and the employer's page. Repeats merge only within one
-  posting. Linking the application in the Applications tracker waits
-  for the tracker's API.
-- **A download keeps nothing** (KAN-267). The editor's Download renders
-  the PDF or the Word file and the browser saves it; only a send to a job
-  posting is a sent resume, always a PDF. Rows from downloads kept before
-  then stay, with no job posting.
+- **Repeats merge by a hash taken before rendering**: the view, the template
+  id and the header's identity text (sha256), within one job posting. The
+  name is not in the hash: it is not printed on the page.
+- **Sent resumes kept before KAN-267** keep their PDF (or Word file) in
+  Storage, some with no job posting (downloads), and open as before.
 
 The rest of this file is the original design for uploaded resumes.
 

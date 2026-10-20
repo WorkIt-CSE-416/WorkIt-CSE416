@@ -19,7 +19,11 @@ learns the file is already there.
 it replaces the row's file with a newer version and reads it into the bank
 the same way. The row keeps its id, so the primary star stays; the file
 goes to a new Storage path, because a sent resume may still point at the
-old one, which is removed only when nothing uses it. It merges, so an entry
+old one, which is removed only when nothing uses it. **Replace and delete
+freeze first** (KAN-267, `sent_resumes.freeze_upload`): the sent resumes
+that point at the old file become a snapshot of its text, in the same
+commit, so the file is no longer in use and goes; one with no readable
+text keeps the file. It merges, so an entry
 the new version dropped stays in the bank. It answers what upload answers.
 `PATCH .../{resume_id}` ({"name"}) renames it (KAN-268): the name is the
 row's `original_filename`, which every screen shows and a DOCX downloads
@@ -52,7 +56,7 @@ from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, get_supabase
@@ -350,9 +354,19 @@ async def replace_resume(
     digest = text_hash(raw_text)
     if (same := await _duplicate_of(session, applicant_id, digest, besides=resume.id)) is not None:
         raise _duplicate(same)
+    # The old file's sent resumes become a snapshot of its text (KAN-267),
+    # read while the row still holds that text; it commits with the
+    # replacement, and the old file then goes as nothing uses it.
+    try:
+        await sent_resumes.freeze_upload(session, applicant_id, resume)
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("Failed to keep the sent resumes of a replaced resume")
+        raise HTTPException(500, "Failed to save resume record")
 
     # A new path, never the old one: a sent resume may point at the old
-    # file, and a sent resume's file never changes (KAN-208).
+    # file (one with no text stays a file), and a sent resume's file never
+    # changes (KAN-208).
     old_path = resume.storage_path
     storage_path = f"{applicant_id}/{uuid.uuid4()}{ext}"
     client = get_supabase()
@@ -578,9 +592,12 @@ async def delete_resume(
 
     resume = await _get_owned_resume(session, applicant_id, resume_id)
 
-    # Delete DB row first (reversible via rollback), then Storage
+    # Delete DB row first (reversible via rollback), then Storage. Its sent
+    # resumes become a snapshot of its text first (KAN-267), in the same
+    # commit, so the file is no longer in use.
     storage_path = resume.storage_path
     try:
+        await sent_resumes.freeze_upload(session, applicant_id, resume)
         await session.delete(resume)
         await built_resumes.default_if_only(session, applicant_id)
         await session.commit()
@@ -588,8 +605,9 @@ async def delete_resume(
         await session.rollback()
         raise HTTPException(500, "Failed to delete resume record")
 
-    # A sent resume that points at this file keeps it (KAN-208); deleting
-    # that sent resume later removes the file once nothing uses it.
+    # A sent resume still pointing at this file (its text gave nothing to
+    # rebuild from) keeps it (KAN-208); deleting that sent resume later
+    # removes the file once nothing uses it.
     if await sent_resumes.file_in_use(session, storage_path):
         return {"detail": "Resume deleted"}
 

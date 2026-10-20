@@ -1,8 +1,11 @@
 # Sent resumes per application (KAN-267)
 
-Status: **design complete; built: the duplicate checks and downloads that
-keep nothing** (build order steps 1, 2 and 5, migration `d642d93fcfbc`);
-the rest is not built. It changes how sent resumes (KAN-208)
+Status: **design complete; built: the duplicate checks, downloads that keep
+nothing, snapshots and the freeze of replaced or deleted uploads** (build
+order steps 1, 2, 3, 5 and 6, migrations `d642d93fcfbc` and
+`5a6e419367b8`). Not built: the application link (step 4), and with it
+every screen that opens a sent resume (View Resume, the rebuilt note, Show
+Original Text). It changes how sent resumes (KAN-208)
 are kept, links each application to the resume it went out with, stops
 recording plain downloads, freezes an upload's sent resumes as JSON once
 the upload is replaced or deleted, and stops duplicate resumes at upload
@@ -439,16 +442,24 @@ since it must build a `File` for the form anyway.
   it without one, so the PDF opens in the browser.
 - **A snapshot row:** gunzip, `view_from_json`, render (about 0.3 s), and
   answer `{"data": "<base64>", "content_type": "application/pdf",
-  "file_name", "rebuilt"}`. Nothing is stored. `rebuilt` is true for an
-  upload's snapshot: the page then says "Rebuilt from your uploaded file.
-  The layout and some sections may differ from what you sent." with a
-  **Show Original Text** link that shows its `raw_text`.
+  "file_name", "rebuilt", "original_text"}`. Nothing is stored. `rebuilt`
+  is true for an upload's snapshot, and `original_text` is then its file's
+  text: the page (step 4) says "Rebuilt from your uploaded file. The
+  layout and some sections may differ from what you sent." with a **Show
+  Original Text** link that shows it.
 
-The frontend turns `data` into a Blob URL (`URL.createObjectURL`) and opens
-or downloads it, the same way the editor's preview already takes base64 from
-`GET .../render`. One helper, `openSentResume(sid)`, hides the two shapes.
-`POST .../sent-resumes` and auto apply's resume route answer the file in the
-same two shapes.
+Built (step 3): `rebuilt` is read off the row, not the snapshot (a
+snapshot row with no content hash: an uploaded resume's row never has
+one), so the list needs no join; the `source` column is the database's
+own record. A send that just rendered its PDF answers that PDF; a repeat
+send renders the snapshot again, so every send answers the file.
+
+The frontend turns `data` into a Blob and downloads it (`lib/save-file.ts`:
+`saveSentFile` takes either shape), the same way the editor's Download
+takes base64 from `GET .../render`. The Apply dialog's Download Resume uses
+it. `openSentResume(sid)`, the server action for GET .../file, comes with
+step 4, its first screen. `POST .../sent-resumes` and auto apply's resume
+route answer the file in the same two shapes.
 
 Where the student sees it:
 
@@ -539,19 +550,21 @@ Each step is one PR with its migration, code, tests and docs.
    `docx`; `useResumeDownload` without `sendBuiltResume`; `POST
    .../sent-resumes` requiring `job_posting_id` and dropping `format`. No
    migration. It ships before step 3 so no new download PDFs pile up.
-3. **Snapshots.** Migration 2, `view_from_json`, `send_built` writing
-   snapshots, flow 7's two shapes, `openSentResume`, the Apply dialog's
-   file, `prepare_resume`'s response.
+3. **Snapshots.** Built: migration 2 (`5a6e419367b8`), `view_from_json`,
+   `send_built` writing snapshots (it no longer takes Storage), flow 7's
+   two shapes, the Apply dialog's file, `prepare_resume`'s response.
+   `openSentResume` moved to step 4.
 4. **Application link.** Migration 3, `POST /jobs/{id}/applied` with
    `sent_resume_id`, `prepare_resume` setting it, the Did You Apply?
    picker, Upload in the Apply picker, View Resume on the Applications list,
    an application's page and the job posting's page.
 5. **Generate duplicates.** The live hash check on Generate, and its
    "Duplicate Resume found: <name>" pop-up on the Resumes page.
-6. **Freeze replaced uploads.** After step 3, which makes the snapshots
-   table: `source`'s column comes with migration 2. `view_from_reading`,
-   `freeze_upload` in PUT and DELETE, `rebuilt` in the responses, the
-   "Rebuilt from your uploaded file" note and Show Original Text.
+6. **Freeze replaced uploads.** Built with step 3: `view_from_reading`,
+   `freeze_upload` in PUT (before the new file is uploaded, so a failed
+   freeze stores nothing) and DELETE, `rebuilt` and `original_text` in the
+   responses. The "Rebuilt from your uploaded file" note and Show Original
+   Text come with step 4's View Resume.
 
 ## Docs to update with the code
 

@@ -340,7 +340,11 @@ are in `docs/auth.md`.
   gone. The missing-character warning still holds a PDF until Download
   Anyway. Apply on the posting detail goes through
   `applyWithResume` (KAN-220) and keeps its sent resume: the student is
-  told WorkIt kept a copy, so it is never deleted behind their back. No
+  told WorkIt kept a copy, so it is never deleted behind their back. A
+  sent resume's file comes as a Storage `url` or, for a snapshot
+  (KAN-267), the PDF itself as `data`; `saveSentFile` (`lib/save-file.ts`,
+  with `openDownload` and `saveFile`) saves either. Never use `url` alone:
+  a built resume's send has none. No
   screen lists sent resumes since the Resumes view's Sent card went
   (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**

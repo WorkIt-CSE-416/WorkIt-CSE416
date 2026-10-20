@@ -84,7 +84,10 @@ async def test_the_default_base_resume_is_kept_once_for_the_job(student, storage
 
     assert (first["built_resume_id"], first["job_posting_id"]) == (built, job)
     assert again["id"] == first["id"]  # a run that starts again keeps nothing new
-    assert len(renders) == 1
+    # Kept as a snapshot (KAN-267): the PDF comes back itself, rendered
+    # again from it, and nothing goes to Storage.
+    assert (first["url"], again["data"]) == (None, first["data"])
+    assert storage.files == {}
     listed = (await client.get(f"{me}/sent-resumes")).json()
     assert [s["id"] for s in listed] == [first["id"]]
 

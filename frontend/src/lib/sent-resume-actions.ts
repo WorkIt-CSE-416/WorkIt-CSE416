@@ -5,10 +5,11 @@ import { applicantCall, type Result } from "@/lib/applicant-call";
 /**
  * Sent resumes (backend/app/routers/sent_resumes.py), as server actions.
  * Types mirror backend/app/schemas/sent_resume.py. Every action returns
- * `error: string | null` and never throws. A file comes back as a 5-minute
- * Storage link that downloads it, not as bytes. Only Apply keeps a sent
- * resume: the editor's Download keeps nothing (KAN-267,
- * `built-resume-actions.ts`).
+ * `error: string | null` and never throws. A file comes back one of two
+ * ways (KAN-267): a 5-minute Storage link (`url`) for a stored file, or the
+ * PDF in base64 (`data`) for a snapshot, rendered again; `saveSentFile`
+ * (`lib/save-file.ts`) takes either. Only Apply keeps a sent resume: the
+ * editor's Download keeps nothing (`built-resume-actions.ts`).
  */
 
 export type SentResume = {
@@ -19,15 +20,23 @@ export type SentResume = {
   job_posting_id: string | null;
   created_at: string;
   /** The kept file's kind, "pdf" or "docx" (an uploaded resume's own, or a
-   *  Word download kept before KAN-267). */
+   *  Word download kept before KAN-267). A snapshot is always a PDF. */
   format: string;
+  /** Rebuilt from an uploaded file's text once that upload was replaced or
+   *  deleted (KAN-267): its layout may differ from what was sent. */
+  rebuilt: boolean;
 };
 
-/** A kept sent resume, its download link, and the characters a fresh
+/** A kept sent resume, its file, and the characters a fresh
  *  render's font could not draw. `created` is false for a repeat of
  *  content already sent from that built resume. */
 export type SentDownload = SentResume & {
-  url: string;
+  file_name: string;
+  content_type: string;
+  /** A stored file's 5-minute link; null for a snapshot, which comes as `data`. */
+  url: string | null;
+  /** The PDF in base64, rendered from the snapshot; null for a stored file. */
+  data: string | null;
   missing_characters: string[];
   created: boolean;
 };

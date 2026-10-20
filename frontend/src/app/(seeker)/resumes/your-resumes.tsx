@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
 import { importSummary } from "@/lib/import-summary";
 import { previewResume } from "@/lib/preview-resume";
+import { openDownload } from "@/lib/save-file";
 import {
   deleteResume,
   getResumeFileUrl,
@@ -25,7 +26,6 @@ import {
 import { RenameForm } from "./built-resume-row";
 import { DeleteConfirm } from "./delete-confirm";
 import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
-import { openDownload } from "./download-menu";
 import { UpdateResumeDialog } from "./update-resume-dialog";
 
 // The API's limit, on uploads alone: generated resumes count for nothing

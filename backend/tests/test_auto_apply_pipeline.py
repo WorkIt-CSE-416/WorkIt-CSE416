@@ -4,7 +4,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -197,7 +197,7 @@ def sent_row(**kwargs):
     row = {
         "id": uuid.uuid4(), "name": "General SWE", "built_resume_id": uuid.uuid4(),
         "uploaded_resume_id": None, "job_posting_id": JOB, "created_at": datetime.now(UTC),
-        "storage_path": f"{APPLICANT}/sent/x.pdf", "content_hash": "abc",
+        "storage_path": f"{APPLICANT}/sent/x.pdf", "snapshot_id": None, "content_hash": "abc",
     }
     return SimpleNamespace(**{**row, **kwargs})
 
@@ -222,21 +222,23 @@ def fake_send(monkeypatch, name, sent=None, raises=None):
     return calls
 
 
-def test_prepare_resume_keeps_the_pick_for_the_job_and_answers_a_link(monkeypatch):
+def test_prepare_resume_keeps_the_pick_for_the_job_and_answers_its_pdf(monkeypatch):
     fake_stage(monkeypatch, application_stage.queued)
     built = uuid.uuid4()
     fake_pick(monkeypatch, ResumeChoice(built_resume_id=built))
-    row = sent_row(built_resume_id=built)
-    calls = fake_send(monkeypatch, "send_built", Sent(row, created=True, missing_characters=("П",)))
+    # A built resume's send is a snapshot (KAN-267): no stored file, and the
+    # PDF it just rendered comes back as the file.
+    row = sent_row(built_resume_id=built, storage_path=None, snapshot_id=uuid.uuid4())
+    calls = fake_send(monkeypatch, "send_built", Sent(row, created=True, missing_characters=("П",), pdf=b"%PDF"))
     db, storage = FakeDB(), FakeStorage()
 
     resume = asyncio.run(pipeline.prepare_resume(db, storage, APPLICANT, JOB))
 
     ((args, kwargs),) = calls
-    assert args[2:] == (APPLICANT, built) and kwargs == {"job_posting_id": JOB}
+    assert args[1:] == (APPLICANT, built) and kwargs == {"job_posting_id": JOB}
     db.commit.assert_awaited_once()
     assert (resume.id, resume.built_resume_id, resume.job_posting_id) == (row.id, built, JOB)
-    assert resume.url == f"https://storage.test/{row.storage_path}"
+    assert (resume.url, resume.data, resume.file_name) == (None, "JVBERg==", "General SWE.pdf")
     assert (resume.format, resume.missing_characters) == ("pdf", ["П"])
 
 
@@ -253,6 +255,7 @@ def test_prepare_resume_sends_an_uploaded_default_as_its_own_file(monkeypatch):
     ((args, kwargs),) = calls
     assert args[1:] == (APPLICANT, uploaded) and kwargs == {"job_posting_id": JOB}
     assert resume.uploaded_resume_id == uploaded
+    assert (resume.url, resume.data) == (f"https://storage.test/{row.storage_path}", None)
 
 
 def test_prepare_resume_again_keeps_nothing_new(monkeypatch):
@@ -300,17 +303,23 @@ def test_prepare_resume_for_a_closed_job_is_not_found(monkeypatch):
         asyncio.run(pipeline.prepare_resume(FakeDB(), FakeStorage(), APPLICANT, JOB))
 
 
-def test_prepare_resume_storage_refusing_the_file_is_file_failed(monkeypatch):
+def test_prepare_resume_storage_refusing_the_link_is_file_failed(monkeypatch):
     fake_stage(monkeypatch, application_stage.queued)
-    fake_pick(monkeypatch, ResumeChoice(built_resume_id=uuid.uuid4()))
-    fake_send(monkeypatch, "send_built", raises=RuntimeError("bucket said no"))
+    uploaded = uuid.uuid4()
+    fake_pick(monkeypatch, ResumeChoice(uploaded_resume_id=uploaded))
+    row = sent_row(built_resume_id=None, uploaded_resume_id=uploaded, content_hash=None)
+    fake_send(monkeypatch, "send_uploaded", Sent(row, created=False))
+    storage = FakeStorage()
+    storage.create_signed_url = MagicMock(side_effect=RuntimeError("bucket said no"))
 
     with pytest.raises(pipeline.FileFailed):
-        asyncio.run(pipeline.prepare_resume(FakeDB(), FakeStorage(), APPLICANT, JOB))
+        asyncio.run(pipeline.prepare_resume(FakeDB(), storage, APPLICANT, JOB))
 
 
-@pytest.mark.parametrize(("uploaded", "removed"), [(False, True), (True, False)])
-def test_a_failed_commit_removes_only_a_new_file(monkeypatch, uploaded, removed):
+@pytest.mark.parametrize("uploaded", [False, True])
+def test_a_failed_commit_rolls_back_and_removes_no_file(monkeypatch, uploaded):
+    # A send stores no file (KAN-267): a built resume's is a snapshot row,
+    # an uploaded resume's is its own. Nothing to clean up either way.
     fake_stage(monkeypatch, application_stage.queued)
     row = sent_row(uploaded_resume_id=uuid.uuid4() if uploaded else None)
     if uploaded:
@@ -326,7 +335,7 @@ def test_a_failed_commit_removes_only_a_new_file(monkeypatch, uploaded, removed)
     with pytest.raises(SQLAlchemyError):
         asyncio.run(pipeline.prepare_resume(db, storage, APPLICANT, JOB))
     db.rollback.assert_awaited_once()
-    assert storage.removed == ([row.storage_path] if removed else [])
+    assert storage.removed == []
 
 
 # --- dequeue_job ---

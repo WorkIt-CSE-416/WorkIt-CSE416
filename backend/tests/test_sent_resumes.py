@@ -5,12 +5,18 @@ bucket. The PDF render is patched too (it counts the renders, which is how
 the repeat-hash merge shows); the one real-Tectonic test skips without it.
 """
 
+import base64
+import dataclasses
+import gzip
+import json
 import uuid
 
 import pytest
+from sqlalchemy import text
 
 from app.services.resume_render import Rendered
 from tests import test_built_resumes
+from tests.test_bank_import import RESUME_TEXT
 from tests.test_built_resumes import _fill_bank, _generate, _no_text, _upload
 
 # The signed-in applicant and API client that the Generate tests use
@@ -68,6 +74,19 @@ def _to(posting, **source):
     return {**source, "job_posting_id": posting}
 
 
+def _pdf(body: dict) -> bytes:
+    """The PDF a send or GET .../file answers for a snapshot (`data`)."""
+    assert body["url"] is None
+    return base64.b64decode(body["data"])
+
+
+async def _snapshots(database) -> list[tuple[str, dict]]:
+    """Every snapshot: its source and its JSON."""
+    async with database() as session:
+        rows = (await session.execute(text("SELECT source, data FROM resume_snapshots ORDER BY created_at"))).all()
+    return [(source, json.loads(gzip.decompress(data))) for source, data in rows]
+
+
 @pytest.fixture
 def renders(monkeypatch):
     """Replaces Tectonic: each render's PDF names the view's first bullet, so
@@ -84,7 +103,9 @@ def renders(monkeypatch):
     return calls
 
 
-async def test_a_send_keeps_a_sent_resume_the_sent_list_shows(student, storage, renders, posting):
+async def test_a_send_keeps_a_snapshot_not_a_file(student, storage, renders, posting, database):
+    """KAN-267: every send rendered a 33 KB PDF into Storage; it keeps what
+    the PDF is made from, about 2 KB, and renders it again on open."""
     client, me = student
     await _fill_bank(client, me)
     built = await _generate(client, me, "General SWE")
@@ -98,15 +119,20 @@ async def test_a_send_keeps_a_sent_resume_the_sent_list_shows(student, storage, 
     assert sent["uploaded_resume_id"] is None
     assert sent["job_posting_id"] == posting
     assert sent["missing_characters"] == []
-    assert sent["url"].startswith("https://storage.test/")
-    assert "download=General SWE.pdf" in sent["url"]
-    # The file in the bucket is the one rendered.
-    [(path, pdf)] = storage.files.items()
-    assert pdf.startswith(b"%PDF Sam Seeker")
-    assert sent["url"].split("?")[0] == f"https://storage.test/{path}"
+    assert (sent["file_name"], sent["format"], sent["rebuilt"]) == ("General SWE.pdf", "pdf", False)
+    assert _pdf(sent).startswith(b"%PDF Sam Seeker")
+    assert storage.files == {}
+    [(source, snapshot)] = await _snapshots(database)
+    assert (source, snapshot["template"], snapshot["identity"]["name"]) == ("built", "jakes", "Sam Seeker")
+    assert "Cut page load time by 30%" in json.dumps(snapshot["view"])
 
     listed = (await client.get(f"{me}/sent-resumes")).json()
     assert [(s["id"], s["name"]) for s in listed] == [(sent["id"], "General SWE")]
+
+    # Opened later, it renders again from the snapshot.
+    opened = (await client.get(f"{me}/sent-resumes/{sent['id']}/file")).json()
+    assert (opened["file_name"], _pdf(opened)) == ("General SWE.pdf", _pdf(sent))
+    assert len(renders) == 2
 
 
 async def test_a_download_is_not_a_send(student, storage, renders):
@@ -122,7 +148,9 @@ async def test_a_download_is_not_a_send(student, storage, renders):
     assert (await client.get(f"{me}/sent-resumes")).json() == []
 
 
-async def test_a_repeat_send_of_the_same_content_returns_the_last_sent_resume(student, storage, renders, posting):
+async def test_a_repeat_send_of_the_same_content_returns_the_last_sent_resume(
+    student, storage, renders, posting, database
+):
     client, me = student
     await _fill_bank(client, me)
     built = await _generate(client, me)
@@ -132,12 +160,28 @@ async def test_a_repeat_send_of_the_same_content_returns_the_last_sent_resume(st
 
     assert again.status_code == 200
     assert again.json()["id"] == first["id"]
-    assert len(renders) == 1  # hashed before rendering: no second render
-    assert len(storage.files) == 1
+    assert _pdf(again.json()) == _pdf(first)  # rendered again from the snapshot
+    assert storage.files == {}
+    assert len(await _snapshots(database)) == 1
     assert len((await client.get(f"{me}/sent-resumes")).json()) == 1
 
 
-async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(student, storage, renders, posting):
+async def test_one_content_sent_to_many_postings_keeps_one_snapshot(student, storage, renders, posting, database):
+    client, me = student
+    await _fill_bank(client, me)
+    built = await _generate(client, me)
+    another = await _seed_posting(database, "https://example.com/another")
+
+    for job in (posting, another):
+        assert (await client.post(f"{me}/sent-resumes", json=_to(job, built_resume_id=built))).status_code == 201
+
+    assert len((await client.get(f"{me}/sent-resumes")).json()) == 2
+    assert len(await _snapshots(database)) == 1
+
+
+async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(
+    student, storage, renders, posting, database
+):
     client, me = student
     await _fill_bank(client, me)
     built = await _generate(client, me, "First")
@@ -151,8 +195,9 @@ async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(s
     hide = {"skills": [{"skill_id": skill, "shown": False}]}
     assert (await client.patch(f"{me}/built-resumes/{other}/choices", json=hide)).status_code == 200
     assert (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=other))).status_code == 201
+    assert len(await _snapshots(database)) == 1  # the same content: one snapshot
 
-    # A fix in the bank changes the view, so the next download is new...
+    # A fix in the bank changes the view, so the next send is new...
     bank = (await client.get(f"{me}/bank")).json()
     bullet = next(e for e in bank["entries"] if e["bullets"])["bullets"][0]
     await client.patch(f"{me}/bank/bullets/{bullet['id']}", json={"text": "Rewrote the bullet"})
@@ -160,9 +205,10 @@ async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(s
     assert changed.status_code == 201
     assert changed.json()["id"] != first["id"]
 
-    # ...and the first file is untouched.
-    assert storage.files[f"{me.split('/')[2]}/sent/{first['id']}.pdf"] != storage.files[
-        f"{me.split('/')[2]}/sent/{changed.json()['id']}.pdf"]
+    # ...and the first is untouched: it still opens as it was sent.
+    assert len(await _snapshots(database)) == 2
+    opened = (await client.get(f"{me}/sent-resumes/{first['id']}/file")).json()
+    assert _pdf(opened) == _pdf(first) != _pdf(changed.json())
     listed = (await client.get(f"{me}/sent-resumes")).json()
     assert [s["name"] for s in listed] == ["First", "Second", "First"]
 
@@ -176,9 +222,8 @@ async def test_a_sent_resume_stays_when_its_built_resume_is_deleted(student, sto
 
     [kept] = (await client.get(f"{me}/sent-resumes")).json()
     assert (kept["id"], kept["name"], kept["built_resume_id"]) == (sent["id"], "Old Resume", None)
-    assert len(storage.files) == 1
-    url = (await client.get(f"{me}/sent-resumes/{sent['id']}/file")).json()["url"]
-    assert "download=Old Resume.pdf" in url
+    opened = (await client.get(f"{me}/sent-resumes/{sent['id']}/file")).json()
+    assert (opened["file_name"], _pdf(opened)) == ("Old Resume.pdf", _pdf(sent))
 
 
 async def _send_uploaded(database, me, resume_id, posting):
@@ -191,7 +236,9 @@ async def _send_uploaded(database, me, resume_id, posting):
         return sent
 
 
-async def test_an_uploaded_resumes_file_stays_while_a_sent_resume_uses_it(student, storage, database, posting):
+async def test_an_upload_with_no_text_keeps_its_file_while_a_sent_resume_uses_it(student, storage, database, posting):
+    # Nothing to rebuild it from (an image-only scan): deleting the upload
+    # cannot freeze its sent resume, so the file stays as before KAN-267.
     client, me = student
     uploaded = (await _upload(client, me)).json()
     sent = await _send_uploaded(database, me, uploaded["id"], posting)
@@ -210,6 +257,100 @@ async def test_an_uploaded_resumes_file_stays_while_a_sent_resume_uses_it(studen
     # Its last sent resume deleted, nothing uses the file: it goes.
     assert (await client.delete(f"{me}/sent-resumes/{kept['id']}")).status_code == 204
     assert storage.removed == [uploaded["storage_path"]]
+
+
+@pytest.fixture
+def readable(monkeypatch):
+    """Uploads read as RESUME_TEXT, so a freeze has something to parse."""
+    async def extract(contents, ext):
+        return RESUME_TEXT
+
+    monkeypatch.setattr("app.routers.resumes._extract", extract)
+
+
+async def test_deleting_an_upload_freezes_its_sent_resumes_and_removes_the_file(
+    student, storage, renders, database, posting, readable
+):
+    """KAN-267: the upload's file stayed in Storage for as long as any sent
+    resume pointed at it. Its text is parsed into one snapshot instead."""
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    another = await _seed_posting(database, "https://example.com/another")
+    sent = [(await client.post(f"{me}/sent-resumes", json=_to(job, uploaded_resume_id=uploaded["id"]))).json()
+            for job in (posting, another)]
+
+    assert (await client.delete(f"{me}/resumes/{uploaded['id']}")).status_code == 200
+
+    assert storage.removed == [uploaded["storage_path"]]
+    [(source, snapshot)] = await _snapshots(database)
+    assert (source, snapshot["raw_text"], snapshot["identity"]["name"]) == ("upload", RESUME_TEXT, "Sam Seeker")
+    titles = [e["title"] for section in snapshot["view"]["sections"] for e in section["entries"]]
+    assert "Mechanical Engineering Intern" in titles
+    listed = (await client.get(f"{me}/sent-resumes")).json()
+    assert sorted(s["id"] for s in listed) == sorted(s["id"] for s in sent)
+    assert all(s["rebuilt"] and s["format"] == "pdf" and s["uploaded_resume_id"] is None for s in listed)
+
+    opened = (await client.get(f"{me}/sent-resumes/{sent[0]['id']}/file")).json()
+    assert (opened["file_name"], opened["rebuilt"], opened["original_text"]) == ("resume.pdf", True, RESUME_TEXT)
+    assert _pdf(opened).startswith(b"%PDF Sam Seeker")
+
+
+async def test_replacing_an_upload_freezes_the_old_files_sent_resumes(
+    student, storage, renders, database, posting, readable, monkeypatch
+):
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, uploaded_resume_id=uploaded["id"]))).json()
+
+    async def newer(contents, ext):
+        return RESUME_TEXT + "Awards\nEmployee of the Month  Jan 2027\n"
+
+    monkeypatch.setattr("app.routers.resumes._extract", newer)
+    files = {"file": ("resume-v2.pdf", b"%PDF-1.4 newer", "application/pdf")}
+    assert (await client.put(f"{me}/resumes/{uploaded['id']}", files=files)).status_code == 200
+
+    assert storage.removed == [uploaded["storage_path"]]
+    [(_, snapshot)] = await _snapshots(database)
+    assert snapshot["raw_text"] == RESUME_TEXT  # the old file's text, not the new
+    [kept] = (await client.get(f"{me}/sent-resumes")).json()
+    assert (kept["id"], kept["rebuilt"], kept["uploaded_resume_id"]) == (sent["id"], True, uploaded["id"])
+
+
+async def test_a_failed_delete_leaves_the_sent_resumes_on_the_file(student, storage, database, posting, readable,
+                                                                   monkeypatch):
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    await client.post(f"{me}/sent-resumes", json=_to(posting, uploaded_resume_id=uploaded["id"]))
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr("app.services.built_resumes.default_if_only", broken)
+    assert (await client.delete(f"{me}/resumes/{uploaded['id']}")).status_code == 500
+
+    assert storage.removed == [] and await _snapshots(database) == []
+    [kept] = (await client.get(f"{me}/sent-resumes")).json()
+    assert kept["rebuilt"] is False
+    url = (await client.get(f"{me}/sent-resumes/{kept['id']}/file")).json()["url"]
+    assert url.startswith(f"https://storage.test/{uploaded['storage_path']}")
+
+
+async def test_a_sent_resume_with_neither_a_file_nor_a_snapshot_is_refused(student, database):
+    from sqlalchemy.exc import IntegrityError
+
+    _, me = student
+    with pytest.raises(IntegrityError, match="sent_resumes_one_file"):
+        async with database() as session:
+            await session.execute(text("INSERT INTO sent_resumes (applicant_id, name) VALUES (:a, 'x')"),
+                                  {"a": uuid.UUID(me.split("/")[2])})
+            await session.commit()
+
+
+def test_a_snapshot_reads_back_as_the_view_it_was():
+    from app.services.resume_render.sample import VIEW
+    from app.services.resume_view import view_from_json
+
+    assert view_from_json(json.loads(json.dumps(dataclasses.asdict(VIEW), default=str))) == VIEW
 
 
 async def test_an_uploaded_resume_no_sent_resume_uses_is_removed_with_its_file(student, storage):
@@ -247,13 +388,17 @@ async def test_apply_to_a_posting_the_jobs_page_does_not_list_is_404(student, st
     assert (await client.get(f"{me}/sent-resumes")).json() == []
 
 
-async def test_deleting_a_built_sent_resume_removes_its_file(student, storage, renders, posting):
+async def test_a_snapshot_goes_with_the_last_sent_resume_that_uses_it(student, storage, renders, posting, database):
     client, me = student
-    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
+    built = await _generate(client, me)
+    another = await _seed_posting(database, "https://example.com/another")
+    first, second = [(await client.post(f"{me}/sent-resumes", json=_to(job, built_resume_id=built))).json()
+                     for job in (posting, another)]
 
-    assert (await client.delete(f"{me}/sent-resumes/{sent['id']}")).status_code == 204
-
-    assert storage.files == {}
+    assert (await client.delete(f"{me}/sent-resumes/{first['id']}")).status_code == 204
+    assert len(await _snapshots(database)) == 1  # the other still uses it
+    assert (await client.delete(f"{me}/sent-resumes/{second['id']}")).status_code == 204
+    assert await _snapshots(database) == []
     assert (await client.get(f"{me}/sent-resumes")).json() == []
 
 
@@ -268,7 +413,7 @@ async def test_a_fresh_render_reports_the_characters_the_font_lacks(student, sto
     assert (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()["missing_characters"] == []
 
 
-async def test_nothing_is_kept_when_the_pdf_cannot_be_made_or_saved(student, storage, monkeypatch, posting):
+async def test_nothing_is_kept_when_the_pdf_cannot_be_made(student, storage, monkeypatch, posting, database):
     from app.services.resume_render import TectonicUnavailable
 
     def missing(view, identity, template):
@@ -279,16 +424,23 @@ async def test_nothing_is_kept_when_the_pdf_cannot_be_made_or_saved(student, sto
     built = await _generate(client, me)
     res = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))
     assert res.status_code == 503
-
-    monkeypatch.setattr("app.services.sent_resumes.render", lambda v, i, t: Rendered(b"%PDF", 1, ()))
-
-    def refuse(path, contents, options):
-        raise RuntimeError("bucket said no")
-
-    monkeypatch.setattr(storage, "upload", refuse)
-    res = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))
-    assert res.status_code == 502
     assert (await client.get(f"{me}/sent-resumes")).json() == []
+    assert await _snapshots(database) == []
+
+
+async def test_a_snapshot_that_cannot_be_rendered_again_is_503_and_stays(student, storage, renders, posting,
+                                                                       monkeypatch):
+    from app.services.resume_render import TectonicUnavailable
+
+    client, me = student
+    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
+
+    def missing(view, identity, template):
+        raise TectonicUnavailable("no tectonic binary")
+
+    monkeypatch.setattr("app.services.sent_resumes.render", missing)
+    assert (await client.get(f"{me}/sent-resumes/{sent['id']}/file")).status_code == 503
+    assert [s["id"] for s in (await client.get(f"{me}/sent-resumes")).json()] == [sent["id"]]
 
 
 async def test_another_students_sent_resumes_are_out_of_reach(student, storage, renders, database, posting):
@@ -308,7 +460,7 @@ async def test_another_students_sent_resumes_are_out_of_reach(student, storage, 
     assert (await client.delete(f"{me}/sent-resumes/{theirs['id']}")).status_code == 404
 
 
-async def test_a_real_send_keeps_the_rendered_pdf(student, storage, posting):
+async def test_a_real_send_renders_the_same_pdf_when_opened(student, storage, posting):
     from tests.test_built_resumes import _tectonic_or_skip
 
     _tectonic_or_skip()
@@ -321,9 +473,9 @@ async def test_a_real_send_keeps_the_rendered_pdf(student, storage, posting):
 
     from pdfminer.high_level import extract_text
 
-    [pdf] = storage.files.values()
-    text = " ".join(extract_text(io.BytesIO(pdf)).split())
-    assert "Sam Seeker" in text and "Cut page load time by 30%" in text
+    for body in (res.json(), (await client.get(f"{me}/sent-resumes/{res.json()['id']}/file")).json()):
+        words = " ".join(extract_text(io.BytesIO(_pdf(body))).split())
+        assert "Sam Seeker" in words and "Cut page load time by 30%" in words
 
 
 async def _seed_posting(database, apply_url: str = "https://example.com/apply") -> str:

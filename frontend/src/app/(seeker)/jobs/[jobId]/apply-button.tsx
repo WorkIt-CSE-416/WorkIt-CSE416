@@ -16,6 +16,7 @@ import {
 import { Button, buttonClasses } from "@/components/ui/button";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { listResumes } from "@/lib/resume-actions";
+import { saveSentFile } from "@/lib/save-file";
 import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
 
 import { markApplied } from "../actions";
@@ -210,14 +211,12 @@ export function ApplyButton({
                 </p>
               )}
               <DialogFooter>
-                <a
-                  href={sent.url}
-                  rel="noopener"
-                  className={buttonClasses({ variant: "secondary" })}
-                >
+                {/* A built resume's file comes as the PDF itself (a snapshot,
+                    KAN-267), an uploaded one's as a Storage link. */}
+                <Button variant="secondary" onClick={() => saveSentFile(sent)}>
                   <FileDown className="size-4" />
                   Download Resume
-                </a>
+                </Button>
                 {employerLink("Open the Posting", "default")}
               </DialogFooter>
             </>
