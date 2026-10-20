@@ -13,9 +13,22 @@ export const metadata: Metadata = {
   description: "Tell us what you're looking for so we can match you with the right roles.",
 };
 
+/** The month each season starts, 0 for January. */
+const SEASON_START: Record<string, number> = { winter: 0, spring: 2, summer: 5, fall: 8 };
+
+/** Start Date offers only seasons still ahead (KAN-275): a bare year ("2027",
+ *  postings that name no season) says nothing a student can plan by, and a
+ *  season already under way (Fall 2026 in October) is too late to start. All
+ *  Filters still offers both. A month is coarse enough that the server's UTC
+ *  clock does not matter. */
+function upcoming({ value }: { value: string }) {
+  const [season, year] = value.split("-");
+  return year != null && new Date(Number(year), SEASON_START[season]) > new Date();
+}
+
 /**
  * /onboarding/applicant — where sign-in sends a seeker until they finish it.
- * Continue leads to intake (./bank, KAN-214), whose Finish opens /jobs.
+ * Its last step uploads a resume (KAN-275), then opens /jobs.
  *
  * Outside both shells, like /login: a first-time user has no top bar to sit
  * under yet. The whole screen is ./onboarding-form: the question on the left,
@@ -23,10 +36,12 @@ export const metadata: Metadata = {
  *
  * Sign-in sends only an applicant who hasn't finished onboarding here
  * (docs/auth.md); signed out goes to sign-in. A finished applicant can still
- * come back, from intake's "Back to Pay & Visa" (?step=2): the form opens on
- * their saved answers, at the second step, and Continue saves the edits. The
- * second step is honoured only with saved answers, since the first holds the
- * answers that must be given and Continue on the second saves without them.
+ * come back by opening this page again: the form opens on their saved
+ * answers, and Continue saves the edits. ?step=2 opens it on the second
+ * step; intake's "Back to Pay & Visa" linked there until KAN-275 took intake
+ * out of onboarding. The second step is honoured only with saved answers,
+ * since the first holds the answers that must be given and Continue on the
+ * last saves without them.
  *
  * The Role and Location pickers offer what the Jobs page's filters offer, from
  * the same cached API calls (../../(seeker)/jobs/listings). Either comes back
@@ -57,7 +72,7 @@ export default async function ApplicantOnboardingPage({
         count: p.jobs,
         nested: p.code.includes("-"),
       }))}
-      seasons={facets.start_term.map((t) => ({
+      seasons={facets.start_term.filter(upcoming).map((t) => ({
         value: t.value,
         label: seasonLabel(t.value),
         count: t.jobs,

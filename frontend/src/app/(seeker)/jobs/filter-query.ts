@@ -10,7 +10,7 @@ import type { JobType, WorkStyle } from "./data";
  * codes), ?work_style=, ?role=, ?experience=, ?job_type= (repeated, any of),
  * ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or
  * year, a range either end of which may be open), ?start_term= (seasons,
- * "summer-2027", repeated), ?visa= (sponsors or not_ruled_out) and
+ * "summer-2027", repeated), ?visa= (sponsors) and
  * ?auto_apply=true (only job postings auto apply can fill).
  *
  * READING DROPS WHAT THE API WOULD REFUSE. A value outside the options, a
@@ -21,7 +21,7 @@ import type { JobType, WorkStyle } from "./data";
 
 export type Level = "student" | "new_grad" | "experienced";
 export type PayPer = "hour" | "year";
-export type Visa = "sponsors" | "not_ruled_out";
+export type Visa = "sponsors";
 
 export type FeedFilters = {
   places: string[];
@@ -138,12 +138,11 @@ export const DATE_POSTED_OPTIONS: { value: number; label: string }[] = [
   { value: 30, label: "Past Month" },
 ];
 
-/** "Sponsors Visas" keeps postings that say they sponsor (a few percent of the
- *  feed); "Hide Jobs That Rule Me Out" drops the ones that say they don't, or
- *  want US citizens only, and keeps the many that say nothing (KAN-168). */
+/** "Sponsors Visas" keeps postings that say they sponsor, a few percent of
+ *  the feed (KAN-168). "Hide Jobs That Rule Me Out", which kept the many that
+ *  say nothing too, went in KAN-275: two visa filters read as one. */
 export const VISA_OPTIONS: { value: Visa; label: string }[] = [
   { value: "sponsors", label: "Sponsors Visas" },
-  { value: "not_ruled_out", label: "Hide Jobs That Rule Me Out" },
 ];
 
 /** Picked from the feed's own pay (2026-10-09): an internship tops out around

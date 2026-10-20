@@ -376,7 +376,7 @@ with **and**.
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
 | `start_term` | `summer-2027` | That season; seasons that have ended aren't offered |
-| `visa` | `sponsors` | Says it sponsors. `not_ruled_out` keeps job postings that sponsor or don't say |
+| `visa` | `sponsors` | Says it sponsors. `not_ruled_out` (sponsors or doesn't say) went in KAN-275 |
 | `auto_apply` | `true` | Only job postings auto apply can fill: `auto_apply` true (section 6), Greenhouse for now |
 | `q` | `swe intern stripe` | A company it names by whole name (a typo corrected) narrows to that company's jobs; the roles it names (typos corrected) narrow to jobs tagged with them or whose title says the words that named them ("software" finds "Embedded Software Engineer"); "intern", "new grad", "remote", "summer 2027" and the like narrow their own columns (a start term and "remote" also match a title saying them); every other word must be in the job posting's text or its company's name. Newest first, like the rest of the feed |
 | `limit`, `offset` | `51`, `50` | Paging, for Load More |
