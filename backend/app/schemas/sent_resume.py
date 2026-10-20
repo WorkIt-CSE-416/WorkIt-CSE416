@@ -1,29 +1,25 @@
 """Request/response shapes for sent resumes (KAN-208)."""
 
 import datetime
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, model_validator
 
 
 class SentResumeCreate(BaseModel):
-    """POST body: exactly one source, a built resume (a PDF download, or
-    Apply) or an uploaded resume (Apply only), and for Apply the job posting
-    the sent resume is linked to (KAN-220). `format` is the file a built
-    resume is downloaded as; an uploaded resume is its own file."""
+    """POST body: exactly one source, a built resume or an uploaded resume,
+    and the job posting it went to (Apply, KAN-220). Only a send keeps a sent
+    resume: a download keeps nothing (KAN-267), so the posting is required.
+    A built resume goes as a PDF; an uploaded resume is its own file."""
 
     built_resume_id: UUID | None = None
     uploaded_resume_id: UUID | None = None
-    job_posting_id: UUID | None = None
-    format: Literal["pdf", "docx"] = "pdf"
+    job_posting_id: UUID
 
     @model_validator(mode="after")
     def _one_source(self) -> "SentResumeCreate":
         if (self.built_resume_id is None) == (self.uploaded_resume_id is None):
             raise ValueError("Give exactly one of built_resume_id and uploaded_resume_id")
-        if self.uploaded_resume_id is not None and self.format != "pdf":
-            raise ValueError("An uploaded resume is sent as its own file")
         return self
 
 
@@ -36,7 +32,8 @@ class SentResumeResponse(BaseModel):
     uploaded_resume_id: UUID | None
     job_posting_id: UUID | None
     created_at: datetime.datetime
-    # The kept file's kind, read from its path: "pdf" or "docx".
+    # The kept file's kind, read from its path: "pdf", or "docx" for a Word
+    # download kept before KAN-267.
     format: str
 
     @classmethod

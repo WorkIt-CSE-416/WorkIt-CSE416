@@ -333,8 +333,8 @@ change here must keep:
 
 ## Sent resumes
 
-`sent_resume.py` (KAN-208): the exact file a student downloaded or applied
-with. Rationale in `../../../docs/resume.md`, "Sent resumes". Invariants:
+`sent_resume.py` (KAN-208): the exact file a student applied with (a
+download kept one too until KAN-267; those rows stay, with no job posting). Rationale in `../../../docs/resume.md`, "Sent resumes". Invariants:
 
 - **A row never changes after it is written**, and its file is never
   overwritten. The API lists and deletes sent resumes, never edits them.

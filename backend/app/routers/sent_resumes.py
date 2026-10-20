@@ -5,17 +5,17 @@ file stays) live in `app/services/sent_resumes.py`. Storage goes through this
 module's `get_supabase()`, so tests patch it here.
 
 POST   /applicants/{id}/sent-resumes            SentResumeCreate
-       {built_resume_id | uploaded_resume_id, job_posting_id?, format?}
-       -> 201 SentResumeDownload: a download, kept as a sent resume: a PDF,
-          or with format "docx" a Word file (a built resume only, else
-          422). Every download the student makes comes through here;
-          GET .../built-resumes/{rid}/render and /docx return the file
-          unkept, for the editor's preview and the tests.
-          With `job_posting_id` it is Apply (KAN-220): the sent resume is
-          linked to that posting. An uploaded resume (Apply only) makes no
-          new file; the sent resume points at the uploaded resume's file.
-       -> 200 SentResumeDownload: the same content was sent before from this
-          built resume; the last sent resume comes back, with no new file.
+       {built_resume_id | uploaded_resume_id, job_posting_id}
+       -> 201 SentResumeDownload: Apply (KAN-220), the resume kept as a
+          sent resume linked to that posting. A built resume is rendered to
+          a PDF; an uploaded resume makes no new file, the sent resume
+          points at the uploaded resume's file. Only a send comes through
+          here: the editor's Download takes GET .../built-resumes/{rid}/render
+          or /docx and keeps nothing (KAN-267), so `job_posting_id` is
+          required (422 without it).
+       -> 200 SentResumeDownload: the same content was sent to this posting
+          before from this built resume; the last sent resume comes back,
+          with no new file.
        SentResumeDownload is the sent resume plus `url` (a 5-minute link that
        downloads the file) and `missing_characters` (the font lacks them; a
        repeat answers []). 422 unless exactly one source is given. 404 for a
@@ -86,7 +86,7 @@ async def send(
         else:
             sent = await service.send_built(
                 session, get_supabase().storage, applicant_id, body.built_resume_id,
-                job_posting_id=body.job_posting_id, file_format=body.format)
+                job_posting_id=body.job_posting_id)
     except NotFound:
         raise HTTPException(404, "Resume not found")
     except TectonicUnavailable as exc:

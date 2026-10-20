@@ -690,7 +690,7 @@ resumes (`listBuiltResumes()`) come first, then uploaded ones
 (`listResumes()`), each list's default first. Each row is the Resumes
 view's 52px box (`RESUME_ROW`) with Default, Tailored or Posting closed badges. A
 built resume's Open goes to the resume editor, as on Resumes; it never
-downloads here, since every download keeps a sent resume. An uploaded one
+downloads here: downloads live in the editor. An uploaded one
 previews or downloads (`previewResume`). Manage goes to Resumes
 (`/resumes`), where uploads live too, and the empty state names it. Both
 lists load on every visit; a list that fails keeps what loaded and says the
@@ -1367,9 +1367,9 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   already sent from it.
 - **No Sent card since 2026-10-18.** It listed every file the student
   downloaded or applied with (KAN-208), to download again or delete. Sent
-  resumes are still kept, on every download and Apply, and a job posting's
-  page still says "You sent <name> on <date>"; no screen lists them all or
-  deletes one now.
+  resumes are still kept on every Apply (a download keeps nothing since
+  KAN-267), and a job posting's page still says "You sent <name> on
+  <date>"; no screen lists them all or deletes one now.
 
 ## Resume editor
 

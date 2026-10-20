@@ -318,19 +318,21 @@ Find files with a directory listing; these are the rules for where code goes.
   about 8 lines were hidden), and without it a test resume lost 3 items
   it had room for. Undo sends the response's `undo` body. Tests:
   `tests/test_resume_editor.py`.
-- **Every download is a sent resume** (KAN-208): `POST
-  /applicants/{id}/sent-resumes` renders through `services/sent_resumes.py`,
-  which hashes the view, template and header text first and returns the last
-  sent resume on a repeat for the same built resume. `format: "docx"`
-  keeps the Word file the same way (its hash adds the format, so a PDF and
-  a Word file of one resume are two sent resumes; a built resume only).
-  `GET .../render` and `.../docx` return the file unkept: the editor's
-  preview and the tests read them, and no download button calls them. The service takes the
+- **Only a send is a sent resume; a download keeps nothing** (KAN-267).
+  The editor's Download takes `GET .../built-resumes/{rid}/render` (the PDF,
+  base64, with its `file_name`) or `.../docx` and stores nothing. Every
+  download was kept as a sent resume (KAN-208) until then, PDF or Word,
+  which filled the bucket with files no employer saw. **Apply** (KAN-220)
+  is `POST /applicants/{id}/sent-resumes` with `job_posting_id`, now
+  required (422 without it), and exactly one of `built_resume_id` or
+  `uploaded_resume_id` (422 otherwise; 404 for a posting the Jobs page does
+  not list). A built resume renders a PDF through `services/sent_resumes.py`,
+  which hashes the view, template and header text first and returns the
+  last sent resume on a repeat for the same built resume and posting.
+  Sends are PDFs only: `format` went with the Word downloads, and Word
+  sent resumes kept before stay as they are. The service takes the
   Storage client from the router and flushes, never commits; when a new row's
-  commit fails, the router removes the uploaded file. **Apply** (KAN-220) is
-  the same POST with `job_posting_id` and exactly one of `built_resume_id`
-  or `uploaded_resume_id` (422 otherwise; 404 for a posting the Jobs page
-  does not list). An uploaded resume makes no new file, so a failed commit must not
+  commit fails, the router removes the uploaded file. An uploaded resume makes no new file, so a failed commit must not
   remove its file: the router removes only a built sent resume's. **A stored file
   is removed only when `file_in_use` says no row needs it**: the uploaded
   resume delete and the sent resume delete both check it, because a sent

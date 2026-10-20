@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { deleteSentResume, sendBuiltResume, type SentDownload } from "@/lib/sent-resume-actions";
+import { downloadWordResume, renderResumePdf, type ResumeFile } from "@/lib/built-resume-actions";
 
 type Format = "pdf" | "docx";
 
@@ -23,44 +23,60 @@ export function openDownload(url: string) {
   link.click();
 }
 
+/** Saves a file the API sent as base64, under its name. */
+function saveFile({ data, contentType, fileName }: ResumeFile) {
+  const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  // After the click has handed the file to the browser's download.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /**
  * A built resume's download, PDF or Word, in the resume editor: it sat on
  * every row of the Resumes view until KAN-258, where it crowded each card.
- * Every download keeps a sent resume (KAN-208) and comes back as a Storage
- * link. A PDF whose text has characters the font cannot draw is held for
- * Download Anyway (user story 53); Cancel deletes the sent resume it just
- * made, so the kept sent resumes are only files the student took.
+ * A download keeps nothing (KAN-267): the API renders the file and the
+ * browser saves it. Every download was kept as a sent resume until then,
+ * which filled Storage with files no employer saw; Apply keeps what is
+ * sent (`applyWithResume`). A PDF whose text has characters the font cannot
+ * draw is held for Download Anyway (user story 53); Cancel drops it.
  */
 export function useResumeDownload(resumeId: string) {
   const [busy, setBusy] = useState<Format | null>(null);
-  const [held, setHeld] = useState<SentDownload | null>(null);
+  const [held, setHeld] = useState<(ResumeFile & { missing_characters: string[] }) | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function pick(format: Format) {
     setBusy(format);
     setError(null);
     setHeld(null);
-    const { data, error } = await sendBuiltResume(resumeId, format);
+    if (format === "docx") {
+      const { data, error } = await downloadWordResume(resumeId);
+      setBusy(null);
+      return data ? saveFile(data) : setError(error);
+    }
+    const { data, error } = await renderResumePdf(resumeId);
     setBusy(null);
     if (!data) return setError(error);
+    const file = { data: data.pdf, contentType: "application/pdf", fileName: data.file_name };
     // Only a PDF waits at the warning (user story 53).
-    if (format === "pdf" && data.missing_characters.length) return setHeld(data);
-    openDownload(data.url);
+    if (data.missing_characters.length) {
+      return setHeld({ ...file, missing_characters: data.missing_characters });
+    }
+    saveFile(file);
   }
 
   function keep() {
     if (!held) return;
-    openDownload(held.url);
+    saveFile(held);
     setHeld(null);
   }
 
-  // The student did not take the file: it was not sent.
-  async function cancel() {
-    if (!held) return;
+  function cancel() {
     setHeld(null);
-    if (!held.created) return;
-    const { error } = await deleteSentResume(held.id);
-    if (error) setError(error);
   }
 
   return { busy, held, error, pick, keep, cancel };

@@ -58,6 +58,17 @@ def storage(monkeypatch):
 
 
 @pytest.fixture
+async def posting(database):
+    """A listed job posting to send to: only a send keeps a sent resume
+    (KAN-267), and every send names its posting."""
+    return await _seed_posting(database, f"https://example.com/{uuid.uuid4()}")
+
+
+def _to(posting, **source):
+    return {**source, "job_posting_id": posting}
+
+
+@pytest.fixture
 def renders(monkeypatch):
     """Replaces Tectonic: each render's PDF names the view's first bullet, so
     a changed bank gives a changed file. The list counts the calls."""
@@ -73,19 +84,19 @@ def renders(monkeypatch):
     return calls
 
 
-async def test_a_download_keeps_a_sent_resume_the_sent_list_shows(student, storage, renders):
+async def test_a_send_keeps_a_sent_resume_the_sent_list_shows(student, storage, renders, posting):
     client, me = student
     await _fill_bank(client, me)
     built = await _generate(client, me, "General SWE")
 
-    res = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})
+    res = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))
 
     assert res.status_code == 201
     sent = res.json()
     assert sent["name"] == "General SWE"
     assert sent["built_resume_id"] == built
     assert sent["uploaded_resume_id"] is None
-    assert sent["job_posting_id"] is None
+    assert sent["job_posting_id"] == posting
     assert sent["missing_characters"] == []
     assert sent["url"].startswith("https://storage.test/")
     assert "download=General SWE.pdf" in sent["url"]
@@ -98,44 +109,26 @@ async def test_a_download_keeps_a_sent_resume_the_sent_list_shows(student, stora
     assert [(s["id"], s["name"]) for s in listed] == [(sent["id"], "General SWE")]
 
 
-async def test_a_word_download_keeps_a_sent_resume_too(student, storage, renders):
-    from tests.test_built_resumes import _docx_lines
-
+async def test_a_download_is_not_a_send(student, storage, renders):
+    """KAN-267: every download was kept as a sent resume, PDF or Word, and
+    filled Storage with files no employer saw. The editor's Download takes
+    .../render or .../docx, which keep nothing; a send names its posting."""
     client, me = student
-    await _fill_bank(client, me)
-    built = await _generate(client, me, "General SWE")
+    built = await _generate(client, me)
 
-    res = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built, "format": "docx"})
-
-    assert res.status_code == 201
-    sent = res.json()
-    assert "download=General SWE.docx" in sent["url"]
-    [(path, content)] = storage.files.items()
-    assert path.endswith(".docx")
-    assert sent["format"] == "docx"
-    assert "Sam Seeker" in _docx_lines(content)
-    assert renders == []  # no PDF made
-    # A repeat is the same sent resume; the PDF of the same content is its own.
-    again = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built, "format": "docx"})
-    assert (again.status_code, again.json()["id"]) == (200, sent["id"])
-    assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).status_code == 201
-    assert len((await client.get(f"{me}/sent-resumes")).json()) == 2
+    assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).status_code == 422
+    assert (await client.get(f"{me}/built-resumes/{built}/docx")).status_code == 200
+    assert storage.files == {} and renders == []
+    assert (await client.get(f"{me}/sent-resumes")).json() == []
 
 
-async def test_an_uploaded_resume_has_no_word_download(student, storage):
-    client, me = student
-    uploaded = (await _upload(client, me)).json()
-    body = {"uploaded_resume_id": uploaded["id"], "format": "docx"}
-    assert (await client.post(f"{me}/sent-resumes", json=body)).status_code == 422
-
-
-async def test_a_repeat_download_of_the_same_content_returns_the_last_sent_resume(student, storage, renders):
+async def test_a_repeat_send_of_the_same_content_returns_the_last_sent_resume(student, storage, renders, posting):
     client, me = student
     await _fill_bank(client, me)
     built = await _generate(client, me)
-    first = (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).json()
+    first = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()
 
-    again = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})
+    again = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))
 
     assert again.status_code == 200
     assert again.json()["id"] == first["id"]
@@ -144,11 +137,11 @@ async def test_a_repeat_download_of_the_same_content_returns_the_last_sent_resum
     assert len((await client.get(f"{me}/sent-resumes")).json()) == 1
 
 
-async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(student, storage, renders):
+async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(student, storage, renders, posting):
     client, me = student
     await _fill_bank(client, me)
     built = await _generate(client, me, "First")
-    first = (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).json()
+    first = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()
 
     # The same content from another built resume is its own sent resume.
     # Generate refuses a copy (KAN-267), so the second gets there by an edit:
@@ -157,13 +150,13 @@ async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(s
     other = await _generate(client, me, "Second")
     hide = {"skills": [{"skill_id": skill, "shown": False}]}
     assert (await client.patch(f"{me}/built-resumes/{other}/choices", json=hide)).status_code == 200
-    assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": other})).status_code == 201
+    assert (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=other))).status_code == 201
 
     # A fix in the bank changes the view, so the next download is new...
     bank = (await client.get(f"{me}/bank")).json()
     bullet = next(e for e in bank["entries"] if e["bullets"])["bullets"][0]
     await client.patch(f"{me}/bank/bullets/{bullet['id']}", json={"text": "Rewrote the bullet"})
-    changed = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})
+    changed = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))
     assert changed.status_code == 201
     assert changed.json()["id"] != first["id"]
 
@@ -174,10 +167,10 @@ async def test_changed_content_or_another_built_resume_makes_a_new_sent_resume(s
     assert [s["name"] for s in listed] == ["First", "Second", "First"]
 
 
-async def test_a_sent_resume_stays_when_its_built_resume_is_deleted(student, storage, renders):
+async def test_a_sent_resume_stays_when_its_built_resume_is_deleted(student, storage, renders, posting):
     client, me = student
     built = await _generate(client, me, "Old Resume")
-    sent = (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).json()
+    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()
 
     assert (await client.delete(f"{me}/built-resumes/{built}")).status_code == 204
 
@@ -188,21 +181,22 @@ async def test_a_sent_resume_stays_when_its_built_resume_is_deleted(student, sto
     assert "download=Old Resume.pdf" in url
 
 
-async def _send_uploaded(database, me, resume_id):
+async def _send_uploaded(database, me, resume_id, posting):
     from app.services import sent_resumes
 
     async with database() as session:
-        sent = await sent_resumes.send_uploaded(session, uuid.UUID(me.split("/")[2]), uuid.UUID(resume_id))
+        sent = await sent_resumes.send_uploaded(
+            session, uuid.UUID(me.split("/")[2]), uuid.UUID(resume_id), job_posting_id=uuid.UUID(posting))
         await session.commit()
         return sent
 
 
-async def test_an_uploaded_resumes_file_stays_while_a_sent_resume_uses_it(student, storage, database):
+async def test_an_uploaded_resumes_file_stays_while_a_sent_resume_uses_it(student, storage, database, posting):
     client, me = student
     uploaded = (await _upload(client, me)).json()
-    sent = await _send_uploaded(database, me, uploaded["id"])
+    sent = await _send_uploaded(database, me, uploaded["id"], posting)
     assert sent.row.storage_path == uploaded["storage_path"]
-    assert (await _send_uploaded(database, me, uploaded["id"])).row.id == sent.row.id  # a repeat
+    assert (await _send_uploaded(database, me, uploaded["id"], posting)).row.id == sent.row.id  # a repeat
 
     assert (await client.delete(f"{me}/resumes/{uploaded['id']}")).status_code == 200
 
@@ -225,10 +219,10 @@ async def test_an_uploaded_resume_no_sent_resume_uses_is_removed_with_its_file(s
     assert storage.removed == [uploaded["storage_path"]]
 
 
-async def test_deleting_a_sent_resume_keeps_a_file_its_uploaded_resume_still_has(student, storage, database):
+async def test_deleting_a_sent_resume_keeps_a_file_its_uploaded_resume_still_has(student, storage, database, posting):
     client, me = student
     uploaded = (await _upload(client, me)).json()
-    sent = await _send_uploaded(database, me, uploaded["id"])
+    sent = await _send_uploaded(database, me, uploaded["id"], posting)
 
     assert (await client.delete(f"{me}/sent-resumes/{sent.row.id}")).status_code == 204
 
@@ -253,9 +247,9 @@ async def test_apply_to_a_posting_the_jobs_page_does_not_list_is_404(student, st
     assert (await client.get(f"{me}/sent-resumes")).json() == []
 
 
-async def test_deleting_a_built_sent_resume_removes_its_file(student, storage, renders):
+async def test_deleting_a_built_sent_resume_removes_its_file(student, storage, renders, posting):
     client, me = student
-    sent = (await client.post(f"{me}/sent-resumes", json={"built_resume_id": await _generate(client, me)})).json()
+    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
 
     assert (await client.delete(f"{me}/sent-resumes/{sent['id']}")).status_code == 204
 
@@ -263,18 +257,18 @@ async def test_deleting_a_built_sent_resume_removes_its_file(student, storage, r
     assert (await client.get(f"{me}/sent-resumes")).json() == []
 
 
-async def test_a_fresh_render_reports_the_characters_the_font_lacks(student, storage, renders):
+async def test_a_fresh_render_reports_the_characters_the_font_lacks(student, storage, renders, posting):
     client, me = student
     await client.post(f"{me}/bank/entries", json={"section": "leadership", "title": "Chess Society",
                                                   "bullets": ["Президент of the club"]})
     built = await _generate(client, me)
-    res = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})
+    res = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))
     assert res.json()["missing_characters"] == ["П"]
     # The student took that file once; a repeat does not warn again.
-    assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).json()["missing_characters"] == []
+    assert (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()["missing_characters"] == []
 
 
-async def test_nothing_is_kept_when_the_pdf_cannot_be_made_or_saved(student, storage, monkeypatch):
+async def test_nothing_is_kept_when_the_pdf_cannot_be_made_or_saved(student, storage, monkeypatch, posting):
     from app.services.resume_render import TectonicUnavailable
 
     def missing(view, identity, template):
@@ -283,7 +277,7 @@ async def test_nothing_is_kept_when_the_pdf_cannot_be_made_or_saved(student, sto
     monkeypatch.setattr("app.services.sent_resumes.render", missing)
     client, me = student
     built = await _generate(client, me)
-    res = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})
+    res = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))
     assert res.status_code == 503
 
     monkeypatch.setattr("app.services.sent_resumes.render", lambda v, i, t: Rendered(b"%PDF", 1, ()))
@@ -292,12 +286,12 @@ async def test_nothing_is_kept_when_the_pdf_cannot_be_made_or_saved(student, sto
         raise RuntimeError("bucket said no")
 
     monkeypatch.setattr(storage, "upload", refuse)
-    res = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})
+    res = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))
     assert res.status_code == 502
     assert (await client.get(f"{me}/sent-resumes")).json() == []
 
 
-async def test_another_students_sent_resumes_are_out_of_reach(student, storage, renders, database):
+async def test_another_students_sent_resumes_are_out_of_reach(student, storage, renders, database, posting):
     from tests.test_built_resumes import _seed_applicant, _sign_in
 
     client, me = student
@@ -305,22 +299,22 @@ async def test_another_students_sent_resumes_are_out_of_reach(student, storage, 
         other = await _seed_applicant(session)
     _sign_in(other)
     theirs_built = await _generate(client, f"/applicants/{other}")
-    theirs = (await client.post(f"/applicants/{other}/sent-resumes", json={"built_resume_id": theirs_built})).json()
+    theirs = (await client.post(f"/applicants/{other}/sent-resumes", json=_to(posting, built_resume_id=theirs_built))).json()
     _sign_in(uuid.UUID(me.split("/")[2]))
 
     assert (await client.get(f"/applicants/{other}/sent-resumes")).status_code == 403
-    assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": theirs_built})).status_code == 404
+    assert (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=theirs_built))).status_code == 404
     assert (await client.get(f"{me}/sent-resumes/{theirs['id']}/file")).status_code == 404
     assert (await client.delete(f"{me}/sent-resumes/{theirs['id']}")).status_code == 404
 
 
-async def test_a_real_download_keeps_the_rendered_pdf(student, storage):
+async def test_a_real_send_keeps_the_rendered_pdf(student, storage, posting):
     from tests.test_built_resumes import _tectonic_or_skip
 
     _tectonic_or_skip()
     client, me = student
     await _fill_bank(client, me)
-    res = await client.post(f"{me}/sent-resumes", json={"built_resume_id": await _generate(client, me)})
+    res = await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))
     assert res.status_code == 201
 
     import io
@@ -359,13 +353,14 @@ async def test_apply_with_a_built_resume_keeps_a_sent_resume_linked_to_the_posti
     assert res.status_code == 201
     sent = res.json()
     assert (sent["built_resume_id"], sent["job_posting_id"]) == (built, posting)
-    # The same file downloaded with no posting is its own sent resume.
-    assert (await client.post(f"{me}/sent-resumes", json={"built_resume_id": built})).status_code == 201
+    # The same file sent to another posting is its own sent resume.
+    another = await _seed_posting(database, "https://example.com/another")
+    assert (await client.post(f"{me}/sent-resumes", json=_to(another, built_resume_id=built))).status_code == 201
     # A second Apply to the same posting with unchanged content is a repeat.
     again = await client.post(f"{me}/sent-resumes", json={"built_resume_id": built, "job_posting_id": posting})
     assert (again.status_code, again.json()["id"]) == (200, sent["id"])
     listed = (await client.get(f"{me}/sent-resumes")).json()
-    assert sorted(str(s["job_posting_id"]) for s in listed) == sorted([posting, "None"])
+    assert sorted(s["job_posting_id"] for s in listed) == sorted([posting, another])
 
 
 async def test_apply_with_an_uploaded_resume_points_at_its_stored_file(student, storage, database):
@@ -387,7 +382,7 @@ async def test_apply_with_an_uploaded_resume_points_at_its_stored_file(student, 
     assert (again.status_code, again.json()["id"]) == (200, sent["id"])
 
 
-async def test_apply_needs_exactly_one_resume_and_a_real_posting(student, storage, renders, database):
+async def test_apply_needs_exactly_one_resume_and_a_real_posting(student, storage, renders, database, posting):
     client, me = student
     built = await _generate(client, me)
     uploaded = (await _upload(client, me)).json()
@@ -397,5 +392,5 @@ async def test_apply_needs_exactly_one_resume_and_a_real_posting(student, storag
     assert (await client.post(f"{me}/sent-resumes", json=both)).status_code == 422
     missing = {"uploaded_resume_id": uploaded["id"], "job_posting_id": str(uuid.uuid4())}
     assert (await client.post(f"{me}/sent-resumes", json=missing)).status_code == 404
-    assert (await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": str(uuid.uuid4())})).status_code == 404
+    assert (await client.post(f"{me}/sent-resumes", json=_to(posting, uploaded_resume_id=str(uuid.uuid4())))).status_code == 404
     assert (await client.get(f"{me}/sent-resumes")).json() == []

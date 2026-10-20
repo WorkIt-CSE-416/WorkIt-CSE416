@@ -1,6 +1,7 @@
 '''
-Sent resumes (KAN-208): the exact file a student downloaded or applied with,
-kept unchanged from that moment. Rows are written only through
+Sent resumes (KAN-208): the exact file a student applied with, kept
+unchanged from that moment. Downloads were kept too until KAN-267; their
+rows stay, with no job posting. Rows are written only through
 `app/services/sent_resumes.py`.
 '''
 import uuid as _uuid

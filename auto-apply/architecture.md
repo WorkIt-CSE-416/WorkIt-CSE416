@@ -39,7 +39,7 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 | **Tailored resume** | A built resume for one job posting (`built_resumes.job_posting_id`), made with Tailor (KAN-217). At most one per job posting |
 | **Uploaded resume** | A file the student uploaded (`resumes`). Its default is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
 | **Default resume** | The one resume the student starred, a built (base or tailored) or an uploaded one: the Resumes view calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two. A student's only resume is the default with no star click (`built_resumes.default_if_only`, on every add and delete) |
-| **Sent resume** | The exact file a student downloaded or applied with, kept in `sent_resumes` (KAN-208). With `job_posting_id` it records what went to that job posting (Apply, KAN-220) |
+| **Sent resume** | The exact file a student applied with, kept in `sent_resumes` (KAN-208): what went to one job posting (Apply, KAN-220, or auto apply). A download keeps nothing (KAN-267) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
 | **Run** | The extension working through the queue, one application at a time |

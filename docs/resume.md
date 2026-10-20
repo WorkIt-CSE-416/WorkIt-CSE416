@@ -159,8 +159,8 @@ This section describes what is built. `sent_resume.md` is the KAN-267 plan
 that replaces it: snapshots for built resumes, a link from each application,
 and duplicate checks.
 
-A sent resume is the exact file a student downloaded or applied with, kept
-unchanged. Built resumes are live views, so without it there would be no
+A sent resume is the exact file a student applied with, kept unchanged. A
+download kept one too until KAN-267; now it keeps nothing. Built resumes are live views, so without it there would be no
 record of what an employer actually received.
 
 ```
@@ -170,12 +170,12 @@ applicant_profiles
         └─ uploaded_resume_id  → resumes        (ON DELETE SET NULL)
 ```
 
-- **The file is stored, not re-rendered.** A PDF download renders once and
-  puts the PDF in the `Resume` bucket at `{applicant}/sent/{id}.pdf`. A bank
+- **The file is stored, not re-rendered.** An Apply with a built resume
+  renders once and puts the PDF in the `Resume` bucket at `{applicant}/sent/{id}.pdf`. A bank
   fix, a template change or a renderer upgrade never changes it.
 - **Repeats merge by a hash taken before rendering**: the view, the template
   id and the header's identity text (sha256). The same hash for the same
-  built resume (and the same job posting, null for a download) returns the
+  built resume and the same job posting returns the
   last sent resume, with no render and no upload, so the kept files stay
   few. The name is not in the hash: it is not printed on the page.
 - **The sources are a record, not an owner.** Deleting the built or uploaded
@@ -188,11 +188,13 @@ applicant_profiles
 - **Apply keeps a sent resume linked to the posting** (KAN-220). On the
   Jobs page posting detail, Apply Now asks for a resume (a base resume, the
   one tailored to that posting, or an uploaded resume), keeps it, and then
-  offers the file and the employer's page. A plain download and an Apply
-  of the same content are separate sent resumes: repeats merge only within
-  one posting. Linking the application in the Applications tracker waits
+  offers the file and the employer's page. Repeats merge only within one
+  posting. Linking the application in the Applications tracker waits
   for the tracker's API.
-- **Only the PDF is kept.** The Word download is not a sent resume yet.
+- **A download keeps nothing** (KAN-267). The editor's Download renders
+  the PDF or the Word file and the browser saves it; only a send to a job
+  posting is a sent resume, always a PDF. Rows from downloads kept before
+  then stay, with no job posting.
 
 The rest of this file is the original design for uploaded resumes.
 

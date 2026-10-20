@@ -1,10 +1,12 @@
 # Sent resumes per application (KAN-267)
 
-Status: **design complete; the duplicate checks are built** (build order
-steps 1 and 5, migration `d642d93fcfbc`); the rest is not built. It changes how sent resumes (KAN-208)
+Status: **design complete; built: the duplicate checks and downloads that
+keep nothing** (build order steps 1, 2 and 5, migration `d642d93fcfbc`);
+the rest is not built. It changes how sent resumes (KAN-208)
 are kept, links each application to the resume it went out with, stops
-recording plain downloads, and stops duplicate resumes at upload and at
-Generate. `resume.md`, "Sent resumes", describes what is built today; this
+recording plain downloads, freezes an upload's sent resumes as JSON once
+the upload is replaced or deleted, and stops duplicate resumes at upload
+and at Generate. `resume.md`, "Sent resumes", describes what is built today; this
 file is the plan that replaces it. Every decision is final unless this file
 says otherwise; the decisions are listed at the end.
 
@@ -18,8 +20,13 @@ A student applies with one of two kinds of resume:
 
 | Kind | What we keep | Why |
 |---|---|---|
-| **Uploaded resume** (their own file, at most 5) | A pointer to the file already in Storage (`storage_path`) | The file exists already; pointing at it costs nothing |
+| **Uploaded resume** (their own file, at most 5) | While the upload exists: a pointer to its file (`storage_path`). Once the student replaces or deletes the upload: a parsed copy, gzipped JSON in Postgres, and the file is deleted (flow 9) | While the upload exists its file must stay anyway, so pointing at it costs nothing and is exact. After that, the file would stay only for the record |
 | **Built resume** (generated or tailored by WorkIt) | A frozen copy of its content: gzipped JSON in Postgres, rendered to a PDF again when the student opens it | We made it, so we can make it again; about 2 KB, not a 33 KB PDF |
+
+A built resume's copy is exact. An upload's parsed copy is not: it keeps
+most of the words but loses the layout and any section the parser does not
+know (below, "What a parsed copy keeps"). The page says so when it shows
+one.
 
 A sent resume is a record of **what an employer got**: from Apply Now,
 "Did You Apply?" and auto apply. A plain download from the resume editor is
@@ -46,8 +53,14 @@ Options we rejected:
 
 - **Keep PDFs, but share one file per hash.** About 165 MB for the same
   students. Exact and fast to open, but still 15 times the snapshot size.
-- **Parse uploaded resumes into JSON too.** The uploaded file is already
-  stored and costs nothing more; a parsed copy would only lose formatting.
+- **Parse every uploaded resume into JSON at send time.** While the upload
+  exists, its file is stored anyway, so a parsed copy saves nothing and
+  only loses formatting. A parsed copy replaces the file only once the
+  upload is gone (flow 9).
+- **Freeze an upload's sent resume one month after the job posting
+  closes.** It frees no storage: while the upload exists its file must
+  stay, and once it is replaced or deleted flow 9 has already frozen it.
+  It would only swap an exact record for an approximate one.
 - **Store built resumes themselves as JSON.** A built resume is live: its
   choice rows point at the experience bank, so a bank fix shows on every
   resume (ADR 0001). Only the *sent* copy is frozen. Size is not a reason
@@ -56,13 +69,31 @@ Options we rejected:
   download was the only way a resume left WorkIt. Now every application
   records its own resume, so a download record is only noise in the list.
 
+### What a parsed copy keeps
+
+Measured on the seven real resumes in `backend/tests/fixtures/`, counting
+the content words that reach `bank_import.read`'s result (dates and
+section headings left out, since the parser turns them into fields):
+
+| Layout | Words kept | Lost |
+|---|---|---|
+| 5 single-column layouts | 98–100% | "Minor in Writing", a second major |
+| Two-column layout | 85% | The whole "Career Objective" paragraph, part of one job |
+
+These are the parser's own test files, tuned until they pass, so an unseen
+layout does worse. Always lost: any section it does not read (summary,
+objective, publications, volunteer work, languages, interests), the header
+(the copy prints the profile's), and the layout (it prints in Jake's
+template). A scan with no text reads as nothing; flow 9 then keeps the file.
+
 ## Data model
 
 ```
 applicant_profiles
   ├── resumes            + text_hash (sha256 of the resume's text)
-  ├── resume_snapshots   NEW: one per distinct built-resume content
-  │     content_hash, data (gzipped JSON)        UNIQUE (applicant_id, content_hash)
+  ├── resume_snapshots   NEW: one per distinct content, from a built resume
+  │     or a replaced or deleted upload (`source`)
+  │     content_hash, source, data (gzipped JSON)  UNIQUE (applicant_id, content_hash)
   ├── sent_resumes       one row per send: name then, time, job posting
   │     storage_path  → an uploaded resume's file     ┐ exactly one
   │     snapshot_id   → resume_snapshots              ┘ (new CHECK)
@@ -115,6 +146,7 @@ effect.
 | `id` | uuid PK | `gen_random_uuid()` |
 | `applicant_id` | uuid FK → `applicant_profiles`, `ON DELETE CASCADE` | |
 | `content_hash` | string | sha256 of the snapshot's content (below) |
+| `source` | string | `built` (exact) or `upload` (parsed, approximate); CHECK on the two values. A column, not only a JSON field, so the list can say which without unzipping |
 | `data` | bytea | gzip of the snapshot JSON |
 | `created_at` | timestamptz | |
 
@@ -140,6 +172,9 @@ effect.
 - `built_resume_id`, `uploaded_resume_id`, `job_posting_id` and `name` keep
   their meaning. Every new row has a `job_posting_id`: only sends write
   rows now.
+- **A row changes once, at most**: flow 9 swaps an upload's `storage_path`
+  for a `snapshot_id`. "A sent resume never changes" becomes "its content
+  never changes"; the freeze changes where it is kept.
 
 ### `job_applications.sent_resume_id`
 
@@ -158,8 +193,9 @@ each before the deploy that writes it. Claude writes and checks them with
 `--sql`; the user runs `uv run alembic upgrade head`.
 
 1. `resumes.text_hash` and its partial unique index.
-2. `resume_snapshots` (with RLS), `sent_resumes.snapshot_id`, nullable
-   `storage_path`, the `sent_resumes_one_file` CHECK.
+2. `resume_snapshots` (with RLS and the `source` CHECK),
+   `sent_resumes.snapshot_id`, nullable `storage_path`, the
+   `sent_resumes_one_file` CHECK.
 3. `job_applications.sent_resume_id`.
 
 Downgrade of 2 deletes the sent resumes that have a snapshot (the old table
@@ -196,6 +232,35 @@ sending:
 sha256 of `template`, `identity` and `view`, with sorted keys. Reusing it
 means a new snapshot and an old sent PDF of the same content have the same
 hash.
+
+### An upload's snapshot
+
+Made by flow 9 from the upload's `raw_text`, just before its file is
+replaced or deleted:
+
+```json
+{
+  "v": 1,
+  "source": "upload",
+  "template": "jakes",
+  "identity": { "name": "...", "email": "...", "phone": "...", "links": [] },
+  "view": { "sections": [...], "skills": [...] },
+  "raw_text": "..."
+}
+```
+
+- `view` comes from `bank_import.read(raw_text)`, the reading upload
+  already does, turned into a `ResumeView` by a new
+  `resume_view.view_from_reading(entries, skills)`: sections in `SECTIONS`
+  order, entries and bullets in the file's order, every bullet shown. Ids
+  are made from each item's position, so the same text always gives the
+  same view and the same hash.
+- `identity` is the profile's at the moment of the freeze: the parser does
+  not read the file's header.
+- `raw_text` is kept too (about 1–2 KB gzipped), so the student can read
+  every word of the file even where the parse lost one.
+- `content_hash` is sha256 of the whole JSON above, sorted keys. Two sent
+  resumes of one file get one snapshot.
 
 ### Reading it back
 
@@ -236,8 +301,9 @@ can drift only if the renderer changes:
 `PUT /applicants/{id}/resumes/{rid}` (Import Updated Resume) does the same
 check against every *other* resume of the applicant, then sets the new
 `text_hash`. A file with the same text as the row it replaces is allowed:
-that is how a student swaps in a new layout. The old file stays while a sent
-resume points at it (built today).
+that is how a student swaps in a new layout. Before the row takes the new
+file, flow 9 freezes the sent resumes of the old one, and the old file is
+deleted once nothing uses it.
 
 Frontend: `apiErrorMessage` (`frontend/src/lib/auth.ts`) reads only a string
 `detail`; it learns to read `detail.message`. On the Resumes page a
@@ -373,7 +439,10 @@ since it must build a `File` for the form anyway.
   it without one, so the PDF opens in the browser.
 - **A snapshot row:** gunzip, `view_from_json`, render (about 0.3 s), and
   answer `{"data": "<base64>", "content_type": "application/pdf",
-  "file_name"}`. Nothing is stored.
+  "file_name", "rebuilt"}`. Nothing is stored. `rebuilt` is true for an
+  upload's snapshot: the page then says "Rebuilt from your uploaded file.
+  The layout and some sections may differ from what you sent." with a
+  **Show Original Text** link that shows its `raw_text`.
 
 The frontend turns `data` into a Blob URL (`URL.createObjectURL`) and opens
 or downloads it, the same way the editor's preview already takes base64 from
@@ -396,13 +465,41 @@ Where the student sees it:
   sent resume uses it, or its file if `file_in_use` says nothing does
   (built today for files). No screen deletes one now that downloads keep
   nothing; the route stays.
-- **An uploaded resume:** as today: its file stays while a sent resume points
-  at it. A replaced or deleted upload whose file a sent resume keeps does not
+- **An uploaded resume:** flow 9 freezes its sent resumes, then the row and
+  its file go. When the freeze keeps the file (no text, or nothing read),
+  the file stays as today while a sent resume points at it, and it does not
   count toward the 5.
 - **A built resume:** nothing changes for sent resumes; the snapshot is a
   copy and does not need it.
 - **An application** (unsave, dequeue): the sent resume stays.
 - **The account:** everything cascades from `applicant_profiles`, as today.
+
+### 9. Freeze an upload's sent resumes
+
+When an upload is replaced (flow 1's PUT) or deleted, its file would stay
+only for the sent resumes that point at it. They become snapshots instead,
+and the file goes. New `sent_resumes.freeze_upload(session, applicant_id,
+resume)`, called by both routes **before** the row loses its file:
+
+1. Find the sent resumes whose `storage_path` is the row's current file.
+   None → nothing to do.
+2. Read `resume.raw_text` (it is the current file's text) with
+   `bank_import.read`. Empty text, or a reading with no entries and no
+   skills → **keep the file**: there is nothing to rebuild from, and the
+   file stays as today while a sent resume uses it.
+3. Build the upload's snapshot (above) and get or create it, as Apply does.
+4. Set each of those sent resumes' `snapshot_id`, and `storage_path` NULL,
+   in one UPDATE.
+5. Flush. The route commits it with the replace or the delete, so the
+   freeze and the file change happen together or not at all.
+6. After the commit, the routes' existing `file_in_use` check removes the
+   file, since no row points at it any more. A failed removal orphans a
+   file, as today, but loses no record.
+
+Nothing is rendered and nothing is downloaded: the text is already on the
+row. Only uploads replaced or deleted after this ships are frozen. A sent
+resume that points at an older replaced file (no row holds its text) stays
+a file.
 
 ## Rows written before this change
 
@@ -420,7 +517,9 @@ once this ships.
 | `PUT /applicants/{id}/resumes/{rid}` | Same check against the other resumes |
 | `POST /applicants/{id}/built-resumes` | Live hash check: 409 "Duplicate Resume found: <name>" with `built_resume_id`; writes nothing |
 | `POST /applicants/{id}/sent-resumes` | `job_posting_id` required, `format` gone. Built: a snapshot, no Storage. Answers the file as `data` (built) or `url` (uploaded) |
-| `GET /applicants/{id}/sent-resumes/{sid}/file` | `{url, file_name}` (with `?download=false` to view) or `{data, content_type, file_name}` |
+| `GET /applicants/{id}/sent-resumes/{sid}/file` | `{url, file_name}` (with `?download=false` to view) or `{data, content_type, file_name, rebuilt}` |
+| `GET /applicants/{id}/sent-resumes` | Each sent resume adds `rebuilt` (true for an upload's snapshot) |
+| `PUT /applicants/{id}/resumes/{rid}`, `DELETE .../{rid}` | Freeze the old file's sent resumes first (flow 9); the file goes once nothing uses it |
 | `GET .../built-resumes/{rid}/render`, `.../docx` | Unchanged; the editor's Download now uses them |
 | `POST /jobs/{job_id}/applied` | Optional `{"sent_resume_id"}` |
 | `POST /applicants/{id}/applications/{job_id}/resume` (auto apply) | The file in the same two shapes; sets `sent_resume_id` |
@@ -449,6 +548,10 @@ Each step is one PR with its migration, code, tests and docs.
    an application's page and the job posting's page.
 5. **Generate duplicates.** The live hash check on Generate, and its
    "Duplicate Resume found: <name>" pop-up on the Resumes page.
+6. **Freeze replaced uploads.** After step 3, which makes the snapshots
+   table: `source`'s column comes with migration 2. `view_from_reading`,
+   `freeze_upload` in PUT and DELETE, `rebuilt` in the responses, the
+   "Rebuilt from your uploaded file" note and Show Original Text.
 
 ## Docs to update with the code
 
@@ -463,7 +566,10 @@ Each PR updates the rules it changes (root `CLAUDE.md`, Documentation):
   posting" becomes the application's `sent_resume_id` (4).
 - `backend/app/models/CLAUDE.md`, "Sent resumes": the new CHECK, nullable
   `storage_path`, `resume_snapshots`, `job_applications.sent_resume_id`
-  (3, 4).
+  (3, 4); "a row never changes" becomes "its content never changes", with
+  the freeze as the one change (6).
+- `backend/CLAUDE.md`: Import Updated Resume and the delete freeze before
+  the file goes (6).
 - `docs/resume.md`, "Sent resumes": replaced by a pointer here once step 3
   ships.
 - `auto-apply/architecture.md`: `prepare_resume` returns the file and sets
@@ -504,13 +610,25 @@ Behaviour only; no test of a prompt's wording.
 - `prepare_resume` sets the application's `sent_resume_id`; a second call
   returns the same sent resume.
 - A sent resume kept before the change still opens through its URL.
+- Replace an upload that two sent resumes point at: both get one `upload`
+  snapshot, `storage_path` NULL, and the old file is removed after the
+  commit. Delete the upload instead: the same.
+- The frozen copy holds the parsed entries, the profile's header and the
+  file's `raw_text`; its file answers a PDF with `rebuilt` true.
+- An upload with no text, or one the parser reads nothing from: replace or
+  delete keeps its file, and the sent resume still opens through its URL.
+- A failed commit of the replace or the delete leaves the sent resumes on
+  the file and the file in place.
+- Replace an upload no sent resume uses: no snapshot, the old file goes as
+  today.
 
 ## Decisions
 
 | Question | Decision |
 |---|---|
 | Built resumes: PDF or snapshot? | Gzipped JSON snapshot, rendered again on view |
-| Uploaded resumes | Point at the uploaded file; no parsed copy |
+| Uploaded resumes | Point at the uploaded file while the upload exists; when it is replaced or deleted, freeze its sent resumes as a parsed JSON copy (with its text) and delete the file. No text or nothing read: keep the file |
+| Freeze one month after the job posting closes | No: it frees no storage (the file stays while the upload exists) |
 | Upload duplicates | Text hash of `raw_text`, no byte hash; 409 "Duplicate Resume found: <name>" |
 | Old uploads | No backfill of `text_hash` |
 | Generate duplicates | Refused; pop-up "Duplicate Resume found: <name>", nothing else |
