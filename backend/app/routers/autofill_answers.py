@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.deps import owned_applicant
 from app.queries.autofill_answers import fetch_bank, merge_answers
-from app.schemas.autofill_answers import QUESTIONS, AutofillAnswers, answers_from_bank
+from app.schemas.autofill_answers import AutofillAnswers, answers_from_bank
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +49,7 @@ async def patch_autofill_answers(
     session: AsyncSession = Depends(get_session),
 ) -> AutofillAnswers:
     sent = body.model_dump(include=body.model_fields_set)
-    written = {
-        key: {"question_text": QUESTIONS[key], "answer": answer}
-        for key, answer in sent.items()
-        if answer is not None
-    }
+    written = {key: answer for key, answer in sent.items() if answer is not None}
     cleared = [key for key, answer in sent.items() if answer is None]
 
     try:

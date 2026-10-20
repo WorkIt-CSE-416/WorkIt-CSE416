@@ -105,9 +105,9 @@ export const DISABILITY_OPTIONS: Options<"disability_status"> = [
 export type ProfileQuestion = {
   key: keyof AutofillAnswers;
   label: string;
-  /** Word for word the API's question_text for this key (the backend's
-   *  schemas/autofill_answers.py, QUESTIONS), so the question the student
-   *  reads is the one stored beside their answer. Change both together. */
+  /** The question as forms word it, shown under the heading. Only here: the
+   *  bank stores the answer alone (backend models/CLAUDE.md, "No question
+   *  text is stored"), and the key says which question it answers. */
   question: string;
   options: { value: string; label: string }[];
   /** How many answers sit in a row from sm up; long ones take a row each. */

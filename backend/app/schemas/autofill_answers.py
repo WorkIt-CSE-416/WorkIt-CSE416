@@ -55,42 +55,17 @@ class AutofillAnswers(BaseModel):
     disability_status: DisabilityStatus | None = None
 
 
-# The question each key answers, as forms ask it: stored beside the answer
-# (models/autofill_answers.py), so the bank still reads on its own if a key's
-# meaning is ever in doubt. Server-side, so the browser can't write its own.
-# The onboarding Profile step shows the same words (frontend
-# onboarding/applicant/answers.ts, PROFILE_QUESTIONS): change both together.
-QUESTIONS: dict[str, str] = {
-    "work_authorized_us": "Are you legally authorized to work in the United States?",
-    "needs_sponsorship": (
-        "Will you now or in the future require sponsorship for employment visa status"
-        " (e.g., H-1B visa status)?"
-    ),
-    "work_authorization_status": "What is your current U.S. citizenship or visa status?",
-    "security_clearance": (
-        "Do you hold an active U.S. government security clearance? If so, at what level?"
-    ),
-    "gender": "Voluntary self-identification: what is your gender?",
-    "veteran_status": "Voluntary self-identification: are you a protected veteran?",
-    "disability_status": (
-        "Voluntary self-identification of disability (Form CC-305):"
-        " do you have a disability, or have you had one in the past?"
-    ),
-}
-
-assert QUESTIONS.keys() == AutofillAnswers.model_fields.keys()
-
-
 def answers_from_bank(bank: dict) -> AutofillAnswers:
-    """The stored bank as the API's shape. A key this version doesn't know, or
-    an option it no longer offers, reads as unanswered rather than failing
-    the read: the bank outlives any one version of the questions."""
+    """The stored bank as the API's shape. The bank maps each key to its
+    answer alone ({"gender": "male"}). A key this version doesn't know, an
+    option it no longer offers, or a value of another shape reads as
+    unanswered rather than failing the read: the bank outlives any one
+    version of the questions."""
     values = {}
     for key, field in AutofillAnswers.model_fields.items():
-        # Each entry checked by shape: a bare value or a list would crash
-        # .get() or the set lookup, and fail the student's every read.
-        entry = bank.get(key)
-        answer = entry.get("answer") if isinstance(entry, dict) else None
+        # Checked by shape: a list or an object would fail the set lookup,
+        # and with it the student's every read.
+        answer = bank.get(key)
         allowed = {v for arg in get_args(field.annotation) for v in get_args(arg)}
         if isinstance(answer, str) and answer in allowed:
             values[key] = answer

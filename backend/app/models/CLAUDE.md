@@ -705,16 +705,22 @@ apply's fill reads them (`../../auto-apply/architecture.md`,
 `autofill_answers`), and My Profile will show them (KAN-273).
 
 - **One JSONB bank per applicant** (primary key `applicant_id`, CASCADE):
-  `answers` maps a stable question key (`needs_sponsorship`) to
-  `{question_text, answer}`. Hiring systems repeat a handful of questions,
+  `answers` maps a stable question key to its answer alone
+  (`{"needs_sponsorship": "no"}`). Hiring systems repeat a handful of questions,
   and a new one joins without a migration, so one bank beats a row per
   question. `NOT NULL DEFAULT '{}'::jsonb` with a `CHECK (jsonb_typeof(answers)
   = 'object')`: an array or a string would answer every lookup with nothing.
 - **The answer is an option key, never a label** (`"f1_student"`, not
   "F-1 Student"). The keys and their options are `schemas/autofill_answers.py`
   (Literals, so the API refuses anything else with a 422); the labels are the
-  frontend's (`onboarding/applicant/answers.ts`). `question_text` is written by
-  the server from `QUESTIONS`, never sent by the browser.
+  frontend's (`onboarding/applicant/answers.ts`), as are the questions' words.
+- **No question text is stored** (decided 2026-10-20). The first design kept
+  `{question_text, answer}` per key, which copied the same words into every
+  student's row for no reader: a fixed key already says which question it
+  is. Questions with no fixed key (a company's own screening question)
+  will need their text stored, but only once the extension records what a
+  student types into a form; they get their own part of the bank then,
+  with no migration, since the column is JSONB.
 - **Written per key, never replaced whole.** `PATCH` merges in the database
   (`answers || new - cleared`), so a tab holding an old copy can't erase an
   answer it never loaded. The frontend sends only the answers the seeker

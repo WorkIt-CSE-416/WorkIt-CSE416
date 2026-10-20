@@ -77,12 +77,11 @@ async def test_null_clears_a_key(client):
     assert res.json()["disability_status"] == "no"
 
 
-async def test_the_stored_bank_keeps_each_question_beside_its_answer(client, database):
+async def test_the_stored_bank_holds_each_answer_alone(client, database):
     await client.patch(client.url_for, json={"work_authorization_status": "f1_student"})
     async with database() as session:
         bank = await session.scalar(text("SELECT answers FROM autofill_answers"))
-    assert bank["work_authorization_status"]["answer"] == "f1_student"
-    assert "citizenship or visa status" in bank["work_authorization_status"]["question_text"]
+    assert bank == {"work_authorization_status": "f1_student"}
 
 
 @pytest.mark.parametrize(

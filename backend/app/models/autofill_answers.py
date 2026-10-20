@@ -18,8 +18,8 @@ from app.db import BaseModel
 class Autofill_Answers(BaseModel):
     '''
     one row per applicant: `answers` maps a stable question key
-    ("needs_sponsorship") to {"question_text", "answer"}, the answer being
-    one of the key's option values (schemas/autofill_answers.py)
+    ("needs_sponsorship") to its answer alone, one of the key's option values
+    (schemas/autofill_answers.py): {"needs_sponsorship": "no"}
 
     One JSONB bank rather than a row per question: hiring systems repeat the
     same handful of questions, and new ones join without a migration. Written
