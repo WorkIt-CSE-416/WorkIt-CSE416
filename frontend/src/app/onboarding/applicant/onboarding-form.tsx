@@ -445,14 +445,25 @@ function OneOf<V extends string>({
   value,
   onChange,
   columns = 1,
+  labelledBy,
+  describedBy,
 }: {
   options: { value: V; label: string }[];
   value: V | null;
   onChange: (next: V | null) => void;
   columns?: 1 | 2 | 3;
+  /** The Field's heading and question (fieldId), named on the group itself:
+   *  a screen reader reads a group's name and description as focus enters
+   *  it, where it skipped a description on the section around it, and
+   *  "Yes" was read with no question. */
+  labelledBy: string;
+  describedBy: string;
 }) {
   return (
     <div
+      role="group"
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
       className={cn(
         "grid grid-cols-1 gap-2 lg:gap-3",
         columns === 2 && "sm:grid-cols-2",
@@ -498,6 +509,8 @@ function ProfileStep({
       {PROFILE_QUESTIONS.map((q) => (
         <Field key={q.key} Icon={QUESTION_ICONS[q.key]} label={q.label} hint={q.question}>
           <OneOf
+            labelledBy={fieldId(q.label)}
+            describedBy={`${fieldId(q.label)}-hint`}
             columns={q.columns}
             options={q.options}
             value={answers[q.key]}
@@ -517,6 +530,10 @@ function ProfileStep({
  *  16px for every answer (tiles, chips, pills, typed text) and 14px for every
  *  note beside one. The answers' size is text-subtitle, whose own weight is
  *  600, so each answer sets its weight. */
+/** A Field's heading id, from its label; its hint is the same id plus
+ *  "-hint". */
+const fieldId = (label: string) => `field-${label.toLowerCase().replaceAll(" ", "-")}`;
+
 function Field({
   Icon,
   label,
@@ -531,11 +548,10 @@ function Field({
   required?: boolean;
   children: ReactNode;
 }) {
-  const id = `field-${label.toLowerCase().replaceAll(" ", "-")}`;
+  const id = fieldId(label);
   return (
     <section
       aria-labelledby={id}
-      aria-describedby={hint ? `${id}-hint` : undefined}
       className="border-border-subtle border-t py-8 first:border-t-0 first:pt-0"
     >
       <h2 id={id} className="text-title text-ink mb-4 flex items-center gap-2.5 font-semibold">
