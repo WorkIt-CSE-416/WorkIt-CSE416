@@ -146,8 +146,9 @@ with the failure it prevents.
   truth for what the schema is.
 - `docs/sent_resume.md` — the plan for KAN-267, not built yet: the resume
   each application went out with (an uploaded resume's file, or a gzipped
-  snapshot of a built resume rendered again on view), and duplicate checks
-  at upload and Generate. Read it before changing sent resumes.
+  snapshot of a built resume rendered again on view), downloads that keep
+  nothing, and duplicate checks at upload and Generate. Read it before
+  changing sent resumes, resume upload, Generate or the editor's Download.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
