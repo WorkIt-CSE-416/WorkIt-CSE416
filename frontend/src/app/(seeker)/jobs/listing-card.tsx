@@ -1,6 +1,6 @@
 import { Ban, CloudOff } from "lucide-react";
 
-import { ExternalLinkIcon, SparkleIcon } from "@/components/icons";
+import { SparkleIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -20,6 +20,7 @@ import {
 } from "./format";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { AutoApplyButton } from "../auto-apply/auto-apply-button";
+import { ApplyButton } from "./apply-button";
 import type { JobListing } from "./listings";
 import { MatchRail } from "./match-rail";
 import { SaveJobButton } from "./save-job-button";
@@ -60,11 +61,12 @@ import { SaveJobButton } from "./save-job-button";
  *                          intern for years
  *   uploaded_at            `posted_at`, when the board dated it
  *
- * The match rail shows the role's score and highlights on the Recommended
- * view, which scores against the seeker's resume, and its placeholder
+ * The match rail shows the role's score and highlights in the Best
+ * Match order, which scores against the seeker's resume, and its placeholder
  * (score null) everywhere else.
  * The card opens the role's own page, /jobs/[jobId] (KAN-73), which shows
- * its description; Apply Now leaves for the employer's own posting. Tailor
+ * its description; Apply Now opens the page's own Apply dialog (./apply-button,
+ * KAN-290). Tailor
  * My Resume is the page's own button (KAN-241): it opens Tailor for this
  * role, and reads "Your Tailored Resume" once the seeker has one for it.
  */
@@ -72,6 +74,8 @@ export function ListingCard({
   job,
   stage,
   tailored,
+  canMarkApplied,
+  onApplied,
 }: {
   job: JobListing;
   /** The seeker's application for it, for its Save and Auto Apply buttons;
@@ -79,6 +83,11 @@ export function ListingCard({
   stage: ApplicationStage | null;
   /** Whether the seeker has a resume tailored to it, for its Tailor button. */
   tailored: boolean;
+  /** An applicant account, which Apply Now's dialog may ask "Did You
+   *  Apply?". A company account can open /jobs too, and is never asked. */
+  canMarkApplied: boolean;
+  /** Takes the card off its list once the job is marked applied. */
+  onApplied?: () => void;
 }) {
   return (
     <JobPostingCard
@@ -125,15 +134,18 @@ export function ListingCard({
             {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
           </ButtonLink>
 
-          {/* Leaves for the employer's own posting, so the glyph says so and
-              a screen reader hears it. On a card under 384px (a phone) the
-              glyph steps out: its 22px pushed Apply Now onto a line of its
-              own, and the spoken hint still stands. */}
-          <ButtonLink href={job.apply_url} target="_blank" rel="noopener noreferrer" size="sm">
-            Apply Now
-            <ExternalLinkIcon className="size-3.5 @max-sm:hidden" />
-            <span className="sr-only"> (opens in a new tab)</span>
-          </ButtonLink>
+          {/* The job posting page's own dialog (KAN-290): which resume to
+              send, then "Did You Apply?". No new-tab glyph: the button opens
+              the dialog, and the dialog's links to the employer carry it.
+              An applied job is already gone from the seeker's feed. */}
+          <ApplyButton
+            jobId={job.id}
+            title={job.title}
+            applyUrl={job.apply_url}
+            canMarkApplied={canMarkApplied}
+            applied={stage === "applied"}
+            onApplied={onApplied}
+          />
         </>
       }
     />

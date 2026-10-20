@@ -30,6 +30,7 @@ import {
   getJobListings,
   getJobLocations,
   getTailoredJobIds,
+  isApplicant,
   type FeedPage,
 } from "../jobs/listings";
 
@@ -105,11 +106,13 @@ async function Results({
   filters: FeedFilters;
 }) {
   // The seeker's applications and tailored resumes, for the cards' Auto Apply
-  // and Tailor buttons (as /jobs).
-  const [{ jobs, more, error }, stages, tailored] = await Promise.all([
+  // and Tailor buttons, and whether Apply Now may ask "Did You Apply?" (as
+  // /jobs).
+  const [{ jobs, more, error }, stages, tailored, canMarkApplied] = await Promise.all([
     results,
     getApplicationStages(),
     getTailoredJobIds(),
+    isApplicant(),
   ]);
 
   if (error != null) {
@@ -147,6 +150,7 @@ async function Results({
         query={feedQuery(filters, query)}
         stages={stages}
         tailored={tailored}
+        canMarkApplied={canMarkApplied}
       />
     </>
   );

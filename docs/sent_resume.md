@@ -386,7 +386,7 @@ You Apply?" (flow 5), which records it.
 
 ### 4. Apply Now (the job posting's page)
 
-The dialog (`jobs/[jobId]/apply-button.tsx`) keeps its steps. What changes:
+The dialog (`jobs/apply-button.tsx`; every Apply Now opens it since KAN-290) keeps its steps. What changes:
 
 - **Pick a resume** lists built and uploaded resumes as today, plus
   **Upload a resume**: flow 1, then that resume is picked. At the cap, the

@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * Tailored Resume" once the student has one for this posting) and Apply Now.
  * The header card below holds only who is hiring, the title and the facts.
  * Apply Now asks which resume to send, keeps it as a sent resume linked to
- * this posting, then leaves for the employer's posting (./apply-button,
+ * this posting, then leaves for the employer's posting (../apply-button,
  * KAN-220); once one is sent, the page says "You sent <name> on <date>"
  * (./sent-note, story 98). After the seeker leaves for the posting, the same
  * dialog asks "Did You Apply?" (KAN-242); Yes marks the job applied (KAN-232),

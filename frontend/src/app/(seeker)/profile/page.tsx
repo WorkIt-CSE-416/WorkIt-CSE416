@@ -29,6 +29,10 @@ import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
+import type { AutofillAnswers } from "@/lib/autofill-answers";
+import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
+import { ApplicationQuestions } from "./application-questions";
+import { FIELD_GRID, FIELD_HEADING } from "./field-styles";
 import { SectionAction } from "./section-action";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 import { linkText, safeHref, siteName, webLink } from "@/lib/profile-links";
@@ -57,6 +61,9 @@ import { useProfileCache } from "../profile-cache";
  *   Links           four links (CONTACT_LINKS), each under a visible label;
  *                   its Edit turns the values into text fields in place;
  *                   closed by a hairline
+ *   Application     an open section: the answers onboarding asked
+ *   Questions       (./application-questions, KAN-269), edited the same way
+ *                   with a picker each; closed by a hairline
  *   Resumes &       an open section under a plain heading, linking to both
  *   Experiences     views of that page
  *
@@ -79,6 +86,8 @@ export default function ProfilePage() {
   const [applicantProfile, setApplicantProfile] = useState<ApplicantProfile | null>(
     cached?.applicantProfile ?? null,
   );
+  // The answer bank (Application Questions).
+  const [answers, setAnswers] = useState<AutofillAnswers | null>(cached?.answers ?? null);
   // The Edit Profile dialog (name and headline).
   const [editOpen, setEditOpen] = useState(false);
 
@@ -112,16 +121,24 @@ export default function ProfilePage() {
         else if (p) setApplicantProfile(p);
       })
       .catch(() => setLoadFailed(true));
+
+    getAutofillAnswers()
+      .then(({ answers: a, error }) => {
+        // A failed refetch keeps the answers a return visit already shows.
+        if (error) setLoadFailed(true);
+        else setAnswers(a);
+      })
+      .catch(() => setLoadFailed(true));
   }, []);
 
   // Save each settled state for the next visit. Not mid-load, not while a
   // photo upload's blob: preview (revoked afterwards) is on screen, and not
   // after a failed load, which would show the next visit an empty profile.
   useEffect(() => {
-    if (avatarLoaded && !avatarBusy && applicantProfile && !loadFailed) {
-      cache.write({ avatarUrl, applicantProfile });
+    if (avatarLoaded && !avatarBusy && applicantProfile && answers && !loadFailed) {
+      cache.write({ avatarUrl, applicantProfile, answers });
     }
-  }, [cache, avatarLoaded, avatarBusy, loadFailed, avatarUrl, applicantProfile]);
+  }, [cache, avatarLoaded, avatarBusy, loadFailed, avatarUrl, applicantProfile, answers]);
 
   async function handleAvatarSelect(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -269,6 +286,11 @@ export default function ProfilePage() {
         <ContactSection profile={applicantProfile} onSaved={setApplicantProfile} />
       )}
 
+      {/* Shown once both loads settle, as Contact & Links waits for the
+          profile: a failed read shows the notice above, never seven "Not
+          answered" lines that would pass for the seeker's real answers. */}
+      {answers && <ApplicationQuestions answers={answers} onSaved={setAnswers} />}
+
       <section aria-labelledby="resumes" className="mt-6">
         <SectionHeading id="resumes">Resumes &amp; Experiences</SectionHeading>
         <p className="text-body text-ink-meta mt-1">
@@ -374,6 +396,10 @@ function ContactSection({
   const [draft, setDraft] = useState<Record<ContactField, string>>(() =>
     toDraft(profile, CONTACT_FIELDS),
   );
+  // The profile this edit started from: Save sends what differs from it, so
+  // a background refetch landing mid-edit can't make another tab's newer
+  // values look changed and get overwritten (as Application Questions).
+  const [base, setBase] = useState(profile);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Links that are not web addresses, checked on Save the way the API checks.
@@ -386,6 +412,7 @@ function ContactSection({
 
   function startEditing() {
     setDraft(toDraft(profile, CONTACT_FIELDS));
+    setBase(profile);
     setBadLinks([]);
     setError(null);
     setEditing(true);
@@ -418,7 +445,7 @@ function ContactSection({
     // email", so the page can still say which one it is.
     if (isSignInEmail(draft.contact_email, profile)) values.contact_email = null;
 
-    const fields = changedFields(profile, values);
+    const fields = changedFields(base, values);
     if (Object.keys(fields).length === 0) {
       setEditing(false);
       return;
@@ -500,12 +527,6 @@ function ContactSection({
     }),
   ];
 
-  // Each field is drawn as a job posting's section heading is
-  // (jobs/[jobId]/description.tsx, Heading): 16px bold ink beside a 20px
-  // brand glyph, its value or text field hanging under the heading's text.
-  const HEADING = "text-subtitle text-ink flex items-center gap-2 font-bold";
-  const GRID = "mt-5 grid gap-x-10 gap-y-6 @xl/main:grid-cols-2";
-
   return (
     <section aria-labelledby="contact" className="border-border-subtle border-b py-6">
       <div className="flex items-baseline justify-between gap-4">
@@ -526,7 +547,7 @@ function ContactSection({
           onSubmit={handleSubmit}
           onKeyDown={(e) => e.key === "Escape" && !saving && setEditing(false)}
         >
-          <div className={GRID}>
+          <div className={FIELD_GRID}>
             {items.map(({ field, editLabel, Icon, type, placeholder, hint, action }, i) => {
               const invalid = badLinks.includes(field);
               const note = invalid
@@ -536,7 +557,7 @@ function ContactSection({
                   : undefined;
               return (
                 <div key={field} className="min-w-0">
-                  <label htmlFor={`edit-${field}`} className={HEADING}>
+                  <label htmlFor={`edit-${field}`} className={FIELD_HEADING}>
                     <Icon className="text-brand size-5 shrink-0" />
                     {editLabel}
                   </label>
@@ -600,10 +621,10 @@ function ContactSection({
           </div>
         </form>
       ) : (
-        <dl className={GRID}>
+        <dl className={FIELD_GRID}>
           {items.map(({ field, label, Icon, text, href, external, note }) => (
             <div key={field} className="min-w-0">
-              <dt className={HEADING}>
+              <dt className={FIELD_HEADING}>
                 <Icon className="text-brand size-5 shrink-0" />
                 {label}
               </dt>

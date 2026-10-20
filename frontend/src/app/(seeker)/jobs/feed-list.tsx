@@ -32,13 +32,21 @@ import type { JobListing } from "./listings";
  * so an import landing between two loads can shift one role into the next
  * page, and it would otherwise show twice.
  *
- * `source` picks what Load More asks: the plain feed, or the Recommended
- * view's scored jobs (KAN-231). Their `query` strings differ (the page
- * adds `view=recommended`), so kept pages never cross from one to the other.
+ * `source` picks what Load More asks: the plain feed, or the Best Match
+ * order's scored jobs (KAN-231, KAN-288). Their `query` strings differ (the
+ * page adds `sort=match`), so kept pages never cross from one to the other.
  *
  * After a load, focus moves to the first new role's title, where the button
  * was, so a keyboard carries on reading down the list instead of starting
  * over at the top when the button leaves. A live region says how many came.
+ *
+ * A JOB MARKED APPLIED FROM A CARD LEAVES THE LIST HERE (KAN-290 review), not
+ * by a refresh: a refresh redraws only the server's first page, so a job from
+ * a Load More page stayed listed. The API leaves an applied job out of every
+ * later page, so everything past it moves up one: the kept offset drops by
+ * one too, or the next Load More would skip a role. The offset is kept even
+ * with no page loaded yet. Focus moves to the next role's title, as the card
+ * and its Apply Now are gone.
  */
 export function FeedList({
   initial,
@@ -46,6 +54,7 @@ export function FeedList({
   query,
   stages,
   tailored,
+  canMarkApplied,
   source = "feed",
 }: {
   initial: JobListing[];
@@ -56,12 +65,18 @@ export function FeedList({
   stages: Record<string, ApplicationStage>;
   /** The job ids the seeker has a tailored resume for, read the same way. */
   tailored: string[];
+  /** An applicant account, which a card's Apply Now may ask "Did You Apply?". */
+  canMarkApplied: boolean;
   source?: "feed" | "recommended";
 }) {
   // The server renders the first page alone; the browser adds the kept
   // pages, if this list has any, as it hydrates.
   const stored = useSyncExternalStore(subscribe, readKept, () => null);
   const mine = stored?.query === query ? stored : null;
+  // First-page roles marked applied here, gone until the server's next draw
+  // leaves them out itself.
+  const [applied, setApplied] = useState<ReadonlySet<string>>(new Set());
+  const first = initial.filter((job) => !applied.has(job.id));
   const firstPage = new Set(initial.map((job) => job.id));
   const loaded = (mine?.jobs ?? []).filter((job) => !firstPage.has(job.id));
   // How many roles the API has handed over, the next page's offset. Counted
@@ -82,6 +97,22 @@ export function FeedList({
       ?.querySelector<HTMLAnchorElement>(`[data-job-id="${CSS.escape(focusId)}"] h3 a`)
       ?.focus();
   }, [focusId]);
+
+  function markedApplied(job: JobListing) {
+    const shown = [...first, ...loaded];
+    const at = shown.findIndex((other) => other.id === job.id);
+    setApplied((ids) => new Set(ids).add(job.id));
+    keep({
+      path: window.location.pathname,
+      query,
+      jobs: (mine?.jobs ?? []).filter((other) => other.id !== job.id),
+      offset: offset - 1,
+      more,
+      at: mine?.at,
+    });
+    setSaid(`${job.title} marked applied.`);
+    setFocusId((shown[at + 1] ?? shown[at - 1])?.id ?? null);
+  }
 
   function loadMore() {
     // The list's own page, read before the request: the seeker may have left
@@ -105,7 +136,6 @@ export function FeedList({
         jobs: [...loaded, ...fresh],
         offset: offset + page.jobs.length,
         more: page.more,
-        at: Date.now(),
       });
       setSaid(
         fresh.length === 0
@@ -119,7 +149,7 @@ export function FeedList({
   return (
     <>
       <ul ref={list} className="mt-4 flex flex-col gap-3">
-        {initial.map((job, i) => (
+        {first.map((job, i) => (
           // The cards rise in as the feed arrives, 50ms apart and capped at
           // the sixth, about a screenful, so the list never makes anyone wait.
           <li
@@ -132,6 +162,8 @@ export function FeedList({
               job={job}
               stage={stages[job.id] ?? null}
               tailored={tailoredIds.has(job.id)}
+              canMarkApplied={canMarkApplied}
+              onApplied={() => markedApplied(job)}
             />
           </li>
         ))}
@@ -147,6 +179,8 @@ export function FeedList({
               job={job}
               stage={stages[job.id] ?? null}
               tailored={tailoredIds.has(job.id)}
+              canMarkApplied={canMarkApplied}
+              onApplied={() => markedApplied(job)}
             />
           </li>
         ))}

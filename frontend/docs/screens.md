@@ -8,17 +8,22 @@ changing it.
 
 ## Jobs page, /search and filters
 
-**/jobs has two views (KAN-231).** Recommended, the default, is the jobs the
-filters keep, scored against the seeker's experience bank and best first
-(`GET /jobs/recommended/{id}`, which takes the same filters as `GET /jobs`),
-with the match rail showing each score and its highlights. With an empty bank
-it shows the plain feed under the same filters, below the bank prompt, and so
-does a company account, which the API refuses (403). All Jobs
-(`?view=all`) is the plain feed. **Saved preferences apply on a fresh visit
-only**: bare /jobs redirects to `?view=recommended` plus the saved filters,
-where the row shows them checked; from then on the URL is the truth, so Clear
-All clears rather than bringing the saved ones back. Load More pages whichever
-view drew the list (`FeedList`'s `source`).
+**/jobs is one list with a Sort By control (KAN-288).** Best Match
+(`?sort=match`), the default, is the jobs the filters keep, scored against the
+seeker's experience bank and best first (`GET /jobs/recommended/{id}`, which
+takes the same filters as `GET /jobs`), with the match rail showing each score
+and its highlights. With an empty bank it shows the newest first under the
+same filters, below the bank prompt, and so does a company account, which the
+API refuses (403). Newest (`?sort=newest`) is the plain feed. Each option keeps
+the filters as they stand. Until KAN-288 these were two views, Recommended and
+All Jobs, behind a switcher (KAN-231); they drew the same filter row and cards,
+so students read them as one page. An old `?view=all` link opens Newest and
+`?view=recommended` opens Best Match (`readSort` in jobs/page.tsx). **Saved
+preferences apply on a fresh visit only**: bare /jobs redirects to
+`?sort=match` plus the saved filters, where the row shows them checked; from
+then on the URL is the truth, so Clear All clears rather than bringing the
+saved ones back. Load More pages whichever order drew the list (`FeedList`'s
+`source`).
 
 **Job Type and Experience Level never overlap (KAN-284).** Job Type says
 what kind of job it is (Internship, Full-Time, Part-Time, Contract);
@@ -52,9 +57,8 @@ once (one click; it writes into the bank, ADR 0003). An upload imports
 itself, so the card shows only for an upload the parser read nothing in or
 one from before KAN-240. With none, Upload a Resume (to `/resumes`) and Add What You Did. It streams in its own Suspense
 boundary and shows nothing when the bank has entries or fails to load. The
-feed under it is the live listing for everyone, not a bank match, so it
-still shows; the API's bank-scored `GET /jobs/recommended` has no screen
-yet, and when it gets one this card is its empty state.
+feed under it is the newest first, not a bank match, since Best Match
+needs the bank; this card is Best Match's empty state.
 
 The heading and filter row stay at the top while the list scrolls under them
 (jobs/feed-header.tsx, on /jobs and /search alike), so the filters are in reach
@@ -73,9 +77,9 @@ and Date Posted. Job Type took Experience's place (KAN-284), since it is
 where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs,
 so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
 (KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
-filters" in its tooltip, and turns every filter off, keeping ?view and ?q; a
-cleared /jobs with no ?view lands on ?view=recommended, since the bare URL
-would bring the saved preferences back. As the words "Clear Filters" it took
+filters" in its tooltip, and turns every filter off, keeping ?sort and ?q; a
+cleared /jobs with no ?sort lands on ?sort=match, since the bare URL would
+bring the saved preferences back. As the words "Clear Filters" it took
 the room of Date Posted at every width and wrapped the row on a phone. The
 widths at which the facets step in leave room for it whether or not it shows,
 so a pick never pushes a facet out of the row (filters.tsx lists them). Role
@@ -221,7 +225,7 @@ sections stay first and open, since they are what a student reads first, and
 matching never reads the folded ones. Only the job's headings make a
 description sectioned, so an old one with its own "Benefits" line draws as
 before.
-Apply Now (`[jobId]/apply-button.tsx`,
+Apply Now (`jobs/apply-button.tsx`,
 KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
@@ -231,9 +235,17 @@ dialog downloads nothing** (KAN-267): a student gets resume files on
 Resumes & Experiences only, so Open in Resumes goes to a built resume's
 editor (its Download) or, for an upload, the Resumes view. It had a
 Download Resume button until then. Apply Without a Resume leaves for the employer's posting at once.
+**Every Apply Now opens this dialog** (KAN-290): the page's, the feed card's
+on /jobs and /search, and New Matches' Apply on the Dashboard. WorkIt cannot
+see the employer's site, so the dialog is its one chance to learn which
+resume went and whether the student applied; a card's Apply Now once linked
+straight to the employer and recorded neither. A card's button has no
+new-tab glyph, since it opens the dialog and the dialog's links carry it.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
-linked to this posting, its day in the viewer's zone.
+linked to this posting, its day in the viewer's zone. Only the job's own
+page refreshes on a send (`showsSent`): on a card a refresh reran the whole
+feed, Best Match scoring and all, to redraw nothing.
 The job's actions sit in one bar with Back, pinned at the top from md
 (`[jobId]/action-bar.tsx`, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply,
 Tailor My Resume and Apply Now. Below md the bar scrolls away and wraps.
@@ -300,7 +312,7 @@ look at /resumes does not go Back there). When the seeker came straight from
 that list (`cameFrom`, (seeker)/scroll-memory.tsx), Back goes back in history
 as the browser's Back does: the router redraws the list it kept at once.
 Following the link instead is a fresh visit, which fetches the feed again and,
-on Recommended, scores every job again, so the list sat on its skeleton
+in Best Match, scores every job again, so the list sat on its skeleton
 (2026-10-19). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
 would change a moment after the page loads.
@@ -325,6 +337,15 @@ before, and one misclick took a job off the feed with no undo. The job then
 leaves that applicant's feed, /search and count, because `listings.ts` sends
 their token with those reads (`viewerToken`) and the API filters on it. There
 is no undo yet.
+The cards ask the same way, but only an applicant account (`isApplicant` in
+`jobs/listings.ts`, the account the shell already read): a company account
+can open /jobs and /search too, and its dialog just closes. A card marked
+applied leaves its list at once, in the browser (`FeedList`, KAN-290
+review), with focus on the next role's title: a refresh redraws only the
+server's first page, so a job from a Load More page stayed listed. The kept
+Load More offset drops by one with it, as the API's later pages move up one,
+so the next Load More skips nothing. New Matches refreshes the route, which
+drops the row.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and
@@ -370,7 +391,7 @@ too, with nothing for a screen reader. A live fetch in a page calls
 
 **Next Up, Up Next and Waiting are archived for now** (KAN-261), and the
 header's Find Jobs button is gone (the sidebar's Jobs row and New Matches'
-All Jobs lead there). The tracker stores no dated events yet, so Next Up and
+Newest Jobs lead there; it read "All Jobs" until KAN-288 retired that view). The tracker stores no dated events yet, so Next Up and
 Up Next only said "nothing scheduled", and Waiting's buckets were a fixture.
 Under the numbers, New Matches runs the full width with Activity under it.
 From `@4xl/main` New Matches has a fixed height (`h-96`, set in the page's
@@ -411,7 +432,7 @@ Dates and times sit in pills (`<Badge variant="tag" pill>`): Next Up's,
 which links to the Calendar, Up Next's and New Matches' posted time; as 12px
 meta grey in Plus Jakarta Sans they read too faint. A pill sits in its text's
 column, under the title beside a tile or disc, never under the tile itself. New Matches' Apply is a
-filled primary sm button. A KPI tile centres its label on its 36px ring (the ring
+filled primary sm button, and opens Apply Now's dialog (KAN-290). A KPI tile centres its label on its 36px ring (the ring
 hides below 10.5rem of tile), keeps that header row 36px tall, pushes its
 figure to the foot, and gives the line under it a fixed `h-5`, hiding "vs
 last week" where it would wrap, so every figure in a row sits on one line.
@@ -479,7 +500,7 @@ links them to the Calendar.
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
 reads the seeker's saved and applied jobs from the API
 (`GET /applicants/{id}/applications?stage=saved&stage=applied&scored=true`,
-the list Live Activity reads too, without `scored`), written by a job's Save button and its Applied button
+the list Live Activity reads too), written by a job's Save button and its Applied button
 or auto apply; `getTracker` in `data.ts` caches it per request. Interviewing
 and Offer stay empty until the API stores those stages, and nothing on this
 page moves a card between stages. A card is its job posting: its id is the
@@ -524,7 +545,7 @@ page up only**: at 320px it is about a phone's whole table, and frozen
 there it covered it, so the scroll showed no other column; below 672px it
 scrolls with the rest. A sticky
 cell traps a stretched link, so **the row opens the application on a click
-anywhere** (`applications/clickable-row.tsx`), leaving clicks on links and
+anywhere** (`components/clickable-row.tsx`, Live Activity's rows too), leaving clicks on links and
 buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
 real link a keyboard reaches. Sorted by Date Applied unless `?sort=` names
 another column (below). Notes / Next Step is a placeholder ("No notes yet") and
@@ -549,7 +570,8 @@ examples do not apply), a client component over the rows the server
 filtered.
 
 - **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
-  `filter-bar.tsx`): under the search, a row with a dropdown for Status
+  `filter-bar.tsx`; a plain dropdown is `components/field-facet.tsx`, which
+  Auto Apply's Status filter shares): under the search, a row with a dropdown for Status
   and one per field (Company, Track, Work Model, Source), each the Jobs
   page facet's look (glyph, label, chevron, brand tint while it holds a
   pick) over checkbox rows. Status lists the four stages, each with its
@@ -689,91 +711,160 @@ cut, an application sent 47 hours ago read as waiting 1 day.
 /auto-apply (KAN-223) is where the seeker will apply in bulk. Its sidebar row
 sits between Jobs and Applications, in the order the work goes, and its page
 uses the same heading block as every seeker screen. The pipeline it grows
-into is `auto-apply/architecture.md` at the repo root.
+into is `auto-apply/architecture.md` at the repo root. KAN-285 redrew it:
+the run button moved into the header, and both lists became tables in the
+Applications list's frame (one white card, 12px grey headings, rules between
+rows), Live Activity with a Status filter and sorting kept in the URL.
 
-**"Resume List" is its first section, and it is live**
-(`auto-apply/resume-list.tsx`). It lists every resume the seeker has, not
-one: auto apply picks a resume per application (the one tailored to that job
-posting, else the default resume, `POST .../applications/{job_id}/resume`;
-`auto-apply/architecture.md`, "The resume"), and a note under the heading
-says so. The default is one resume, built or uploaded (starring one clears
-the other), so one row at most says Default; with resumes but no default, a
-second note says to star one, since the run then attaches none. Built
-resumes (`listBuiltResumes()`) come first, then uploaded ones
-(`listResumes()`), each list's default first. Each row is the Resumes
-view's 52px box (`RESUME_ROW`) with Default, Tailored or Posting closed badges. A
-built resume's Open goes to the resume editor, as on Resumes; it never
-downloads here: downloads live in the editor. An uploaded one
-previews or downloads (`previewResume`). Manage goes to Resumes
-(`/resumes`), where uploads live too, and the empty state names it. Both
-lists load on every visit; a list that fails keeps what loaded and says the
-rest didn't.
+**The run button is in the page's header, at the top right** (`auto-apply/
+auto-apply-panel.tsx`). It is sm (36px), a header action's size, and as
+wide as its widest label, so Start becoming Pause shifts nothing; on a
+phone it drops under the title at full width. Its label is the run's
+state: Pause while it runs, Resume while paused. It sat beside the Resume
+List until KAN-285, where the list's grid stretched it to the list's whole
+height, a violet block. The first redesign made it lg with a Not Started /
+Live / Paused word beside it; the user found the button larger than the
+app's other primary buttons and the word redundant, and both went
+(2026-10-20). The brand fill marks the
+action that starts work, so Pause is the bordered neutral and Resume the
+brand fill again. Start Auto Apply queues a batch of the seeker's best
+matches through the API (`POST .../auto-apply/batches`, the server action
+`startBatch`: 10, leaving out every job they already have an application
+for), says how many in a note under the header, and refreshes the route so
+Live Activity lists them; an error (an empty experience bank) shows there in
+red instead. Then it asks the extension to open the oldest queued
+application's page in a background tab beside this one
+(`openNextApplication` in `src/lib/autofill-extension.ts`, the message
+`run/open`), and the note says so, or why not (no extension, signed out) in
+red (`auto-apply/opened-note.ts`, shared with the job card). A tab already
+on that job stays as it is, so Start never wipes a form in progress. Pause
+and Resume only move the state: nothing fills a form yet. It is off until
+the Resume List has a resume (the panel holds both lists' read,
+`useResumes`, for that), and while a batch is queueing. It never waits on
+the tab's page load: the note says how many jobs it queued at once and adds
+the tab's result when it lands. The state (`idle`, `running`, `paused`) is
+the page's own; a return visit starts idle, so Start queues another batch.
+
+**"Resume List" is live** (`auto-apply/resume-list.tsx`). It lists every
+resume the seeker has, not one: auto apply picks a resume per application
+(the one tailored to that job posting, else the default resume, `POST
+.../applications/{job_id}/resume`; `auto-apply/architecture.md`, "The
+resume"), and a note under the heading says so. The default is one resume,
+built or uploaded (starring one clears the other), so one row at most says
+Default. It is a table: Resume (the file glyph, the name and Default
+beside it; frozen from 672px of page up), Type (Built, Tailored or
+Uploaded, as tags), Used For (a tailored resume's job, "Role at Company",
+and "Job posting closed" under it once its posting has gone; "Any job" for
+the rest) and Updated (a built resume's last edit, an upload's day), every
+column but Resume centred. It has
+no filters or sorting: a seeker has a handful of resumes. Built resumes
+(`listBuiltResumes()`) come first, then uploaded ones (`listResumes()`),
+each list's default first. **A row opens on a click anywhere**, with no
+button of its own: a built resume's goes to the resume editor, as on
+Resumes (`components/clickable-row.tsx`, its name the link); it never
+downloads here: downloads live in the editor. An uploaded
+one's previews a PDF in a new tab or downloads a DOCX (`previewResume`,
+called from the click, since the tab must open inside it; its name is the
+button a keyboard reaches). Open and Preview buttons and an amber "None is
+your default yet" line were dropped on the user's ask (2026-10-20). Manage goes to
+Resumes (`/resumes`), where uploads live too, and the empty state names
+it. Both lists load on every visit; a list that fails keeps what loaded
+and says the rest didn't.
 It replaced "Applying with Resume", which showed the primary uploaded resume
 alone because matching read it then; matching reads the experience bank now
 (KAN-212).
 
-**The button beside the resume starts and pauses auto apply.** Start Auto
-Apply queues a batch of the seeker's best matches through the API (`POST
-.../auto-apply/batches`, the server action `startBatch`: 10, leaving out
-every job they already have an application for), says how many under the
-row, and refreshes the route so Live Activity lists them; an error (an empty
-experience bank) shows there in red instead. Then it asks the extension to
-open the oldest queued application's page in a background tab beside this
-one (`openNextApplication` in `src/lib/autofill-extension.ts`, the message
-`run/open`), and the note says so, or why not (no extension, signed out)
-in red (`auto-apply/opened-note.ts`, shared with the job card). A tab
-already on that job stays as it is, so Start never wipes a form in
-progress. Pause and Resume only move the state: nothing fills
-a form yet. It is off until the list has a resume, and while a batch is
-queueing. It never waits on the tab's page load: the note says how many
-jobs it queued at once and adds the tab's result when it lands. The
-state (`idle`, `running`, `paused`) is held in
-`auto-apply/auto-apply-panel.tsx`, which Live Activity's heading shows as Not
-Started, Live (a green dot that rings out) or Paused; a return visit starts
-idle, so Start queues another batch. The brand fill marks
-the action that starts work, so Pause is the bordered neutral. The button is
-lg (48px) and 208px wide beside the list, its top level with the first
-row's (a grid), so nothing shifts between labels; on a phone it drops under
-the list at full width. It was stretched to a row's 52px until KAN-251, the
-largest button in the app.
-
 **Live Activity is live: the seeker's applications from the API**
-(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`), in
-queue order: the oldest queued first, the job the extension opens next, and
-a newly queued one at the bottom (asked for 2026-10-17). The API answers
-newest first and the page reverses it, so the API's order stays as other
-callers know it. Drawn on the server against the request's clock. Each stored stage is
-a row (`activityOf` in `auto-apply/activity-list.tsx`): queued Queued,
-needs_you Couldn't Finish, skipped Skipped, applied Applied. The queued
-job open in the extension's tab reads Working in Browser instead
-(`auto-apply/live-activity.tsx`, the one client step over the server's
-rows), in flight, with no cross: taking it out would leave the tab on a
-job that is gone. The whole row
-opens the job posting's page, as on the Applications list, while the posting
-is open; a closed one says so and links nowhere. None yet is an empty state
-pointing at Start and the jobs' Auto Apply; a failed read says so, never a
-fixture. One row per job posting, in one white card with rules between rows. Each status takes a
-badge tone by its kind (`ui/badge.tsx`): Queued and Skipped inert grey; Working in
-Browser, Tailoring Resume and Autofilling `advanced` blue, their dot ringing
-three times, and counted under In Progress; Needs Review
-and Couldn't Finish warning amber, as both wait on the seeker; Applied the
-Applied stage's violet, so it reads the same as on the Applications page.
-The counts above the card use the same dot colours. A queued row has a cross
-beside its badge (`auto-apply/remove-from-queue.tsx`) that takes the job out
-of the queue and refreshes the route; it sits above the row's link, so the
-click never opens the job posting. No other stage has one. The cross, a
-job's Auto Apply and Start each take one click at a time (a ref set on
-the click): `disabled={pending}` lands a render late, so a fast double
-click once sent two removals and showed the removal toast twice. A toast then says
-"<role> from <company> is removed from Auto Apply." with Undo, which queues
-the job again (`queueJob`): it comes back as a new queued row at the
-bottom, since the queue orders by when a job was queued. A failure, of either the
-removal or the Undo, is a toast too. Narrow, a row's badge and
-time drop under its text so the role keeps the width. The list is
-`aria-live="polite"`. Tailoring Resume, Autofilling and Needs Review are the
-runner's live states, kept for when the extension reports them; the
-statuses and the routes are in `auto-apply/architecture.md`, "The run" and
-"API routes".
+(`auto-apply/applications.ts`, `GET /applicants/{id}/applications`, with
+`scored=true` for the Match column, as the Applications page reads it). By
+default in queue order: the oldest queued first, the job the extension
+opens next, and a newly queued one at the bottom (asked for 2026-10-17).
+The API answers newest first and the page reverses it, so the API's order
+stays as other callers know it. Each stored stage is a row (`activityOf` in
+`auto-apply/activity-list.tsx`): queued Queued, needs_you Couldn't Finish,
+skipped Skipped, applied Applied. The queued job open in the extension's
+tab reads Working in Browser instead (`auto-apply/live-activity.tsx`, the
+one client step over the server's rows), in flight.
+
+- **The table**: Role (the company's logo, then the role, bold, over the
+  company; frozen at the left from 672px of page up, as on Applications),
+  Status, Match (the Applications page's `MatchBadge`, "Not scored" without
+  one), Date Added (when it was queued or marked applied), Date Applied
+  ("Not yet" until then), and a narrow Actions column at the right end,
+  its heading for a screen reader only: it holds one icon button with its
+  own tooltip, and the word would not fit its 64px.
+  Each status badge leads with its own glyph, so a status reads by shape
+  as well as colour (2026-10-20): a clock for Queued, a window for Working
+  in Browser, the AI sparkle for Tailoring Resume, a pen for Autofilling,
+  an eye for Needs Review, a warning for Couldn't Finish, the Applied
+  stage's briefcase, a skip for Skipped. The Status column is 192px, the
+  longest badge's width with its glyph and ringing dot.
+  Every column but Role is centred, heading and cell (asked for
+  2026-10-20). Under 864px of table it scrolls sideways rather than
+  squeezing the role. A line under
+  the status badge shows only where it says more than the badge: Couldn't
+  Finish's "Finish it on the job's page", Working in Browser's "Open in a
+  background tab", and "Job posting closed". A row in flight has a dot that
+  rings out three times beside its badge. The rows fade in down the table
+  and glide when the sort or the filter moves them (`components/reflow.tsx`).
+  The body is not a live region: a sort or a filter redraws every row, and
+  `aria-live` made a screen reader read them all aloud.
+- **A row opens its job posting on a click anywhere** while the posting is
+  open (`components/clickable-row.tsx`, the Applications list's), leaving
+  clicks on links and buttons alone; the role is the real link. A closed
+  one links nowhere.
+- **Actions**: icon buttons only, to save width. A queued row has a cross,
+  "Remove from queue" in its tooltip (`auto-apply/remove-from-queue.tsx`),
+  alone in the Actions column: beside the badge, before KAN-285, it read as
+  closing the badge, and a worded Remove button (the first redesign) took
+  width the table needs. It takes the job out of the
+  queue and refreshes the route; a toast then says "<role> from <company>
+  is removed from Auto Apply." with Undo, which queues the job again
+  (`queueJob`): it comes back as a new queued row at the bottom, since the
+  queue orders by when a job was queued. A failure, of either the removal
+  or the Undo, is a toast too. The row open in the extension's tab has a
+  window glyph instead, "Go to the tab" (`showRunTab`), never the cross:
+  taking it out would leave the tab on a job that is gone. No other status
+  has an action. The cross, a
+  job's Auto Apply and Start each take one click at a time (a ref set on
+  the click): `disabled={pending}` lands a render late, so a fast double
+  click once sent two removals and showed the removal toast twice.
+- **The Status filter**: over the table, a Status dropdown, the
+  Applications page's (`components/field-facet.tsx`), its options the five
+  groups, each with its glyph in its badges' colour, as the Applications
+  Status options lead with their stage's glyph: Queued (a clock), In
+  Progress (Auto Apply's bolt), Needs You (a warning), Applied (the
+  briefcase), Skipped (a skip).
+  Any of the picks shows. While a status is picked, Clear Filters is an
+  outlined cross beside it, handing focus to the dropdown; a filter that
+  hides every row shows "No Jobs With That Status" with Clear Filters,
+  which hands focus to the dropdown too, as the button leaves with the
+  empty state. A
+  row of counts by status sat above the table until the user asked for it
+  to go (2026-10-20).
+- **Sort**: five headings sort, each one way, the way it is read: Role by
+  its company A to Z, then by role; Status what needs the seeker first
+  (Needs You, In Progress, Queued, Applied, Skipped); Match best first;
+  Date Added oldest first, the queue order and the default; Date Applied
+  latest first. A missing value goes last. Each heading's tooltip says its
+  order, and the sort in force says so in aria-sort and a brand chevron.
+- **Both are in the URL** (`auto-apply/query.ts`): `?status=` (a comma
+  list of the groups) and `?sort=`, so a reload, Back and a shared link
+  land on the same view. The page holds every row, so both move the URL in
+  place (shallow routing) and the table filters and sorts itself; a status
+  pick replaces the entry, so ten ticks are not ten steps of Back, and a
+  sort heading adds one.
+
+Each status takes a badge tone by its kind (`ui/badge.tsx`): Queued and
+Skipped inert grey; Working in Browser, Tailoring Resume and Autofilling
+`advanced` blue, grouped under In Progress; Needs Review and Couldn't
+Finish warning amber, as both wait on the seeker; Applied the Applied
+stage's violet, so it reads the same as on the Applications page. None yet
+is an empty state pointing at Start and the jobs' Auto Apply; a failed read
+says so, never a fixture. Tailoring Resume, Autofilling and Needs Review
+are the runner's live states, kept for when the extension reports them;
+the statuses and the routes are in `auto-apply/architecture.md`, "The run"
+and "API routes".
 
 ## Calendar
 
@@ -814,8 +905,9 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 ## My Profile
 
-**My Profile holds the photo and the identity fields**, and a "Resumes &
-Experiences" section that links to both views of that page.
+**My Profile holds the photo and the identity fields**, the Application
+Questions, and a "Resumes & Experiences" section that links to both views of
+that page.
 
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
@@ -829,7 +921,8 @@ under the heading's text.
   a new tab, printed as the resume header prints it: `linkedin.com/in/jake`)
   or "Not added" in grey. The section's Edit turns every value into a text
   field in place, the first one focused, with Cancel and Save under them;
-  Escape cancels. Clearing a field and saving removes it.
+  Escape cancels. Clearing a field and saving removes it. Save sends what
+  changed since Edit was clicked, as Application Questions does (below).
 - **Tried and dropped on 2026-10-20:** only the filled fields in one row
   under the name (a seeker with no links saw no sign they could add any,
   and nothing said which email it was), then an Add button on each empty
@@ -870,6 +963,35 @@ headline line used to leave a gap between the name and the row below.
   is not an http(s) address is refused with "Enter a web address" under the
   field. The section never makes an href of a link that fails the check.
 
+**Application Questions (KAN-269)** is an open section between Contact &
+Links and Resumes & Experiences: the seven questions onboarding's Profile
+step asks (work authorization, sponsorship, citizenship and visa status,
+clearance, and the voluntary gender, veteran and disability
+self-identification), with the seeker's answers
+(`(seeker)/profile/application-questions.tsx`).
+
+- **The same two modes as Contact & Links.** Reading, each question is its
+  answer's label or "Not answered" in grey. Edit turns every answer into a
+  picker (`ui/select-field.tsx`) in place, the first one focused, each over
+  the question as forms word it, with Cancel and Save; "Not Answered" in a
+  picker clears that answer. Escape cancels, but Escape in a picker's open
+  list closes the list alone: the list is portalled outside the form, and
+  only a key from the form's own fields cancels.
+- **Pickers, not onboarding's tiles**: seven questions of up to six large
+  tiles made a screen-long form on a page of settings.
+- **Two screens edit these answers, safely.** Onboarding asks them once;
+  this section is where they change after. Both read one question list
+  (`lib/autofill-answers.ts`) and save through one server action
+  (`lib/autofill-answers-actions.ts`), and the API merges only the answers
+  sent, so neither screen erases what the other saved.
+- **Shown only once loaded.** A failed read shows the page's one notice,
+  never seven "Not answered" lines that would pass for real answers.
+- **Save sends what changed since Edit was clicked**, compared with the
+  answers the edit started from, never the latest ones: a return visit
+  shows the cached answers and refetches, and a refetch landing mid-edit
+  made another tab's newer answers look changed, so Save wrote the cached
+  ones back over them (review, 2026-10-20).
+
 **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
 the Resumes view's Your Resumes card (below), beside the base resumes,
@@ -887,8 +1009,8 @@ places to edit the same facts drift apart, and the bank is what built
 resumes read.
 
 **My Profile is cached for the life of the seeker shell.**
-`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL
-and the applicant profile fields) in a provider
+`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
+the applicant profile fields and the Application Questions' answers) in a provider
 in `(seeker)/layout.tsx`. A
 return visit renders it at once and refetches in the background. Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
@@ -1609,7 +1731,7 @@ aria-hidden, and it holds still under reduced motion.
 Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
 Clearance, then the voluntary Gender, Veteran Status and Disability, in the
 order real forms ask them, each under the question as forms word it. The options
-are real forms' options (`onboarding/applicant/answers.ts`): gender's are the
+are real forms' options (`lib/autofill-answers.ts`): gender's are the
 EEO Male, Female and decline plus Non-Binary, which many forms add; veteran
 status's three are the U.S. protected veteran self-identification's, disability's
 three are Form CC-305's words. One answer each, as dots; pressing a picked
@@ -1666,7 +1788,7 @@ complete). The bank goes first because a finished seeker is never sent back
 here, and no other screen asks those questions yet.
 Continue then uploads the file through `uploadResume`, and the API reads it
 into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
-whose Recommended view scores the saved filters' jobs against the bank. The
+whose Best Match order scores the saved filters' jobs against the bank. The
 answers save first: a failed save or upload leaves the seeker on the step,
 saying why in the API's words (a sixth upload's 409 among them), and a retry
 saves the answers again harmlessly. Date Posted is not asked: a saved "past

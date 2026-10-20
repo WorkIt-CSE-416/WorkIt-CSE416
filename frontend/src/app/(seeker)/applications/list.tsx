@@ -45,6 +45,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
+import { ClickableRow } from "@/components/clickable-row";
+import { MatchBadge } from "@/components/match-badge";
+import { Reflow } from "@/components/reflow";
 import { useShallowPush } from "@/components/shallow-routing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -55,7 +58,6 @@ import { STAGE_COLOR, STAGE_LABEL, STAGE_ORDER } from "../stage-colors";
 import { LocalDate } from "../local-time";
 import { sortKey, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
-import { ClickableRow } from "./clickable-row";
 import {
   COLUMNS,
   FROZEN,
@@ -67,9 +69,7 @@ import {
   type ColumnId,
   type ColumnLayout,
 } from "./column-layout";
-import { MatchBadge } from "./match-badge";
 import { applicationHref, applicationsHref, type Sort } from "./query";
-import { Reflow } from "./reflow";
 import { useApplicationsQuery } from "./view-switcher";
 
 /**
@@ -114,7 +114,7 @@ import { useApplicationsQuery } from "./view-switcher";
  * layout) and cuts what does not fit, with the whole value on hover. A last,
  * empty column takes whatever room is left, so a resize never stretches the
  * others. A row opens its application's own page (./[jobId]) on a click
- * anywhere (./clickable-row.tsx); the role is its link.
+ * anywhere (components/clickable-row.tsx); the role is its link.
  */
 const FEATURES = tableFeatures({
   rowSortingFeature,
@@ -191,7 +191,7 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   // The logo, then the role over its company, as the list drew it before
   // KAN-256. The role is cut to the column, the whole title on hover:
   // scraped titles run long ("... 2027 in Eurasburg / Bavaria"). The row
-  // opens on a click anywhere (./clickable-row.tsx); the role is the link a
+  // opens on a click anywhere (components/clickable-row.tsx); the role is the link a
   // keyboard reaches.
   role: (app) => (
     <div className="flex min-w-0 items-center gap-3">

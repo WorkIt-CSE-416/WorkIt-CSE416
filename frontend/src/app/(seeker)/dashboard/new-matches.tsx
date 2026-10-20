@@ -1,22 +1,24 @@
 import { CompanyLogo } from "@/components/company-logo";
 import { Badge } from "@/components/ui/badge";
-import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
+import { ApplyButton } from "../jobs/apply-button";
 import { formatPosted } from "../jobs/format";
-import { getJobListings } from "../jobs/listings";
+import { getJobListings, isApplicant } from "../jobs/listings";
 import { SectionHeader } from "./section-header";
 import { SectionCard } from "./section-card";
 
 /**
  * The newest roles from the live feed — the one Dashboard card that is real
- * today. "Matches" is the feed's own word for what it shows (Recommended for
- * You); there is no scoring yet, so the order is newest first.
+ * today. "Matches" is the feed's own word for what it shows (its Best Match
+ * order); this card does not score, so the order is newest first, and its
+ * link, Newest Jobs, opens the Jobs page in that order (KAN-288 retired the
+ * All Jobs view it once named).
  *
  * In a card, like the other lists. A compact list rather than the Jobs
  * page's cards: this is a glance at what
  * arrived, with Jobs one click away for the full card and its actions. Apply
- * goes straight to the employer's posting, as it does there.
+ * opens the same dialog as there (../jobs/apply-button, KAN-290).
  *
  * Its own <Suspense> boundary in the page, because it waits on the API and
  * the fixture cards around it don't. The fallback is NewMatchesSkeleton below:
@@ -35,8 +37,8 @@ import { SectionCard } from "./section-card";
  * match, so the list does not scroll at all: it shows the first five rows and
  * the page scrolls past them (the fifth drops its divider, which divide-y
  * still draws because hidden rows follow it). A box that scrolls inside a
- * scrolling page traps the swipe that reaches its end, and All Jobs is one tap
- * away.
+ * scrolling page traps the swipe that reaches its end, and Newest Jobs is one
+ * tap away.
  *
  * Beside Waiting, a fade at the bottom says there is more without a "show
  * more" button, and the list is focusable (tabIndex, a label and a ring) so it
@@ -48,7 +50,7 @@ import { SectionCard } from "./section-card";
 const SHOWN = 12;
 
 export async function NewMatches({ className }: { className?: string }) {
-  const { jobs, error } = await getJobListings();
+  const [{ jobs, error }, canMarkApplied] = await Promise.all([getJobListings(), isApplicant()]);
   const latest = (jobs ?? []).slice(0, SHOWN);
 
   return (
@@ -59,7 +61,7 @@ export async function NewMatches({ className }: { className?: string }) {
       <SectionHeader
         id="new-matches"
         title="New Matches"
-        link={{ href: "/jobs?view=all", text: "All Jobs" }}
+        link={{ href: "/jobs?sort=newest", text: "Newest Jobs" }}
       />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 
@@ -108,22 +110,22 @@ export async function NewMatches({ className }: { className?: string }) {
                     )}
                   </div>
                 </div>
-                <a
-                  href={job.apply_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                {/* The job posting page's own dialog (KAN-290), so a role
+                    applied to from here is recorded as one from its page is.
+                    Filled, the primary button's own look: an outlined Apply
+                    beside each role read as an afterthought. sm, as an action
+                    in a row is (KAN-251). The feed already leaves out the
+                    seeker's applied jobs; a mark refreshes the route, which
+                    drops this one. */}
+                <ApplyButton
+                  jobId={job.id}
+                  title={job.title}
+                  applyUrl={job.apply_url}
+                  canMarkApplied={canMarkApplied}
+                  label="Apply"
                   aria-label={`Apply to ${job.title} at ${job.company}`}
-                  // Filled, the primary button's own look: an outlined Apply
-                  // beside each role read as an afterthought. sm, as an
-                  // action in a row is (KAN-251).
-                  className={buttonClasses({
-                    variant: "default",
-                    size: "sm",
-                    className: "shrink-0",
-                  })}
-                >
-                  Apply
-                </a>
+                  className="shrink-0"
+                />
               </li>
             ))}
           </ul>
@@ -155,7 +157,7 @@ export function NewMatchesSkeleton({ className }: { className?: string }) {
       <SectionHeader
         id="new-matches"
         title="New Matches"
-        link={{ href: "/jobs?view=all", text: "All Jobs" }}
+        link={{ href: "/jobs?sort=newest", text: "Newest Jobs" }}
       />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 

@@ -18,7 +18,7 @@ import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { listResumes } from "@/lib/resume-actions";
 import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
 
-import { markApplied } from "../actions";
+import { markApplied } from "./actions";
 
 /** One resume the student can apply with: a built resume (a base resume, or
  *  the one tailored to this posting) or an uploaded resume. */
@@ -40,7 +40,7 @@ function sentKey(sent: SentDownload): string {
  * student sends, keeps that exact file as a sent resume linked to this
  * posting (`applyWithResume`), then points to the resume on Resumes &
  * Experiences, the one place a student downloads resume files (KAN-267),
- * and offers the employer's own posting to apply on. This page then says which resume was
+ * and offers the employer's own posting to apply on. The job posting page then says which resume was
  * sent ("You sent ... on ..."). A student with no resume, or who would rather not
  * pick one, still reaches the posting: "Apply Without a Resume".
  *
@@ -59,6 +59,19 @@ function sentKey(sent: SentDownload): string {
  * Applied button in the page's header, where one misclick marked a job
  * applied with no undo. It asks only a signed-in applicant (`canMarkApplied`)
  * who has not marked this job already (`applied`).
+ *
+ * EVERY APPLY NOW OPENS THIS DIALOG (KAN-290): the job posting page, the feed
+ * card (/jobs, /search) and the Dashboard's New Matches. WorkIt cannot see the
+ * employer's site, so this is its one chance to learn which resume went and
+ * whether the student applied; a card's Apply Now once linked straight to the
+ * employer and recorded neither.
+ *
+ * ONLY THE JOB'S OWN PAGE REFRESHES ON A SEND (`showsSent`): it is the one
+ * screen that says which resume went. On a card a refresh reran the whole
+ * feed, Best Match scoring and all, to redraw nothing. A list that draws its
+ * cards in the browser drops a job marked applied itself (`onApplied`), since
+ * a refresh redraws only the server's first page (./feed-list); anywhere else
+ * a mark refreshes the route.
  */
 export function ApplyButton({
   jobId,
@@ -66,6 +79,10 @@ export function ApplyButton({
   applyUrl,
   canMarkApplied = false,
   applied = false,
+  showsSent = false,
+  onApplied,
+  label = "Apply Now",
+  "aria-label": ariaLabel,
   className,
 }: {
   jobId: string;
@@ -75,6 +92,15 @@ export function ApplyButton({
   canMarkApplied?: boolean;
   /** Marked applied already: the dialog never asks again. */
   applied?: boolean;
+  /** The page says which resume was sent: refresh it once one is. */
+  showsSent?: boolean;
+  /** Takes the job off the caller's list once marked applied, in place of
+   *  refreshing the route. */
+  onApplied?: () => void;
+  /** The button's words: New Matches' row has room for "Apply" only. */
+  label?: string;
+  /** For a short label, the job it applies to, as a screen reader hears it. */
+  "aria-label"?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -144,7 +170,7 @@ export function ApplyButton({
     if (!data) return setError(error);
     setSent(data);
     // The page's "You sent <name> on <date>" reads the new sent resume.
-    router.refresh();
+    if (showsSent) router.refresh();
   }
 
   function ask() {
@@ -168,7 +194,9 @@ export function ApplyButton({
     setBusy(false);
     if (result.error) return setError(result.error);
     setOpen(false);
-    // The page's "You applied on …" reads the new mark.
+    if (onApplied) return onApplied();
+    // The page's "You applied on …" reads the new mark, and New Matches
+    // drops the job.
     router.refresh();
   }
 
@@ -196,12 +224,13 @@ export function ApplyButton({
       <Button
         size="sm"
         className={className}
+        aria-label={ariaLabel}
         onClick={() => {
           setOpen(true);
           void load();
         }}
       >
-        Apply Now
+        {label}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
