@@ -1,7 +1,7 @@
 "use server";
 
 import { apiUpload, apiGet, apiDelete } from "@/lib/api";
-import { apiFetch, extractErrorMessage } from "@/lib/auth";
+import { apiFetch, errorMessage, extractErrorMessage } from "@/lib/auth";
 import type { ImportResult } from "@/lib/bank-actions";
 import { getApplicantSession } from "@/lib/session";
 
@@ -121,16 +121,23 @@ export async function getResumeFileUrl(
 }
 
 // The API reads the file itself and writes what it read into the experience
-// bank; the client never sends parsed content.
+// bank; the client never sends parsed content. A file whose text the student
+// has already uploaded is refused (KAN-267): `error` is "Duplicate Resume
+// found: <name>" and `duplicateOf` that resume's id.
 export async function uploadResume(
   formData: FormData,
-): Promise<{ resume: ResumeItem | null; error: string | null }> {
+): Promise<{ resume: ResumeItem | null; error: string | null; duplicateOf?: string }> {
   try {
     const { id, token } = await getApplicantSession();
     const res = await apiUpload(`/applicants/${id}/resumes`, formData, token);
     if (!res.ok) {
-      const msg = await extractErrorMessage(res);
-      return { resume: null, error: msg };
+      const body: unknown = await res.json().catch(() => null);
+      const duplicateOf = (body as { detail?: { resume_id?: unknown } } | null)?.detail?.resume_id;
+      return {
+        resume: null,
+        error: errorMessage(body),
+        ...(res.status === 409 && typeof duplicateOf === "string" ? { duplicateOf } : {}),
+      };
     }
     const resume: ResumeItem = await res.json();
     return { resume, error: null };

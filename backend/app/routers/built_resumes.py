@@ -6,7 +6,10 @@ applicant's resume answers 404. The rules (the default resume) live in `app/serv
 POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 BuiltResumeResponse
        Generate: a base resume with every bank entry, bullet and skill. With
        no name it is "Resume #N", one past the highest number in use. No
-       limit: only uploads count toward the 5 (KAN-268).
+       limit: only uploads count toward the 5 (KAN-268). 409
+       {"detail": {"message": "Duplicate Resume found: <name>",
+       "built_resume_id"}} when the new resume would print the same as one
+       the student has (KAN-267); nothing is written.
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
        page no longer lists (story 90's "Posting closed"). `posting_title`
@@ -138,7 +141,10 @@ async def generate(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> BuiltResumeResponse:
-    resume = await service.generate(session, applicant_id, body.name)
+    try:
+        resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=True)
+    except service.DuplicateResume as exc:
+        raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id)})
     default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
     return _response(resume, default_id)

@@ -12,6 +12,7 @@ import pytest
 from app.deps import get_current_account
 from app.main import app
 from tests.test_built_resumes import (
+    _another,
     _docx_lines,
     _fill_bank,
     _generate,
@@ -106,7 +107,7 @@ async def test_moving_entries_and_bullets_reorders_this_resume_only(student):
     client, me = student
     await _fill_bank(client, me)
     resume_id = await _generate(client, me)
-    other = await _generate(client, me)
+    other = await _another(client, me)
     bank = await _bank(client, me)
     intern, tutor = _entry(bank, "Software Intern"), _entry(bank, "Tutor")
     first, second = (b["id"] for b in intern["bullets"])
@@ -240,7 +241,7 @@ async def test_typing_on_a_bullet_changes_this_resume_only_and_the_bank_keeps_th
     client, me = student
     await _fill_bank(client, me)
     resume_id = await _generate(client, me)
-    other = await _generate(client, me)
+    other = await _another(client, me)
     bullet = _entry(await _bank(client, me), "Software Intern")["bullets"][0]["id"]
 
     res = await client.patch(f"{me}/built-resumes/{resume_id}/choices",
@@ -316,7 +317,7 @@ async def test_another_resumes_local_wording_is_not_offered(student):
     client, me = student
     await _fill_bank(client, me)
     resume_id = await _generate(client, me)
-    other = await _generate(client, me)
+    other = await _another(client, me)
     bullet = _entry(await _bank(client, me), "Software Intern")["bullets"][0]["id"]
     await client.patch(f"{me}/built-resumes/{other}/choices",
                        json={"bullets": [{"bullet_id": bullet, "text": "Other resume's words"}]})

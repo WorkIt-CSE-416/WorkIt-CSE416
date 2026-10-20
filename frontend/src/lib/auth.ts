@@ -46,15 +46,23 @@ export function apiFetch(path: string, init: RequestInit, accessToken?: string):
  * Pulls a human-readable message out of a failed API response. FastAPI's
  * HTTPException serializes `detail` as a string (signup's 409/501, /me's
  * 401), but Pydantic validation failures (422) serialize it as an array of
- * error objects instead — both are handled here so callers don't have to
- * know which shape they got.
+ * error objects instead, and a refusal that also names a row sends an object
+ * with its `message` (the duplicate resume 409s, KAN-267). All three are
+ * handled here so callers don't have to know which shape they got.
  */
 export async function extractErrorMessage(response: Response): Promise<string> {
-  const body: unknown = await response.json().catch(() => null);
+  return errorMessage(await response.json().catch(() => null));
+}
+
+/** `extractErrorMessage` for a body already read, by a caller that needs
+ *  more of it than the message. */
+export function errorMessage(body: unknown): string {
   const detail = (body as { detail?: unknown } | null)?.detail;
 
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail) && typeof detail[0]?.msg === "string") return detail[0].msg;
+  const message = (detail as { message?: unknown } | null)?.message;
+  if (typeof message === "string") return message;
 
   return "Something went wrong. Please try again.";
 }

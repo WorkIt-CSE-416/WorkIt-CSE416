@@ -335,6 +335,25 @@ Find files with a directory listing; these are the rules for where code goes.
   is removed only when `file_in_use` says no row needs it**: the uploaded
   resume delete and the sent resume delete both check it, because a sent
   resume can point at an uploaded resume's file.
+- **A duplicate resume is refused** (KAN-267, `../docs/sent_resume.md`),
+  409 `{"detail": {"message": "Duplicate Resume found: <name>", ...}}`
+  with nothing written. **Upload and Import Updated Resume** compare
+  `resumes.text_hash` (`routers/resumes.py`'s `text_hash`: sha256 of
+  `raw_text`, NFKC, whitespace folded), so the same resume exported again
+  is caught although its bytes differ; a byte hash missed that. Extraction
+  runs before the Storage upload, so a refusal leaves no file, and the
+  check runs before the 5-upload limit. No text, no hash, no check. The
+  partial unique index `resumes_text_hash_key` catches two uploads at
+  once: the loser's commit fails, it removes its file and answers the same
+  409. **Changing `_extract` or `text_hash` makes stored hashes stale**: a
+  re-upload of an old resume then gets through (never the reverse).
+  Uploads from before KAN-267 have no hash (not backfilled). **Generate**
+  (`generate(..., refuse_duplicate=True)`, the route only; Tailor's own
+  Generate never refuses) compares the new resume's view with every built
+  resume's view built from today's bank (`same_resume`), before writing:
+  a resume's content changes with every edit, so no hash is stored. A
+  test that needs two resumes from one bank adds a skill between them
+  (`tests/test_built_resumes.py`'s `_another`).
 - **The resume limit is 5 uploads** (`services/built_resumes.py`'s
   `check_room`, called by upload before anything is written; 409 with the
   reason). Built resumes (base and tailored) and sent resumes do not count,
@@ -647,6 +666,10 @@ free tier). Render with a Dockerfile is the fallback.
   CHECK. Deployed first is worse: the new `JobPreferences` refuses a saved
   `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
   migration runs.
+- **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
+  that writes it.** The model maps the column, so every upload's INSERT
+  names it: deployed first, every upload answers 500. It only adds a
+  nullable column and an index, so applying it early is safe.
 - **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
   that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
   (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It

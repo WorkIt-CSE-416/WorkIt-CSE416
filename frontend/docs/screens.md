@@ -1268,10 +1268,18 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   named "Resume #N", one past the highest number the student's resumes
   carry; every one was "Base Resume" until KAN-258, so the list read as one
   name repeated. Generate has no limit (KAN-268); a failed one shows its
-  message as Generated Resumes' error.
+  message as Generated Resumes' error. **A Generate that would make a
+  resume the student already has makes nothing** (KAN-267): a pop-up says
+  "Duplicate Resume found: <name>" with an OK button, and nothing else
+  happens. "The same" is what prints: a new resume holds the whole bank,
+  so it matches only when nothing changed since an earlier Generate.
 - **Uploads** in Your Uploaded Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
-  parsed content. **The upload fills the experience bank** (ADR 0003): a
+  parsed content. **A file whose text the student already uploaded is
+  refused** (KAN-267): the upload's error line says "Duplicate Resume
+  found: <name>" and nothing is kept, whenever and however the file was
+  exported again. Import Updated Resume refuses the text of another upload
+  the same way, but takes its own row's text in a new file. **The upload fills the experience bank** (ADR 0003): a
   note under the dropzone says what went in ("Added 6 entries and 2 skills
   from resume.pdf", or "WorkIt couldn't find any entries in …"), links to
   Experiences, and offers **Read It With AI** while the student has an AI

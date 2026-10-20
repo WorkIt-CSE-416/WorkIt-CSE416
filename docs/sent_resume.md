@@ -1,6 +1,7 @@
 # Sent resumes per application (KAN-267)
 
-Status: **design complete, not built.** It changes how sent resumes (KAN-208)
+Status: **design complete; the duplicate checks are built** (build order
+steps 1 and 5, migration `d642d93fcfbc`); the rest is not built. It changes how sent resumes (KAN-208)
 are kept, links each application to the resume it went out with, stops
 recording plain downloads, and stops duplicate resumes at upload and at
 Generate. `resume.md`, "Sent resumes", describes what is built today; this
@@ -225,7 +226,7 @@ can drift only if the renderer changes:
    it moves before it, so a duplicate leaves no file behind.
 2. Normalize and hash it. Empty text: no hash, skip step 3.
 3. A resume of this applicant with the same `text_hash` → **409**, nothing
-   written: `{"detail": {"message": "Resume Duplicate found at <name>",
+   written: `{"detail": {"message": "Duplicate Resume found: <name>",
    "resume_id": "<id>"}}`. `<name>` is the existing row's
    `original_filename`, the name the Resumes page shows.
 4. Else the cap check as today (`check_room`, 409 at 5).
@@ -253,11 +254,13 @@ A duplicate is refused. The student sees a pop-up, "Duplicate Resume found:
 1. Work out the new resume's choices without writing them: the same
    `all_chosen(bank)` and copy hiding `generate` does today. Split
    `generate` into "plan the choices" and "write them" for this.
-2. Build its view (`build_view`) and hash it (`content_hash`). No render, no
-   file.
+2. Build its view (`build_view`). No render, no file.
 3. Build the view of each of the applicant's built resumes (base and
-   tailored) from the same bank, and hash each one, *now*. A built resume's
-   hash cannot be stored: an edit in the editor, or in the bank, changes it.
+   tailored) from the same bank, *now*, and compare it with the new one
+   (`built_resumes.same_resume`). Built: the views are compared as they
+   are, which says what equal hashes would without hashing. Nothing can be
+   stored to compare against: an edit in the editor, or in the bank,
+   changes a resume's content.
 4. A match → **409**, nothing written: `{"detail": {"message": "Duplicate
    Resume found: <name>", "built_resume_id": "<id>"}}`. `<name>` is the
    matching resume's name. The frontend shows the message in a pop-up and
@@ -276,11 +279,11 @@ when it was made, minus what the student hid. So Generate is refused only
 when nothing changed since an earlier Generate: the bank gained nothing and
 that resume was not edited.
 
-Speed: one hash takes 0.27 ms (measured on the sample resume). The time is
-the database reads: the bank once, and the choices of every built resume.
-Load all the choices in one query per kind (entries, bullets, skills) rather
-than one `load_choices` per resume, so the check is about four queries,
-whatever the number of resumes. Generate already loads the bank.
+Speed: hashing one view takes 0.27 ms (measured on the sample resume), and
+comparing two is cheaper. The time is the database reads: the student's
+built resumes, then all their choices in one query per kind (entries,
+bullets, skills; `_choices_of`), so the check is four queries whatever the
+number of resumes. Generate already loads the bank.
 
 Tailor's own Generate (`routers/tailor.py`, when the student has no base
 resume) skips the check: it runs only when there is no other resume to
@@ -410,7 +413,7 @@ once this ships.
 
 | Route | Change |
 |---|---|
-| `POST /applicants/{id}/resumes` | Text hash check: 409 "Resume Duplicate found at <name>" with `resume_id`; stores `text_hash` |
+| `POST /applicants/{id}/resumes` | Text hash check: 409 "Duplicate Resume found: <name>" with `resume_id`; stores `text_hash` |
 | `PUT /applicants/{id}/resumes/{rid}` | Same check against the other resumes |
 | `POST /applicants/{id}/built-resumes` | Live hash check: 409 "Duplicate Resume found: <name>" with `built_resume_id`; writes nothing |
 | `POST /applicants/{id}/sent-resumes` | `job_posting_id` required, `format` gone. Built: a snapshot, no Storage. Answers the file as `data` (built) or `url` (uploaded) |
@@ -420,8 +423,8 @@ once this ships.
 | `POST /applicants/{id}/applications/{job_id}/resume` (auto apply) | The file in the same two shapes; sets `sent_resume_id` |
 | `GET /applicants/{id}/applications` | Each application adds `sent_resume_id` and the sent resume's `name` |
 
-The extension reads `GET /applicants/{id}/resumes` and `.../{rid}`; both
-only gain `text_hash`, which it ignores. Nothing it reads changes shape.
+The extension reads `GET /applicants/{id}/resumes` and `.../{rid}`.
+Neither changes: `text_hash` stays in the database and no response sends it.
 
 ## Build order
 
@@ -481,8 +484,8 @@ Behaviour only; no test of a prompt's wording.
 - The CHECK refuses a sent resume with both or neither of `storage_path` and
   `snapshot_id`.
 - `POST .../sent-resumes` without `job_posting_id`: 422, nothing written.
-- Upload of the same file twice: the second answers 409 with "Resume
-  Duplicate found at <name>", leaves no file in Storage and no row.
+- Upload of the same file twice: the second answers 409 with "Duplicate
+  Resume found: <name>", leaves no file in Storage and no row.
 - Upload of the same text in a different file (other line breaks, spacing,
   a ligature): 409. One changed word: uploads.
 - An upload with no extractable text: uploads, `text_hash` NULL; a second
@@ -505,7 +508,7 @@ Behaviour only; no test of a prompt's wording.
 |---|---|
 | Built resumes: PDF or snapshot? | Gzipped JSON snapshot, rendered again on view |
 | Uploaded resumes | Point at the uploaded file; no parsed copy |
-| Upload duplicates | Text hash of `raw_text`, no byte hash; 409 "Resume Duplicate found at <name>" |
+| Upload duplicates | Text hash of `raw_text`, no byte hash; 409 "Duplicate Resume found: <name>" |
 | Old uploads | No backfill of `text_hash` |
 | Generate duplicates | Refused; pop-up "Duplicate Resume found: <name>", nothing else |
 | Plain downloads | Keep nothing; only sends are sent resumes |

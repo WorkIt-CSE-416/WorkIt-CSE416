@@ -17,6 +17,13 @@ resume answers `NotFound`), and flushes but never commits.
   (`next_name`), and `rename` changes it. A resume's `updated_at` is when it
   last changed itself (`touch`): its choice rows have their own, which the
   list would have to read row by row.
+- **Duplicates** (KAN-267): Generate with `refuse_duplicate` raises
+  `DuplicateResume` when the new resume would print the same as one the
+  student has: the same template and the same view (`build_view`), built
+  now from today's bank. Nothing is stored to compare against: an edit in
+  the editor or the bank changes a resume's content, so a stored hash would
+  go stale. Tailor's own Generate does not refuse: it runs only when there
+  is no base resume.
 """
 
 import dataclasses
@@ -44,7 +51,7 @@ from app.schemas.built_resume import (
     SkillChoiceResponse,
     VariantResponse,
 )
-from app.services.bank import NotFound, copy_key, get_entry, load_bank
+from app.services.bank import Bank, NotFound, copy_key, get_entry, load_bank
 from app.services.postings import LISTED
 from app.services.resume_render import HeaderIdentity, Rendered, line_count
 from app.services.resume_view import (
@@ -91,18 +98,24 @@ async def next_name(session: AsyncSession, applicant_id: uuid.UUID) -> str:
     return f"Resume #{max(used, default=0) + 1}"
 
 
-async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str | None = None) -> Built_Resume:
+class DuplicateResume(Exception):
+    """Generate would make a resume that prints the same as `resume`."""
+
+    def __init__(self, resume: Built_Resume) -> None:
+        super().__init__(f"Duplicate Resume found: {resume.name}")
+        self.resume = resume
+
+
+async def generate(
+    session: AsyncSession, applicant_id: uuid.UUID, name: str | None = None, *, refuse_duplicate: bool = False
+) -> Built_Resume:
     """A base resume with every bank entry, bullet and skill, in the bank's
     order (the fixed section order, newest first), except a copy of an entry
     already on it (`copy_key`), which waits hidden in "Not on This Resume":
     two copies of one job sent a resume to two pages. With no name it is
-    "Resume #N" (`next_name`)."""
-    name = name or await next_name(session, applicant_id)
-    resume = Built_Resume(id=uuid.uuid4(), applicant_id=applicant_id, name=name, template=DEFAULT_TEMPLATE)
-    session.add(resume)
-    # No relationship() orders the inserts (models/CLAUDE.md): the resume
-    # goes in before its choice rows.
-    await session.flush()
+    "Resume #N" (`next_name`). With `refuse_duplicate`, raises
+    DuplicateResume before writing anything when the student already has a
+    resume that prints the same."""
     bank = await load_bank(session, applicant_id)
     choices = all_chosen(bank)
     seen: set[tuple] = set()
@@ -110,6 +123,15 @@ async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str | N
         if copy_key(entry.row) in seen:
             choices.entries[entry.row.id] = dataclasses.replace(choices.entries[entry.row.id], shown=False)
         seen.add(copy_key(entry.row))
+    if refuse_duplicate and (same := await same_resume(session, applicant_id, bank, build_view(bank, choices))):
+        raise DuplicateResume(same)
+
+    name = name or await next_name(session, applicant_id)
+    resume = Built_Resume(id=uuid.uuid4(), applicant_id=applicant_id, name=name, template=DEFAULT_TEMPLATE)
+    session.add(resume)
+    # No relationship() orders the inserts (models/CLAUDE.md): the resume
+    # goes in before its choice rows.
+    await session.flush()
     await write_choices(session, resume.id, choices)
     await default_if_only(session, applicant_id)
     await session.refresh(resume)
@@ -289,20 +311,39 @@ async def default_if_only(session: AsyncSession, applicant_id: uuid.UUID) -> Non
 
 
 async def load_choices(session: AsyncSession, resume_id: uuid.UUID) -> Choices:
+    return (await _choices_of(session, [resume_id])).get(resume_id, Choices())
+
+
+async def _choices_of(session: AsyncSession, resume_ids: list[uuid.UUID]) -> dict[uuid.UUID, Choices]:
+    """Each resume's choice rows, three queries for any number of resumes."""
     entries = await session.scalars(
-        select(Built_Resume_Entry).where(Built_Resume_Entry.built_resume_id == resume_id))
+        select(Built_Resume_Entry).where(Built_Resume_Entry.built_resume_id.in_(resume_ids)))
     bullets = await session.execute(
         select(Built_Resume_Bullet, Bank_Bullet_Variant.text)
         .outerjoin(Bank_Bullet_Variant, Bank_Bullet_Variant.id == Built_Resume_Bullet.variant_id)
-        .where(Built_Resume_Bullet.built_resume_id == resume_id))
+        .where(Built_Resume_Bullet.built_resume_id.in_(resume_ids)))
     skills = await session.scalars(
-        select(Built_Resume_Skill).where(Built_Resume_Skill.built_resume_id == resume_id))
-    return Choices(
-        entries={r.entry_id: EntryChoice(r.shown, r.position, r.show_gpa, r.show_coursework) for r in entries},
-        bullets={r.bullet_id: BulletChoice(r.shown, r.position, r.variant_id, wording)
-                 for r, wording in bullets},
-        skills={r.skill_id: SkillChoice(r.shown, r.position) for r in skills},
-    )
+        select(Built_Resume_Skill).where(Built_Resume_Skill.built_resume_id.in_(resume_ids)))
+    found = {i: Choices() for i in resume_ids}
+    for r in entries:
+        found[r.built_resume_id].entries[r.entry_id] = EntryChoice(r.shown, r.position, r.show_gpa, r.show_coursework)
+    for r, wording in bullets:
+        found[r.built_resume_id].bullets[r.bullet_id] = BulletChoice(r.shown, r.position, r.variant_id, wording)
+    for r in skills:
+        found[r.built_resume_id].skills[r.skill_id] = SkillChoice(r.shown, r.position)
+    return found
+
+
+async def same_resume(
+    session: AsyncSession, applicant_id: uuid.UUID, bank: Bank, view: ResumeView, template: str = DEFAULT_TEMPLATE
+) -> Built_Resume | None:
+    """The applicant's built resume (base or tailored) that prints the same
+    as `view` in `template` today, if any. `bank` is the applicant's, loaded
+    once by the caller. Compares the views themselves: equal views are what
+    an equal content hash would say, without hashing either."""
+    resumes = await list_resumes(session, applicant_id)
+    choices = await _choices_of(session, [r.id for r in resumes])
+    return next((r for r in resumes if r.template == template and build_view(bank, choices[r.id]) == view), None)
 
 
 async def update_choices(
