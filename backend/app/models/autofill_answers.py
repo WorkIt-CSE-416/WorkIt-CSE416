@@ -2,8 +2,9 @@
 a student's answers to the questions hiring systems repeat on every
 application (KAN-283): work authorization, sponsorship, citizenship and visa
 status, security clearance, and the voluntary gender, Hispanic or Latino,
-race, veteran and disability self-identification. Onboarding's second step asks them; auto apply's fill
-(auto-apply/architecture.md, `autofill_answers`) and My Profile read them.
+race, veteran and disability self-identification. Onboarding's second step
+asks them; auto apply's fill (auto-apply/architecture.md,
+`autofill_answers`) and My Profile read them.
 models/CLAUDE.md, "autofill_answers", has the design.
 '''
 import uuid

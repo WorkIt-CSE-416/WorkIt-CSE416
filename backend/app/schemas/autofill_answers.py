@@ -25,8 +25,7 @@ says. None is unanswered. The options follow real application forms:
   form words them.
 
 Gender, Hispanic or Latino, race, veteran and disability are voluntary, so
-each has a "declined"
-answer, which is an answer to fill in, unlike None.
+each has a "declined" answer, which is an answer to fill in, unlike None.
 """
 
 from typing import Literal, get_args

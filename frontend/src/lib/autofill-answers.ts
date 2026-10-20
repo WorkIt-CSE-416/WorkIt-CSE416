@@ -10,9 +10,9 @@
  * Each value is the API's option key, never the label: the label is the words
  * real forms use, so a student recognises the answer they will be filling in,
  * and can change here without touching what is stored. Gender, Hispanic or
- * Latino, race, veteran and
- * disability are voluntary self-identification, so each has its own "decline" answer,
- * which is an answer to fill in, unlike null (not answered).
+ * Latino, race, veteran and disability are voluntary self-identification, so
+ * each has its own "decline" answer, which is an answer to fill in, unlike
+ * null (not answered).
  */
 
 export type YesNo = "yes" | "no";

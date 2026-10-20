@@ -718,10 +718,10 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
 A student's answers to the questions hiring systems repeat on every
 application: work authorization, sponsorship, citizenship and visa status,
 security clearance, and the voluntary gender, Hispanic or Latino, race,
-veteran and disability self-identification. Onboarding's second step (Profile) asks them; auto
-apply's fill reads them (`../../auto-apply/architecture.md`,
-`autofill_answers`), and My Profile's Application Questions shows and edits
-them (KAN-269).
+veteran and disability self-identification. Onboarding's second step
+(Profile) asks them; auto apply's fill reads them
+(`../../auto-apply/architecture.md`, `autofill_answers`), and My Profile's
+Application Questions shows and edits them (KAN-269).
 
 - **One JSONB bank per applicant** (primary key `applicant_id`, CASCADE):
   `answers` maps a stable question key to its answer alone
