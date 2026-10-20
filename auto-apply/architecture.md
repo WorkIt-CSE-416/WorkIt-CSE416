@@ -629,10 +629,15 @@ This data also shows which hiring systems need adapter work.
 
 ### `autofill_answers`
 
-Already planned in `backend/app/models/CLAUDE.md`, Known gaps: one JSONB bank
-of answers per student for the questions hiring systems repeat (work
-authorization, sponsorship, start date). Without it, every form stops at those
-questions, and the fill rate stays low.
+**Built** (KAN-283): one JSONB bank of answers per student for the questions
+hiring systems repeat, `backend/app/models/CLAUDE.md`, "The answer bank".
+Onboarding's Profile step fills it: work authorization, sponsorship,
+citizenship and visa status, security clearance, gender, veteran status
+and disability. Contact details and links are not in it: auto apply reads
+them from `applicant_profiles`, their one home. `GET` and `PATCH /applicants/{id}/autofill-answers` read and
+write it, a key at a time. Still to do: the extension fills forms from it,
+and start date and the other repeated questions get keys. Without it, every
+form stops at those questions, and the fill rate stays low.
 
 ### `api_keys` and `usage` (for MCP)
 
@@ -844,7 +849,8 @@ Each step ships alone and is about one ticket.
    `run/status` and `run/show` drive "Working in Browser" (one-shot
    messages, not yet the port; no fill).
 6. **`autofill_runs`**, and Live Activity shows each fill's report.
-7. **`autofill_answers`** for screening questions.
+7. **`autofill_answers`** for screening questions. The bank and its routes
+   are built (KAN-283); the extension does not read it yet.
 8. **The Auto Apply page and Tailor**: the resume each application gets, and
    a Tailor link per queued application ("The resume", Later).
 9. **MCP server**, API keys and billing.

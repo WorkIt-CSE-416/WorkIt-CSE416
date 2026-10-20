@@ -703,6 +703,49 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
   `027620538860` (KAN-233's expand). It must be on the database before the
   API that maps them deploys.
 
+## The answer bank — `autofill_answers.py` (KAN-283)
+
+A student's answers to the questions hiring systems repeat on every
+application: work authorization, sponsorship, citizenship and visa status,
+security clearance, and the voluntary gender, veteran and disability
+self-identification. Onboarding's second step (Profile) asks them; auto
+apply's fill reads them (`../../auto-apply/architecture.md`,
+`autofill_answers`), and My Profile will show them (KAN-273).
+
+- **One JSONB bank per applicant** (primary key `applicant_id`, CASCADE):
+  `answers` maps a stable question key to its answer alone
+  (`{"needs_sponsorship": "no"}`). Hiring systems repeat a handful of questions,
+  and a new one joins without a migration, so one bank beats a row per
+  question. `NOT NULL DEFAULT '{}'::jsonb` with a `CHECK (jsonb_typeof(answers)
+  = 'object')`: an array or a string would answer every lookup with nothing.
+- **The answer is an option key, never a label** (`"f1_student"`, not
+  "F-1 Student"). The keys and their options are `schemas/autofill_answers.py`
+  (Literals, so the API refuses anything else with a 422); the labels are the
+  frontend's (`onboarding/applicant/answers.ts`), as are the questions' words.
+- **No question text is stored** (decided 2026-10-20). The first design kept
+  `{question_text, answer}` per key, which copied the same words into every
+  student's row for no reader: a fixed key already says which question it
+  is. Questions with no fixed key (a company's own screening question)
+  will need their text stored, but only once the extension records what a
+  student types into a form; they get their own part of the bank then,
+  with no migration, since the column is JSONB.
+- **Written per key, never replaced whole.** `PATCH` merges in the database
+  (`answers || new - cleared`), so a tab holding an old copy can't erase an
+  answer it never loaded. The frontend sends only the answers the seeker
+  changed.
+- **A key or option the code no longer knows reads as unanswered**
+  (`answers_from_bank`), so the bank outlives any one version of the questions.
+- **Gender, veteran and disability answers are sensitive.** Only their owner
+  reads them (`owned_applicant`), and they never go to a model.
+- **Contact details stay on `applicant_profiles`, never in the bank.** Phone,
+  LinkedIn, GitHub, portfolio: one fixed set, one value each, which the
+  resume header prints and `services/identity.py` keeps from models. The bank
+  holds answers to the questions forms ask that a resume does not answer. A
+  fact lives in one place: a copy in the bank would go stale the first time
+  the student edits My Profile, and auto apply would fill the old one in.
+- **Its migration is `a7d3e5c1b942`** (RLS on). It must be on the database
+  before the API that maps it deploys.
+
 ## job_postings holds company-posted and scraped jobs
 
 One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
@@ -898,14 +941,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - Only `company_profiles.id` has a UUID default (Python `uuid4` plus
   `gen_random_uuid()`); every other insert must supply `id`. The account
   tables must keep having none — their id is the `auth.users` id.
-- `autofill_answers` is not implemented. It is still wanted: one reusable answer
-  bank per applicant, keyed on `applicant_profiles.id`, with a `jsonb answers`
-  column mapping stable question keys to `{question_text, answer}`. Workday-style
-  forms repeat the same authorization, sponsorship and availability questions, so
-  one JSONB bank beats a row per question. It needs
-  `NOT NULL DEFAULT '{}'::jsonb`, a `CHECK (jsonb_typeof(answers) = 'object')`,
-  and per-key writes through `jsonb_set` rather than replacing the bank from
-  stale client state — none of which autogenerate emits.
+- `autofill_answers` (above) holds only onboarding's seven questions. The
+  rest that forms repeat (availability, relocation, race and ethnicity
+  self-identification) have no key yet.
 - `applicant_profiles.location` and `company_profiles.industry` are absent.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is

@@ -594,7 +594,12 @@ Find files with a directory listing; these are the rules for where code goes.
   statement to any free backend: a prepared statement made on one is absent on
   the next, and queries fail intermittently under load, never in development.
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
-  they raise `TypeError: Invalid argument(s)`.
+  they raise `TypeError: Invalid argument(s)`. `hide_parameters=True` keeps
+  the values a statement sent out of its error's text, which every route's
+  `logger.exception` writes to the Vercel logs: a failed answer bank save
+  logged a student's gender and disability answers (KAN-283,
+  `tests/test_autofill_answers.py`). Debug with the SQL, never by turning it
+  off.
 - **CI runs the whole migration chain** on an empty Postgres before the
   database tests, so two heads or a broken migration fail the PR. **Still
   open:** `alembic check` (model drift) is not a CI gate yet
@@ -642,6 +647,12 @@ free tier). Render with a Dockerfile is the fallback.
   CHECK. Deployed first is worse: the new `JobPreferences` refuses a saved
   `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
   migration runs.
+- **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
+  that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
+  (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It
+  only adds a table, so the running code never meets it and applying it
+  early is safe; deployed first, onboarding's Continue answers 500 and the
+  Profile step never loads saved answers.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.

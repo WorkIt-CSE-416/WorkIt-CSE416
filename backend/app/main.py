@@ -16,6 +16,7 @@ from app.routers.applications import router as applications_router
 from app.routers.assistant import router as assistant_router
 from app.routers.auth import router as auth_router
 from app.routers.auto_apply import router as auto_apply_router
+from app.routers.autofill_answers import router as autofill_answers_router
 from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
 from app.routers.built_resumes import router as built_resumes_router
@@ -51,6 +52,7 @@ app.include_router(sent_resumes_router)
 app.include_router(tailor_router)
 app.include_router(assistant_router)
 app.include_router(preferences_router)
+app.include_router(autofill_answers_router)
 
 
 @app.exception_handler(RequestValidationError)

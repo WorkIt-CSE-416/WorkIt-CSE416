@@ -1538,21 +1538,23 @@ From lg the screen is one window tall and only the right column scrolls, with
 its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
 Step 1 is Role, Job Type and Workplace (all required), and Start Date,
-Experience Level and Location, Experience Level after Job Type (KAN-284); step 2 is Salary Range and Visa Sponsorship (both
-optional); step 3 is Resume (KAN-275), with Skip and Continue in place of
+Experience Level, Location and Salary Range, Experience Level after Job Type
+(KAN-284); step 2, Profile, is the questions every application asks
+(KAN-283, all optional); step 3 is Resume (KAN-275), with Skip and Continue
+in place of
 Next. Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
 only the jobs that name one, which a new-grad role rarely does. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
 **One step rail counts the whole journey (KAN-259).** The wizard heads its
-fields with the shared `components/stepper.tsx` at `size="lg"`: Role, Pay &
-Visa, Resume (`onboarding/applicant/steps.ts`). It replaced a thin bar and a
-14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
+fields with the shared `components/stepper.tsx` at `size="lg"`: Role,
+Profile, Resume (`onboarding/applicant/steps.ts`). It replaced a thin bar and
+a 14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
 the screen, far from the fields, and wrong, since intake then opened six more
 sections on a page of its own. That page carried the rail too, with
 Experiences as the third step, until the resume step replaced intake
-(KAN-275).
+(KAN-275). The second step was Pay & Visa until KAN-283.
 
 **The question and Scout stand apart (KAN-259).** The question sits under the
 logo; Scout sits at the left half's foot, from lg only, and types a tip the
@@ -1580,18 +1582,33 @@ empty, with the question still at the top. Scout types its tip in a chat
 bubble on every step. It is all decoration over made-up data, so it is
 aria-hidden, and it holds still under reduced motion.
 
-**Its answers are the Jobs page's filters.** Every question takes
+**Profile asks what every application asks (KAN-283).** Authorization to
+Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
+Clearance, then the voluntary Gender, Veteran Status and Disability, in the
+order real forms ask them, each under the question as forms word it. The options
+are real forms' options (`onboarding/applicant/answers.ts`): gender's are the
+EEO Male, Female and decline plus Non-Binary, which many forms add; veteran
+status's three are the U.S. protected veteran self-identification's, disability's
+three are Form CC-305's words. One answer each, as dots; pressing a picked
+answer again clears it. They are not filters: Continue saves them to the
+answer bank (`PATCH /applicants/{id}/autofill-answers`, only the changed
+ones), which auto apply fills forms from. The step was Pay & Visa until
+KAN-283: pay moved to step 1, beside the job types that set its units, and
+the visa filter question left onboarding. A visa filter saved before is
+kept, and the Jobs page still sets it.
+
+**Step 1's answers are the Jobs page's filters.** Every question takes
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
 Start Date and Salary use All Filters' own pickers
 (`components/filter-controls.tsx`), so the saved answers fill the feed's
-filters with no translation. Two questions differ from All Filters
-(KAN-275). Start Date lists only seasons still ahead: no bare year ("2027
+filters with no translation. Start Date differs from All Filters
+(KAN-275): it lists only seasons still ahead, with no bare year ("2027
 (Season Not Stated)") and no season already under way, both dropped in
-`page.tsx`. Visa Sponsorship is two any-of tiles, No Visa Sponsorship and
-Sponsor Visas, while the saved preference stays one `visa`: Sponsor Visas
-alone saves `sponsors`, and any other pick saves no visa filter. A lone No
-Visa Sponsorship comes back unpicked when a finished seeker opens the page
-again, since it saves as nothing. They share All Filters' rules too, from
+`page.tsx`. KAN-275 also asked Visa Sponsorship as two filter tiles (No
+Visa Sponsorship, Sponsor Visas) on the second step; KAN-283 replaced that
+step with Profile, whose sponsorship question is an application answer, not
+a filter. A saved `visa` passes through unchanged, and All Filters still
+sets it. They share All Filters' rules too, from
 `filter-query.ts`: `payUnits` picks the salary's units from the job types,
 and `statesNarrowCountries` saves United States and California as
 California. A fixed choice is a `ChoiceTile`
@@ -1618,8 +1635,12 @@ a file. The footer's "Saving…" covers the save. It replaced intake
 in another design: one upload fills most of the bank in one step, and intake
 still runs on the Experiences view for what the resume missed.
 
-**Continue or Skip saves the answers (KAN-231)** as the seeker's preferences
-(`PUT /applicants/{id}/preferences`, which also marks onboarding complete).
+**Continue or Skip saves the answers.** The Profile step's go to the answer
+bank first (`PATCH /applicants/{id}/autofill-answers`, only the changed ones,
+KAN-283), then step 1's as the seeker's preferences (`PUT
+/applicants/{id}/preferences`, KAN-231, which also marks onboarding
+complete). The bank goes first because a finished seeker is never sent back
+here, and no other screen asks those questions yet.
 Continue then uploads the file through `uploadResume`, and the API reads it
 into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
 whose Recommended view scores the saved filters' jobs against the bank. The
@@ -1629,8 +1650,8 @@ saves the answers again harmlessly. Date Posted is not asked: a saved "past
 24 hours" would empty the feed within days. Sign-in sends an applicant here
 until they finish (`docs/auth.md`); a finished one who opens the page again
 finds the wizard filled with their saved answers, and Continue saves the
-edits. `?step=2` opens the wizard on its second step; intake's "Back to Pay
-& Visa" linked there until KAN-275, and nothing does now. Without saved
+edits. `?step=2` opens the wizard on its second step, Profile; intake's "Back to
+Pay & Visa" linked there until KAN-275, and nothing does now. Without saved
 answers `?step=2` opens on the first step, which holds the answers that must
 be given.
 

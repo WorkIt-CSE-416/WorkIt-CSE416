@@ -28,10 +28,20 @@ import {
 import { ResumeUpload } from "@/components/resume-upload";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import { uploadResume } from "@/lib/resume-actions";
 
-import { savePreferences } from "./actions";
+import { saveAutofillAnswers, savePreferences } from "./actions";
+import { NO_ANSWERS, PROFILE_QUESTIONS, type AutofillAnswers } from "./answers";
 import { ChoiceTile } from "./choice-tile";
+import {
+  AuthorizationIcon,
+  ClearanceIcon,
+  DisabilityIcon,
+  GenderIcon,
+  StatusIcon,
+  VeteranIcon,
+} from "./icons";
 import { SignedInAs } from "./signed-in-as";
 import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
@@ -42,26 +52,35 @@ import { StoryPanel } from "./story-panel";
  * right, under the step rail (./steps.ts). Each new question takes focus, so
  * a screen reader hears it.
  *
- * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, job type, start date,
- * experience level, workplace, location, salary and visa are a `FeedFilters`, with the
+ * STEP 1'S ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, job type, start date,
+ * experience level, workplace, location and salary are a `FeedFilters`, with the
  * same options and pickers as All Filters (components/filter-controls), but
- * for two (KAN-275): Start Date offers upcoming seasons only (./page), and
- * Visa Sponsorship has its own two tiles (VISA_PICKS below). Start
- * Date is asked only once Internship is picked, and dropping Internship
- * clears it: a saved season keeps only the jobs that name one, which a
- * new-grad role rarely does. Date Posted is not asked: a saved "past 24
- * hours" would empty the feed within days.
+ * Start Date offers upcoming seasons only (KAN-275, ./page). Start Date is
+ * asked only once Internship is picked, and dropping Internship clears it: a
+ * saved season keeps only the jobs that name one, which a new-grad role
+ * rarely does. Date Posted is not asked: a saved "past 24 hours" would empty
+ * the feed within days.
+ *
+ * STEP 2 IS WHAT EVERY APPLICATION ASKS (KAN-283): work authorization,
+ * sponsorship, citizenship and visa status, clearance, and the voluntary
+ * gender, veteran and disability self-identification (./answers). They are no
+ * filter: they go to the seeker's answer bank, which auto apply fills forms
+ * from. It used to be Pay & Visa; pay moved to step 1 with the rest of the
+ * role, and the visa filter question left onboarding (a saved one is kept,
+ * and the Jobs page still sets it).
  *
  * THE LAST STEP IS A RESUME (KAN-275), the Resumes view's dropzone, and it
- * replaced intake's chat (KAN-214). Continue saves the answers as the
- * seeker's preferences, which marks onboarding done, then uploads the picked
- * file; the API reads it into the experience bank matching reads (ADR 0003).
- * Skip saves the answers alone. Either opens the Jobs page's Recommended
- * view. The answers save first, so a failed upload leaves onboarding done and
- * this step to retry from; saving them again changes nothing.
+ * replaced intake's chat (KAN-214). Continue saves step 2 to the answer bank,
+ * then step 1 as the seeker's preferences, which marks onboarding done, then
+ * uploads the picked file; the API reads it into the experience bank matching
+ * reads (ADR 0003). Skip saves the answers alone. Either opens the Jobs
+ * page's Recommended view. The answer bank saves first because a finished
+ * seeker is never sent back here, and nothing else asks these questions yet;
+ * a failed upload leaves onboarding done and this step to retry from, and
+ * saving again changes nothing.
  *
- * `initial` is the seeker's saved preferences, so a finished seeker who comes
- * back edits them rather than starting over.
+ * `initial` and `initialAnswers` are what the seeker saved, so a finished
+ * seeker who comes back edits them rather than starting over.
  */
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -81,10 +100,10 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
-        Next, what <strong>pay and visa sponsorship</strong> do you need?
+        Next, the questions <strong>every application asks</strong>.
       </>
     ),
-    line: "Both are optional. Leave them open and I won't filter on pay or visa.",
+    line: "All optional. Answer once, and I'll keep them ready for your applications.",
   },
   {
     question: (
@@ -99,20 +118,12 @@ const STEPS: { question: ReactNode; line: string }[] = [
 const toggle = <T,>(values: T[], value: T) =>
   values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
 
-/** Visa Sponsorship's tiles, any of them (KAN-275). The saved preference is
- *  still one `visa`: "Sponsor Visas" alone saves ?visa=sponsors, and any
- *  other pick keeps every job, so it saves no visa filter. */
-type VisaPick = "none" | "sponsors";
-const VISA_PICKS: { value: VisaPick; label: string }[] = [
-  { value: "none", label: "No Visa Sponsorship" },
-  { value: "sponsors", label: "Sponsor Visas" },
-];
-
 export function OnboardingForm({
   roles,
   places,
   seasons,
   initial = NO_FILTERS,
+  initialAnswers = NO_ANSWERS,
   email,
   startStep = 0,
 }: {
@@ -121,9 +132,11 @@ export function OnboardingForm({
   /** The Start Date options, GET /jobs/facets' seasons. */
   seasons: PickOption[];
   initial?: FeedFilters;
+  /** The answer bank as saved (./saved-answers), for step 2. */
+  initialAnswers?: AutofillAnswers;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
-  /** The step to open on: Pay & Visa for ?step=2 (./page). */
+  /** The step to open on: Profile for ?step=2 (./page). */
   startStep?: number;
 }) {
   const router = useRouter();
@@ -134,8 +147,13 @@ export function OnboardingForm({
    *  focused: nothing has changed under the reader yet. */
   const moved = useRef(false);
   const [answers, setAnswers] = useState<FeedFilters>(initial);
-  // Kept here, not in the step, so Back and Next keep the picks.
-  const [visaPicks, setVisaPicks] = useState<VisaPick[]>(initial.visa ? ["sponsors"] : []);
+  const [profile, setProfile] = useState<AutofillAnswers>(initialAnswers);
+  /** What the bank holds as far as this page knows: the saved answers it
+   *  opened on, then whatever its last save sent. Continue sends only what
+   *  differs, so after a save whose next step failed, un-picking an answer
+   *  still clears it. Against the page's first props it sent nothing, and
+   *  the bank kept the answer the seeker took back. */
+  const bankSaved = useRef<AutofillAnswers>(initialAnswers);
   const [resume, setResume] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   // Only while the file is on its way, so the dropzone's "Uploading…" never
@@ -167,22 +185,41 @@ export function OnboardingForm({
     window.scrollTo({ top: 0 });
   }
 
-  /** Saving the answers is what finishes onboarding, then the resume, if
-   *  one was picked, uploads. A failure leaves this page to retry from. */
+  /** Saves the answer bank, then the preferences, which finish onboarding,
+   *  then uploads the resume if one was picked. A failure leaves this page to
+   *  retry from. */
   async function finish(file: File | null) {
     setSaving(true);
     setError(null);
-    // A picked state narrows its country, as All Filters' Apply does.
-    const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
-    if (saveError) return fail(saveError);
-    if (file) {
-      const fd = new FormData();
-      fd.append("file", file);
-      setUploading(true);
-      const { error: uploadError } = await uploadResume(fd);
-      if (uploadError) return fail(uploadError);
+    // Each action catches its own API failures, but the call to the action
+    // can itself fail (the connection drops, the Next server is down). That
+    // left Continue disabled on "Saving…" with no message.
+    try {
+      // Only the answers changed here go to the bank: it merges them into
+      // what it holds, so one this page didn't load is never erased.
+      const sent = profile;
+      const changed = Object.fromEntries(
+        Object.entries(sent).filter(
+          ([key, value]) => value !== bankSaved.current[key as keyof AutofillAnswers],
+        ),
+      );
+      const { error: bankError } = await saveAutofillAnswers(changed);
+      if (bankError) return fail(bankError);
+      bankSaved.current = sent;
+      // A picked state narrows its country, as All Filters' Apply does.
+      const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
+      if (saveError) return fail(saveError);
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        setUploading(true);
+        const { error: uploadError } = await uploadResume(fd);
+        if (uploadError) return fail(uploadError);
+      }
+      router.push("/jobs");
+    } catch {
+      fail("Could not reach the server. Check your connection and try again.");
     }
-    router.push("/jobs");
   }
 
   function fail(message: string) {
@@ -223,14 +260,9 @@ export function OnboardingForm({
             <RoleStep answers={answers} set={set} roles={roles} places={places} seasons={seasons} />
           )}
           {step === 1 && (
-            <PriorityStep
-              answers={answers}
-              set={set}
-              visaPicks={visaPicks}
-              setVisaPicks={(picks) => {
-                setVisaPicks(picks);
-                set({ visa: picks.length === 1 && picks[0] === "sponsors" ? "sponsors" : null });
-              }}
+            <ProfileStep
+              answers={profile}
+              set={(change) => setProfile((a) => ({ ...a, ...change }))}
             />
           )}
           {step === 2 && (
@@ -392,24 +424,12 @@ function RoleStep({
           onChange={(next) => set({ places: next })}
         />
       </Field>
-    </>
-  );
-}
-
-function PriorityStep({
-  answers,
-  set,
-  visaPicks,
-  setVisaPicks,
-}: StepProps & { visaPicks: VisaPick[]; setVisaPicks: (picks: VisaPick[]) => void }) {
-  const units = payUnits(answers.jobTypes);
-
-  return (
-    <>
+      {/* Pay is part of the role (KAN-283): its units follow the job types
+          picked above. */}
       <Field Icon={CoinIcon} label="Salary Range">
         <SalaryPicker
           size="lg"
-          units={units}
+          units={payUnits(answers.jobTypes)}
           presets={PAY_OPTIONS}
           minPay={answers.minPay}
           maxPay={answers.maxPay}
@@ -417,19 +437,91 @@ function PriorityStep({
           onChange={(minPay, maxPay, per) => set({ minPay, maxPay, payPer: per })}
         />
       </Field>
-      <Field Icon={VisaIcon} label="Visa Sponsorship">
-        <div className="grid grid-cols-2 gap-2 lg:gap-3">
-          {VISA_PICKS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              pressed={visaPicks.includes(o.value)}
-              onClick={() => setVisaPicks(toggle(visaPicks, o.value))}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
-      </Field>
+    </>
+  );
+}
+
+/** One of the Profile step's questions: one answer of a group, as dots. A
+ *  pressed answer pressed again is cleared, since every one is optional. */
+function OneOf<V extends string>({
+  options,
+  value,
+  onChange,
+  columns = 1,
+  labelledBy,
+  describedBy,
+}: {
+  options: { value: V; label: string }[];
+  value: V | null;
+  onChange: (next: V | null) => void;
+  columns?: 1 | 2 | 3;
+  /** The Field's heading and question (fieldId), named on the group itself:
+   *  a screen reader reads a group's name and description as focus enters
+   *  it, where it skipped a description on the section around it, and
+   *  "Yes" was read with no question. */
+  labelledBy: string;
+  describedBy: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+      className={cn(
+        "grid grid-cols-1 gap-2 lg:gap-3",
+        columns === 2 && "sm:grid-cols-2",
+        columns === 3 && "sm:grid-cols-3",
+      )}
+    >
+      {options.map((o) => (
+        <ChoiceTile
+          key={o.value}
+          kind="radio"
+          pressed={value === o.value}
+          onClick={() => onChange(value === o.value ? null : o.value)}
+        >
+          {o.label}
+        </ChoiceTile>
+      ))}
+    </div>
+  );
+}
+
+/** Each Profile question's glyph, by its key in the bank. */
+const QUESTION_ICONS: Record<keyof AutofillAnswers, Glyph> = {
+  work_authorized_us: AuthorizationIcon,
+  needs_sponsorship: VisaIcon,
+  work_authorization_status: StatusIcon,
+  security_clearance: ClearanceIcon,
+  gender: GenderIcon,
+  veteran_status: VeteranIcon,
+  disability_status: DisabilityIcon,
+};
+
+/** Step 2 (KAN-283): ./answers' PROFILE_QUESTIONS, each under the question as
+ *  forms word it, so the seeker knows what their answer will fill in. */
+function ProfileStep({
+  answers,
+  set,
+}: {
+  answers: AutofillAnswers;
+  set: (change: Partial<AutofillAnswers>) => void;
+}) {
+  return (
+    <>
+      {PROFILE_QUESTIONS.map((q) => (
+        <Field key={q.key} Icon={QUESTION_ICONS[q.key]} label={q.label} hint={q.question}>
+          <OneOf
+            labelledBy={fieldId(q.label)}
+            describedBy={`${fieldId(q.label)}-hint`}
+            columns={q.columns}
+            options={q.options}
+            value={answers[q.key]}
+            // The key's own options, so the value is one of its answers.
+            onChange={(next) => set({ [q.key]: next } as Partial<AutofillAnswers>)}
+          />
+        </Field>
+      ))}
     </>
   );
 }
@@ -441,18 +533,25 @@ function PriorityStep({
  *  16px for every answer (tiles, chips, pills, typed text) and 14px for every
  *  note beside one. The answers' size is text-subtitle, whose own weight is
  *  600, so each answer sets its weight. */
+/** A Field's heading id, from its label; its hint is the same id plus
+ *  "-hint". */
+const fieldId = (label: string) => `field-${label.toLowerCase().replaceAll(" ", "-")}`;
+
 function Field({
   Icon,
   label,
+  hint,
   required = false,
   children,
 }: {
   Icon: Glyph;
   label: string;
+  /** A 14px note under the label: the question as forms word it. */
+  hint?: string;
   required?: boolean;
   children: ReactNode;
 }) {
-  const id = `field-${label.toLowerCase().replaceAll(" ", "-")}`;
+  const id = fieldId(label);
   return (
     <section
       aria-labelledby={id}
@@ -469,6 +568,11 @@ function Field({
           <span className="text-body text-ink-faint ml-auto font-normal">Optional</span>
         )}
       </h2>
+      {hint && (
+        <p id={`${id}-hint`} className="text-body text-ink-meta -mt-2 mb-4">
+          {hint}
+        </p>
+      )}
       {children}
     </section>
   );
