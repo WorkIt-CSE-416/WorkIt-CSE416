@@ -77,10 +77,12 @@ export const GENDER_OPTIONS: Options<"gender"> = [
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
   { value: "non_binary", label: "Non-Binary" },
-  { value: "declined", label: "I don't wish to answer" },
+  { value: "declined", label: "I Don't Wish to Answer" },
 ];
 
-/** The three answers of the U.S. protected veteran self-identification. */
+/** The three answers of the U.S. protected veteran self-identification, in
+ *  the form's own words and case: a named exception to Title Case
+ *  (frontend/CLAUDE.md), so a student recognises them on the employer's form. */
 export const VETERAN_OPTIONS: Options<"veteran_status"> = [
   {
     value: "protected_veteran",
@@ -90,7 +92,8 @@ export const VETERAN_OPTIONS: Options<"veteran_status"> = [
   { value: "declined", label: "I don't wish to answer" },
 ];
 
-/** The three answers of the OFCCP's Form CC-305, in the form's own words. */
+/** The three answers of the OFCCP's Form CC-305, in the form's own words and
+ *  case, the same exception as the veteran answers above. */
 export const DISABILITY_OPTIONS: Options<"disability_status"> = [
   { value: "yes", label: "Yes, I have a disability (or previously had a disability)" },
   { value: "no", label: "No, I do not have a disability and have not had one in the past" },

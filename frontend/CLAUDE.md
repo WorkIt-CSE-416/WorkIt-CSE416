@@ -339,5 +339,9 @@ its status is two labels, so Title Case too: intake's step chips say
 descriptions and subtitles, other tooltips (so an icon button's label too),
 placeholders, empty-state body copy, error and validation messages, and a
 measured value or annotation outside a badge ("Over 7 days", "vs last week").
+An answer quoted from a self-identification form keeps the form's words and
+case: onboarding's veteran and disability answers ("I am not a protected
+veteran", Form CC-305's "I do not want to answer"), so a student recognises
+the answer the employer's form will show.
 Fixture data stays as written. A label that doubles as a value, like the
 composer's "Full-Time", changes together with every comparison against it.
