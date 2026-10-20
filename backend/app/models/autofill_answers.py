@@ -23,7 +23,7 @@ class Autofill_Answers(BaseModel):
 
     One JSONB bank rather than a row per question: hiring systems repeat the
     same handful of questions, and new ones join without a migration. Written
-    per key (routers/autofill_answers.py merges with ||), never replaced whole
+    per key (queries/autofill_answers.py merges with ||), never replaced whole
     from the browser's copy, so two tabs saving different answers keep both.
     '''
     __tablename__ = "autofill_answers"
