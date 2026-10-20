@@ -155,6 +155,10 @@ applicant_profiles
 
 ## Sent resumes (KAN-208)
 
+This section describes what is built. `sent_resume.md` is the KAN-267 plan
+that replaces it: snapshots for built resumes, a link from each application,
+and duplicate checks.
+
 A sent resume is the exact file a student downloaded or applied with, kept
 unchanged. Built resumes are live views, so without it there would be no
 record of what an employer actually received.
