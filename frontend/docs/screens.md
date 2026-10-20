@@ -225,8 +225,12 @@ Apply Now (`[jobId]/apply-button.tsx`,
 KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
-shows Download Resume and Open the Posting (a link, so no popup blocker
-stops it). Apply Without a Resume leaves for the employer's posting at once.
+shows Open in Resumes and Open the Posting (links in new tabs, so no popup
+blocker stops them and the dialog stays to ask "Did You Apply?"). **The
+dialog downloads nothing** (KAN-267): a student gets resume files on
+Resumes & Experiences only, so Open in Resumes goes to a built resume's
+editor (its Download) or, for an upload, the Resumes view. It had a
+Download Resume button until then. Apply Without a Resume leaves for the employer's posting at once.
 Once a resume is sent, the page reads "You sent <name> on <date>" under
 the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone.

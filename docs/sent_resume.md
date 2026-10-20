@@ -399,8 +399,10 @@ The dialog (`jobs/[jobId]/apply-button.tsx`) keeps its steps. What changes:
     NOTHING`, then select), then a sent resume with `snapshot_id`. **No
     upload to Storage.** A repeat for the same posting and snapshot returns
     the last sent resume, as today.
-- **Your Resume Is Ready** gives the file from the response (flow 7), not
-  only a signed URL. The missing-character warning shows as today.
+- **Your Resume Is Ready** downloads nothing (decided with step 3): resume
+  files come from Resumes & Experiences only. Its **Open in Resumes** link
+  opens a built resume's editor (its Download), or the Resumes view for an
+  upload, in a new tab. The missing-character warning shows as today.
 - **Did You Apply?** → Yes calls `POST /jobs/{id}/applied` with
   `{"sent_resume_id": "<id>"}`.
 
@@ -454,12 +456,11 @@ one), so the list needs no join; the `source` column is the database's
 own record. A send that just rendered its PDF answers that PDF; a repeat
 send renders the snapshot again, so every send answers the file.
 
-The frontend turns `data` into a Blob and downloads it (`lib/save-file.ts`:
-`saveSentFile` takes either shape), the same way the editor's Download
-takes base64 from `GET .../render`. The Apply dialog's Download Resume uses
-it. `openSentResume(sid)`, the server action for GET .../file, comes with
-step 4, its first screen. `POST .../sent-resumes` and auto apply's resume
-route answer the file in the same two shapes.
+No screen downloads a sent resume's file yet: the Apply dialog links to
+Resumes & Experiences instead (flow 4). `openSentResume(sid)`, the server
+action for GET .../file, comes with step 4's View Resume, which opens a
+sent resume to look at. `POST .../sent-resumes` and auto apply's resume
+route answer the file in the same two shapes; auto apply uses it.
 
 Where the student sees it:
 
@@ -646,4 +647,5 @@ Behaviour only; no test of a prompt's wording.
 | Old uploads | No backfill of `text_hash` |
 | Generate duplicates | Refused; pop-up "Duplicate Resume found: <name>", nothing else |
 | Plain downloads | Keep nothing; only sends are sent resumes |
+| Where a student downloads a resume file | Resumes & Experiences only; the Apply dialog links there and downloads nothing |
 | Sent resumes kept before this change | No cleanup, no special handling |

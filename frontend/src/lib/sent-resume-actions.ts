@@ -5,11 +5,11 @@ import { applicantCall, type Result } from "@/lib/applicant-call";
 /**
  * Sent resumes (backend/app/routers/sent_resumes.py), as server actions.
  * Types mirror backend/app/schemas/sent_resume.py. Every action returns
- * `error: string | null` and never throws. A file comes back one of two
- * ways (KAN-267): a 5-minute Storage link (`url`) for a stored file, or the
- * PDF in base64 (`data`) for a snapshot, rendered again; `saveSentFile`
- * (`lib/save-file.ts`) takes either. Only Apply keeps a sent resume: the
- * editor's Download keeps nothing (`built-resume-actions.ts`).
+ * `error: string | null` and never throws. The API answers a send's file
+ * too (a 5-minute `url`, or the PDF as `data` for a snapshot, KAN-267), but
+ * no screen here downloads it: a student gets resume files on Resumes &
+ * Experiences only. Only Apply keeps a sent resume: the editor's Download
+ * keeps nothing (`built-resume-actions.ts`).
  */
 
 export type SentResume = {

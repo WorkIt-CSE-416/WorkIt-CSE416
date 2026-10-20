@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDown } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -16,7 +16,6 @@ import {
 import { Button, buttonClasses } from "@/components/ui/button";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { listResumes } from "@/lib/resume-actions";
-import { saveSentFile } from "@/lib/save-file";
 import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
 
 import { markApplied } from "../actions";
@@ -29,8 +28,9 @@ type Source = { builtResumeId: string } | { uploadedResumeId: string };
 /**
  * "Pick a resume, then Apply" (KAN-220). Apply Now asks which resume the
  * student sends, keeps that exact file as a sent resume linked to this
- * posting (`applyWithResume`), then offers the file to download and the
- * employer's own posting to apply on. This page then says which resume was
+ * posting (`applyWithResume`), then points to the resume on Resumes &
+ * Experiences, the one place a student downloads resume files (KAN-267),
+ * and offers the employer's own posting to apply on. This page then says which resume was
  * sent ("You sent ... on ..."). A student with no resume, or who would rather not
  * pick one, still reaches the posting: "Apply Without a Resume".
  *
@@ -200,8 +200,8 @@ export function ApplyButton({
                   Your Resume Is Ready
                 </DialogTitle>
                 <DialogDescription>
-                  WorkIt kept a copy of &ldquo;{sent.name}&rdquo;, linked to {title}. Download it,
-                  then attach it on the employer&apos;s page.
+                  WorkIt kept a copy of &ldquo;{sent.name}&rdquo;, linked to {title}. Download it
+                  from Resumes &amp; Experiences, then attach it on the employer&apos;s page.
                 </DialogDescription>
               </DialogHeader>
               {sent.missing_characters.length > 0 && (
@@ -211,12 +211,24 @@ export function ApplyButton({
                 </p>
               )}
               <DialogFooter>
-                {/* A built resume's file comes as the PDF itself (a snapshot,
-                    KAN-267), an uploaded one's as a Storage link. */}
-                <Button variant="secondary" onClick={() => saveSentFile(sent)}>
-                  <FileDown className="size-4" />
-                  Download Resume
-                </Button>
+                {/* Resume files come from Resumes & Experiences only (KAN-267):
+                    a built resume opens in its editor, which downloads it,
+                    an upload on the Resumes view. A new tab, so this dialog
+                    stays to ask "Did You Apply?" later. */}
+                <Link
+                  href={
+                    sent.built_resume_id
+                      ? `/resumes/${encodeURIComponent(sent.built_resume_id)}`
+                      : "/resumes"
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonClasses({ variant: "secondary" })}
+                >
+                  Open in Resumes
+                  <ExternalLinkIcon className="size-4" />
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </Link>
                 {employerLink("Open the Posting", "default")}
               </DialogFooter>
             </>
