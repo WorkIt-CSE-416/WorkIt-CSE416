@@ -197,6 +197,11 @@ webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
 /applicants/{id}/applications/next`. All were already reachable with a
 Bearer token before the extension called them.
 
+**The email it fills is the profile's `contact_email`, else `/auth/me`'s
+sign-in email** (KAN-262). A seeker may apply with a different address than
+the one they sign in with, and My Profile is where they set it. Filling the
+sign-in email always would put the wrong address on every application.
+
 The backend needed **zero CORS changes** for this to work: MV3 extensions
 with a target host listed in `manifest.json`'s `host_permissions` bypass
 CORS entirely for fetches made from the background service worker — the

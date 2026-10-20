@@ -289,6 +289,12 @@ are in `docs/auth.md`.
   `serverActions.bodySizeLimit` in `next.config.ts`, which must stay above
   5 MB plus multipart overhead (`6mb`) or Next rejects the request before the
   action runs.
+- **A profile link becomes an href only through `safeHref`**
+  (`lib/profile-links.ts`, KAN-262), which allows http(s) alone. The API
+  refuses anything else since KAN-262, but a link saved before then may be
+  any text, a `javascript:` one included. The same file holds `webLink`, the
+  browser's copy of the API's check, and `linkText`, the resume header's way
+  of printing a link.
 - **My Profile's cache (`(seeker)/profile-cache.tsx`) lives in the seeker
   layout, never a module variable**: sign-out leaving the shell is what drops
   it, and a module variable would show one account's profile to the next

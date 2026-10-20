@@ -1,6 +1,7 @@
 import type { Bank, BankEntry, Bullet, EntryFields, Skill } from "@/lib/bank-actions";
 import type { ChoicesUpdate, Choices, RenderBox } from "@/lib/built-resume-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
+import { linkText } from "@/lib/profile-links";
 
 /**
  * The editor's reading of the bank and one resume's choices (KAN-218): what
@@ -36,15 +37,6 @@ export const HEADER = "header";
 
 /** The header's link fields, in the order the header prints them. */
 export const LINK_FIELDS = ["linkedin_url", "github_url", "portfolio_url", "other_url"] as const;
-
-/** How a link prints: no scheme, no "www.", no trailing slash (the API's
- *  `fields.link_text`). */
-export function linkText(url: string) {
-  return url
-    .replace(/^(https?:\/\/|mailto:)/i, "")
-    .replace(/^www\./i, "")
-    .replace(/\/+$/, "");
-}
 
 /** A typed field's text as the field shows it, and the change typed text
  *  makes, or null when it makes none (a required field left empty, a GPA
@@ -131,7 +123,8 @@ const link = (field: (typeof LINK_FIELDS)[number]): Codec<Header, Partial<Header
 });
 
 /** The header fields typed in place; they change the profile. The email is
- *  the sign-in address, so it is not typed here. */
+ *  the profile's contact email, else the sign-in address, so it is set on
+ *  My Profile, not typed here. */
 export const HEADER_CODECS: Partial<Record<HeaderField, Codec<Header, Partial<Header>>>> = {
   full_name: plain("full_name", true) as Codec<Header, Partial<Header>>,
   phone_number: plain("phone_number"),
