@@ -720,7 +720,8 @@ application: work authorization, sponsorship, citizenship and visa status,
 security clearance, and the voluntary gender, veteran and disability
 self-identification. Onboarding's second step (Profile) asks them; auto
 apply's fill reads them (`../../auto-apply/architecture.md`,
-`autofill_answers`), and My Profile will show them (KAN-273).
+`autofill_answers`), and My Profile's Application Questions shows and edits
+them (KAN-269).
 
 - **One JSONB bank per applicant** (primary key `applicant_id`, CASCADE):
   `answers` maps a stable question key to its answer alone

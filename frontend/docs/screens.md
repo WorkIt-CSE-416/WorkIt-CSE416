@@ -892,8 +892,9 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 ## My Profile
 
-**My Profile holds the photo and the identity fields**, and a "Resumes &
-Experiences" section that links to both views of that page.
+**My Profile holds the photo and the identity fields**, the Application
+Questions, and a "Resumes & Experiences" section that links to both views of
+that page.
 
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
@@ -948,6 +949,30 @@ headline line used to leave a gap between the name and the row below.
   is not an http(s) address is refused with "Enter a web address" under the
   field. The section never makes an href of a link that fails the check.
 
+**Application Questions (KAN-269)** is an open section between Contact &
+Links and Resumes & Experiences: the seven questions onboarding's Profile
+step asks (work authorization, sponsorship, citizenship and visa status,
+clearance, and the voluntary gender, veteran and disability
+self-identification), with the seeker's answers
+(`(seeker)/profile/application-questions.tsx`).
+
+- **The same two modes as Contact & Links.** Reading, each question is its
+  answer's label or "Not answered" in grey. Edit turns every answer into a
+  picker (`ui/select-field.tsx`) in place, the first one focused, each over
+  the question as forms word it, with Cancel and Save; "Not Answered" in a
+  picker clears that answer. Escape cancels, but Escape in a picker's open
+  list closes the list alone: the list is portalled outside the form, and
+  only a key from the form's own fields cancels.
+- **Pickers, not onboarding's tiles**: seven questions of up to six large
+  tiles made a screen-long form on a page of settings.
+- **Two screens edit these answers, safely.** Onboarding asks them once;
+  this section is where they change after. Both read one question list
+  (`lib/autofill-answers.ts`) and save through one server action
+  (`lib/autofill-answers-actions.ts`), and the API merges only the answers
+  sent, so neither screen erases what the other saved.
+- **Shown only once loaded.** A failed read shows the page's one notice,
+  never seven "Not answered" lines that would pass for real answers.
+
 **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
 the Resumes view's Your Resumes card (below), beside the base resumes,
@@ -965,8 +990,8 @@ places to edit the same facts drift apart, and the bank is what built
 resumes read.
 
 **My Profile is cached for the life of the seeker shell.**
-`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL
-and the applicant profile fields) in a provider
+`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
+the applicant profile fields and the Application Questions' answers) in a provider
 in `(seeker)/layout.tsx`. A
 return visit renders it at once and refetches in the background. Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`

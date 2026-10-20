@@ -3,7 +3,7 @@ A student's answers to the questions hiring systems repeat, for GET and PATCH
 /applicants/{applicant_id}/autofill-answers (routers/autofill_answers.py).
 
 Each field is a stable question key, and each value an option key, never the
-words a screen shows: the screens (frontend lib/autofill-answers.ts)
+words a screen shows: the screens' list (frontend lib/autofill-answers.ts)
 holds the labels, and the extension maps a key to whatever a form's option
 says. None is unanswered. The options follow real application forms:
 
