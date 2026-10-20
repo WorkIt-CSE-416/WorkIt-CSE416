@@ -57,7 +57,8 @@ import { StoryPanel } from "./story-panel";
  *
  * STEP 2 IS WHAT EVERY APPLICATION ASKS (KAN-283): work authorization,
  * sponsorship, citizenship and visa status, clearance, and the voluntary
- * gender, veteran and disability self-identification (./answers). They are no
+ * gender, Hispanic or Latino, race, veteran and disability
+ * self-identification (lib/autofill-answers). They are no
  * filter: they go to the seeker's answer bank, which auto apply fills forms
  * from. It used to be Pay & Visa; pay moved to step 1 with the rest of the
  * role, and the visa filter question left onboarding (a saved one is kept,

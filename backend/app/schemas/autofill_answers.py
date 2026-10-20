@@ -15,13 +15,17 @@ says. None is unanswered. The options follow real application forms:
 - Gender: the EEO self-identification's Male, Female and decline, which
   every U.S. form offers, plus Non-Binary, which many now add. A form
   without it gets no answer filled in, never a guess.
+- Hispanic or Latino, then race: the EEO self-identification's two
+  questions, in that order, as Greenhouse, Lever and Workday ask them. Race
+  takes one of the EEO-1 categories, Two or More Races included; Hispanic
+  or Latino is its own question, never a race (KAN-299).
 - Veteran status: the three answers of the VEVRAA self-identification on
   U.S. forms.
 - Disability: the three answers of the OFCCP's Form CC-305, worded as the
   form words them.
 
-Gender, veteran and disability are voluntary, so each has a "declined"
-answer, which is an answer to fill in, unlike None.
+Gender, Hispanic or Latino, race, veteran and disability are voluntary, so
+each has a "declined" answer, which is an answer to fill in, unlike None.
 """
 
 from typing import Literal, get_args
@@ -36,6 +40,16 @@ SecurityClearance = Literal[
     "none", "public_trust", "confidential", "secret", "top_secret", "ts_sci"
 ]
 Gender = Literal["male", "female", "non_binary", "declined"]
+HispanicLatino = Literal["yes", "no", "declined"]
+Race = Literal[
+    "american_indian_alaska_native",
+    "asian",
+    "black_african_american",
+    "native_hawaiian_pacific_islander",
+    "white",
+    "two_or_more",
+    "declined",
+]
 VeteranStatus = Literal["protected_veteran", "not_protected_veteran", "declined"]
 DisabilityStatus = Literal["yes", "no", "declined"]
 
@@ -51,6 +65,8 @@ class AutofillAnswers(BaseModel):
     work_authorization_status: WorkAuthorizationStatus | None = None
     security_clearance: SecurityClearance | None = None
     gender: Gender | None = None
+    hispanic_latino: HispanicLatino | None = None
+    race: Race | None = None
     veteran_status: VeteranStatus | None = None
     disability_status: DisabilityStatus | None = None
 

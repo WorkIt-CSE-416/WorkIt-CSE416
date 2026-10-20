@@ -20,7 +20,8 @@ const UNANSWERED = "unanswered";
 /**
  * Application Questions (KAN-269): the questions most job applications ask
  * (work authorization, sponsorship, citizenship and visa status, clearance,
- * and the voluntary gender, veteran and disability self-identification),
+ * and the voluntary gender, Hispanic or Latino, race, veteran and disability
+ * self-identification),
  * with the seeker's answers. Onboarding's Profile step asks them first; this
  * is where they are seen and changed after. Both draw lib/autofill-answers'
  * one list and save through the same PATCH, which merges only the answers
@@ -30,7 +31,7 @@ const UNANSWERED = "unanswered";
  * "Not answered". Edit turns every answer into a picker in place, the first
  * one focused, each over the question as forms word it, with Cancel and Save
  * under them; Escape cancels. "Not Answered" in a picker clears that answer.
- * A picker, not onboarding's tiles: seven questions of up to six tiles made a
+ * A picker, not onboarding's tiles: nine questions of up to seven tiles made a
  * screen-long form on a page of settings.
  */
 export function ApplicationQuestions({

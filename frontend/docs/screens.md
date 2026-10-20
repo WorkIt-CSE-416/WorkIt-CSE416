@@ -951,10 +951,10 @@ headline line used to leave a gap between the name and the row below.
   field. The section never makes an href of a link that fails the check.
 
 **Application Questions (KAN-269)** is an open section between Contact &
-Links and Resumes & Experiences: the seven questions onboarding's Profile
+Links and Resumes & Experiences: the nine questions onboarding's Profile
 step asks (work authorization, sponsorship, citizenship and visa status,
-clearance, and the voluntary gender, veteran and disability
-self-identification), with the seeker's answers
+clearance, and the voluntary gender, Hispanic or Latino, race, veteran and
+disability self-identification), with the seeker's answers
 (`(seeker)/profile/application-questions.tsx`).
 
 - **The same two modes as Contact & Links.** Reading, each question is its
@@ -964,7 +964,7 @@ self-identification), with the seeker's answers
   picker clears that answer. Escape cancels, but Escape in a picker's open
   list closes the list alone: the list is portalled outside the form, and
   only a key from the form's own fields cancels.
-- **Pickers, not onboarding's tiles**: seven questions of up to six large
+- **Pickers, not onboarding's tiles**: nine questions of up to seven large
   tiles made a screen-long form on a page of settings.
 - **Two screens edit these answers, safely.** Onboarding asks them once;
   this section is where they change after. Both read one question list
@@ -972,7 +972,7 @@ self-identification), with the seeker's answers
   (`lib/autofill-answers-actions.ts`), and the API merges only the answers
   sent, so neither screen erases what the other saved.
 - **Shown only once loaded.** A failed read shows the page's one notice,
-  never seven "Not answered" lines that would pass for real answers.
+  never nine "Not answered" lines that would pass for real answers.
 - **Save sends what changed since Edit was clicked**, compared with the
   answers the edit started from, never the latest ones: a return visit
   shows the cached answers and refetches, and a refetch landing mid-edit
@@ -1716,10 +1716,13 @@ aria-hidden, and it holds still under reduced motion.
 
 **Profile asks what every application asks (KAN-283).** Authorization to
 Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
-Clearance, then the voluntary Gender, Veteran Status and Disability, in the
-order real forms ask them, each under the question as forms word it. The options
+Clearance, then the voluntary Gender, Hispanic or Latino, Race/Ethnicity,
+Veteran Status and Disability, in the order real forms ask them, each under the question as forms word it. The options
 are real forms' options (`lib/autofill-answers.ts`): gender's are the
-EEO Male, Female and decline plus Non-Binary, which many forms add; veteran
+EEO Male, Female and decline plus Non-Binary, which many forms add;
+Hispanic or Latino (KAN-299) is Yes, No or decline, and Race/Ethnicity one
+EEO-1 category or decline, the EEO's own two questions, which every U.S.
+form keeps apart; veteran
 status's three are the U.S. protected veteran self-identification's, disability's
 three are Form CC-305's words. One answer each, as dots; pressing a picked
 answer again clears it. They are not filters: Continue saves them to the
