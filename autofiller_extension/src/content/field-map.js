@@ -23,6 +23,44 @@ window.WIA = window.WIA || {};
     return /\*\s*$/.test(label.trim());
   }
 
+  /**
+   * Two of the most common EEO/compliance custom questions a posting asks
+   * (confirmed live on a real Greenhouse posting's "U.S. Standard Work
+   * Authorization" section: "Are you legally authorized to work in the
+   * United States?" and "Do you currently, or will you in the future,
+   * require sponsorship for employment authorization?", both rendered as a
+   * Yes/No/"I don't wish to answer" dropdown) — derived from the
+   * onboarding "Visa Sponsorship" pick (`profile.visa`), the only
+   * visa-adjacent fact WorkIt stores on an applicant. That pick answers
+   * "which postings do I want to see", not "what is my status", so only
+   * its two unambiguous values answer either question: "I Don't Need One"
+   * (`null`) confidently means authorized and no sponsorship needed;
+   * "Sponsors Visas" (`"sponsors"`) confidently means sponsorship will be
+   * needed. "Hide Jobs That Rule Me Out" (`"not_ruled_out"`) is
+   * deliberately too broad for either question — an applicant who picked
+   * it might still hold work authorization (on OPT, say) or might not —
+   * and resolves to `null` here, same as no saved preference at all: a
+   * wrong Yes/No on a legal eligibility question is worse than leaving it
+   * for the student to answer themselves.
+   * @param {"sponsors" | "not_ruled_out" | null | undefined} visa
+   */
+  function sponsorshipRequiredAnswer(visa) {
+    if (visa === "sponsors") return "Yes";
+    if (visa === null || visa === undefined) return "No";
+    return null;
+  }
+
+  /**
+   * @param {"sponsors" | "not_ruled_out" | null | undefined} visa
+   */
+  function workAuthorizedAnswer(visa) {
+    // Only "I Don't Need One" is unambiguous here — "Sponsors Visas" says
+    // the student wants sponsorship, not whether they currently hold work
+    // authorization while waiting on it, so it answers sponsorshipRequired
+    // but not this one.
+    return visa === null || visa === undefined ? "Yes" : null;
+  }
+
   // Each entry: a stable key, the synonyms a label is matched against
   // (checked as "label includes synonym", case-insensitive, in order —
   // first match wins, so put more specific synonyms before general ones),
@@ -46,7 +84,28 @@ window.WIA = window.WIA || {};
         synonyms: ["portfolio", "website", "personal site"],
         value: profile.portfolio_url,
       },
-      { key: "headline", synonyms: ["headline", "title", "current role"], value: profile.headline },
+      // Deliberately not "title" alone: that substring also matches "Job
+      // Title"/"Position" inside a repeated experience block, and this
+      // rule runs before repeatedFieldTemplates ever gets a look — a bare
+      // "title" synonym here meant every per-entry job title field was
+      // silently getting the profile's one headline value stamped into it
+      // instead, on every entry, every time. Found by inspecting Greenhouse's
+      // field conventions for KAN-164, but it's an ATS-agnostic bug, not a
+      // Greenhouse-specific one.
+      { key: "headline", synonyms: ["headline", "professional headline", "current role"], value: profile.headline },
+      // More specific than "authorized"/"sponsorship" alone could ever
+      // need to be — both phrases are rare enough outside these exact
+      // questions that a plain substring match is safe.
+      {
+        key: "work_authorized",
+        synonyms: ["authorized to work", "eligible to work", "work authorization"],
+        value: workAuthorizedAnswer(profile.visa),
+      },
+      {
+        key: "visa_sponsorship_required",
+        synonyms: ["require sponsorship", "need sponsorship", "visa sponsorship", "sponsorship for employment"],
+        value: sponsorshipRequiredAnswer(profile.visa),
+      },
     ];
   }
 
@@ -58,15 +117,22 @@ window.WIA = window.WIA || {};
   // page in the first place (clicking a form's own "Add another" control)
   // before these can be of any use — see its ensureRepeatedBlocks.
   function repeatedFieldTemplates(profile) {
-    const education = profile.resume?.education ?? [];
-    const experience = profile.resume?.experience ?? [];
+    const entries = profile.bank?.entries ?? [];
+    // Section order (GLOSSARY.md), oldest convention first — no resume read
+    // here at all: the bank is the one source of truth for what the
+    // student has done (KAN-212), same rule the recommender and Scout
+    // follow. "institution" below means the school, "company" the
+    // employer — bank's own naming is title/organization per section
+    // (frontend/src/app/(seeker)/bank/sections.ts's SECTIONS), not these.
+    const education = entries.filter((e) => e.section === "education");
+    const experience = entries.filter((e) => e.section === "experience");
 
     return [
       {
         group: "education",
         field: "institution",
         synonyms: ["school", "institution", "university"],
-        values: education.map((e) => e.institution),
+        values: education.map((e) => e.title),
       },
       { group: "education", field: "degree", synonyms: ["degree"], values: education.map((e) => e.degree) },
       {
@@ -85,7 +151,7 @@ window.WIA = window.WIA || {};
         group: "experience",
         field: "company",
         synonyms: ["company", "employer"],
-        values: experience.map((e) => e.company_name),
+        values: experience.map((e) => e.organization),
       },
       { group: "experience", field: "title", synonyms: ["job title", "position"], values: experience.map((e) => e.title) },
     ];
@@ -102,7 +168,7 @@ window.WIA = window.WIA || {};
    *   (content-script.js), not this function — tracks how many times each
    *   repeated template ("education.institution", "experience.company", ...)
    *   has already matched a field on this page so far. The *n*th field
-   *   matching a template gets resume entry *n*: the first "School" field
+   *   matching a template gets bank entry *n*: the first "School" field
    *   found in DOM order is education[0], the second is education[1], and
    *   so on. Left untouched (and unused) for non-repeated fields.
    * @returns {{ key: string, value: string | null } | null}
@@ -124,7 +190,7 @@ window.WIA = window.WIA || {};
       const occurrence = occurrences.get(templateKey) ?? 0;
       occurrences.set(templateKey, occurrence + 1);
 
-      // More blocks on the page than resume entries to fill them with —
+      // More blocks on the page than bank entries to fill them with —
       // not this classifier's field, leave it alone rather than repeat
       // the last entry into it.
       if (occurrence >= template.values.length) return null;

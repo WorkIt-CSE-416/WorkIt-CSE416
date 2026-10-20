@@ -13,9 +13,15 @@ A third kind of project in this repo, alongside `frontend/` and `backend/`:
 no server, no build step, no dependency manifest. It's loaded into Chrome
 as an unpacked extension and talks to the **existing** WorkIt backend over
 HTTP — it adds no new backend routes, no new database tables, no new
-migration. Every value it fills comes from `applicant_profiles` and
-`resumes.parsed_json`, the same rows the webapp's own profile screen reads
-and writes.
+migration. Every value it fills comes from `applicant_profiles`, the
+**experience bank** (`GET /applicants/{id}/bank`, KAN-212), and the
+onboarding **job preferences** (`GET /applicants/{id}/preferences`,
+KAN-231) — the same rows the Experience Bank and onboarding screens read
+and write, never an uploaded resume's `parsed_json`. Same rule the
+recommender and Scout follow (`backend/CLAUDE.md`): the bank, not a resume,
+is the source of truth for what the student has done. `src/content/
+field-map.js`'s education and experience arrays come from filtering the
+bank's `entries` by `section`, not from a `ParsedResume`.
 
 **No npm, no TypeScript compiler, no bundler.** Every file here is the file
 Chrome actually loads — plain ES2020+ JavaScript, JSDoc `@typedef`s in
@@ -193,9 +199,9 @@ if this turns out to be too conservative in practice.
 
 `src/background/api.js` calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
-/applicants/{id}/resumes[/...]`, and the runner's `GET
-/applicants/{id}/applications/next`. All were already reachable with a
-Bearer token before the extension called them.
+/applicants/{id}/bank`, `GET /applicants/{id}/preferences`, and the
+runner's `GET /applicants/{id}/applications/next`. All were already
+reachable with a Bearer token before the extension called them.
 
 The backend needed **zero CORS changes** for this to work: MV3 extensions
 with a target host listed in `manifest.json`'s `host_permissions` bypass
@@ -204,6 +210,38 @@ browser trusts the extension's declared permission instead of requiring the
 server to opt in. This is standard, documented Chrome extension behavior,
 not something this prototype had to build. See Open Items for the one
 caveat (this is unverified against a live Chrome instance — see below).
+
+## Work authorization / visa sponsorship questions
+
+`src/content/field-map.js`'s `workAuthorizedAnswer`/`sponsorshipRequiredAnswer`
+answer a posting's own EEO/compliance custom questions (confirmed live on a
+real Greenhouse posting's "U.S. Standard Work Authorization" section: "Are
+you legally authorized to work in the United States?" and "Do you
+currently, or will you in the future, require sponsorship for employment
+authorization?", both a Yes/No/"I don't wish to answer" dropdown with a
+dynamic, per-posting field id — never Greenhouse's stable schema, so this
+is the generic label-matching path, not `ats-greenhouse.js`). There is
+**no work-authorization status field anywhere in WorkIt's schema**
+(`backend/app/models/CLAUDE.md`'s Known Gaps names the still-unbuilt
+`autofill_answers` table for exactly this). The only visa-adjacent fact is
+onboarding's "Visa Sponsorship" pick (`applicant_preferences.visa`,
+KAN-231): a job-search filter — "which postings do I want to see" — not an
+applicant status, with only two saved values ("sponsors", "not_ruled_out")
+plus null for "I Don't Need One".
+
+That mismatch means only `null` and `"sponsors"` answer either question
+with any confidence: `null` ("I Don't Need One") → authorized "Yes",
+sponsorship "No"; `"sponsors"` → sponsorship "Yes", authorized left
+unanswered (wanting sponsorship doesn't say whether the student currently
+holds work authorization — an OPT/CPT student can be both).
+`"not_ruled_out"` ("Hide Jobs That Rule Me Out") answers neither: it's
+deliberately too broad. An unanswered required field here reports a
+specific status.setStatus failure in the overlay rather than a guess — a
+wrong Yes/No on a legal eligibility question is worse than one the student
+answers themselves. Live-tested against the SingleStore posting above:
+both labels matched correctly and `visa: "sponsors"` filled the
+sponsorship dropdown "Yes" while correctly leaving the authorization one
+blank.
 
 ## Field engine — fixing JobRight's three bugs by construction
 
@@ -242,10 +280,10 @@ Fixed at both layers:
   blocks by counting fields matching that group's one always-present-once-
   per-block synonym (`institution` for education, `company`/`employer` for
   experience), then clicks `dom.findAddButton` until the block count
-  reaches the resume's actual entry count, polling after each click
-  (`dom.waitUntil`) since there's no completion event for a block
-  finishing its render. A form that already shows enough blocks (the
-  common case: one resume entry, one default block) never calls
+  reaches the bank's actual entry count for that section, polling after
+  each click (`dom.waitUntil`) since there's no completion event for a
+  block finishing its render. A form that already shows enough blocks (the
+  common case: one bank entry, one default block) never calls
   `findAddButton` at all. Only ever registers a status row on *failure* (no
   button found, or a click that didn't grow the block count) — so this
   stays invisible in the overlay on the path that already worked before
@@ -273,15 +311,15 @@ Fixed at both layers:
   a `Map` the caller owns and passes back in on every call, counting how
   many times each repeated template (`"education.institution"`,
   `"experience.company"`, ...) has matched so far. The *n*th field matching
-  a template resolves to resume entry *n*: the first "School" field found
+  a template resolves to bank entry *n*: the first "School" field found
   in DOM order is `education[0]`, the second is `education[1]`. This is
   occurrence-counting, not real container-boundary detection — there's no
   attempt to find each block's actual DOM subtree. It holds as long as a
   form's repeated blocks render their sub-fields in the same relative
   order block-to-block (block 1's School before block 2's School, not
   interleaved) — true of every ATS looked at so far, but a structural
-  assumption, not a guarantee. A field beyond the resume's entry count
-  (page has 3 blocks, resume has 2) is matched, counted, and then left
+  assumption, not a guarantee. A field beyond the bank's entry count for
+  that section (page has 3 blocks, bank has 2) is matched, counted, and then left
   alone — `matchLabel` returns `null` once `occurrence >= values.length`,
   the same "not something WorkIt has an opinion about" path an unrelated
   field takes.
@@ -293,8 +331,8 @@ add-like controls, exercising `findAddButton`'s section-heading fallback
 specifically (not just its direct-wording match, which a differently-worded
 button would have shortcut around without ever reaching the fallback).
 Clicking either clones a second block via plain JS. Only actually exercises
-`ensureRepeatedBlocks` at all when the signed-in applicant's resume has 2+
-entries in that group; with exactly one, the default block already
+`ensureRepeatedBlocks` at all when the signed-in applicant's experience
+bank has 2+ entries in that group; with exactly one, the default block already
 satisfies `neededCount` and no button is clicked — correctly.
 
 Still open: `findAddButton`'s patterns (`buttonPattern`/`sectionPattern` in
@@ -371,7 +409,7 @@ openness covers:
   anything more custom.
 - **Repeated sections beyond what's been live-tested.** Filling a 2nd/3rd
   education or experience entry (clicking a form's own "Add another"
-  control, mapping the *n*th matching field to resume entry *n*) is now
+  control, mapping the *n*th matching field to bank entry *n*) is now
   built — see "Repeated sections" above — but confirmed only against the
   one real Workday application that prompted it and the sample form's own
   demo. `findAddButton`'s button-text regex, and the assumption that a

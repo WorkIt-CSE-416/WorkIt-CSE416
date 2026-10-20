@@ -1,9 +1,9 @@
 // Client for WorkIt's own FastAPI backend. Every call here reuses an
 // endpoint that already exists for the webapp (backend/app/routers/auth.py,
-// profiles.py, resumes.py, auto_apply.py) — this file adds no new backend
-// surface, it just calls the same ones the Next.js server already calls,
-// straight from the extension's background service worker instead of a
-// Server Action.
+// profiles.py, bank.py, preferences.py, auto_apply.py) — this file adds no
+// new backend surface, it just calls the same ones the Next.js server
+// already calls, straight from the extension's background service worker
+// instead of a Server Action.
 //
 // That only works because MV3 background workers bypass CORS for origins
 // listed in manifest.json's host_permissions — the backend needed zero
@@ -80,12 +80,28 @@ async function getApplicantProfile(applicantId) {
   return apiFetch(`/applicants/${applicantId}/profile`);
 }
 
-async function listResumes(applicantId) {
-  return apiFetch(`/applicants/${applicantId}/resumes`);
+/**
+ * The experience bank (backend/app/schemas/bank.py's BankResponse): entries
+ * and skills, never an uploaded resume's parsed_json. Same rule the
+ * recommender and Scout follow (KAN-212, backend/CLAUDE.md): the bank, not
+ * a resume, is the source of truth for what the student has done.
+ */
+async function getBank(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/bank`);
 }
 
-async function getResume(applicantId, resumeId) {
-  return apiFetch(`/applicants/${applicantId}/resumes/${resumeId}`);
+/**
+ * The onboarding "Visa Sponsorship" pick (backend/app/schemas/preferences.py's
+ * JobPreferences.visa) — a job-search filter ("which postings do I want to
+ * see"), not a work-authorization status field; WorkIt stores no such field
+ * (backend/app/models/CLAUDE.md's Known Gaps names the still-unbuilt
+ * autofill_answers table for that). field-map.js reads it as the best
+ * available signal for a posting's own work-authorization/sponsorship
+ * questions anyway. Never 404s: an applicant who hasn't saved preferences
+ * gets one back with every field empty/null.
+ */
+async function getPreferences(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/preferences`);
 }
 
 /**
@@ -101,9 +117,8 @@ async function fetchAutofillProfile() {
   }
 
   const profile = await getApplicantProfile(account.id);
-  const resumes = await listResumes(account.id);
-  const defaultResume = resumes.find((r) => r.is_default) ?? resumes[0] ?? null;
-  const resume = defaultResume ? await getResume(account.id, defaultResume.id) : null;
+  const bank = await getBank(account.id);
+  const preferences = await getPreferences(account.id);
 
   return {
     id: account.id,
@@ -115,7 +130,8 @@ async function fetchAutofillProfile() {
     portfolio_url: profile.portfolio_url,
     github_url: profile.github_url,
     other_url: profile.other_url,
-    resume: resume?.parsed_json ?? null,
+    bank: bank.entries.length > 0 ? bank : null,
+    visa: preferences.visa,
     fetched_at: Date.now(),
   };
 }

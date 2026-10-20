@@ -8,7 +8,7 @@
 (async function () {
   "use strict";
 
-  const { dom, fill, fieldMap, status, overlay } = window.WIA;
+  const { dom, fill, fieldMap, status, overlay, greenhouse } = window.WIA;
 
   // Which "Add another X" control unlocks a group's 2nd+ DOM block, and
   // which synonyms identify ONE field that's always present exactly once
@@ -37,7 +37,7 @@
   /**
    * Clicks `group`'s "Add another" control until the page shows at least
    * `neededCount` blocks for it, or gives up and reports why. A form that
-   * already shows enough blocks (the common case — one resume entry, one
+   * already shows enough blocks (the common case — one bank entry, one
    * default block) never calls dom.findAddButton at all.
    * @param {(typeof REPEATED_GROUPS)[number]} config
    * @param {number} neededCount
@@ -91,9 +91,31 @@
 
   const profile = response.profile;
 
-  for (const config of REPEATED_GROUPS) {
-    const neededCount = profile.resume?.[config.group]?.length ?? 0;
-    await ensureRepeatedBlocks(config, neededCount);
+  // Greenhouse gets handled by its own adapter first: it names every field
+  // with the same stable ids on every posting, so filling by id is both
+  // simpler and more accurate than the generic label-matching path below —
+  // and for education specifically, Greenhouse's section caption isn't a
+  // real heading element, which would defeat the generic findAddButton's
+  // section-heading fallback (see ats-greenhouse.js's top comment).
+  const isGreenhouse = greenhouse?.detect() ?? false;
+  const handledIds = isGreenhouse ? await greenhouse.run(profile, { status, fill, dom, fieldMap }) : new Set();
+
+  // Skipped entirely on Greenhouse, not just for "education": none of the
+  // Greenhouse postings looked at expose a structured, generically-
+  // discoverable experience/employment section at all, and a page with
+  // exactly one generic "Add another" button (Greenhouse's education one)
+  // and nothing else to disambiguate against will have this click that one
+  // button for "experience" too — it's the only candidate, so
+  // findAddButton's "only one, unambiguous" shortcut returns it regardless
+  // of which group asked. Confirmed live: this silently added a second,
+  // wrongly-indexed education block. Greenhouse's own education block is
+  // already fully handled above, by exact field id, so there's nothing
+  // left here for Greenhouse to legitimately need.
+  if (!isGreenhouse) {
+    for (const config of REPEATED_GROUPS) {
+      const neededCount = (profile.bank?.entries ?? []).filter((e) => e.section === config.group).length;
+      await ensureRepeatedBlocks(config, neededCount);
+    }
   }
 
   // Re-queried fresh here, after any blocks ensureRepeatedBlocks added —
@@ -102,6 +124,8 @@
   const occurrences = new Map();
 
   for (const field of fields) {
+    if (field.id && handledIds.has(field.id)) continue; // already filled precisely by the Greenhouse adapter above
+
     const labelText = dom.findLabelText(field);
     const match = fieldMap.matchLabel(labelText, profile, occurrences);
     if (!match) continue; // not something WorkIt has an opinion about — leave it alone, don't clutter the overlay
