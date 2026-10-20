@@ -36,7 +36,14 @@ own 200ms linear, so the page holds its width through the animation; keep
 the two durations equal. A layout that splits into columns uses
 `@3xl/main:` and friends, a card that rearranges itself (the job card) is
 its own `@container`, and both see the same width whether the panel is open
-or not. On Applications and the Calendar the segmented control sits at the
+or not. **One page takes the freed room back: Applications** (KAN-256). Its
+list is a table that scrolls sideways, so more width only shows more
+columns. The page has no width cap and a negative margin of half
+`--panel-gain` on each side, which widens it with the panel's own easing
+while its `@…/main` queries still see the open width, so nothing on it
+reflows. A page whose layout splits or wraps by width keeps the rule;
+reading pages keep `--container-app`, since text past about 80 characters a
+line is hard to follow. On Applications and the Calendar the segmented control sits at the
 top right of the header wherever it fits beside the title, the title
 wrapping first; the Dashboard's range switch sits at the top right of the page, beside the
 greeting, and wraps under it where the page is narrow.

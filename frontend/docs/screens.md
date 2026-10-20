@@ -484,9 +484,10 @@ auto apply keep one, while the plain Applied button sends none, so it says
 in meta grey; Status, Match and Posting are pills (Posting `positive` Open
 or `inert` Closed). Posting says Open or Closed and nothing more, because
 scraped postings state no closing date: `job_postings.closes_at` is only
-set when a posting disappears, and the API does not send it. The page takes
-the Dashboard's width (`max-w-dashboard`), so most columns show before the
-scroll.
+set when a posting disappears, and the API does not send it. The page has
+no width cap and takes back the room a collapsed sidebar frees
+(`docs/design.md`, The two shells), so the table shows as many columns as
+the window allows before the scroll.
 
 **Application dates are real dates.** Saved and applied dates are the
 instants the API stored (`getNow`, `cache()`d, is what the pages compare
