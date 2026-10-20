@@ -30,7 +30,8 @@
  * it's a read-only reshaping of what WorkIt's own database already holds.
  * @typedef {Object} AutofillProfile
  * @property {string} id
- * @property {string} email
+ * @property {string} email  The profile's contact email, else the sign-in
+ *   email: the one employers see (KAN-262).
  * @property {string} full_name
  * @property {string | null} phone_number
  * @property {string | null} headline

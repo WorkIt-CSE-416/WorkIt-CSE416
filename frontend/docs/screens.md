@@ -616,7 +616,62 @@ link into the Calendar from anywhere else goes through `DayLink` in
 ## My Profile
 
 **My Profile holds the photo and the identity fields**, and a "Resumes &
-Experiences" section that links to both views of that page. **Resumes moved
+Experiences" section that links to both views of that page.
+
+**Contact & Links (KAN-262)** is an open section between the identity band
+and Resumes & Experiences. It lists all six fields under visible labels, two
+columns where the page is wide: Contact Email, Phone, LinkedIn, GitHub,
+Portfolio or Website, Other Link. Each field is drawn like a job posting's
+section heading (16px bold ink beside a 20px brand glyph), its value hanging
+under the heading's text.
+
+- **Two modes, like a form you open.** Reading, each field is text: its
+  value (the email a mail link, the phone a call link, each link opening in
+  a new tab, printed as the resume header prints it: `linkedin.com/in/jake`)
+  or "Not added" in grey. The section's Edit turns every value into a text
+  field in place, the first one focused, with Cancel and Save under them;
+  Escape cancels. Clearing a field and saving removes it.
+- **Tried and dropped on 2026-10-20:** only the filled fields in one row
+  under the name (a seeker with no links saw no sign they could add any,
+  and nothing said which email it was), then an Add button on each empty
+  field (it offered an edit while the section was not being edited).
+- **These fields are edited here only.** The identity band's Edit opens a
+  dialog with Full Name and Headline alone, so no value has two editors.
+- **Example text only where it cannot pass for a saved value**
+  (`you@example.com`, "Your phone number", `your-name`): the sign-in email
+  as Contact Email's placeholder read as already filled in, and so did a
+  realistic headline and phone number. Other Link has no example and no
+  hint: each site named there (Behance, then LeetCode and Devpost) read as
+  the only kind of link it takes.
+
+The identity band holds only the photo, the name and the headline. With no
+headline the line is dropped, so the name centres beside the photo: an empty
+headline line used to leave a gap between the name and the row below.
+
+- **Two emails, on purpose.** The sign-in email belongs to Supabase Auth and
+  is never edited here. The contact email is the one employers see: resume
+  headers print it and the autofiller fills it. Empty means the sign-in
+  email, so the section and every reader fall back to it. The section says
+  "Your sign-in email" under the address whenever it is the sign-in one.
+  In edit mode, a Contact Email that is empty or differs from the sign-in
+  email shows Use Sign-In Email, which fills the field with it, and the hint
+  says which email employers will see. The sign-in email in the field is
+  saved as empty: retyping it by hand left a seeker unsure it was the
+  sign-in one (2026-10-20). A seeker may apply with a different
+  address than the one they sign in with.
+- **Four link fields, named for what hiring systems ask:** LinkedIn,
+  GitHub, Portfolio or Website, and Other Link. Each matches a box that
+  Greenhouse or Lever asks for by name, so the autofiller can fill it. Any
+  other page goes in Other Link, and the section labels it by its site
+  when it knows the site (a LeetCode link reads "LeetCode", `siteName`
+  in `lib/profile-links.ts`). A list of any number of links was weighed and
+  left out: it needs a new table and a rule for which link fills which box.
+- **A link is a web address or nothing.** "linkedin.com/in/jake" gains
+  `https://` on Save, in the section and again in the API; anything that
+  is not an http(s) address is refused with "Enter a web address" under the
+  field. The section never makes an href of a link that fails the check.
+
+**Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
 the Resumes view's Your Resumes card (below), beside the base resumes,
 which then shared its limit of 5. With one limit split across two pages,

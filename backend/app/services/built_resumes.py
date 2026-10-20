@@ -527,7 +527,7 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
         raise NotFound
     return HeaderIdentity(
         name=profile.full_name,
-        email=profile.email,
+        email=profile.email_for_employers,
         phone=profile.phone_number,
         links=tuple(
             (field, url)
