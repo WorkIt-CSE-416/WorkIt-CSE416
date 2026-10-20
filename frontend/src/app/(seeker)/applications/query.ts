@@ -3,15 +3,15 @@ import type { Application } from "../tracker";
 
 /**
  * What the Applications page is showing, read from its URL: the layout, the
- * stage, search and Filter button filters, and the list's sort. ?app= named the application
+ * stage, search and field filters (All Filters), and the list's sort. ?app= named the application
  * open in a side panel until KAN-256; it now only redirects to that
  * application's own page.
  *
  * All of it lives in the query string rather than in component state, so it
  * survives a reload, the back button undoes it, and it can be linked to: the
  * Dashboard's Waiting opens `/applications?view=list&stage=applied`. The
- * server does the filtering, so the stage chips are links and a Filter
- * button pick replaces the URL. The layout switcher and the list's sort
+ * server does the filtering, so the stage chips are links, and a pick in a
+ * field's dropdown or in All Filters replaces the URL. The layout switcher and the list's sort
  * headings move ?view= and ?sort= in place (./view-switcher.tsx), since the
  * browser already holds what they show: the list sorts itself (./list.tsx).
  * The list's column layout is not here: it is a per-browser preference
@@ -37,7 +37,7 @@ export const SORTS = ["applied", "match", "company", "status", "pay"] as const;
 export type Sort = (typeof SORTS)[number];
 export const DEFAULT_SORT: Sort = "applied";
 
-/** The Filter button's fields (KAN-282): the Application field each one
+/** The filter fields beside the stages (KAN-282): the Application field each one
  *  reads, its URL parameter and its label. A field takes any number of
  *  values, as the stage chips do, and a value is the cell's own text. */
 export const FILTER_FIELDS = [
@@ -58,7 +58,7 @@ export type ApplicationsQuery = {
   /** Matched against the role and the company, ignoring case. */
   q: string;
   sort: Sort;
-  /** The Filter button's picks; an empty field filters nothing. */
+  /** The filter fields' picks; an empty field filters nothing. */
   filters: Filters;
   /** An old side-panel link's application, by id: ./page.tsx redirects it
    *  to the application's own page. */
@@ -119,7 +119,7 @@ export function applicationsHref(query: ApplicationsQuery, patch: Partial<Applic
   return search ? `/applications?${search}` : "/applications";
 }
 
-/** How many of the Filter button's values are picked, across its fields. */
+/** How many filter field values are picked, across the fields. */
 export function filterCount(filters: Filters) {
   return FILTER_FIELDS.reduce((count, { key }) => count + filters[key].length, 0);
 }
@@ -131,11 +131,18 @@ export function applicationHref(id: string) {
   return `/applications/${encodeURIComponent(id)}`;
 }
 
+/** What the filters read of an application: enough for the filter bar to
+ *  list the options and count a draft in the browser (./all-filters.tsx). */
+export type Filterable = Pick<
+  Application,
+  "role" | "company" | "stage" | "track" | "workModel" | "source"
+>;
+
 /** The applications the filters leave: in a chosen stage (any, when none is
- *  chosen), matching the search, and holding one of each Filter button
- *  field's picks. */
-export function filterApplications(
-  apps: Application[],
+ *  chosen), matching the search, and holding one of each filter field's
+ *  picks. */
+export function filterApplications<T extends Filterable>(
+  apps: T[],
   query: Pick<ApplicationsQuery, "stages" | "q" | "filters">,
 ) {
   const q = query.q.toLowerCase();
@@ -151,10 +158,10 @@ export function filterApplications(
   );
 }
 
-/** The values each Filter button field can pick: every value the tracked
+/** The values each filter field can pick: every value the tracked
  *  applications hold, A to Z, and any value the URL picks that none holds
  *  any more, so it can still be unticked. */
-export function filterOptions(apps: Application[], filters: Filters): Filters {
+export function filterOptions(apps: Filterable[], filters: Filters): Filters {
   return Object.fromEntries(
     FILTER_FIELDS.map(({ key }) => {
       const values = new Set([...apps.map((app) => app[key] ?? ""), ...filters[key]]);

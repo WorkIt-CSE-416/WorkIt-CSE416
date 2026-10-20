@@ -13,7 +13,7 @@ import { getTracker } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
-import { applicationHref, filterApplications, filterOptions, parseQuery } from "./query";
+import { applicationHref, filterApplications, parseQuery } from "./query";
 import { ViewPanes } from "./view-panes";
 import { ViewSwitcher } from "./view-switcher";
 
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
  * stages. The board is archived (KAN-256).
  *
  * The URL carries all of it (./query.ts): the view, the stage chips, search
- * and Filter button in the filter bar, and the list's sort. So the filtering
+ * and field filters in the filter bar, and the list's sort. So the filtering
  * stays on the server, and the Dashboard can link straight to a filtered
  * list or one application. The list's column layout is the browser's own
  * (./column-layout.ts).
@@ -57,7 +57,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const { applications, error } = await getTracker();
   const all = applications ?? [];
 
-  // The search and the Filter button, for the chips' counts: each says what
+  // The search and the field filters, for the chips' counts: each says what
   // turning its stage on would show. Then the stages too, for the views.
   const searched = filterApplications(all, { ...query, stages: [] });
   const shown = filterApplications(searched, query);
@@ -90,7 +90,17 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
         <ViewSwitcher />
       </div>
 
-      <FilterBar counts={counts} options={filterOptions(all, query.filters)} />
+      <FilterBar
+        counts={counts}
+        apps={all.map(({ role, company, stage, track, workModel, source }) => ({
+          role,
+          company,
+          stage,
+          track,
+          workModel,
+          source,
+        }))}
+      />
 
       {/* The board (./board.tsx) is archived (KAN-256); ./query.ts says how to
           bring it back. Its pane was <ApplicationsBoard applications={shown}

@@ -478,7 +478,7 @@ the role (bold, the row's link, cut with the whole title on hover) over the
 company's name in meta grey. KAN-256 split them into two frozen columns,
 Company then Role; together they took about 500px, so few other columns
 showed, and KAN-282 stacked them again. The company is still its own field
-for the Filter button and the sort. **Role stays frozen** at the left
+for the filters and the sort. **Role stays frozen** at the left
 while the rest scrolls under it (a sticky cell painting the row's
 background and its hover tint; the edge is a shadow, since a collapsed
 table's borders don't move with a sticky cell). **It freezes from 672px of
@@ -510,16 +510,30 @@ TanStack Table v9 (`applications/list.tsx`; `company/table.tsx` says why v8
 examples do not apply), a client component over the rows the server
 filtered.
 
-- **Filter button**, after the stage chips (`applications/list-controls.tsx`):
-  a menu of checkbox rows grouped by Company, Track, Work Model and Source,
-  listing every value the tracked applications hold. Picks in one field
-  show any of them; picks in two fields show what holds both. Each pick is
-  a repeated URL parameter (`?company=`, `?track=`, `?work=`, `?source=`),
+- **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
+  `filter-bar.tsx`): under the search and the stage chips, a second row
+  with a dropdown per field (Company, Track, Work Model, Source), each the
+  Jobs page facet's look (glyph, label, chevron, brand tint while it holds
+  a pick) over checkbox rows of every value the tracked applications hold.
+  The dropdowns step out one at a time from the right as the row narrows
+  (Company from 448px of row, Track 600, Work Model 752, Source 904); at
+  the right end, Clear Filters as an outlined cross (shown while anything
+  is picked or searched; it hands focus to All Filters), All Filters, and
+  Columns in the list view. A phone's row is All Filters and Columns.
+  An earlier draft had one Filter button with every field in its menu; it
+  was rebuilt after the Jobs page on the user's ask (2026-10-19).
+- **All Filters** is a panel with every field, as on the Jobs page: Status
+  (the stage chips' choice, with the stages' glyphs), Company (a search
+  picker, since the list grows), then Track, Work Model and Source as
+  option chips. Its picks are a draft until "Show 3 Applications", which
+  counts the draft in the browser (the page hands the bar what each
+  tracked application is filtered on); closing it drops the draft.
+- **Picks**: in one field, any of them; across fields, all. Each is a
+  repeated URL parameter (`?company=`, `?track=`, `?work=`, `?source=`),
   not a comma list, since a company's name can hold a comma. A pick
-  replaces the URL (ten ticks are not ten steps of Back) and shows checked
-  at once while the server filters, as the Jobs page's facets do. The
-  button shows its pick count and the brand tint while it holds picks; the
-  stage chips' counts and Clear Filters include them.
+  replaces the URL (ten ticks are not ten steps of Back) and shows at once
+  while the server filters, as the Jobs page's facets do. The stage chips'
+  counts include them.
 - **Sort**: five headings sort, each one way, the way it is read: Role by
   its company A to Z, then by role, so a company's roles sit together
   (`?sort=company`; the heading's tooltip says so), Status furthest along first, Date Applied latest first, Match
@@ -531,8 +545,8 @@ filtered.
 - **Columns**: drag a heading by its label to a new place (a brand bar
   marks the side it lands on); drag a heading's right edge to resize it,
   double-click the edge to reset it, or focus the edge and use the arrow
-  keys; hide and show columns from the **Columns** menu at the bar's right
-  end, which shows only in the list view and also has Reset Columns.
+  keys; hide and show columns from the **Columns** menu at the filter row's
+  right end, which shows only in the list view and also has Reset Columns.
   Role cannot move or hide. Each column has a fixed width
   (a fixed table layout) and cuts what does not fit, with the whole value
   on hover; an empty last column takes the card's spare width, so a resize
@@ -562,10 +576,11 @@ prints the UTC date, and `<When>` in `(seeker)/local-time.tsx` swaps in the
 viewer's own "Tomorrow, 2:00 PM" after hydration.
 
 **The Applications page keeps every choice in its URL** (`applications/query.ts`):
-`?view=`, `?stage=` (a comma list), `?q=`, the Filter button's fields and
+`?view=`, `?stage=` (a comma list), `?q=`, the filter fields and
 the list's `?sort=`. An old `?app=` link (the side panel's) redirects to
 the application's own page. The server does the filtering, so the stage
-chips are links, the search a GET form and a Filter pick a URL replace,
+chips are links, the search a GET form and a field or All Filters pick a
+URL replace,
 and the Dashboard can link to a filtered list or one application. The
 list's column layout is the one choice kept in the browser instead
 (above). The layout is the exception in how it
