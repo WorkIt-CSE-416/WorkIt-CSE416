@@ -141,6 +141,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The Applications board is archived** (KAN-256): the list is the
   default view, and `?view=board` opens it. `applications/board.tsx` stays;
   `docs/screens.md`, Applications, says how to bring it back.
+- **The sidebar is pinned or opens on hover** (KAN-300,
+  `components/hover-sidebar.tsx`). A hover opens shadcn's provider over the
+  page, so anything sized by the panel's width reads `useSidebarPin().pinned`,
+  never shadcn's `state`, or it moves on every hover (`docs/design.md`).
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).

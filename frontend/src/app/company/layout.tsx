@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 import { signOut } from "@/app/actions";
 import { AccountMenu } from "@/components/account-menu";
 import { NotificationsMenu } from "@/components/notifications-menu";
-import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
+import { HoverSidebarProvider } from "@/components/hover-sidebar";
+import { SidebarInset } from "@/components/shadcn/sidebar";
 import { SidebarBrand } from "@/components/sidebar-brand";
 import { SearchField } from "@/components/ui/search-field";
 
@@ -52,9 +53,9 @@ import { CompanySidebar } from "./company-sidebar";
  * query there as ?q. The applicants table filters on name alone, and the
  * placeholder says so.
  *
- * The panel's open or collapsed state survives a reload: shadcn writes the
- * sidebar_state cookie on every toggle, and this layout reads it back as the
- * provider's defaultOpen.
+ * The panel is pinned open or opens on hover (KAN-300,
+ * components/hover-sidebar.tsx), and the pin survives a reload: it is the
+ * sidebar_state cookie, which this layout reads back as defaultPinned.
  *
  * The panel is a client component (it reads the pathname for its active state)
  * and so is its provider. Children still render on the server: a client
@@ -78,8 +79,8 @@ export default async function CompanyLayout({ children }: { children: React.Reac
      * height makes this column the full window and nothing more, so the only
      * thing that can scroll is the region below the bar, and its scrollbar
      * starts where it does. */
-    <SidebarProvider
-      defaultOpen={defaultOpen}
+    <HoverSidebarProvider
+      defaultPinned={defaultOpen}
       className="bg-background h-svh flex-col"
       /* Read by the canvas rule in globals.css. <body> paints the strip an
          overscroll exposes and sits above this shell, so it cannot inherit
@@ -184,6 +185,6 @@ export default async function CompanyLayout({ children }: { children: React.Reac
           {children}
         </SidebarInset>
       </div>
-    </SidebarProvider>
+    </HoverSidebarProvider>
   );
 }

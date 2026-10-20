@@ -3,8 +3,8 @@
 import Link from "next/link";
 
 import { Logo } from "@/components/logo";
-import { SidebarTrigger, useSidebar } from "@/components/shadcn/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { SidebarPinToggle, useSidebarPin } from "@/components/hover-sidebar";
+import { useSidebar } from "@/components/shadcn/sidebar";
 import { cn } from "@/lib/cn";
 
 /**
@@ -62,8 +62,11 @@ import { cn } from "@/lib/cn";
  * DOM, so no CSS selector in the bar can read it.
  */
 export function SidebarBrand({ href }: { href: string }) {
-  const { state, isMobile } = useSidebar();
-  const collapsed = !isMobile && state === "collapsed";
+  const { isMobile } = useSidebar();
+  // Pinned, not shadcn's state: a hover peek opens the panel over the page
+  // (hover-sidebar.tsx), and this corner must stay the rail's width with it.
+  const { pinned } = useSidebarPin();
+  const collapsed = !isMobile && !pinned;
 
   return (
     <div
@@ -73,14 +76,7 @@ export function SidebarBrand({ href }: { href: string }) {
         collapsed && "md:w-(--sidebar-width-icon)",
       )}
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
-          }
-        />
-        <TooltipContent>Toggle sidebar</TooltipContent>
-      </Tooltip>
+      <SidebarPinToggle className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
 
       <LogoLink href={href} hidden={collapsed} />
     </div>
