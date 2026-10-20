@@ -8,17 +8,22 @@ changing it.
 
 ## Jobs page, /search and filters
 
-**/jobs has two views (KAN-231).** Recommended, the default, is the jobs the
-filters keep, scored against the seeker's experience bank and best first
-(`GET /jobs/recommended/{id}`, which takes the same filters as `GET /jobs`),
-with the match rail showing each score and its highlights. With an empty bank
-it shows the plain feed under the same filters, below the bank prompt, and so
-does a company account, which the API refuses (403). All Jobs
-(`?view=all`) is the plain feed. **Saved preferences apply on a fresh visit
-only**: bare /jobs redirects to `?view=recommended` plus the saved filters,
-where the row shows them checked; from then on the URL is the truth, so Clear
-All clears rather than bringing the saved ones back. Load More pages whichever
-view drew the list (`FeedList`'s `source`).
+**/jobs is one list with a Sort By control (KAN-288).** Best Match
+(`?sort=match`), the default, is the jobs the filters keep, scored against the
+seeker's experience bank and best first (`GET /jobs/recommended/{id}`, which
+takes the same filters as `GET /jobs`), with the match rail showing each score
+and its highlights. With an empty bank it shows the newest first under the
+same filters, below the bank prompt, and so does a company account, which the
+API refuses (403). Newest (`?sort=newest`) is the plain feed. Each option keeps
+the filters as they stand. Until KAN-288 these were two views, Recommended and
+All Jobs, behind a switcher (KAN-231); they drew the same filter row and cards,
+so students read them as one page. An old `?view=all` link opens Newest and
+`?view=recommended` opens Best Match (`readSort` in jobs/page.tsx). **Saved
+preferences apply on a fresh visit only**: bare /jobs redirects to
+`?sort=match` plus the saved filters, where the row shows them checked; from
+then on the URL is the truth, so Clear All clears rather than bringing the
+saved ones back. Load More pages whichever order drew the list (`FeedList`'s
+`source`).
 
 **Job Type and Experience Level never overlap (KAN-284).** Job Type says
 what kind of job it is (Internship, Full-Time, Part-Time, Contract);
@@ -52,9 +57,8 @@ once (one click; it writes into the bank, ADR 0003). An upload imports
 itself, so the card shows only for an upload the parser read nothing in or
 one from before KAN-240. With none, Upload a Resume (to `/resumes`) and Add What You Did. It streams in its own Suspense
 boundary and shows nothing when the bank has entries or fails to load. The
-feed under it is the live listing for everyone, not a bank match, so it
-still shows; the API's bank-scored `GET /jobs/recommended` has no screen
-yet, and when it gets one this card is its empty state.
+feed under it is the newest first, not a bank match, since Best Match
+needs the bank; this card is Best Match's empty state.
 
 The heading and filter row stay at the top while the list scrolls under them
 (jobs/feed-header.tsx, on /jobs and /search alike), so the filters are in reach
@@ -73,9 +77,9 @@ and Date Posted. Job Type took Experience's place (KAN-284), since it is
 where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs,
 so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
 (KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
-filters" in its tooltip, and turns every filter off, keeping ?view and ?q; a
-cleared /jobs with no ?view lands on ?view=recommended, since the bare URL
-would bring the saved preferences back. As the words "Clear Filters" it took
+filters" in its tooltip, and turns every filter off, keeping ?sort and ?q; a
+cleared /jobs with no ?sort lands on ?sort=match, since the bare URL would
+bring the saved preferences back. As the words "Clear Filters" it took
 the room of Date Posted at every width and wrapped the row on a phone. The
 widths at which the facets step in leave room for it whether or not it shows,
 so a pick never pushes a facet out of the row (filters.tsx lists them). Role
@@ -296,7 +300,7 @@ look at /resumes does not go Back there). When the seeker came straight from
 that list (`cameFrom`, (seeker)/scroll-memory.tsx), Back goes back in history
 as the browser's Back does: the router redraws the list it kept at once.
 Following the link instead is a fresh visit, which fetches the feed again and,
-on Recommended, scores every job again, so the list sat on its skeleton
+in Best Match, scores every job again, so the list sat on its skeleton
 (2026-10-19). It says only "Back", whatever the
 list: the server cannot read sessionStorage, so a label naming the list
 would change a moment after the page loads.
@@ -1643,7 +1647,7 @@ complete). The bank goes first because a finished seeker is never sent back
 here, and no other screen asks those questions yet.
 Continue then uploads the file through `uploadResume`, and the API reads it
 into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
-whose Recommended view scores the saved filters' jobs against the bank. The
+whose Best Match order scores the saved filters' jobs against the bank. The
 answers save first: a failed save or upload leaves the seeker on the step,
 saying why in the API's words (a sixth upload's 409 among them), and a retry
 saves the answers again harmlessly. Date Posted is not asked: a saved "past

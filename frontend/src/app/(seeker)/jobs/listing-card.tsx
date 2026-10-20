@@ -60,8 +60,8 @@ import { SaveJobButton } from "./save-job-button";
  *                          intern for years
  *   uploaded_at            `posted_at`, when the board dated it
  *
- * The match rail shows the role's score and highlights on the Recommended
- * view, which scores against the seeker's resume, and its placeholder
+ * The match rail shows the role's score and highlights in the Best
+ * Match order, which scores against the seeker's resume, and its placeholder
  * (score null) everywhere else.
  * The card opens the role's own page, /jobs/[jobId] (KAN-73), which shows
  * its description; Apply Now leaves for the employer's own posting. Tailor

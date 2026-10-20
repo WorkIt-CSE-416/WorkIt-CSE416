@@ -123,7 +123,7 @@ export async function unsaveJob(jobId: string): Promise<{ error: string | null }
 }
 
 /**
- * The Recommended view's Load More (./feed-list, `source="recommended"`):
+ * The Best Match order's Load More (./feed-list, `source="recommended"`):
  * the next page of the seeker's scored jobs under the same filters. The
  * seeker comes from the session in getRecommendedPage, never an argument. A
  * seeker whose experience bank emptied between pages gets an error, and the
