@@ -643,10 +643,11 @@ free tier). Render with a Dockerfile is the fallback.
   `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
   migration runs.
 - **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
-  that reads it.** It sits on `c785e96ac011` above. It only adds a table,
-  so the running code never meets it and applying it early is safe;
-  deployed first, onboarding's Continue answers 500 and the Profile step
-  never loads saved answers.
+  that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
+  (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It
+  only adds a table, so the running code never meets it and applying it
+  early is safe; deployed first, onboarding's Continue answers 500 and the
+  Profile step never loads saved answers.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.
