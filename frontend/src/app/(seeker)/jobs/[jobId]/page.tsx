@@ -27,6 +27,11 @@ import { KeyRequirementsCard } from "./key-requirements";
 import { AppliedNote, BackToJobs, MoreActions } from "./page-actions";
 import { SentNote } from "./sent-note";
 
+/** A little wider than the reading pages' `max-w-app` (KAN-279): at 1024px
+ *  the header's six facts and the Eligibility Checklist felt cramped. About
+ *  the Role keeps its own 68ch measure, so its lines do not grow with it. */
+const PAGE_WIDTH = "mx-auto w-full max-w-[70rem] flex-1 py-6";
+
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
   const { job, error } = await getJobListing(jobId);
@@ -83,7 +88,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
 
   if (error != null) {
     return (
-      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      <div className={cn(PAGE_WIDTH, SEEKER_GUTTER)}>
         <BackToJobs />
         <ListingsError error={error} retryHref={`/jobs/${encodeURIComponent(jobId)}`} />
       </div>
@@ -93,7 +98,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
   const places = placesOf(job.location_label ?? job.location);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn(PAGE_WIDTH, SEEKER_GUTTER)}>
       {/* Back and the job's actions, held at the top while the description
           scrolls under them (./action-bar). */}
       <JobActionBar>
@@ -126,10 +131,14 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]
 
       <JobDetailHeader
         posting={toPosting(job)}
-        // The employer's own logo, as on the card, at the header's 32px; its
+        // The employer's own logo, as on the card, at the header's 40px; its
         // initials when it has none.
         tile={
-          <CompanyLogo name={job.company} src={job.logo_url} className="text-meta size-8 rounded" />
+          <CompanyLogo
+            name={job.company}
+            src={job.logo_url}
+            className="text-label rounded-control size-10"
+          />
         }
       />
 
