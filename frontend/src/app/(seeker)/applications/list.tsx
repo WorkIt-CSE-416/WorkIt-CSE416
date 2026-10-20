@@ -29,6 +29,7 @@ import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
 import { LocalDate } from "../local-time";
 import type { Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
+import { ClickableRow } from "./clickable-row";
 import { MatchBadge } from "./match-badge";
 import {
   applicationHref,
@@ -40,12 +41,14 @@ import {
 import { Reflow } from "./reflow";
 
 /**
- * The applications as a table, one row each, in the order a tracking sheet
- * reads (KAN-256): Date Applied, Company, Role, Track (the job type), Location,
- * Work Model, Pay Range, Source (the hiring system its posting is on),
- * Status, then the extras WorkIt adds: Match, the Resume sent, whether the
- * Posting is still open, and Notes / Next Step. Company and Role are their own
- * columns, since a seeker applies to several roles at one company.
+ * The applications as a table, one row each, in the order job trackers read
+ * (KAN-256): who and what (Company, Role), where it stands (Status, Date
+ * Applied), how good it is (Match), the job's facts (Track, the job type;
+ * Location; Work Model; Pay Range), where and what was sent (Source, the
+ * hiring system its posting is on; Resume; Posting, open or not), and Notes /
+ * Next Step last, the widest and least scanned. Company and Role are their
+ * own columns, since a seeker applies to several roles at one company, and
+ * both stay frozen at the left while the rest scrolls (FROZEN_COMPANY).
  *
  * Notes / Next Step is a placeholder for now: nothing stores notes yet, and
  * Status can only be Saved or Applied until the API keeps later stages.
@@ -66,8 +69,8 @@ import { Reflow } from "./reflow";
  * IT SCROLLS SIDEWAYS, as a Notion table does, rather than dropping columns:
  * every column keeps its width and never wraps (shadcn's cell is nowrap), and
  * the card is the scroll port. The role is capped and cut, with the whole
- * title on hover. A row opens its application's own page (./[jobId]); the
- * role is the link, stretched across the row.
+ * title on hover. A row opens its application's own page (./[jobId]) on a
+ * click anywhere (./clickable-row.tsx); the role is its link.
  */
 const TH = "px-4 text-note text-ink-meta font-medium";
 /** A plain fact cell: one line of note text in ink, as easy to read as the
@@ -138,6 +141,17 @@ function FactCell({
   );
 }
 
+/** The frozen columns (KAN-256): Company pinned at the left edge at a fixed
+ *  208px, Role pinned right after it, so who and what stay in view while the
+ *  rest scrolls under them. Each paints the row's own background (white, the
+ *  hover tint with the row) so scrolled cells don't show through, and Role
+ *  draws the edge the scrolled cells pass under. A shadow rather than a
+ *  border: a collapsed table's borders don't move with a sticky cell. */
+const FROZEN_COMPANY = "sticky left-0 z-1 w-52 min-w-52 max-w-52 bg-panel";
+const FROZEN_ROLE = "sticky left-52 z-1 bg-panel shadow-[1px_0_0_var(--color-border-subtle)]";
+/** A frozen body cell follows its row's hover tint. */
+const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
+
 export function ApplicationsList({
   applications,
   query,
@@ -152,20 +166,20 @@ export function ApplicationsList({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
+            <TableHead className={cn(TH, FROZEN_COMPANY)}>Company</TableHead>
+            <TableHead className={cn(TH, FROZEN_ROLE)}>Role</TableHead>
+            <TableHead className={TH}>Status</TableHead>
             <SortHead sort="applied" query={query}>
               Date Applied
             </SortHead>
-            <TableHead className={TH}>Company</TableHead>
-            <TableHead className={TH}>Role</TableHead>
+            <SortHead sort="match" query={query}>
+              Match
+            </SortHead>
             <TableHead className={TH}>Track</TableHead>
             <TableHead className={TH}>Location</TableHead>
             <TableHead className={TH}>Work Model</TableHead>
             <TableHead className={TH}>Pay Range</TableHead>
             <TableHead className={TH}>Source</TableHead>
-            <TableHead className={TH}>Status</TableHead>
-            <SortHead sort="match" query={query}>
-              Match
-            </SortHead>
             <TableHead className={TH}>Resume</TableHead>
             <TableHead className={TH}>Posting</TableHead>
             <TableHead className={TH}>Notes / Next Step</TableHead>
@@ -178,20 +192,16 @@ export function ApplicationsList({
             // transform does not reliably paint), 25ms apart, and glides to
             // its new place when the sort or a filter moves it.
             <Reflow key={app.id}>
-              <TableRow
-                className="hover:bg-hover animate-fade relative"
+              <ClickableRow
+                href={applicationHref(app.id)}
+                className="hover:bg-hover animate-fade"
                 style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
               >
-                <FactCell
-                  Icon={CalendarIcon}
-                  value={app.appliedOn ? <LocalDate at={app.appliedOn} /> : null}
-                  missing="Not yet"
-                />
-                <TableCell className="px-4 py-3">
-                  <div className="flex items-center gap-2.5">
+                <TableCell className={cn("px-4 py-3", FROZEN_COMPANY, FROZEN_HOVER)}>
+                  <div className="flex min-w-0 items-center gap-2.5">
                     <ApplicationTile application={app} size="sm" />
                     <span
-                      className="text-label text-ink max-w-40 truncate font-medium"
+                      className="text-label text-ink min-w-0 truncate font-medium"
                       title={app.company}
                     >
                       {app.company}
@@ -199,15 +209,32 @@ export function ApplicationsList({
                   </div>
                 </TableCell>
                 {/* Capped and cut, the whole title on hover: scraped titles
-                    run long ("... 2027 in Eurasburg / Bavaria"). */}
-                <TableCell className="px-4">
+                    run long ("... 2027 in Eurasburg / Bavaria"). The row
+                    opens on a click anywhere (./clickable-row.tsx); this is
+                    the link a keyboard reaches. */}
+                <TableCell className={cn("px-4", FROZEN_ROLE, FROZEN_HOVER)}>
                   <Link
                     href={applicationHref(app.id)}
                     title={app.role}
-                    className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block max-w-72 truncate rounded-xs font-semibold transition-colors duration-150 after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+                    className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block max-w-72 truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                   >
                     {app.role}
                   </Link>
+                </TableCell>
+                <TableCell className="px-4">
+                  <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
+                </TableCell>
+                <FactCell
+                  Icon={CalendarIcon}
+                  value={app.appliedOn ? <LocalDate at={app.appliedOn} /> : null}
+                  missing="Not yet"
+                />
+                <TableCell className="px-4">
+                  {app.match != null ? (
+                    <MatchBadge score={app.match} />
+                  ) : (
+                    <span className="text-note text-ink-meta">Not scored</span>
+                  )}
                 </TableCell>
                 <FactCell Icon={BriefcaseIcon} value={app.track} missing="Not listed" />
                 <FactCell Icon={PinIcon} value={app.location} missing="Not listed" />
@@ -218,16 +245,6 @@ export function ApplicationsList({
                 />
                 <FactCell Icon={CoinIcon} value={app.pay} missing="Not listed" />
                 <FactCell Icon={ExternalLinkIcon} value={app.source} missing="Unknown" />
-                <TableCell className="px-4">
-                  <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
-                </TableCell>
-                <TableCell className="px-4">
-                  {app.match != null ? (
-                    <MatchBadge score={app.match} />
-                  ) : (
-                    <span className="text-note text-ink-meta">Not scored</span>
-                  )}
-                </TableCell>
                 <FactCell
                   Icon={FileIcon}
                   value={app.resume}
@@ -246,7 +263,7 @@ export function ApplicationsList({
                 </TableCell>
                 {/* A placeholder until notes are stored. */}
                 <FactCell Icon={PencilIcon} value={null} missing="No notes yet" />
-              </TableRow>
+              </ClickableRow>
             </Reflow>
           ))}
         </TableBody>

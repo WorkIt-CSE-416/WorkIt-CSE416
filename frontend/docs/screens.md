@@ -466,13 +466,22 @@ company, the day it was saved or sent, and its match score. The grid adds
 the stage pill, which its ungrouped cards would otherwise lose.
 
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
-does, rather than dropping columns as the page narrows. In a tracking
-sheet's order: Date Applied, Company, Role, Track (the job type), Location,
-Work Model, Pay Range, Source (the hiring system the posting is on, named
-from its apply link in `applications/tracked.ts`; "Company Site" for any
-other host), Status (the stage pill), then Match, Resume, Posting and Notes
-/ Next Step. Company and Role are separate columns, since a seeker applies
-to several roles at one company. Sorted by Date Applied unless
+does, rather than dropping columns as the page narrows. In the order job
+trackers read: who and what (Company, Role), where it stands (Status, Date
+Applied), how good it is (Match), the job's facts (Track, the job type;
+Location; Work Model; Pay Range), where and what was sent (Source, the
+hiring system the posting is on, named from its apply link in
+`applications/tracked.ts`, "Company Site" for any other host; Resume;
+Posting), and Notes / Next Step last, the widest and least scanned.
+Company and Role are separate columns, since a seeker applies to several
+roles at one company, and **both stay frozen** at the left while the rest
+scrolls under them (sticky cells: Company 208px wide, Role after it, each
+painting the row's background and its hover tint; the edge is a shadow,
+since a collapsed table's borders don't move with a sticky cell). A sticky
+cell traps a stretched link, so **the row opens the application on a click
+anywhere** (`applications/clickable-row.tsx`), leaving clicks on links and
+buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
+real link a keyboard reaches. Sorted by Date Applied unless
 `?sort=match`. Notes / Next Step is a placeholder ("No notes yet") and
 Status is only Saved or Applied until the API stores notes and later
 stages. Resume is the name of the last sent resume linked to the job
