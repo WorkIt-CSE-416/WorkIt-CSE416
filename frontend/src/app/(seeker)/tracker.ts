@@ -1,19 +1,20 @@
 import { differenceInCalendarDays, format, getYear, parseISO } from "date-fns";
-import type { ComponentType } from "react";
-
+import type { Highlight } from "./jobs/data";
 import type { StageKey } from "./stage-colors";
 
 /**
  * The application tracker's shape, and what the seeker pages work out from
  * it: the Applications board, grid and list, the Dashboard's Next Up and Up
- * Next, and the detail panel's timeline. The data itself is still a fixture
- * (./applications/data.ts); this is the shape its API will return.
+ * Next, and the detail panel's timeline. Saved and applied jobs are live
+ * (./applications/tracked.ts, KAN-261). Interviewing, offer and dated events
+ * are not stored yet: the shape keeps them for when the API does.
  *
  * EVERY DATE IS AN ISO STRING, in one of two forms. A full instant
  * ("2026-10-07T18:00:00.000Z") is something at a time, like an interview. A
  * bare date ("2026-10-14") is something due on a day, like a closing date or
  * the day an application went in. The length tells them apart, as it does in
- * components/job-detail/closes-on.tsx.
+ * components/job-detail/closes-on.tsx. `savedOn` and `appliedOn` are
+ * instants, when the API stored them.
  *
  * WHICH DAY AN INSTANT FALLS ON DEPENDS ON THE VIEWER, so only the browser
  * can say "Tomorrow, 2:00 PM". `describeWhen` and `localDay` read the
@@ -38,22 +39,49 @@ export type ApplicationEvent = {
 };
 
 export type Application = {
-  /** Stable across renders and in the URL: the detail panel is ?app=<id>. */
+  /** Stable across renders and in the URL: the detail panel is ?app=<id>.
+   *  Its job posting's id. */
   id: string;
   role: string;
   company: string;
-  /** Stand-in for the company logo; see the note in ./applications/icons.tsx. */
-  Icon: ComponentType<{ className?: string }>;
+  /** The company logo, as the job card draws it; null: initials
+   *  (./applications/application-tile.tsx). */
+  logoUrl: string | null;
+  /** Its job posting's page, while the posting is open. */
+  jobHref?: string;
+  /** False once its job posting has closed. Scraped postings state no
+   *  closing date, so this is all the tracker knows about closing. */
+  open?: boolean;
+  /** Where the job is, as the Jobs page prints it; null when unstated. */
+  location?: string | null;
+  /** Remote, Hybrid or On-Site; null when the posting doesn't say. */
+  workModel?: string | null;
+  /** Its job type, Internship or Full-Time and so on: the list's Track
+   *  column (KAN-256); null when unstated. */
+  track?: string | null;
+  /** The hiring system its posting is on (Greenhouse, Workday...), named
+   *  from its apply link; "Company Site" for any other host. */
+  source?: string | null;
+  /** Its pay, as the Jobs page prints it; null when unstated. */
+  pay?: string | null;
+  /** The top of its pay as a yearly figure, what the list's Pay Range sort
+   *  reads (KAN-282); null when unstated. */
+  payPerYear?: number | null;
+  /** The name of the resume last sent to its job posting (Apply or auto
+   *  apply); null when none was sent through WorkIt. */
+  resume?: string | null;
   stage: StageKey;
   /** Where it stands within its stage, in the employer's words: "Round 3". */
   status?: string;
-  /** What the seeker would write to remind themselves what the role is. */
-  summary: string;
-  /** 0-100, read in the bands in @/lib/match. */
-  match: number;
-  /** The day it was saved: the first entry on its timeline. */
+  /** 0-100, the Jobs page's score, read in the bands in @/lib/match. Null
+   *  for a closed posting and while the experience bank is empty. */
+  match: number | null;
+  /** The reasons behind `match`, as the Jobs page card lists them; empty
+   *  without a score. */
+  highlights?: Highlight[];
+  /** When it was saved (or added): the first entry on its timeline. */
   savedOn: string;
-  /** The day it was sent, or null while it is only saved. */
+  /** When it was sent, or null while it is only saved. */
   appliedOn: string | null;
   /** Interviews, deadlines, offers and follow-ups, past and still to come. */
   events: ApplicationEvent[];
@@ -172,11 +200,12 @@ export function shortDay(day: string) {
 }
 
 /** A card's one backward-looking fact: when it went in, or, for a job not
- *  applied to yet, when it was saved. It never names the stage, "Sent Sep
+ *  applied to yet, when it was saved, as a verb and the date it reads
+ *  (<LocalDate>, ./local-time.tsx). It never names the stage, "Sent Sep
  *  28" rather than "Applied Sep 28": the grid prints it beside the stage's
  *  badge, and the board under the stage's column heading. */
-export function sinceLabel(app: Application) {
-  return app.appliedOn ? `Sent ${shortDay(app.appliedOn)}` : `Added ${shortDay(app.savedOn)}`;
+export function sinceOf(app: Application) {
+  return app.appliedOn ? { verb: "Sent", at: app.appliedOn } : { verb: "Added", at: app.savedOn };
 }
 
 /** The most the server can say about `at` with no zone to read it in: its

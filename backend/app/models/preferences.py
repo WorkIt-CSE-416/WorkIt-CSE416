@@ -56,7 +56,7 @@ class Applicant_Preferences(BaseModel):
     min_pay: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     max_pay: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     pay_per: Mapped[str] = mapped_column(Text, server_default=text("'year'"))
-    visa: Mapped[str | None] = mapped_column(Text)      # "sponsors" | "not_ruled_out"
+    visa: Mapped[str | None] = mapped_column(Text)      # "sponsors"
 
     __table_args__ = (
         CheckConstraint(
@@ -83,7 +83,7 @@ class Applicant_Preferences(BaseModel):
         ),
         CheckConstraint("pay_per IN ('hour','year')", name="applicant_preferences_pay_per"),
         CheckConstraint(
-            "visa IS NULL OR visa IN ('sponsors','not_ruled_out')",
+            "visa IS NULL OR visa = 'sponsors'",
             name="applicant_preferences_visa",
         ),
     )

@@ -122,7 +122,8 @@ async function fetchAutofillProfile() {
 
   return {
     id: account.id,
-    email: account.email,
+    // The contact email employers see; empty means the sign-in email (KAN-262).
+    email: profile.contact_email || account.email,
     full_name: account.full_name,
     phone_number: profile.phone_number,
     headline: profile.headline,

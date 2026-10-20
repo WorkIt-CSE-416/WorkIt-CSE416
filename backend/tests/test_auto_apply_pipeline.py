@@ -13,6 +13,9 @@ from app.auto_apply import pipeline
 from app.auto_apply.queries import ResumeChoice
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
+from app.routers.jobs import EmptyBank
+from app.schemas.applications import Application
+from app.schemas.jobs import Highlight
 from app.services.bank import NotFound as ResumeNotFound
 from app.services.sent_resumes import Sent
 from tests.test_auto_apply_rules import GH, job
@@ -352,3 +355,71 @@ def test_dequeue_job_leaves_anything_past_queued(monkeypatch, stage, error):
     with pytest.raises(error):
         asyncio.run(pipeline.dequeue_job(db, APPLICANT, JOB))
     db.commit.assert_not_awaited()
+
+
+# --- list_applications ---
+
+def tracked(open: bool = True) -> Application:
+    """A saved application, as fetch_applications reads it."""
+    id = str(uuid.uuid4())
+    return Application(
+        job=job(id, GH + id).model_dump(), stage=application_stage.saved,
+        added_at=datetime.now(UTC), applied_at=None, open=open,
+    )
+
+
+def fake_applications(monkeypatch, applications):
+    async def fetch_applications(db, applicant_id, stages):
+        return applications
+    monkeypatch.setattr(pipeline, "fetch_applications", fetch_applications)
+
+
+def test_list_applications_scores_only_on_request(monkeypatch):
+    fake_applications(monkeypatch, [tracked()])
+    calls = []
+    monkeypatch.setattr(pipeline, "fetch_recommended", fake_recommended([], calls))
+
+    (app,) = asyncio.run(pipeline.list_applications(None, APPLICANT))
+
+    assert calls == []  # never embeds the bank for the queue's reads
+    assert app.match is None
+
+
+def test_list_applications_takes_the_jobs_page_score_for_open_postings(monkeypatch):
+    scored, unscored, closed = tracked(), tracked(), tracked(open=False)
+    fake_applications(monkeypatch, [scored, unscored, closed])
+    calls = []
+    monkeypatch.setattr(
+        pipeline,
+        "fetch_recommended",
+        fake_recommended(
+            [
+                job(scored.job.id, GH, match=73).model_copy(
+                    update={"highlights": [Highlight(text="Python", met=True)]}
+                )
+            ],
+            calls,
+        ),
+    )
+
+    apps = asyncio.run(pipeline.list_applications(None, APPLICANT, score_for=ACCOUNT))
+
+    (kwargs,) = calls
+    # The open postings only: a closed one is no longer on the Jobs page.
+    assert kwargs["filters"].job_ids == [uuid.UUID(scored.job.id), uuid.UUID(unscored.job.id)]
+    assert [a.match for a in apps] == [73, None, None]
+    assert [h.text for h in apps[0].highlights] == ["Python"]
+    assert apps[1].highlights == []
+
+
+def test_list_applications_with_an_empty_bank_has_no_scores(monkeypatch):
+    fake_applications(monkeypatch, [tracked()])
+
+    async def empty_bank(db, account, **kwargs):
+        raise EmptyBank("Your experience bank is empty")
+
+    monkeypatch.setattr(pipeline, "fetch_recommended", empty_bank)
+
+    (app,) = asyncio.run(pipeline.list_applications(None, APPLICANT, score_for=ACCOUNT))
+
+    assert app.match is None

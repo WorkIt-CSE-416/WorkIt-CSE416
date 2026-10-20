@@ -145,11 +145,22 @@ _NUMBER = (
 )
 _CODE = r"(USD|EUR|GBP|CAD|AUD|SGD|CHF)"
 _RANGE_TO = r"\s*(?:-|–|—|to)\s*"
+# What may sit between a range's low end and its "-" or "to": its unit
+# (Tenstorrent's "$50/hr - $70/hr" read as $50 alone) or its currency code
+# (Cadence's "$30CAD to $45CAD"). Keep this suffix as range metadata.
+_LOW_END = (
+    r"(?:\s?(?:USD|EUR|GBP|CAD|AUD|SGD|CHF))?"
+    r"(?:\s*(?:/\s*(?:h(?:ou)?r|w(?:ee)?k|mo(?:nth)?|y(?:ea)?r)\b|per\s+(?:hour|week|month|year|annum)))?"
+)
 _PAY = re.compile(
     rf"(?:(?<![A-Za-z])(CA|AU|US|C|A|S)(?=\$))?([$€£])\s?{_NUMBER}"
-    rf"(?:{_RANGE_TO}(?:[A-Z]{{0,2}}[$€£])?\s?{_NUMBER})?"
+    rf"(?:({_LOW_END}){_RANGE_TO}(?:[A-Z]{{0,2}}[$€£])?\s?{_NUMBER})?"
     r"(?P<tail>[^.\n]{0,40})",
 )
+# "between $45 and $65/hour" (Toyota Research Institute) is a range; "and" alone is
+# not one ("$40/hr and a $2,000 stipend"), so it is read as "to" only after
+# "between".
+_BETWEEN = re.compile(r"\bbetween(\s+[$€£]?\s?[\d.,]+\s?[kK]?(?:\s?[A-Z]{3})?)\s+and\s+", re.I)
 # The same with a currency code instead of a symbol: "800 USD monthly",
 # "34.000 - 38.000 EUR", "USD 110,000 - 140,000".
 _PAY_CODE = re.compile(
@@ -228,34 +239,38 @@ def period_for(low: float, high: float, *labels: str) -> str | None:
 
 
 def _candidates(text: str):
-    """(start, currency, low, high, tail) for every amount written with a symbol
+    """(start, currency, low, high, tail, low_suffix) for every amount written with a symbol
     or a currency code, in the order they appear."""
     found = []
     for m in _PAY.finditer(text):
-        prefix, symbol, low, low_k, high, high_k, tail = m.groups()
+        prefix, symbol, low, low_k, low_suffix, high, high_k, tail = m.groups()
+        low_suffix = low_suffix or ""
         # The code after the amount ("$34-$36/hour CAD") or just before the symbol
         # ("CAD $30-50/hour").
         code = next(
             (
                 c
                 for c in CODES
-                if re.search(rf"\b{c}\b", tail + " " + text[max(0, m.start() - 5) : m.start()])
+                if re.search(
+                    rf"\b{c}\b",
+                    low_suffix + " " + tail + " " + text[max(0, m.start() - 5) : m.start()],
+                )
             ),
             None,
         )
         currency = code or (DOLLAR_PREFIX[prefix] if prefix else SYMBOL[symbol])
-        found.append((m.start(), currency, (low, low_k), (high, high_k), tail))
+        found.append((m.start(), currency, (low, low_k), (high, high_k), tail, low_suffix))
     for m in _PAY_CODE.finditer(text):
         pre, low, low_k, high, high_k, post, tail = m.groups()
         if pre or post:
-            found.append((m.start(), pre or post, (low, low_k), (high, high_k), tail))
+            found.append((m.start(), pre or post, (low, low_k), (high, high_k), tail, ""))
     return sorted(found, key=lambda f: f[0])
 
 
 def pay(text: str | None) -> Pay | None:
     """The first amount the description offers as pay for this role."""
-    text = text or ""
-    for start, currency, (low, low_k), (high, high_k), tail in _candidates(text):
+    text = _BETWEEN.sub(r"between\1 to ", text or "")
+    for start, currency, (low, low_k), (high, high_k), tail, low_suffix in _candidates(text):
         if _NOT_PAY.match(tail):
             continue
         lo = _amount(low, low_k or high_k)
@@ -274,9 +289,13 @@ def pay(text: str | None) -> Pay | None:
         # position at commencement of employment is expected to be between $45".
         label = "\n".join(before.split("\n")[-2:])
         sentence = re.split(r"[.!?]\s", text[text.rfind("\n", 0, start) + 1 : start])[-1]
-        if not (_PAID.search(f"{label} {sentence} {tail}") or _PERIOD_AFTER.match(tail)):
+        if not (
+            _PAID.search(f"{label} {sentence} {tail}")
+            or _PERIOD_AFTER.match(tail)
+            or _PERIOD_AFTER.match(low_suffix)
+        ):
             continue
-        period = period_for(lo, hi, tail, label)
+        period = period_for(lo, hi, tail, low_suffix, label)
         if period is None:
             continue
         return Pay(currency=currency, low=lo, high=hi, period=period)

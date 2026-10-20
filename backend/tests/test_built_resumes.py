@@ -66,7 +66,7 @@ async def test_generate_makes_a_base_resume_the_list_reads_back(student):
     assert made["name"] == "General SWE"
     assert made["template"] == "jakes"
     assert made["job_posting_id"] is None
-    assert made["is_default"] is False
+    assert made["is_default"] is True  # the student's only resume
 
     listed = (await client.get(f"{me}/built-resumes")).json()
     assert [(r["id"], r["name"]) for r in listed] == [(made["id"], "General SWE")]
@@ -220,54 +220,35 @@ async def _upload(client, me):
     return await client.post(f"{me}/resumes", files=files)
 
 
-async def test_five_resumes_uploaded_and_base_together_and_no_sixth(student, monkeypatch):
+async def test_five_uploads_and_no_sixth_however_many_are_generated(student, monkeypatch):
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
     monkeypatch.setattr("app.routers.resumes._extract", _no_text)
     client, me = student
-    for _ in range(2):
-        assert (await _upload(client, me)).status_code == 200
-    built = [await _generate(client, me) for _ in range(3)]
+    # Generated resumes count for nothing (KAN-268): six of them leave room
+    # for five uploads.
+    for _ in range(6):
+        await _generate(client, me)
+    uploads = []
+    for _ in range(5):
+        res = await _upload(client, me)
+        assert res.status_code == 200
+        uploads.append(res.json()["id"])
 
-    res = await client.post(f"{me}/built-resumes", json={})
-    assert res.status_code == 409
-    assert "5 resumes" in res.json()["detail"]
     res = await _upload(client, me)
     assert res.status_code == 409
     assert "5 resumes" in res.json()["detail"]
+    assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
 
     # Deleting one makes room again.
-    assert (await client.delete(f"{me}/built-resumes/{built[0]}")).status_code == 204
-    assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
+    assert (await client.delete(f"{me}/resumes/{uploads[0]}")).status_code == 200
+    assert (await _upload(client, me)).status_code == 200
 
 
 async def _no_text(contents, ext):
     return ""
 
 
-async def test_a_tailored_resume_does_not_count_toward_the_five(student, database):
-    client, me = student
-    applicant_id = uuid.UUID(me.split("/")[2])
-    async with database() as session:
-        posting = await session.scalar(
-            text(
-                "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
-                " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
-            )
-        )
-        await session.execute(
-            text(
-                "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
-                " VALUES (:a, 'Tailored', 'jakes', :p)"
-            ),
-            {"a": applicant_id, "p": posting},
-        )
-        await session.commit()
-    for _ in range(5):
-        await _generate(client, me)
-    assert (await client.post(f"{me}/built-resumes", json={})).status_code == 409
-
-
-async def test_a_tailored_resume_says_when_its_posting_has_closed(student, database):
+async def test_a_tailored_resume_names_its_posting_and_says_when_it_has_closed(student, database):
     client, me = student
     applicant_id = uuid.UUID(me.split("/")[2])
     base = await _generate(client, me)
@@ -287,22 +268,28 @@ async def test_a_tailored_resume_says_when_its_posting_has_closed(student, datab
         )
         await session.commit()
 
-    async def closed() -> dict[str, bool]:
-        return {r["id"]: r["posting_closed"] for r in (await client.get(f"{me}/built-resumes")).json()}
+    async def postings() -> dict[str, tuple]:
+        rows = (await client.get(f"{me}/built-resumes")).json()
+        return {r["id"]: (r["posting_title"], r["posting_company"], r["posting_closed"]) for r in rows}
 
-    assert await closed() == {base: False, str(tailored): False}
+    # The card names the posting and links to it (KAN-268).
+    assert await postings() == {base: (None, None, False), str(tailored): ("Intern", "Acme", False)}
     async with database() as session:
         await session.execute(text("UPDATE job_postings SET status = 'closed' WHERE id = :p"), {"p": posting})
         await session.commit()
-    assert await closed() == {base: False, str(tailored): True}
+    assert await postings() == {base: (None, None, False), str(tailored): ("Intern", "Acme", True)}
 
 
 async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monkeypatch):
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
     monkeypatch.setattr("app.routers.resumes._extract", _no_text)
     client, me = student
-    uploaded = (await _upload(client, me)).json()["id"]
+    upload = (await _upload(client, me)).json()
+    uploaded = upload["id"]
+    assert upload["is_default"] is True  # the student's only resume
     built = await _generate(client, me)
+    # A second resume leaves the default where it was.
+    assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [False]
 
     assert (await client.put(f"{me}/resumes/{uploaded}/default")).status_code == 200
     assert (await client.put(f"{me}/built-resumes/{built}/default")).status_code == 200
@@ -313,10 +300,41 @@ async def test_the_default_resume_is_an_uploaded_or_a_base_resume(student, monke
     assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [False]
     assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [True]
 
-    # Deleting the default base resume leaves no default.
+    # Deleting the default base resume makes the one left the default.
     await client.put(f"{me}/built-resumes/{built}/default")
     await client.delete(f"{me}/built-resumes/{built}")
-    assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [False]
+    assert [r["is_default"] for r in (await client.get(f"{me}/resumes")).json()] == [True]
+
+    # And deleting an uploaded resume makes the base resume left the default.
+    built = await _generate(client, me)
+    await client.delete(f"{me}/resumes/{uploaded}")
+    assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [True]
+
+
+async def test_a_tailored_resume_can_be_the_default(student, database):
+    """KAN-268: the API refused a tailored resume's star until then."""
+    client, me = student
+    base = await _generate(client, me)
+    async with database() as session:
+        posting = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
+                " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
+            )
+        )
+        tailored = await session.scalar(
+            text(
+                "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
+                " VALUES (:a, 'Tailored', 'jakes', :p) RETURNING id"
+            ),
+            {"a": uuid.UUID(me.split("/")[2]), "p": posting},
+        )
+        await session.commit()
+
+    assert (await client.put(f"{me}/built-resumes/{tailored}/default")).status_code == 200
+    stars = {r["id"]: r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()}
+    assert stars == {str(tailored): True, base: False}
+    assert (await client.put(f"{me}/built-resumes/{uuid.uuid4()}/default")).status_code == 404
 
 
 async def test_an_entry_says_how_many_built_resumes_show_it(student, database):

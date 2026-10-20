@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowUp, Mic, Sparkles } from "lucide-react";
+import { ArrowUp, Mic } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
@@ -12,9 +13,12 @@ import { useSpeechInput } from "./use-speech-input";
 /**
  * The chat pieces Scout's panel, intake on the bank page and the editor
  * assistant share: a message bubble, the typing dots, the composer with its
- * mic, and WorkIt's mark beside its lines in intake's look. Each caller
- * names itself through the props (who is thinking, what the box is for), so
- * the pieces never say "Scout" where Scout is not the one talking.
+ * mic, and Scout's mark beside its lines in intake's look. Each caller
+ * names itself through the props (who is thinking, what the box is for).
+ *
+ * ALL THREE ARE SCOUT. Intake and the editor assistant used to call
+ * themselves "WorkIt", so a student met the same sparkle under two names;
+ * WorkIt is the product and Scout its one assistant (KAN-259).
  */
 
 /** A bubble rises in as it arrives. The sender's corner is squared, the way
@@ -45,15 +49,17 @@ export function Message({
   );
 }
 
-/** WorkIt's mark: the brand gradient with a sparkle, beside its lines in
- *  intake and the editor assistant (the intake prototype's variant G). */
-export function WorkItMark() {
+/** Scout's mark: the brand gradient with a sparkle, beside its lines in
+ *  intake and the editor assistant (the intake prototype's variant G), and
+ *  in Scout's panel header. The sparkle is `SparkleIcon`, the one glyph
+ *  for Scout and AI (KAN-257). */
+export function ScoutMark() {
   return (
     <span
       aria-hidden
       className="from-brand to-brand-pale text-on-brand flex size-8 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br shadow-[0_4px_12px_rgb(109_63_216/0.35)]"
     >
-      <Sparkles className="size-4" />
+      <SparkleIcon className="size-4" />
     </span>
   );
 }

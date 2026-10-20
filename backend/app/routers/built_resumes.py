@@ -1,23 +1,25 @@
 """Built resumes under /applicants/{applicant_id}/built-resumes (KAN-207).
 Every route checks the token's account owns `applicant_id` first; another
-applicant's resume answers 404. The rules (the 5-resume limit, the default
-resume) live in `app/services/built_resumes.py`; what shows on a resume is
+applicant's resume answers 404. The rules (the default resume) live in `app/services/built_resumes.py`; what shows on a resume is
 `app/services/resume_view.py`.
 
 POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 BuiltResumeResponse
        Generate: a base resume with every bank entry, bullet and skill. With
-       no name it is "Resume #N", one past the highest number in use.
-       409 {detail} when the student already has 5 resumes (uploaded plus base).
+       no name it is "Resume #N", one past the highest number in use. No
+       limit: only uploads count toward the 5 (KAN-268).
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
-       page no longer lists (story 90's "Posting closed"). `edited_at` is
+       page no longer lists (story 90's "Posting closed"). `posting_title`
+       and `posting_company` name a tailored resume's posting, for its
+       card's link back to it (KAN-268); null on a base resume. `edited_at` is
        the last change to the resume itself (its choices or its name); it
        equals `created_at` until the first one.
 PATCH  /applicants/{id}/built-resumes/{rid}        BuiltResumeRename -> BuiltResumeResponse
        Rename (KAN-258). Its sent resumes keep the name they went out under.
 DELETE /applicants/{id}/built-resumes/{rid}        -> 204
 PUT    /applicants/{id}/built-resumes/{rid}/default -> {"default_built_resume_id"}
-       Makes a base resume the default resume, clearing an uploaded default.
+       Makes a base or tailored resume the default resume, clearing an
+       uploaded default. A tailored one could not be until KAN-268.
 GET    /applicants/{id}/built-resumes/{rid}/render -> RenderResponse
        {pdf (base64), page_count, lines_over, missing_characters, boxes}: the characters
        the template's font cannot draw, for the warning before download, and
@@ -95,11 +97,15 @@ router = APIRouter(prefix="/applicants/{applicant_id}/built-resumes", tags=["bui
 DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
-def _response(row: Built_Resume, default_id: uuid.UUID | None, closed: bool = False) -> BuiltResumeResponse:
+def _response(
+    row: Built_Resume, default_id: uuid.UUID | None, posting: service.TailoredPosting | None = None
+) -> BuiltResumeResponse:
     return BuiltResumeResponse(
         id=row.id, name=row.name, template=row.template, job_posting_id=row.job_posting_id,
         is_default=row.id == default_id, created_at=row.created_at, edited_at=row.updated_at,
-        posting_closed=closed,
+        posting_closed=posting.closed if posting else False,
+        posting_title=posting.title if posting else None,
+        posting_company=posting.company if posting else None,
     )
 
 
@@ -132,12 +138,10 @@ async def generate(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> BuiltResumeResponse:
-    try:
-        resume = await service.generate(session, applicant_id, body.name)
-    except service.ResumeLimitReached as exc:
-        raise HTTPException(409, str(exc))
+    resume = await service.generate(session, applicant_id, body.name)
+    default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
-    return _response(resume, None)
+    return _response(resume, default_id)
 
 
 @router.get("", response_model=list[BuiltResumeResponse])
@@ -146,8 +150,8 @@ async def list_built_resumes(
     session: AsyncSession = Depends(get_session),
 ) -> list[BuiltResumeResponse]:
     default_id = await service.default_built_id(session, applicant_id)
-    closed = await service.closed_postings(session, applicant_id)
-    return [_response(r, default_id, r.id in closed) for r in await service.list_resumes(session, applicant_id)]
+    postings = await service.tailored_postings(session, applicant_id)
+    return [_response(r, default_id, postings.get(r.id)) for r in await service.list_resumes(session, applicant_id)]
 
 
 @router.patch("/{resume_id}", response_model=BuiltResumeResponse)
@@ -163,8 +167,8 @@ async def rename_built_resume(
         raise HTTPException(404, "Resume not found")
     await _commit(session, "Failed to rename the resume")
     default_id = await service.default_built_id(session, applicant_id)
-    closed = resume.id in await service.closed_postings(session, applicant_id)
-    return _response(resume, default_id, closed)
+    posting = (await service.tailored_postings(session, applicant_id)).get(resume.id)
+    return _response(resume, default_id, posting)
 
 
 @router.delete("/{resume_id}", status_code=204)

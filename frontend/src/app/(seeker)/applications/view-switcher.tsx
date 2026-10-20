@@ -3,7 +3,7 @@
 import { useShallowParams } from "@/components/shallow-routing";
 import { SegmentedLinks } from "@/components/ui/segmented-control";
 
-import { BoardIcon, GridIcon, ListIcon } from "./icons";
+import { GridIcon, ListIcon } from "./icons";
 import { applicationsHref, parseQuery } from "./query";
 
 /** The page's choices as it is showing them (components/shallow-routing.tsx).
@@ -11,7 +11,12 @@ import { applicationsHref, parseQuery } from "./query";
  *  layout (the switcher, the filter bar, the pane shown) reads it here rather
  *  than from the server's render, which a layout switch never repeats. */
 export function useApplicationsQuery() {
-  return parseQuery(Object.fromEntries(useShallowParams()));
+  const params = useShallowParams();
+  // Every value of a repeated parameter: the filter fields' ?company=A
+  // &company=B (KAN-282). Object.fromEntries kept only the last.
+  return parseQuery(
+    Object.fromEntries([...new Set(params.keys())].map((k) => [k, params.getAll(k)])),
+  );
 }
 
 /**
@@ -21,21 +26,20 @@ export function useApplicationsQuery() {
  *
  * Each option is a real URL, so the choice can be bookmarked and shared and
  * the back button undoes it, but it moves the URL in place (`shallow`): the
- * server has already drawn all three layouts, and ./view-panes.tsx shows the
+ * server has already drawn both layouts, and ./view-panes.tsx shows the
  * one the URL names, so the new layout appears with the thumb instead of a
  * round trip after it.
  *
- * The mockup pairs grid and list. Board leads here because it is the default
- * and the richest of the three, so the row reads in the order a new user meets
- * them rather than the order they were designed.
+ * List leads because it is the default (KAN-256), so the row reads in the
+ * order a new user meets them. The board is archived: its option goes back
+ * in first if it returns (./query.ts says what else).
  *
  * Switching keeps the filters, so a search survives a change of layout. It
  * closes the detail panel, which belongs to the view it was opened from.
  */
 const OPTIONS = [
-  { view: "board", label: "Board View", icon: <BoardIcon className="size-4" /> },
-  { view: "grid", label: "Grid View", icon: <GridIcon className="size-4" /> },
   { view: "list", label: "List View", icon: <ListIcon className="size-4" /> },
+  { view: "grid", label: "Grid View", icon: <GridIcon className="size-4" /> },
 ] as const;
 
 export function ViewSwitcher() {

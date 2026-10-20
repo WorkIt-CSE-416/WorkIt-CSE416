@@ -60,13 +60,87 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
-  clone with no env file is gated too. The root page's hiring card still
-  shows and lands there. `components/account-type-switcher.tsx` has its
-  toggle commented out and always submits `applicant`, so login, signup and
-  choose-account-type show no Company option; the brand panel's hiring line
-  is commented out too. The company code stays in place. To bring it back,
-  delete the proxy block and `app/coming-soon/`, then uncomment those two
-  components. The API still accepts company signups; the gate is the UI only.
+  clone with no env file is gated too. `components/account-type-switcher.tsx`
+  has its toggle commented out and always submits `applicant`, so login,
+  signup and choose-account-type show no Company option. The company code
+  stays in place. To bring it back, delete the proxy block and
+  `app/coming-soon/`, then uncomment the switcher's toggle. The API still
+  accepts company signups; the gate is the UI only.
+- **The page at `/` is the landing page, `app/(landing)/`**, ported from
+  the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
+  in place of the old Job Seeker / Hiring chooser. Its components keep the
+  site's markup, classes and copy, with two deliberate changes, and set the
+  app's own face (`--font-sans`, Plus Jakarta Sans) instead of the site's
+  Inter, so the page and the app read as one product; Google Sans loads only
+  for the Google sign-in button.
+  **Colour and logo:** the site's numbered blue scale became
+  `landing-brand-50` to `950` in `globals.css`, the same steps in WorkIt
+  violet, so a component copied from the site needs only `brand-N` renamed
+  to `landing-brand-N`. Restyling a component during that recolour was
+  reverted once: the team wants the site's look unless it asks. **Layout,
+  after Calendly's homepage:** every full-width band (hero, grey bands,
+  footer) is a rounded panel inset from the window (`PANEL` and
+  `PANEL_INSET` in `page.tsx`); the header floats as a white rounded bar
+  once the page scrolls (`floating-header.tsx`); and the site's feature
+  carousel and grey product placeholder became one pinned product tour
+  (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
+  through the four features, each with its own app colour; below lg the
+  stops stack, because a pinned card with the resume animation does not fit
+  a phone. The site's placeholder benefit grid and three steps became an
+  expanding card row (`journey.tsx`: Find, Apply, Track, Hear back; the
+  card under the pointer widens) and a hiring-system section
+  (`hiring-systems.tsx`). The site's closing "Be first in line" banner is
+  removed for now. **The hiring-system list in
+  `data.ts` is a claim that WorkIt reads those systems**: it must match
+  `scraper/workit_scraper/providers.py`'s `LISTING_URL`. Its logos come from
+  the Google favicon host `next.config.ts` already allows; Workday's and
+  BambooHR's are only 16px there, so they look soft on a sharp screen.
+  The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
+  `hero-city.tsx` renders it after hydration, since server-rendered its path
+  data would add hundreds of KB to the page): New York-style towers, six of
+  which rise as violet wireframes with a job tag. The strip's viewBox starts
+  100px above the ground's origin (`STRIP_TOP`): the tallest side towers
+  reach there and were once cut flat at the top. The ground grid runs ten
+  rows behind the back row of buildings and fades out towards the text, so
+  it reads as a plane behind the low centre. Its heights are capped per
+  column so nothing reaches the text at its 1600px design scale; it keeps
+  that scale from lg up (cropped at the sides) and shrinks to the panel's
+  width below lg, under the text. A change to the hero's text size or the
+  buttons' width means re-checking those caps (`ceiling` in
+  `city-model.ts`): the buttons once ran wider than the caps assumed and
+  towers rose behind them. Its job cards show only where they fit:
+  `placeCards` in `hero-city.tsx` measures each one against the panel's
+  sides and the text's line boxes (`data-hero-text`, `data-hero-box` in
+  `page.tsx`) on every resize, nudging a card inward or skipping it; a
+  fixed breakpoint once hid them on every laptop-width window. Measure text
+  runs, not elements: a block line's box spans the full width. In the
+  pinned product tour, `FitHeight` scales a visual down to the visual
+  area's height, so the resume card fits a short laptop screen; and its
+  `AnimatePresence` must not get `initial={false}`, which blocks the first
+  animation of every motion element inside it: the Matching rows once sat
+  still at their end value until a tab switch remounted them. Violet is
+  the wireframes' alone; keep roofs and spires neutral. It does not use
+  `ui/` components, Title Case or the type tokens; those rules are for app
+  screens. Rules in `landing.css` that set `display` or a size sit in
+  `@layer components`, or they beat a `hidden` or `h-12` utility on the
+  same element. Its animations use `motion`
+  (`motion/react`), which only this route imports; the feature animations
+  expect the tour's `MotionConfig reducedMotion="user"` around them. What
+  differs from the site, and why: the Applicant / Company switcher is left
+  out while the business side is hidden; nav and footer link to this
+  page's sections, since the site's other pages are not in the app; the
+  waitlist form became a sign-up link, since its email went through the
+  site's own server; every call to action goes to `/signup`, `/login` or
+  `signInWithOAuth`. The testimonial and FAQ still hold the site's
+  placeholder copy.
+- **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
+  archived for now** (KAN-261): the tracker stores no dated events or
+  follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
+  sidebar row is commented out, and all their code stays. `docs/screens.md`
+  (Calendar, Seeker Dashboard) says how to bring them back.
+- **The Applications board is archived** (KAN-256): the list is the
+  default view, and `?view=board` opens it. `applications/board.tsx` stays;
+  `docs/screens.md`, Applications, says how to bring it back.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -76,6 +150,25 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
+- **The application tracker is live and has no fixture** (KAN-261): saved
+  and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
+  cached per request by `getTracker` in `data.ts`), each with the Jobs
+  page's own match score (`?scored=true`, KAN-256) and the resume last sent
+  to its posting (the sent resumes list; its failure only empties that
+  column). A row or card opens the application's own page,
+  `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
+  dated events stay empty until the API stores them; a failed read shows an
+  error, never stand-in cards. A job's application
+  stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
+  one read per page. Auto Apply never picks a saved job for a batch; only
+  the job's own Auto Apply click queues it.
+  `docs/screens.md`, Applications, has the rest.
+- **A "Back" link to a dynamic page goes back in history when it can.** Next
+  keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but
+  reuses the one it holds on a history Back. A job page's Back that followed
+  its link re-ran the whole feed fetch and Recommended scoring, so the list
+  seemed slow to load; `BackToJobs` now calls `router.back()` when
+  `cameFrom()` is its target (`docs/screens.md`, Job posting page).
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
@@ -91,6 +184,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
+- **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
+  KAN-257): every Scout or AI control, and Scout's mark in the chat and
+  the panel header, draws it. An ESLint rule refuses Lucide's `Sparkles`
+  imported anywhere else; a hand-drawn sparkle beside Lucide's had given
+  the assistant two marks (`docs/design.md`, Brand and icons).
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -112,7 +210,13 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
   and must match `scraper/workit_scraper/logos.py`; an unlisted host throws
-  and fails the whole page.
+  and fails the whole page. It measures each logo on load: a square mark
+  fills the tile edge to edge, a wide wordmark sits on white with padding.
+  Framed with padding, square marks on their own colour (Figma, Cloudflare)
+  looked shrunk. The image is hidden until measured, and next/image only
+  reports the load once the browser has decoded it, which a hidden browser
+  tab (the Browser pane when it is not shown) can hold back, so check it
+  with the page visible.
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,
   `addTransitionType`): the App Router runs React canary and `@types/react`'s
   stable entry lacks them.
@@ -122,7 +226,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   the page's assistant. The Experience Bank puts intake there. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
-- **The company table (`app/company/table.tsx`) is TanStack Table v9**, and
+- **The company table (`app/company/table.tsx`) and the Applications list
+  (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
   `node_modules/@tanstack/react-table/skills`, not a blog post.
 - **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
@@ -192,18 +297,25 @@ are in `docs/auth.md`.
   `serverActions.bodySizeLimit` in `next.config.ts`, which must stay above
   5 MB plus multipart overhead (`6mb`) or Next rejects the request before the
   action runs.
+- **A profile link becomes an href only through `safeHref`**
+  (`lib/profile-links.ts`, KAN-262), which allows http(s) alone. The API
+  refuses anything else since KAN-262, but a link saved before then may be
+  any text, a `javascript:` one included. The same file holds `webLink`, the
+  browser's copy of the API's check, and `linkText`, the resume header's way
+  of printing a link.
 - **My Profile's cache (`(seeker)/profile-cache.tsx`) lives in the seeker
   layout, never a module variable**: sign-out leaving the shell is what drops
-  it, and a module variable would show one account's resumes to the next
+  it, and a module variable would show one account's profile to the next
   person in that tab.
 - **Resume facts are edited in the experience bank only** (KAN-211). An
   upload writes its reading into the bank itself (ADR 0003); no screen holds
   a second copy of an upload's facts to edit. Two editors of the same facts
   drift apart, and built resumes read the bank. Every screen that reports an
   import says it with `lib/import-summary.ts`, from the `bank` of an upload
-  or an Import Updated Resume, or Import Again's response. My Profile's row
-  offers Import Updated Resume (a newer file for that row), never a re-read
-  of the stored file, which only ever read the same text. "Read It With
+  or an Import Updated Resume, or Import Again's response. An upload's row
+  on the Resumes view offers Import Updated Resume (a newer file for that
+  row), never a re-read of the stored file, which only ever read the same
+  text. "Read It With
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
@@ -216,12 +328,16 @@ are in `docs/auth.md`.
   (`lib/sent-resume-actions.ts`, KAN-208), PDF or Word (`"docx"`), never
   `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
   downloads the file. A download cancelled at the missing-character warning
-  deletes the sent resume it just made (`created`), so the "Sent" list holds
-  only files the student took. Apply on the posting detail goes through
+  deletes the sent resume it just made (`created`), so only files the
+  student took are kept. Apply on the posting detail goes through
   `applyWithResume` (KAN-220) and keeps its sent resume: the student is
-  told it is in the Sent list, so it is never deleted behind their back.
+  told WorkIt kept a copy, so it is never deleted behind their back. No
+  screen lists sent resumes since the Resumes view's Sent card went
+  (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
-  (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
+  (intake's draft entry, KAN-213, and its skipped sections, KAN-214), and
+  so does a per-browser view preference that should leave with the student
+  (the Applications list's column layout, KAN-282): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
   reaches. A draft stored under any other key outlives sign-out.
 - **To test a page behind sign-in, use the shared test account**:
@@ -251,9 +367,15 @@ are in `docs/auth.md`.
 section, card and dialog headings; empty-state titles; buttons and links that
 act as actions; menu items; tabs and segments; filter and field labels and
 their options; column headers; badges, pills and stage names; and an
-accessible name with no visible text. Sentence case only for helper text,
-descriptions and subtitles, tooltips (so an icon button's label too),
+accessible name with no visible text. A tooltip that only pairs a name with
+its status is two labels, so Title Case too: intake's step chips say
+"Projects · Not Started" (KAN-257). Sentence case only for helper text,
+descriptions and subtitles, other tooltips (so an icon button's label too),
 placeholders, empty-state body copy, error and validation messages, and a
 measured value or annotation outside a badge ("Over 7 days", "vs last week").
+An answer quoted from a self-identification form keeps the form's words and
+case: onboarding's veteran and disability answers ("I am not a protected
+veteran", Form CC-305's "I do not want to answer"), so a student recognises
+the answer the employer's form will show.
 Fixture data stays as written. A label that doubles as a value, like the
 composer's "Full-Time", changes together with every comparison against it.

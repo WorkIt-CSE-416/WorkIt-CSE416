@@ -20,8 +20,13 @@ def generate_highlights(
     eligibility: float,
     *,
     matched_skills: Sequence[str] = (),
+    has_titles: bool = False,
 ) -> list[dict]:
-    """Up to 3 highlights, each ``{"text": str, "met": bool}``."""
+    """Up to 3 highlights, each ``{"text": str, "met": bool}``.
+
+    `has_titles`: the bank has Experience titles or a field of study for the
+    title check to compare, so a low title fit is a finding, not a blank.
+    """
     candidates: list[dict] = []
 
     # --- positive ---
@@ -48,6 +53,17 @@ def generate_highlights(
     # Start-term highlight omitted until eligibility() compares grad date
     # vs start term (matching/CLAUDE.md "Still open"). Without that check,
     # this would fire on years-of-experience mismatches and mislead.
+
+    # --- a weak match's caveats ---
+    # A job none of the rules above speak for would show its score with no
+    # reasons (KAN-256). Say what the score found missing instead. Neither
+    # names a skill the job wants, which needs each job's own skill list
+    # (matching/CLAUDE.md): they say only what of the bank the posting lacks.
+    if not candidates:
+        if skills and not matched_skills:
+            candidates.append({"text": "None of your skills appear in this posting", "met": False})
+        if has_titles and title_fit <= 0.3:
+            candidates.append({"text": "Title isn't close to your past roles", "met": False})
 
     # Positive first, then negative, capped at 3
     positives = [c for c in candidates if c["met"]]

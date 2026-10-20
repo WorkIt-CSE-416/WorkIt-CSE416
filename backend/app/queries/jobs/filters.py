@@ -24,7 +24,8 @@ with no location is by ?location=.
 A signed-in applicant's applied jobs (job_applications, KAN-232) are left
 out by applied_by; auto apply's matches leave out every job the applicant has
 an application for at any stage, queued or skipped too, by
-no_application_by.
+no_application_by, saved jobs (KAN-261) too: a batch never picks a job the
+applicant saved. The feed keeps a saved job in.
 """
 
 import datetime
@@ -118,10 +119,10 @@ class JobFilters:
     # names, which matches nothing (never a placeholder value: Postgres
     # refuses some, as a NUL byte once proved with a 500).
     start_terms: Sequence[str] | None = None
-    # "sponsors": the posting says it sponsors visas. "not_ruled_out": hide a
-    # posting that says it doesn't, or wants US citizens only, and keep the
-    # ones that say nothing, which is most of them (KAN-168).
-    visa: Literal["sponsors", "not_ruled_out"] | None = None
+    # "sponsors": the posting says it sponsors visas (KAN-168). A second
+    # option, "not_ruled_out" (hide only postings that say no, keep the many
+    # that say nothing), went in KAN-275: two visa filters read as one.
+    visa: Literal["sponsors"] | None = None
     # ?q= (read_search): the roles it names, each of which a job must be
     # tagged with; the facts it names, each narrowing on its own beside the
     # filters above (a search's "remote" and a ticked Hybrid make nothing);
@@ -154,12 +155,17 @@ class JobFilters:
     applied_by: uuid.UUID | None = None
     # Auto apply's matches (auto_apply/pipeline.py): every job this applicant
     # has an application for, at any stage, is left out, so a new batch
-    # never queues a job twice or one they skipped.
+    # never queues a job twice or one they skipped. A saved job is left out
+    # too (KAN-261): saving is the applicant's bookmark, and only their own
+    # Auto Apply click queues it.
     no_application_by: uuid.UUID | None = None
     # Only job postings on a hiring system the extension fills
     # (AUTO_APPLY_SUPPORTED): auto apply's matches always, and the Jobs
     # page's "Auto Apply Supported" filter (?auto_apply=true).
     auto_apply_only: bool = False
+    # Only these job postings: the Applications page's saved and applied
+    # jobs, scored as the Jobs page scores them (KAN-256). None: any.
+    job_ids: Sequence[uuid.UUID] | None = None
 
 
 def job_type_matches(job_types: Sequence[str]) -> ColumnElement[bool]:
@@ -241,6 +247,20 @@ def word_matches(word: str) -> ColumnElement[bool]:
     )
 
 
+def filter_levels(levels: Sequence[str]) -> list[str]:
+    '''
+    the experience_level values the Experience Level filter's picks match.
+    Every internship counts as entry level (KAN-284), so new_grad ("Entry
+    Level / New Grad") takes in student, the internships' level: Internship
+    with Entry Level shows the internships rather than no job. The filter no
+    longer offers student; an old link or saved preference that still sends
+    it matches the internships alone. A search's "new grad" (query_levels)
+    stays new_grad only: the words name that level, not the filter's option
+    '''
+    wanted = [*levels, "student"] if "new_grad" in levels else list(levels)
+    return list(dict.fromkeys(wanted))
+
+
 def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     '''
     the WHERE clauses for these filters, beyond published and scraped
@@ -253,7 +273,7 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     if filters.roles:
         clauses.append(tagged_with(filters.roles))
     if filters.levels:
-        clauses.append(Job_Post.experience_level.in_(filters.levels))
+        clauses.append(Job_Post.experience_level.in_(filter_levels(filters.levels)))
     if filters.job_types:
         clauses.append(job_type_matches(filters.job_types))
     if filters.posted_since is not None:
@@ -294,13 +314,6 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     clauses.extend(word_matches(word) for word in filters.query_words)
     if filters.visa == "sponsors":
         clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
-    elif filters.visa == "not_ruled_out":
-        clauses.append(
-            or_(
-                Job_Post.sponsorship.is_(None),
-                Job_Post.sponsorship == dto.visa_sponsorship.sponsors,
-            )
-        )
     if filters.applied_by is not None:
         clauses.append(~exists().where(
             Job_Application.job_id == Job_Post.id,
@@ -314,4 +327,6 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         ))
     if filters.auto_apply_only:
         clauses.append(AUTO_APPLY_SUPPORTED)
+    if filters.job_ids is not None:
+        clauses.append(Job_Post.id.in_(list(filters.job_ids)))
     return clauses

@@ -586,9 +586,24 @@ def test_each_filter_narrows_its_own_column():
     ]
     assert sql == [
         "job_postings.work_style IN ('onsite')",
-        "job_postings.experience_level IN ('new_grad')",
+        "job_postings.experience_level IN ('new_grad', 'student')",
         "job_postings.job_type IN ('part_time', 'contract')",
     ]
+
+
+def test_entry_level_takes_in_the_internships():
+    # Every internship counts as entry level (KAN-284), so Internship with
+    # Entry Level / New Grad shows the internships rather than no job.
+    (clause,) = matching(JobFilters(levels=["new_grad"]))
+    assert _sql(clause) == "job_postings.experience_level IN ('new_grad', 'student')"
+    (clause,) = matching(JobFilters(levels=["experienced"]))
+    assert _sql(clause) == "job_postings.experience_level IN ('experienced')"
+
+
+def test_a_search_s_new_grad_stays_new_grad():
+    # The words "new grad" name that level, not the filter's option.
+    (clause,) = matching(JobFilters(query_levels=["new_grad"]))
+    assert _sql(clause) == "job_postings.experience_level IN ('new_grad')"
 
 
 def test_internship_is_a_job_type_of_its_own():
@@ -672,14 +687,6 @@ def test_visa_sponsors_keeps_only_stated_sponsors():
     assert _sql(clause) == "job_postings.sponsorship = 'sponsors'"
 
 
-def test_visa_not_ruled_out_keeps_the_silent_majority():
-    # Most postings say nothing about visas; hiding them would empty the feed.
-    (clause,) = matching(JobFilters(visa="not_ruled_out"))
-    assert _sql(clause) == (
-        "job_postings.sponsorship IS NULL OR job_postings.sponsorship = 'sponsors'"
-    )
-
-
 def test_route_reads_seasons_and_visa(no_database, monkeypatch):
     seen = []
 
@@ -735,6 +742,8 @@ def test_route_rejects_a_malformed_season(no_database, key):
 
 def test_route_rejects_an_unknown_visa_option(no_database):
     assert TestClient(app).get("/jobs?visa=maybe").status_code == 422
+    # Removed in KAN-275.
+    assert TestClient(app).get("/jobs?visa=not_ruled_out").status_code == 422
 
 
 @pytest.mark.parametrize(("query", "only"), [("", False), ("?auto_apply=true", True)])
@@ -835,11 +844,11 @@ def test_count_reads_the_same_filters(no_database, monkeypatch):
         return 128
 
     monkeypatch.setattr("app.routers.jobs.fetch_count", count)
-    body = TestClient(app).get("/jobs/count?work_style=remote&visa=not_ruled_out").json()
+    body = TestClient(app).get("/jobs/count?work_style=remote&visa=sponsors").json()
     assert body == {"jobs": 128}
     (filters,) = seen
     assert list(filters.work_styles) == [dto.work_style.remote]
-    assert filters.visa == "not_ruled_out"
+    assert filters.visa == "sponsors"
 
 
 def test_count_rejects_what_the_list_rejects(no_database):

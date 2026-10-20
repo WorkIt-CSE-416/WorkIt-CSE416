@@ -215,6 +215,11 @@ Find files with a directory listing; these are the rules for where code goes.
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
   the bank's API shape (`routers/bank.py`'s `bank_response`) through
   `workit_scout.facts`. An uploaded resume only feeds import.
+- **A job's match score comes from `fetch_recommended` only**, wherever it
+  shows. The Applications page's cards (KAN-256) get theirs through
+  `GET .../applications?scored=true`, which narrows it to the tracked job
+  postings with `JobFilters.job_ids`. A second scoring path would let a
+  card and the Jobs page show two numbers for one job.
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
   and Done), the keyword match and Apply load a posting through
@@ -251,7 +256,7 @@ Find files with a directory listing; these are the rules for where code goes.
   before a parser fix gets the fix. It can bring back a bullet the student
   deleted; that is the student's explicit click.
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
-  with a file, from My Profile's row: a newer version replaces the row's
+  with a file, from an upload's row on the Resumes view: a newer version replaces the row's
   file and is read and merged as an upload is. The row keeps its id and
   primary star, and its `created_at` becomes now, the upload date the row
   shows. The file goes to a new Storage path: a sent resume may point at the
@@ -260,6 +265,13 @@ Find files with a directory listing; these are the rules for where code goes.
   file and leaves the row as it was. It replaced Import Again on the row
   (2026-10-18): the stored file never changes, so re-reading it with the
   same parser only said "already in your bank". Tests:
+  `tests/test_bank_import.py`.
+- **Rename** is `PATCH /applicants/{id}/resumes/{resume_id}` with
+  `{"name"}` (KAN-268). It writes `original_filename`, the name every
+  screen shows and a DOCX downloads under, so it adds the stored file's
+  extension when the name lacks it: without it a renamed DOCX downloads
+  as a file no program opens. There is no separate name column, so Import
+  Updated Resume names the row after the new file again. Tests:
   `tests/test_bank_import.py`.
 - **The model reads a resume only when the student asks** (KAN-222, ADR
   0003): Import Again's `read_with_ai: true`, "Read It With AI". Upload and
@@ -323,10 +335,18 @@ Find files with a directory listing; these are the rules for where code goes.
   is removed only when `file_in_use` says no row needs it**: the uploaded
   resume delete and the sent resume delete both check it, because a sent
   resume can point at an uploaded resume's file.
-- **The resume limit is 5, uploaded plus base resumes**
-  (`services/built_resumes.py`'s `check_room`, called by Generate and by
-  upload before anything is written; 409 with the reason). Tailored and sent
-  resumes do not count.
+- **The resume limit is 5 uploads** (`services/built_resumes.py`'s
+  `check_room`, called by upload before anything is written; 409 with the
+  reason). Built resumes (base and tailored) and sent resumes do not count,
+  so Generate, and Tailor's Generate, are never refused for it. Base
+  resumes counted until KAN-268.
+- **A student's only resume is the default** (`services/built_resumes.py`'s
+  `default_if_only`): upload, Generate (Tailor's too) and both deletes call
+  it, so the last resume left after a delete takes the star. With two or
+  more it changes nothing. Before it, a student with one resume and no star
+  click had no default, and auto apply attached nothing. It is not
+  backfilled: an older account with one resume and no default gets it on
+  its next add or delete.
 - **Every model feature counts its daily uses through `app/services/usage.py`**
   (KAN-210): `uses_left` before the call (429 at 0), `count_use` only after
   it succeeds, so a failed or rejected call costs the student nothing.
@@ -495,7 +515,7 @@ Find files with a directory listing; these are the rules for where code goes.
   - **One run is one `TAILOR` use**, counted after the model answers and
     the proposals are built; a keyword extraction inside the run is not a
     second use. A run with no base resume generates one first (saved with
-    the count; the 5-resume limit applies).
+    the count).
 - **The editor assistant** (KAN-221) is `routers/assistant.py` (`POST
   .../built-resumes/{rid}/assistant`) over `services/assistant.py`. The
   model only **reads** the student's message into one action (fit, hide,
@@ -574,7 +594,12 @@ Find files with a directory listing; these are the rules for where code goes.
   statement to any free backend: a prepared statement made on one is absent on
   the next, and queries fail intermittently under load, never in development.
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
-  they raise `TypeError: Invalid argument(s)`.
+  they raise `TypeError: Invalid argument(s)`. `hide_parameters=True` keeps
+  the values a statement sent out of its error's text, which every route's
+  `logger.exception` writes to the Vercel logs: a failed answer bank save
+  logged a student's gender and disability answers (KAN-283,
+  `tests/test_autofill_answers.py`). Debug with the SQL, never by turning it
+  off.
 - **CI runs the whole migration chain** on an empty Postgres before the
   database tests, so two heads or a broken migration fail the PR. **Still
   open:** `alembic check` (model drift) is not a CI gate yet
@@ -610,6 +635,24 @@ free tier). Render with a Dockerfile is the fallback.
   table, so this order lets `upgrade head` still create it there. A local
   database that applied `5cc3189af108` first reads the resume builder's tables
   as applied; recreate it from `upgrade head`.
+- **`17ea74fa4573` (the `saved` stage, KAN-261) goes on before the deploy
+  that writes it.** It only adds an enum value, so the running code never
+  meets it and applying it early is safe; deployed first, every Save button
+  answers 500. Applied to the shared database on 2026-10-18, with KAN-240's
+  `3f7a2c9d1e84` under it, after KAN-240's deploy.
+- **Apply `c785e96ac011` (KAN-275) just before the deploy that drops
+  `not_ruled_out`.** It clears every saved `not_ruled_out` visa preference
+  and narrows the CHECK to `sponsors`. Until the deploy, the old
+  onboarding's "Hide Jobs That Rule Me Out" tile fails its save on the
+  CHECK. Deployed first is worse: the new `JobPreferences` refuses a saved
+  `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
+  migration runs.
+- **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
+  that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
+  (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It
+  only adds a table, so the running code never meets it and applying it
+  early is safe; deployed first, onboarding's Continue answers 500 and the
+  Profile step never loads saved answers.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.

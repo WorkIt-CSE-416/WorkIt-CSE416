@@ -9,19 +9,24 @@ import {
   Bell,
   Bookmark,
   BriefcaseBusiness,
+  Building,
   Building2,
   Calendar,
   Check,
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
+  ClipboardCheck,
   Clock,
   Ellipsis,
   ExternalLink,
   FileText,
   Globe,
+  Gift,
   GraduationCap,
   House,
+  Info,
+  ListChecks,
   ListFilter,
   Lock,
   LogOut,
@@ -31,7 +36,10 @@ import {
   Pencil,
   Plus,
   Search,
+  Send,
   Settings,
+  Sparkles,
+  Star,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -69,15 +77,13 @@ type IconProps = { className?: string };
 
 /* Chrome ------------------------------------------------------------------ */
 
-/** Scout, the job assistant — on job cards, the top bar and the panel's
- *  header. Filled, so it holds up beside a label. */
+/** Scout and every AI action, the one mark for both (KAN-257): the top bar's
+ *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor My Resume and Read It Again with AI. It was a filled
+ *  sparkle drawn by hand in the bar and the panel, beside Lucide's outlined
+ *  Sparkles in the chat and on every AI button, so the assistant wore two
+ *  marks. Use this, never `Sparkles` from lucide-react directly. */
 export function SparkleIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className={className}>
-      <path d="M6.6 1.8c.6 3 1.9 4.4 4.9 5-3 .6-4.3 2-4.9 5-.6-3-1.9-4.4-4.9-5 3-.6 4.3-2 4.9-5Z" />
-      <path d="M12.6 9.4c.25 1.2.75 1.7 1.9 1.95-1.15.25-1.65.75-1.9 1.95-.25-1.2-.75-1.7-1.9-1.95 1.15-.25 1.65-.75 1.9-1.95Z" />
-    </svg>
-  );
+  return <Sparkles aria-hidden className={className} />;
 }
 
 export function SearchIcon({ className }: IconProps) {
@@ -286,6 +292,44 @@ const UserTie = createLucideIcon("user-tie", [
  *  the job card doesn't print the fact. */
 export function RoleIcon({ className }: IconProps) {
   return <UserTie aria-hidden className={className} />;
+}
+
+/* A job description's sections, beside their fixed headings on the job
+ * posting page (KAN-229's Overview, Responsibilities, Requirements, Preferred
+ * Qualifications and Details; Pay draws CoinIcon, the salary fact's), then the
+ * extras folded under them: Benefits, How to Apply and About the Company. */
+
+export function BenefitsIcon({ className }: IconProps) {
+  return <Gift aria-hidden className={className} />;
+}
+
+export function ApplyIcon({ className }: IconProps) {
+  return <Send aria-hidden className={className} />;
+}
+
+/** A plain building, not On-Site's Building2, so the two never read as one fact. */
+export function CompanyIcon({ className }: IconProps) {
+  return <Building aria-hidden className={className} />;
+}
+
+export function OverviewIcon({ className }: IconProps) {
+  return <FileText aria-hidden className={className} />;
+}
+
+export function ResponsibilitiesIcon({ className }: IconProps) {
+  return <ListChecks aria-hidden className={className} />;
+}
+
+export function RequirementsIcon({ className }: IconProps) {
+  return <ClipboardCheck aria-hidden className={className} />;
+}
+
+export function PreferredIcon({ className }: IconProps) {
+  return <Star aria-hidden className={className} />;
+}
+
+export function DetailsIcon({ className }: IconProps) {
+  return <Info aria-hidden className={className} />;
 }
 
 export function CalendarIcon({ className }: IconProps) {

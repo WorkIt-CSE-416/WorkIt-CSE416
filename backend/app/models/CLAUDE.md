@@ -224,6 +224,14 @@ lacks, so the Experience filter and counts fail; deployed first, the new code
 meets rows it can't read. KAN-233 first wrote it as one, and review caught it
 before it was applied.
 
+**The column keeps `student`; the filter no longer offers it (KAN-284).**
+`student` meant exactly the internships, so the Jobs page's Student with
+Full-Time matched no job. The Experience Level filter now offers `new_grad`
+("Entry Level / New Grad") and `experienced`, and `queries/jobs/filters.py`'s
+`filter_levels` makes `new_grad` match `student` too: every internship counts
+as entry level. A search's "new grad" (`query_levels`) stays `new_grad` only.
+`?experience=student` is still accepted, for old links and saved preferences.
+
 ## A new column reaches the database before the model that maps it
 
 `deferred=True` keeps a column out of reads, not writes. On an ORM INSERT,
@@ -287,11 +295,12 @@ change here must keep:
   Deleting a bank item cascades to its choice rows.
 - **A base resume has no `job_posting_id`; a tailored one has one**, unique
   per applicant and posting (`built_resumes_applicant_posting_key`; NULLs are
-  distinct, so base resumes are many). Only base resumes count toward the
-  limit of 5 (`../services/built_resumes.py`).
+  distinct, so base resumes are many). No built resume counts toward the
+  limit of 5, which is uploads only (`../services/built_resumes.py`).
 - **The default resume is two pointers, at most one set.**
   `applicant_profiles.default_resume_id` (an uploaded resume) and
-  `default_built_resume_id` (a base resume), each `ON DELETE SET NULL`, with
+  `default_built_resume_id` (a base or tailored resume; tailored since
+  KAN-268), each `ON DELETE SET NULL`, with
   the check `applicant_profiles_one_default_resume`. One column could not
   carry a foreign key to two tables; setting one clears the other
   (`set_default`). Code that reads "the default" checks both: a base default
@@ -694,6 +703,49 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
   `027620538860` (KAN-233's expand). It must be on the database before the
   API that maps them deploys.
 
+## The answer bank — `autofill_answers.py` (KAN-283)
+
+A student's answers to the questions hiring systems repeat on every
+application: work authorization, sponsorship, citizenship and visa status,
+security clearance, and the voluntary gender, veteran and disability
+self-identification. Onboarding's second step (Profile) asks them; auto
+apply's fill reads them (`../../auto-apply/architecture.md`,
+`autofill_answers`), and My Profile will show them (KAN-273).
+
+- **One JSONB bank per applicant** (primary key `applicant_id`, CASCADE):
+  `answers` maps a stable question key to its answer alone
+  (`{"needs_sponsorship": "no"}`). Hiring systems repeat a handful of questions,
+  and a new one joins without a migration, so one bank beats a row per
+  question. `NOT NULL DEFAULT '{}'::jsonb` with a `CHECK (jsonb_typeof(answers)
+  = 'object')`: an array or a string would answer every lookup with nothing.
+- **The answer is an option key, never a label** (`"f1_student"`, not
+  "F-1 Student"). The keys and their options are `schemas/autofill_answers.py`
+  (Literals, so the API refuses anything else with a 422); the labels are the
+  frontend's (`onboarding/applicant/answers.ts`), as are the questions' words.
+- **No question text is stored** (decided 2026-10-20). The first design kept
+  `{question_text, answer}` per key, which copied the same words into every
+  student's row for no reader: a fixed key already says which question it
+  is. Questions with no fixed key (a company's own screening question)
+  will need their text stored, but only once the extension records what a
+  student types into a form; they get their own part of the bank then,
+  with no migration, since the column is JSONB.
+- **Written per key, never replaced whole.** `PATCH` merges in the database
+  (`answers || new - cleared`), so a tab holding an old copy can't erase an
+  answer it never loaded. The frontend sends only the answers the seeker
+  changed.
+- **A key or option the code no longer knows reads as unanswered**
+  (`answers_from_bank`), so the bank outlives any one version of the questions.
+- **Gender, veteran and disability answers are sensitive.** Only their owner
+  reads them (`owned_applicant`), and they never go to a model.
+- **Contact details stay on `applicant_profiles`, never in the bank.** Phone,
+  LinkedIn, GitHub, portfolio: one fixed set, one value each, which the
+  resume header prints and `services/identity.py` keeps from models. The bank
+  holds answers to the questions forms ask that a resume does not answer. A
+  fact lives in one place: a copy in the bank would go stale the first time
+  the student edits My Profile, and auto apply would fill the old one in.
+- **Its migration is `a7d3e5c1b942`** (RLS on). It must be on the database
+  before the API that maps it deploys.
+
 ## job_postings holds company-posted and scraped jobs
 
 One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
@@ -799,10 +851,11 @@ Its downgrade puts the columns back empty; the old import refills them.
 ## job_applications — each applicant's application to each job (KAN-232, KAN-223)
 
 `applications.py`: one row per (applicant, job). The Applied button
-(`routers/applications.py`) writes it `applied`; auto apply
-(`app/auto_apply/`) writes it `queued` and moves it on. GET /jobs leaves out
-that applicant's `applied` jobs (`JobFilters.applied_by`, a `NOT EXISTS`);
-auto apply's matches leave out every stage (`no_application_by`). Rules:
+(`routers/applications.py`) writes it `applied`, a Save button `saved`
+(KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on.
+GET /jobs leaves out that applicant's `applied` jobs (`JobFilters.applied_by`,
+a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
+(`no_application_by`), so a batch never picks a saved job. Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants
@@ -813,10 +866,22 @@ auto apply's matches leave out every stage (`no_application_by`). Rules:
   `job_applications_job_idx` serves "who applied to this job".
 - **CASCADE from both sides**: deleting the account or the job deletes the
   row. A closed job keeps its rows, since closing is a status, not a delete.
-- **`stage` is the status** (`dto.application_stage`: `queued`,
-  `needs_you`, `skipped`, `applied`; `c0467afe819c`), a column here rather
-  than a second table, so one row is one application. `created_at` orders
-  the queue.
+- **`stage` is the status** (`dto.application_stage`: `saved`, `queued`,
+  `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
+  `17ea74fa4573`), a column here rather than a second table, so one row is
+  one application. `created_at` orders the queue.
+- **`saved` is a bookmark, not an application** (KAN-261). Nothing queues
+  it by itself: batches skip it. Applying, or the job's own Auto Apply
+  click, moves it on (`mark_applied`; `queue_applications`, which also
+  moves its `created_at` to now so it doesn't jump the queue); saving never
+  moves a later stage back (`ON CONFLICT DO NOTHING`), and unsaving deletes
+  a `saved` row only, a 409 otherwise. A saved insert names `applied_at`
+  NULL, as a queued one does. Live Activity asks for every stage but saved;
+  the Applications board asks for saved and applied.
+- **`17ea74fa4573` goes on before the deploy that writes `saved`.** It only
+  adds the value, so the code running before it never meets it; deployed
+  first, every Save answers 500. Applied to the shared database on
+  2026-10-18, before the Save feature merged.
 - **`applied_at` is NULL until the applicant applies**, and the
   `job_applications_applied_dated` CHECK keeps an `applied` row dated.
 - **The defaults (`stage` `applied`, `applied_at` `now()`) are for applied
@@ -824,9 +889,9 @@ auto apply's matches leave out every stage (`no_application_by`). Rules:
   first, the migration or the deploy. A queued insert must name both: its
   stage, and `applied_at` NULL (`auto_apply/queries.py`), or the default
   dates a job nobody applied to.
-- **The Applied button upserts**: a queued, skipped or needs_you row becomes
-  applied; an applied row keeps its first `applied_at` (`ON CONFLICT DO
-  UPDATE ... WHERE applied_at IS NULL`).
+- **The Applied button upserts**: a saved, queued, skipped or needs_you row
+  becomes applied; an applied row keeps its first `applied_at` (`ON CONFLICT
+  DO UPDATE ... WHERE applied_at IS NULL`).
 - **Apply `c0467afe819c` right after merging.** Until then the deployed
   code's queue routes and stage filters fail on the missing column; the
   Applied button keeps working either way.
@@ -851,6 +916,13 @@ What that means for the account tables:
 - **`email` is a copy** of `auth.users.email`, kept for display and joins.
   Supabase signs in with its own copy. Nothing changes an email yet; whatever
   first does must update both.
+- **`contact_email` is the email employers see** (KAN-262,
+  `applicant_profiles` only): resume headers and the autofiller print it.
+  NULL means the sign-in `email`, so read it through the model's
+  `email_for_employers`, never `email` directly. It is a separate column,
+  not an edit of `email`, because the seeker may apply with a different
+  address than the one they sign in with, and changing the sign-in email is
+  Supabase's job. Not unique: it signs nobody in.
 - **Global email uniqueness now comes from `auth.users`,** which the old
   per-table `UNIQUE` on `email` could never give. The per-table constraints
   stay as a second check.
@@ -869,14 +941,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - Only `company_profiles.id` has a UUID default (Python `uuid4` plus
   `gen_random_uuid()`); every other insert must supply `id`. The account
   tables must keep having none — their id is the `auth.users` id.
-- `autofill_answers` is not implemented. It is still wanted: one reusable answer
-  bank per applicant, keyed on `applicant_profiles.id`, with a `jsonb answers`
-  column mapping stable question keys to `{question_text, answer}`. Workday-style
-  forms repeat the same authorization, sponsorship and availability questions, so
-  one JSONB bank beats a row per question. It needs
-  `NOT NULL DEFAULT '{}'::jsonb`, a `CHECK (jsonb_typeof(answers) = 'object')`,
-  and per-key writes through `jsonb_set` rather than replacing the bank from
-  stale client state — none of which autogenerate emits.
+- `autofill_answers` (above) holds only onboarding's seven questions. The
+  rest that forms repeat (availability, relocation, race and ethnicity
+  self-identification) have no key yet.
 - `applicant_profiles.location` and `company_profiles.industry` are absent.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is

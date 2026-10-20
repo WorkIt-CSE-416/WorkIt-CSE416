@@ -1,15 +1,18 @@
 """
-Built resumes (KAN-207): Generate, the 5-resume limit, the default resume,
+Built resumes (KAN-207): Generate, the 5-upload limit, the default resume,
 and loading one resume's view. Like services/bank.py, every function takes
 the applicant id and touches only that applicant's rows (another applicant's
 resume answers `NotFound`), and flushes but never commits.
 
-- **The limit:** uploaded resumes plus base resumes, at most `MAX_RESUMES`.
-  Tailored resumes (with a job posting) and sent resumes do not count.
-  `check_room` runs before anything is written, on Generate and on upload.
+- **The limit:** uploaded resumes, at most `MAX_RESUMES`. Built resumes
+  (base and tailored) and sent resumes do not count, so Generate has no
+  limit (KAN-268; base resumes counted until then). `check_room` runs on
+  upload, before anything is written.
 - **The default resume** is `applicant_profiles.default_resume_id` (an
-  uploaded resume) or `default_built_resume_id` (a base resume), never both:
-  setting one clears the other, and a check constraint backs it.
+  uploaded resume) or `default_built_resume_id` (a base or a tailored
+  resume; a tailored one could not be the default until KAN-268), never both:
+  setting one clears the other, and a check constraint backs it. A student
+  with exactly one resume has it as the default (`default_if_only`).
 - **Names and edits** (KAN-258): a resume made with no name is "Resume #N"
   (`next_name`), and `rename` changes it. A resume's `updated_at` is when it
   last changed itself (`touch`): its choice rows have their own, which the
@@ -63,25 +66,15 @@ DEFAULT_TEMPLATE = "jakes"
 class ResumeLimitReached(Exception):
     def __init__(self) -> None:
         super().__init__(
-            f"You can keep {MAX_RESUMES} resumes (uploaded and base resumes together). "
-            "Delete one to add another."
+            f"You can upload up to {MAX_RESUMES} resumes. Delete one to upload another."
         )
-
-
-async def count_resumes(session: AsyncSession, applicant_id: uuid.UUID) -> int:
-    uploaded = await session.scalar(select(func.count()).where(Resume.applicant_id == applicant_id))
-    base = await session.scalar(
-        select(func.count()).where(
-            Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id.is_(None)
-        )
-    )
-    return (uploaded or 0) + (base or 0)
 
 
 async def check_room(session: AsyncSession, applicant_id: uuid.UUID) -> None:
-    """Raise ResumeLimitReached when one more resume would pass the limit.
+    """Raise ResumeLimitReached when one more upload would pass the limit.
     Two requests at once can both pass; the limit errs toward the student."""
-    if await count_resumes(session, applicant_id) >= MAX_RESUMES:
+    uploaded = await session.scalar(select(func.count()).where(Resume.applicant_id == applicant_id))
+    if (uploaded or 0) >= MAX_RESUMES:
         raise ResumeLimitReached
 
 
@@ -104,7 +97,6 @@ async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str | N
     already on it (`copy_key`), which waits hidden in "Not on This Resume":
     two copies of one job sent a resume to two pages. With no name it is
     "Resume #N" (`next_name`)."""
-    await check_room(session, applicant_id)
     name = name or await next_name(session, applicant_id)
     resume = Built_Resume(id=uuid.uuid4(), applicant_id=applicant_id, name=name, template=DEFAULT_TEMPLATE)
     session.add(resume)
@@ -119,6 +111,7 @@ async def generate(session: AsyncSession, applicant_id: uuid.UUID, name: str | N
             choices.entries[entry.row.id] = dataclasses.replace(choices.entries[entry.row.id], shown=False)
         seen.add(copy_key(entry.row))
     await write_choices(session, resume.id, choices)
+    await default_if_only(session, applicant_id)
     await session.refresh(resume)
     return resume
 
@@ -191,16 +184,26 @@ async def count_showing_entry(session: AsyncSession, applicant_id: uuid.UUID, en
     ) or 0
 
 
-async def closed_postings(session: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
-    """The ids of the applicant's tailored resumes whose posting the Jobs
-    page no longer lists: "Posting closed" (story 90). The resume stays
+@dataclasses.dataclass(frozen=True)
+class TailoredPosting:
+    """A tailored resume's posting, as its card shows it (KAN-268). `closed`
+    when the Jobs page no longer lists it: "Posting closed" (story 90),
+    and its page answers 404, so the card drops the link. The resume stays
     usable; only Tailor needs a listed posting."""
-    rows = await session.scalars(
-        select(Built_Resume.id)
+
+    title: str
+    company: str | None
+    closed: bool
+
+
+async def tailored_postings(session: AsyncSession, applicant_id: uuid.UUID) -> dict[uuid.UUID, TailoredPosting]:
+    """Each of the applicant's tailored resumes' postings, by resume id."""
+    rows = await session.execute(
+        select(Built_Resume.id, Job_Post.title, Job_Post.company_name, LISTED.label("listed"))
         .join(Job_Post, Job_Post.id == Built_Resume.job_posting_id)
-        .where(Built_Resume.applicant_id == applicant_id, ~LISTED)
+        .where(Built_Resume.applicant_id == applicant_id)
     )
-    return set(rows)
+    return {r.id: TailoredPosting(r.title, r.company_name, not r.listed) for r in rows}
 
 
 async def latest_base(session: AsyncSession, applicant_id: uuid.UUID) -> Built_Resume | None:
@@ -231,9 +234,10 @@ async def get_resume(session: AsyncSession, applicant_id: uuid.UUID, resume_id: 
 
 async def delete_resume(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID) -> None:
     """Its choice rows go with it; a default pointing at it is cleared
-    (ON DELETE SET NULL)."""
+    (ON DELETE SET NULL), and the one resume left, if one is, becomes it."""
     await session.delete(await get_resume(session, applicant_id, resume_id))
     await session.flush()
+    await default_if_only(session, applicant_id)
 
 
 async def default_built_id(session: AsyncSession, applicant_id: uuid.UUID) -> uuid.UUID | None:
@@ -249,17 +253,38 @@ async def set_default(
     uploaded_id: uuid.UUID | None = None,
     built_id: uuid.UUID | None = None,
 ) -> None:
-    """Point the default at one resume and clear the other pointer. The
-    caller has checked the resume is the applicant's; a built one must be a
-    base resume."""
+    """Point the default at one resume and clear the other pointer. A built
+    one may be tailored (KAN-268): the student picked it, and Apply and auto
+    apply still take the resume tailored to a posting first. Raises NotFound
+    for another applicant's built resume."""
     if built_id is not None:
-        row = await get_resume(session, applicant_id, built_id)
-        if row.job_posting_id is not None:
-            raise NotFound
+        await get_resume(session, applicant_id, built_id)
     await session.execute(
         update(Applicant_Profile)
         .where(Applicant_Profile.id == applicant_id)
         .values(default_resume_id=uploaded_id, default_built_resume_id=built_id)
+    )
+
+
+async def default_if_only(session: AsyncSession, applicant_id: uuid.UUID) -> None:
+    """A student with one resume (uploaded or base) has it as the default,
+    so auto apply and Apply have a resume without a star click first. Called
+    after every add and delete; with two or more it changes nothing."""
+    # The session does not autoflush (app/db.py): a resume added but not
+    # flushed would not be counted.
+    await session.flush()
+    uploaded = (await session.scalars(
+        select(Resume.id).where(Resume.applicant_id == applicant_id).limit(2))).all()
+    base = (await session.scalars(
+        select(Built_Resume.id).where(
+            Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id.is_(None)
+        ).limit(2))).all()
+    if len(uploaded) + len(base) != 1:
+        return
+    await session.execute(
+        update(Applicant_Profile)
+        .where(Applicant_Profile.id == applicant_id)
+        .values(default_resume_id=next(iter(uploaded), None), default_built_resume_id=next(iter(base), None))
     )
 
 
@@ -502,7 +527,7 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
         raise NotFound
     return HeaderIdentity(
         name=profile.full_name,
-        email=profile.email,
+        email=profile.email_for_employers,
         phone=profile.phone_number,
         links=tuple(
             (field, url)

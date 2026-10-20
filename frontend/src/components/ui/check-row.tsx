@@ -2,8 +2,9 @@ import { CheckIcon } from "lucide-react";
 
 /**
  * A row that reads as a checkbox (label on the left, box on the right) for a
- * list that takes several picks: a `multiple` Select (SelectCheckboxItem) and
- * the Role filter's searchable Combobox. One row for both, so a list you can
+ * list that takes several picks: a `multiple` Select (SelectCheckboxItem),
+ * the Role filter's searchable Combobox, and a Menu's CheckboxItem (the
+ * Applications Filter and Columns menus, KAN-282). One row for all, so a list you can
  * search draws its options exactly as the lists beside it do. Put the classes
  * on the item and the box inside it; the item's own `data-selected` and
  * `data-highlighted` drive them, which Base UI writes on both kinds of item.
@@ -15,6 +16,8 @@ import { CheckIcon } from "lucide-react";
  * selection, so a second stateful control would only have to be kept in sync.
  *
  * Details that look arbitrary and are not:
+ * - A Menu's CheckboxItem writes `data-checked` where the others write
+ *   `data-selected`, so the box answers to both.
  * - `data-[selected]`, not `data-selected`. The `data-selected` variant from
  *   `shadcn/tailwind.css` only matches `data-selected="true"`, and Base UI
  *   writes the attribute bare, so the short form never checks the box.
@@ -33,9 +36,9 @@ export function CheckRowBox() {
   return (
     <span
       aria-hidden
-      className="border-ink-meta text-primary-foreground group-data-[selected]/check-row:border-primary group-data-[selected]/check-row:bg-primary pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors"
+      className="border-ink-meta text-primary-foreground group-data-[selected]/check-row:border-primary group-data-[selected]/check-row:bg-primary group-data-[checked]/check-row:border-primary group-data-[checked]/check-row:bg-primary pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors"
     >
-      <CheckIcon className="size-3.5 opacity-0 group-data-[selected]/check-row:opacity-100" />
+      <CheckIcon className="size-3.5 opacity-0 group-data-[checked]/check-row:opacity-100 group-data-[selected]/check-row:opacity-100" />
     </span>
   );
 }

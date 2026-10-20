@@ -41,10 +41,18 @@ class Applicant_Profile(Profile):
     # the other.
     default_built_resume_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("built_resumes.id", ondelete="SET NULL", use_alter=True), index=True, nullable=True)
     headline: Mapped[str | None] = mapped_column(String(50))
+    # The email employers see (KAN-262): resume headers and the autofiller.
+    # NULL means the sign-in `email`, which the seeker cannot change here.
+    contact_email: Mapped[str | None] = mapped_column(String(100))
     linkedin_url: Mapped[str | None]
     portfolio_url: Mapped[str | None]
     github_url: Mapped[str | None]
     other_url: Mapped[str | None]    # add another url for extra options
+
+    @property
+    def email_for_employers(self) -> str:
+        '''The contact email, else the sign-in email.'''
+        return self.contact_email or self.email
 
 
 class Company_Profile(BaseModel):

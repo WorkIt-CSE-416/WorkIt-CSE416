@@ -36,7 +36,14 @@ own 200ms linear, so the page holds its width through the animation; keep
 the two durations equal. A layout that splits into columns uses
 `@3xl/main:` and friends, a card that rearranges itself (the job card) is
 its own `@container`, and both see the same width whether the panel is open
-or not. On Applications and the Calendar the segmented control sits at the
+or not. **One page takes the freed room back: Applications** (KAN-256). Its
+list is a table that scrolls sideways, so more width only shows more
+columns. The page has no width cap and a negative margin of half
+`--panel-gain` on each side, which widens it with the panel's own easing
+while its `@…/main` queries still see the open width, so nothing on it
+reflows. A page whose layout splits or wraps by width keeps the rule;
+reading pages keep `--container-app`, since text past about 80 characters a
+line is hard to follow. On Applications and the Calendar the segmented control sits at the
 top right of the header wherever it fits beside the title, the title
 wrapping first; the Dashboard's range switch sits at the top right of the page, beside the
 greeting, and wraps under it where the page is narrow.
@@ -85,12 +92,22 @@ seeker Dashboard's old surfaces (it moved to tiles in KAN-173). On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
 the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
 with no cards inside it, and one white card, the Recent Applicants table. On
-/profile: an open identity band, Resume as the only card, and open sections
-for Work Experience, Skills and Application Settings. The company hero draws
+/profile: an open identity band, Resume as the only card, and an open
+Experiences section. The company hero draws
 `components/hero-arcs.tsx`. A section's one way onward, open or carded, sits
 at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
 variant="section">` for an action. Whether those two pages should move to
 cards as well is still open. Each page's docblock says what goes where.
+
+The auth screens (/login, /signup, /signup/choose-account-type) sit outside
+both shells. Each is its card alone over a skyline (`components/skyline.tsx`):
+a white sky thinning to lavender, a low sun on the left, and four rows of flat
+violet towers along the window's floor, each row paler and hazier than the one
+before it, the near ones shaded on their right faces. It is fixed, so the card
+scrolls over it. The card hangs from
+the top (12vh down from lg) so it holds still when the Company fields open. A
+violet pitch filled the left of the window from lg until KAN-259: no mockup
+drew it, and it pulled the eye off the form.
 
 ## Brand and icons
 
@@ -106,26 +123,51 @@ KAN-252) is drawn on Lucide's 24-unit grid with `createLucideIcon`, never as
 a bare `<svg>`, so it takes the same stroke and sizing. `components/hero-arcs.tsx`
 is the corner arcs on the company Dashboard's violet hero.
 
+**Scout and every AI action share one mark** (KAN-257): `SparkleIcon`,
+Lucide's Sparkles, on the top bar's launcher, Ask Scout, Fill With Scout,
+Tailor My Resume and Read It Again with AI, and inside Scout's
+mark (`components/scout/chat.tsx`), the gradient tile beside every
+assistant line and in Scout's panel header. The bar and the panel drew a
+filled sparkle by hand while the chat and the AI buttons drew Lucide's, so
+the assistant wore two marks. An ESLint rule refuses `Sparkles` imported
+from lucide-react anywhere but `icons.tsx`.
+
 ## Colour
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the Dashboard's Up Next, the Applications board, grid, list and detail panel,
-and the Calendar alike; on the board the stage tints the column panel, never the cards
-inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
+the Dashboard's Up Next, the Applications list, grid, Status filter and
+application page (and the archived board), and the Calendar alike. A stage
+in the Status filter (its dropdown and All Filters, KAN-282; chips until
+then) leads with its stage's glyph in the stage's text colour, not a
+coloured dot, so the stage reads by shape too (KAN-256); on the board the stage tints the
+column panel, never the cards inside it. A dated entry wears one stage by its kind (`KIND_STAGE` there): an
 interview is Interviewing's amber, an offer Offer's green, a deadline Saved's
 grey, the applied date and a follow-up Applied's violet. The three views also
-say the same thing about an application: each shows its next step through
-`(seeker)/applications/next-step.tsx` ("Nothing scheduled" when there is
-none). There is no progress bar; it only restated the stage.
+say the same thing about an application (the grid and list, and the board
+when it returns): its role, company, date and match
+score (KAN-256). There is no progress bar; it only restated the stage.
 
 A match score has its own colour and never borrows a stage's. The four
 `--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a
-better match, read only through `matchColor()` in `lib/match.ts`: the board's
-match badge, the job page's match rail and the company Dashboard's match bar.
+better match, read only through `matchColor()` in `lib/match.ts`: the
+Applications match badge, the job page's match rail and the company Dashboard's match bar.
 They paint strokes, dots and bars, never text; the tier words stay ink-muted.
 Stages and statuses own violet, blue, amber, green, grey and red, so a new
 score display takes `matchColor()` and a new stage display takes its stage
 map, never the other's.
+
+Intake's step chips say what became of each section with a corner badge
+in two of those (KAN-257): a check on `--color-step-done` green, a dash on
+`--color-ink-faint` grey for a skip, on a white chip with a
+`--color-step-outline` edge (dashed when skipped). The brand marks where
+the walk is, as a filled, ringed chip, and never stands for a state. The
+chips sit on the stage card's lavender, `--color-stage-card`, in Scout's
+panel, so their colours are measured there: the app's pale greys vanish on
+that lavender and `--color-positive` is 2.38:1 on it. The ready dot takes
+the done green;
+the draft's "Ready to save" is words, so it takes `--color-positive-ink`,
+and "Still needed" takes `--color-warning`, as the bank's own warnings do.
+`globals.css` has the numbers.
 
 ## Components
 

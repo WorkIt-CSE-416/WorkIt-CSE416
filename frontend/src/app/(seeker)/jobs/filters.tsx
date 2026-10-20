@@ -14,13 +14,12 @@ import {
 } from "react";
 
 import {
+  BriefcaseIcon,
   CheckIcon,
   ChevronDownIcon,
   ClockIcon,
   CloseIcon,
   FilterIcon,
-  LevelIcon,
-  levelIcon,
   PinIcon,
   RoleIcon,
   SearchIcon,
@@ -47,10 +46,10 @@ import { cn } from "@/lib/cn";
 
 import {
   DATE_POSTED_OPTIONS,
-  EXPERIENCE_OPTIONS,
   FILTER_KEYS,
   filterEntries,
   isFiltered,
+  JOB_TYPE_OPTIONS,
   NO_FILTERS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
@@ -87,15 +86,17 @@ import type { JobFacets, JobLocationOption } from "./listings";
  * and Role, a fact the card doesn't print, takes a person in a suit of its own.
  * Inside a popup an option has a glyph only where it differs by option:
  * Workplace's building, two arrows and house, exactly as the card picks them
- * (workStyleIcon), and Experience's backpack, mortarboard and check badge
- * (levelIcon, KAN-252). The same briefcase on every Job Type row would say
- * nothing the button doesn't. Glyphs are ink-meta, as on the card, and brand once the
+ * (workStyleIcon), and, in All Filters, Experience Level's mortarboard and
+ * check badge (levelIcon, KAN-252). The same briefcase on every Job Type row
+ * would say nothing the button doesn't. Glyphs are ink-meta, as on the card, and brand once the
  * facet is in use, with its label.
  *
  * Location is a Popover rather than a Select, for its two panels
- * (LocationFacet says why). Job Type is how the job is set up and Experience the career
- * stage. Internship is both: the card shows it as an internship's job type
- * (KAN-171), and the API matches the other types among non-internships.
+ * (LocationFacet says why). Job Type is what kind of job it is, Internship
+ * among them, and Experience Level how much experience it asks for; they
+ * never overlap (KAN-284). Experience's Student once meant exactly the
+ * internships, so Student with Full-Time matched no job, and with Job Type
+ * in the panel only the seeker never saw the pick that emptied the feed.
  */
 
 /** The look every facet's button shares, Select or Popover: a small
@@ -685,13 +686,13 @@ export function JobFilters({
         className={className}
       />
     ),
-    experience: (className: string) => (
+    jobType: (className: string) => (
       <Facet
-        Icon={LevelIcon}
-        label="Experience"
-        options={optionsOf(EXPERIENCE_OPTIONS).map((o) => ({ ...o, Icon: levelIcon(o.value) }))}
-        values={shown.levels}
-        onChange={(values) => set({ levels: values as FeedFilters["levels"] })}
+        Icon={BriefcaseIcon}
+        label="Job Type"
+        options={optionsOf(JOB_TYPE_OPTIONS)}
+        values={shown.jobTypes}
+        onChange={(values) => set({ jobTypes: values as FeedFilters["jobTypes"] })}
         className={className}
       />
     ),
@@ -725,14 +726,17 @@ export function JobFilters({
           Clear Filters 36, with 8px gaps, so the row fits them on one line
           from these widths of row (the page's @container, so an open sidebar
           or Scout counts): Location and All Filters anywhere (301px, a 360px
-          phone's row is 310), then Role from 456px, Workplace 608, Experience
+          phone's row is 310), then Role from 456px, Workplace 608, Job Type
           768 and Date Posted 920, each a few pixels over what it needs, for a
           label that renders a little wider elsewhere. Those leave room for
           Clear Filters whether or not it shows, so a pick never pushes a
           facet out of the row or All Filters onto a second line (KAN-252).
           The row is never wider than 928px (max-w-app less its gutters), so
-          Job Type, which would need about 1,070px, is in the panel only; its
-          old step, 1024px, was never reached either.
+          it holds five facets. Job Type took Experience's place (KAN-284):
+          it is where Internship is picked, and a pick out of sight emptied
+          the feed (Student with Full-Time). Experience Level is in the panel
+          only; until the scraper keeps experienced roles, its Entry Level
+          matches every job.
           Role sits second, beside Location (KAN-171): with every field in
           one feed (KAN-172), which kind of role is the first thing a
           seeker narrows by, and software and engineering are half of it
@@ -746,7 +750,7 @@ export function JobFilters({
       {facet.location("min-w-36")}
       {facet.role("hidden min-w-36 @min-[28.5rem]:flex")}
       {facet.workplace("hidden min-w-36 @min-[38rem]:flex")}
-      {facet.experience("hidden min-w-36 @min-[48rem]:flex")}
+      {facet.jobType("hidden min-w-36 @min-[48rem]:flex")}
       {facet.datePosted("hidden min-w-36 @min-[57.5rem]:flex")}
 
       {/* Every pick off in one press (KAN-252), shown only while there is

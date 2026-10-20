@@ -11,8 +11,6 @@ import { useSyncExternalStore } from "react";
  */
 const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
 
-type PingResponse = { installed: boolean; signedIn: boolean };
-
 /**
  * Sends one message to the extension and resolves to its answer, or to
  * undefined when there is no extension: `chrome.runtime` not existing, or
@@ -48,24 +46,12 @@ function sendToExtension(message: { type: string }): Promise<unknown> {
   });
 }
 
-/**
- * Talks to the extension through manifest.json's `externally_connectable`
- * — the one, deliberately narrow channel a web page gets: "are you here,
- * and is someone signed in", plus the runner's three messages below (open
- * the next queued application, which job its tab shows, switch to that
- * tab). Never the profile itself; see
- * autofiller_extension/src/background/background.js's own comment on why
- * that line is drawn where it is.
- *
- * Resolves to `{ installed: false, signedIn: false }` for anyone without
- * the extension (the overwhelmingly common case) rather than throwing.
- */
-export async function pingAutofillExtension(): Promise<PingResponse> {
-  const r = (await sendToExtension({ type: "ping" })) as PingResponse | undefined;
-  return r?.installed
-    ? { installed: true, signedIn: Boolean(r.signedIn) }
-    : { installed: false, signedIn: false };
-}
+/* The extension talks to this page through manifest.json's
+ * `externally_connectable`, the one, deliberately narrow channel a web page
+ * gets: the runner's three messages below (open the next queued
+ * application, which job its tab shows, switch to that tab). Never the
+ * profile itself; see autofiller_extension/src/background/background.js's
+ * own comment on why that line is drawn where it is. */
 
 /** What the extension's runner did with `run/open`. */
 export type OpenApplicationResult =

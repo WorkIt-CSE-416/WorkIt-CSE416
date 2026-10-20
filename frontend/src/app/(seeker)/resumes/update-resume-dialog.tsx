@@ -1,9 +1,9 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { SparkleIcon } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
 import {
   Dialog,
@@ -19,7 +19,7 @@ import { importSummary } from "@/lib/import-summary";
 import { replaceResume, type ResumeItem } from "@/lib/resume-actions";
 
 /**
- * Import Updated Resume, from a resume row on My Profile. The stored file
+ * Import Updated Resume, from an uploaded resume's row on the Resumes view. The stored file
  * never changes, so the student brings the newer version: it replaces the
  * row's file (same row, same primary star) and the API reads it into the
  * experience bank, merging what the bank has (ADR 0003). The dialog then
@@ -126,7 +126,7 @@ export function UpdateResumeDialog({
           <DialogFooter>
             {result.uses_left > 0 && (
               <Button variant="secondary" disabled={busy !== null} onClick={readWithAi}>
-                <Sparkles /> {busy === "reading" ? "Reading…" : "Read It With AI"}
+                <SparkleIcon /> {busy === "reading" ? "Reading…" : "Read It With AI"}
               </Button>
             )}
             <Button disabled={busy !== null} onClick={() => onOpenChange(false)}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 
 import { SparkleIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
@@ -9,18 +9,28 @@ import { cn } from "@/lib/cn";
 import { Showcase } from "./showcase";
 
 /**
- * Onboarding's left half: Scout asks the step's question in large type over a
- * lavender wash, and the bars under it count the steps. The fields answer it
- * on the right. From `lg` a moving showcase fills the room above the
- * question (./showcase) and Scout types a short line in a chat bubble on
- * every step, to make the wait between questions feel alive. Both are
- * dropped below `lg`, and the showcase also whenever the panel is too short
- * to hold it.
+ * Onboarding's left half: the step's question in large type over a lavender
+ * wash, as the page's heading, with Scout at the panel's foot. The fields
+ * answer it on the right, under the step rail. From `lg` a moving showcase
+ * fills the room between the question and Scout (./showcase), and Scout types
+ * a short tip in a chat bubble on every step, to make the wait between
+ * questions feel alive. Below `lg` the panel is a band across the top holding
+ * the logo and the question alone, so the first field is not a screen away;
+ * the showcase also hides whenever the panel is too short to hold it.
  *
- * Below `lg` it is a band across the top rather than a column, since the
- * question is the step's only heading and a phone still needs it. From `lg`
- * it fills the window's height and never scrolls: the screen is one window
- * tall and only the fields' column scrolls (./onboarding-form).
+ * THE QUESTION AND SCOUT STAND APART (KAN-259). They were one block, Scout's
+ * bubble 28px over the question, and the bubble asked the question again in
+ * other words, so it was not clear who was asking. Now the question sits under
+ * the logo as the page's h1, and Scout sits at the foot with a tip the
+ * question does not already give. With the showcase hidden, the room between
+ * them stays empty rather than pulling the question down to the foot.
+ *
+ * The question is focused on every step change (./onboarding-form), so a
+ * screen reader reads the new one out. tabIndex -1 lets it take focus without
+ * joining the tab order, and it draws no ring, since nothing can be done to it.
+ *
+ * From `lg` it fills the window's height and never scrolls: the screen is one
+ * window tall and only the fields' column scrolls (./onboarding-form).
  *
  * The wash is the brand violet mixed thin over --color-brand-tint, so it
  * follows the palette rather than adding hexes of its own.
@@ -33,61 +43,43 @@ const WASH = [
 
 export function StoryPanel({
   step,
-  total,
   question,
   line,
+  headingRef,
 }: {
   step: number;
-  total: number;
   question: ReactNode;
   /** What Scout types in its bubble on this step. */
   line: string;
+  headingRef: Ref<HTMLHeadingElement>;
 }) {
   return (
     <aside style={{ background: WASH }} className="overflow-hidden px-6 lg:flex-[5] lg:px-12">
-      <div className="flex flex-col gap-8 py-8 lg:h-full lg:justify-between lg:gap-6 lg:py-10">
+      <div className="flex flex-col gap-6 py-8 lg:h-full lg:gap-10 lg:py-10">
         <Logo size="card" className="self-start lg:h-10" />
+
+        {/* Keyed on the step so each new question fades in. */}
+        <h1
+          key={step}
+          ref={headingRef}
+          tabIndex={-1}
+          className="animate-fade text-display lg:text-hero text-ink max-w-xl font-normal outline-none [&_strong]:font-bold"
+        >
+          {question}
+        </h1>
 
         <Showcase className="hidden min-h-0 flex-1 lg:block" />
 
-        {/* Set in from the panel's edge and lifted off the step bars, so the
-            question reads as its own block rather than sitting on the bars. */}
-        <div className="flex max-w-md flex-col gap-5 lg:mb-8 lg:ml-6 lg:max-w-xl lg:gap-7">
-          <div className="flex items-start gap-2.5">
-            <span className="bg-panel shadow-card flex size-10 items-center justify-center rounded-full lg:size-14">
-              <SparkleIcon className="text-brand size-5 lg:size-7" />
-            </span>
-            <div>
-              <p className="text-body text-ink lg:text-title font-semibold">Scout</p>
-              <p className="text-note text-ink-meta lg:text-body">Your WorkIt job assistant</p>
-              {/* Keyed on the step so Scout types afresh each time. */}
-              <ScoutBubble key={step} line={line} />
-            </div>
+        <div className="hidden items-start gap-2.5 lg:flex">
+          <span className="bg-panel shadow-card flex size-14 shrink-0 items-center justify-center rounded-full">
+            <SparkleIcon className="text-brand size-7" />
+          </span>
+          <div>
+            <p className="text-title text-ink font-semibold">Scout</p>
+            <p className="text-body text-ink-meta">Your WorkIt job assistant</p>
+            {/* Keyed on the step so Scout types afresh each time. */}
+            <ScoutBubble key={step} line={line} />
           </div>
-          {/* Keyed on the step so each new question fades in. */}
-          <p
-            key={step}
-            className="animate-fade text-display lg:text-hero text-ink font-normal [&_strong]:font-bold"
-          >
-            {question}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-1.5" aria-hidden>
-            {Array.from({ length: total }, (_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "h-1.5 flex-1 rounded-full transition-colors duration-300 lg:h-2",
-                  i <= step ? "bg-brand" : "bg-brand/15",
-                )}
-              />
-            ))}
-          </div>
-          <p className="text-note text-ink-meta lg:text-body">
-            Step {step + 1} of {total}
-          </p>
         </div>
       </div>
     </aside>
@@ -98,7 +90,8 @@ export function StoryPanel({
 const TYPING_MS = 900;
 
 /** Scout's line for the step: three dots that bob for a beat, then the line
- *  in a chat bubble. aria-hidden, since it restates the question beside it
+ *  in a chat bubble. aria-hidden, since the tip repeats what the fields
+ *  already say (the "Optional" beside a field, the boxes that take several)
  *  and the dots would announce nothing. Under reduced motion it skips the
  *  dots. */
 function ScoutBubble({ line }: { line: string }) {
@@ -116,7 +109,7 @@ function ScoutBubble({ line }: { line: string }) {
   // Scout up 20px and took the height from the showcase above, so the
   // showcase shrank as Scout finished typing.
   return (
-    <div aria-hidden className="mt-3 hidden max-w-sm *:[grid-area:1/1] lg:grid">
+    <div aria-hidden className="mt-3 grid max-w-sm *:[grid-area:1/1]">
       <span className={cn(BUBBLE, "invisible")}>{line}</span>
       <span className={cn(BUBBLE, "animate-pop origin-top-left self-start justify-self-start")}>
         {typing ? (

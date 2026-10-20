@@ -94,7 +94,7 @@ Workday is different in three ways worth knowing:
 |---|---|
 | **Read over several runs** | Reading every Workday company job board whole takes about 22,000 requests (they hold about 430,000 job postings), far more than one run can make politely. So each run reads them for 12 minutes, starting with the ones read longest ago, and the rest wait their turn. The first run read 439 of them, so each is read about every 12 hours, and a new Workday job posting can take that long to appear (a closed one stays as long) |
 | **Some are skipped** | 141 whose `robots.txt` asks crawlers to stay off that careers site (Caterpillar, Citi, CACI, eBay), and 20 too big to read whole: over 5,000 job postings (Accenture, Walmart, Target, CVS), or capped at 2,000 by Workday with no filter to split them by (Airbus, Sysco) |
-| **No logos yet** | Workday's careers-page images are wide banners, so its cards show the company's initials |
+| **Logos from the company's website** | Workday's careers-page images are wide banners, so a card shows the icon of the website the careers site links as its home page or privacy policy. About 3 in 10 link neither, and those cards show the company's initials |
 
 The GitHub lists are only used as a phone book. Every job posting itself is
 read from the company's own job board, so we get job postings the lists never
@@ -120,6 +120,12 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
+
+**A company's logo is read once per company job board**, from the board's own
+page: the image the company uploaded there, or else the icon of the company's
+website when the board names it (`scraper/docs/logos.md`). A card with neither
+shows the company's initials. A board found with no logo is read again only when
+the logo reader learns a new place to look.
 
 **A job posting only disappears after a complete read of its company job
 board.** If a company job board fails to load, its job postings are kept as
@@ -191,7 +197,22 @@ Visa sponsorship has three answers, or none when the job posting doesn't say:
 | `no_sponsorship` | It says it doesn't, or needs US work authorization |
 | `citizens_only` | It needs US citizenship (often for a security clearance) |
 
-Long descriptions are cut at 8,000 characters, ending in " …".
+A description keeps only what says what the job is (KAN-229). The scraper finds
+its headings ("What you'll do", "Who you are", "Benefits") and stores the intro,
+then Overview, Responsibilities, Requirements, Preferred Qualifications, Pay
+and Details, in that order and under those fixed headings. After them come
+Benefits, How to Apply and About the Company: the job posting's page shows them
+last, folded, and job matching, its keywords and Tailor never read them. Only
+legal notices are left out. A line the employer's page listed is stored as
+"• item", and the page's own markup tells the scraper which lines are headings
+and which are list items. When the job's own sections would keep under a tenth
+of a description, the headings were misread, and the whole description is
+stored instead. A heading the rules don't know
+("Role Purpose") is looked up in a list of labels a model gave once and the team
+reviewed (`scraper/workit_scraper/learned_headings.json`); the scrape itself
+never calls a model. The facts above are read from the whole
+text first, so leaving text out never loses one. Then a long description is cut at 8,000 characters, ending in " …". The
+rules and the measurements are in `scraper/docs/sections.md`.
 
 ---
 
@@ -227,7 +248,7 @@ table. Scraped ones have no `company_id`.
 | Column | Holds |
 |---|---|
 | `title`, `company_name`, `apply_url`, `company_logo_url` | What the card shows; `apply_url` is unique |
-| `description` | The full text, for the job posting's page and Scout |
+| `description` | The kept sections under their fixed headings (section 3), for the job posting's page, search and Scout. Matching, its keywords and Tailor read only the job's sections, never Benefits, How to Apply or About the Company |
 | `location_raw` | The location as the company job board wrote it |
 | `location_label` | The card's version, "San Francisco, CA", written by the import (section 5.2) |
 | `work_style` | `remote`, `hybrid`, `onsite`, or empty |
@@ -238,7 +259,7 @@ table. Scraped ones have no `company_id`.
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
 | `status`, `posted_at` | Published or closed; when the company job board says it went up |
-| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Recommended view ranks by them (KAN-231) |
+| `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Recommended view ranks by them (KAN-231). The embedding reads the title, Overview (or the intro when there is none), Responsibilities, Requirements and Preferred Qualifications (KAN-229) |
 | `keywords`, `keywords_hash` | Tailor's keywords (KAN-215): at most 20, each required or preferred, read from the description by the model the first time a student's resume is matched against the job posting, with a hash of the description they came from. A new description makes them stale, and the import clears them |
 
 ### 5.2 `job_locations`, one row per place a job posting is in
@@ -303,11 +324,14 @@ finished the contract: its code reads `job_role_tags` instead, and
 `824f0b2e3d84` drops both columns, applied only **after** that code is
 deployed (`backend/CLAUDE.md`, Commands).
 
-### 5.5 `job_applications`, one row per job posting an applicant applied to (KAN-232)
+### 5.5 `job_applications`, one row per job posting an applicant saved or applied to (KAN-232, KAN-261)
 
 An applicant id and a job posting id, with a `stage`, `created_at` and
-`applied_at`. The applicant writes an `applied` row with the Applied button
-on the job posting's page (section 7.2). Auto apply writes `queued` rows and
+`applied_at`. The applicant writes an `applied` row by answering "Did You
+Apply?" after Apply Now opens the employer's posting (section 7.2), and a `saved` row with a Save button
+(on the card and the page). A saved row counts as no application yet: the
+application confirmation or auto apply moves it on, and saving never moves a later
+stage back. Auto apply writes `queued` rows and
 moves them to `applied`, `skipped` or `needs_you`
 (`auto-apply/architecture.md`, "Data model"); `applied_at` stays empty until
 the applicant applies. A join table, not an array of applicant ids on the job
@@ -322,7 +346,7 @@ Deleting the applicant or the job posting deletes its rows.
 All public, no sign-in needed (they serve public job postings). A signed-in
 applicant's token is read when sent: `GET /jobs`, `/jobs/count` and
 `/jobs/recommended` then leave out the job postings that applicant marked as
-applied (stage `applied`; a job only queued for auto apply stays in). Without a token, or with a bad or company one, nothing is left out.
+applied (stage `applied`; a job only saved, or queued for auto apply, stays in). Without a token, or with a bad or company one, nothing is left out.
 
 Every job posting the API sends carries `auto_apply`: true when its
 `apply_url` is on a hiring system auto apply can fill, which is Greenhouse
@@ -339,7 +363,9 @@ queue take only those job postings (`backend/app/auto_apply/hosts.py`).
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
 | `GET /jobs/{id}/applied` | Applicants only: when they marked it applied, or null |
-| `POST /jobs/{id}/applied` | Applicants only: marks it applied, a queued one too; a second mark keeps the first date |
+| `POST /jobs/{id}/applied` | Applicants only: marks it applied, a queued or saved one too; a second mark keeps the first date |
+| `POST /jobs/{id}/saved` | Applicants only: saves it, and answers its stage; one already queued or applied keeps that stage |
+| `DELETE /jobs/{id}/saved` | Applicants only: takes it out of saved; 409 once it is past saved |
 
 ### Filters (`GET /jobs` and `GET /jobs/count`)
 
@@ -350,13 +376,13 @@ with **and**.
 |---|---|---|
 | `location` | `US`, `US-CA` | A place row there, **or a remote job posting that names no place** (it can be done from anywhere) |
 | `work_style` | `remote` | That work style |
-| `experience` | `student`, `new_grad`, `experienced` | That level |
+| `experience` | `new_grad`, `experienced` | That level. `new_grad` (Entry Level / New Grad) also matches every internship, whose level is `student` (KAN-284); `student` is still accepted, for old links and saved preferences |
 | `job_type` | `full_time`, `internship` | That type; every internship is `internship` (KAN-233) |
 | `role` | `software_engineer`, `civil_engineer` | A job posting tagged with that `job_roles` role in `job_role_tags` (section 5.3, KAN-155). Before KAN-155 this read the scraper's `roles` keys |
 | `posted_within` | `7` | Posted in the last 7 days |
 | `min_pay`, `max_pay`, `pay_per` | `30`, `50`, `hour` | A pay range that overlaps this one, compared as yearly US dollars (hour × 2,080, week × 52, month × 12) |
 | `start_term` | `summer-2027` | That season; seasons that have ended aren't offered |
-| `visa` | `sponsors` | Says it sponsors. `not_ruled_out` keeps job postings that sponsor or don't say |
+| `visa` | `sponsors` | Says it sponsors. `not_ruled_out` (sponsors or doesn't say) went in KAN-275 |
 | `auto_apply` | `true` | Only job postings auto apply can fill: `auto_apply` true (section 6), Greenhouse for now |
 | `q` | `swe intern stripe` | A company it names by whole name (a typo corrected) narrows to that company's jobs; the roles it names (typos corrected) narrow to jobs tagged with them or whose title says the words that named them ("software" finds "Embedded Software Engineer"); "intern", "new grad", "remote", "summer 2027" and the like narrow their own columns (a start term and "remote" also match a title saying them); every other word must be in the job posting's text or its company's name. Newest first, like the rest of the feed |
 | `limit`, `offset` | `51`, `50` | Paging, for Load More |
@@ -391,8 +417,8 @@ can't be shown as matching a fact it never stated.
 | **Opening it** | A click anywhere on a card |
 | **Header** | The same facts as the card, and the company logo |
 | **About the Role** | The description, with headings and bullet lists recovered from the plain text |
-| **Actions** | Apply Now (the company's own page), Ask Scout, Share (copies the link). Save and Report aren't built yet. |
-| **Applied** | Signed-in applicants only, last in the header's actions (top right). A click records the job posting in `job_applications` and the button becomes "Applied at 10/15/2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
+| **Actions** | One row under the title: Save, a "…" menu (Copy Link, Report), Ask Scout, Auto Apply, Tailor My Resume and Apply Now (the company's own page). Save keeps the job posting in the Saved column on My Applications; a second click takes it out. Report isn't built yet. |
+| **Applied** | Signed-in applicants only. After Apply Now opens the company's page, the dialog asks "Did You Apply?". Yes records the job posting in `job_applications`, and the page reads "You applied on Oct 17, 2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
 | **Back to Jobs** | Returns to the list you came from, with its filters |
 
 ### 7.3 Coming back
@@ -415,7 +441,9 @@ browser can't restore your place by itself. The app does it instead:
 | Seven hiring systems. The next biggest in the GitHub lists go unread: Oracle Cloud (about 3,100 apply links), SmartRecruiters (1,700), iCIMS (1,600) | Each hiring system needs its own reader, and SmartRecruiters' `robots.txt` disallows us | A reader per hiring system, where its `robots.txt` allows |
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
-| Workday cards have no logo | Workday's careers-page images are wide banners, and some are SVGs the website's image loader refuses | Find a square image Workday serves |
+| About 3 in 10 Workday cards have no logo | Workday's careers-page images are wide banners, so only the website a careers site links is used, and some link none | Find a square image Workday serves |
+| Some Greenhouse and Lever cards have no logo (139 jobs on 2026-10-19, mostly Greenhouse) | The company job board has no uploaded image and names no website we can trust (Arc, MEMX, Muon Space), or names one whose name does not match the company (Graviton: gravitontrading.com) | A person confirms the website and adds it to `logos.CHECKED_WEBSITES` |
+| Recruitee cards have no logo | Its logo sits inside a 1 MB board page, for the one company job board we read | Read it there if more Recruitee companies arrive |
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |
 | Only internships and new-grad roles | The scraper keeps early-career titles only | A product decision |

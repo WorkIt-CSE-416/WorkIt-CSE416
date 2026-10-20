@@ -31,7 +31,10 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   shows. The header's boxes have `item_id` `HEADER` ("header", not a
   bank id) and the profile column as `kind`: `full_name`, `phone_number`,
   `email`, `linkedin_url`, `github_url`, `portfolio_url`, `other_url`, which
-  is why `HeaderIdentity.links` carries each link's column. The name's box
+  is why `HeaderIdentity.links` carries each link's column. The `email` box
+  prints the profile's `email_for_employers`: the contact email, else the
+  sign-in email (KAN-262). The editor never types it; My Profile sets it.
+  The name's box
   reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
   types them into the profile. The render route sends them as `RenderResponse.boxes`
   (`schemas/built_resume.py`).

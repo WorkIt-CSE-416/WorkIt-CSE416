@@ -15,13 +15,20 @@ the same way. The row keeps its id, so the primary star stays; the file
 goes to a new Storage path, because a sent resume may still point at the
 old one, which is removed only when nothing uses it. It merges, so an entry
 the new version dropped stays in the bank. It answers what upload answers.
+`PATCH .../{resume_id}` ({"name"}) renames it (KAN-268): the name is the
+row's `original_filename`, which every screen shows and a DOCX downloads
+under, so it keeps the stored file's extension. Import Updated Resume
+then names the row after the new file again.
 `PUT .../{resume_id}/default` makes it the default resume
 (`applicant_profiles.default_resume_id`; the list reports it as `is_default`),
-clearing a base resume that was the default. Upload answers 409 when the
-student already has 5 resumes, uploaded and base resumes together
-(`app/services/built_resumes.py`).
+clearing a base resume that was the default. A student's only resume is
+the default without a click: upload and delete set it
+(`built_resumes.default_if_only`). Upload answers 409 when the
+student already has 5 uploads; generated resumes do not count (KAN-268,
+`app/services/built_resumes.py`).
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
-download under the original filename for a DOCX.
+download under the original filename for a DOCX. `?download=true` makes a PDF
+download too: the row's Download button (KAN-268).
 `DELETE .../{resume_id}` removes the row, and its stored file unless a sent
 resume still uses it (`app/services/sent_resumes.py`, KAN-208).
 """
@@ -33,8 +40,9 @@ import uuid
 import zipfile
 from datetime import UTC, datetime
 from io import BytesIO
+from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +53,7 @@ from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import ImportResult
+from app.schemas.resume import ResumeRename
 from app.services import bank, bank_import, built_resumes, sent_resumes
 from app.services.usage import Feature, uses_left
 from app.utils.resume_parser import count_sections
@@ -248,6 +257,8 @@ async def upload_resume(
         session.add(resume)
         merged = await bank.merge_import(session, applicant_id, entries, skills)
         left = await uses_left(session, applicant_id, Feature.PARSING)
+        await built_resumes.default_if_only(session, applicant_id)
+        default_id = await _default_id(session, applicant_id)
         await session.commit()
     except Exception:
         await session.rollback()
@@ -255,7 +266,7 @@ async def upload_resume(
         await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
         raise HTTPException(500, "Failed to save resume record")
 
-    return _imported(resume, False, entries, skills, merged, left)
+    return _imported(resume, resume.id == default_id, entries, skills, merged, left)
 
 
 @router.put("/applicants/{applicant_id}/resumes/{resume_id}")
@@ -406,6 +417,33 @@ async def get_resume(
     return _item(resume, await _default_id(session, applicant_id))
 
 
+@router.patch("/applicants/{applicant_id}/resumes/{resume_id}")
+async def rename_resume(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    body: ResumeRename,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    """A new name for the upload. Without the extension a DOCX would
+    download as a file no program opens, so a name without the stored
+    file's extension gets it."""
+    assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    ext = PurePosixPath(resume.storage_path or "").suffix
+    name = body.name
+    if ext and not name.lower().endswith(ext.lower()):
+        name += ext
+    resume.original_filename = name
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        logger.exception("Failed to rename resume", extra={"resume_id": str(resume_id)})
+        raise HTTPException(500, "Failed to rename the resume")
+    return _item(resume, await _default_id(session, applicant_id))
+
+
 @router.put("/applicants/{applicant_id}/resumes/{resume_id}/default")
 async def set_default_resume(
     applicant_id: uuid.UUID,
@@ -432,18 +470,19 @@ async def set_default_resume(
 async def get_resume_file_url(
     applicant_id: uuid.UUID,
     resume_id: uuid.UUID,
+    download: bool = Query(False),
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session),
 ):
     """A short-lived link to the uploaded file, for the profile's preview. A
     browser shows a PDF itself; it can't show a DOCX, so that link downloads
-    the file under the name it was uploaded with."""
+    the file under its name, as every link does with `download`."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     if not resume.storage_path:
         raise HTTPException(404, "Resume file not found")
     options = (
-        {} if resume.storage_path.endswith(".pdf")
+        {} if resume.storage_path.endswith(".pdf") and not download
         else {"download": resume.original_filename or True}
     )
     try:
@@ -474,6 +513,7 @@ async def delete_resume(
     storage_path = resume.storage_path
     try:
         await session.delete(resume)
+        await built_resumes.default_if_only(session, applicant_id)
         await session.commit()
     except Exception:
         await session.rollback()

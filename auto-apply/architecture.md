@@ -38,7 +38,7 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 | **Base resume** | A resume built from the experience bank (`built_resumes` with no `job_posting_id`, KAN-207). Its default is `applicant_profiles.default_built_resume_id` |
 | **Tailored resume** | A built resume for one job posting (`built_resumes.job_posting_id`), made with Tailor (KAN-217). At most one per job posting |
 | **Uploaded resume** | A file the student uploaded (`resumes`). Its default is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
-| **Default resume** | The one resume the student starred, a base or an uploaded one: My Profile calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two |
+| **Default resume** | The one resume the student starred, a built (base or tailored) or an uploaded one: the Resumes view calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two. A student's only resume is the default with no star click (`built_resumes.default_if_only`, on every add and delete) |
 | **Sent resume** | The exact file a student downloaded or applied with, kept in `sent_resumes` (KAN-208). With `job_posting_id` it records what went to that job posting (Apply, KAN-220) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
@@ -95,7 +95,7 @@ everything up to that click and nothing after it ("Decisions", below).
 | Form filling | Chrome extension, started from its popup. Fills text fields, dropdowns and repeated sections. Never submits | `autofiller_extension/` |
 | Webapp ↔ extension link | `externally_connectable`. Today it only answers "installed and signed in?" | `frontend/src/lib/autofill-extension.ts` |
 | Auto Apply page | "Resume List" (every resume the student has, with the pick rule under it), Start Auto Apply, and Live Activity from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
-| Applications screen | UI only, over a fixture (`data.ts`) | `frontend/src/app/(seeker)/applications/` |
+| Applications screen | Saved and Applied columns live from `GET .../applications?stage=saved&stage=applied&scored=true` (KAN-261), each card with the Jobs page's score (KAN-256); Interviewing and Offer empty until the API stores those stages | `frontend/src/app/(seeker)/applications/` |
 
 **Built since:** the queue (`job_applications.stage`), its routes, and the
 webapp's use of them (Auto Apply buttons, Start Auto Apply, Live Activity).
@@ -207,7 +207,7 @@ Names are not final.
 | 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
 | 1 | `remove_queued(db, applicant_id, job_id)` | Deletes the application only while it is `queued`, in one statement, so a fill that finishes it meanwhile is never undone. **Built** |
 | 2 | `dequeue_job(db, applicant_id, job_id)` | The Auto Apply button's second click and Live Activity's cross: `remove_queued`, one commit; the job has no application again, so a later batch may pick it. `NotFound` without one, `WrongStage` past queued. **Built** |
-| 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. **Built** |
+| 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. `list_applications(score_for=account)` adds each open posting's `match` through `fetch_recommended` (`JobFilters.job_ids`); only the Applications page asks, since it can embed the bank. **Built** |
 | 2 | `prepare_resume(db, storage, applicant_id, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`; none, `NotFound`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting → one commit → the sent resume and a 5-minute link, or `None` with no resume. Never tailors. **Built** |
 | 2 | `finish_application(db, applicant_id, job_id, outcome)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `set_stage`: submitted → `applied`, skipped → `skipped`, failed → `needs_you`. **Built**, without `record_run`, which waits for `autofill_runs` |
 
@@ -299,7 +299,9 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    application for this student (queued, applied, skipped) stays out. Without
    this, every click returns the same 10. `get_matches` and `start_batch`
    set `JobFilters.no_application_by`, so a job posting with an application
-   at any stage is never scored.
+   at any stage is never scored, a saved one (KAN-261) too: saving never
+   queues a job by itself. Only the student's own Auto Apply click queues a
+   saved job, which moves it to `queued`.
 3. **Freeze the batch at Start.** Pick the 10 once and save them as `queued`
    applications. New job postings arrive every 3 hours and scores change, so
    a list read during the run could change under it. A saved batch also lets
@@ -536,16 +538,17 @@ This is Apply's order (11.1), so a job posting gets the same resume from
 the Apply button and from auto apply. Apply then falls back to the first
 resume in its list; the run does not guess, so a student with resumes but no
 default gets none, and the Resume List says to star one. The run never
-generates a base resume: that is slow, and it counts toward the 5-resume
-limit.
+generates a base resume: that is slow, and the student never asked for
+it.
 
 ### 11.4 Keeping the file
 
 `prepare_resume` keeps the file as a sent resume linked to the job posting,
 as Apply does:
 
-- **The student sees what went out.** The Sent list and the job posting
-  page's "You sent <name> on <date>" show it, the same as for Apply.
+- **The student sees what went out.** The job posting page's "You sent
+  <name> on <date>" shows it, the same as for Apply. (The Resumes view's
+  Sent list showed it too, until it was removed on 2026-10-18.)
 - **A retry makes nothing new.** When Chrome closes and the run starts
   again, unchanged content returns the same sent resume.
 - **It is fast.** A built resume renders in the request (Tectonic, about
@@ -584,15 +587,22 @@ disagree. Migration `c0467afe819c` added:
 
 | Column | Type | Notes |
 |---|---|---|
-| `stage` | enum `application_stage` | `queued`, `needs_you`, `skipped`, `applied`. Default `applied`, for the Applied button's older inserts; a queued insert names its stage and writes `applied_at` NULL. Rows from before are `applied` |
-| `created_at` | timestamptz | When the row was made: the queue's order |
+| `stage` | enum `application_stage` | `saved` (KAN-261, `17ea74fa4573`), `queued`, `needs_you`, `skipped`, `applied`. Default `applied`, for the Applied button's older inserts; a queued or saved insert names its stage and writes `applied_at` NULL. Rows from before are `applied` |
+| `created_at` | timestamptz | When the row was made: the queue's order. Queueing a saved row moves it to now, so a job saved last month doesn't jump the queue |
 | `applied_at` | timestamptz **null** now | Set when the student clicks **Submitted** or the Applied button; `NULL` while queued. A CHECK keeps an `applied` row dated |
 
 - **The Jobs page hides `applied` rows only** (`JobFilters.applied_by`). A
-  queued job stays on it; matches leave out every stage
+  saved or queued job stays on it; matches leave out every stage, saved too
   (`JobFilters.no_application_by`).
-- **The Applied button turns a queued, skipped or needs_you row applied**
-  (`mark_applied`, an upsert); an applied row keeps its first date.
+- **The Applied button turns a saved, queued, skipped or needs_you row
+  applied** (`mark_applied`, an upsert); an applied row keeps its first date.
+- **A saved row is the Save button's, not a run's** (KAN-261). A batch
+  never picks it. A job's own Auto Apply click does: `queue_applications`
+  turns it `queued` (`ON CONFLICT DO UPDATE ... WHERE stage = 'saved'`) and
+  leaves every other stage alone; Save never moves a
+  later stage back, and Unsave deletes a saved row only. Live Activity asks
+  for every stage but saved. Taking a queued job out of the queue deletes
+  its row, so a job that was saved before it was queued is no longer saved.
 - **A closed job posting keeps its application.** Closing is a status, not
   a delete, so the row and the listing stay; `fetch_next_application` passes
   over it and `GET .../applications` marks it `open: false`. Only a deleted
@@ -619,10 +629,15 @@ This data also shows which hiring systems need adapter work.
 
 ### `autofill_answers`
 
-Already planned in `backend/app/models/CLAUDE.md`, Known gaps: one JSONB bank
-of answers per student for the questions hiring systems repeat (work
-authorization, sponsorship, start date). Without it, every form stops at those
-questions, and the fill rate stays low.
+**Built** (KAN-283): one JSONB bank of answers per student for the questions
+hiring systems repeat, `backend/app/models/CLAUDE.md`, "The answer bank".
+Onboarding's Profile step fills it: work authorization, sponsorship,
+citizenship and visa status, security clearance, gender, veteran status
+and disability. Contact details and links are not in it: auto apply reads
+them from `applicant_profiles`, their one home. `GET` and `PATCH /applicants/{id}/autofill-answers` read and
+write it, a key at a time. Still to do: the extension fills forms from it,
+and start date and the other repeated questions get keys. Without it, every
+form stops at those questions, and the fill rate stays low.
 
 ### `api_keys` and `usage` (for MCP)
 
@@ -834,7 +849,8 @@ Each step ships alone and is about one ticket.
    `run/status` and `run/show` drive "Working in Browser" (one-shot
    messages, not yet the port; no fill).
 6. **`autofill_runs`**, and Live Activity shows each fill's report.
-7. **`autofill_answers`** for screening questions.
+7. **`autofill_answers`** for screening questions. The bank and its routes
+   are built (KAN-283); the extension does not read it yet.
 8. **The Auto Apply page and Tailor**: the resume each application gets, and
    a Tailor link per queued application ("The resume", Later).
 9. **MCP server**, API keys and billing.
@@ -868,7 +884,7 @@ Tailoring with its review, the PDF render and the resume editor are built
   bullet that gained a claim, and the limit is 2 a day. Until this is
   decided, the run never tailors.
 - **Skip and the sent resume.** Skip keeps the sent resume, as Apply does.
-  The Sent list then shows a resume that went to no employer. Delete it on
-  Skip instead?
+  The job posting page then says a resume was sent that went to no
+  employer. Delete it on Skip instead?
 - **The uploaded resume as a fallback.** It is the student's own file, but
   the bank may say more. Ask the student to Generate a base resume first?

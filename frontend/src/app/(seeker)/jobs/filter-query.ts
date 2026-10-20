@@ -10,7 +10,7 @@ import type { JobType, WorkStyle } from "./data";
  * codes), ?work_style=, ?role=, ?experience=, ?job_type= (repeated, any of),
  * ?posted_within= (days), ?min_pay= and ?max_pay= with ?pay_per= (hour or
  * year, a range either end of which may be open), ?start_term= (seasons,
- * "summer-2027", repeated), ?visa= (sponsors or not_ruled_out) and
+ * "summer-2027", repeated), ?visa= (sponsors) and
  * ?auto_apply=true (only job postings auto apply can fill).
  *
  * READING DROPS WHAT THE API WOULD REFUSE. A value outside the options, a
@@ -19,9 +19,11 @@ import type { JobType, WorkStyle } from "./data";
  * not "Jobs aren't loading" with a Try Again that fails the same way.
  */
 
-export type Level = "student" | "new_grad" | "experienced";
+/** The Experience Level filter's options. The API's third level, student,
+ *  is every internship's, and the filter leaves it to Job Type (KAN-284). */
+export type Level = "new_grad" | "experienced";
 export type PayPer = "hour" | "year";
-export type Visa = "sponsors" | "not_ruled_out";
+export type Visa = "sponsors";
 
 export type FeedFilters = {
   places: string[];
@@ -90,11 +92,15 @@ const ROLE = /^[a-z][a-z0-9_]{0,63}$/;
 /** As the API caps ?role=. */
 const MAX_ROLES = 60;
 
-/** Who a job is for (KAN-233): a student (every internship), a new grad, or
- *  someone with experience. */
+/** How much experience a job asks for. Job Type says what kind of job it
+ *  is, so the two never overlap (KAN-284): Student, the old first option,
+ *  meant exactly the internships, and Student with Full-Time matched no job.
+ *  Internships count as entry level (the API's filter_levels), so
+ *  Internship with Entry Level / New Grad shows them. Experienced holds no
+ *  job until the scraper keeps such roles; it splits into Junior, Mid and
+ *  Senior then. */
 export const EXPERIENCE_OPTIONS: { value: Level; label: string }[] = [
-  { value: "student", label: "Student" },
-  { value: "new_grad", label: "New Grad" },
+  { value: "new_grad", label: "Entry Level / New Grad" },
   { value: "experienced", label: "Experienced" },
 ];
 
@@ -125,11 +131,13 @@ export function payUnits(jobTypes: readonly JobTypeKey[]): PayPer[] {
   return interns || jobTypes.length === 0 ? ["hour", "year"] : ["year"];
 }
 
+/** Internship first: the pick a student makes, now that Job Type is the one
+ *  place to make it (KAN-284). */
 export const JOB_TYPE_OPTIONS: { value: JobTypeKey; label: string }[] = [
+  { value: "internship", label: "Internship" },
   { value: "full_time", label: "Full-Time" },
   { value: "part_time", label: "Part-Time" },
   { value: "contract", label: "Contract" },
-  { value: "internship", label: "Internship" },
 ];
 
 export const DATE_POSTED_OPTIONS: { value: number; label: string }[] = [
@@ -138,12 +146,11 @@ export const DATE_POSTED_OPTIONS: { value: number; label: string }[] = [
   { value: 30, label: "Past Month" },
 ];
 
-/** "Sponsors Visas" keeps postings that say they sponsor (a few percent of the
- *  feed); "Hide Jobs That Rule Me Out" drops the ones that say they don't, or
- *  want US citizens only, and keeps the many that say nothing (KAN-168). */
+/** "Sponsors Visas" keeps postings that say they sponsor, a few percent of
+ *  the feed (KAN-168). "Hide Jobs That Rule Me Out", which kept the many that
+ *  say nothing too, went in KAN-275: two visa filters read as one. */
 export const VISA_OPTIONS: { value: Visa; label: string }[] = [
   { value: "sponsors", label: "Sponsors Visas" },
-  { value: "not_ruled_out", label: "Hide Jobs That Rule Me Out" },
 ];
 
 /** Picked from the feed's own pay (2026-10-09): an internship tops out around
@@ -200,6 +207,20 @@ function pick<T>(value: string | string[] | undefined, options: readonly { value
   return options.map((o) => o.value).filter((v) => given.has(String(v)));
 }
 
+/** The job types, with Internship for a legacy ?experience=student (a saved
+ *  preference or link from before KAN-284), which meant the internships.
+ *  Picked beside other job types, it joins them; alone, it becomes them.
+ *  With no job type and another level picked it adds nothing: no job type
+ *  is every type, and Entry Level takes in the internships anyway. So
+ *  Student with Full-Time, which matched no job, now shows both. */
+function withLegacyStudent(params: Params, jobTypes: JobTypeKey[]): JobTypeKey[] {
+  const levels = all(params.experience);
+  if (!levels.includes("student") || jobTypes.includes("internship")) return jobTypes;
+  const otherLevel = levels.some((l) => l !== "student");
+  if (jobTypes.length === 0 && otherLevel) return jobTypes;
+  return pick(["internship", ...jobTypes], JOB_TYPE_OPTIONS);
+}
+
 /** A page's search params as filters. See "READING DROPS" above. */
 export function readFilters(params: Params): FeedFilters {
   const posted = Number(first(params.posted_within));
@@ -216,7 +237,7 @@ export function readFilters(params: Params): FeedFilters {
     workStyles: pick(params.work_style, WORKPLACE_OPTIONS),
     roles: [...new Set(all(params.role).filter((r) => ROLE.test(r)))].slice(0, MAX_ROLES),
     levels: pick(params.experience, EXPERIENCE_OPTIONS),
-    jobTypes: pick(params.job_type, JOB_TYPE_OPTIONS),
+    jobTypes: withLegacyStudent(params, pick(params.job_type, JOB_TYPE_OPTIONS)),
     postedWithin: DATE_POSTED_OPTIONS.some((o) => o.value === posted) ? posted : null,
     minPay,
     maxPay,

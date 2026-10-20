@@ -1,9 +1,7 @@
-import { Ban, CloudOff, Sparkles } from "lucide-react";
+import { Ban, CloudOff } from "lucide-react";
 
-import { AutofillBadge } from "@/components/autofill-badge";
-import { ExternalLinkIcon } from "@/components/icons";
+import { ExternalLinkIcon, SparkleIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
-import { SaveButton } from "@/components/save-button";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
@@ -24,6 +22,7 @@ import type { ApplicationStage } from "../auto-apply/actions";
 import { AutoApplyButton } from "../auto-apply/auto-apply-button";
 import type { JobListing } from "./listings";
 import { MatchRail } from "./match-rail";
+import { SaveJobButton } from "./save-job-button";
 
 /* The live feed's card, and the two states that stand in for a list of them.
  * Shared by /jobs and /search, so a role found by searching is the same card,
@@ -75,7 +74,8 @@ export function ListingCard({
   tailored,
 }: {
   job: JobListing;
-  /** The seeker's application for it, for its Auto Apply button; null: none. */
+  /** The seeker's application for it, for its Save and Auto Apply buttons;
+   *  null: none. */
   stage: ApplicationStage | null;
   /** Whether the seeker has a resume tailored to it, for its Tailor button. */
   tailored: boolean;
@@ -107,7 +107,7 @@ export function ListingCard({
             <Ban className="size-4" />
           </IconButton>
 
-          <SaveButton title={job.title} />
+          <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
 
           <AskScoutButton id={job.id} title={job.title} company={job.company} />
 
@@ -121,7 +121,7 @@ export function ListingCard({
             variant="secondary"
             size="sm"
           >
-            <Sparkles className="size-4" />
+            <SparkleIcon className="size-4" />
             {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
           </ButtonLink>
 
@@ -129,8 +129,6 @@ export function ListingCard({
               a screen reader hears it. On a card under 384px (a phone) the
               glyph steps out: its 22px pushed Apply Now onto a line of its
               own, and the spoken hint still stands. */}
-          <AutofillBadge />
-
           <ButtonLink href={job.apply_url} target="_blank" rel="noopener noreferrer" size="sm">
             Apply Now
             <ExternalLinkIcon className="size-3.5 @max-sm:hidden" />

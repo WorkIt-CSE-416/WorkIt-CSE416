@@ -36,6 +36,10 @@ class BuiltResumeResponse(BaseModel):
     edited_at: datetime.datetime
     # A tailored resume whose posting the Jobs page no longer lists.
     posting_closed: bool = False
+    # A tailored resume's posting, so its card names the job and links to
+    # it (KAN-268). Null on a base resume.
+    posting_title: str | None = None
+    posting_company: str | None = None
 
 
 class RenderBox(BaseModel):

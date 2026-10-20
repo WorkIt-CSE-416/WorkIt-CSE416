@@ -3,15 +3,15 @@ import Link from "next/link";
 import { EllipsisIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CompanyTile } from "@/components/ui/company-tile";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, type StageKey } from "../stage-colors";
-import { nextEvent, sinceLabel, type Application } from "../tracker";
+import { LocalDate } from "../local-time";
+import { sinceOf, type Application } from "../tracker";
+import { ApplicationTile } from "./application-tile";
 import { MatchBadge } from "./match-badge";
-import { NextStep } from "./next-step";
-import { applicationsHref, type ApplicationsQuery } from "./query";
+import { applicationHref, type ApplicationsQuery } from "./query";
 import { Reflow } from "./reflow";
 
 /**
@@ -30,9 +30,15 @@ import { Reflow } from "./reflow";
  * Adapted rather than copied, for the same reason as the grid: the source is
  * monochrome with a black primary button and red/amber/blue priority dots, and
  * WorkIt has a palette of its own. Structure is what carries over — a panelled
- * column, a card of company + title, a description, and a ruled footer of
- * small facts, which is where the match sits. The design's footer counts
- * (attachments, comments) were dropped as noise the card did not need.
+ * column, a card of company + title, and a ruled footer of small facts,
+ * which is where the match sits. The design's footer counts (attachments,
+ * comments) were dropped as noise the card did not need.
+ *
+ * FOUR FACTS, NOTHING ELSE (KAN-256): the role, the company, the day it was
+ * saved or sent, and the Jobs page's match score. The card also carried a
+ * summary and the next step ("Nothing scheduled" on every live card, since
+ * the API stores no dated events), which made the columns read as clutter.
+ * The application's own page keeps the timeline.
  *
  * Its "priority" pill has no equivalent here, and inventing one would have meant
  * inventing both the field and two palette colours. The slot held a stage pill
@@ -40,8 +46,8 @@ import { Reflow } from "./reflow";
  * longer repeats it; that also drops an application's `status` ("Round 2") from
  * the board.
  *
- * A CARD OPENS ITS APPLICATION: the role is a link to the detail panel
- * (./detail-panel.tsx), stretched over the whole card, so the card is one
+ * A CARD OPENS ITS APPLICATION: the role is a link to its own page
+ * (./[jobId]), stretched over the whole card, so the card is one
  * target and a keyboard reaches it in one stop. The column's menu button is
  * still inert. The design's per-column add button has been removed. Its drag
  * handle is deliberately not here either — a handle that cannot be dragged
@@ -55,16 +61,14 @@ import { Reflow } from "./reflow";
 function ApplicationCard({
   item,
   href,
-  now,
   delay,
 }: {
   item: Application;
   href: string;
-  now: Date;
   /** Its place in the entrance cascade, in ms. */
   delay: number;
 }) {
-  const { Icon } = item;
+  const since = sinceOf(item);
 
   return (
     <Card
@@ -82,14 +86,13 @@ function ApplicationCard({
           its own, which the column heading already names. The match lives in
           the footer, so the role and company get the card's whole width. The
           title clamps at two lines and the block holds two lines' height, so
-          every card's summary starts at the same depth. */}
+          every card's footer starts at the same depth. */}
       <div className="flex items-start gap-2.5">
-        <CompanyTile Icon={Icon} size="sm" tone="outline" />
+        <ApplicationTile application={item} size="sm" />
         <div className="min-h-15 min-w-0 flex-1">
           <h3 className="text-subtitle text-ink line-clamp-2 leading-5">
             <Link
               href={href}
-              scroll={false}
               className="after:rounded-card focus-visible:after:ring-brand-ring after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
             >
               {item.role}
@@ -99,17 +102,11 @@ function ApplicationCard({
         </div>
       </div>
 
-      {item.summary && <p className="text-note text-ink-meta line-clamp-2">{item.summary}</p>}
-
-      {/* The one place an application's next commitment appears on the board —
-          the design has no slot for it, and dropping it would lose the only
-          forward-looking thing a card says. The grid and list draw the same
-          block (./next-step.tsx). */}
-      <NextStep next={nextEvent(item, now)} />
-
       <div className="border-border-subtle flex items-center justify-between gap-2 border-t pt-2.5">
-        <p className="text-note text-ink-meta min-w-0 truncate">{sinceLabel(item)}</p>
-        <MatchBadge score={item.match} />
+        <p className="text-note text-ink-meta min-w-0 truncate">
+          {since.verb} <LocalDate at={since.at} />
+        </p>
+        {item.match != null && <MatchBadge score={item.match} />}
       </div>
 
       {/* Also not in the design. An offer has a date it expires on, so the one
@@ -129,13 +126,11 @@ export function ApplicationsBoard({
   applications,
   stages,
   query,
-  now,
 }: {
   applications: Application[];
   /** The columns to draw, in order: every stage unless the filter picks some. */
   stages: StageKey[];
   query: ApplicationsQuery;
-  now: Date;
 }) {
   return (
     /* The four columns share the content column as equal grid tracks, so
@@ -220,8 +215,7 @@ export function ApplicationsBoard({
                     <Reflow key={item.id}>
                       <ApplicationCard
                         item={item}
-                        href={applicationsHref(query, { app: item.id })}
-                        now={now}
+                        href={applicationHref(item.id)}
                         // Left to right, then down: 30ms a column, 40ms a row,
                         // so the board fills in like a sweep, not all at once.
                         delay={column * 30 + Math.min(row, 5) * 40}
@@ -230,7 +224,11 @@ export function ApplicationsBoard({
                   ))}
                 </ul>
               ) : (
-                <p className="text-note text-ink-meta px-1 pb-2">No matches in {title}.</p>
+                // "No matches" only while a search narrows the board; an
+                // empty stage with no search just has nothing in it yet.
+                <p className="text-note text-ink-meta px-1 pb-2">
+                  {query.q ? `No matches in ${title}.` : `Nothing in ${title} yet.`}
+                </p>
               )}
             </section>
           );

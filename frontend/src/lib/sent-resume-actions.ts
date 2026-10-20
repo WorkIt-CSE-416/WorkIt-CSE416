@@ -71,10 +71,6 @@ export async function applyWithResume(
   );
 }
 
-export async function sentResumeFileUrl(sentId: string): Promise<Result<{ url: string }>> {
-  return call<{ url: string }>(`/${id(sentId)}/file`);
-}
-
 export async function deleteSentResume(sentId: string): Promise<{ error: string | null }> {
   return call<null>(`/${id(sentId)}`, { method: "DELETE" });
 }

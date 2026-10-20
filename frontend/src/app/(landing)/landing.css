@@ -1,0 +1,418 @@
+/*
+ * The landing page's hand-written styles, ported unchanged from the team's
+ * marketing site except for colour: its blue scale is the violet
+ * landing-brand-* scale in globals.css. Every rule is scoped to .landing (the
+ * layout's wrapper) or uses a class only this page uses, so loading this
+ * file can never restyle an app screen.
+ */
+
+.landing {
+  /* Brand glass surface, shared by .glass-btn and the highlighted chips. */
+  --brand-glass-fill: linear-gradient(
+    135deg,
+    var(--color-landing-brand-100),
+    var(--color-landing-brand-300)
+  );
+  --brand-glass-edge:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    inset 0 0 0 1px color-mix(in oklab, var(--color-landing-brand-400) 50%, transparent);
+
+  /* The app's own face (Plus Jakarta Sans, globals.css), not the marketing
+   * site's Inter: the page and the app read as one product. */
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--color-ink);
+  background: white;
+}
+
+.landing ::selection {
+  background: var(--color-landing-brand-100);
+  color: var(--color-landing-brand-900);
+}
+
+.landing :focus-visible {
+  outline: 2px solid var(--color-landing-brand-500);
+  outline-offset: 2px;
+}
+
+.font-google {
+  font-family: var(--font-google-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+html:has(.landing) {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+/*
+ * Glass button (buttons.tsx): the two light brand violets with a glassy top
+ * highlight, its fill a pseudo-element behind the label. In the components
+ * layer, as on the site, so a utility on the element (h-12, hidden) wins.
+ */
+@layer components {
+  .glass-btn {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.5rem;
+    padding-inline: 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--color-landing-brand-950);
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.45);
+    transition:
+      transform 150ms ease,
+      box-shadow 200ms ease;
+  }
+
+  .glass-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--brand-glass-fill);
+    box-shadow: var(--brand-glass-edge);
+  }
+
+  .glass-btn:hover {
+    box-shadow: 0 4px 14px -4px color-mix(in oklab, var(--color-landing-brand-600) 45%, transparent);
+  }
+
+  .glass-btn:active {
+    transform: scale(0.97);
+  }
+
+  .glass-btn:focus-visible {
+    outline: 2px solid var(--color-landing-brand-500);
+    outline-offset: 4px;
+  }
+}
+
+/* One copy of a Marquee's cards, scrolling up by its own height. */
+.landing-marquee {
+  animation: landing-marquee var(--duration) linear infinite;
+}
+
+@keyframes landing-marquee {
+  to {
+    transform: translateY(calc(-100% - var(--gap)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.landing) {
+    scroll-behavior: auto;
+  }
+
+  .landing-marquee {
+    animation-play-state: paused;
+  }
+}
+
+/*
+ * The hero city (hero-city.tsx, city-model.ts). A 1600x560 strip (100px of
+ * it above the ground's origin, for the tallest side towers) pinned to
+ * the hero panel's bottom: at its 1600px design scale from lg up, so its
+ * per-column height caps keep it clear of the text, cropped at the sides on
+ * narrower panels; scaled to the panel's width below lg, where page.tsx's
+ * spacer drops it under the text. Violet belongs to the wireframes alone.
+ */
+.hero-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #f6f5f8 100%);
+}
+
+.hero-city {
+  --top: #ffffff;
+  --left: #e1d9f6;
+  --right: #eee9fd;
+  --edge: rgb(76 39 163 / 0.17);
+  --hi: rgb(109 63 216 / 0.32);
+  --floor: rgb(76 39 163 / 0.09);
+  --pier: rgb(76 39 163 / 0.16);
+  --spire: #aaa4b8;
+  --holo: #6d3fd8;
+
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 115cqw;
+  /* STRIP_WIDTH / STRIP_HEIGHT in city-model.ts. */
+  aspect-ratio: 1600 / 560;
+  transform: translateX(-50%);
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  animation: hero-city-in 1.2s ease-out both;
+}
+
+@media (width >= 64rem) {
+  .hero-city {
+    width: max(1600px, 115cqw);
+  }
+}
+
+@keyframes hero-city-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.hero-city svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.hero-city .tone-stone {
+  --top: #fffdf9;
+  --left: #e6dee9;
+  --right: #f3eef4;
+}
+.hero-city .tone-peri {
+  --top: #f8f8ff;
+  --left: #d6d8f5;
+  --right: #e7e9fd;
+}
+.hero-city .tone-glass {
+  --top: #f5f4fb;
+  --left: #d6d2ea;
+  --right: #e7e4f4;
+}
+.hero-city .tone-deep {
+  --top: #f3f0f5;
+  --left: #d8d1df;
+  --right: #e7e2ec;
+}
+
+.hero-city .t {
+  fill: var(--top);
+}
+.hero-city .l {
+  fill: var(--left);
+}
+.hero-city .r {
+  fill: var(--right);
+}
+.hero-city .fl {
+  fill: none;
+  stroke: var(--floor);
+  stroke-width: 0.8;
+}
+.hero-city .pi {
+  fill: none;
+  stroke: var(--pier);
+  stroke-width: 1;
+}
+.hero-city .e {
+  fill: none;
+  stroke: var(--edge);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+.hero-city .hi {
+  fill: none;
+  stroke: var(--hi);
+  stroke-width: 1;
+}
+.hero-city .sp {
+  fill: none;
+  stroke: var(--spire);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.hero-city .grid {
+  fill: none;
+  stroke: rgb(76 39 163 / 0.14);
+  stroke-width: 1;
+}
+.hero-city .streak {
+  fill: none;
+  stroke: #8a6ee6;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 70 930;
+  stroke-dashoffset: 1000;
+  animation: hero-city-streak 9s linear infinite;
+  animation-delay: var(--sd);
+}
+
+@keyframes hero-city-streak {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.hero-city .wf {
+  fill: rgb(109 63 216 / 0.07);
+}
+.hero-city .wl {
+  fill: none;
+  stroke: var(--holo);
+  stroke-width: 0.8;
+  opacity: 0.4;
+}
+.hero-city .we {
+  fill: none;
+  stroke: var(--holo);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+/* A job tower: the solid setback fades, a much taller wireframe grows out of
+   its base as its outline traces in, the ground glows and the tag pops, all
+   at once; then it sinks back. One 16s cycle, offset per tower by --md. */
+.hero-city .msolid {
+  animation: hero-city-solid 16s ease-in-out infinite;
+  animation-delay: var(--md);
+}
+
+.hero-city .mwire .wire {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+  animation: hero-city-grow 16s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  animation-delay: var(--md);
+}
+
+.hero-city .mwire .we {
+  animation: hero-city-draw 16s ease-out infinite;
+  animation-delay: var(--md);
+}
+
+.hero-city .swire {
+  animation: hero-city-pulse 6s ease-in-out infinite;
+  animation-delay: var(--md);
+}
+
+.hero-city .pool {
+  opacity: 0;
+  animation: hero-city-pool 16s ease-in-out infinite;
+  animation-delay: var(--md);
+}
+
+.hero-city .tag {
+  position: absolute;
+  opacity: 0;
+  transform: translate(-50%, -100%);
+  animation: hero-city-tag 16s ease-out infinite;
+  animation-delay: var(--md);
+}
+
+@keyframes hero-city-solid {
+  0%,
+  22% {
+    opacity: 1;
+  }
+  28%,
+  70% {
+    opacity: 0;
+  }
+  80%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes hero-city-grow {
+  0%,
+  22% {
+    transform: scaleY(0);
+  }
+  30%,
+  68% {
+    transform: scaleY(1);
+  }
+  80%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes hero-city-draw {
+  0%,
+  22% {
+    stroke-dashoffset: 1;
+  }
+  32%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hero-city-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes hero-city-pool {
+  0%,
+  22% {
+    opacity: 0;
+  }
+  28%,
+  66% {
+    opacity: 1;
+  }
+  78%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hero-city-tag {
+  0%,
+  26% {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% + 16px)) scale(0.9);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1.05);
+  }
+  33%,
+  66% {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+  72%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 8px)) scale(0.98);
+  }
+}
+
+/* The hero's text fades up in sequence on load. */
+.hero-rise {
+  animation: hero-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--rd);
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-city,
+  .hero-city *,
+  .hero-rise {
+    animation-play-state: paused;
+  }
+}

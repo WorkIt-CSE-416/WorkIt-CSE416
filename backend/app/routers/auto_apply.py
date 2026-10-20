@@ -21,6 +21,9 @@ POST /applicants/{id}/applications  {"job_id": ...}
 GET  /applicants/{id}/applications?stage=queued&stage=needs_you
      The applications, newest first (every stage without ?stage=), each
      with its job posting's listing and `open` (false once it closed).
+     ?scored=true adds `match`, the Jobs page's score, and its `highlights`
+     to each open one
+     (the Applications page; null while the experience bank is empty).
 GET  /applicants/{id}/applications/next
      What the extension fills next: the oldest queued application whose job
      posting is open, or null when none is left.
@@ -127,12 +130,16 @@ async def queue_job(
 async def list_applications(
     applicant_id: uuid.UUID,
     stage: list[application_stage] = Query([]),
+    scored: bool = Query(False),
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> list[Application]:
-    """The applicant's applications, newest first."""
+    """The applicant's applications, newest first; with ?scored=true, each
+    open job posting's match score."""
     assert_applicant_owns(account, applicant_id)
-    return await pipeline.list_applications(db, applicant_id, stage)
+    return await pipeline.list_applications(
+        db, applicant_id, stage, score_for=account if scored else None
+    )
 
 
 @router.get("/applications/next", response_model=Application | None)

@@ -57,6 +57,8 @@ class Store:
     #: Keyed by `Board.key`: the board page's logo, or None if the page had none.
     #: Absent means not read yet -- see `logos.fetch`.
     logos: dict[str, str | None] = field(default_factory=dict)
+    #: The `logos.VERSION` that read the boards stored with no logo.
+    logos_version: int = 1
 
     def is_listed(self, job: Job) -> bool:
         """Whether the posting was on its board the last time we read that board.
@@ -163,7 +165,25 @@ def update(
         first = boards[key].first_read_at if key in boards else now
         boards[key] = BoardReads(first_read_at=first, last_read_at=now)
     logos = dict(previous.logos) if previous else {}
-    return Store(scraped_at=now, stats=stats, jobs=merged, boards=boards, logos=logos)
+    version = previous.logos_version if previous else 1
+    return Store(
+        scraped_at=now,
+        stats=stats,
+        jobs=merged,
+        boards=boards,
+        logos=logos,
+        logos_version=version,
+    )
+
+
+def reread_missing_logos(run: Store, version: int) -> Store:
+    """`run` with the boards stored as having no logo forgotten, so they are read
+    again, when a newer `logos.VERSION` may find what the older one missed. Found
+    logos stay: True Anomaly's null outlived the reader that would have found it."""
+    if run.logos_version >= version:
+        return run
+    found = {key: url for key, url in run.logos.items() if url is not None}
+    return replace(run, logos=found, logos_version=version)
 
 
 def carry(job: Job, before: dict[str, Job]) -> Job:
@@ -197,6 +217,7 @@ def load(path: Path) -> Store | None:
         jobs=[Job.from_row(row) for row in payload["jobs"]],
         boards={key: BoardReads(**reads) for key, reads in payload["boards"].items()},
         logos=payload.get("logos", {}),
+        logos_version=payload.get("logos_version", 1),
     )
 
 
@@ -206,6 +227,7 @@ def save(store: Store, path: Path) -> None:
         "stats": asdict(store.stats),
         "boards": {key: asdict(reads) for key, reads in store.boards.items()},
         "logos": store.logos,
+        "logos_version": store.logos_version,
         "jobs": [job.to_row() for job in sorted(store.jobs, key=lambda job: job.key)],
     }
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")

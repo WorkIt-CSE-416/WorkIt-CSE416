@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.dto import application_stage
-from app.schemas.jobs import JobListing
+from app.schemas.jobs import Highlight, JobListing
 
 
 class JobApplied(BaseModel):
@@ -13,6 +13,13 @@ class JobApplied(BaseModel):
     this job as applied, or null when they haven't."""
 
     applied_at: datetime.datetime | None
+
+
+class JobSaved(BaseModel):
+    """POST /jobs/{job_id}/saved: the job's stage after the save. saved, or
+    the stage it already had (queued, applied...), which saving keeps."""
+
+    stage: application_stage
 
 
 # --- Auto apply (routers/auto_apply.py) ---
@@ -29,6 +36,13 @@ class Application(BaseModel):
     applied_at: datetime.datetime | None
     # False once the job posting has closed: the extension skips it.
     open: bool
+    # The Jobs page's match score (0-100) for this job posting, on ?scored=true
+    # only (KAN-256). Null otherwise, for a closed job posting, and while the
+    # experience bank is empty.
+    match: int | None = None
+    # Up to 3 reasons behind `match`, as the Jobs page card lists them; empty
+    # whenever `match` is null.
+    highlights: list[Highlight] = []
 
 
 class BatchRequest(BaseModel):

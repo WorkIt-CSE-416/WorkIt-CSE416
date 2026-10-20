@@ -69,9 +69,29 @@ Nothing in this folder may assume what a software job is. Two consequences:
   (name, email, phone, address, links). That is Scout's rule
   (`../../../../scout/CLAUDE.md`), because Gemini's free tier may train on what
   it receives. `bank_input.bank_text()` is where that boundary lives (below).
+- **A posting is embedded from its title and the sections that say what the
+  job is** (`job_text`, KAN-229): Overview, Responsibilities,
+  Requirements and Preferred Qualifications. The scraper stores a description
+  under those fixed headings, each alone on its line, with legal text left
+  out (`../../../../scraper/docs/sections.md`). Pay and Details are stored but
+  not embedded, and so is the intro when there is an Overview. **Benefits, How
+  to Apply and About the Company** come last, for the job posting's page
+  (2026-10-18): `_matched_part` stops at their headings, and `job_part`, which
+  the keywords (`services/keywords.py`) and Tailor (`services/tailor.py`) read
+  too, never includes them, so a perks list never steers a match, a keyword or
+  a tailored resume. A description with only an intro under none of the job's
+  headings reads the intro alone, never the perks after it. Without one,
+  the intro is embedded first: it is where most such postings state the role
+  ("Garda is seeking a Software Engineer Intern..."). Left out always, it cost
+  52 role and requirement lines in the scraper's 50 gold postings, more than
+  the old 6,000-character cut did (PR review, 2026-10-17). A description with
+  none of those exact lines (the scraper's whole-text fallback) is embedded
+  whole; one stored before KAN-229 that uses such a word as a heading of its
+  own is read from that line. **The headings are part of the feed's
+  contract**: renamed in the scraper alone, every posting quietly embeds its
+  whole description again.
 - **Texts are cut to 6,000 characters**, since the model reads about 2,048
-  tokens. A posting loses its tail, which is mostly benefits and legal
-  boilerplate.
+  tokens.
 
 ## When things are embedded
 
@@ -159,6 +179,15 @@ priority list: the skills the posting mentions (only those), title alignment,
 strong semantic fit (positive), then years mismatch and start term mismatch
 (negative). Positives sort before negatives, and a negative is never cut by
 the cap of 3.
+
+**A job none of those rules speak for gets caveats** (KAN-256), so a weak
+score never shows with no reasons, on the Jobs page card or the application
+page: "None of your skills appear in this posting" when the bank has skills
+and the posting mentions none, and "Title isn't close to your past roles"
+when the title fit is 0.3 or less and the bank has titles or a field of
+study to compare (`has_titles`; without them a low fit is a blank, not a
+finding). Neither names a skill the job wants: that is the "missing skill"
+caveat above, which needs each job's own skill list.
 
 ## Recommendations — `fetch_recommended()` and `GET /jobs/recommended/{applicant_id}`
 

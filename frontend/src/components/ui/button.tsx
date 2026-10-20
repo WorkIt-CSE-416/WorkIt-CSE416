@@ -111,9 +111,12 @@ export const buttonVariants = cva(
         /** Brand fill — the primary action on a screen. */
         default:
           "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
-        /** Bordered neutral — alternatives sitting beside a primary action. */
+        /** Bordered neutral — alternatives sitting beside a primary action.
+         *  White, not --color-surface: on the sign-in card, which is
+         *  --color-surface itself, Google and LinkedIn sank into the card
+         *  (KAN-259). On a white page the two are all but the same. */
         secondary:
-          "border-border-subtle bg-surface text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-border-subtle bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
         /** Brand outline — an action inside an already-recessed area. */
         outline:
           "border-brand/50 text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",

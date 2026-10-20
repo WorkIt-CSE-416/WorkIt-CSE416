@@ -10,17 +10,23 @@ import { getApplicantSession } from "@/lib/session";
  * applicant is always the session's own. Reads are in ./applications.
  */
 
-/** Where one application stands: backend `dto.application_stage`. */
-export type ApplicationStage = "queued" | "needs_you" | "skipped" | "applied";
+/** Where one application stands: backend `dto.application_stage`. Saved
+ *  (KAN-261) is a job's Save button, not a run: it counts as no application
+ *  yet, so queueing a saved job queues it. */
+export type ApplicationStage = "saved" | "queued" | "needs_you" | "skipped" | "applied";
+
+/** The stages auto apply itself writes: Live Activity's rows. */
+export type RunStage = Exclude<ApplicationStage, "saved">;
 
 const SIGNED_OUT = "You're signed out. Sign in again to continue.";
 const UNREACHABLE = "Could not reach the server.";
 
 /** A job's Auto Apply button: queues it (POST .../applications) and answers
- *  its stage. A job that already has an application keeps that stage. */
+ *  its stage. A saved job is queued; one that already has an application
+ *  keeps that stage, so the answer is never saved. */
 export async function queueJob(
   jobId: string,
-): Promise<{ stage: ApplicationStage; error: null } | { stage: null; error: string }> {
+): Promise<{ stage: RunStage; error: null } | { stage: null; error: string }> {
   let session;
   try {
     session = await getApplicantSession();
@@ -34,7 +40,7 @@ export async function queueJob(
       session.token,
     );
     if (!res.ok) return { stage: null, error: await extractErrorMessage(res) };
-    return { stage: ((await res.json()) as { stage: ApplicationStage }).stage, error: null };
+    return { stage: ((await res.json()) as { stage: RunStage }).stage, error: null };
   } catch {
     return { stage: null, error: UNREACHABLE };
   }

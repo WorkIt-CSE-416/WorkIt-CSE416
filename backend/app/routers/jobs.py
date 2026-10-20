@@ -40,8 +40,9 @@ The job board's other filters narrow it the same way (JobFilters, KAN-170),
 each by a column every scraped row fills when the posting states it:
 ?work_style=, ?role= (job_roles slugs, "software_engineer"; repeated, any
 of: a job tagged in job_role_tags with any of them, KAN-155),
-?job_type= (internship among them, KAN-233) and ?experience= (student,
-new_grad, experienced; repeated, any of), ?posted_within=
+?job_type= (internship among them, KAN-233) and ?experience= (new_grad,
+experienced; repeated, any of: new_grad takes in the internships, whose
+level is student, KAN-284), ?posted_within=
 (days), and ?min_pay= and ?max_pay= with ?pay_per= (hour or year), a range that
 matches any posting whose own pay range overlaps it. Pay is compared as a yearly
 figure, so an internship paid by the hour, week or month and a new-grad role
@@ -94,6 +95,8 @@ from app.schemas.jobs import (
     ScoredJob,
     SeasonKey,
 )
+from app.schemas.requirements import JobRequirement
+from app.services import postings, requirements
 from app.services.bank import load_bank
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -118,7 +121,7 @@ async def read_filters(
     pay_per: Literal["hour", "year"] = "year",
     # Seasons as GET /jobs/facets lists them ("summer-2027", or "2027"); any.
     start_term: list[SeasonKey] = Query([], max_length=12),
-    visa: Literal["sponsors", "not_ruled_out"] | None = None,
+    visa: Literal["sponsors"] | None = None,
     # All Filters' "Auto Apply Supported": only job postings auto apply can
     # fill (Greenhouse for now, app/auto_apply/hosts.py).
     auto_apply: bool = False,
@@ -281,6 +284,18 @@ async def recommended_jobs(
         )
     except EmptyBank as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/{job_id}/requirements", response_model=list[JobRequirement])
+async def get_job_requirements(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_session),
+) -> list[JobRequirement]:
+    """Public posting statements only; no applicant profile or comparison."""
+    job = await postings.listed(db, job_id)
+    if job is None:
+        raise HTTPException(404, "That job isn't open any more.")
+    return requirements.extract(job.description)
 
 
 # Last, so the paths above ("/count", "/facets", "/locations", "/roles") are matched as
