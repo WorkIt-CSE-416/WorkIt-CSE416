@@ -480,6 +480,14 @@ Where the student sees it:
   instead of "the resume last sent to its posting". Fetch the file only on
   click: a snapshot renders on each open.
 
+Built ahead of step 4 (`applications/view-resume.tsx`): View Resume on the
+list, the grid cards and What You Sent, for the posting's last sent resume
+(no `sent_resume_id` yet). It opens a dialog with the PDF in a frame (GET
+.../file?download=false; a snapshot's PDF is kept for the next open, a
+stored file's link asked for again), the rebuilt note with Show Original
+Text, and for a Word file a pointer to Resumes & Experiences. Step 4 only
+swaps which sent resume each application names.
+
 ### 8. Delete
 
 - **A sent resume:** remove the row; then remove its snapshot if no other
@@ -565,9 +573,11 @@ Each step is one PR with its migration, code, tests and docs.
    two shapes, the Apply dialog's file, `prepare_resume`'s response.
    `openSentResume` moved to step 4.
 4. **Application link.** Migration 3, `POST /jobs/{id}/applied` with
-   `sent_resume_id`, `prepare_resume` setting it, the Did You Apply?
-   picker, Upload in the Apply picker, View Resume on the Applications list,
-   an application's page and the job posting's page.
+   `sent_resume_id`, `prepare_resume` setting it, Upload in the Apply
+   picker, and the job posting page's "You sent" as a link. Built ahead of
+   it: the Did You Apply? picker and View Resume on the Applications list,
+   its cards and an application's page, both on the posting's last sent
+   resume.
 5. **Generate duplicates.** The live hash check on Generate, and its
    "Duplicate Resume found: <name>" pop-up on the Resumes page.
 6. **Freeze replaced uploads.** Built with step 3: `view_from_reading`,

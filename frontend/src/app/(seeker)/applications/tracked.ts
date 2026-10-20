@@ -41,14 +41,14 @@ export async function getTracked(): Promise<
   };
 }
 
-/** Each job posting's last sent resume, by its name. The list comes newest
- *  first, so the first one per posting is the last sent there, as the job
- *  posting's own page reads it. */
+/** Each job posting's last sent resume. The list comes newest first, so
+ *  the first one per posting is the last sent there, as the job posting's
+ *  own page reads it. */
 function lastSentByJob(sent: SentResume[]) {
-  const byJob = new Map<string, string>();
+  const byJob = new Map<string, SentResume>();
   for (const resume of sent) {
     if (resume.job_posting_id && !byJob.has(resume.job_posting_id)) {
-      byJob.set(resume.job_posting_id, resume.name);
+      byJob.set(resume.job_posting_id, resume);
     }
   }
   return byJob;
@@ -112,7 +112,7 @@ function payPerYearOf(job: JobListing) {
 /** One stored application as a tracker card, with the resume it sent. */
 function toApplication(
   { job, stage, added_at, applied_at, open, match, highlights }: Stored<"saved" | "applied">,
-  resume: string | null,
+  sent: SentResume | null,
 ) {
   return {
     id: job.id,
@@ -130,7 +130,8 @@ function toApplication(
     source: sourceOf(job.apply_url),
     pay: payOf(job),
     payPerYear: payPerYearOf(job),
-    resume,
+    resume: sent?.name ?? null,
+    sentResume: sent && { id: sent.id, name: sent.name, format: sent.format },
     // The Jobs page's own score for the job posting (KAN-256), so a card
     // never disagrees with the feed.
     match: match ?? null,

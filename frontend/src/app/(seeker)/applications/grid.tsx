@@ -10,6 +10,7 @@ import { ApplicationTile } from "./application-tile";
 import { MatchBadge } from "@/components/match-badge";
 import { applicationHref } from "./query";
 import { Reflow } from "@/components/reflow";
+import { ViewResumeButton } from "./view-resume";
 
 /**
  * The applications as a grid of cards, one card per application.
@@ -44,7 +45,8 @@ import { Reflow } from "@/components/reflow";
  * which is the thing the grid would otherwise stop telling you.
  *
  * Like a board card, the whole card opens the application's own page (./[jobId]):
- * the role is the link, stretched over the card.
+ * the role is the link, stretched over the card. A card with a sent resume
+ * adds View Resume above the footer, on a strip that sits over the link.
  */
 function GridCard({ item, href, delay }: { item: Application; href: string; delay: number }) {
   const { stage } = item;
@@ -73,6 +75,16 @@ function GridCard({ item, href, delay }: { item: Application; href: string; dela
           <p className="text-note text-ink-meta mt-1 truncate">{item.company}</p>
         </div>
       </div>
+
+      {/* View Resume (KAN-267) on a strip of its own, above the role's
+          stretched link (relative, z-10): a click anywhere on the strip,
+          the gap around the button too, stays off the link, so a near miss
+          never opens the application. */}
+      {item.sentResume && (
+        <div className="relative z-10 px-3 pt-3">
+          <ViewResumeButton resume={item.sentResume} className="w-full" />
+        </div>
+      )}
 
       {/* mt-auto, so every footer in a row sits on the card's floor even
           when a role above it wraps. */}

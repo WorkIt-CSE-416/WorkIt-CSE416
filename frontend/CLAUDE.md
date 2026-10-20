@@ -155,7 +155,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   cached per request by `getTracker` in `data.ts`), each with the Jobs
   page's own match score (`?scored=true`, KAN-256) and the resume last sent
   to its posting (the sent resumes list; its failure only empties that
-  column). A row or card opens the application's own page,
+  column), which View Resume opens in a dialog (`applications/view-resume.tsx`,
+  KAN-267: `openSentResume`, nothing downloaded). A button inside a
+  clickable row or card must not open the application on a near miss: the
+  list's cell prevents its clicks and the card's strip sits over the
+  stretched link, and a dialog opened from one stops its own clicks, since
+  React passes them up through the portal. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
   dated events stay empty until the API stores them; a failed read shows an
   error, never stand-in cards. A job's application

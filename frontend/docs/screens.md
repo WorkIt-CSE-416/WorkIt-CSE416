@@ -550,10 +550,23 @@ buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
 real link a keyboard reaches. Sorted by Date Applied unless `?sort=` names
 another column (below). Notes / Next Step is a placeholder ("No notes yet") and
 Status is only Saved or Applied until the API stores notes and later
-stages. Resume is the name of the last sent resume linked to the job
+stages. Resume is the last sent resume linked to the job
 posting (`listSentResumes`, as the posting's own page reads it): Apply and
 auto apply keep one, while the plain Applied button sends none, so it says
-"Not sent". Location and Pay print as the Jobs page's card does
+"Not sent". **With one, the cell is View Resume** (KAN-267,
+`applications/view-resume.tsx`): an sm button naming the resume, the cell's
+whole width, that opens it in a dialog over the list. A click anywhere in
+that cell around the button is a near miss and opens nothing (it is
+prevented, which `ClickableRow` leaves alone), and a click inside the
+dialog stops there. The dialog shows the PDF in a frame: a built resume's
+snapshot rendered again, or an uploaded file through a link signed to
+open, not download (asked for again on each open, since it lasts 5
+minutes). A rebuilt upload (its upload replaced or deleted since) says so,
+with Show Original Text for the file's own words. A Word file cannot be
+shown in a browser, so it points to Resumes & Experiences instead.
+Nothing downloads here. A grid card with a sent resume carries the same
+button above its footer, on a strip that sits over the card's stretched
+link, so the strip's gap is no misclick either. Location and Pay print as the Jobs page's card does
 (`jobs/format.ts`). The cells are drawn as the job cards draw their facts
 (`ui/fact.tsx`): a grey glyph, then the value in ink, and a missing value
 in meta grey; Status, Match and Posting are pills (Posting `positive` Open
@@ -690,7 +703,8 @@ URL (`?tab=job` for the second):
   as a spreadsheet next to the app's rounded cards. The match sits right of
   the rest from 576px of card and under it below that. Under the card,
   What You Sent lists every sent resume linked to the
-  posting, or, with none, a dashed placeholder box (the upload dropzone's
+  posting, each as View Resume (above) with its format and a Rebuilt tag
+  for a rebuilt upload, or, with none, a dashed placeholder box (the upload dropzone's
   outline) saying "No resume sent yet". It replaced two lines of
   explanation. Neither Apply nor auto apply keeps the answers typed into
   the employer's form, so the tab cannot show them.
