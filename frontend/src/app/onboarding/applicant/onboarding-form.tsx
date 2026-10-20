@@ -42,8 +42,8 @@ import { StoryPanel } from "./story-panel";
  * right, under the step rail (./steps.ts). Each new question takes focus, so
  * a screen reader hears it.
  *
- * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, experience, job type, start
- * date, workplace, location, salary and visa are a `FeedFilters`, with the
+ * THE ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, job type, start date,
+ * experience level, workplace, location, salary and visa are a `FeedFilters`, with the
  * same options and pickers as All Filters (components/filter-controls), but
  * for two (KAN-275): Start Date offers upcoming seasons only (./page), and
  * Visa Sponsorship has its own two tiles (VISA_PICKS below). Start
@@ -308,19 +308,6 @@ function RoleStep({
           onChange={(next) => set({ roles: next })}
         />
       </Field>
-      <Field Icon={LevelIcon} label="Experience">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
-          {EXPERIENCE_OPTIONS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              pressed={answers.levels.includes(o.value)}
-              onClick={() => set({ levels: toggle(answers.levels, o.value) })}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
-      </Field>
       <Field Icon={BriefcaseIcon} label="Job Type" required>
         <div className="grid grid-cols-2 gap-2 lg:gap-3">
           {JOB_TYPE_OPTIONS.map((o) => (
@@ -364,6 +351,22 @@ function RoleStep({
           )}
         </Field>
       )}
+      {/* After Job Type, which says what kind of job: this says how much
+          experience it asks for, and internships count as Entry Level, so
+          no pair of the two empties the feed (KAN-284). */}
+      <Field Icon={LevelIcon} label="Experience Level">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-3">
+          {EXPERIENCE_OPTIONS.map((o) => (
+            <ChoiceTile
+              key={o.value}
+              pressed={answers.levels.includes(o.value)}
+              onClick={() => set({ levels: toggle(answers.levels, o.value) })}
+            >
+              {o.label}
+            </ChoiceTile>
+          ))}
+        </div>
+      </Field>
       <Field Icon={workStyleIcon("onsite")} label="Workplace" required>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
           {WORKPLACE_OPTIONS.map((o) => (

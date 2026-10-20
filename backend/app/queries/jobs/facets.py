@@ -135,13 +135,24 @@ async def fetch_facets(db: AsyncSession) -> JobFacets:
     return JobFacets(
         work_style=await by(Job_Post.work_style),
         role=await fetch_role_options(db, with_jobs_only=True),
-        experience=await by(Job_Post.experience_level),
+        experience=_entry_level_counts(await by(Job_Post.experience_level)),
         job_type=await by(Job_Post.job_type),
         posted_within=[FacetCount(value=str(d), jobs=n) for d, n in zip((1, 7, 30), posted)],
         visa=[FacetCount(value="sponsors", jobs=sponsors)],
         start_term=_season_counts(await by(Job_Post.start_term), now.date()),
         auto_apply=[FacetCount(value="true", jobs=supported)],
     )
+
+
+def _entry_level_counts(levels: list[FacetCount]) -> list[FacetCount]:
+    '''new_grad's count with the internships (student) added, since the
+    Experience Level filter's Entry Level / New Grad matches both
+    (filters.filter_levels, KAN-284): a count is what picking it shows'''
+    interns = sum(c.jobs for c in levels if c.value == "student")
+    return [
+        FacetCount(value=c.value, jobs=c.jobs + interns) if c.value == "new_grad" else c
+        for c in levels
+    ]
 
 
 def _season_counts(terms: list[FacetCount], today: datetime.date) -> list[FacetCount]:
