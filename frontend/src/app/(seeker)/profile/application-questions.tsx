@@ -103,7 +103,7 @@ export function ApplicationQuestions({
       </div>
       <p className="text-body text-ink-meta mt-1">
         The questions most job applications ask, with your answers. WorkIt keeps them ready for your
-        applications. Only you can see them.
+        applications. Only you can see them here.
       </p>
 
       {editing ? (
