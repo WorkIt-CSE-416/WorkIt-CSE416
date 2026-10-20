@@ -908,7 +908,8 @@ under the heading's text.
   a new tab, printed as the resume header prints it: `linkedin.com/in/jake`)
   or "Not added" in grey. The section's Edit turns every value into a text
   field in place, the first one focused, with Cancel and Save under them;
-  Escape cancels. Clearing a field and saving removes it.
+  Escape cancels. Clearing a field and saving removes it. Save sends what
+  changed since Edit was clicked, as Application Questions does (below).
 - **Tried and dropped on 2026-10-20:** only the filled fields in one row
   under the name (a seeker with no links saw no sign they could add any,
   and nothing said which email it was), then an Add button on each empty

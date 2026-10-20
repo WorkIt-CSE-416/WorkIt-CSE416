@@ -396,6 +396,10 @@ function ContactSection({
   const [draft, setDraft] = useState<Record<ContactField, string>>(() =>
     toDraft(profile, CONTACT_FIELDS),
   );
+  // The profile this edit started from: Save sends what differs from it, so
+  // a background refetch landing mid-edit can't make another tab's newer
+  // values look changed and get overwritten (as Application Questions).
+  const [base, setBase] = useState(profile);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Links that are not web addresses, checked on Save the way the API checks.
@@ -408,6 +412,7 @@ function ContactSection({
 
   function startEditing() {
     setDraft(toDraft(profile, CONTACT_FIELDS));
+    setBase(profile);
     setBadLinks([]);
     setError(null);
     setEditing(true);
@@ -440,7 +445,7 @@ function ContactSection({
     // email", so the page can still say which one it is.
     if (isSignInEmail(draft.contact_email, profile)) values.contact_email = null;
 
-    const fields = changedFields(profile, values);
+    const fields = changedFields(base, values);
     if (Object.keys(fields).length === 0) {
       setEditing(false);
       return;
