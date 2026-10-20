@@ -1,7 +1,17 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
-import { CalendarIcon, CoinIcon, FileIcon, PinIcon, SortIcon } from "@/components/icons";
+import {
+  BriefcaseIcon,
+  CalendarIcon,
+  CoinIcon,
+  ExternalLinkIcon,
+  FileIcon,
+  PencilIcon,
+  PinIcon,
+  SortIcon,
+  workStyleIcon,
+} from "@/components/icons";
 import {
   Table,
   TableBody,
@@ -30,12 +40,15 @@ import {
 import { Reflow } from "./reflow";
 
 /**
- * The applications as a table, one row each: role and company, stage, the
- * resume sent, where the job is, its pay, whether its posting is still open,
- * the day it went in, and the Jobs page's match score (KAN-256). A Next Step
- * column went: with no dated events stored, it said "Nothing scheduled" on
- * every row. There is no closing date: scraped postings state none, so
- * Posting says only Open or Closed.
+ * The applications as a table, one row each, in the order a tracking sheet
+ * reads (KAN-256): Date Applied, Company, Role, Track (the job type), Location,
+ * Work Model, Pay Range, Source (the hiring system its posting is on),
+ * Status, then the extras WorkIt adds: Match, the Resume sent, whether the
+ * Posting is still open, and Notes / Next Step. Company and Role are their own
+ * columns, since a seeker applies to several roles at one company.
+ *
+ * Notes / Next Step is a placeholder for now: nothing stores notes yet, and
+ * Status can only be Saved or Applied until the API keeps later stages.
  *
  * It was a stack of cards holding the grid card's fields, marked in the code
  * as a placeholder. A table is what a list of like records wants: columns a
@@ -45,35 +58,21 @@ import { Reflow } from "./reflow";
  *
  * SORTING IS A LINK, ?sort=, like every other choice on this page, so the
  * table stays a server component and an order can be shared. Two columns
- * sort, each the way it is read: Applied latest first, Match best first.
- * The rest do not; the stage filter above the
- * table is how a stage is picked out. The heading in force says so in
- * aria-sort as well as in its chevron.
+ * sort, each the way it is read: Date Applied latest first, Match best
+ * first. The rest do not; the stage filter above the table is how a stage is
+ * picked out. The heading in force says so in aria-sort as well as in its
+ * chevron.
  *
- * Columns drop out as the page narrows (the page's own width, @container/main,
- * not the window's) rather than the table scrolling sideways, the least
- * scanned first: Pay, Location, Posting, Resume, Applied, then Match,
- * keeping role and stage, the two things a phone still needs. Match outlasts
- * the rest since the list became the primary view (KAN-256): the score is
- * the fact a seeker scans for. Every column shows from 1024px of page,
- * which is why the page takes the Dashboard's width. A row opens its
- * application's own page (./[jobId]); the role is the link, stretched across the row.
+ * IT SCROLLS SIDEWAYS, as a Notion table does, rather than dropping columns:
+ * every column keeps its width and never wraps (shadcn's cell is nowrap), and
+ * the card is the scroll port. The role is capped and cut, with the whole
+ * title on hover. A row opens its application's own page (./[jobId]); the
+ * role is the link, stretched across the row.
  */
 const TH = "px-4 text-note text-ink-meta font-medium";
 /** A plain fact cell: one line of note text in ink, as easy to read as the
  *  role; it was grey, which read as disabled (KAN-256). */
 const TD = "px-4 text-note text-ink";
-
-/** Each optional column, from the one that stays longest to the first to go,
- *  as the page's width (@container/main) reaches it. */
-const SHOW = {
-  match: "hidden @lg/main:table-cell",
-  applied: "hidden @xl/main:table-cell",
-  resume: "hidden @2xl/main:table-cell",
-  posting: "hidden @3xl/main:table-cell",
-  location: "hidden @4xl/main:table-cell",
-  pay: "hidden @5xl/main:table-cell",
-};
 
 /** Which way each sortable column runs, for aria-sort and the chevron. */
 const DIRECTION: Record<Sort, "asc" | "desc"> = { applied: "desc", match: "desc" };
@@ -115,6 +114,30 @@ function SortHead({
   );
 }
 
+/** A fact cell's value, or its missing word a step greyer. */
+function FactCell({
+  Icon,
+  value,
+  missing,
+  title,
+  className,
+}: {
+  Icon: ComponentType<{ className?: string }>;
+  value: ReactNode;
+  missing: string;
+  title?: string;
+  className?: string;
+}) {
+  const has = value != null && value !== "";
+  return (
+    <TableCell className={TD}>
+      <Fact Icon={Icon} title={title} className={cn(className, !has && "text-ink-meta")}>
+        {has ? value : missing}
+      </Fact>
+    </TableCell>
+  );
+}
+
 export function ApplicationsList({
   applications,
   query,
@@ -129,98 +152,103 @@ export function ApplicationsList({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={cn(TH, "w-full")}>Role</TableHead>
-            <TableHead className={TH}>Stage</TableHead>
-            <TableHead className={cn(TH, SHOW.resume)}>Resume</TableHead>
-            <TableHead className={cn(TH, SHOW.location)}>Location</TableHead>
-            <TableHead className={cn(TH, SHOW.pay)}>Pay</TableHead>
-            <TableHead className={cn(TH, SHOW.posting)}>Posting</TableHead>
-            <SortHead sort="applied" query={query} className={SHOW.applied}>
-              Applied
+            <SortHead sort="applied" query={query}>
+              Date Applied
             </SortHead>
-            <SortHead sort="match" query={query} className={SHOW.match}>
+            <TableHead className={TH}>Company</TableHead>
+            <TableHead className={TH}>Role</TableHead>
+            <TableHead className={TH}>Track</TableHead>
+            <TableHead className={TH}>Location</TableHead>
+            <TableHead className={TH}>Work Model</TableHead>
+            <TableHead className={TH}>Pay Range</TableHead>
+            <TableHead className={TH}>Source</TableHead>
+            <TableHead className={TH}>Status</TableHead>
+            <SortHead sort="match" query={query}>
               Match
             </SortHead>
+            <TableHead className={TH}>Resume</TableHead>
+            <TableHead className={TH}>Posting</TableHead>
+            <TableHead className={TH}>Notes / Next Step</TableHead>
           </TableRow>
         </TableHeader>
 
         <TableBody>
-          {rows.map((app, i) => {
-            return (
-              // Fades in down the table on arrival (a row cannot rise: its
-              // transform does not reliably paint), 25ms apart, and glides to
-              // its new place when the sort or a filter moves it.
-              <Reflow key={app.id}>
-                <TableRow
-                  className="hover:bg-hover animate-fade relative"
-                  style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
-                >
-                  {/* w-full with max-w-0 is the table idiom for "take what the
-                    other columns leave, and truncate inside it": without
-                    it a long role sets its own minimum width and the table
-                    scrolls sideways inside the card. */}
-                  <TableCell className="w-full max-w-0 px-4 py-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <ApplicationTile application={app} size="sm" />
-                      <div className="min-w-0">
-                        <Link
-                          href={applicationHref(app.id)}
-                          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
-                        >
-                          {app.role}
-                        </Link>
-                        <p className="text-note text-ink-meta truncate">{app.company}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-4">
-                    <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
-                  </TableCell>
-                  {/* The facts as the job cards draw theirs (ui/fact.tsx): a
-                      grey glyph, then the value in ink. A missing value stays
-                      in meta grey, a step under a real one. The resume is
-                      capped and cut, with the whole name on hover: it is the
-                      student's own and can run long. */}
-                  <TableCell className={cn(TD, SHOW.resume)}>
-                    <Fact
-                      Icon={FileIcon}
-                      title={app.resume ?? undefined}
-                      className={cn("max-w-44", !app.resume && "text-ink-meta")}
+          {rows.map((app, i) => (
+            // Fades in down the table on arrival (a row cannot rise: its
+            // transform does not reliably paint), 25ms apart, and glides to
+            // its new place when the sort or a filter moves it.
+            <Reflow key={app.id}>
+              <TableRow
+                className="hover:bg-hover animate-fade relative"
+                style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+              >
+                <FactCell
+                  Icon={CalendarIcon}
+                  value={app.appliedOn ? <LocalDate at={app.appliedOn} /> : null}
+                  missing="Not yet"
+                />
+                <TableCell className="px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <ApplicationTile application={app} size="sm" />
+                    <span
+                      className="text-label text-ink max-w-40 truncate font-medium"
+                      title={app.company}
                     >
-                      {app.resume ?? "Not sent"}
-                    </Fact>
-                  </TableCell>
-                  <TableCell className={cn(TD, SHOW.location)}>
-                    <Fact Icon={PinIcon} className={cn(!app.location && "text-ink-meta")}>
-                      {app.location ?? "Not listed"}
-                    </Fact>
-                  </TableCell>
-                  <TableCell className={cn(TD, SHOW.pay)}>
-                    <Fact Icon={CoinIcon} className={cn(!app.pay && "text-ink-meta")}>
-                      {app.pay ?? "Not listed"}
-                    </Fact>
-                  </TableCell>
-                  {/* A pill: positive is the badge's tone for a live posting,
-                      inert for one that is over. */}
-                  <TableCell className={cn(TD, SHOW.posting)}>
-                    {app.open === false ? (
-                      <Badge tone="inert">Closed</Badge>
-                    ) : (
-                      <Badge tone="positive">Open</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className={cn(TD, SHOW.applied)}>
-                    <Fact Icon={CalendarIcon} className={cn(!app.appliedOn && "text-ink-meta")}>
-                      {app.appliedOn ? <LocalDate at={app.appliedOn} /> : "Not yet"}
-                    </Fact>
-                  </TableCell>
-                  <TableCell className={cn("px-4", SHOW.match)}>
-                    {app.match != null && <MatchBadge score={app.match} />}
-                  </TableCell>
-                </TableRow>
-              </Reflow>
-            );
-          })}
+                      {app.company}
+                    </span>
+                  </div>
+                </TableCell>
+                {/* Capped and cut, the whole title on hover: scraped titles
+                    run long ("... 2027 in Eurasburg / Bavaria"). */}
+                <TableCell className="px-4">
+                  <Link
+                    href={applicationHref(app.id)}
+                    title={app.role}
+                    className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block max-w-72 truncate rounded-xs font-semibold transition-colors duration-150 after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+                  >
+                    {app.role}
+                  </Link>
+                </TableCell>
+                <FactCell Icon={BriefcaseIcon} value={app.track} missing="Not listed" />
+                <FactCell Icon={PinIcon} value={app.location} missing="Not listed" />
+                <FactCell
+                  Icon={workStyleIcon(app.workModel ?? null)}
+                  value={app.workModel}
+                  missing="Not listed"
+                />
+                <FactCell Icon={CoinIcon} value={app.pay} missing="Not listed" />
+                <FactCell Icon={ExternalLinkIcon} value={app.source} missing="Unknown" />
+                <TableCell className="px-4">
+                  <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>
+                </TableCell>
+                <TableCell className="px-4">
+                  {app.match != null ? (
+                    <MatchBadge score={app.match} />
+                  ) : (
+                    <span className="text-note text-ink-meta">Not scored</span>
+                  )}
+                </TableCell>
+                <FactCell
+                  Icon={FileIcon}
+                  value={app.resume}
+                  missing="Not sent"
+                  title={app.resume ?? undefined}
+                  className="max-w-44"
+                />
+                {/* A pill: positive is the badge's tone for a live posting,
+                    inert for one that is over. */}
+                <TableCell className="px-4">
+                  {app.open === false ? (
+                    <Badge tone="inert">Closed</Badge>
+                  ) : (
+                    <Badge tone="positive">Open</Badge>
+                  )}
+                </TableCell>
+                {/* A placeholder until notes are stored. */}
+                <FactCell Icon={PencilIcon} value={null} missing="No notes yet" />
+              </TableRow>
+            </Reflow>
+          ))}
         </TableBody>
       </Table>
     </Card>

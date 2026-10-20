@@ -54,6 +54,14 @@ export type Application = {
   open?: boolean;
   /** Where the job is, as the Jobs page prints it; null when unstated. */
   location?: string | null;
+  /** Remote, Hybrid or On-Site; null when the posting doesn't say. */
+  workModel?: string | null;
+  /** Its job type, Internship or Full-Time and so on: the list's Track
+   *  column (KAN-256); null when unstated. */
+  track?: string | null;
+  /** The hiring system its posting is on (Greenhouse, Workday...), named
+   *  from its apply link; "Company Site" for any other host. */
+  source?: string | null;
   /** Its pay, as the Jobs page prints it; null when unstated. */
   pay?: string | null;
   /** The name of the resume last sent to its job posting (Apply or auto

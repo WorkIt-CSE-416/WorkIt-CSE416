@@ -465,30 +465,28 @@ since the score is what a seeker scans for.
 company, the day it was saved or sent, and its match score. The grid adds
 the stage pill, which its ungrouped cards would otherwise lose.
 
-**The list is a table of eight columns** (KAN-256): Role, Stage, Resume,
-Location, Pay, Posting, Applied and Match, sorted by Applied unless
-`?sort=match`. Resume is the name of the last sent resume linked to the job
+**The list is a table that scrolls sideways** (KAN-256), as a Notion table
+does, rather than dropping columns as the page narrows. In a tracking
+sheet's order: Date Applied, Company, Role, Track (the job type), Location,
+Work Model, Pay Range, Source (the hiring system the posting is on, named
+from its apply link in `applications/tracked.ts`; "Company Site" for any
+other host), Status (the stage pill), then Match, Resume, Posting and Notes
+/ Next Step. Company and Role are separate columns, since a seeker applies
+to several roles at one company. Sorted by Date Applied unless
+`?sort=match`. Notes / Next Step is a placeholder ("No notes yet") and
+Status is only Saved or Applied until the API stores notes and later
+stages. Resume is the name of the last sent resume linked to the job
 posting (`listSentResumes`, as the posting's own page reads it): Apply and
 auto apply keep one, while the plain Applied button sends none, so it says
 "Not sent". Location and Pay print as the Jobs page's card does
 (`jobs/format.ts`). The cells are drawn as the job cards draw their facts
-(`ui/fact.tsx`): Resume with a file glyph, Location a pin, Pay a coin and
-Applied a calendar, each value in ink and a missing one ("Not listed",
-"Not sent", "Not yet") in meta grey; Stage, Posting and Match are pills
-(Posting `positive` Open or `inert` Closed). Plain grey text in every cell
-read as bland and hard to scan. Posting says Open or Closed and nothing more, because
-scraped postings state no closing date: `job_postings.closes_at` is only set
-when a posting disappears, and the API does not send it. Columns drop out as
-the page narrows, least scanned first (Pay, Location, Posting, Resume,
-Applied, then Match), and all eight show from 1024px of page, so the page
-takes the Dashboard's width (`max-w-dashboard`), not a reading page's. The score is the Jobs page's own: `?scored=true` makes the
-API run `fetch_recommended` over the tracked job postings (and send each
-one's `highlights`)
-(`JobFilters.job_ids`), so a card never disagrees with the feed. A closed
-posting has no score, and neither does any card while the experience bank is
-empty. A summary line and the next step ("Nothing scheduled" on every live
-card, as no dated events are stored) were cut as clutter; the
-application's own page keeps the timeline. Bring the next step back once the tracker stores events.
+(`ui/fact.tsx`): a grey glyph, then the value in ink, and a missing value
+in meta grey; Status, Match and Posting are pills (Posting `positive` Open
+or `inert` Closed). Posting says Open or Closed and nothing more, because
+scraped postings state no closing date: `job_postings.closes_at` is only
+set when a posting disappears, and the API does not send it. The page takes
+the Dashboard's width (`max-w-dashboard`), so most columns show before the
+scroll.
 
 **Application dates are real dates.** Saved and applied dates are the
 instants the API stored (`getNow`, `cache()`d, is what the pages compare

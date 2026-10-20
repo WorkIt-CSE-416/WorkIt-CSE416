@@ -3,7 +3,7 @@ import "server-only";
 import { listSentResumes, type SentResume } from "@/lib/sent-resume-actions";
 
 import { getApplications, type Application as Stored } from "../auto-apply/applications";
-import { formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
+import { formatJobType, formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
 import type { JobListing } from "../jobs/listings";
 import type { Application } from "../tracker";
 
@@ -54,13 +54,34 @@ function lastSentByJob(sent: SentResume[]) {
   return byJob;
 }
 
-/** Where the job is, as the Jobs page's card prints it: its place ("Bellevue,
- *  WA +2 more"), else its work style ("Remote"). */
+/** Where the job is, as the Jobs page's card prints it ("Bellevue, WA +2
+ *  more"). The work style is a column of its own (KAN-256), so it is no
+ *  longer the fallback here. */
 function placeOf(job: JobListing) {
-  return (
-    formatPlaces(job.location_label ?? job.location) ??
-    (job.work_style ? formatWorkStyle(job.work_style) : null)
-  );
+  return formatPlaces(job.location_label ?? job.location);
+}
+
+/** Each hiring system's name, by a piece of its hosts. The scraper reads
+ *  these (scraper/workit_scraper/providers.py); Workday's company job boards
+ *  sit on myworkdayjobs.com. */
+const HIRING_SYSTEMS: [string, string][] = [
+  ["greenhouse.io", "Greenhouse"],
+  ["lever.co", "Lever"],
+  ["ashbyhq.com", "Ashby"],
+  ["myworkdayjobs.com", "Workday"],
+  ["workable.com", "Workable"],
+  ["smartrecruiters.com", "SmartRecruiters"],
+];
+
+/** The hiring system a posting's apply link is on, else "Company Site". */
+function sourceOf(applyUrl: string) {
+  let host: string;
+  try {
+    host = new URL(applyUrl).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  return HIRING_SYSTEMS.find(([piece]) => host.includes(piece))?.[1] ?? "Company Site";
 }
 
 /** Its pay, as the Jobs page's card prints it ("$40 - $50/hr"); null when the
@@ -92,6 +113,9 @@ function toApplication(
     status: open ? undefined : "Posting Closed",
     open,
     location: placeOf(job),
+    workModel: job.work_style ? formatWorkStyle(job.work_style) : null,
+    track: job.job_type ? formatJobType(job.job_type) : null,
+    source: sourceOf(job.apply_url),
     pay: payOf(job),
     resume,
     // The Jobs page's own score for the job posting (KAN-256), so a card
