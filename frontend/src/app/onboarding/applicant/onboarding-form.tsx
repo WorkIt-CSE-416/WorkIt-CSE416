@@ -200,28 +200,35 @@ export function OnboardingForm({
   async function finish(file: File | null) {
     setSaving(true);
     setError(null);
-    // Only the answers changed here go to the bank: it merges them into
-    // what it holds, so one this page didn't load is never erased.
-    const sent = profile;
-    const changed = Object.fromEntries(
-      Object.entries(sent).filter(
-        ([key, value]) => value !== bankSaved.current[key as keyof AutofillAnswers],
-      ),
-    );
-    const { error: bankError } = await saveAutofillAnswers(changed);
-    if (bankError) return fail(bankError);
-    bankSaved.current = sent;
-    // A picked state narrows its country, as All Filters' Apply does.
-    const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
-    if (saveError) return fail(saveError);
-    if (file) {
-      const fd = new FormData();
-      fd.append("file", file);
-      setUploading(true);
-      const { error: uploadError } = await uploadResume(fd);
-      if (uploadError) return fail(uploadError);
+    // Each action catches its own API failures, but the call to the action
+    // can itself fail (the connection drops, the Next server is down). That
+    // left Continue disabled on "Saving…" with no message.
+    try {
+      // Only the answers changed here go to the bank: it merges them into
+      // what it holds, so one this page didn't load is never erased.
+      const sent = profile;
+      const changed = Object.fromEntries(
+        Object.entries(sent).filter(
+          ([key, value]) => value !== bankSaved.current[key as keyof AutofillAnswers],
+        ),
+      );
+      const { error: bankError } = await saveAutofillAnswers(changed);
+      if (bankError) return fail(bankError);
+      bankSaved.current = sent;
+      // A picked state narrows its country, as All Filters' Apply does.
+      const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
+      if (saveError) return fail(saveError);
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        setUploading(true);
+        const { error: uploadError } = await uploadResume(fd);
+        if (uploadError) return fail(uploadError);
+      }
+      router.push("/jobs");
+    } catch {
+      fail("Could not reach the server. Check your connection and try again.");
     }
-    router.push("/jobs");
   }
 
   function fail(message: string) {
