@@ -307,8 +307,17 @@ would change a moment after the page loads.
 **Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
-behind the new tab and asks "Did You Apply?". Yes, I Applied calls
-`markApplied` (`jobs/actions.ts`); Not Yet closes it. A job already marked is
+behind the new tab and asks "Did You Apply?". **It shows the resume they
+applied with** (KAN-267), under "Resume You Sent": the resumes Pick a
+Resume lists plus No Resume, starting on the one picked at Apply, or No
+Resume after Apply Without a Resume. The student can change it, since they
+may have attached another file on the employer's page. Yes, I Applied keeps
+a resume other than the one sent as a sent resume for this posting first
+(`applyWithResume`), so the page's "You sent <name>" names it, then calls
+`markApplied` (`jobs/actions.ts`); Not Yet closes it. No Resume after a
+send leaves that sent resume as it is: nothing links an application to
+its resume until `job_applications.sent_resume_id` (docs/sent_resume.md,
+step 4). A job already marked is
 never asked about again, and anyone else's dialog just closes. The page then
 reads "You applied on Oct 17, 2026" under the header (`AppliedNote`), the
 viewer's own day after hydration. An Applied button in the header did this

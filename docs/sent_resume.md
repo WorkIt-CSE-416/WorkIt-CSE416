@@ -423,6 +423,15 @@ You Apply? step, with "I didn't send a resume" as one choice. Picking a
 resume there calls `POST .../sent-resumes` first (flow 4's Apply, without
 giving a file), then this route with its id.
 
+Built, ahead of step 4 (the picker only): "Did You Apply?" lists the
+resumes under "Resume You Sent", plus No Resume, starting on the one sent
+at Apply (No Resume after Apply Without a Resume), and the student can
+change it. Yes keeps a resume other than the one sent as a sent resume for
+the posting (`applyWithResume`), then marks the job applied as before.
+Step 4 adds the `sent_resume_id` the route takes; until then the job
+posting's "You sent <name>" (its last sent resume) is the only record of
+which one, and No Resume after a send changes nothing.
+
 ### 6. Auto apply
 
 `pipeline.prepare_resume` calls `send_built` / `send_uploaded` as today, and

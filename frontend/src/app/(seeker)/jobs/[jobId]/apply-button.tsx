@@ -25,6 +25,16 @@ import { markApplied } from "../actions";
 type Choice = { key: string; label: string; kind: string; source: Source; isDefault: boolean };
 type Source = { builtResumeId: string } | { uploadedResumeId: string };
 
+/** "Did You Apply?"'s own choice: the student applied without a resume. */
+const NO_RESUME = "none";
+
+/** The choice a sent resume came from, as `load` keys them. */
+function sentKey(sent: SentDownload): string {
+  return sent.built_resume_id
+    ? `built:${sent.built_resume_id}`
+    : `uploaded:${sent.uploaded_resume_id}`;
+}
+
 /**
  * "Pick a resume, then Apply" (KAN-220). Apply Now asks which resume the
  * student sends, keeps that exact file as a sent resume linked to this
@@ -40,7 +50,12 @@ type Source = { builtResumeId: string } | { uploadedResumeId: string };
  *
  * "Did You Apply?" (KAN-242). Once the student leaves for the employer's
  * posting, the dialog stays open behind the new tab and asks; Yes marks the
- * job applied (KAN-232), which takes it off their Jobs page. It replaced an
+ * job applied (KAN-232), which takes it off their Jobs page. It shows the
+ * resume they applied with (KAN-267): the one picked at Apply, else No
+ * Resume (Apply Without a Resume), and they can change it, since they may
+ * have attached another on the employer's page. A resume other than the one
+ * sent is kept as a sent resume for this posting first (`applyWithResume`),
+ * so "You sent <name>" names it. It replaced an
  * Applied button in the page's header, where one misclick marked a job
  * applied with no undo. It asks only a signed-in applicant (`canMarkApplied`)
  * who has not marked this job already (`applied`).
@@ -70,6 +85,8 @@ export function ApplyButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  // "Did You Apply?"'s pick: a choice's key, or NO_RESUME.
+  const [appliedWith, setAppliedWith] = useState(NO_RESUME);
 
   async function load() {
     setChoices(null);
@@ -130,9 +147,23 @@ export function ApplyButton({
     router.refresh();
   }
 
+  function ask() {
+    setAppliedWith(sent ? sentKey(sent) : NO_RESUME);
+    setError(null);
+    setAsking(true);
+  }
+
   async function confirmApplied() {
     setBusy(true);
     setError(null);
+    const choice = choices?.find((c) => c.key === appliedWith);
+    if (choice && (!sent || sentKey(sent) !== choice.key)) {
+      const kept = await applyWithResume(choice.source, jobId);
+      if (!kept.data) {
+        setBusy(false);
+        return setError(kept.error);
+      }
+    }
     const result = await markApplied(jobId);
     setBusy(false);
     if (result.error) return setError(result.error);
@@ -149,7 +180,7 @@ export function ApplyButton({
       className={buttonClasses({ variant })}
       // The posting opens in a new tab; this dialog stays to ask whether they
       // applied, for when they come back. Anyone it can't mark just closes it.
-      onClick={() => (canMarkApplied && !applied ? setAsking(true) : setOpen(false))}
+      onClick={() => (canMarkApplied && !applied ? ask() : setOpen(false))}
     >
       {label}
       <ExternalLinkIcon className="size-4" />
@@ -179,10 +210,22 @@ export function ApplyButton({
               <DialogHeader>
                 <DialogTitle className="text-subtitle font-semibold">Did You Apply?</DialogTitle>
                 <DialogDescription>
-                  If you sent your application for {title}, mark it applied and WorkIt takes it off
-                  your Jobs page.
+                  If you sent your application for {title}, check the resume you sent and mark it
+                  applied. WorkIt takes it off your Jobs page.
                 </DialogDescription>
               </DialogHeader>
+              {choices != null && (
+                <ResumeChoices
+                  legend="Resume You Sent"
+                  name="applied-with"
+                  choices={[
+                    ...choices,
+                    { key: NO_RESUME, label: "No Resume", kind: "I applied without one" },
+                  ]}
+                  picked={appliedWith}
+                  onPick={setAppliedWith}
+                />
+              )}
               {error && <p className="text-meta text-danger">{error}</p>}
               <DialogFooter>
                 <Button variant="secondary" onClick={() => setOpen(false)}>
@@ -249,28 +292,14 @@ export function ApplyButton({
                   </p>
                 )
               ) : (
-                <fieldset className="flex flex-col gap-1">
-                  <legend className="sr-only">Resume to send</legend>
-                  {choices.map((c) => (
-                    <label
-                      key={c.key}
-                      className="hover:bg-hover has-checked:border-brand border-border rounded-control flex cursor-pointer items-center gap-3 border px-3 py-2"
-                    >
-                      <input
-                        type="radio"
-                        name="resume"
-                        value={c.key}
-                        checked={picked === c.key}
-                        onChange={() => setPicked(c.key)}
-                        className="accent-brand"
-                      />
-                      <span className="flex min-w-0 flex-col">
-                        <span className="text-body text-ink truncate">{c.label}</span>
-                        <span className="text-note text-ink-meta">{c.kind}</span>
-                      </span>
-                    </label>
-                  ))}
-                </fieldset>
+                <ResumeChoices
+                  legend="Resume to Send"
+                  hideLegend
+                  name="resume"
+                  choices={choices}
+                  picked={picked}
+                  onPick={setPicked}
+                />
               )}
               {error && <p className="text-meta text-danger">{error}</p>}
               <DialogFooter>
@@ -284,5 +313,47 @@ export function ApplyButton({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/** One radio row per resume, its name over its kind. */
+function ResumeChoices({
+  legend,
+  hideLegend = false,
+  name,
+  choices,
+  picked,
+  onPick,
+}: {
+  legend: string;
+  hideLegend?: boolean;
+  name: string;
+  choices: { key: string; label: string; kind: string }[];
+  picked: string | null;
+  onPick: (key: string) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-1">
+      <legend className={hideLegend ? "sr-only" : "text-label text-ink mb-1"}>{legend}</legend>
+      {choices.map((c) => (
+        <label
+          key={c.key}
+          className="hover:bg-hover has-checked:border-brand border-border rounded-control flex cursor-pointer items-center gap-3 border px-3 py-2"
+        >
+          <input
+            type="radio"
+            name={name}
+            value={c.key}
+            checked={picked === c.key}
+            onChange={() => onPick(c.key)}
+            className="accent-brand"
+          />
+          <span className="flex min-w-0 flex-col">
+            <span className="text-body text-ink truncate">{c.label}</span>
+            <span className="text-note text-ink-meta">{c.kind}</span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
   );
 }
