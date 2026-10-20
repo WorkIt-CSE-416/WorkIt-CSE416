@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
  * A list row that opens its application on a click anywhere in it (KAN-256).
  *
  * The role's link used to be stretched over the row (an absolute ::after),
- * but the frozen Company and Role cells are `position: sticky`, and a sticky
+ * but the frozen Role cell is `position: sticky`, and a sticky
  * cell is the containing block for an absolute child, so the stretch shrank
  * to the role's own cell. The row handles the click instead. The role stays
  * a real link, which a keyboard reaches and a middle click opens in a new

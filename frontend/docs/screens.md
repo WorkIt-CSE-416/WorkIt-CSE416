@@ -467,21 +467,24 @@ the stage pill, which its ungrouped cards would otherwise lose.
 
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
 does, rather than dropping columns as the page narrows. In the order job
-trackers read: who and what (Company, Role), where it stands (Status, Date
+trackers read: what and who (Role, with its company), where it stands (Status, Date
 Applied), how good it is (Match), the job's facts (Track, the job type;
 Location; Work Model; Pay Range), where and what was sent (Source, the
 hiring system the posting is on, named from its apply link in
 `applications/tracked.ts`, "Company Site" for any other host; Resume;
 Posting), and Notes / Next Step last, the widest and least scanned.
-Company and Role are separate columns, since a seeker applies to several
-roles at one company, and **both stay frozen** at the left while the rest
-scrolls under them (sticky cells: Company at the left edge, Role after it
-at whatever width Company has, each painting the row's background and its
-hover tint; the edge is a shadow, since a collapsed table's borders don't
-move with a sticky cell). **They freeze from 768px of page up only**: at
-their 496px they are wider than a phone's whole table, and frozen there
-they covered it, so the scroll showed no other column; below 768px they
-scroll with the rest. A sticky
+**Role is one column holding the company too**: the company's logo, then
+the role (bold, the row's link, cut with the whole title on hover) over the
+company's name in meta grey. KAN-256 split them into two frozen columns,
+Company then Role; together they took about 500px, so few other columns
+showed, and KAN-282 stacked them again. The company is still its own field
+for the Filter button and the sort. **Role stays frozen** at the left
+while the rest scrolls under it (a sticky cell painting the row's
+background and its hover tint; the edge is a shadow, since a collapsed
+table's borders don't move with a sticky cell). **It freezes from 672px of
+page up only**: at 320px it is about a phone's whole table, and frozen
+there it covered it, so the scroll showed no other column; below 672px it
+scrolls with the rest. A sticky
 cell traps a stretched link, so **the row opens the application on a click
 anywhere** (`applications/clickable-row.tsx`), leaving clicks on links and
 buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
@@ -517,8 +520,9 @@ filtered.
   at once while the server filters, as the Jobs page's facets do. The
   button shows its pick count and the brand tint while it holds picks; the
   stage chips' counts and Clear Filters include them.
-- **Sort**: five headings sort, each one way, the way it is read: Company
-  A to Z, Status furthest along first, Date Applied latest first, Match
+- **Sort**: five headings sort, each one way, the way it is read: Role by
+  its company A to Z, then by role, so a company's roles sit together
+  (`?sort=company`; the heading's tooltip says so), Status furthest along first, Date Applied latest first, Match
   best first, Pay Range best first (the top of the range as a yearly
   figure, `payPerYear` in `applications/tracked.ts`, so hourly and yearly
   pay compare). A missing value goes last either way. A heading moves
@@ -529,7 +533,7 @@ filtered.
   double-click the edge to reset it, or focus the edge and use the arrow
   keys; hide and show columns from the **Columns** menu at the bar's right
   end, which shows only in the list view and also has Reset Columns.
-  Company and Role cannot move or hide. Each column has a fixed width
+  Role cannot move or hide. Each column has a fixed width
   (a fixed table layout) and cuts what does not fit, with the whole value
   on hover; an empty last column takes the card's spare width, so a resize
   never stretches the others. A drag needs a mouse: a phone keeps the
@@ -539,7 +543,8 @@ filtered.
   key, so Sign Out clears it. The server draws the default and the stored
   layout swaps in after hydration. It is not in the URL, since a shared
   link should carry the view, not the sender's column widths; keeping it
-  per account needs an API change.
+  per account needs an API change. A layout stored under column ids that
+  are gone (the old Company column) drops them on reading.
 - A resize press cancels the browser's default, and no move starts during
   a resize: shrinking a column slid the next heading under the pointer,
   Chrome began dragging that heading, the mouse-up never reached the

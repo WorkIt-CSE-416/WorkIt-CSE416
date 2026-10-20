@@ -127,8 +127,8 @@ export function FilterMenu({ options }: { options: Filters }) {
 
 /**
  * Shows and hides the list's columns, in the table's own order, and resets
- * the layout: order, hidden columns and widths (./column-layout.ts). Company
- * and Role are listed but cannot be unticked: they are frozen.
+ * the layout: order, hidden columns and widths (./column-layout.ts). Role
+ * is listed but cannot be unticked: it is frozen.
  */
 export function ColumnsMenu({ className }: { className?: string }) {
   const layout = useColumnLayout();

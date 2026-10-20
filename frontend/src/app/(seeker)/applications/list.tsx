@@ -68,19 +68,21 @@ import {
   type ColumnLayout,
 } from "./column-layout";
 import { MatchBadge } from "./match-badge";
-import { applicationHref, applicationsHref, SORTS, type Sort } from "./query";
+import { applicationHref, applicationsHref, type Sort } from "./query";
 import { Reflow } from "./reflow";
 import { useApplicationsQuery } from "./view-switcher";
 
 /**
  * The applications as a table, one row each, in the order job trackers read
- * (KAN-256): who and what (Company, Role), where it stands (Status, Date
+ * (KAN-256): what and who (Role, with its company under it), where it stands (Status, Date
  * Applied), how good it is (Match), the job's facts (Track, the job type;
  * Location; Work Model; Pay Range), where and what was sent (Source, the
  * hiring system its posting is on; Resume; Posting, open or not), and Notes /
- * Next Step last, the widest and least scanned. Company and Role are their
- * own columns, since a seeker applies to several roles at one company, and
- * both stay frozen at the left while the rest scrolls.
+ * Next Step last, the widest and least scanned. Role stays frozen at the
+ * left while the rest scrolls. Company and Role were two frozen columns
+ * (KAN-256) until they took so much width that few other columns showed;
+ * stacked in one again, the company's name is still filtered and sorted on
+ * as its own field.
  *
  * Notes / Next Step is a placeholder for now: nothing stores notes yet, and
  * Status can only be Saved or Applied until the API keeps later stages.
@@ -94,13 +96,14 @@ import { useApplicationsQuery } from "./view-switcher";
  * a Notion table: drag a heading to a new place, resize a column by its
  * heading's right edge (or its arrow keys), and hide columns from the
  * Columns menu in the filter bar. That layout is this browser's
- * (./column-layout.ts); the frozen two cannot move or hide.
+ * (./column-layout.ts); the frozen Role column cannot move or hide.
  *
  * SORTING IS IN THE URL, ?sort=, like every other choice on this page, so an
  * order can be shared and Back undoes it. A heading moves it in place
  * (components/shallow-routing.tsx): the rows are already here, and the table
  * sorts them itself. Five columns sort, each one way, the way it is read
- * (SORT_DESC): Company A to Z, Status furthest along first, Date Applied
+ * (SORT_DESC): Role by its company A to Z (then by role, so a company's
+ * roles sit together; `?sort=company`), Status furthest along first, Date Applied
  * latest first, Match best first, Pay Range best first. What has no value
  * to sort by goes last either way, in the order it came in. The rest do not
  * sort; the filters above the table pick those out. The heading in force
@@ -134,16 +137,33 @@ const SORT_DESC: Record<Sort, boolean> = {
   pay: true,
 };
 
-/** What a sortable column sorts by; undefined sorts last. */
+/** What a sortable column sorts by; undefined sorts last. The company
+ *  sort keeps a company's roles together, A to Z within it. */
 const SORT_VALUE: Record<Sort, (app: Application) => string | number | undefined> = {
-  company: (app) => app.company,
+  company: (app) => `${app.company}\u0000${app.role}`,
   status: (app) => STAGE_ORDER.indexOf(app.stage),
   applied: (app) => (app.appliedOn ? sortKey(app.appliedOn) : undefined),
   match: (app) => app.match ?? undefined,
   pay: (app) => app.payPerYear ?? undefined,
 };
 
-const isSort = (id: string): id is Sort => SORTS.includes(id as Sort);
+/** The sort each sortable column's heading picks. Role's is `company`: the
+ *  merged column sorts by its company, the URL keeping the older name. */
+const COLUMN_SORT: Partial<Record<ColumnId, Sort>> = {
+  role: "company",
+  status: "status",
+  applied: "applied",
+  match: "match",
+  pay: "pay",
+};
+
+/** The column a sort is drawn on. */
+const SORT_COLUMN = Object.fromEntries(
+  Object.entries(COLUMN_SORT).map(([id, sort]) => [sort, id]),
+) as Record<Sort, ColumnId>;
+
+/** What a sort's heading says it sorts by, when that is not the heading. */
+const SORT_HINT: Partial<Record<Sort, string>> = { company: "Sort by company, A to Z" };
 
 /** A fact cell's value, or its missing word a step greyer. */
 function FactValue({
@@ -168,25 +188,27 @@ function FactValue({
 /** Each column's cell. The cells are drawn as the job cards draw their facts
  *  (ui/fact.tsx); Status, Match and Posting are pills. */
 const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
-  company: (app) => (
-    <div className="flex min-w-0 items-center gap-2.5">
-      <ApplicationTile application={app} size="sm" />
-      <span className="text-label text-ink min-w-0 truncate font-medium" title={app.company}>
-        {app.company}
-      </span>
-    </div>
-  ),
-  // Cut to its column, the whole title on hover: scraped titles run long
-  // ("... 2027 in Eurasburg / Bavaria"). The row opens on a click anywhere
-  // (./clickable-row.tsx); this is the link a keyboard reaches.
+  // The logo, then the role over its company, as the list drew it before
+  // KAN-256. The role is cut to the column, the whole title on hover:
+  // scraped titles run long ("... 2027 in Eurasburg / Bavaria"). The row
+  // opens on a click anywhere (./clickable-row.tsx); the role is the link a
+  // keyboard reaches.
   role: (app) => (
-    <Link
-      href={applicationHref(app.id)}
-      title={app.role}
-      className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-    >
-      {app.role}
-    </Link>
+    <div className="flex min-w-0 items-center gap-3">
+      <ApplicationTile application={app} size="sm" />
+      <div className="min-w-0">
+        <Link
+          href={applicationHref(app.id)}
+          title={app.role}
+          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        >
+          {app.role}
+        </Link>
+        <p className="text-note text-ink-meta truncate" title={app.company}>
+          {app.company}
+        </p>
+      </div>
+    </div>
   ),
   status: (app) => <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>,
   applied: (app) => (
@@ -241,14 +263,14 @@ const helper = createColumnHelper<typeof FEATURES, Application>();
 /** Built once: `columns` must keep its identity between renders. */
 const COLUMN_DEFS = helper.columns(
   COLUMNS.map(({ id, label, width }) =>
-    helper.accessor((app) => (isSort(id) ? SORT_VALUE[id](app) : undefined), {
+    helper.accessor((app) => (COLUMN_SORT[id] ? SORT_VALUE[COLUMN_SORT[id]](app) : undefined), {
       id,
       header: label,
       size: width,
       minSize: MIN_WIDTH,
       maxSize: MAX_WIDTH,
-      enableSorting: isSort(id),
-      sortFn: id === "company" ? "text" : "basic",
+      enableSorting: COLUMN_SORT[id] != null,
+      sortFn: COLUMN_SORT[id] === "company" ? "text" : "basic",
       sortUndefined: "last",
     }),
   ),
@@ -261,16 +283,16 @@ const TH = "px-4 text-note text-ink-meta font-medium";
  *  role; it was grey, which read as disabled (KAN-256). */
 const TD = "px-4 text-note text-ink";
 /** A frozen cell paints the row's own background (white, the hover tint
- *  with the row) so scrolled cells don't show through. FROZEN FROM 768PX OF
- *  PAGE UP: Company and Role start at 496px together, more than a phone's
- *  whole table, so frozen there they covered it and the scroll showed
- *  nothing else. Below that they scroll with the rest. Its place is a
- *  custom property, not `left`, which would shift a narrow page's
- *  `relative` heading. */
-const FROZEN_CELL = "z-1 bg-panel @3xl/main:sticky @3xl/main:left-(--frozen-left)";
+ *  with the row) so scrolled cells don't show through. FROZEN FROM 672PX OF
+ *  PAGE UP: Role starts at 320px, about a phone's whole table, so frozen
+ *  there it covered it and the scroll showed nothing else; below that it
+ *  scrolls with the rest. 672px, not 768px, so a 1024px laptop window
+ *  still freezes it. Its place is a custom property, not `left`, which
+ *  would shift a narrow page's `relative` heading. */
+const FROZEN_CELL = "z-1 bg-panel @2xl/main:sticky @2xl/main:left-(--frozen-left)";
 /** The last frozen column draws the edge the scrolled cells pass under: a
  *  shadow, since a collapsed table's borders don't move with a sticky cell. */
-const FROZEN_EDGE = "@3xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
+const FROZEN_EDGE = "@2xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
 const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
 
 /** How far one arrow key press resizes a column. */
@@ -289,7 +311,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
     getRowId: (app) => app.id,
     columnResizeMode: "onChange",
     state: {
-      sorting: [{ id: query.sort, desc: SORT_DESC[query.sort] }],
+      sorting: [{ id: SORT_COLUMN[query.sort], desc: SORT_DESC[query.sort] }],
       columnPinning: PINNING,
       columnOrder: [...FROZEN, ...layout.order],
       columnVisibility: Object.fromEntries(layout.hidden.map((id) => [id, false])),
@@ -304,8 +326,8 @@ export function ApplicationsList({ applications }: { applications: Application[]
 
   const lastFrozen = FROZEN[FROZEN.length - 1];
 
-  /** A frozen column's sticky place: Company at the left edge, Role right
-   *  after it, at whatever width Company has. */
+  /** A frozen column's sticky place, after the frozen columns before it:
+   *  today Role alone, at the left edge. */
   function frozenStyle(id: ColumnId) {
     const column = table.getColumn(id);
     return column?.getIsPinned()
@@ -368,7 +390,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
                       className={cn(
                         TD,
                         "overflow-hidden",
-                        id === "company" && "py-3",
+                        id === "role" && "py-3",
                         frozenClasses(id),
                         FROZEN.includes(id) && FROZEN_HOVER,
                       )}
@@ -434,8 +456,9 @@ function HeadCell({
   const column = header.column;
   const id = column.id as ColumnId;
   const movable = !FROZEN.includes(id);
-  const active = isSort(id) && sort === id;
-  const direction = isSort(id) ? (SORT_DESC[id] ? "desc" : "asc") : undefined;
+  const columnSort = COLUMN_SORT[id];
+  const active = columnSort != null && sort === columnSort;
+  const direction = columnSort ? (SORT_DESC[columnSort] ? "desc" : "asc") : undefined;
   const resize = header.getResizeHandler();
   const width = header.getSize();
 
@@ -495,10 +518,11 @@ function HeadCell({
           drag?.id === id && "opacity-50",
         )}
       >
-        {isSort(id) ? (
+        {columnSort ? (
           <button
             type="button"
-            onClick={() => onSort(id)}
+            onClick={() => onSort(columnSort)}
+            title={SORT_HINT[columnSort]}
             className="hover:text-ink focus-visible:ring-brand-ring inline-flex min-w-0 items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
           >
             <span className="truncate">{label}</span>

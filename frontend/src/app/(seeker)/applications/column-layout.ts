@@ -7,16 +7,21 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  * them (KAN-282): the order, the hidden columns and the widths.
  *
  * The columns run in the order job trackers read (KAN-256); `width` is each
- * one's starting width in px, what Reset Columns goes back to. Company and
- * Role are FROZEN: always first, always shown, pinned at the left while the
- * rest scroll under them. Every other column can be dragged to a new place,
- * hidden from the Columns menu, and resized by its heading's edge.
+ * one's starting width in px, what Reset Columns goes back to. Role is
+ * FROZEN: always first, always shown, pinned at the left while the rest
+ * scroll under it. It holds the company too, the role over the company's
+ * name: Company was its own frozen column until the two took too much of
+ * the width, and the role and company read as one fact anyway. Every other
+ * column can be dragged to a new place, hidden from the Columns menu, and
+ * resized by its heading's edge.
  *
  * THE LAYOUT IS A PREFERENCE OF THIS BROWSER, not of the view, so it stays
  * out of the URL (./query.ts holds what a shared link should carry: the
  * filters and the sort). It lives in localStorage under a lib/local-drafts.ts
  * key, which Sign Out clears, so the next person in this browser starts from
- * the default. Keeping it per account needs the API to store it.
+ * the default. Keeping it per account needs the API to store it. A layout
+ * stored under old column ids (the separate Company column) loses those
+ * ids on reading (`parse`), so it never breaks the table.
  *
  * An external store (useSyncExternalStore), because the table and the
  * Columns menu in the filter bar both read and write it. The server, and the
@@ -26,8 +31,7 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  * object, and one that finds the key gone (Sign Out) returns the default.
  */
 export const COLUMNS = [
-  { id: "company", label: "Company", width: 208 },
-  { id: "role", label: "Role", width: 288 },
+  { id: "role", label: "Role", width: 320 },
   { id: "status", label: "Status", width: 128 },
   { id: "applied", label: "Date Applied", width: 152 },
   { id: "match", label: "Match", width: 128 },
@@ -43,7 +47,7 @@ export const COLUMNS = [
 
 export type ColumnId = (typeof COLUMNS)[number]["id"];
 
-export const FROZEN: ColumnId[] = ["company", "role"];
+export const FROZEN: ColumnId[] = ["role"];
 
 /** The columns that move and hide, in their default order. */
 const MOVABLE = COLUMNS.map(({ id }) => id).filter((id) => !FROZEN.includes(id));
