@@ -10,8 +10,8 @@ import type { Application } from "../tracker";
  * All of it lives in the query string rather than in component state, so it
  * survives a reload, the back button undoes it, and it can be linked to: the
  * Dashboard's Waiting opens `/applications?view=list&stage=applied`. The
- * server does the filtering, so the stage chips are links, and a pick in a
- * field's dropdown or in All Filters replaces the URL. The layout switcher and the list's sort
+ * server does the filtering, so a pick in a dropdown (Status or a field) or
+ * in All Filters replaces the URL. The layout switcher and the list's sort
  * headings move ?view= and ?sort= in place (./view-switcher.tsx), since the
  * browser already holds what they show: the list sorts itself (./list.tsx).
  * The list's column layout is not here: it is a per-browser preference
@@ -39,7 +39,7 @@ export const DEFAULT_SORT: Sort = "applied";
 
 /** The filter fields beside the stages (KAN-282): the Application field each one
  *  reads, its URL parameter and its label. A field takes any number of
- *  values, as the stage chips do, and a value is the cell's own text. */
+ *  values, as Status does, and a value is the cell's own text. */
 export const FILTER_FIELDS = [
   { key: "company", param: "company", label: "Company" },
   { key: "track", param: "track", label: "Track" },

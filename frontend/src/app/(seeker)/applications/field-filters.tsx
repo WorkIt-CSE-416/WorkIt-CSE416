@@ -1,16 +1,24 @@
 "use client";
 
+import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useRef, useState, type ComponentType, type ReactNode } from "react";
 
 import {
   BriefcaseIcon,
   ChevronDownIcon,
   CompanyIcon,
   ExternalLinkIcon,
+  SearchIcon,
   workStyleIcon,
 } from "@/components/icons";
 import { OptionChip as Chip, SearchPicker } from "@/components/filter-controls";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxTrigger,
+} from "@/components/shadcn/combobox";
 import { Dialog, DialogContent, DialogTitle } from "@/components/shadcn/dialog";
 import {
   DropdownMenu,
@@ -21,7 +29,7 @@ import { Button, buttonClasses } from "@/components/ui/button";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { cn } from "@/lib/cn";
 
-import { STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
 import { StatusIcon } from "./icons";
 import {
   filterApplications,
@@ -32,22 +40,28 @@ import {
 } from "./query";
 
 /**
- * The Applications filters past the stage chips (KAN-282), laid out as the
- * Jobs page lays out its own (jobs/filters.tsx, jobs/all-filters.tsx): a row
- * of dropdowns, one per field, then All Filters, a panel with every field.
+ * The Applications filters (KAN-282), laid out as the Jobs page lays out its
+ * own (jobs/filters.tsx, jobs/all-filters.tsx): a row of dropdowns, Status
+ * then one per field, then All Filters, a panel with every one of them.
  *
- * A FIELD'S DROPDOWN looks like a Jobs page facet: a small secondary button
- * with the field's glyph (the one its list cell draws), its label and a
- * chevron, taking the brand tint while it holds a pick and is closed. Its
- * menu is checkbox rows (ui/check-row.tsx), every value the tracked
- * applications hold, and a pick leaves it open for the next.
+ * A DROPDOWN looks like a Jobs page facet: a small secondary button with the
+ * field's glyph (the one its list cell draws; Status's own), its label and
+ * a chevron, taking the brand tint while it holds a pick and is closed. Its
+ * list is checkbox rows (ui/check-row.tsx), and a pick leaves it open for
+ * the next. Status lists the four stages, each with its stage's glyph in
+ * the stage's colour; the fields list every value the tracked applications
+ * hold. Status was a row of chips until the row was rebuilt as dropdowns
+ * (asked for 2026-10-19).
  *
- * ALL FILTERS holds Status (the stage chips' choice) and every field, each a
- * section of option chips under its glyph; Company, whose list grows with
- * every application, is a search picker. As on the Jobs page, the picks are
- * a draft until "Show 12 Applications", which counts the draft in the
- * browser (the bar holds what each tracked application is filtered on), and
- * closing without it drops the draft.
+ * COMPANY HAS A SEARCH FIELD at the top of its list, as the Jobs page's
+ * Role dropdown does (RoleFacetOptions there), since its list grows with
+ * every application: typing narrows it, and a pick keeps the search.
+ *
+ * ALL FILTERS holds Status and every field, each a section of option chips
+ * under its glyph; Company there is a search picker. As on the Jobs page,
+ * the picks are a draft until "Show 12 Applications", which counts the
+ * draft in the browser (the bar holds what each tracked application is
+ * filtered on), and closing without it drops the draft.
  *
  * Either way the picks become the URL (./query.ts) and the server filters on
  * them; the bar shows them at once meanwhile (`apply` in ./filter-bar.tsx).
@@ -56,6 +70,9 @@ import {
 export type Picks = { stages: StageKey[]; filters: Filters };
 
 type Glyph = ComponentType<{ className?: string }>;
+
+/** One option in a dropdown: a glyph only where it differs by option. */
+export type FacetOption = { value: string; label: string; Icon?: Glyph; iconClassName?: string };
 
 /** Each field's glyph: the one its list cell draws. Work Model's is the
  *  Jobs page's Workplace glyph. */
@@ -66,8 +83,18 @@ export const FIELD_ICON: Record<FilterKey, Glyph> = {
   source: ExternalLinkIcon,
 };
 
+/** Status's options: each stage with its glyph in its own colour, as the
+ *  stage chips did (KAN-256) (the text colour that reads on its tint clears 3:1
+ *  on white too). */
+export const STATUS_OPTIONS: FacetOption[] = STAGE_ORDER.map((stage) => ({
+  value: stage,
+  label: STAGE_LABEL[stage],
+  Icon: STAGE_ICON[stage],
+  iconClassName: STAGE_COLOR[stage].onTint,
+}));
+
 /** The Jobs page facet's look: a small secondary button with the brand
- *  tint while it holds a pick and its menu is closed. */
+ *  tint while it holds a pick and its list is closed. */
 function facetClasses(active: boolean, className?: string) {
   return cn(
     buttonClasses({ variant: "secondary", size: "sm" }),
@@ -77,7 +104,43 @@ function facetClasses(active: boolean, className?: string) {
   );
 }
 
-/** One field as a dropdown in the row. */
+/** A dropdown button's glyph and label, and its pick count for a screen
+ *  reader (the tint says it by colour alone). */
+function FacetLabel({
+  Icon,
+  label,
+  active,
+  count,
+}: {
+  Icon: Glyph;
+  label: string;
+  active: boolean;
+  count: number;
+}) {
+  return (
+    <>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <Icon className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")} />
+        <span className="truncate">{label}</span>
+      </span>
+      {count > 0 && <span className="sr-only">, {count} selected</span>}
+    </>
+  );
+}
+
+/** An option's row content: its glyph, if it has one, and its label. */
+function OptionLabel({ option }: { option: FacetOption }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {option.Icon && (
+        <option.Icon className={cn("size-4 shrink-0", option.iconClassName ?? "text-ink-meta")} />
+      )}
+      <span className="truncate">{option.label}</span>
+    </span>
+  );
+}
+
+/** One dropdown in the row: Status, Track, Work Model or Source. */
 export function FieldFacet({
   label,
   Icon,
@@ -88,13 +151,15 @@ export function FieldFacet({
 }: {
   label: string;
   Icon: Glyph;
-  options: string[];
+  options: FacetOption[];
   values: string[];
   onChange: (values: string[]) => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const active = values.length > 0 && !open;
+  // In the options' order, whatever order they were ticked in.
+  const ordered = (next: string[]) => options.map((o) => o.value).filter((v) => next.includes(v));
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -102,33 +167,119 @@ export function FieldFacet({
         disabled={options.length === 0}
         className={facetClasses(active, className)}
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <Icon className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")} />
-          <span className="truncate">{label}</span>
-        </span>
-        {values.length > 0 && <span className="sr-only">, {values.length} selected</span>}
+        <FacetLabel Icon={Icon} label={label} active={active} count={values.length} />
         <ChevronDownIcon className="text-muted-foreground size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
         className="w-max max-w-[calc(100vw-2rem)] min-w-(--anchor-width)"
       >
-        {options.map((value) => (
+        {options.map((option) => (
           <MenuPrimitive.CheckboxItem
-            key={value}
-            checked={values.includes(value)}
+            key={option.value}
+            checked={values.includes(option.value)}
             onCheckedChange={(on) =>
-              onChange(on ? [...values, value] : values.filter((v) => v !== value))
+              onChange(
+                ordered(on ? [...values, option.value] : values.filter((v) => v !== option.value)),
+              )
             }
             closeOnClick={false}
             className={checkRowClasses}
           >
-            <span className="truncate">{value}</span>
+            <OptionLabel option={option} />
             <CheckRowBox />
           </MenuPrimitive.CheckboxItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Company's dropdown: the same button and checkbox rows, with a search field
+ * at the top of the list, built as the Jobs page's Role dropdown is: a Base
+ * UI Combobox, whose arrow keys and Enter work from its field (a menu's
+ * cannot hold one). A pick while searching keeps the search, so "acme"
+ * stays narrowed while two of its names are ticked; each opening starts
+ * with an empty field.
+ */
+export function SearchFacet({
+  label,
+  Icon,
+  searchLabel,
+  empty,
+  options,
+  values,
+  onChange,
+  className,
+}: {
+  label: string;
+  Icon: Glyph;
+  /** The field's placeholder and accessible name: "Search companies". */
+  searchLabel: string;
+  /** What the list says when the search matches nothing. */
+  empty: string;
+  options: string[];
+  values: string[];
+  onChange: (values: string[]) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  // Set by a pick and cleared once the press is handled (below).
+  const picked = useRef(false);
+  const active = values.length > 0 && !open;
+
+  return (
+    <Combobox
+      items={options}
+      multiple
+      value={values}
+      onValueChange={(next: string[]) => {
+        picked.current = true;
+        queueMicrotask(() => (picked.current = false));
+        onChange(options.filter((v) => next.includes(v)));
+      }}
+      // Base UI empties the field on a pick; every other clear stands.
+      inputValue={search}
+      onInputValueChange={(next, details) => {
+        if (details.reason === "input-clear" && picked.current) return;
+        setSearch(next);
+      }}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setSearch("");
+      }}
+    >
+      <ComboboxTrigger disabled={options.length === 0} className={facetClasses(active, className)}>
+        <FacetLabel Icon={Icon} label={label} active={active} count={values.length} />
+      </ComboboxTrigger>
+      <ComboboxContent
+        sideOffset={4}
+        className="w-max max-w-[calc(100vw-2rem)] min-w-(--anchor-width)"
+      >
+        <div className="border-border focus-within:ring-brand-ring m-1 flex h-9 items-center gap-2 rounded-md border px-2.5 focus-within:ring-2">
+          <SearchIcon className="text-ink-meta size-4 shrink-0" />
+          <ComboboxPrimitive.Input
+            aria-label={searchLabel}
+            placeholder={searchLabel}
+            className="text-body text-ink placeholder:text-ink-meta min-w-0 flex-1 bg-transparent outline-none"
+          />
+        </div>
+        <ComboboxEmpty className="text-ink-meta text-body py-3">{empty}</ComboboxEmpty>
+        {/* overscroll-contain: the list's own scroll stops at its ends
+            instead of moving the page behind it. */}
+        <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-contain p-1 empty:p-0">
+          {(value: string) => (
+            <ComboboxPrimitive.Item key={value} value={value} className={checkRowClasses}>
+              <span className="truncate">{value}</span>
+              <CheckRowBox />
+            </ComboboxPrimitive.Item>
+          )}
+        </ComboboxPrimitive.List>
+      </ComboboxContent>
+    </Combobox>
   );
 }
 

@@ -511,19 +511,25 @@ examples do not apply), a client component over the rows the server
 filtered.
 
 - **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
-  `filter-bar.tsx`): under the search and the stage chips, a second row
-  with a dropdown per field (Company, Track, Work Model, Source), each the
-  Jobs page facet's look (glyph, label, chevron, brand tint while it holds
-  a pick) over checkbox rows of every value the tracked applications hold.
-  The dropdowns step out one at a time from the right as the row narrows
-  (Company from 448px of row, Track 600, Work Model 752, Source 904); at
+  `filter-bar.tsx`): under the search, a row with a dropdown for Status
+  and one per field (Company, Track, Work Model, Source), each the Jobs
+  page facet's look (glyph, label, chevron, brand tint while it holds a
+  pick) over checkbox rows. Status lists the four stages, each with its
+  stage's glyph in its colour; the fields list every value the tracked
+  applications hold. **Company has a search field** at the top of its
+  list, as the Jobs page's Role dropdown does, since the list grows with
+  every application; a pick keeps the search. The dropdowns step out one
+  at a time from the right as the row narrows (Status from 440px of row,
+  Company 592, Track 744, Work Model 896, Source 1048); at
   the right end, Clear Filters as an outlined cross (shown while anything
   is picked or searched; it hands focus to All Filters), All Filters, and
   Columns in the list view. A phone's row is All Filters and Columns.
-  An earlier draft had one Filter button with every field in its menu; it
-  was rebuilt after the Jobs page on the user's ask (2026-10-19).
+  Status was a row of stage chips with counts (KAN-256), and an earlier
+  draft had one Filter button with every field in its menu; both became
+  dropdowns after the Jobs page on the user's ask (2026-10-19). The
+  chips' counts went with them, as the Jobs page's options carry none.
 - **All Filters** is a panel with every field, as on the Jobs page: Status
-  (the stage chips' choice, with the stages' glyphs), Company (a search
+  (with the stages' glyphs), Company (a search
   picker, since the list grows), then Track, Work Model and Source as
   option chips. Its picks are a draft until "Show 3 Applications", which
   counts the draft in the browser (the page hands the bar what each
@@ -532,8 +538,7 @@ filtered.
   repeated URL parameter (`?company=`, `?track=`, `?work=`, `?source=`),
   not a comma list, since a company's name can hold a comma. A pick
   replaces the URL (ten ticks are not ten steps of Back) and shows at once
-  while the server filters, as the Jobs page's facets do. The stage chips'
-  counts include them.
+  while the server filters, as the Jobs page's facets do.
 - **Sort**: five headings sort, each one way, the way it is read: Role by
   its company A to Z, then by role, so a company's roles sit together
   (`?sort=company`; the heading's tooltip says so), Status furthest along first, Date Applied latest first, Match
@@ -578,9 +583,8 @@ viewer's own "Tomorrow, 2:00 PM" after hydration.
 **The Applications page keeps every choice in its URL** (`applications/query.ts`):
 `?view=`, `?stage=` (a comma list), `?q=`, the filter fields and
 the list's `?sort=`. An old `?app=` link (the side panel's) redirects to
-the application's own page. The server does the filtering, so the stage
-chips are links, the search a GET form and a field or All Filters pick a
-URL replace,
+the application's own page. The server does the filtering, so the search
+is a GET form and a pick in a dropdown or in All Filters a URL replace,
 and the Dashboard can link to a filtered list or one application. The
 list's column layout is the one choice kept in the browser instead
 (above). The layout is the exception in how it

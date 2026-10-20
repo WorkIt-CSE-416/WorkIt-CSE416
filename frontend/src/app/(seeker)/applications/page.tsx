@@ -8,7 +8,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
-import { STAGE_ORDER, type StageKey } from "../stage-colors";
 import { getTracker } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
@@ -28,8 +27,8 @@ export const metadata: Metadata = {
  * (KAN-261). Interviewing and Offer stay empty until the API stores those
  * stages. The board is archived (KAN-256).
  *
- * The URL carries all of it (./query.ts): the view, the stage chips, search
- * and field filters in the filter bar, and the list's sort. So the filtering
+ * The URL carries all of it (./query.ts): the view, the search and the
+ * Status and field dropdowns in the filter bar, and the list's sort. So the filtering
  * stays on the server, and the Dashboard can link straight to a filtered
  * list or one application. The list's column layout is the browser's own
  * (./column-layout.ts).
@@ -57,13 +56,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const { applications, error } = await getTracker();
   const all = applications ?? [];
 
-  // The search and the field filters, for the chips' counts: each says what
-  // turning its stage on would show. Then the stages too, for the views.
-  const searched = filterApplications(all, { ...query, stages: [] });
-  const shown = filterApplications(searched, query);
-  const counts = Object.fromEntries(
-    STAGE_ORDER.map((stage) => [stage, searched.filter((app) => app.stage === stage).length]),
-  ) as Record<StageKey, number>;
+  const shown = filterApplications(all, query);
 
   return (
     // EVERY PIXEL THE PANEL GIVES (KAN-256): no width cap, and when the
@@ -91,7 +84,6 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
       </div>
 
       <FilterBar
-        counts={counts}
         apps={all.map(({ role, company, stage, track, workModel, source }) => ({
           role,
           company,
