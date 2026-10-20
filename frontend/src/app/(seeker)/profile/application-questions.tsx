@@ -42,6 +42,11 @@ export function ApplicationQuestions({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(answers);
+  // The answers this edit started from. Save sends what differs from these,
+  // not from the latest prop: a return visit shows the cached answers and
+  // refetches, and a refetch landing mid-edit turned another tab's newer
+  // answers into "changes", which Save then overwrote with the cached ones.
+  const [base, setBase] = useState(answers);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -52,6 +57,7 @@ export function ApplicationQuestions({
 
   function startEditing() {
     setDraft(answers);
+    setBase(answers);
     setError(null);
     setEditing(true);
   }
@@ -61,9 +67,7 @@ export function ApplicationQuestions({
     setError(null);
     // Only the answers changed here: the API merges them into what it holds.
     const changed = Object.fromEntries(
-      Object.entries(draft).filter(
-        ([key, value]) => value !== answers[key as keyof AutofillAnswers],
-      ),
+      Object.entries(draft).filter(([key, value]) => value !== base[key as keyof AutofillAnswers]),
     );
     if (Object.keys(changed).length === 0) {
       setEditing(false);

@@ -972,6 +972,11 @@ self-identification), with the seeker's answers
   sent, so neither screen erases what the other saved.
 - **Shown only once loaded.** A failed read shows the page's one notice,
   never seven "Not answered" lines that would pass for real answers.
+- **Save sends what changed since Edit was clicked**, compared with the
+  answers the edit started from, never the latest ones: a return visit
+  shows the cached answers and refetches, and a refetch landing mid-edit
+  made another tab's newer answers look changed, so Save wrote the cached
+  ones back over them (review, 2026-10-20).
 
 **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
