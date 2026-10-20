@@ -138,6 +138,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
   sidebar row is commented out, and all their code stays. `docs/screens.md`
   (Calendar, Seeker Dashboard) says how to bring them back.
+- **The Applications board is archived** (KAN-256): the list is the
+  default view, and `?view=board` opens it. `applications/board.tsx` stays;
+  `docs/screens.md`, Applications, says how to bring it back.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -149,7 +152,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   it with no API running.
 - **The application tracker is live and has no fixture** (KAN-261): saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
-  cached per request by `getTracker` in `data.ts`). Interviewing, Offer and
+  cached per request by `getTracker` in `data.ts`), each with the Jobs
+  page's own match score (`?scored=true`, KAN-256) and the resume last sent
+  to its posting (the sent resumes list; its failure only empties that
+  column). A row or card opens the application's own page,
+  `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
   dated events stay empty until the API stores them; a failed read shows an
   error, never stand-in cards. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
@@ -219,7 +226,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   the page's assistant. The Experience Bank puts intake there. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
-- **The company table (`app/company/table.tsx`) is TanStack Table v9**, and
+- **The company table (`app/company/table.tsx`) and the Applications list
+  (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
   `node_modules/@tanstack/react-table/skills`, not a blog post.
 - **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
@@ -327,7 +335,9 @@ are in `docs/auth.md`.
   screen lists sent resumes since the Resumes view's Sent card went
   (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**
-  (intake's draft entry, KAN-213, and its skipped sections, KAN-214): one key prefix, cleared by Sign Out in
+  (intake's draft entry, KAN-213, and its skipped sections, KAN-214), and
+  so does a per-browser view preference that should leave with the student
+  (the Applications list's column layout, KAN-282): one key prefix, cleared by Sign Out in
   `account-menu.tsx` and on the login page, which an expired session also
   reaches. A draft stored under any other key outlives sign-out.
 - **To test a page behind sign-in, use the shared test account**:

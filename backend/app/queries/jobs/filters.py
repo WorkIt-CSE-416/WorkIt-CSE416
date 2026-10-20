@@ -163,6 +163,9 @@ class JobFilters:
     # (AUTO_APPLY_SUPPORTED): auto apply's matches always, and the Jobs
     # page's "Auto Apply Supported" filter (?auto_apply=true).
     auto_apply_only: bool = False
+    # Only these job postings: the Applications page's saved and applied
+    # jobs, scored as the Jobs page scores them (KAN-256). None: any.
+    job_ids: Sequence[uuid.UUID] | None = None
 
 
 def job_type_matches(job_types: Sequence[str]) -> ColumnElement[bool]:
@@ -324,4 +327,6 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         ))
     if filters.auto_apply_only:
         clauses.append(AUTO_APPLY_SUPPORTED)
+    if filters.job_ids is not None:
+        clauses.append(Job_Post.id.in_(list(filters.job_ids)))
     return clauses

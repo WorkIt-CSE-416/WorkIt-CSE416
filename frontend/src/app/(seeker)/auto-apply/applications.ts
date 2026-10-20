@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 import { getApplicantSession } from "@/lib/session";
 
+import type { Highlight } from "../jobs/data";
 import type { JobListing } from "../jobs/listings";
 import type { ApplicationStage, RunStage } from "./actions";
 
@@ -28,13 +29,21 @@ export type Application<Stage extends ApplicationStage = ApplicationStage> = {
   applied_at: string | null;
   /** False once the job posting has closed; its page is gone. */
   open: boolean;
+  /** The Jobs page's match score (0-100), when read with `scored`: null for
+   *  a closed posting and while the experience bank is empty. */
+  match?: number | null;
+  /** Up to 3 reasons behind `match`, as the Jobs page card lists them. */
+  highlights?: Highlight[];
 };
 
 const UNREACHABLE = "Could not reach the server.";
 
-/** The applications in `stages` (every stage when empty), newest first. */
+/** The applications in `stages` (every stage when empty), newest first.
+ *  `scored` asks for each one's match score too (the Applications page,
+ *  KAN-256): it can embed the bank, so the queue's reads leave it off. */
 export async function getApplications<Stage extends ApplicationStage = ApplicationStage>(
   stages: readonly Stage[] = [],
+  { scored = false }: { scored?: boolean } = {},
 ): Promise<
   { applications: Application<Stage>[]; error: null } | { applications: null; error: string }
 > {
@@ -42,7 +51,9 @@ export async function getApplications<Stage extends ApplicationStage = Applicati
   await connection();
   try {
     const { id, token } = await getApplicantSession();
-    const query = new URLSearchParams(stages.map((stage) => ["stage", stage])).toString();
+    const params = new URLSearchParams(stages.map((stage) => ["stage", stage]));
+    if (scored) params.set("scored", "true");
+    const query = params.toString();
     const res = await apiGet(`/applicants/${id}/applications${query ? `?${query}` : ""}`, token);
     if (!res.ok) return { applications: null, error: await extractErrorMessage(res) };
     return { applications: (await res.json()) as Application<Stage>[], error: null };

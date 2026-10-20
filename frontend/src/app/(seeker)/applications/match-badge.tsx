@@ -15,13 +15,16 @@ import { matchColor, matchTier } from "@/lib/match";
  *
  * The ring is decorative. The band its colour stands for is spelled out for a
  * screen reader after the number.
+ *
+ * The figure is ink at the 12px note size, medium weight: in 11px meta grey it was
+ * too hard to read for the one number a seeker scans the list for (KAN-256).
  */
 const RADIUS = 5.4;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function MatchBadge({ score }: { score: number }) {
   return (
-    <span className="border-border-subtle text-meta text-ink-meta inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5">
+    <span className="border-border-subtle text-note text-ink inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 font-medium tabular-nums">
       <svg viewBox="0 0 14 14" aria-hidden="true" className="size-3.5">
         <circle
           cx="7"

@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { ApplicationTile } from "../applications/application-tile";
 import { getApplications, getNow } from "../applications/data";
 import { DetailPanel } from "../applications/detail-panel";
+import { applicationHref } from "../applications/query";
 import { SEEKER_GUTTER } from "../gutter";
 import { allEvents, timelineOf } from "../tracker";
 import { CalendarView } from "./calendar-view";
@@ -65,7 +66,6 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
             company: open.company,
             stage: open.stage,
             status: open.status,
-            summary: open.summary,
             match: open.match,
           }}
           tile={<ApplicationTile application={open} size="md" />}
@@ -73,7 +73,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           closeHref={calendarHref({ view: query.view, date: query.date })}
           footer={
             <Link
-              href={`/applications?app=${open.id}`}
+              href={applicationHref(open.id)}
               className={buttonClasses({ variant: "secondary", size: "sm" })}
             >
               Open in Applications

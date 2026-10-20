@@ -1,31 +1,55 @@
 import { STAGE_ORDER, type StageKey } from "../stage-colors";
-import { nextEvent, sortKey, type Application } from "../tracker";
+import type { Application } from "../tracker";
 
 /**
  * What the Applications page is showing, read from its URL: the layout, the
- * stage and search filters, the list's sort, and the application open in the
- * detail panel.
+ * stage, search and field filters (All Filters), and the list's sort. ?app= named the application
+ * open in a side panel until KAN-256; it now only redirects to that
+ * application's own page.
  *
  * All of it lives in the query string rather than in component state, so it
  * survives a reload, the back button undoes it, and it can be linked to: the
- * Dashboard's Waiting opens `/applications?view=list&stage=applied`, and Next
- * Up opens one application's panel. It also leaves every view a server
- * component; the stage chips and the sort headings are links, and the
- * layout switcher moves ?view= in place (./view-switcher.tsx).
+ * Dashboard's Waiting opens `/applications?view=list&stage=applied`. The
+ * server does the filtering, so a pick in a dropdown (Status or a field) or
+ * in All Filters replaces the URL. The layout switcher and the list's sort
+ * headings move ?view= and ?sort= in place (./view-switcher.tsx), since the
+ * browser already holds what they show: the list sorts itself (./list.tsx).
+ * The list's column layout is not here: it is a per-browser preference
+ * (./column-layout.ts).
  * The cost is that reading searchParams renders the route per request, which
  * the seeker shell already does.
  */
-export const VIEWS = ["board", "grid", "list"] as const;
+/** The board (./board.tsx) is archived (KAN-256): its code stays, but no
+ *  URL shows it, and an old ?view=board link opens the list. To bring it
+ *  back, add "board" here, its option in ./view-switcher.tsx and its pane in
+ *  ./page.tsx. */
+export const VIEWS = ["list", "grid"] as const;
 export type View = (typeof VIEWS)[number];
 
-/** The board is the view KAN-43 designed first, so a bare URL still shows it. */
-export const DEFAULT_VIEW: View = "board";
+/** The list is the primary view (KAN-256), so a bare URL shows it. */
+export const DEFAULT_VIEW: View = "list";
 
-/** The list's orders. Each runs the way its column is read: the soonest next
- *  step first, the latest application first, the best match first. */
-export const SORTS = ["next", "applied", "match"] as const;
+/** The list's orders (KAN-282 added the last three). Each runs one way, the
+ *  way its column is read: the latest application first, the best match
+ *  first, companies A to Z, the furthest stage first, the best pay first.
+ *  An old ?sort=next link falls back to the default (parseQuery). */
+export const SORTS = ["applied", "match", "company", "status", "pay"] as const;
 export type Sort = (typeof SORTS)[number];
-export const DEFAULT_SORT: Sort = "next";
+export const DEFAULT_SORT: Sort = "applied";
+
+/** The filter fields beside the stages (KAN-282): the Application field each one
+ *  reads, its URL parameter and its label. A field takes any number of
+ *  values, as Status does, and a value is the cell's own text. */
+export const FILTER_FIELDS = [
+  { key: "company", param: "company", label: "Company" },
+  { key: "track", param: "track", label: "Track" },
+  { key: "workModel", param: "work", label: "Work Model" },
+  { key: "source", param: "source", label: "Source" },
+] as const;
+export type FilterKey = (typeof FILTER_FIELDS)[number]["key"];
+export type Filters = Record<FilterKey, string[]>;
+
+export const NO_FILTERS: Filters = { company: [], track: [], workModel: [], source: [] };
 
 export type ApplicationsQuery = {
   view: View;
@@ -34,7 +58,10 @@ export type ApplicationsQuery = {
   /** Matched against the role and the company, ignoring case. */
   q: string;
   sort: Sort;
-  /** The application open in the detail panel, by id. */
+  /** The filter fields' picks; an empty field filters nothing. */
+  filters: Filters;
+  /** An old side-panel link's application, by id: ./page.tsx redirects it
+   *  to the application's own page. */
   app: string | null;
 };
 
@@ -42,6 +69,13 @@ type SearchParams = Record<string, string | string[] | undefined>;
 
 function first(raw: string | string[] | undefined) {
   return Array.isArray(raw) ? raw[0] : raw;
+}
+
+/** Every value of a repeated parameter (?company=A&company=B): a company's
+ *  name can hold a comma, so these are not comma lists like ?stage=. */
+function all(raw: string | string[] | undefined) {
+  const values = (Array.isArray(raw) ? raw : raw == null ? [] : [raw]).map((v) => v.trim());
+  return [...new Set(values.filter(Boolean))];
 }
 
 /** Anything unrecognised falls back to the default rather than erroring: a
@@ -56,6 +90,9 @@ export function parseQuery(params: SearchParams): ApplicationsQuery {
     stages: STAGE_ORDER.filter((stage) => stages.has(stage)),
     q: (first(params.q) ?? "").trim(),
     sort: SORTS.includes(sort as Sort) ? (sort as Sort) : DEFAULT_SORT,
+    filters: Object.fromEntries(
+      FILTER_FIELDS.map(({ key, param }) => [key, all(params[param])]),
+    ) as Filters,
     app: first(params.app) || null,
   };
 }
@@ -72,6 +109,9 @@ export function applicationsHref(query: ApplicationsQuery, patch: Partial<Applic
   if (next.view !== DEFAULT_VIEW) params.set("view", next.view);
   if (next.stages.length > 0) params.set("stage", next.stages.join(","));
   if (next.q) params.set("q", next.q);
+  for (const { key, param } of FILTER_FIELDS) {
+    for (const value of next.filters[key]) params.append(param, value);
+  }
   if (next.sort !== DEFAULT_SORT) params.set("sort", next.sort);
   if (next.app) params.set("app", next.app);
 
@@ -79,37 +119,54 @@ export function applicationsHref(query: ApplicationsQuery, patch: Partial<Applic
   return search ? `/applications?${search}` : "/applications";
 }
 
+/** How many filter field values are picked, across the fields. */
+export function filterCount(filters: Filters) {
+  return FILTER_FIELDS.reduce((count, { key }) => count + filters[key].length, 0);
+}
+
+/** One application's own page (./[jobId], KAN-256), which a row or card
+ *  opens. It replaced the ?app= side panel; an old ?app= link redirects
+ *  there (./page.tsx). */
+export function applicationHref(id: string) {
+  return `/applications/${encodeURIComponent(id)}`;
+}
+
+/** What the filters read of an application: enough for the filter bar to
+ *  list the options and count a draft in the browser (./all-filters.tsx). */
+export type Filterable = Pick<
+  Application,
+  "role" | "company" | "stage" | "track" | "workModel" | "source"
+>;
+
 /** The applications the filters leave: in a chosen stage (any, when none is
- *  chosen) and matching the search. */
-export function filterApplications(
-  apps: Application[],
-  query: Pick<ApplicationsQuery, "stages" | "q">,
+ *  chosen), matching the search, and holding one of each filter field's
+ *  picks. */
+export function filterApplications<T extends Filterable>(
+  apps: T[],
+  query: Pick<ApplicationsQuery, "stages" | "q" | "filters">,
 ) {
   const q = query.q.toLowerCase();
 
   return apps.filter(
     (app) =>
       (query.stages.length === 0 || query.stages.includes(app.stage)) &&
-      (!q || `${app.role} ${app.company}`.toLowerCase().includes(q)),
+      (!q || `${app.role} ${app.company}`.toLowerCase().includes(q)) &&
+      FILTER_FIELDS.every(({ key }) => {
+        const picked = query.filters[key];
+        return picked.length === 0 || picked.includes(app[key] ?? "");
+      }),
   );
 }
 
-/** The list's rows in `sort` order. What has no value to sort by (nothing
- *  scheduled, not applied yet, no match score) goes last, in the order it
- *  came in. */
-export function sortApplications(apps: Application[], sort: Sort, now: Date) {
-  const key: Record<Sort, (app: Application) => number> = {
-    next: (app) => {
-      const next = nextEvent(app, now);
-      return next ? sortKey(next.at) : Infinity;
-    },
-    applied: (app) => (app.appliedOn ? -sortKey(app.appliedOn) : Infinity),
-    match: (app) => (app.match != null ? -app.match : Infinity),
-  };
-
-  return [...apps].sort((a, b) => {
-    const ka = key[sort](a);
-    const kb = key[sort](b);
-    return ka === kb ? 0 : ka < kb ? -1 : 1;
-  });
+/** The values each filter field can pick: every value the tracked
+ *  applications hold, A to Z, and any value the URL picks that none holds
+ *  any more, so it can still be unticked. */
+export function filterOptions(apps: Filterable[], filters: Filters): Filters {
+  return Object.fromEntries(
+    FILTER_FIELDS.map(({ key }) => {
+      const values = new Set([...apps.map((app) => app[key] ?? ""), ...filters[key]]);
+      values.delete("");
+      return [key, [...values].sort((a, b) => a.localeCompare(b))];
+    }),
+  ) as Filters;
 }

@@ -1,36 +1,20 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { SparkleIcon } from "@/components/icons";
-import { CompanyLogo } from "@/components/company-logo";
-import type { JobPosting } from "@/components/job-detail/data";
-import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
-import { NOT_LISTED } from "@/components/job-posting-card";
-import { AskScoutButton } from "@/components/scout/scout-buttons";
-import { ButtonLink } from "@/components/ui/button";
-import { Section } from "@/components/ui/section";
-import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
-import { listSentResumes } from "@/lib/sent-resume-actions";
 
 import { SEEKER_GUTTER } from "../../gutter";
-import { placesOf } from "../format";
-import { getApplicationStage } from "../../auto-apply/applications";
-import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
-import { SaveJobButton } from "../save-job-button";
-import { ListingsError, listingFacts } from "../listing-card";
-import { getApplied, getJobListing, type JobListing } from "../listings";
+import { ListingsError } from "../listing-card";
+import { getJobListing } from "../listings";
 import { JobActionBar } from "./action-bar";
-import { ApplyButton } from "./apply-button";
-import { JobDescription } from "./description";
-import { KeyRequirementsCard } from "./key-requirements";
-import { AppliedNote, BackToJobs, MoreActions } from "./page-actions";
-import { SentNote } from "./sent-note";
-
-/** A little wider than the reading pages' `max-w-app` (KAN-279): at 1024px
- *  the header's six facts and the Eligibility Checklist felt cramped. About
- *  the Role keeps its own 68ch measure, so its lines do not grow with it. */
-const PAGE_WIDTH = "mx-auto w-full max-w-[70rem] flex-1 py-6";
+import {
+  JOB_PAGE_WIDTH,
+  JobViewActions,
+  JobViewBody,
+  JobViewHeader,
+  loadJobView,
+} from "./job-view";
+import { BackToJobs } from "./page-actions";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
@@ -75,125 +59,30 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const [{ job, error }, resumes, sent, applied, stage] = await Promise.all([
-    getJobListing(jobId),
-    listBuiltResumes(),
-    listSentResumes(),
-    getApplied(jobId),
-    getApplicationStage(jobId),
-  ]);
-  const tailored = resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false;
-  // Newest first, so the first match is the last one sent to this posting.
-  const lastSent = sent.data?.find((s) => s.job_posting_id === job?.id) ?? null;
+  const view = await loadJobView(jobId);
+  const { job, error } = view;
 
   if (error != null) {
     return (
-      <div className={cn(PAGE_WIDTH, SEEKER_GUTTER)}>
+      <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
         <BackToJobs />
         <ListingsError error={error} retryHref={`/jobs/${encodeURIComponent(jobId)}`} />
       </div>
     );
   }
   if (job == null) notFound();
-  const places = placesOf(job.location_label ?? job.location);
 
+  // The actions, header and body are ./job-view's, which the application's
+  // own page (/applications/[jobId]) draws too.
   return (
-    <div className={cn(PAGE_WIDTH, SEEKER_GUTTER)}>
+    <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
       {/* Back and the job's actions, held at the top while the description
           scrolls under them (./action-bar). */}
       <JobActionBar>
-        {/* Outlined like the feed card's icon actions. */}
-        <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
-        <MoreActions title={job.title} />
-        <AskScoutButton id={job.id} title={job.title} company={job.company} />
-        {/* Only where auto apply can fill the form (Greenhouse for now). */}
-        {job.auto_apply && (
-          <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
-        )}
-        <ButtonLink
-          href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-          variant="secondary"
-          size="sm"
-          className="shrink-0"
-        >
-          <SparkleIcon className="size-4" />
-          {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
-        </ButtonLink>
-        <ApplyButton
-          jobId={job.id}
-          title={job.title}
-          applyUrl={job.apply_url}
-          canMarkApplied={applied != null}
-          applied={applied?.appliedAt != null}
-          className="shrink-0"
-        />
+        <JobViewActions view={view} job={job} />
       </JobActionBar>
-
-      <JobDetailHeader
-        posting={toPosting(job)}
-        // The employer's own logo, as on the card, at the header's 40px; its
-        // initials when it has none.
-        tile={
-          <CompanyLogo
-            name={job.company}
-            src={job.logo_url}
-            className="text-label rounded-control size-10"
-          />
-        }
-      />
-
-      {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
-      {applied?.appliedAt && <AppliedNote at={applied.appliedAt} />}
-
-      <KeyRequirementsCard jobId={job.id} minYearsExperience={job.min_years_experience} />
-
-      <Section title="About the Role">
-        {/* The card names one place and how many more; here, all of them. */}
-        {places.length > 1 && (
-          <p className="text-body text-ink mt-3">Open in {places.join(" · ")}.</p>
-        )}
-        {job.description ? (
-          <JobDescription
-            text={job.description}
-            company={job.company}
-            applyUrl={job.apply_url}
-            pay={text(listingFacts(job).salary) || null}
-          />
-        ) : (
-          <p className="text-body text-ink-meta mt-3">
-            This posting has no description here. Apply Now opens it on {job.company}&apos;s site.
-          </p>
-        )}
-      </Section>
+      <JobViewHeader job={job} />
+      <JobViewBody view={view} job={job} />
     </div>
   );
-}
-
-/** A fact's words, or nothing where the posting doesn't say (the header
- *  leaves that fact out). */
-const text = (value: string | null | typeof NOT_LISTED | undefined) =>
-  typeof value === "string" ? value : "";
-
-/** The live role in the shape the shared header reads. What only a fixture
- *  carries (an employer blurb, the mock's sections) is empty. */
-function toPosting(job: JobListing): JobPosting {
-  const facts = listingFacts(job);
-  return {
-    id: job.id,
-    companyName: job.company,
-    title: job.title,
-    status: "Open",
-    jobType: text(facts.jobType),
-    workStyle: text(facts.workStyle),
-    level: text(facts.experienceLevel),
-    starts: text("startTerm" in facts ? facts.startTerm : facts.minYearsExperience),
-    locationCity: text(facts.location),
-    salary: text(facts.salary),
-    postedAt: job.posted_at ?? "",
-    updatedAt: job.posted_at ?? "",
-    companyAbout: "",
-    about: "",
-    responsibilities: [],
-    qualifications: [],
-  };
 }

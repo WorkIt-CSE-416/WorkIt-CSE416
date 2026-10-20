@@ -29,7 +29,7 @@ from app.auto_apply.queries import (
 from app.auto_apply.rules import pick_batch
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
-from app.routers.jobs import fetch_recommended
+from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.applications import Application
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
@@ -180,10 +180,37 @@ async def list_applications(
     db: AsyncSession,
     applicant_id: uuid.UUID,
     stages: Sequence[application_stage] = (),
+    *,
+    score_for: AuthenticatedAccount | None = None,
 ) -> list[Application]:
-    """The applicant's applications in `stages` (all when empty), newest
-    first: the Auto Apply page's Live Activity."""
-    return await fetch_applications(db, applicant_id, stages)
+    """
+    The applicant's applications in `stages` (all when empty), newest
+    first: the Auto Apply page's Live Activity and the Applications page.
+
+    With `score_for` (the applicant's own account), each open job posting
+    gets the Jobs page's `match` and its `highlights`, from the same scoring (fetch_recommended),
+    so a card's score never differs from the feed's (KAN-256). A closed job
+    posting has none, and none has one while the experience bank is empty.
+    Only on request: it can embed the bank, which the queue's reads never
+    need.
+    """
+    applications = await fetch_applications(db, applicant_id, stages)
+    open_ids = [uuid.UUID(a.job.id) for a in applications if a.open]
+    if score_for is None or not open_ids:
+        return applications
+    try:
+        scored = await fetch_recommended(
+            db, score_for, filters=JobFilters(job_ids=open_ids), limit=sys.maxsize
+        )
+    except EmptyBank:
+        return applications
+    by_id = {job.id: job for job in scored}
+    return [
+        a.model_copy(update={"match": job.match, "highlights": job.highlights})
+        if (job := by_id.get(a.job.id))
+        else a
+        for a in applications
+    ]
 
 
 async def get_application(
