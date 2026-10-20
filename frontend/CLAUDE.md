@@ -229,7 +229,16 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
-  `node_modules/@tanstack/react-table/skills`, not a blog post.
+  `node_modules/@tanstack/react-table/skills`, not a blog post. Auto
+  Apply's two tables (KAN-285) are plain shadcn `Table`s with sort headings:
+  a short table with no column moves gains nothing from TanStack. They
+  share the Applications list's frame and its promoted pieces
+  (`components/clickable-row.tsx`, `match-badge.tsx`, `reflow.tsx`,
+  `field-facet.tsx`); a new seeker table starts from those, not a copy.
+- **A filter whose rows the page already holds moves the URL in place**
+  (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
+  (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
+  Back, as the Applications page's server-side picks replace the URL.
 - **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
   page only** (KAN-209), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a

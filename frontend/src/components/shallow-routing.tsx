@@ -45,15 +45,19 @@ type Shallow = {
   /** The query the page is showing. After a shallow move it is a frame
    *  ahead of the address bar. */
   search: string;
-  push: (href: string, type?: string) => void;
+  push: (href: string, type?: string, options?: ShallowOptions) => void;
 };
+
+/** `replace` swaps the address bar's entry instead of adding one, for a
+ *  pick that should not be a step of Back: a filter's tick (KAN-285). */
+type ShallowOptions = { replace?: boolean };
 
 const ShallowContext = createContext<Shallow | null>(null);
 
 export function ShallowRouting({ children }: { children: ReactNode }) {
   const path = usePathname();
   const search = useSearchParams().toString();
-  const [state, setState] = useState({ shown: search, seen: search, path });
+  const [state, setState] = useState({ shown: search, seen: search, path, replace: false });
 
   // The address bar moved. To what the page already shows: a shallow move
   // catching up. Anywhere else: show it now.
@@ -62,20 +66,23 @@ export function ShallowRouting({ children }: { children: ReactNode }) {
       shown: path === state.path && search === state.shown ? state.shown : search,
       seen: search,
       path,
+      replace: false,
     });
   }
 
   // A shallow move has drawn; the address bar follows.
   useEffect(() => {
     if (state.shown === state.seen) return;
-    window.history.pushState(null, "", state.shown ? `${state.path}?${state.shown}` : state.path);
+    const url = state.shown ? `${state.path}?${state.shown}` : state.path;
+    if (state.replace) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
   }, [state]);
 
-  const push = (href: string, type?: string) => {
+  const push = (href: string, type?: string, { replace = false }: ShallowOptions = {}) => {
     const shown = new URL(href, window.location.href).searchParams.toString();
     startTransition(() => {
       if (type) addTransitionType(type);
-      setState((current) => ({ ...current, shown }));
+      setState((current) => ({ ...current, shown, replace }));
     });
   };
 
@@ -95,8 +102,13 @@ export function useShallowPush() {
   return use(ShallowContext)?.push ?? pushWithoutProvider;
 }
 
-function pushWithoutProvider(href: string) {
-  window.history.pushState(null, "", href);
+function pushWithoutProvider(
+  href: string,
+  _type?: string,
+  { replace = false }: ShallowOptions = {},
+) {
+  if (replace) window.history.replaceState(null, "", href);
+  else window.history.pushState(null, "", href);
 }
 
 /** A plain left click; a modified one opens a tab and leaves this page. */

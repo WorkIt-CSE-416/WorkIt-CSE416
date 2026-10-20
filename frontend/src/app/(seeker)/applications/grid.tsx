@@ -7,9 +7,9 @@ import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
 import { LocalDate } from "../local-time";
 import { sinceOf, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
-import { MatchBadge } from "./match-badge";
+import { MatchBadge } from "@/components/match-badge";
 import { applicationHref } from "./query";
-import { Reflow } from "./reflow";
+import { Reflow } from "@/components/reflow";
 
 /**
  * The applications as a grid of cards, one card per application.
