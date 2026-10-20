@@ -74,7 +74,7 @@ import { StoryPanel } from "./story-panel";
  * then step 1 as the seeker's preferences, which marks onboarding done, then
  * uploads the picked file; the API reads it into the experience bank matching
  * reads (ADR 0003). Skip saves the answers alone. Either opens the Jobs
- * page's Recommended view. The answer bank saves first because a finished
+ * page in its Best Match order. The answer bank saves first because a finished
  * seeker is never sent back here, and nothing else asks these questions yet;
  * a failed upload leaves onboarding done and this step to retry from, and
  * saving again changes nothing.

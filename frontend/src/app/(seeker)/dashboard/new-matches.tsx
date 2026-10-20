@@ -10,8 +10,9 @@ import { SectionCard } from "./section-card";
 
 /**
  * The newest roles from the live feed — the one Dashboard card that is real
- * today. "Matches" is the feed's own word for what it shows (Recommended for
- * You); there is no scoring yet, so the order is newest first.
+ * today. "Matches" is the feed's own word for what it shows (its Best Match
+ * order); this card does not score, so the order is newest first, and its
+ * link opens the Jobs page in that order.
  *
  * In a card, like the other lists. A compact list rather than the Jobs
  * page's cards: this is a glance at what
@@ -59,7 +60,7 @@ export async function NewMatches({ className }: { className?: string }) {
       <SectionHeader
         id="new-matches"
         title="New Matches"
-        link={{ href: "/jobs?view=all", text: "All Jobs" }}
+        link={{ href: "/jobs?sort=newest", text: "All Jobs" }}
       />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 
@@ -155,7 +156,7 @@ export function NewMatchesSkeleton({ className }: { className?: string }) {
       <SectionHeader
         id="new-matches"
         title="New Matches"
-        link={{ href: "/jobs?view=all", text: "All Jobs" }}
+        link={{ href: "/jobs?sort=newest", text: "All Jobs" }}
       />
       <p className="text-body text-ink-meta mt-1">The latest roles from your feed.</p>
 

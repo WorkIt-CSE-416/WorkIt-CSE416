@@ -32,9 +32,9 @@ import type { JobListing } from "./listings";
  * so an import landing between two loads can shift one role into the next
  * page, and it would otherwise show twice.
  *
- * `source` picks what Load More asks: the plain feed, or the Recommended
- * view's scored jobs (KAN-231). Their `query` strings differ (the page
- * adds `view=recommended`), so kept pages never cross from one to the other.
+ * `source` picks what Load More asks: the plain feed, or the Best Match
+ * order's scored jobs (KAN-231, KAN-288). Their `query` strings differ (the
+ * page adds `sort=match`), so kept pages never cross from one to the other.
  *
  * After a load, focus moves to the first new role's title, where the button
  * was, so a keyboard carries on reading down the list instead of starting
