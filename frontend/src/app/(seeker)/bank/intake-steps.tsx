@@ -37,7 +37,7 @@ import { sectionOf } from "./sections";
  * - what became of the section: a corner badge, a green check when done and
  *   a grey dash when skipped, and a dashed edge on a skipped chip;
  * - which section: the glyph, and the name in the tooltip (and under the
- *   chip where onboarding has the room).
+ *   chip where the bar has the room, outside Scout's panel).
  * Only a save changes a badge, so a visit to a done entry ("Leave As Is")
  * keeps its check, and the section still counts toward the percentage.
  * A chip is a 32px button that jumps to its section.
@@ -131,9 +131,9 @@ export function StepBar({
           ? "Over halfway there. Keep it up!"
           : "Nice work. Keep going!";
 
-  // "Section", not "Step": onboarding's Experiences page has the step rail
-  // above this bar (onboarding/applicant/steps.ts), and two "Step x of y"
-  // counts on one page read as one count gone wrong (KAN-259).
+  // "Section", not "Step": onboarding's Experiences page had the step rail
+  // above this bar until KAN-275 took intake out of onboarding, and two
+  // "Step x of y" counts on one page read as one count gone wrong (KAN-259).
   const where = current ? (
     <>
       Section {index + 1} of {WALK.length} ·{" "}
@@ -144,7 +144,7 @@ export function StepBar({
   );
 
   // The badges' ring is the colour the bar sits on, so a badge reads as cut
-  // out of its chip: the stage card's lavender, or onboarding's page grey.
+  // out of its chip: the stage card's lavender, or the page's grey.
   const ground = compact ? "ring-stage-card" : "ring-canvas";
 
   const chips = (
@@ -249,7 +249,7 @@ function StepChip({
   current?: boolean;
   /** The ring class that matches what the bar sits on. */
   ground: string;
-  /** The name under the chip, where the bar is wide enough (onboarding). */
+  /** The name under the chip, where the bar is wide enough (not docked). */
   named: boolean;
   onClick?: () => void;
 }) {

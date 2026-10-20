@@ -43,7 +43,7 @@ class JobPreferences(BaseModel):
     max_pay: Pay | None = None
     pay_per: Literal["hour", "year"] = "year"
     start_term: list[SeasonKey] = Field(default_factory=list, max_length=12)
-    visa: Literal["sponsors", "not_ruled_out"] | None = None
+    visa: Literal["sponsors"] | None = None
 
     @model_validator(mode="after")
     def _tidy(self) -> "JobPreferences":

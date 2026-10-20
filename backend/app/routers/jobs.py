@@ -120,7 +120,7 @@ async def read_filters(
     pay_per: Literal["hour", "year"] = "year",
     # Seasons as GET /jobs/facets lists them ("summer-2027", or "2027"); any.
     start_term: list[SeasonKey] = Query([], max_length=12),
-    visa: Literal["sponsors", "not_ruled_out"] | None = None,
+    visa: Literal["sponsors"] | None = None,
     # All Filters' "Auto Apply Supported": only job postings auto apply can
     # fill (Greenhouse for now, app/auto_apply/hosts.py).
     auto_apply: bool = False,

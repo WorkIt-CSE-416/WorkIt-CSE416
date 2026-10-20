@@ -18,15 +18,18 @@ import {
   BriefcaseIcon,
   CalendarIcon,
   CoinIcon,
+  FileIcon,
   LevelIcon,
   PinIcon,
   RoleIcon,
   VisaIcon,
   workStyleIcon,
 } from "@/components/icons";
+import { ResumeUpload } from "@/components/resume-upload";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { uploadResume } from "@/lib/resume-actions";
 
 import { saveAutofillAnswers, savePreferences } from "./actions";
 import {
@@ -53,17 +56,19 @@ import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
 
 /**
- * The applicant onboarding wizard (KAN-231): two short steps, each one's
+ * The applicant onboarding wizard (KAN-231): three short steps, each one's
  * question on the left (./story-panel) and the fields answering it on the
- * right, under the step rail that counts intake as the third step
- * (./steps.ts). Each new question takes focus, so a screen reader hears it.
+ * right, under the step rail (./steps.ts). Each new question takes focus, so
+ * a screen reader hears it.
  *
  * STEP 1'S ANSWERS ARE THE JOBS PAGE'S FILTERS. Role, experience, job type,
  * start date, workplace, location and salary are a `FeedFilters`, with the
- * same options and pickers as All Filters (components/filter-controls). Start
- * Date is asked only once Internship is picked, and dropping Internship
- * clears it: a saved season keeps only the jobs that name one, which a
- * new-grad role rarely does.
+ * same options and pickers as All Filters (components/filter-controls), but
+ * Start Date offers upcoming seasons only (KAN-275, ./page). Start Date is
+ * asked only once Internship is picked, and dropping Internship clears it: a
+ * saved season keeps only the jobs that name one, which a new-grad role
+ * rarely does. Date Posted is not asked: a saved "past 24 hours" would empty
+ * the feed within days.
  *
  * STEP 2 IS WHAT EVERY APPLICATION ASKS (KAN-283): work authorization,
  * sponsorship, citizenship and visa status, clearance, and the voluntary
@@ -73,15 +78,18 @@ import { StoryPanel } from "./story-panel";
  * role, and the visa filter question left onboarding (a saved one is kept,
  * and the Jobs page still sets it).
  *
- * Continue saves step 1 as the seeker's preferences, which marks onboarding
- * done, and step 2 to the answer bank, then opens
- * intake (./bank, KAN-214), which fills the experience bank matching reads
- * and imports a resume; its Finish opens the Jobs page's Recommended view.
- * There is no resume step here: intake asks for one. Date Posted is not
- * asked: a saved "past 24 hours" would empty the feed within days.
+ * THE LAST STEP IS A RESUME (KAN-275), the Resumes view's dropzone, and it
+ * replaced intake's chat (KAN-214). Continue saves step 2 to the answer bank,
+ * then step 1 as the seeker's preferences, which marks onboarding done, then
+ * uploads the picked file; the API reads it into the experience bank matching
+ * reads (ADR 0003). Skip saves the answers alone. Either opens the Jobs
+ * page's Recommended view. The answer bank saves first because a finished
+ * seeker is never sent back here, and nothing else asks these questions yet;
+ * a failed upload leaves onboarding done and this step to retry from, and
+ * saving again changes nothing.
  *
- * `initial` and `initialAnswers` are what the seeker saved, so coming back
- * from intake ("Back to Profile") edits them rather than starting over.
+ * `initial` and `initialAnswers` are what the seeker saved, so a finished
+ * seeker who comes back edits them rather than starting over.
  */
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -106,6 +114,14 @@ const STEPS: { question: ReactNode; line: string }[] = [
     ),
     line: "All optional. Answer once, and I'll fill them in on every application.",
   },
+  {
+    question: (
+      <>
+        Last, <strong>upload your resume</strong> and I&apos;ll fill in your experiences.
+      </>
+    ),
+    line: "One file, and I'll know what you've done. No resume yet? Skip it.",
+  },
 ];
 
 const toggle = <T,>(values: T[], value: T) =>
@@ -129,7 +145,7 @@ export function OnboardingForm({
   initialAnswers?: AutofillAnswers;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
-  /** The step to open on: Profile when intake's Back returns here. */
+  /** The step to open on: Profile for ?step=2 (./page). */
   startStep?: number;
 }) {
   const router = useRouter();
@@ -141,15 +157,21 @@ export function OnboardingForm({
   const moved = useRef(false);
   const [answers, setAnswers] = useState<FeedFilters>(initial);
   const [profile, setProfile] = useState<AutofillAnswers>(initialAnswers);
+  const [resume, setResume] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  // Only while the file is on its way, so the dropzone's "Uploading…" never
+  // shows for Skip or for the answers' save before the upload.
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const set = (change: Partial<FeedFilters>) => setAnswers((a) => ({ ...a, ...change }));
   const last = step === STEPS.length - 1;
-  // Only step 1 asks anything required.
-  const canNext =
-    step > 0 ||
-    (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
+  // Step 1 asks the required answers; the resume step's Continue needs a
+  // file, and Skip is the way on without one.
+  const canNext = last
+    ? resume != null
+    : step > 0 ||
+      (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
 
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
@@ -166,9 +188,10 @@ export function OnboardingForm({
     window.scrollTo({ top: 0 });
   }
 
-  /** Saving the answers is what finishes onboarding; a failed save leaves
-   *  this page to retry from. */
-  async function finish() {
+  /** Saves the answer bank, then the preferences, which finish onboarding,
+   *  then uploads the resume if one was picked. A failure leaves this page to
+   *  retry from. */
+  async function finish(file: File | null) {
     setSaving(true);
     setError(null);
     // Only the answers changed here go to the bank: it merges them into
@@ -178,20 +201,25 @@ export function OnboardingForm({
         ([key, value]) => value !== initialAnswers[key as keyof AutofillAnswers],
       ),
     );
-    const [prefs, bank] = await Promise.all([
-      // A picked state narrows its country, as All Filters' Apply does.
-      savePreferences(statesNarrowCountries(answers)),
-      saveAutofillAnswers(changed),
-    ]);
-    // Both writes are whole or per key, so Continue again redoes either.
-    const saveError = prefs.error ?? bank.error;
-    if (saveError) {
-      setSaving(false);
-      setError(saveError);
-      return;
+    const { error: bankError } = await saveAutofillAnswers(changed);
+    if (bankError) return fail(bankError);
+    // A picked state narrows its country, as All Filters' Apply does.
+    const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
+    if (saveError) return fail(saveError);
+    if (file) {
+      const fd = new FormData();
+      fd.append("file", file);
+      setUploading(true);
+      const { error: uploadError } = await uploadResume(fd);
+      if (uploadError) return fail(uploadError);
     }
-    // Intake is the next step (KAN-214); its Finish opens the matches.
-    router.push("/onboarding/applicant/bank");
+    router.push("/jobs");
+  }
+
+  function fail(message: string) {
+    setSaving(false);
+    setUploading(false);
+    setError(message);
   }
 
   // FROM LG THE SCREEN IS ONE WINDOW TALL AND ONLY THE RIGHT COLUMN SCROLLS,
@@ -231,6 +259,16 @@ export function OnboardingForm({
               set={(change) => setProfile((a) => ({ ...a, ...change }))}
             />
           )}
+          {step === 2 && (
+            <Field Icon={FileIcon} label="Resume">
+              <ResumeUpload
+                file={resume}
+                onFileChange={setResume}
+                onRemove={() => setResume(null)}
+                busy={uploading}
+              />
+            </Field>
+          )}
         </div>
 
         <SignedInAs email={email} className="px-6 pb-6" />
@@ -238,7 +276,7 @@ export function OnboardingForm({
         <div className="bg-panel border-border-subtle sticky bottom-0 border-t">
           <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-6 py-4">
             {step > 0 ? (
-              <Button variant="outline" size="lg" onClick={() => goTo(step - 1)}>
+              <Button variant="outline" size="lg" disabled={saving} onClick={() => goTo(step - 1)}>
                 Back
               </Button>
             ) : (
@@ -250,13 +288,18 @@ export function OnboardingForm({
                   {error}
                 </p>
               )}
+              {last && (
+                <Button variant="outline" size="lg" disabled={saving} onClick={() => finish(null)}>
+                  Skip
+                </Button>
+              )}
               {/* lg and rectangular, as every page's one main action is
                   (KAN-251); the wizard's two buttons were pills. */}
               <Button
                 size="lg"
                 className="min-w-32"
                 disabled={!canNext || saving}
-                onClick={() => (last ? finish() : goTo(step + 1))}
+                onClick={() => (last ? finish(resume) : goTo(step + 1))}
               >
                 {saving ? "Saving…" : last ? "Continue" : "Next"}
               </Button>

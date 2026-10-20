@@ -8,7 +8,7 @@ routes, so applying it early is safe; deployed first, onboarding's Continue
 answers 500.
 
 Revision ID: a7d3e5c1b942
-Revises: 17ea74fa4573
+Revises: c785e96ac011
 Create Date: 2026-10-20 12:00:00.000000
 
 """
@@ -21,7 +21,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'a7d3e5c1b942'
-down_revision: Union[str, Sequence[str], None] = '17ea74fa4573'
+down_revision: Union[str, Sequence[str], None] = 'c785e96ac011'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

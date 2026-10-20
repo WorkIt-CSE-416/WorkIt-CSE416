@@ -119,10 +119,10 @@ class JobFilters:
     # names, which matches nothing (never a placeholder value: Postgres
     # refuses some, as a NUL byte once proved with a 500).
     start_terms: Sequence[str] | None = None
-    # "sponsors": the posting says it sponsors visas. "not_ruled_out": hide a
-    # posting that says it doesn't, or wants US citizens only, and keep the
-    # ones that say nothing, which is most of them (KAN-168).
-    visa: Literal["sponsors", "not_ruled_out"] | None = None
+    # "sponsors": the posting says it sponsors visas (KAN-168). A second
+    # option, "not_ruled_out" (hide only postings that say no, keep the many
+    # that say nothing), went in KAN-275: two visa filters read as one.
+    visa: Literal["sponsors"] | None = None
     # ?q= (read_search): the roles it names, each of which a job must be
     # tagged with; the facts it names, each narrowing on its own beside the
     # filters above (a search's "remote" and a ticked Hybrid make nothing);
@@ -297,13 +297,6 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     clauses.extend(word_matches(word) for word in filters.query_words)
     if filters.visa == "sponsors":
         clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
-    elif filters.visa == "not_ruled_out":
-        clauses.append(
-            or_(
-                Job_Post.sponsorship.is_(None),
-                Job_Post.sponsorship == dto.visa_sponsorship.sponsors,
-            )
-        )
     if filters.applied_by is not None:
         clauses.append(~exists().where(
             Job_Application.job_id == Job_Post.id,

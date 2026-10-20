@@ -62,7 +62,8 @@ absent because it disallows us, and that is the whole reason.
 5. If its list leaves out the description or a fact the posting's own page
    has: the page's URL in `JOB_URL` and a `describe_<ats>` in `describe`'s table.
 6. If its board page has a square logo: `logos.PAGE` and `logos.PATTERN`, and
-   the image host in `frontend/next.config.ts` (see Logos).
+   the image host in `frontend/next.config.ts` (see Logos). If it names only the
+   company's website: `logos.PAGE` and a rule in `logos.extract` (Workday).
 7. If each company is its own subdomain: its domain in `polite.SHARED_PACE`.
 8. Its name and domain in `hiringSystems` in
    `frontend/src/app/(landing)/data.ts`: the landing page lists the hiring
@@ -341,8 +342,11 @@ database.
 Read once per board from its board page and kept in `jobs.json`.
 **`logos.PATTERN` accepts only each ATS's own image host, and those hosts must
 match `frontend/next.config.ts`'s `images.remotePatterns` exactly**: `next/image`
-throws on any other host, which fails the whole Jobs page. Read `docs/logos.md`
-before changing how a logo or website is found.
+throws on any other host, which fails the whole Jobs page. Workday has no
+pattern: its logo is a wide banner, so its cards show the favicon of the website
+its careers site links. **Raise `logos.VERSION` with any new place to find a logo
+or website**, or boards already stored as having none never get it. Read
+`docs/logos.md` before changing how a logo or website is found.
 
 ## The page
 

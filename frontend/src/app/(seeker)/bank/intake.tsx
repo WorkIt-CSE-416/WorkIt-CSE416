@@ -70,7 +70,7 @@ import {
  * The step bar, Skip and jump (KAN-214, `intake-steps.tsx`): with `walk`,
  * intake opens on the first section that is neither filled nor skipped and
  * moves to the next one after each save or Skip, in the order WALK gives.
- * The bank page walks when the bank is empty; onboarding always does.
+ * The bank page walks when the bank is empty.
  * Without it, the student picks a section from the chips and comes back to
  * them after each save. Skip and a jump drop the unsaved draft, as in the
  * prototype. A jump or a chip opens the section's bank entry with gaps, if

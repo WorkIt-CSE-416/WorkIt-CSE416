@@ -46,7 +46,7 @@ front, read one after another.
   board redirects to www.bamboohr.com instead of a 404, which `bamboohr()` turns
   into `BoardNotFound`.
 
-Only Workable's logos are read (`logos.md`). BambooHR's header logo is served as
-`application/octet-stream` from numbered hosts (`images7.bamboohr.com`), which
-next/image may refuse, and Recruitee's sits inside a 1 MB board page for the one
-board we read; their cards show initials until someone checks both.
+Workable's and BambooHR's logos are read (`logos.md`); BambooHR's careers page
+carries its logo as JSON, served as `application/octet-stream`, which next/image
+accepts because it sniffs the bytes. Recruitee's sits inside a 1 MB board page for
+the one board we read, so its cards show initials.

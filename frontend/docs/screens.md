@@ -116,7 +116,8 @@ under the panel picker's field. It is Base UI's Combobox, not a Select, since a
 Select whose rows come and go undoes an untick (below). A pick keeps the typed
 search, as the panel's picker does, and each open starts empty. A picked state narrows its country, in the panel as in the row. Start
 Date offers seasons (Summer 2027), grouped by the API from the terms postings
-use; Visa offers Sponsors Visas and Hide Jobs That Rule Me Out. No option shows
+use; Visa offers Sponsors Visas alone (Hide Jobs That Rule Me Out went in
+KAN-275, as two visa filters read as one). No option shows
 a job count, in the row or the panel (removed 2026-10-17, KAN-252, as clutter);
 the panel's Show N Jobs is the one count. GET /jobs/facets still sends them.
 Location, fed by GET /jobs/locations, is a Popover of two
@@ -959,17 +960,14 @@ in Docs (suggested answers in the chat, not a banner).
   a gap card whose entry has been deleted since (saving it found no entry,
   and it hid the walk's questions about the import). When no
   stop is left, the student picks from the chips.
-- **Intake in onboarding** (`onboarding/applicant/bank/`, KAN-214): the
-  profile form's Continue leads there, then Finish leads to /jobs, the
-  Recommended view (KAN-231). It
-  always walks, and its step bar counts the sections alone ("Section 3 of
-  6"): the page's step rail above it already shows the wizard's two steps
-  done, and a "Profile" segment counted them twice (KAN-259). It imports `Intake` from the bank route rather
-  than promoting it to `src/components`: intake needs the bank's entry
-  editor and sections, which stay with the bank page.
-- **Students see "Experiences"** (KAN-249), on the bank's view and as the
-  onboarding step's title; it was "Experience Bank" from KAN-214 until
-  then. The glossary term stays "experience bank".
+- **Intake is not part of onboarding** since KAN-275: the wizard's last
+  step is a resume upload (Applicant onboarding, below). Intake had run
+  there from KAN-214 on a page of its own, always walking; its step bar
+  counts the sections alone ("Section 3 of 6"), since that page's step rail
+  above it already counted the wizard's steps (KAN-259).
+- **Students see "Experiences"** (KAN-249) on the bank's view; it was
+  "Experience Bank" from KAN-214 until then. The glossary term stays
+  "experience bank".
 
 ### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
 
@@ -1289,7 +1287,7 @@ stays escaped text otherwise).
 
 ## Applicant onboarding
 
-/onboarding/applicant is a two-step wizard (KAN-231), outside both shells:
+/onboarding/applicant is a three-step wizard (KAN-231), outside both shells:
 each step's question is the page's h1 on a lavender left half
 (`onboarding/applicant/story-panel.tsx`, a band across the top below lg that
 holds the logo and the question alone), and the fields answer it on the
@@ -1300,21 +1298,21 @@ its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
 Step 1 is Role, Job Type and Workplace (all required), and Experience,
 Start Date, Location and Salary Range; step 2, Profile, is the questions
-every application asks (KAN-283, all optional), with Continue in place of
+every application asks (KAN-283, all optional); step 3 is Resume (KAN-275),
+with Skip and Continue in place of
 Next. Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
-only the jobs that name one, which a new-grad role rarely does. Intake (KAN-214) is onboarding's next step, so the wizard has no resume
-step of its own: intake uploads and imports one into the experience bank,
-which matching reads. Preference Tags, free-text skills, were dropped
+only the jobs that name one, which a new-grad role rarely does. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
-**One step rail counts the whole journey (KAN-259).** Both onboarding pages
-head their content with the shared `components/stepper.tsx` at `size="lg"`:
-Role, Profile, Experiences (`onboarding/applicant/steps.ts`), the third
-step being intake on ./bank. It replaced a thin bar and a 14px grey "Step 1 of
-2" at the foot of the left half: the smallest type on the screen, far from the
-fields, and wrong, since intake then opened six more sections. Intake's own
-bar on ./bank counts its sections ("Section 3 of 6") under the rail.
+**One step rail counts the whole journey (KAN-259).** The wizard heads its
+fields with the shared `components/stepper.tsx` at `size="lg"`: Role,
+Profile, Resume (`onboarding/applicant/steps.ts`). It replaced a thin bar and
+a 14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
+the screen, far from the fields, and wrong, since intake then opened six more
+sections on a page of its own. That page carried the rail too, with
+Experiences as the third step, until the resume step replaced intake
+(KAN-275). The second step was Pay & Visa until KAN-283.
 
 **The question and Scout stand apart (KAN-259).** The question sits under the
 logo; Scout sits at the left half's foot, from lg only, and types a tip the
@@ -1323,7 +1321,7 @@ bubble 28px over the question and asking it again in other words, so it was
 not clear who was asking.
 
 **The way out is quiet (KAN-259).** "Signed in as … Not you? Sign Out"
-(`onboarding/applicant/signed-in-as.tsx`) closes both pages, in the 12px of
+(`onboarding/applicant/signed-in-as.tsx`) closes the wizard, in the 12px of
 the inline button. Onboarding has no account menu, and sign-in brings an
 unfinished applicant back here, so the screen needs an exit; as a Sign Out
 button at the top right of the form it was the column's first thing and read
@@ -1344,11 +1342,11 @@ aria-hidden, and it holds still under reduced motion.
 
 **Profile asks what every application asks (KAN-283).** Authorization to
 Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
-Clearance, then the voluntary Gender, Veteran Status and Disability, in the order
-real forms ask them, each under the question as forms word it. The options
+Clearance, then the voluntary Gender, Veteran Status and Disability, in the
+order real forms ask them, each under the question as forms word it. The options
 are real forms' options (`onboarding/applicant/answers.ts`): gender's are the
-EEO Male, Female and decline plus Non-Binary, which many forms add; veteran status's
-three are the U.S. protected veteran self-identification's, disability's
+EEO Male, Female and decline plus Non-Binary, which many forms add; veteran
+status's three are the U.S. protected veteran self-identification's, disability's
 three are Form CC-305's words. One answer each, as dots; pressing a picked
 answer again clears it. They are not filters: Continue saves them to the
 answer bank (`PATCH /applicants/{id}/autofill-answers`, only the changed
@@ -1361,7 +1359,14 @@ kept, and the Jobs page still sets it.
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
 Start Date and Salary use All Filters' own pickers
 (`components/filter-controls.tsx`), so the saved answers fill the feed's
-filters with no translation. They share All Filters' rules too, from
+filters with no translation. Start Date differs from All Filters
+(KAN-275): it lists only seasons still ahead, with no bare year ("2027
+(Season Not Stated)") and no season already under way, both dropped in
+`page.tsx`. KAN-275 also asked Visa Sponsorship as two filter tiles (No
+Visa Sponsorship, Sponsor Visas) on the second step; KAN-283 replaced that
+step with Profile, whose sponsorship question is an application answer, not
+a filter. A saved `visa` passes through unchanged, and All Filters still
+sets it. They share All Filters' rules too, from
 `filter-query.ts`: `payUnits` picks the salary's units from the job types,
 and `statesNarrowCountries` saves United States and California as
 California. A fixed choice is a `ChoiceTile`
@@ -1377,17 +1382,36 @@ signed-in line at the foot is the one 12px exception. `text-subtitle`, the answe
 own, so each answer sets its weight; without it the typed salary and search
 text came out semibold.
 
-**Continue saves the answers (KAN-231)** as the seeker's preferences (`PUT
-/applicants/{id}/preferences`, which also marks onboarding complete), then
-opens intake (KAN-214), whose Finish opens /jobs: the Recommended view applies
-the saved filters and scores what they keep against the bank just filled. A
-failed save leaves the seeker on the page to retry. Date Posted is not asked:
-a saved "past 24 hours" would empty the feed within days. Sign-in sends an
-applicant here until they finish (`docs/auth.md`); a finished one coming back
-from intake's "Back to Profile" (`?step=2`) finds the wizard on its second
-step, filled with their saved answers, and Continue saves the edits. Without
-saved answers `?step=2` opens on the first step, which holds the answers that
-must be given.
+**The resume step (KAN-275)** is the Resumes view's dropzone
+(`components/resume-upload.tsx`), inside the wizard so it keeps Scout's
+panel, the step rail and the footer's Back. Picking a file only holds it,
+with a Remove; Continue is disabled until one is picked, and Skip is the way
+on without one. The dropzone says "Uploading…" only while the file is on its
+way: it once took the save's busy state too, so Skip read as if it had sent
+a file. The footer's "Saving…" covers the save. It replaced intake
+(KAN-214), whose chat asked about each section in turn, on its own page and
+in another design: one upload fills most of the bank in one step, and intake
+still runs on the Experiences view for what the resume missed.
+
+**Continue or Skip saves the answers.** The Profile step's go to the answer
+bank first (`PATCH /applicants/{id}/autofill-answers`, only the changed ones,
+KAN-283), then step 1's as the seeker's preferences (`PUT
+/applicants/{id}/preferences`, KAN-231, which also marks onboarding
+complete). The bank goes first because a finished seeker is never sent back
+here, and no other screen asks those questions yet.
+Continue then uploads the file through `uploadResume`, and the API reads it
+into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
+whose Recommended view scores the saved filters' jobs against the bank. The
+answers save first: a failed save or upload leaves the seeker on the step,
+saying why in the API's words (a sixth upload's 409 among them), and a retry
+saves the answers again harmlessly. Date Posted is not asked: a saved "past
+24 hours" would empty the feed within days. Sign-in sends an applicant here
+until they finish (`docs/auth.md`); a finished one who opens the page again
+finds the wizard filled with their saved answers, and Continue saves the
+edits. `?step=2` opens the wizard on its second step, Profile; intake's "Back to
+Pay & Visa" linked there until KAN-275, and nothing does now. Without saved
+answers `?step=2` opens on the first step, which holds the answers that must
+be given.
 
 ## Company screens
 

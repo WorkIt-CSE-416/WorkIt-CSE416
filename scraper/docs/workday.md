@@ -88,11 +88,14 @@ first 664 roles before the join and for 13 after, "Remote" and site names
 (Cleveland-Cliffs' "Rockport Works"). Pay is read from the description (Bose's
 "$21.15-$29.09 per hour"). Workday has no department field we read.
 
-**No logos.** Each careers page names one (`/{site}/assets/logo`), but it is the
-site's banner, not a square: NVIDIA's is 1200x627, Boeing's 1600x400. Micron's is
-an SVG, which next/image refuses without `dangerouslyAllowSVG`, and Salesforce's
-and Disney's come as `text/plain`, which it may refuse. Workday cards show initials
-until someone finds a square image Workday serves cheaply.
+**The logo is the company website's favicon.** Each careers page names a logo
+(`/{site}/assets/logo`), but it is the site's banner, not a square: NVIDIA's is
+1200x627, Boeing's 1600x400. Micron's is an SVG, which next/image refuses without
+`dangerouslyAllowSVG`, and Salesforce's and Disney's come as `text/plain`, which it
+may refuse. So the logo reader reads the careers site's settings instead
+(`GET /wday/cxs/{tenant}/{site}/approot`, what the page draws its header from) and
+takes the website they link (`logos.md`). On 120 boards sampled on 2026-10-19, 112
+answered and 80 of those gave a website.
 
 **A job on two careers sites is one role.** Autodesk lists its interns on `ext`
 and `uni`, Cadence on up to three sites, BMO and CIBC on `campus` and the main

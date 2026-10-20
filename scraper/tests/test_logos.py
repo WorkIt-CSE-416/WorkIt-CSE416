@@ -1,12 +1,14 @@
 """Logos: a wrong pattern shows another image, or none, and nothing errors.
 
-Every snippet is copied from the live board page on 2026-09-29.
+Every snippet is copied from the live board page: 2026-09-29 unless a test says
+another day.
 """
 
 from __future__ import annotations
 
 import json
 import urllib.error
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -76,6 +78,68 @@ class TestExtract:
         # With no logo, its website's icon -- the account's own `url`, not the GDPR page's.
         bare = page.replace('"https://workablehr.s3.amazonaws.com/uploads/account/logo/', '"x')
         assert logos.extract("workable", bare) == logos.favicon("huggingface.co")
+
+    def test_workday_home_page_gives_its_favicon(self) -> None:
+        # NVIDIA's careers site, 2026-10-19: no square logo, a "Home" link to nvidia.com.
+        page = (
+            '"header":{"homePageURL":"https://www.nvidia.com/en-us/about-nvidia/careers/",'
+            '"homeLinkText":"Home","logoUri":"/NVIDIAExternalCareerSite/assets/logo"}'
+        )
+        assert logos.extract("workday", page) == logos.favicon("www.nvidia.com")
+
+    def test_a_workday_home_page_on_workday_itself_is_no_website(self) -> None:
+        # Arlo's "Arlo Home" is its own careers site, whose icon is Workday's.
+        page = '"header":{"homePageURL":"https://arlo.wd12.myworkdayjobs.com/External_Careers"}'
+        assert logos.extract("workday", page) is None
+
+    def test_lever_logo_on_the_older_dash_host(self) -> None:
+        # Daniels Health, 2026-10-19: `s3-us-west-2`, not `s3.us-west-2`.
+        page = (
+            '<a href="https://jobs.lever.co/daniels-sharpsmart" class="main-header-logo">'
+            '<img alt="Daniels Health logo" src="https://lever-client-logos.s3-us-west-2.'
+            'amazonaws.com/54f80fd6-ad0a-43af-bca8-9b1c1cfe485d-1596756879445.png">'
+        )
+        assert logos.extract("lever", page) == (
+            "https://lever-client-logos.s3-us-west-2.amazonaws.com/"
+            "54f80fd6-ad0a-43af-bca8-9b1c1cfe485d-1596756879445.png"
+        )
+
+    def test_lever_without_a_logo_falls_back_to_its_home_page_link(self) -> None:
+        # Zoox, 2026-10-19: an empty header, and the footer's "Zoox Home Page".
+        page = (
+            '<div class="main-header-content page-centered narrow-section page-full-width">'
+            '</div>...<div class="main-footer-text"><p><a href="http://zoox.com">Zoox Home '
+            "Page</a></p>"
+        )
+        assert logos.extract("lever", page) == logos.favicon("zoox.com")
+
+    def test_bamboohr_header_logo_with_its_escaped_slashes(self) -> None:
+        # Content Guru's careers page, 2026-10-19: a 306x120 PNG behind a .jpg name.
+        page = (
+            '"logo":{"alt":"Content Guru","url":"https:\\/\\/images4.bamboohr.com\\/390319'
+            '\\/logos\\/cropped.jpg?v=52","width":null,"height":"60"}'
+        )
+        assert (
+            logos.extract("bamboohr", page)
+            == "https://images4.bamboohr.com/390319/logos/cropped.jpg?v=52"
+        )
+
+    def test_bamboohr_logo_on_the_companys_own_subdomain(self) -> None:
+        # Armstrong Fluid Technology serves it from its board's own host.
+        page = (
+            '"logo":{"alt":"Armstrong Fluid Technology","url":"https:\\/\\/'
+            'armstrongfluidtechnology.bamboohr.com\\/manage\\/logo\\/?v=38",'
+            '"width":null,"height":"43"}'
+        )
+        assert (
+            logos.extract("bamboohr", page)
+            == "https://armstrongfluidtechnology.bamboohr.com/manage/logo/?v=38"
+        )
+
+    def test_bamboohr_with_no_logo_uploaded(self) -> None:
+        # ConeTec Group: `false`, not a URL.
+        page = '"logo":{"alt":"ConeTec Group","url":false,"width":null,"height":null}'
+        assert logos.extract("bamboohr", page) is None
 
     def test_a_board_without_a_logo(self) -> None:
         # Axios's Greenhouse board carries no uploaded logo.
@@ -185,6 +249,92 @@ class TestFetch:
             "ashby/bedrock-robotics": "https://app.ashbyhq.com/api/images/org-theme-logo/b.png"
         }
 
+    def test_a_workday_site_with_no_home_page_falls_back_to_its_privacy_policy(self) -> None:
+        # KBR's careers site, 2026-10-19: no "Home" link, a privacy notice on kbr.com.
+        approot = (
+            b'{"footer":{"socialLinksList":[{"label":"LinkedIn","uri":'
+            b'"https://www.linkedin.com/company/kbr-inc/"}],"privacyPolicy":{"uri":'
+            b'"https://www.kbr.com/document/8536"}},"header":{"homePageURL":null}}'
+        )
+        found = fetch(
+            ("workday", "kbr.wd5/kbr_careers", "KBR"),
+            {"https://kbr.wd5.myworkdayjobs.com/wday/cxs/kbr/kbr_careers/approot": approot},
+        )
+        assert found == {"workday/kbr.wd5/kbr_careers": logos.favicon("kbr.com")}
+
+    def test_a_workday_privacy_policy_on_a_vendor_names_no_website(self) -> None:
+        # Barclays' is a PDF on its careers-site vendor's CDN.
+        approot = (
+            b'{"footer":{"privacyPolicy":{"uri":"https://tbcdn.talentbrew.com/company/13015/'
+            b'v1_0/pdf/Candidate_Privacy_Notice.pdf"}},"header":{"homePageURL":null}}'
+        )
+        found = fetch(
+            ("workday", "barclays.wd3/external_career_site_barclays", "Barclays"),
+            {"https://barclays.wd3.myworkdayjobs.com/": approot},
+        )
+        assert found == {"workday/barclays.wd3/external_career_site_barclays": None}
+
+    def test_a_greenhouse_logo_link_names_the_site_with_no_logo_uploaded(self) -> None:
+        # BGE's campus board, 2026-10-19: no image, but the logo links bgeinc.com.
+        page = (
+            b'"boardConfiguration":{"job_board_id":4006376008,"logo":{"href":'
+            b'"https://www.bgeinc.com/careers/","url":null}'
+        )
+        found = fetch(
+            ("greenhouse", "bgeinccampus", "BGE"),
+            {
+                "https://job-boards.greenhouse.io/": page,
+                "https://boards-api.greenhouse.io/": greenhouse_jobs(),
+            },
+        )
+        assert found == {"greenhouse/bgeinccampus": logos.favicon("bgeinc.com")}
+
+    def test_a_greenhouse_logo_link_to_a_file_host_is_no_website(self) -> None:
+        # OH.io's logo links a wallpaper on Slack, whose icon is Slack's.
+        page = (
+            b'"logo":{"href":"https://files.slack.com/files-pri/T09CDJ5E3JA-F09TY7WU2T0/'
+            b'oh.io_2560_wallpaper.png","url":null}'
+        )
+        found = fetch(
+            ("greenhouse", "ohio", "OH.io"),
+            {
+                "https://job-boards.greenhouse.io/": page,
+                "https://boards-api.greenhouse.io/": greenhouse_jobs(),
+            },
+        )
+        assert found == {"greenhouse/ohio": None}
+
+    def test_a_hidden_lever_board_is_named_by_its_descriptions(self) -> None:
+        # Aircall, 2026-10-19: every jobs.lever.co page is a 404, the API is public,
+        # and each posting's closing lines link a page on aircall.io.
+        posting = {
+            "description": "<div>Aircall is a cloud-based phone system.</div>",
+            "lists": [{"text": "About you", "content": "<li>Curious.</li>"}],
+            "additional": (
+                "<div>Want to know more about candidate privacy? Find our <a "
+                'class="postings-link" href="https://aircall.io/candidate-privacy-notice/">'
+                "Candidate Privacy Notice here.</a></div>"
+            ),
+        }
+        found = fetch(
+            ("lever", "aircall", "Aircall"),
+            {"https://api.lever.co/": json.dumps([posting]).encode()},
+        )
+        assert found == {"lever/aircall": logos.favicon("aircall.io")}
+
+    def test_bamboohr_reads_its_careers_page(self) -> None:
+        page = (
+            b'"logo":{"alt":"TGG Accounting","url":"https:\\/\\/images7.bamboohr.com\\/39282'
+            b'\\/logos\\/cropped.jpg?v=24","width":null,"height":"60"}'
+        )
+        found = fetch(
+            ("bamboohr", "tggaccounting", "TGG Accounting"),
+            {"https://tggaccounting.bamboohr.com/careers": page},
+        )
+        assert found == {
+            "bamboohr/tggaccounting": "https://images7.bamboohr.com/39282/logos/cropped.jpg?v=24"
+        }
+
     def test_an_unreadable_board_is_left_for_the_next_run(self) -> None:
         assert fetch(("lever", "gone", "Gone"), {}) == {}
 
@@ -206,3 +356,23 @@ class TestStore:
         previous = store.Store("2026-09-28T00:00:00+00:00", RunStats(), [], {}, {"ashby/a": "u"})
         now = "2026-09-29T00:00:00+00:00"
         assert store.update(previous, [], [], RunStats(), now).logos == {"ashby/a": "u"}
+
+    def test_a_newer_reader_reads_the_boards_that_had_no_logo_again(self, tmp_path: Path) -> None:
+        old = store.Store(
+            "2026-10-18T00:00:00+00:00", RunStats(), [], {}, {"a/x": "u", "b/y": None}
+        )
+        path = tmp_path / "jobs.json"
+        store.save(old, path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        del payload["logos_version"]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        # A store from before the version existed counts as version 1.
+        loaded = store.load(path)
+        assert loaded.logos_version == 1
+        newer = store.reread_missing_logos(loaded, 2)
+        assert (newer.logos, newer.logos_version) == ({"a/x": "u"}, 2)
+        # Once per version: a board read again and still bare stays recorded.
+        again = replace(newer, logos={**newer.logos, "b/y": None})
+        assert store.reread_missing_logos(again, 2) is again
+        now = "2026-10-19T00:00:00+00:00"
+        assert store.update(again, [], [], RunStats(), now).logos_version == 2
