@@ -527,10 +527,6 @@ function ContactSection({
     }),
   ];
 
-  // Each field's look is shared with Application Questions (./field-styles).
-  const HEADING = FIELD_HEADING;
-  const GRID = FIELD_GRID;
-
   return (
     <section aria-labelledby="contact" className="border-border-subtle border-b py-6">
       <div className="flex items-baseline justify-between gap-4">
@@ -551,7 +547,7 @@ function ContactSection({
           onSubmit={handleSubmit}
           onKeyDown={(e) => e.key === "Escape" && !saving && setEditing(false)}
         >
-          <div className={GRID}>
+          <div className={FIELD_GRID}>
             {items.map(({ field, editLabel, Icon, type, placeholder, hint, action }, i) => {
               const invalid = badLinks.includes(field);
               const note = invalid
@@ -561,7 +557,7 @@ function ContactSection({
                   : undefined;
               return (
                 <div key={field} className="min-w-0">
-                  <label htmlFor={`edit-${field}`} className={HEADING}>
+                  <label htmlFor={`edit-${field}`} className={FIELD_HEADING}>
                     <Icon className="text-brand size-5 shrink-0" />
                     {editLabel}
                   </label>
@@ -625,10 +621,10 @@ function ContactSection({
           </div>
         </form>
       ) : (
-        <dl className={GRID}>
+        <dl className={FIELD_GRID}>
           {items.map(({ field, label, Icon, text, href, external, note }) => (
             <div key={field} className="min-w-0">
-              <dt className={HEADING}>
+              <dt className={FIELD_HEADING}>
                 <Icon className="text-brand size-5 shrink-0" />
                 {label}
               </dt>
