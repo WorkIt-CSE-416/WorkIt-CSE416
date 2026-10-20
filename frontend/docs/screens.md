@@ -892,8 +892,9 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 ## My Profile
 
-**My Profile holds the photo and the identity fields**, and a "Resumes &
-Experiences" section that links to both views of that page.
+**My Profile holds the photo and the identity fields**, the Application
+Questions, and a "Resumes & Experiences" section that links to both views of
+that page.
 
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
@@ -907,7 +908,8 @@ under the heading's text.
   a new tab, printed as the resume header prints it: `linkedin.com/in/jake`)
   or "Not added" in grey. The section's Edit turns every value into a text
   field in place, the first one focused, with Cancel and Save under them;
-  Escape cancels. Clearing a field and saving removes it.
+  Escape cancels. Clearing a field and saving removes it. Save sends what
+  changed since Edit was clicked, as Application Questions does (below).
 - **Tried and dropped on 2026-10-20:** only the filled fields in one row
   under the name (a seeker with no links saw no sign they could add any,
   and nothing said which email it was), then an Add button on each empty
@@ -948,6 +950,35 @@ headline line used to leave a gap between the name and the row below.
   is not an http(s) address is refused with "Enter a web address" under the
   field. The section never makes an href of a link that fails the check.
 
+**Application Questions (KAN-269)** is an open section between Contact &
+Links and Resumes & Experiences: the seven questions onboarding's Profile
+step asks (work authorization, sponsorship, citizenship and visa status,
+clearance, and the voluntary gender, veteran and disability
+self-identification), with the seeker's answers
+(`(seeker)/profile/application-questions.tsx`).
+
+- **The same two modes as Contact & Links.** Reading, each question is its
+  answer's label or "Not answered" in grey. Edit turns every answer into a
+  picker (`ui/select-field.tsx`) in place, the first one focused, each over
+  the question as forms word it, with Cancel and Save; "Not Answered" in a
+  picker clears that answer. Escape cancels, but Escape in a picker's open
+  list closes the list alone: the list is portalled outside the form, and
+  only a key from the form's own fields cancels.
+- **Pickers, not onboarding's tiles**: seven questions of up to six large
+  tiles made a screen-long form on a page of settings.
+- **Two screens edit these answers, safely.** Onboarding asks them once;
+  this section is where they change after. Both read one question list
+  (`lib/autofill-answers.ts`) and save through one server action
+  (`lib/autofill-answers-actions.ts`), and the API merges only the answers
+  sent, so neither screen erases what the other saved.
+- **Shown only once loaded.** A failed read shows the page's one notice,
+  never seven "Not answered" lines that would pass for real answers.
+- **Save sends what changed since Edit was clicked**, compared with the
+  answers the edit started from, never the latest ones: a return visit
+  shows the cached answers and refetches, and a refetch landing mid-edit
+  made another tab's newer answers look changed, so Save wrote the cached
+  ones back over them (review, 2026-10-20).
+
 **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
 the Resumes view's Your Resumes card (below), beside the base resumes,
@@ -965,8 +996,8 @@ places to edit the same facts drift apart, and the bank is what built
 resumes read.
 
 **My Profile is cached for the life of the seeker shell.**
-`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL
-and the applicant profile fields) in a provider
+`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
+the applicant profile fields and the Application Questions' answers) in a provider
 in `(seeker)/layout.tsx`. A
 return visit renders it at once and refetches in the background. Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
@@ -1687,7 +1718,7 @@ aria-hidden, and it holds still under reduced motion.
 Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
 Clearance, then the voluntary Gender, Veteran Status and Disability, in the
 order real forms ask them, each under the question as forms word it. The options
-are real forms' options (`onboarding/applicant/answers.ts`): gender's are the
+are real forms' options (`lib/autofill-answers.ts`): gender's are the
 EEO Male, Female and decline plus Non-Binary, which many forms add; veteran
 status's three are the U.S. protected veteran self-identification's, disability's
 three are Form CC-305's words. One answer each, as dots; pressing a picked

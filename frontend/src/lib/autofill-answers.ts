@@ -1,9 +1,11 @@
 /**
- * The questions hiring systems repeat on every application (KAN-283), as
- * onboarding's Profile step asks them, and the shape the API keeps them in
- * (GET and PATCH /applicants/{id}/autofill-answers, the backend's
- * schemas/autofill_answers.py, field for field). Auto apply fills them in;
- * My Profile will show them (KAN-273).
+ * The questions hiring systems repeat on every application (KAN-283), and the
+ * shape the API keeps them in (GET and PATCH /applicants/{id}/autofill-answers,
+ * the backend's schemas/autofill_answers.py, field for field). Onboarding's
+ * Profile step asks them first; My Profile's Application Questions shows and
+ * edits them (KAN-269). Both read this one list, so a new question is one
+ * entry here and one key in the API's schema. Server actions:
+ * ./autofill-answers-actions.
  *
  * Each value is the API's option key, never the label: the label is the words
  * real forms use, so a student recognises the answer they will be filling in,

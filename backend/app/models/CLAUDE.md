@@ -720,7 +720,8 @@ application: work authorization, sponsorship, citizenship and visa status,
 security clearance, and the voluntary gender, veteran and disability
 self-identification. Onboarding's second step (Profile) asks them; auto
 apply's fill reads them (`../../auto-apply/architecture.md`,
-`autofill_answers`), and My Profile will show them (KAN-273).
+`autofill_answers`), and My Profile's Application Questions shows and edits
+them (KAN-269).
 
 - **One JSONB bank per applicant** (primary key `applicant_id`, CASCADE):
   `answers` maps a stable question key to its answer alone
@@ -731,7 +732,7 @@ apply's fill reads them (`../../auto-apply/architecture.md`,
 - **The answer is an option key, never a label** (`"f1_student"`, not
   "F-1 Student"). The keys and their options are `schemas/autofill_answers.py`
   (Literals, so the API refuses anything else with a 422); the labels are the
-  frontend's (`onboarding/applicant/answers.ts`), as are the questions' words.
+  frontend's (`frontend/src/lib/autofill-answers.ts`), as are the questions' words.
 - **No question text is stored** (decided 2026-10-20). The first design kept
   `{question_text, answer}` per key, which copied the same words into every
   student's row for no reader: a fixed key already says which question it

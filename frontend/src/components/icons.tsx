@@ -1,4 +1,5 @@
 import {
+  Accessibility,
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
@@ -20,11 +21,13 @@ import {
   Clock,
   Ellipsis,
   ExternalLink,
+  FileCheck2,
   FileText,
   Globe,
   Gift,
   GraduationCap,
   House,
+  IdCard,
   Info,
   ListChecks,
   ListFilter,
@@ -32,12 +35,14 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Medal,
   Monitor,
   Pencil,
   Plus,
   Search,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
   Star,
   Trash2,
@@ -45,9 +50,12 @@ import {
   TrendingUp,
   Upload,
   User,
+  UserRound,
   X,
   createLucideIcon,
 } from "lucide-react";
+
+import type { AutofillAnswers } from "@/lib/autofill-answers";
 
 type IconProps = { className?: string };
 
@@ -451,4 +459,52 @@ export function SortIcon({ className, direction }: IconProps & { direction?: "as
   const Glyph =
     direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
   return <Glyph aria-hidden className={className} />;
+}
+
+/** Work authorization: a checked document. */
+export function AuthorizationIcon({ className }: IconProps) {
+  return <FileCheck2 aria-hidden className={className} />;
+}
+
+/** Citizenship and visa status: an ID card. */
+export function CitizenshipIcon({ className }: IconProps) {
+  return <IdCard aria-hidden className={className} />;
+}
+
+/** Security clearance: a checked shield. */
+export function ClearanceIcon({ className }: IconProps) {
+  return <ShieldCheck aria-hidden className={className} />;
+}
+
+/** Gender: a person. */
+export function GenderIcon({ className }: IconProps) {
+  return <UserRound aria-hidden className={className} />;
+}
+
+/** Veteran status: a medal. */
+export function VeteranIcon({ className }: IconProps) {
+  return <Medal aria-hidden className={className} />;
+}
+
+/** Disability: the accessibility figure. */
+export function DisabilityIcon({ className }: IconProps) {
+  return <Accessibility aria-hidden className={className} />;
+}
+
+const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
+  work_authorized_us: AuthorizationIcon,
+  needs_sponsorship: VisaIcon,
+  work_authorization_status: CitizenshipIcon,
+  security_clearance: ClearanceIcon,
+  gender: GenderIcon,
+  veteran_status: VeteranIcon,
+  disability_status: DisabilityIcon,
+};
+
+/** An application question's glyph, by its key in the answer bank
+ *  (lib/autofill-answers): onboarding's Profile step and My Profile's
+ *  Application Questions draw the same one. Moved here from onboarding when
+ *  My Profile became the second route to want them (KAN-269). */
+export function answerIcon(key: keyof AutofillAnswers) {
+  return ANSWER_ICON[key];
 }
