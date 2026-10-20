@@ -1716,11 +1716,11 @@ aria-hidden, and it holds still under reduced motion.
 
 **Profile asks what every application asks (KAN-283).** Authorization to
 Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
-Clearance, then the voluntary Gender, Hispanic or Latino, Race / Ethnicity,
+Clearance, then the voluntary Gender, Hispanic or Latino, Race/Ethnicity,
 Veteran Status and Disability, in the order real forms ask them, each under the question as forms word it. The options
 are real forms' options (`lib/autofill-answers.ts`): gender's are the
 EEO Male, Female and decline plus Non-Binary, which many forms add;
-Hispanic or Latino (KAN-299) is Yes, No or decline, and Race / Ethnicity one
+Hispanic or Latino (KAN-299) is Yes, No or decline, and Race/Ethnicity one
 EEO-1 category or decline, the EEO's own two questions, which every U.S.
 form keeps apart; veteran
 status's three are the U.S. protected veteran self-identification's, disability's

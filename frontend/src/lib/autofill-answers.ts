@@ -95,8 +95,8 @@ export const GENDER_OPTIONS: Options<"gender"> = [
   { value: "declined", label: "I Don't Wish to Answer" },
 ];
 
-/** The EEO self-identification's ethnicity question (KAN-299), asked before
- *  race as Greenhouse, Lever and Workday ask it. */
+/** The EEO self-identification's Hispanic or Latino question (KAN-299),
+ *  asked before Race/Ethnicity as Greenhouse, Lever and Workday ask it. */
 export const HISPANIC_LATINO_OPTIONS: Options<"hispanic_latino"> = [
   { value: "yes", label: "Yes" },
   { value: "no", label: "No" },
@@ -199,8 +199,10 @@ export const PROFILE_QUESTIONS: ProfileQuestion[] = [
   },
   {
     key: "race",
-    label: "Race / Ethnicity",
-    question: "Voluntary self-identification: what is your race?",
+    // One name for the question, "Race/Ethnicity", in its label and its
+    // wording alike; Hispanic or Latino stays the question above.
+    label: "Race/Ethnicity",
+    question: "Voluntary self-identification: what is your race or ethnicity?",
     options: RACE_OPTIONS,
     columns: 2,
   },

@@ -488,7 +488,7 @@ export function HispanicLatinoIcon({ className }: IconProps) {
   return <ContactRound aria-hidden className={className} />;
 }
 
-/** Race / Ethnicity: a group of people. */
+/** Race/Ethnicity: a group of people. */
 export function RaceIcon({ className }: IconProps) {
   return <UsersRound aria-hidden className={className} />;
 }
