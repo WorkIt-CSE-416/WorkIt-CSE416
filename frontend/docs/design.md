@@ -133,7 +133,9 @@ drew it, and it pulled the eye off the form.
 
 `components/logo.tsx` draws the WorkIt logo as SVG (a w-shaped figure with its
 arms up beside "workit" in outlined Figtree Bold); `<Logo>` picks the lockup or
-a half per size, `<LogoLockup>` is the seeker shell's pair. There are no logo
+a half per size, `<LogoLockup>` is the seeker shell's pair. The figure is
+violet and the word ink everywhere, the shells included (2026-10-20, KAN-300;
+the shells drew it all in ink before). There are no logo
 image files; `public/workit-icon.svg` is the favicon's source (`npm run
 favicon`). `components/icons.tsx` holds glyphs used by more than one route, as
 thin wrappers over Lucide at its default stroke (the brand marks stay drawn);
