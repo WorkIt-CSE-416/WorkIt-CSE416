@@ -91,6 +91,100 @@ window.WIA = window.WIA || {};
     return family ? family.option : degree;
   }
 
+  /**
+   * Greenhouse's "Country" field next to Phone is the phone number's own
+   * calling-code picker (confirmed live: a combobox listing "United States
+   * +1", "Afghanistan +93", one option per country — not a location/
+   * residence field, which is the separate "Location (City)" field further
+   * down the form), a stable Greenhouse id like `phone`/`email`. A bank/
+   * profile `phone_number` is free text with no enforced format
+   * (`backend/app/models/profiles.py`'s column is a plain `String(30)`), so
+   * a student who types a leading "+<code>" (e.g. "+91 98765 43210") gets
+   * it read here and mapped to the country name — the exact name
+   * Greenhouse's own option list uses, confirmed live as "<Country>
+   * +<code>", so typing just the name is enough for fillCombobox's
+   * substring match to find it (verified live: typing "United States"
+   * filters the list to exactly "United States +1").
+   *
+   * Not exhaustive — covers calling codes WorkIt's own student population
+   * is likeliest to use, not all ~240. An unrecognized explicit code is
+   * left unfilled (honest, no guess) rather than picked at random. No
+   * leading "+" at all, or "+1", resolves to "United States": this
+   * product is explicitly US-only while it's young
+   * (`backend/app/models/CLAUDE.md`'s "Locations" section), so a plain,
+   * uncoded number is the common domestic case, not an unknown one — and
+   * +1 itself is shared by the US, Canada and ~19 Caribbean nations, so
+   * "United States" is the same kind of reasonable product-scoped default,
+   * not a wild guess.
+   */
+  const CALLING_CODE_COUNTRIES = {
+    1: "United States",
+    7: "Russia",
+    20: "Egypt",
+    27: "South Africa",
+    33: "France",
+    34: "Spain",
+    39: "Italy",
+    44: "United Kingdom",
+    49: "Germany",
+    52: "Mexico",
+    55: "Brazil",
+    57: "Colombia",
+    60: "Malaysia",
+    61: "Australia",
+    62: "Indonesia",
+    63: "Philippines",
+    65: "Singapore",
+    66: "Thailand",
+    81: "Japan",
+    82: "South Korea",
+    84: "Vietnam",
+    86: "China",
+    91: "India",
+    92: "Pakistan",
+    94: "Sri Lanka",
+    234: "Nigeria",
+    880: "Bangladesh",
+    966: "Saudi Arabia",
+    971: "United Arab Emirates",
+  };
+
+  /**
+   * Splits a free-text phone number into the Country dropdown's value and
+   * what the separate Phone text field should hold — the local number
+   * alone, since the dropdown already carries the calling code and Phone
+   * showing it twice ("+1" in the dropdown, "+1 555…" typed again next to
+   * it) would read as a mistake on the filled form. `local` falls back to
+   * the untouched original whenever the leading code isn't both present
+   * and recognized, so a phone number this function can't confidently
+   * parse is still filled in full rather than silently mangled.
+   * @param {string | null} phoneNumber
+   * @returns {{ country: string | null, local: string | null }}
+   */
+  function splitPhoneCountry(phoneNumber) {
+    if (!phoneNumber) return { country: null, local: null };
+    const trimmed = phoneNumber.trim();
+    const match = /^\+(\d+)/.exec(trimmed);
+    if (!match) return { country: "United States", local: trimmed }; // see this section's own doc comment
+
+    // Longest prefix first: calling codes are prefix-free by design (no
+    // valid code is a prefix of another), so trying 3, then 2, then 1
+    // digit and taking the first hit can never misfire on a shorter code
+    // that happens to also be in the table. `\d+` (not `\d{1,3}`) captures
+    // the whole leading digit run, which matters when the student typed no
+    // separator between the code and the local number at all ("+919876543210"):
+    // slicing at the right length still finds "91" inside it.
+    const digits = match[1];
+    for (let len = Math.min(digits.length, 3); len >= 1; len--) {
+      const country = CALLING_CODE_COUNTRIES[digits.slice(0, len)];
+      if (country) {
+        const rest = trimmed.slice(1 + len).replace(/^[\s.-]+/, "");
+        return { country, local: rest || trimmed };
+      }
+    }
+    return { country: null, local: trimmed }; // an explicit code we don't recognize — leave Country for the student, but still fill Phone in full
+  }
+
   const MONTH_NAMES = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
@@ -231,11 +325,13 @@ window.WIA = window.WIA || {};
     const [firstName, ...rest] = (profile.full_name || "").trim().split(/\s+/);
     const lastName = rest.at(-1) ?? "";
 
+    const phone = splitPhoneCountry(profile.phone_number);
     const identity = [
       { id: "first_name", label: "First Name", value: firstName || null },
       { id: "last_name", label: "Last Name", value: lastName || null },
       { id: "email", label: "Email", value: profile.email },
-      { id: "phone", label: "Phone", value: profile.phone_number },
+      { id: "country", label: "Country", value: phone.country },
+      { id: "phone", label: "Phone", value: phone.local },
     ];
 
     for (const { id, label, value } of identity) {
@@ -252,6 +348,28 @@ window.WIA = window.WIA || {};
       }
       const result = await fill.fillField(field, value);
       status.setStatus(id, result.ok ? "filled" : "failed", result.ok ? undefined : result.reason);
+    }
+
+    // Greenhouse's "Resume/CV" field is a stable `input#resume` — confirmed
+    // live (The Trade Desk's posting): `type="file"`,
+    // `accept=".pdf,.doc,.docx,.txt,.rtf"`, sitting behind styled
+    // "Attach"/"Enter manually" buttons but the real, directly-targetable
+    // file input underneath both. `profile.resume` is already resolved to
+    // file bytes by background/api.js's resolveResumeFile (whichever
+    // resume My Profile calls the student's default), so filling it here
+    // is one fillFile call, no network request from the content script.
+    const resumeField = document.getElementById("resume");
+    if (resumeField) {
+      handled.add("resume");
+      const required = fieldMap.isRequired(resumeField);
+      status.register("resume", "Resume/CV", required);
+
+      if (!profile.resume) {
+        status.setStatus("resume", required ? "failed" : "skipped", required ? "No resume saved to your WorkIt account" : undefined);
+      } else {
+        const result = fill.fillFile(resumeField, profile.resume);
+        status.setStatus("resume", result.ok ? "filled" : "failed", result.ok ? undefined : result.reason);
+      }
     }
 
     const education = (profile.bank?.entries ?? []).filter((e) => e.section === "education");

@@ -24,41 +24,83 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Two of the most common EEO/compliance custom questions a posting asks
-   * (confirmed live on a real Greenhouse posting's "U.S. Standard Work
-   * Authorization" section: "Are you legally authorized to work in the
-   * United States?" and "Do you currently, or will you in the future,
-   * require sponsorship for employment authorization?", both rendered as a
-   * Yes/No/"I don't wish to answer" dropdown) — derived from the
-   * onboarding "Visa Sponsorship" pick (`profile.visa`), the only
-   * visa-adjacent fact WorkIt stores on an applicant. That pick answers
-   * "which postings do I want to see", not "what is my status", so only
-   * its two unambiguous values answer either question: "I Don't Need One"
-   * (`null`) confidently means authorized and no sponsorship needed;
-   * "Sponsors Visas" (`"sponsors"`) confidently means sponsorship will be
-   * needed. "Hide Jobs That Rule Me Out" (`"not_ruled_out"`) is
-   * deliberately too broad for either question — an applicant who picked
-   * it might still hold work authorization (on OPT, say) or might not —
-   * and resolves to `null` here, same as no saved preference at all: a
-   * wrong Yes/No on a legal eligibility question is worse than leaving it
-   * for the student to answer themselves.
-   * @param {"sponsors" | "not_ruled_out" | null | undefined} visa
+   * The nine questions hiring systems repeat on every application (KAN-283,
+   * `backend/app/schemas/autofill_answers.py`), answered directly from the
+   * student's own saved answers (`GET /applicants/{id}/autofill-answers`,
+   * merged onto `profile.answers` by background/api.js) rather than
+   * inferred from anything else. Each map's keys are the API's option
+   * values; each map's values are the exact label text
+   * `frontend/src/lib/autofill-answers.ts` shows the student —
+   * copied here on purpose, not reworded, since that screen's own labels
+   * are already written to match what real hiring-system forms say
+   * ("in the form's own words and case", that file's own comments). A
+   * `null`/unanswered value resolves to `null` here too, same as every
+   * other field: content-script.js reports it as a specific skip or
+   * failure, never a guess.
    */
-  function sponsorshipRequiredAnswer(visa) {
-    if (visa === "sponsors") return "Yes";
-    if (visa === null || visa === undefined) return "No";
-    return null;
-  }
+  const YES_NO_LABELS = { yes: "Yes", no: "No" };
+  const WORK_STATUS_LABELS = {
+    us_citizen: "U.S. Citizen",
+    permanent_resident: "U.S. Permanent Resident (Green Card)",
+    f1_student: "F-1 Student (CPT, OPT or STEM OPT)",
+    h1b: "H-1B",
+    other_visa: "Other Visa (TN, L-1, O-1, H-4 EAD…)",
+    asylee_refugee: "Asylee or Refugee",
+  };
+  const CLEARANCE_LABELS = {
+    none: "None",
+    public_trust: "Public Trust",
+    confidential: "Confidential",
+    secret: "Secret",
+    top_secret: "Top Secret",
+    ts_sci: "Top Secret / SCI",
+  };
+  const GENDER_LABELS = {
+    male: "Male",
+    female: "Female",
+    non_binary: "Non-Binary",
+    declined: "I Don't Wish to Answer",
+  };
+  const VETERAN_LABELS = {
+    protected_veteran: "I identify as one or more of the classifications of protected veteran",
+    not_protected_veteran: "I am not a protected veteran",
+    declined: "I don't wish to answer",
+  };
+  const DISABILITY_LABELS = {
+    yes: "Yes, I have a disability (or previously had a disability)",
+    no: "No, I do not have a disability and have not had one in the past",
+    declined: "I do not want to answer",
+  };
+  // The EEO self-identification's two race/ethnicity questions, kept apart
+  // the way Greenhouse, Lever and Workday actually ask them (KAN-299):
+  // Hispanic or Latino is its own yes/no/decline question, never a race
+  // category; race takes one of the EEO-1 categories. Labels copied
+  // verbatim from frontend/src/lib/autofill-answers.ts's
+  // HISPANIC_LATINO_OPTIONS/RACE_OPTIONS, same convention as every other
+  // map here.
+  const HISPANIC_LATINO_LABELS = {
+    yes: "Yes",
+    no: "No",
+    declined: "I Don't Wish to Answer",
+  };
+  const RACE_LABELS = {
+    american_indian_alaska_native: "American Indian or Alaska Native",
+    asian: "Asian",
+    black_african_american: "Black or African American",
+    native_hawaiian_pacific_islander: "Native Hawaiian or Other Pacific Islander",
+    white: "White",
+    two_or_more: "Two or More Races",
+    declined: "I Don't Wish to Answer",
+  };
 
   /**
-   * @param {"sponsors" | "not_ruled_out" | null | undefined} visa
+   * @param {Record<string, string> | undefined} answers profile.answers
+   * @param {string} key
+   * @param {Record<string, string>} labels
    */
-  function workAuthorizedAnswer(visa) {
-    // Only "I Don't Need One" is unambiguous here — "Sponsors Visas" says
-    // the student wants sponsorship, not whether they currently hold work
-    // authorization while waiting on it, so it answers sponsorshipRequired
-    // but not this one.
-    return visa === null || visa === undefined ? "Yes" : null;
+  function answerLabel(answers, key, labels) {
+    const value = answers?.[key];
+    return value != null ? (labels[value] ?? null) : null;
   }
 
   // Each entry: a stable key, the synonyms a label is matched against
@@ -93,18 +135,78 @@ window.WIA = window.WIA || {};
       // field conventions for KAN-164, but it's an ATS-agnostic bug, not a
       // Greenhouse-specific one.
       { key: "headline", synonyms: ["headline", "professional headline", "current role"], value: profile.headline },
-      // More specific than "authorized"/"sponsorship" alone could ever
-      // need to be — both phrases are rare enough outside these exact
-      // questions that a plain substring match is safe.
+      // Confirmed live on a real Greenhouse posting's "U.S. Standard Work
+      // Authorization" section, both a Yes/No/"I don't wish to answer"
+      // dropdown. Deliberately "authorized to work"/"eligible to work",
+      // never the bare "work authorization": that phrase also appears
+      // inside "work authorization status" below, and checking this rule
+      // first would have claimed that field's dropdown as a Yes/No one.
       {
-        key: "work_authorized",
-        synonyms: ["authorized to work", "eligible to work", "work authorization"],
-        value: workAuthorizedAnswer(profile.visa),
+        key: "work_authorized_us",
+        synonyms: ["authorized to work", "eligible to work"],
+        value: answerLabel(profile.answers, "work_authorized_us", YES_NO_LABELS),
       },
       {
-        key: "visa_sponsorship_required",
+        key: "needs_sponsorship",
         synonyms: ["require sponsorship", "need sponsorship", "visa sponsorship", "sponsorship for employment"],
-        value: sponsorshipRequiredAnswer(profile.visa),
+        value: answerLabel(profile.answers, "needs_sponsorship", YES_NO_LABELS),
+      },
+      // The remaining seven are built the same principled way but, unlike
+      // the two above, not yet confirmed against a live posting that asks
+      // them — promote a synonym here the day a real form's wording
+      // doesn't match, same as every other rule in this list.
+      {
+        key: "work_authorization_status",
+        synonyms: ["citizenship", "visa status", "work authorization status"],
+        value: answerLabel(profile.answers, "work_authorization_status", WORK_STATUS_LABELS),
+      },
+      {
+        key: "security_clearance",
+        synonyms: ["security clearance", "government clearance"],
+        value: answerLabel(profile.answers, "security_clearance", CLEARANCE_LABELS),
+      },
+      {
+        key: "gender",
+        synonyms: ["gender"],
+        value: answerLabel(profile.answers, "gender", GENDER_LABELS),
+      },
+      {
+        key: "veteran_status",
+        synonyms: ["protected veteran", "veteran status"],
+        value: answerLabel(profile.answers, "veteran_status", VETERAN_LABELS),
+      },
+      {
+        // "cc-305" confirmed live on The Trade Desk's Greenhouse posting:
+        // its disability question's own label never says "disability" at
+        // all ("Please review Form CC-305 at the link above before
+        // checking one of the boxes below.") — CC-305 is the OFCCP's own
+        // form number for this exact question, so a label that cites the
+        // form instead of the word is common enough to cover directly.
+        key: "disability_status",
+        synonyms: ["disability", "cc-305"],
+        value: answerLabel(profile.answers, "disability_status", DISABILITY_LABELS),
+      },
+      {
+        // Checked before "hispanic_latino" below: a combined single field
+        // some ATS might word as "Race/Ethnicity" (WorkIt's own screens
+        // call it that) matches "race" here first and gets filled with a
+        // race category — closer to right for a combined field than a
+        // bare yes/no would be. Confirmed live as its own separate
+        // dropdown too (The Trade Desk's "Indicate your Race:").
+        key: "race",
+        synonyms: ["race"],
+        value: answerLabel(profile.answers, "race", RACE_LABELS),
+      },
+      {
+        // "ethnic" alone also matches "ethnicity" (a substring of it), and
+        // additionally covers "Indicate Ethnic group" — The Trade Desk's
+        // own wording for this exact question, confirmed live: a separate
+        // dropdown from "Indicate your Race:" above, which is the EEO's
+        // own split (KAN-299) — Hispanic or Latino is never a race
+        // category, it is its own yes/no/decline question.
+        key: "hispanic_latino",
+        synonyms: ["hispanic", "latino", "ethnic"],
+        value: answerLabel(profile.answers, "hispanic_latino", HISPANIC_LATINO_LABELS),
       },
     ];
   }

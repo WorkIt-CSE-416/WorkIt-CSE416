@@ -199,6 +199,38 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * Attaches a file to a native `<input type="file">` — the only way a
+   * script can: `.value` is read-only on a file input, and assigning a
+   * plain array to `.files` is rejected outright, so a real `FileList` has
+   * to come from a `DataTransfer`, same as a user's own file picker
+   * produces. Dispatching "change" afterward is what tells a framework
+   * (Greenhouse's own resume-upload widget included) that a file was
+   * chosen, same principle as setNativeValue above for text fields.
+   * @param {Element} field
+   * @param {{ filename: string, mimeType: string, base64: string }} resume
+   * @returns {{ ok: true } | { ok: false, reason: string }}
+   */
+  function fillFile(field, resume) {
+    if (!(field instanceof HTMLInputElement) || field.type !== "file") {
+      return { ok: false, reason: "Not a file field" };
+    }
+    let bytes;
+    try {
+      const binary = atob(resume.base64);
+      bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    } catch {
+      return { ok: false, reason: "Could not read the resume file" };
+    }
+    const file = new File([bytes], resume.filename, { type: resume.mimeType });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    field.files = transfer.files;
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    return { ok: true };
+  }
+
+  /**
    * Entry point field-map.js and content-script.js call — dispatches to
    * the right strategy by field shape.
    * @param {Element} field
@@ -211,5 +243,5 @@ window.WIA = window.WIA || {};
     return fillText(field, value);
   }
 
-  window.WIA.fill = { fillField, setNativeValue };
+  window.WIA.fill = { fillField, setNativeValue, fillFile };
 })();

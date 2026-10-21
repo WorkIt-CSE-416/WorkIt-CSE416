@@ -79,6 +79,20 @@
     }
   }
 
+  /**
+   * Company name and job title for the essay-answer prompt, read once from
+   * the page's own title. Greenhouse's confirmed live format is exactly
+   * "Job Application for {title} at {company}" (seen on a real posting
+   * while building this) — untested against any other ATS, which just means
+   * a more generic generated answer, never a failure: the model still has
+   * the bank and the question's own text either way.
+   * @returns {{ companyName: string | null, jobTitle: string | null }}
+   */
+  function pageContext() {
+    const match = /^Job Application for (.+) at (.+)$/i.exec(document.title.trim());
+    return match ? { jobTitle: match[1].trim(), companyName: match[2].trim() } : { jobTitle: null, companyName: null };
+  }
+
   overlay.mount();
   status.reset();
 
@@ -122,13 +136,30 @@
   // the snapshot taken before that would miss them entirely.
   const fields = dom.findFormFields(document);
   const occurrences = new Map();
+  // Open-ended questions ("Why do you want to work here?") WorkIt can
+  // offer to draft but never fills on its own — collected here, acted on
+  // once the student opts in via the overlay's one batch prompt below.
+  const essayCandidates = [];
 
   for (const field of fields) {
     if (field.id && handledIds.has(field.id)) continue; // already filled precisely by the Greenhouse adapter above
 
     const labelText = dom.findLabelText(field);
     const match = fieldMap.matchLabel(labelText, profile, occurrences);
-    if (!match) continue; // not something WorkIt has an opinion about — leave it alone, don't clutter the overlay
+    if (!match) {
+      // An essay question is a textarea no rule above claims — there's no
+      // fixed vocabulary for "why this company" to ever match. Previously
+      // this just fell through silently (the line this comment replaces);
+      // now it's tracked (needs_generation) so the overlay at least says
+      // it exists, same honesty rule as every other field here.
+      if (field.tagName === "TEXTAREA" && labelText) {
+        const key = `essay#${fields.indexOf(field)}`;
+        status.register(key, labelText, fieldMap.isRequired(field));
+        status.setStatus(key, "needs_generation");
+        essayCandidates.push({ key, field, question: labelText, maxLength: field.maxLength > 0 ? field.maxLength : null });
+      }
+      continue; // not something WorkIt has an opinion about — leave it alone, don't clutter the overlay
+    }
 
     const required = fieldMap.isRequired(field);
     const key = `${match.key}#${fields.indexOf(field)}`; // unique per field even if the same key matches twice on one page
@@ -146,4 +177,42 @@
       status.setStatus(key, "failed", error instanceof Error ? error.message : "Fill failed");
     }
   }
+
+  if (essayCandidates.length === 0) return;
+
+  const { companyName, jobTitle } = pageContext();
+
+  overlay.promptForEssays({
+    count: essayCandidates.length,
+    onDismiss() {
+      for (const { key } of essayCandidates) {
+        status.setStatus(key, "skipped", "You chose to answer this yourself");
+      }
+    },
+    async onGenerate() {
+      // Sequential, not parallel: each call is its own counted AI use, and
+      // this way the overlay shows real one-at-a-time progress instead of
+      // every row flipping at once at the end.
+      for (const candidate of essayCandidates) {
+        const result = await chrome.runtime.sendMessage({
+          type: "essay/generate",
+          applicantId: profile.id,
+          question: candidate.question,
+          companyName,
+          jobTitle,
+          maxLength: candidate.maxLength,
+        });
+        if (!result.ok) {
+          status.setStatus(candidate.key, "failed", result.error);
+          continue;
+        }
+        try {
+          const filled = await fill.fillField(candidate.field, result.answer);
+          status.setStatus(candidate.key, filled.ok ? "filled" : "failed", filled.ok ? undefined : filled.reason);
+        } catch (error) {
+          status.setStatus(candidate.key, "failed", error instanceof Error ? error.message : "Fill failed");
+        }
+      }
+    },
+  });
 })();
