@@ -6,7 +6,10 @@ applicant's resume answers 404. The rules (the default resume) live in `app/serv
 POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 BuiltResumeResponse
        Generate: a base resume with every bank entry, bullet and skill. With
        no name it is "Resume #N", one past the highest number in use. No
-       limit: only uploads count toward the 5 (KAN-268).
+       limit: only uploads count toward the 5 (KAN-268). 409
+       {"detail": {"message": "Duplicate Resume found: <name>",
+       "built_resume_id"}} when the new resume would print the same as one
+       the student has (KAN-267); nothing is written.
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
        page no longer lists (story 90's "Posting closed"). `posting_title`
@@ -21,9 +24,11 @@ PUT    /applicants/{id}/built-resumes/{rid}/default -> {"default_built_resume_id
        Makes a base or tailored resume the default resume, clearing an
        uploaded default. A tailored one could not be until KAN-268.
 GET    /applicants/{id}/built-resumes/{rid}/render -> RenderResponse
-       {pdf (base64), page_count, lines_over, missing_characters, boxes}: the characters
+       {pdf (base64), file_name, page_count, lines_over, missing_characters, boxes}:
+       the name the PDF downloads under, the characters
        the template's font cannot draw, for the warning before download, and
        a box per line for the editor's click targets (schemas: RenderBox).
+       The editor's Download PDF takes this file and keeps nothing (KAN-267).
        503 {detail} when Tectonic is missing or the compile fails.
 GET    /applicants/{id}/built-resumes/{rid}/choices -> ChoicesResponse
        The resume's choice rows (KAN-218): what shows, in what order, the
@@ -38,7 +43,8 @@ POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo,
        last round's cuts it turns out not to need. `undo` is the PATCH
        .../choices body that shows them all again.
        503 like render; a failed render saves nothing.
-GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment
+GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment:
+       the editor's Download Word, which keeps nothing (KAN-267)
 GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
        -> KeywordMatchResponse {job_posting_id, matched, missing, uses_left}
        The keyword match ("12 of 18") against a posting; with no
@@ -138,7 +144,10 @@ async def generate(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> BuiltResumeResponse:
-    resume = await service.generate(session, applicant_id, body.name)
+    try:
+        resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=True)
+    except service.DuplicateResume as exc:
+        raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id)})
     default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
     return _response(resume, default_id)
@@ -208,7 +217,7 @@ async def render_pdf(
     except NotFound:
         raise HTTPException(404, "Resume not found")
     identity = await _identity(session, applicant_id)
-    return _render_response(await _render(view, identity, resume.template))
+    return _render_response(await _render(view, identity, resume.template), resume.name)
 
 
 RENDER_FAILED = "The PDF could not be made. Try again, or download the Word file."
@@ -222,9 +231,10 @@ async def _render(view, identity: HeaderIdentity, template: str) -> Rendered:
         raise HTTPException(503, RENDER_FAILED) from exc
 
 
-def _render_response(rendered: Rendered) -> RenderResponse:
+def _render_response(rendered: Rendered, name: str) -> RenderResponse:
     return RenderResponse(
         pdf=base64.b64encode(rendered.pdf).decode("ascii"),
+        file_name=service.file_name(name, "pdf"),
         page_count=rendered.page_count,
         lines_over=rendered.lines_over,
         missing_characters=list(rendered.missing_characters),
@@ -249,7 +259,7 @@ async def fit(
     return FitResponse(
         hidden=[c.id for c in cuts if c.kind == "bullet"],
         undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
-        render=_render_response(rendered),
+        render=_render_response(rendered, resume.name),
     )
 
 

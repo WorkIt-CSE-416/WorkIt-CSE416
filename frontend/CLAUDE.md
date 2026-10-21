@@ -187,6 +187,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The Applications board is archived** (KAN-256): the list is the
   default view, and `?view=board` opens it. `applications/board.tsx` stays;
   `docs/screens.md`, Applications, says how to bring it back.
+- **The sidebar is pinned or opens on hover** (KAN-300,
+  `components/hover-sidebar.tsx`). A hover opens shadcn's provider over the
+  page, so anything sized by the panel's width reads `useSidebarPin().pinned`,
+  never shadcn's `state`, or it moves on every hover (`docs/design.md`).
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -199,9 +203,14 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The application tracker is live and has no fixture** (KAN-261): saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
   cached per request by `getTracker` in `data.ts`), each with the Jobs
-  page's own match score (`?scored=true`, KAN-256) and the resume last sent
-  to its posting (the sent resumes list; its failure only empties that
-  column). A row or card opens the application's own page,
+  page's own match score (`?scored=true`, KAN-256) and the sent resume the
+  application names (`sent_resume`, KAN-267: "Did You Apply?" sends it
+  through `markApplied`, auto apply links its own), which View Resume opens in a dialog (`applications/view-resume.tsx`,
+  KAN-267: `openSentResume`, nothing downloaded). A button inside a
+  clickable row or card must not open the application on a near miss: the
+  list's cell prevents its clicks and the card's strip sits over the
+  stretched link, and a dialog opened from one stops its own clicks, since
+  React passes them up through the portal. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
   dated events stay empty until the API stores them; a failed read shows an
   error, never stand-in cards. A job's application
@@ -379,16 +388,32 @@ are in `docs/auth.md`.
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
   throws. A new action file under `/applicants/{id}` wraps it with its own
   base path rather than copying the fetch.
-- **A built resume's download goes through `sendBuiltResume`**
-  (`lib/sent-resume-actions.ts`, KAN-208), PDF or Word (`"docx"`), never
-  `renderResumePdf` or the API's `/docx`: every download keeps a sent resume, and the API returns a Storage link that
-  downloads the file. A download cancelled at the missing-character warning
-  deletes the sent resume it just made (`created`), so only files the
-  student took are kept. Apply Now goes through `applyWithResume` (KAN-220)
-  wherever it sits: the job posting page, the feed cards on /jobs and
-  /search, and the Dashboard's New Matches (KAN-290). It keeps its sent
-  resume: the student is told WorkIt kept a copy, so it is never deleted
-  behind their back. No
+- **An API error's message comes from `extractErrorMessage`** (or
+  `errorMessage` for a body already read), which reads all three shapes of
+  `detail`: a string, Pydantic's list, and an object with `message` plus
+  the row it names (the duplicate resume 409s, KAN-267). Reading
+  `detail` as a string alone showed "Something went wrong" for those.
+  A duplicate upload (`uploadResume`'s `duplicateOf`) is no failure for
+  onboarding: the file is already there.
+- **A built resume's download keeps nothing** (KAN-267): the PDF through
+  `renderResumePdf` (base64 and its `file_name`), the Word file through
+  `downloadWordResume` (`lib/built-resume-actions.ts`), saved by the
+  browser from a Blob (`resumes/download-menu.tsx`). Until KAN-267 every
+  download went through `sendBuiltResume` and kept a sent resume in
+  Storage, so the bucket filled with files no employer saw; that action is
+  gone. The missing-character warning still holds a PDF until Download
+  Anyway. Pick a Resume is hidden for now (`frontend/docs/screens.md`, Job
+  posting page): Apply Now opens the employer's page and asks "Did You
+  Apply?", whose Yes keeps the pick through `applyWithResume`. It went through
+  `applyWithResume` (KAN-220) at Apply wherever it
+  sits: the job posting page, the feed cards on /jobs and /search, and the
+  Dashboard's New Matches (KAN-290). It keeps its sent resume: the student
+  is told WorkIt kept a copy, so it is never deleted behind their back.
+  **Resume files download on Resumes & Experiences only** (KAN-267): the
+  editor's Download and an upload's row (`lib/save-file.ts`). The Apply
+  dialog links there (Open in Resumes) and downloads nothing, though the
+  API still answers a send's file (a Storage `url`, or for a snapshot the
+  PDF as `data`) for auto apply. No
   screen lists sent resumes since the Resumes view's Sent card went
   (2026-10-18); a job posting's page says which one went there.
 - **Unsaved drafts kept across a reload go through `lib/local-drafts.ts`**

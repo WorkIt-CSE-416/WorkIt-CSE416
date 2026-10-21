@@ -318,23 +318,54 @@ Find files with a directory listing; these are the rules for where code goes.
   about 8 lines were hidden), and without it a test resume lost 3 items
   it had room for. Undo sends the response's `undo` body. Tests:
   `tests/test_resume_editor.py`.
-- **Every download is a sent resume** (KAN-208): `POST
-  /applicants/{id}/sent-resumes` renders through `services/sent_resumes.py`,
-  which hashes the view, template and header text first and returns the last
-  sent resume on a repeat for the same built resume. `format: "docx"`
-  keeps the Word file the same way (its hash adds the format, so a PDF and
-  a Word file of one resume are two sent resumes; a built resume only).
-  `GET .../render` and `.../docx` return the file unkept: the editor's
-  preview and the tests read them, and no download button calls them. The service takes the
-  Storage client from the router and flushes, never commits; when a new row's
-  commit fails, the router removes the uploaded file. **Apply** (KAN-220) is
-  the same POST with `job_posting_id` and exactly one of `built_resume_id`
-  or `uploaded_resume_id` (422 otherwise; 404 for a posting the Jobs page
-  does not list). An uploaded resume makes no new file, so a failed commit must not
-  remove its file: the router removes only a built sent resume's. **A stored file
-  is removed only when `file_in_use` says no row needs it**: the uploaded
-  resume delete and the sent resume delete both check it, because a sent
-  resume can point at an uploaded resume's file.
+- **Only a send is a sent resume; a download keeps nothing** (KAN-267).
+  The editor's Download takes `GET .../built-resumes/{rid}/render` (the PDF,
+  base64, with its `file_name`) or `.../docx` and stores nothing. Every
+  download was kept as a sent resume (KAN-208) until then, PDF or Word,
+  which filled the bucket with files no employer saw. **Apply** (KAN-220)
+  is `POST /applicants/{id}/sent-resumes` with `job_posting_id`, now
+  required (422 without it), and exactly one of `built_resume_id` or
+  `uploaded_resume_id` (422 otherwise; 404 for a posting the Jobs page does
+  not list). Sends are PDFs only: `format` went with the Word downloads,
+  and Word sent resumes kept before stay as they are.
+- **A sent resume's file is a snapshot or a stored file** (KAN-267,
+  `../docs/sent_resume.md`; `services/sent_resumes.py` has the rules). A
+  built resume's send hashes the view, template and header text first (a
+  repeat for the same built resume and posting returns the last sent
+  resume), renders the PDF once for the student, and keeps what it is made
+  from as a `built` snapshot (`resume_snapshots`, gzipped JSON, about 2 KB;
+  one per content, shared across postings). **Nothing goes to Storage**,
+  so a failed commit has no file to clean up. An uploaded resume's send
+  points at the upload's own file until **Import Updated Resume or the
+  delete freezes it** (`freeze_upload`, before the row loses its file, in
+  the same commit): its text, parsed, becomes an `upload` snapshot with
+  the text itself, and the file goes. A file with no text, or one the
+  parser reads nothing from, stays a file. Opening a snapshot renders it
+  again (about 0.3 s; 503 without Tectonic), answered as `data` (base64);
+  a stored file as a 5-minute `url`. `rebuilt` (no content hash, a
+  snapshot) marks an upload's, which is approximate. The service flushes,
+  never commits. **A stored file is removed only when `file_in_use` says
+  no row needs it**, and a snapshot only when no sent resume does
+  (`delete_sent`; its foreign key is RESTRICT).
+- **A duplicate resume is refused** (KAN-267, `../docs/sent_resume.md`),
+  409 `{"detail": {"message": "Duplicate Resume found: <name>", ...}}`
+  with nothing written. **Upload and Import Updated Resume** compare
+  `resumes.text_hash` (`routers/resumes.py`'s `text_hash`: sha256 of
+  `raw_text`, NFKC, whitespace folded), so the same resume exported again
+  is caught although its bytes differ; a byte hash missed that. Extraction
+  runs before the Storage upload, so a refusal leaves no file, and the
+  check runs before the 5-upload limit. No text, no hash, no check. The
+  partial unique index `resumes_text_hash_key` catches two uploads at
+  once: the loser's commit fails, it removes its file and answers the same
+  409. **Changing `_extract` or `text_hash` makes stored hashes stale**: a
+  re-upload of an old resume then gets through (never the reverse).
+  Uploads from before KAN-267 have no hash (not backfilled). **Generate**
+  (`generate(..., refuse_duplicate=True)`, the route only; Tailor's own
+  Generate never refuses) compares the new resume's view with every built
+  resume's view built from today's bank (`same_resume`), before writing:
+  a resume's content changes with every edit, so no hash is stored. A
+  test that needs two resumes from one bank adds a skill between them
+  (`tests/test_built_resumes.py`'s `_another`).
 - **The resume limit is 5 uploads** (`services/built_resumes.py`'s
   `check_room`, called by upload before anything is written; 409 with the
   reason). Built resumes (base and tailored) and sent resumes do not count,
@@ -344,7 +375,12 @@ Find files with a directory listing; these are the rules for where code goes.
   `default_if_only`): upload, Generate (Tailor's too) and both deletes call
   it, so the last resume left after a delete takes the star. With two or
   more it changes nothing. Before it, a student with one resume and no star
-  click had no default, and auto apply attached nothing. It is not
+  click had no default, and auto apply attached nothing. **Every kind
+  counts: uploaded, base and tailored.** It counted base resumes only
+  until KAN-267, from before a tailored resume could be the default
+  (KAN-268): a tailored resume left alone kept an empty star, and beside
+  one upload the upload took the star on every add or delete
+  (`tests/test_built_resumes.py`). It is not
   backfilled: an older account with one resume and no default gets it on
   its next add or delete.
 - **Every model feature counts its daily uses through `app/services/usage.py`**
@@ -532,6 +568,26 @@ Find files with a directory listing; these are the rules for where code goes.
   on top of the spec's four shares, which already fill the pool, so a busy
   day can overshoot the pool by that much). Tests:
   `tests/test_editor_assistant.py`.
+- **The autofiller's essay-answer generation** (KAN-164) is
+  `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
+  `services/essay_answer.py` — the first route `autofiller_extension/`
+  needed, since the extension cannot hold a model key itself. The Chrome
+  extension reads an open-ended application question straight off the ATS
+  page's own DOM (no `job_posting_id`: the posting may not be one WorkIt
+  has scraped or a company has posted) and sends the literal question text,
+  plus whatever company name/job title it could read from the page and the
+  field's own HTML `maxlength`. The model drafts a short paragraph grounded
+  in the whole bank (not a ranked subset — a student's bank is small enough
+  to use whole, unlike Tailor's posting-ranked bullets); a draft that fails
+  `truth_rule.invented` against the whole bank's bullets and skills, or
+  holds an identity placeholder, answers 422 and counts nothing — there is
+  no safe fallback text to show instead, the way the assistant's `none`
+  action has one. Nothing is stored: the question text is never saved
+  (`models/CLAUDE.md`'s "autofill_answers" section explains why, and
+  already anticipates this feature as the reason a company's own question
+  would eventually get its own JSONB-backed slot). One `ESSAY` use per
+  generated answer (cap 5, share 10%: on top of the spec's four shares plus
+  the assistant's, following the same accepted-overshoot precedent).
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -647,12 +703,36 @@ free tier). Render with a Dockerfile is the fallback.
   CHECK. Deployed first is worse: the new `JobPreferences` refuses a saved
   `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
   migration runs.
+- **`3aa342c5a064` (`job_applications.sent_resume_id`, KAN-267) goes on
+  before the deploy that writes it**, after `5a6e419367b8`: the model maps
+  the column, so deployed first, every application insert answers 500. It
+  only adds a nullable column, a unique key and a foreign key (and fills
+  the column for applied rows), so applying it early is safe. **It reached
+  the shared database on 2026-10-21 before its file was committed**, by
+  the shell slip `alembic/CLAUDE.md` records: until the file is on `main`,
+  Alembic against the shared database fails for anyone without it.
+- **Apply `5a6e419367b8` (`resume_snapshots`, KAN-267) before the deploy
+  that writes it**, after `d642d93fcfbc`. The model maps
+  `sent_resumes.snapshot_id`, so deployed first, every Apply and auto apply
+  resume answers 500. It only adds a table, a nullable column and a CHECK
+  the existing rows meet, so applying it early is safe.
+- **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
+  that writes it.** The model maps the column, so every upload's INSERT
+  names it: deployed first, every upload answers 500. It only adds a
+  nullable column and an index, so applying it early is safe.
 - **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
   that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
   (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It
   only adds a table, so the running code never meets it and applying it
   early is safe; deployed first, onboarding's Continue answers 500 and the
   Profile step never loads saved answers.
+- **A new answer bank key needs the API live before the web** (KAN-299).
+  The schema forbids keys it does not know (`extra="forbid"`, which catches
+  a mistyped key), so a web that sends a new one to an older API gets a 422
+  ("Extra inputs are not permitted") on onboarding's Continue and My
+  Profile's Save until the API deploy lands. No migration is involved: the
+  bank is JSONB. Merging deploys both halves with nothing ordering them; if
+  the web lands first, redeploy it after the API, or wait the minutes out.
 - **When the feed gains a column: migration, then import, then deploy.** An
   import against the older schema fails on the unknown column and, being one
   transaction, writes nothing.

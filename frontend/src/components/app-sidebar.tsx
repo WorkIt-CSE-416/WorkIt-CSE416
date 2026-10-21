@@ -4,6 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ComponentType, type ReactNode } from "react";
 
+import { useSidebarPin } from "@/components/hover-sidebar";
+import { SidebarPinIcon } from "@/components/icons";
+import { IconButton } from "@/components/ui/icon-button";
 import { Logo, LogoLockup } from "@/components/logo";
 import {
   Sidebar,
@@ -299,12 +302,23 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const { isMobile } = useSidebar();
+  const { peeking, hoverProps } = useSidebarPin();
   const floating = variant === "floating";
 
   return (
     <Sidebar
       collapsible="icon"
-      className={cn(floating ? FLOATING : "border-rail-border h-auto", className)}
+      className={cn(
+        floating ? FLOATING : "border-rail-border h-auto",
+        // A peek opens over the page (hover-sidebar.tsx); the docked panel
+        // has only a border, so it takes a shadow to read as above it. The
+        // floating one already has its own.
+        peeking && !floating && "shadow-panel",
+        className,
+      )}
+      // Unpinned on a desktop, pointing at the rail or tabbing into it opens
+      // it over the page. Never on the phone's sheet, which has no hover.
+      {...(!isMobile && hoverProps)}
     >
       {/* The sheet keeps shadcn's lavender, so on a phone the floating panel
           paints its own white to match the panels it opens over. */}
@@ -360,9 +374,17 @@ export function AppSidebar({
  * 64px tall, the top bar's height, so the panel's header and the bar beside
  * it share one top line and one bottom line, and the logo sits on the bar's
  * centre line as the reference's does.
+ *
+ * THE PIN sits at the header's right whenever the panel is open (KAN-300):
+ * a panel opened by hover covers the bar's own toggle, since it runs the
+ * window's full height, so this is where a seeker pins it from without
+ * leaving it. It is the same toggle as the bar's (shadcn's toggleSidebar,
+ * which hover-sidebar.tsx turns into pin and unpin). Not on the rail, which
+ * has no room for it.
  */
 function PanelBrand({ href }: { href: string }) {
-  const { state } = useSidebar();
+  const { state, toggleSidebar } = useSidebar();
+  const { pinned } = useSidebarPin();
   const collapsed = state === "collapsed";
 
   return (
@@ -380,6 +402,17 @@ function PanelBrand({ href }: { href: string }) {
       >
         <LogoLockup wordmarkHidden={collapsed} />
       </Link>
+      {!collapsed && (
+        <IconButton
+          label="Pin Sidebar"
+          tooltip={pinned ? "Unpin sidebar" : "Pin sidebar"}
+          aria-pressed={pinned}
+          onClick={toggleSidebar}
+          className="mr-4 ml-auto"
+        >
+          <SidebarPinIcon pinned={pinned} className="size-4" />
+        </IconButton>
+      )}
     </SidebarHeader>
   );
 }

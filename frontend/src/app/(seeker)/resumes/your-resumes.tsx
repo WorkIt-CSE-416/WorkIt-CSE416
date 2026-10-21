@@ -13,6 +13,8 @@ import { Card } from "@/components/ui/card";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
 import { importSummary } from "@/lib/import-summary";
 import { previewResume } from "@/lib/preview-resume";
+import { MAX_UPLOADS } from "@/lib/resume-limits";
+import { openDownload } from "@/lib/save-file";
 import {
   deleteResume,
   getResumeFileUrl,
@@ -24,12 +26,12 @@ import {
 
 import { RenameForm } from "./built-resume-row";
 import { DeleteConfirm } from "./delete-confirm";
-import { openDownload } from "./download-menu";
+import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
 import { UpdateResumeDialog } from "./update-resume-dialog";
 
-// The API's limit, on uploads alone: generated resumes count for nothing
-// (KAN-268), so the count here matches the API's 409.
-const MAX_RESUMES = 5;
+// The API's limit, on uploads alone (lib/resume-limits.ts), so the count
+// here matches the API's 409.
+const MAX_RESUMES = MAX_UPLOADS;
 
 /**
  * Your Uploaded Resumes (Your Resumes until KAN-268), the Resumes view's
@@ -49,6 +51,8 @@ const MAX_RESUMES = 5;
  * once; the API reads it into the experience bank (ADR 0003), and a note
  * under the dropzone says what went in, with Read It With AI while the
  * student has an AI reading left. The model never reads a resume unasked.
+ * A file whose text the student already uploaded keeps nothing and opens
+ * the duplicate pop-up (./duplicate-resume-dialog.tsx, KAN-267).
  *
  * Every change to either card's list calls `reload`, which reads both again: one
  * star spans both lists, and the API makes a student's only resume the
@@ -68,6 +72,9 @@ export function YourResumes({
   // The name of the file in flight, or null.
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // "Duplicate Resume found: <name>" (KAN-267), while its pop-up is open:
+  // the same pop-up as Generate's.
+  const [duplicate, setDuplicate] = useState<string | null>(null);
   // What the last upload wrote into the experience bank.
   const [imported, setImported] = useState<ImportResponse | null>(null);
   const [importingId, setImportingId] = useState<string | null>(null);
@@ -87,7 +94,8 @@ export function YourResumes({
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const { resume, error } = await uploadResume(fd);
+      const { resume, error, duplicateOf } = await uploadResume(fd);
+      if (duplicateOf) return setDuplicate(error);
       if (error) return setUploadError(error);
       if (resume?.bank) {
         setImported({ ...resume.bank, resume_id: resume.id, filename: resume.original_filename });
@@ -217,8 +225,13 @@ export function YourResumes({
           open
           onOpenChange={(open) => !open && setUpdateTarget(null)}
           onReplaced={handleReplaced}
+          onDuplicate={(message) => {
+            setUpdateTarget(null);
+            setDuplicate(message);
+          }}
         />
       )}
+      <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />
     </Card>
   );
 }

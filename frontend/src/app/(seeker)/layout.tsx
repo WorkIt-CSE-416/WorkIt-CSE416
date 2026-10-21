@@ -9,9 +9,9 @@ import { LogoLockup } from "@/components/logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { ScoutLauncher } from "@/components/scout/scout-buttons";
 import { ScoutPanel } from "@/components/scout/scout-panel";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/shadcn/sidebar";
+import { HoverSidebarProvider, SidebarPinToggle } from "@/components/hover-sidebar";
+import { SidebarInset } from "@/components/shadcn/sidebar";
 import { ShallowRouting } from "@/components/shallow-routing";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { getSessionUser } from "@/lib/session";
 
 import { SeekerAccount } from "./account-status";
@@ -43,10 +43,12 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * column takes the left edge too, and the inset tightens to 8px on a phone,
  * where 12px would be 24px of a 375px screen.
  *
- * The panel's open or collapsed state survives a reload: shadcn writes it to
- * the sidebar_state cookie on every toggle, and this layout reads it back as
- * the provider's defaultOpen, so the page does not open expanded and jump
- * when the user collapses it again.
+ * The panel is pinned open or opens on hover (KAN-300,
+ * components/hover-sidebar.tsx): unpinned, it is the icon rail, and pointing
+ * at it or tabbing into it opens it over the page without moving it. The pin
+ * survives a reload: it is the sidebar_state cookie, which this layout reads
+ * back as defaultPinned, so the page does not open pinned and jump when the
+ * user unpinned it.
  *
  * THE BAR holds the toggle, the job search and, on the right, Scout, the
  * bell, and the photo with the full name and email beside it from lg. It
@@ -124,8 +126,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     /* h-svh makes this row the window, so the only thing left to scroll is
        the page panel: a min-height would hand the scroll back to the
        document, and the bar and the panel would scroll away with it. */
-    <SidebarProvider
-      defaultOpen={defaultOpen}
+    <HoverSidebarProvider
+      defaultPinned={defaultOpen}
       className="bg-frame h-svh"
       /* Read by the canvas rule in globals.css, which paints the overscroll
          strip the frame's lavender to match. */
@@ -157,17 +159,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
 
       {/* --panel-gain: what a collapse frees, eased in step with the panel's
-          own 200ms linear width (see "A PAGE KEEPS THE WIDTH" above). */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 transition-[--panel-gain] duration-200 ease-linear sm:gap-3 sm:p-3 md:pl-0 md:peer-data-[state=collapsed]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]">
+          own 200ms linear width (see "A PAGE KEEPS THE WIDTH" above). A
+          hover peek opens the panel over the page, so it keeps the collapsed
+          gain too: the page does not move while the panel is only peeking
+          (components/hover-sidebar.tsx). */}
+      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 transition-[--panel-gain] duration-200 ease-linear sm:gap-3 sm:p-3 md:pl-0 md:group-data-[peek=true]/sidebar-wrapper:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] md:peer-data-[state=collapsed]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]">
         <header className="bg-panel border-rail-border shadow-panel rounded-shell flex h-16 shrink-0 items-center gap-3 border px-3 sm:gap-4 sm:px-4">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full [&_svg]:size-4" />
-              }
-            />
-            <TooltipContent>Toggle sidebar</TooltipContent>
-          </Tooltip>
+          <SidebarPinToggle className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full [&_svg]:size-4" />
 
           {/* The panel's header carries the logo from md; below that the
               panel is a sheet and the bar is the only place left for it. */}
@@ -244,7 +242,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <ScoutPanel />
         </div>
       </div>
-    </SidebarProvider>
+    </HoverSidebarProvider>
   );
 }
 

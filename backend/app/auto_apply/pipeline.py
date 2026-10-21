@@ -5,7 +5,6 @@ Each is safe to call alone: it checks the stage it needs and owns its
 transaction. None checks ownership: the layer-3 route that calls it does.
 """
 
-import asyncio
 import dataclasses
 import logging
 import sys
@@ -21,6 +20,7 @@ from app.auto_apply.queries import (
     fetch_applications,
     fetch_next_application,
     fetch_stage,
+    link_resume,
     pick_resume,
     queue_applications,
     remove_queued,
@@ -33,7 +33,7 @@ from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.applications import Application
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
-from app.schemas.sent_resume import SentResumeDownload, SentResumeResponse
+from app.schemas.sent_resume import SentResumeDownload
 from app.services import sent_resumes
 from app.services.bank import NotFound as ResumeNotFound
 from app.services.resume_render import TectonicUnavailable
@@ -260,15 +260,17 @@ async def prepare_resume(
     """
     The resume one application sends, ready to attach: pick_resume's choice
     (the resume tailored to the job posting, else the default) kept as a sent
-    resume linked to the job posting, as Apply keeps one, with a link that
-    downloads it for 5 minutes. None when the student has no such resume:
+    resume linked to the job posting, as Apply keeps one, with its file: the
+    PDF itself (`data`) for a built resume, kept as a snapshot (KAN-267), or
+    a 5-minute link (`url`) for an uploaded one. None when the student has no such resume:
     the form is filled without one. Never tailors.
 
     Only a queued or needs_you application gets one: raises NotFound when
     there is none or its job posting closed, WrongStage when it is skipped or
     applied. A repeat with unchanged content returns the same sent resume, so
-    a run that starts again keeps nothing new. Raises TectonicUnavailable
-    when the PDF cannot be made, FileFailed when Storage refuses it.
+    a run that starts again keeps nothing new. The application names the
+    sent resume (`link_resume`, KAN-267). Raises TectonicUnavailable
+    when the PDF cannot be made, FileFailed when Storage cannot sign the link.
     """
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
@@ -284,7 +286,7 @@ async def prepare_resume(
     try:
         if choice.built_resume_id is not None:
             sent = await sent_resumes.send_built(
-                db, storage, applicant_id, choice.built_resume_id, job_posting_id=job_id
+                db, applicant_id, choice.built_resume_id, job_posting_id=job_id
             )
         else:
             sent = await sent_resumes.send_uploaded(
@@ -293,37 +295,24 @@ async def prepare_resume(
     except ResumeNotFound as exc:
         # The job posting closed (or its resume went) after the pick.
         raise NotFound("That job isn't open any more.") from exc
-    except (SQLAlchemyError, TectonicUnavailable):
-        raise
-    except Exception as exc:
-        logger.exception("Storage upload of an auto apply resume failed")
-        raise FileFailed("The resume could not be saved. Try again.") from exc
 
-    if sent.created:
-        try:
-            await db.commit()
-        except SQLAlchemyError:
-            await db.rollback()
-            # An uploaded resume's file is not this row's to remove.
-            if sent.row.uploaded_resume_id is None:
-                await _remove_file(storage, sent.row.storage_path)
-            raise
+    # The application names what it goes out with (KAN-267), a repeat's
+    # sent resume too, in the same commit. A failed commit leaves nothing to
+    # clean up: a send stores no file.
+    await link_resume(db, applicant_id, job_id, sent.row.id)
+    try:
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
 
     try:
-        url = await sent_resumes.file_url(storage, sent.row)
+        file = await sent_resumes.open_file(db, storage, sent.row, pdf=sent.pdf)
+    except TectonicUnavailable:
+        raise
     except Exception as exc:
         logger.exception("Failed to sign an auto apply resume's URL")
         raise FileFailed("The resume's link could not be made. Try again.") from exc
-    return SentResumeDownload(
-        **SentResumeResponse.from_row(sent.row).model_dump(),
-        url=url,
-        missing_characters=list(sent.missing_characters),
-    )
+    return SentResumeDownload.of(sent.row, file, sent.missing_characters)
 
 
-async def _remove_file(storage: Any, path: str) -> None:
-    # After a failed commit: a failure here orphans a file but loses no record.
-    try:
-        await asyncio.to_thread(storage.from_(sent_resumes.BUCKET).remove, [path])
-    except Exception:
-        logger.exception("Failed to remove an auto apply resume file", extra={"storage_path": path})

@@ -84,25 +84,71 @@ window.WIA = window.WIA || {};
 
   /**
    * A short wait for a debounced search to render its filtered options —
-   * most ATS comboboxes search on a 150–400ms debounce. Polls rather than
-   * using a single fixed delay, so it resolves as soon as options actually
-   * exist instead of always waiting the worst case.
+   * most ATS comboboxes search on a 150–400ms debounce. Resolves as soon as
+   * options actually exist instead of always waiting the worst case
+   * (lib-dom.js's waitUntil, which also works in a hidden tab). The limit
+   * leaves room for a hidden tab, where Chrome runs the page's own debounce
+   * timer about once a second.
    * @param {() => Element[]} getOptions
    * @param {number} [timeoutMs]
    */
-  function waitForOptions(getOptions, timeoutMs = 1200) {
+  async function waitForOptions(getOptions, timeoutMs = 3000) {
+    await window.WIA.dom.waitUntil(() => getOptions().length > 0, timeoutMs);
+    return getOptions();
+  }
+
+  /**
+   * The pause between typed characters. In a hidden tab (the auto-apply
+   * runner's), Chrome runs a timer at most about once a second, which made
+   * "United States" take 13 seconds; there it yields one task through a
+   * MessageChannel, which Chrome does not slow.
+   * @param {number} ms
+   */
+  function pause(ms) {
+    if (!document.hidden) return new Promise((resolve) => setTimeout(resolve, ms));
     return new Promise((resolve) => {
-      const start = Date.now();
-      const tick = () => {
-        const options = getOptions();
-        if (options.length > 0 || Date.now() - start > timeoutMs) {
-          resolve(options);
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      tick();
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => resolve();
+      channel.port2.postMessage(null);
     });
+  }
+
+  /**
+   * Types `value` into a combobox one character at a time, with a real
+   * keydown/input/keyup around each one — not the single bulk value-set
+   * setNativeValue does for a plain text field. Confirmed necessary live on
+   * Greenhouse: its comboboxes are built with react-select, which only
+   * opens its listbox (and sets the aria-controls pointing to it) in
+   * response to real per-character input — a single native-setter-plus-one-
+   * generic-"input"-event left aria-expanded stuck at "false" and
+   * aria-controls never set, so fillCombobox's listbox lookup fell through
+   * to whatever unrelated [role=listbox] happened to already exist on the
+   * page (on one real posting: the phone field's country-code picker) and
+   * never matched, no matter how correct the typed value was. react-select
+   * is common enough across ATS vendors that this needs to be the default
+   * typing strategy for every combobox, not a Greenhouse-specific path.
+   * @param {HTMLInputElement} field
+   * @param {string} value
+   */
+  async function typeIntoCombobox(field, value) {
+    field.focus();
+    nativeInputValueSetter.call(field, "");
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+
+    for (const ch of value) {
+      const next = field.value + ch;
+      field.dispatchEvent(new KeyboardEvent("keydown", { key: ch, bubbles: true }));
+      nativeInputValueSetter.call(field, next);
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, data: ch, inputType: "insertText" }));
+      field.dispatchEvent(new KeyboardEvent("keyup", { key: ch, bubbles: true }));
+      // Deliberately sequential and slightly paced, not Promise.all — mimics
+      // real typing cadence for a debounced search handler that only fires
+      // once input goes quiet, and gives a remote-search field (e.g. a
+      // school-name lookup hitting a real API) a moment between keystrokes
+      // rather than firing the whole string as one burst.
+      // eslint-disable-next-line no-await-in-loop
+      await pause(20);
+    }
   }
 
   /**
@@ -123,8 +169,12 @@ window.WIA = window.WIA || {};
    * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
    */
   async function fillCombobox(field, value) {
-    const textResult = fillText(field, value);
-    if (!textResult.ok) return textResult;
+    if (field instanceof HTMLInputElement) {
+      await typeIntoCombobox(field, value);
+    } else {
+      const textResult = fillText(field, value);
+      if (!textResult.ok) return textResult;
+    }
 
     const listboxId = field.getAttribute("aria-controls");
     const findOptions = () => {
@@ -157,17 +207,80 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Entry point field-map.js and content-script.js call — dispatches to
-   * the right strategy by field shape.
+   * Attaches a file to a native `<input type="file">` — the only way a
+   * script can: `.value` is read-only on a file input, and assigning a
+   * plain array to `.files` is rejected outright, so a real `FileList` has
+   * to come from a `DataTransfer`, same as a user's own file picker
+   * produces. Dispatching "change" afterward is what tells a framework
+   * (Greenhouse's own resume-upload widget included) that a file was
+   * chosen, same principle as setNativeValue above for text fields.
+   * @param {Element} field
+   * @param {{ filename: string, mimeType: string, base64: string }} resume
+   * @returns {{ ok: true } | { ok: false, reason: string }}
+   */
+  function fillFile(field, resume) {
+    if (!(field instanceof HTMLInputElement) || field.type !== "file") {
+      return { ok: false, reason: "Not a file field" };
+    }
+    let bytes;
+    try {
+      const binary = atob(resume.base64);
+      bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    } catch {
+      return { ok: false, reason: "Could not read the resume file" };
+    }
+    const file = new File([bytes], resume.filename, { type: resume.mimeType });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    field.files = transfer.files;
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    return { ok: true };
+  }
+
+  /**
+   * Dispatches to the right strategy by field shape, for one candidate
+   * value.
    * @param {Element} field
    * @param {string} value
    * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
    */
-  async function fillField(field, value) {
+  async function fillOne(field, value) {
     if (field instanceof HTMLSelectElement) return fillSelect(field, value);
     if (field.getAttribute("role") === "combobox") return fillCombobox(field, value);
     return fillText(field, value);
   }
 
-  window.WIA.fill = { fillField, setNativeValue };
+  /**
+   * Entry point field-map.js and content-script.js call. `value` is
+   * usually one string, but a rule that cares what kind of field it landed
+   * on without inspecting the DOM itself (field-map.js never sees the
+   * element) can instead give an ordered list of candidates — the first
+   * one `fillOne` accepts wins. A free-text field accepts its first
+   * candidate immediately, since fillText only ever fails on a field that
+   * cannot hold text at all; a select or combobox tries each in turn,
+   * which is what lets "WorkIt" be offered first (an unlikely but honest
+   * try, for a free-text field that really does take it) and "Job Board"
+   * be a safe second choice no real dropdown's own option list is likely
+   * to miss (the "How did you hear about us?" rule in field-map.js is the
+   * one caller today).
+   * @param {Element} field
+   * @param {string | string[]} value
+   * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
+   */
+  async function fillField(field, value) {
+    const candidates = Array.isArray(value) ? value : [value];
+    let last = { ok: false, reason: "No value to fill" };
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      // eslint-disable-next-line no-await-in-loop -- each candidate must be
+      // tried in order, not raced: a combobox candidate types into the
+      // field itself, so two at once would corrupt each other's input.
+      last = await fillOne(field, candidate);
+      if (last.ok) return last;
+    }
+    return last;
+  }
+
+  window.WIA.fill = { fillField, setNativeValue, fillFile };
 })();

@@ -53,19 +53,25 @@ function sendToExtension(message: { type: string }): Promise<unknown> {
  * profile itself; see autofiller_extension/src/background/background.js's
  * own comment on why that line is drawn where it is. */
 
+/** How the fill went in the run's tab: started, kept (the tab already
+ *  showed this job, so it was neither reloaded nor filled again), or failed
+ *  before it began (`no_form`, `not_allowed`, or the error's message). */
+export type FillStart = { fill: "started" | "kept" } | { fill: "failed"; reason: string };
+
 /** What the extension's runner did with `run/open`. */
 export type OpenApplicationResult =
-  | { opened: true; jobId: string; url: string }
+  | ({ opened: true; jobId: string; url: string } & FillStart)
   | { opened: false; reason: "not_installed" | "queue_empty" | "signed_out" }
   | { opened: false; reason: "error"; error: string };
 
 /**
  * Asks the extension's runner to open the next queued application's
- * apply_url in its own background tab, beside this one
- * (autofiller_extension/src/background/runner.js). The message carries no
- * URL: the runner reads the queue from the API itself. A tab already on
- * that application is left as it is. Resolves once the page has loaded, or
- * with why nothing opened; never throws. Updates `useRunnerJob`.
+ * apply_url in its own background tab, beside this one, and to start the
+ * extension's fill there (autofiller_extension/src/background/runner.js).
+ * The message carries no URL: the runner reads the queue from the API
+ * itself. A tab already on that application is left as it is. Resolves
+ * once the fill has started, or with why nothing opened; never throws.
+ * No answer means no extension, or one turned off. Updates `useRunnerJob`.
  */
 export async function openNextApplication(): Promise<OpenApplicationResult> {
   const r = (await sendToExtension({ type: "run/open" })) as
@@ -75,9 +81,11 @@ export async function openNextApplication(): Promise<OpenApplicationResult> {
   if (r === undefined) return { opened: false, reason: "not_installed" };
   if (!r.ok) return { opened: false, reason: "error", error: r.error };
   setRunnerJob(r.opened ? r.jobId : null);
-  return r.opened
-    ? { opened: true, jobId: r.jobId, url: r.url }
-    : { opened: false, reason: r.reason };
+  if (!r.opened) return { opened: false, reason: r.reason };
+  const { jobId, url } = r;
+  return r.fill === "failed"
+    ? { opened: true, jobId, url, fill: "failed", reason: r.reason }
+    : { opened: true, jobId, url, fill: r.fill };
 }
 
 /** Switches to the run's tab. False when it was closed (and

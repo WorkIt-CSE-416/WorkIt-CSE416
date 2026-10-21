@@ -70,6 +70,9 @@ export type Application = {
   /** The name of the resume last sent to its job posting (Apply or auto
    *  apply); null when none was sent through WorkIt. */
   resume?: string | null;
+  /** That sent resume, for View Resume (KAN-267): its id, its name and its
+   *  file's kind ("pdf", or "docx" for an uploaded Word file). */
+  sentResume?: { id: string; name: string; format: string } | null;
   stage: StageKey;
   /** Where it stands within its stage, in the employer's words: "Round 3". */
   status?: string;

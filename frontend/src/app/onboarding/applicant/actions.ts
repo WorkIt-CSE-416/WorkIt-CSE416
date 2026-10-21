@@ -1,11 +1,8 @@
 "use server";
 
 import { preferencesBody, type FeedFilters } from "@/app/(seeker)/jobs/filter-query";
-import { applicantCall } from "@/lib/applicant-call";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import { getApplicantSession } from "@/lib/session";
-
-import type { AutofillAnswers } from "./answers";
 
 /**
  * Saves onboarding's answers as the seeker's job preferences (PUT
@@ -26,23 +23,4 @@ export async function savePreferences(filters: FeedFilters): Promise<{ error: st
   } catch {
     return { error: "Could not reach the server. Is the backend running?" };
   }
-}
-
-/**
- * Saves the Profile step's answers to the seeker's answer bank (PATCH
- * /applicants/{id}/autofill-answers, KAN-283). Only the keys in `changed` are
- * written, and a null clears one: the API merges them into what it holds, so
- * an answer this page never loaded is never erased. Through applicantCall,
- * as every applicant action is: identity from the session, never an
- * argument, and the API checks each answer against its options.
- */
-export async function saveAutofillAnswers(
-  changed: Partial<AutofillAnswers>,
-): Promise<{ error: string | null }> {
-  if (Object.keys(changed).length === 0) return { error: null };
-  const { error } = await applicantCall("/autofill-answers", {
-    method: "PATCH",
-    body: JSON.stringify(changed),
-  });
-  return { error };
 }
