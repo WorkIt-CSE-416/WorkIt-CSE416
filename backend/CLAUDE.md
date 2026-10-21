@@ -702,13 +702,21 @@ removed at cutover, not before. Until then a change must work on both.
   writable in place and no render copies it to `/tmp`. A build that cannot
   fetch it fails (`app/services/resume_render/CLAUDE.md`).
 - **The Worker (`cloudflare/`) holds no logic.** It forwards each request to
-  one of 3 instances with `getRandom` (the library's stopgap balancer, until
+  one of 3 instances, picked at random (as the library's `getRandom`, until
   Cloudflare ships autoscaling): the API is stateless, so any instance serves
   any request, and three let renders run side by side on `basic`'s 1/4 vCPU.
-  `INSTANCES` in `src/index.ts` and `max_instances` in `wrangler.jsonc` must
-  match. The cost: each instance cold-starts on its own first request, and
+  `max_instances` in `wrangler.jsonc` is twice `INSTANCES` in `src/index.ts`:
+  after a rename (below) the old containers stay awake for `sleepAfter` and
+  still count, so an equal cap could refuse the new ones. The cost: each instance cold-starts on its own first request, and
   each stays billed for `sleepAfter` (10 minutes) after its last one.
   Shorter saves memory-hours; longer means fewer cold starts.
+- **The instances are pinned near the database** with `locationHint:
+  "enam"` (eastern North America; Supabase is us-east-1). A Durable Object
+  stays where its first request made it, and its container runs near it.
+  The first, hint-less `instance-N` objects landed far away: every request
+  paid ~0.7 s to open its database connection, and pages took 3–9 s
+  (2026-10-21). A hint only places a new object, so the names changed to
+  `enam-N`; changing the hint needs new names too.
 - **Secrets are Worker secrets set by CI** (`wrangler secret bulk` with
   `CLOUDFLARE_API_TOKEN`), never `wrangler.jsonc`, which is committed. The
   Worker's `Api` class copies the names in its `FORWARDED` list into the

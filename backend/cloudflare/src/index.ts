@@ -1,9 +1,9 @@
 // The Worker in front of the API's Cloudflare Container (ADR 0004, KAN-295).
 // It owns no logic: every request goes to one of INSTANCES containers running
 // backend/Dockerfile. The rules are in backend/CLAUDE.md, Deployment.
-import { Container, getRandom } from "@cloudflare/containers";
+import { Container } from "@cloudflare/containers";
 
-// Matches max_instances in wrangler.jsonc; getRandom never asks for more
+// Half of max_instances in wrangler.jsonc, which leaves room for a rename
 const INSTANCES = 3;
 
 // Every name the API or Scout reads from the environment (app/config.py,
@@ -73,7 +73,12 @@ export class Api extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const container = await getRandom(env.API, INSTANCES);
-    return container.fetch(request);
+    // getRandom with a location hint. A Durable Object stays where it was
+    // first made, and its container runs near it: the hint-less "instance-N"
+    // objects landed far from Supabase (us-east-1), and every request paid
+    // ~0.7 s to open its database connection (2026-10-21). The names are new
+    // so the hint applies; renaming them again strands containers the same way.
+    const id = env.API.idFromName(`enam-${Math.floor(Math.random() * INSTANCES)}`);
+    return env.API.get(id, { locationHint: "enam" }).fetch(request);
   },
 } satisfies ExportedHandler<Env>;

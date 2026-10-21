@@ -17,7 +17,9 @@
       "image_build_context": "../..",
       // 1/4 vCPU, 1 GiB, 4 GB disk (the image is under 1 GB)
       "instance_type": "basic",
-      "max_instances": 3
+      // Twice INSTANCES (src/index.ts): after the objects are renamed, the old
+      // containers stay awake for sleepAfter and still count against this
+      "max_instances": 6
     }
   ],
   // The Worker version's id, which Api compares with the one its running
