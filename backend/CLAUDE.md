@@ -840,6 +840,11 @@ removed at cutover, not before. Until then a change must work on both.
   Three instances hold at most 15 (plus overflow) Supavisor clients, which
   still pools them onto a few Postgres backends. `pool_pre_ping` and
   `pool_recycle` replace a connection Supavisor has dropped.
+- **`/health/db` reports `pool`, `first_ms` and `again_ms`**, timed
+  in-process: `again_ms` is one database round trip from wherever the API
+  runs (8–30 ms from ENAM; 150 ms from the West Coast). Read it first when
+  the deployed API turns slow. They are in the body because Cloudflare drops
+  a `Server-Timing` header.
 - **Still open, closes at the KAN-296 cutover:** Vercel's 4.5 MB request-body
   limit against the 5 MB upload cap (`../frontend/CLAUDE.md`, Deployment).
   Cloudflare accepts 100 MB bodies.
