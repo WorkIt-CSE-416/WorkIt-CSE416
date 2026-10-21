@@ -64,8 +64,10 @@ it by hand: `gh workflow run deploy.yml --ref <branch>`.
   right only for Workers Routes Write.
 - **The health check** polls `https://api.workitjobs.ai/health/db` for five
   minutes, the database route because `/health` answers 200 with every
-  secret wrong (it did, with `[SENSITIVE]` placeholders),, because a fresh Container takes a while to start; a red API job
-  with a green deploy step usually means the container is still pulling.
+  secret wrong (it did, with `[SENSITIVE]` placeholders). Five minutes,
+  because a fresh Container takes a while to start and a rollout replaces
+  instances in steps; a red API job with a green deploy step usually means
+  the rollout is not finished.
 
 ## Scheduled scrape and import (KAN-160)
 
