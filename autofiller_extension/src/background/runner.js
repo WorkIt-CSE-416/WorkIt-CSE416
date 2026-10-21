@@ -61,9 +61,14 @@ export async function openNextApplication(sender) {
  * Injects the fill engine into the run's tab, as the popup's "Autofill
  * This Page" does. content-script.js reads the fields once, when it runs,
  * so this waits for the form first. It answers once the fill has started,
- * never when it ends: executeScript waits for content-script.js's promise,
- * which can wait on the student (the essay banner's Generate or Not Now).
- * The overlay in the tab shows what was filled.
+ * not when it ends; the overlay in the tab shows what was filled.
+ *
+ * THE STUDENT IS TAKEN TO THE TAB FOR THE FILL, and stays there. Filled
+ * hidden, the text fields filled but most dropdowns did not: Chrome treats
+ * a hidden page differently (no redraws, slowed timers, no focus) and
+ * react-select's menus need some of that. Switching back to the WorkIt tab
+ * afterwards was tried and dropped: the student reviews this form next
+ * anyway.
  * @param {number} tabId
  * @returns {Promise<{ fill: "started" } | { fill: "failed", reason: string }>}
  */
@@ -85,6 +90,7 @@ async function startFill(tabId) {
   }
   if (!found) return { fill: "failed", reason: "no_form" };
 
+  await chrome.tabs.update(tabId, { active: true });
   chrome.scripting
     .executeScript({ target, files: CONTENT_SCRIPT_FILES })
     .catch((error) => console.warn("[runner] the fill stopped:", error));

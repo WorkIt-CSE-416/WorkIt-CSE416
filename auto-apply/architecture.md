@@ -452,12 +452,17 @@ yet; the column below is the plan for that warning.
   never `requestAnimationFrame`, which a hidden tab does not run ("Hidden
   tabs run slowly"). No field: `fill: "failed", reason: "no_form"`. A closed
   job posting's page lands here too.
-- **Do not wait for the fill to end.** `executeScript` waits for a script's
-  promise, and the fill can wait on the student (the essay banner's
-  Generate or Not Now). The form wait already proves the runner may inject
-  (a refused injection shows there as `not_allowed`), so the runner then
-  injects the engine's files without waiting. The answer says that the
-  fill started, not what it filled; the overlay shows that.
+- **Do not wait for the fill to end.** The form wait already proves the
+  runner may inject (a refused injection shows there as `not_allowed`), so
+  the runner then injects the engine's files and answers at once. The
+  answer says that the fill started, not what it filled; the overlay shows
+  that.
+- **Take the student to the tab for the fill.** A hidden tab filled its
+  text fields but not most dropdowns (below). So once the form is ready,
+  the runner makes the run's tab active, and the student stays on it to
+  review the form. Switching back to the WorkIt tab after the fill was
+  tried and dropped: it did not help. This reverses "fill in a hidden tab"
+  (10.4) for the fill; the tab still opens and loads hidden.
 - **Host permission for Greenhouse.** `activeTab` covers only a tab the
   student opened the popup on, never one the runner opened. So
   `manifest.json` adds `https://*.greenhouse.io/*` to `host_permissions`:
@@ -474,13 +479,13 @@ yet; the column below is the plan for that warning.
   the next `run/open` finds the same job in the tab and leaves it. The
   overlay's Submitted and Skip and `POST .../finish` come next.
 
-**Learned in the first live run:** only the name fields filled, every
+**Learned in the first live runs:** only the name fields filled, every
 dropdown said "No options appeared", and the resume did not attach. The
 fill engine waited with `requestAnimationFrame`, which a hidden tab never
 runs. It now waits on DOM changes, and its typing does not use timers in a
-hidden tab (`autofiller_extension/CLAUDE.md`, the runner section). Confirm
-the dropdowns and the file upload in a real hidden tab; failures show as
-failed rows in the overlay, and the student fixes them in the tab.
+hidden tab. Even then most dropdowns stayed empty in a hidden tab, so the
+fill now runs with the tab shown (above), and the dropdowns fill. The waits stay fixed, so a fill
+the student leaves early still finishes its text fields.
 
 **Changes, by file:**
 
@@ -585,9 +590,11 @@ for a redraw. The run's tab is hidden all the same:
   API prevents this, and a minimized window is hidden too.
 - The tab is set `autoDiscardable: false`, so Memory Saver never throws
   away a half-filled form.
-- So the fill must work in a hidden tab: wait on DOM changes
-  (`MutationObserver`), not on redraws or `requestAnimationFrame`. Test
-  each hiring system's dropdowns and file upload in a background tab.
+- The tab opens and loads hidden, but **the student is taken to it for the
+  fill** and stays there (8.3): filled hidden, most Greenhouse dropdowns
+  stayed empty. The fill still waits on DOM changes
+  (`MutationObserver`), never on redraws, so a fill cut short still
+  completes.
 - Only one application fills at a time.
 
 ---

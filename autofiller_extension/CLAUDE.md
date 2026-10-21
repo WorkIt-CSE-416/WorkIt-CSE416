@@ -140,9 +140,16 @@ Browser": `run/status` answers which job posting the run's tab shows
 - **Wait for the form, not for the fill.** `content-script.js` reads the
   fields once, so the runner first injects `waitForForm`, which watches
   the DOM (never `requestAnimationFrame`: a hidden tab runs none) for up
-  to 10 seconds. Then it injects the engine without awaiting it:
-  `executeScript` waits for the script's promise, and the fill can wait on
-  the student (the essay banner).
+  to 10 seconds. Then it injects the engine and answers `run/open`
+  without awaiting the fill.
+- **The student is taken to the run's tab for the fill, and stays there.**
+  Filled hidden, the text fields filled but most dropdowns did not, even
+  with the waits below fixed: Chrome treats a hidden page differently (no
+  redraws, timers about once a second, no focus), and react-select's menus
+  need some of that. So `startFill` makes the run's tab active once the
+  form is ready, and the dropdowns fill (confirmed live). Switching back
+  to the WorkIt tab after the fill was built and dropped: it didn't help,
+  since the student reviews this form next anyway.
 - **`run/open` never reloads or refills the application already open.**
   When the run's tab shows the next application's job posting, it is left
   as it is (`fill: "kept"`): a second click (another card, Start again)
@@ -171,9 +178,10 @@ Browser": `run/status` answers which job posting the run's tab shows
   tab it drives visible and focused, so test with the real runner.
 
 Still open: a Lever `apply_url` opens the job posting, not the form (that
-is at `.../apply`). In a real hidden tab, `focus()` may not fire focus
-events; react-select opens on input alone, but confirm the dropdowns
-fill there. A tab closed within a second or two
+is at `.../apply`). Why a hidden tab's dropdowns stay empty is not pinned
+down (focus is the likeliest); if found, the fill could stay hidden. With
+the student's Chrome window behind another app, macOS may still count the
+shown tab as hidden. A tab closed within a second or two
 of opening should be reported as that, not as the student's Skip.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
