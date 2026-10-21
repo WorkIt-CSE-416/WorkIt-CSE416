@@ -1,7 +1,7 @@
 /**
  * The landing page's copy, from the team's marketing site (its site.ts and
- * home.ts). Placeholder text is the site's own, written as guidance: replace
- * each line with the real thing and the layout stays intact. The feature
+ * home.ts). The testimonial is still the site's placeholder, written as guidance:
+ * replace it with a real quote and the layout stays intact. The feature
  * carousel's copy is in feature-data.ts, the application board's in
  * board-data.ts.
  */
@@ -164,22 +164,40 @@ export const testimonial = {
   role: "Role, Company",
 };
 
+/**
+ * Each answer is a claim about the product: the jobs' source must match the
+ * hiring-system list above, and "you press Submit" is auto-apply's rule
+ * (auto-apply/architecture.md). Pricing is not set, so the cost answer says
+ * no more than the header's "Get started for free".
+ */
 export const faqs = [
   {
     question: "What is WorkIt?",
-    answer: "A two-sentence answer for someone who has never heard of WorkIt before.",
+    answer:
+      "WorkIt is a job search app for college students. It finds the internships and new-grad jobs that fit you, tailors your resume to each one, fills in the application, and keeps every application on one board.",
   },
   {
     question: "Who is WorkIt for?",
     answer:
-      "Describe your ideal customer, and say who it is not for if that helps people self-select.",
+      "Students and recent graduates applying for internships and entry-level roles, especially anyone sending a lot of applications and losing track of them.",
+  },
+  {
+    question: "Where do the jobs come from?",
+    answer:
+      "Straight from company job boards on the hiring systems companies use, such as Greenhouse, Lever, Ashby and Workday. Every job posting links to the company's own application.",
+  },
+  {
+    question: "Does WorkIt apply without me?",
+    answer:
+      "No. WorkIt tailors your resume and the Chrome extension fills in the company's form, but you check every application and press Submit yourself.",
   },
   {
     question: "How much does it cost?",
-    answer: "Summarize pricing in a sentence and link to the pricing page for the details.",
+    answer: "Getting started is free. Sign up and you can search, tailor and track right away.",
   },
   {
     question: "How do I get started?",
-    answer: "Explain the first step, then point people at the primary call to action.",
+    answer:
+      "Sign up and upload a resume. WorkIt reads it into your experience bank and starts ranking jobs by how well you fit.",
   },
 ];
