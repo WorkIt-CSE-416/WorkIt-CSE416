@@ -346,7 +346,15 @@ titled as a field is (`text-label`, ink): **Generated Resumes** (built and
 tailored), **Uploaded Resumes**, **Sent a Different Resume?** (the upload,
 below), then a full-width **No Resume** button, not a section: pressed
 (the brand fill, `aria-pressed`), it is the pick and every radio above
-clears; a radio pick unpresses it. An empty section says so in one line. A row shows the resume's name alone: a grey
+clears; a radio pick unpresses it. An empty section says so in one line.
+The dialog is wide (`sm:max-w-3xl`, not the default `sm:max-w-sm`), with
+Generated and Uploaded side by side from `md` up, so it fits a full-screen
+window without a scrollbar: at the default width it was a narrow column
+taller than the window. It still scrolls inside itself on a short window.
+Each section's fieldset is `min-w-0` and a long name wraps, never
+truncates: a fieldset is as wide as its content by default, so a long name
+once ran over the other column, and two resumes tailored for one company
+differ only at the end of their names. A row shows the resume's name alone: a grey
 kind line under each ("Built resume", "Uploaded file") only repeated its
 section's title, and went on the user's ask. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
