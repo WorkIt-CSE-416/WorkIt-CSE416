@@ -99,8 +99,8 @@ export default function PricingPage() {
 
 /**
  * The board. From xl up it is one grid: a glass panel for the paid plans
- * (the intro and switch, then Plus and Pro heading their columns), a lighter
- * panel for Free on the right, and a feature row across all three, each row
+ * (the intro and switch, then Plus and Pro heading their columns), a grey
+ * panel for Free on the right (the basic tier, so no violet), and a feature row across all three, each row
  * a subgrid so its cells line up under the plans. Below xl the same markup
  * stacks: the plans as cards (a row of three from md), then each feature
  * with a box per plan; the 14rem plan columns need xl's width.
@@ -113,7 +113,7 @@ function PlanBoard() {
   return (
     <div className="group/pricing relative isolate mx-auto grid max-w-md grid-cols-1 gap-6 md:max-w-3xl md:grid-cols-3 md:gap-4 xl:max-w-none xl:grid-cols-[2rem_minmax(0,1fr)_14rem_14rem_1.5rem_1.5rem_14rem] xl:gap-0 xl:py-8">
       <div className="glass-card absolute inset-0 -z-10 hidden rounded-[2rem] xl:col-[1/6] xl:block" />
-      <div className="absolute inset-0 -z-10 hidden rounded-[2rem] bg-white/45 shadow-[0_14px_32px_-18px_rgb(40_20_90/0.35)] ring-1 ring-white/70 ring-inset xl:col-[7/8] xl:block" />
+      <div className="bg-canvas ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block" />
       <div className="bg-landing-brand-100/80 absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] xl:col-[3/4] xl:block" />
 
       <div className="text-center md:col-span-3 md:mb-4 xl:col-[2] xl:row-[1] xl:mb-0 xl:pr-8 xl:pb-8 xl:text-left">
@@ -170,15 +170,21 @@ function PlanBoard() {
 const COLUMNS: { id: PlanId; className: string }[] = [
   { id: "plus", className: "xl:col-[3]" },
   { id: "pro", className: "xl:col-[4]" },
-  { id: "free", className: "xl:col-[7]" },
+  { id: "free", className: "bg-canvas ring-border xl:col-[7]" },
 ];
 
 /** What a plan gives for one feature. Plus's limits are solid violet pills on
- *  its strip, Pro's tinted ones, Free's plain text, after Jobright's board. */
+ *  its strip, Pro's tinted ones, Free's plain text and grey checks, after
+ *  Jobright's board. */
 function Value({ cell, plan }: { cell: Cell; plan: PlanId }) {
   if (cell === "included") {
     return (
-      <span className="bg-landing-brand-600 inline-flex size-6 items-center justify-center rounded-full text-white">
+      <span
+        className={cn(
+          "inline-flex size-6 items-center justify-center rounded-full text-white",
+          plan === "free" ? "bg-ink-meta" : "bg-landing-brand-600",
+        )}
+      >
         <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
         <span className="sr-only">Included</span>
       </span>
@@ -221,69 +227,12 @@ const CLOSING_BACKDROP = [
   "var(--color-brand-tint)",
 ].join(", ");
 
-/** The highlighted plan's fill, under its tiles: a soft violet glow at the
- *  bottom, over a deep violet gradient that starts at landing-brand-600
+/** The highlighted plan's fill: a soft violet glow at the bottom, over a deep violet gradient that starts at landing-brand-600
  *  where the small type sits (white on it is 6.26:1). */
 const FEATURED_FILL = [
   "radial-gradient(80% 45% at 0% 100%, color-mix(in oklab, var(--color-landing-brand-400) 30%, transparent), transparent)",
   "linear-gradient(165deg, var(--color-landing-brand-600), var(--color-landing-brand-800) 60%, var(--color-landing-brand-900))",
 ].join(", ");
-
-/** A tile of a repeating pattern, as a mask: the SVG gives only the shape
- *  and its size, and `Pattern` paints it in a token colour. */
-const tile = (size: number, shape: string) =>
-  `url("data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>${shape}</svg>`,
-  )}")`;
-
-const PATTERNS = {
-  dots: tile(14, "<circle cx='7' cy='7' r='1.3'/>"),
-  tiles: tile(
-    34,
-    "<rect x='3.5' y='3.5' width='27' height='27' rx='8' fill='none' stroke='black'/>",
-  ),
-  crosses: tile(
-    22,
-    "<path d='M11 7v8M7 11h8' stroke='black' stroke-width='1.3' stroke-linecap='round'/>",
-  ),
-};
-
-/** Free's and Pro's top: one light violet tint and pattern colour for both,
- *  so colour means one thing on this page, the recommended plan. */
-const PLAIN_TOP = {
-  ink: "color-mix(in oklab, var(--color-landing-brand-400) 45%, transparent)",
-  tint: "color-mix(in oklab, var(--color-landing-brand-200) 65%, transparent)",
-};
-
-/**
- * Each plan's top, after a reference the team liked: a tint and a pattern
- * that fade out downwards, a different pattern per plan. Plus keeps its
- * violet fill, so its tiles are white.
- */
-const CARD_TOPS: Record<PlanId, { mask: string; ink: string; tint?: string }> = {
-  free: { mask: PATTERNS.dots, ...PLAIN_TOP },
-  plus: { mask: PATTERNS.tiles, ink: "rgb(255 255 255 / 0.2)" },
-  pro: { mask: PATTERNS.crosses, ...PLAIN_TOP },
-};
-
-/** A patterned top, behind its parent's content (the parent is `isolate`):
- *  a tint, then the pattern painted in `ink`, both fading out downwards. */
-const FADE = "linear-gradient(to bottom, black, transparent 90%)";
-
-function Pattern({ mask, ink, tint }: { mask: string; ink: string; tint?: string }) {
-  return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-60 rounded-[inherit]"
-      style={{ background: tint, maskImage: FADE, WebkitMaskImage: FADE }}
-    >
-      <div
-        className="absolute inset-0 rounded-[inherit]"
-        style={{ backgroundColor: ink, maskImage: mask, WebkitMaskImage: mask }}
-      />
-    </div>
-  );
-}
 
 /** One term's price shows, the other's hides: the board is `group/pricing`,
  *  and it holds the switch's radios. */
@@ -334,10 +283,10 @@ function BillingSwitch() {
 }
 
 /**
- * A plan at the head of its column: a patterned top (`CARD_TOPS`), the price
- * and the button. Plus is filled violet with a tilted badge over its top
- * edge, so nothing here may take `overflow-hidden`. Free sits in its own
- * panel from xl up, so there it drops its card and reaches the panel's top.
+ * A plan at the head of its column: the price and the button. Plus is filled
+ * violet with a tilted badge over its top edge, so nothing here may take
+ * `overflow-hidden`. Free is grey, the basic tier; from xl up it sits in its
+ * own grey panel, so there it drops its card and reaches the panel's top.
  */
 function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
   const featured = plan.highlighted;
@@ -360,12 +309,11 @@ function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
           "text-white shadow-[0_24px_48px_-20px_rgb(58_30_124/0.7)] ring-1 ring-white/25 ring-inset",
         plan.id === "pro" && "text-ink ring-landing-brand-950/10 bg-white/80 shadow-sm ring-1",
         free &&
-          "text-ink ring-landing-brand-950/5 bg-white/60 ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
+          "text-ink bg-canvas ring-border ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
         className,
       )}
       style={featured ? { background: FEATURED_FILL } : undefined}
     >
-      <Pattern {...CARD_TOPS[plan.id]} />
       {featured && (
         <span className="text-landing-brand-800 ring-landing-brand-950/10 absolute -top-3.5 right-5 -rotate-6 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold tracking-[0.14em] uppercase shadow-[0_8px_20px_-6px_rgb(34_17_75/0.55)] ring-1">
           Recommended
@@ -400,7 +348,14 @@ function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
       </p>
 
       <div className="mt-auto pt-5">
-        {featured ? (
+        {free ? (
+          <Link
+            href="/signup"
+            className="text-ink hover:bg-surface ring-ink/15 inline-flex h-11 w-full items-center justify-center rounded-full bg-white text-sm font-semibold shadow-sm ring-1 transition-colors ring-inset"
+          >
+            {label}
+          </Link>
+        ) : featured ? (
           <Link
             href="/signup"
             className="text-landing-brand-900 hover:bg-landing-brand-50 inline-flex h-11 w-full items-center justify-center rounded-full bg-white text-sm font-semibold shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] transition-colors focus-visible:outline-white!"

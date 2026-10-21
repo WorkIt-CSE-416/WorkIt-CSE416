@@ -249,23 +249,21 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   push the rows below the grid. Below xl the same markup stacks, the plans
   as a row of three from md, then a box per plan under each feature; the
   14rem plan columns need xl's width. The board replaced three cards with
-  lists and a separate comparison table, which the team found boring. Each
-  plan's top is a tint and a pattern that fade out downwards (`CARD_TOPS`:
-  dots, tiles, crosses), after a reference the team liked; a pattern is an
-  SVG mask painted in a token colour (`Pattern`). Colour means one thing,
-  the recommended plan: Plus is filled violet with white tiles and a tilted
-  "Recommended" badge over its top edge, so no plan may take
-  `overflow-hidden`; Free and Pro share one light violet top (`PLAIN_TOP`),
-  and the hero's blobs are violet only and the same on both sides, since a
-  magenta blob once showed through Pro's glass as pink and the team found
-  the colours arbitrary. The team turned down soft circles on Plus (they
-  read as a sun), silk ribbons, and a tile grid with rings behind the
-  heading. Two cascade traps: `.glass-card` and `.landing :focus-visible`
-  are unlayered, so they beat any Tailwind utility; a ring on a glass card
-  loses to its box-shadow (use an outline), and a focus colour needs `!`.
-  The Monthly / 3 months switch is two native radios, and the prices read
-  the checked one with `group-has-[...]`, so the page ships no script for
-  it.
+  lists and a separate comparison table, which the team found boring. Colour
+  follows the tiers: Plus, the recommended plan, is filled violet with a
+  tilted "Recommended" badge over its top edge, so no plan may take
+  `overflow-hidden`; Pro is white with violet pills; Free, the basic tier,
+  is grey (`canvas`, grey checks, a plain white button), since violet on
+  Free read as a paid plan. The hero's blobs are violet only and the same on
+  both sides: a magenta blob once showed through the glass as pink. The team
+  turned down soft circles on Plus (they read as a sun), silk ribbons,
+  patterned card tops (dots, tiles, crosses), and a tile grid with rings
+  behind the heading; keep the plans plain. Two cascade traps: `.glass-card`
+  and `.landing :focus-visible` are unlayered, so they beat any Tailwind
+  utility; a ring on a glass card loses to its box-shadow (use an outline),
+  and a focus colour needs `!`. The Monthly / 3 months switch is two native
+  radios, and the prices read the checked one with `group-has-[...]`, so the
+  page ships no script for it.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
