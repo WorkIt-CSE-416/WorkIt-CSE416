@@ -229,7 +229,18 @@ before.
 Now is a plain link that opens the employer's posting in a new tab, and for
 a signed-in applicant who has not marked the job the same click opens
 "Did You Apply?" (below) behind it, its resume list starting on the one
-Pick a Resume would have picked (tailored, else the default). The hidden
+Pick a Resume would have picked (tailored, else the default). Yes, I
+Applied stays off, under "Loading your resumes…", until that list is in:
+before it, the pick is only a guess. **Sent a Different File?** under the
+list is the Resumes page's own dropzone (`ResumeUpload`) and upload
+(`uploadResume`, which reads it into Experiences as any upload does): the
+new resume is picked once the list reloads, and a duplicate picks the one
+it matched, saying "Duplicate Resume found: <name>". **At the 5-upload
+limit** (`lib/resume-limits.ts`, the API's own) a file waits while the
+student picks an upload to replace, then Replace It runs Import Updated
+Resume (`replaceResume`) on that row: the old file's sent resumes keep a
+frozen copy, so past applications lose nothing. Yes, I Applied stays off
+while an upload runs or a file waits. The hidden
 steps stay in `jobs/apply-button.tsx`, commented out, with how to bring
 them back. What follows describes them as they were.
 Apply Now (`jobs/apply-button.tsx`,

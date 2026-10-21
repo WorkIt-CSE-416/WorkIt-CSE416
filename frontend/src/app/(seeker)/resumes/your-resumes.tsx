@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
 import { importSummary } from "@/lib/import-summary";
 import { previewResume } from "@/lib/preview-resume";
+import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { openDownload } from "@/lib/save-file";
 import {
   deleteResume,
@@ -28,9 +29,9 @@ import { DeleteConfirm } from "./delete-confirm";
 import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
 import { UpdateResumeDialog } from "./update-resume-dialog";
 
-// The API's limit, on uploads alone: generated resumes count for nothing
-// (KAN-268), so the count here matches the API's 409.
-const MAX_RESUMES = 5;
+// The API's limit, on uploads alone (lib/resume-limits.ts), so the count
+// here matches the API's 409.
+const MAX_RESUMES = MAX_UPLOADS;
 
 /**
  * Your Uploaded Resumes (Your Resumes until KAN-268), the Resumes view's

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ExternalLinkIcon } from "@/components/icons";
+import { ResumeUpload } from "@/components/resume-upload";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,8 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { listResumes } from "@/lib/resume-actions";
+import { listResumes, replaceResume, uploadResume, type ResumeItem } from "@/lib/resume-actions";
+import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
 
 import { markApplied } from "./actions";
@@ -114,6 +116,15 @@ export function ApplyButton({
   const [asking, setAsking] = useState(false);
   // "Did You Apply?"'s pick: a choice's key, or NO_RESUME.
   const [appliedWith, setAppliedWith] = useState(NO_RESUME);
+  // Upload a resume there, the Resumes page's way (KAN-267): the uploads,
+  // for the limit and the one to replace past it; a file waiting for that
+  // pick; and what the last upload said.
+  const [uploads, setUploads] = useState<ResumeItem[]>([]);
+  const [waiting, setWaiting] = useState<File | null>(null);
+  const [replacing, setReplacing] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function load() {
     setChoices(null);
@@ -124,6 +135,7 @@ export function ApplyButton({
       setChoices([]);
       return setError(built.error ?? uploaded.error);
     }
+    setUploads(uploaded.resumes);
     const list: Choice[] = [
       ...(built.data ?? [])
         // A resume tailored to another posting shows only as the primary
@@ -168,6 +180,40 @@ export function ApplyButton({
   //   setError(null);
   //   setAsking(true);
   // }
+
+  // A file dropped on "Did You Apply?": uploaded as the Resumes page does,
+  // or, at the limit, held until the student picks an upload to replace.
+  function pickFile(file: File) {
+    setUploadError(null);
+    setUploadNote(null);
+    if (uploads.length >= MAX_UPLOADS) {
+      setWaiting(file);
+      setReplacing(uploads[0]?.id ?? null);
+      return;
+    }
+    void send(file, null);
+  }
+
+  /** Uploads the file, or with `replace` puts it on that upload's row
+   *  (Import Updated Resume: the old file's sent resumes keep a frozen
+   *  copy). Then the list is read again and the new resume picked; a
+   *  duplicate picks the resume it matched instead. */
+  async function send(file: File, replace: string | null) {
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const { resume, error, duplicateOf } = replace
+      ? await replaceResume(replace, fd)
+      : await uploadResume(fd);
+    setUploading(false);
+    if (!resume && !duplicateOf) return setUploadError(error ?? "Could not upload the resume.");
+    setWaiting(null);
+    await load();
+    setAppliedWith(`uploaded:${resume?.id ?? duplicateOf}`);
+    setUploadNote(
+      duplicateOf ? `${error} It is picked above.` : `Uploaded ${file.name}. It is picked above.`,
+    );
+  }
 
   async function confirmApplied() {
     setBusy(true);
@@ -215,6 +261,9 @@ export function ApplyButton({
           if (!canMarkApplied || applied) return;
           setOpen(true);
           setAsking(true);
+          setWaiting(null);
+          setUploadNote(null);
+          setUploadError(null);
           void load();
         }}
       >
@@ -223,7 +272,9 @@ export function ApplyButton({
         <span className="sr-only"> (opens in a new tab)</span>
       </a>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        {/* Scrolls inside itself: with the list and the upload it can pass
+            a short window's height. */}
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           {asking && (
             <>
               <DialogHeader>
@@ -233,7 +284,9 @@ export function ApplyButton({
                   applied. WorkIt takes it off your Jobs page.
                 </DialogDescription>
               </DialogHeader>
-              {choices != null && (
+              {choices == null ? (
+                <p className="text-note text-ink-muted">Loading your resumes…</p>
+              ) : (
                 <ResumeChoices
                   legend="Resume You Sent"
                   name="applied-with"
@@ -245,12 +298,77 @@ export function ApplyButton({
                   onPick={setAppliedWith}
                 />
               )}
+              {choices != null && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-label text-ink">Sent a Different File?</p>
+                  {waiting ? (
+                    // At the limit: which upload the new file replaces.
+                    <>
+                      <p className="text-note text-ink-muted">
+                        You have {MAX_UPLOADS} uploaded resumes, the most WorkIt keeps. Pick the one{" "}
+                        {waiting.name} replaces. Applications sent with it keep a copy.
+                      </p>
+                      <ResumeChoices
+                        legend="Upload to Replace"
+                        hideLegend
+                        name="replace"
+                        choices={uploads.map((r) => ({
+                          key: r.id,
+                          label: r.original_filename ?? "Uploaded resume",
+                          kind: "Uploaded file",
+                        }))}
+                        picked={replacing}
+                        onPick={setReplacing}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setWaiting(null)}
+                          disabled={uploading}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => void send(waiting, replacing)}
+                          disabled={uploading || replacing == null}
+                        >
+                          {uploading ? "Replacing…" : "Replace It"}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <ResumeUpload
+                      file={null}
+                      onFileChange={pickFile}
+                      onRemove={() => {}}
+                      busy={uploading}
+                    />
+                  )}
+                  {uploadError && (
+                    <p role="alert" className="text-meta text-danger">
+                      {uploadError}
+                    </p>
+                  )}
+                  {uploadNote && (
+                    <p className="text-note text-ink-muted" aria-live="polite">
+                      {uploadNote}
+                    </p>
+                  )}
+                </div>
+              )}
               {error && <p className="text-meta text-danger">{error}</p>}
               <DialogFooter>
                 <Button variant="secondary" onClick={() => setOpen(false)}>
                   Not Yet
                 </Button>
-                <Button onClick={confirmApplied} disabled={busy}>
+                {/* Off until the resume list is in: Yes names the resume picked
+                    there, and before it loads the pick is only a guess. */}
+                <Button
+                  onClick={confirmApplied}
+                  disabled={busy || choices == null || uploading || waiting != null}
+                >
                   {busy ? "Saving…" : "Yes, I Applied"}
                 </Button>
               </DialogFooter>

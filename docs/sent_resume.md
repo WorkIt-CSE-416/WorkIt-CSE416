@@ -1,8 +1,9 @@
 # Sent resumes per application (KAN-267)
 
 Status: **built** (every build order step, migrations `d642d93fcfbc`,
-`5a6e419367b8` and `3aa342c5a064`). Not built: Upload in the Apply picker,
-and the job posting page's "You sent" as a link. It changes how sent resumes (KAN-208)
+`5a6e419367b8` and `3aa342c5a064`), Upload included: on "Did You Apply?",
+since Pick a Resume is hidden, with Replace at the 5-upload limit. Not
+built: the job posting page's "You sent" as a link. It changes how sent resumes (KAN-208)
 are kept, links each application to the resume it went out with, stops
 recording plain downloads, freezes an upload's sent resumes as JSON once
 the upload is replaced or deleted, and stops duplicate resumes at upload
