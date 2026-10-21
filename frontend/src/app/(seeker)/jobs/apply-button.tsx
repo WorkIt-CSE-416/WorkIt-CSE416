@@ -274,9 +274,12 @@ export function ApplyButton({
         <span className="sr-only"> (opens in a new tab)</span>
       </a>
       <Dialog open={open} onOpenChange={setOpen}>
-        {/* Scrolls inside itself: with the list and the upload it can pass
-            a short window's height. */}
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        {/* Wide on a full-screen window, with the two resume lists side by
+            side, so it fits without a scrollbar: at the dialog's default
+            width (sm:max-w-sm) the lists and the upload stacked into a
+            narrow column taller than the window. It still scrolls inside
+            itself on a short or narrow window. */}
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           {asking && (
             <>
               <DialogHeader>
@@ -292,7 +295,7 @@ export function ApplyButton({
               {choices == null ? (
                 <p className="text-note text-ink-muted">Loading your resumes…</p>
               ) : (
-                <>
+                <div className="grid gap-4 md:grid-cols-2">
                   <ResumeChoices
                     legend="Generated Resumes"
                     name="applied-with"
@@ -309,7 +312,7 @@ export function ApplyButton({
                     picked={appliedWith}
                     onPick={setAppliedWith}
                   />
-                </>
+                </div>
               )}
               {choices != null && (
                 <div className="flex flex-col gap-2">
@@ -424,8 +427,11 @@ function ResumeChoices({
   picked: string | null;
   onPick: (key: string) => void;
 }) {
+  // min-w-0: a fieldset's minimum width is its content's, so in the
+  // dialog's two columns a long resume name pushed Generated Resumes over
+  // Uploaded Resumes instead of wrapping.
   return (
-    <fieldset className="flex flex-col gap-1">
+    <fieldset className="flex min-w-0 flex-col gap-1">
       <legend className={hideLegend ? "sr-only" : "text-label text-ink mb-1"}>{legend}</legend>
       {choices.length === 0 && empty && <p className="text-note text-ink-meta">{empty}</p>}
       {choices.map((c) => (
@@ -439,11 +445,13 @@ function ResumeChoices({
             value={c.key}
             checked={picked === c.key}
             onChange={() => onPick(c.key)}
-            className="accent-brand"
+            className="accent-brand shrink-0"
           />
           {/* The name alone: the section title already says what kind it is,
-              and a grey kind line under each name only repeated it. */}
-          <span className="text-body text-ink min-w-0 truncate">{c.label}</span>
+              and a grey kind line under each name only repeated it. It
+              wraps, never truncates: two resumes tailored for one company
+              differ only at the end of their names. */}
+          <span className="text-body text-ink min-w-0 break-words">{c.label}</span>
         </label>
       ))}
     </fieldset>
