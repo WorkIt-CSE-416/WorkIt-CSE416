@@ -433,8 +433,8 @@ You Apply? step, with "I didn't send a resume" as one choice. Picking a
 resume there calls `POST .../sent-resumes` first (flow 4's Apply, without
 giving a file), then this route with its id.
 
-Built: "Did You Apply?" lists the resumes under "Resume You Sent", plus
-No Resume, starting on the one sent at Apply (No Resume after Apply
+Built: "Did You Apply?" lists the resumes in sections (Generated Resumes,
+Uploaded Resumes, Sent a Different Resume?, then No Resume), starting on the one sent at Apply (No Resume after Apply
 Without a Resume), and the student can change it. Yes keeps a resume
 other than the one sent as a sent resume for the posting
 (`applyWithResume`), then marks the job applied with its `sent_resume_id`,

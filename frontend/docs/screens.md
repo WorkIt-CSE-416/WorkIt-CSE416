@@ -231,8 +231,8 @@ a signed-in applicant who has not marked the job the same click opens
 "Did You Apply?" (below) behind it, its resume list starting on the one
 Pick a Resume would have picked (tailored, else the default). Yes, I
 Applied stays off, under "Loading your resumes…", until that list is in:
-before it, the pick is only a guess. **Sent a Different File?** under the
-list is the Resumes page's own dropzone (`ResumeUpload`) and upload
+before it, the pick is only a guess. **Sent a Different Resume?** under the
+lists is the Resumes page's own dropzone (`ResumeUpload`) and upload
 (`uploadResume`, which reads it into Experiences as any upload does): the
 new resume is picked once the list reloads, and a duplicate picks the one
 it matched, saying "Duplicate Resume found: <name>". **At the 5-upload
@@ -338,7 +338,13 @@ would change a moment after the page loads.
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
 behind the new tab and asks "Did You Apply?". **It shows the resume they
-applied with** (KAN-267), under "Resume You Sent": the resumes Pick a
+applied with** (KAN-267), in four sections that share one choice, each
+titled as a field is (`text-label`, ink): **Generated Resumes** (built and
+tailored), **Uploaded Resumes**, **Sent a Different Resume?** (the upload,
+below) and **No Resume** (one row, "I Applied Without One"); an empty
+section says so in one line. A row shows the resume's name alone: a grey
+kind line under each ("Built resume", "Uploaded file") only repeated its
+section's title, and went on the user's ask. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
 may have attached another file on the employer's page. Yes, I Applied keeps

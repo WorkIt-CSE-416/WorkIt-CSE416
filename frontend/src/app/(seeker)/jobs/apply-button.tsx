@@ -211,7 +211,9 @@ export function ApplyButton({
     await load();
     setAppliedWith(`uploaded:${resume?.id ?? duplicateOf}`);
     setUploadNote(
-      duplicateOf ? `${error} It is picked above.` : `Uploaded ${file.name}. It is picked above.`,
+      duplicateOf
+        ? `${error} It is picked under Uploaded Resumes.`
+        : `Uploaded ${file.name}. It is picked under Uploaded Resumes.`,
     );
   }
 
@@ -284,23 +286,34 @@ export function ApplyButton({
                   applied. WorkIt takes it off your Jobs page.
                 </DialogDescription>
               </DialogHeader>
+              {/* Four sections, one radio group (`applied-with`): what WorkIt
+                  made, what the student uploaded, a file they sent instead,
+                  or none. */}
               {choices == null ? (
                 <p className="text-note text-ink-muted">Loading your resumes…</p>
               ) : (
-                <ResumeChoices
-                  legend="Resume You Sent"
-                  name="applied-with"
-                  choices={[
-                    ...choices,
-                    { key: NO_RESUME, label: "No Resume", kind: "I applied without one" },
-                  ]}
-                  picked={appliedWith}
-                  onPick={setAppliedWith}
-                />
+                <>
+                  <ResumeChoices
+                    legend="Generated Resumes"
+                    name="applied-with"
+                    choices={choices.filter((c) => c.key.startsWith("built:"))}
+                    empty="None yet. Generate Resume on Resumes & Experiences makes one."
+                    picked={appliedWith}
+                    onPick={setAppliedWith}
+                  />
+                  <ResumeChoices
+                    legend="Uploaded Resumes"
+                    name="applied-with"
+                    choices={choices.filter((c) => c.key.startsWith("uploaded:"))}
+                    empty="None yet. Upload the file you sent below."
+                    picked={appliedWith}
+                    onPick={setAppliedWith}
+                  />
+                </>
               )}
               {choices != null && (
                 <div className="flex flex-col gap-2">
-                  <p className="text-label text-ink">Sent a Different File?</p>
+                  <p className="text-label text-ink">Sent a Different Resume?</p>
                   {waiting ? (
                     // At the limit: which upload the new file replaces.
                     <>
@@ -315,7 +328,6 @@ export function ApplyButton({
                         choices={uploads.map((r) => ({
                           key: r.id,
                           label: r.original_filename ?? "Uploaded resume",
-                          kind: "Uploaded file",
                         }))}
                         picked={replacing}
                         onPick={setReplacing}
@@ -358,6 +370,15 @@ export function ApplyButton({
                   )}
                 </div>
               )}
+              {choices != null && (
+                <ResumeChoices
+                  legend="No Resume"
+                  name="applied-with"
+                  choices={[{ key: NO_RESUME, label: "I Applied Without One" }]}
+                  picked={appliedWith}
+                  onPick={setAppliedWith}
+                />
+              )}
               {error && <p className="text-meta text-danger">{error}</p>}
               <DialogFooter>
                 <Button variant="secondary" onClick={() => setOpen(false)}>
@@ -380,25 +401,29 @@ export function ApplyButton({
   );
 }
 
-/** One radio row per resume, its name over its kind. */
+/** One radio row per resume, by its name. */
 function ResumeChoices({
   legend,
   hideLegend = false,
   name,
   choices,
+  empty,
   picked,
   onPick,
 }: {
   legend: string;
   hideLegend?: boolean;
   name: string;
-  choices: { key: string; label: string; kind: string }[];
+  /** What an empty section says, under its title. */
+  empty?: string;
+  choices: { key: string; label: string }[];
   picked: string | null;
   onPick: (key: string) => void;
 }) {
   return (
     <fieldset className="flex flex-col gap-1">
       <legend className={hideLegend ? "sr-only" : "text-label text-ink mb-1"}>{legend}</legend>
+      {choices.length === 0 && empty && <p className="text-note text-ink-meta">{empty}</p>}
       {choices.map((c) => (
         <label
           key={c.key}
@@ -412,10 +437,9 @@ function ResumeChoices({
             onChange={() => onPick(c.key)}
             className="accent-brand"
           />
-          <span className="flex min-w-0 flex-col">
-            <span className="text-body text-ink truncate">{c.label}</span>
-            <span className="text-note text-ink-meta">{c.kind}</span>
-          </span>
+          {/* The name alone: the section title already says what kind it is,
+              and a grey kind line under each name only repeated it. */}
+          <span className="text-body text-ink min-w-0 truncate">{c.label}</span>
         </label>
       ))}
     </fieldset>
