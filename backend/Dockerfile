@@ -37,6 +37,9 @@ COPY backend/app ./app
 # cache is used in place (no copy to /tmp)
 RUN .venv/bin/python scripts/fetch_tectonic.py && chown -R api:api vendor
 
+# Keep connections open across requests (app/config.py, db_pool_size)
+ENV DB_POOL_SIZE=5
+
 USER api
 EXPOSE 8080
 CMD [".venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers", "--forwarded-allow-ips", "*"]

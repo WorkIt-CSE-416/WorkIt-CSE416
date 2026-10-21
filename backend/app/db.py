@@ -43,10 +43,19 @@ def get_engine() -> AsyncEngine:
     '''
     settings = get_settings()
 
+    # A long-lived process (the container) keeps a few connections open; a
+    # short-lived one (a Vercel Function) opens one per request
+    pool = (
+        {"poolclass": NullPool}
+        if settings.db_pool_size == 0
+        # pre_ping and recycle replace a connection Supavisor has dropped
+        else {"pool_size": settings.db_pool_size, "pool_pre_ping": True, "pool_recycle": 300}
+    )
+
     # establish the connection to talk with Postgres
     return create_async_engine(
         settings.app_url,
-        poolclass=NullPool, # open as new connection
+        **pool,
         # A database error's text carries the statement's values, and every
         # route logs it with logger.exception: without this, a failed save
         # wrote a student's answers, resume text or phone into the logs.

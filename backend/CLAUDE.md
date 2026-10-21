@@ -647,8 +647,9 @@ Find files with a directory listing; these are the rules for where code goes.
   given (`config.py` rewrites them to `postgresql+asyncpg://`), URL-encoding a
   password containing `@`, `/`, `:` or `#`; otherwise the URL parses wrong and
   the error does not say why.
-- **Engine settings are not optional.** `app/db.py` sets `NullPool` because
-  Supavisor already pools, and `statement_cache_size=0` plus
+- **Engine settings are not optional.** `app/db.py` sets `NullPool` (unless
+  `DB_POOL_SIZE` is set; Deployment) because Supavisor already pools, and
+  `statement_cache_size=0` plus
   `prepared_statement_cache_size=0` because the transaction pooler hands each
   statement to any free backend: a prepared statement made on one is absent on
   the next, and queries fail intermittently under load, never in development.
@@ -829,11 +830,14 @@ removed at cutover, not before. Until then a change must work on both.
 - **`../scout` is installed as a non-editable path source.** uv copies it into
   site-packages at build time; an editable install would point at a folder the
   function (or the image's final layout) need not have.
-- **`NullPool` stays right in the container**: every request opens one
-  connection through Supavisor's transaction pooler, which already pools,
-  so 3 instances (or Vercel's scale-out) cannot exhaust Postgres. It costs
-  ~0.5 s per `/jobs` request (measured 2026-10-07); cache the response if
-  the feed must be faster.
+- **The container keeps 5 connections open; Vercel opens one per
+  request.** `DB_POOL_SIZE` (`app/config.py`) is 0 by default, which is
+  `NullPool`, and the Dockerfile sets 5. Under `NullPool` in the container
+  every request spent ~1 s opening its connection, and pages took 3–9 s
+  (2026-10-21). A Vercel Function is short-lived, so it keeps `NullPool`.
+  Three instances hold at most 15 (plus overflow) Supavisor clients, which
+  still pools them onto a few Postgres backends. `pool_pre_ping` and
+  `pool_recycle` replace a connection Supavisor has dropped.
 - **Still open, closes at the KAN-296 cutover:** Vercel's 4.5 MB request-body
   limit against the 5 MB upload cap (`../frontend/CLAUDE.md`, Deployment).
   Cloudflare accepts 100 MB bodies.
