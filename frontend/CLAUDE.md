@@ -234,21 +234,25 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   ships and the API enforces the paid limits. The team picked Free, Plus
   ($15) and Pro ($29) a month, or 20% less on a 3-month term (a job search
   lasts one recruiting season, so there is no yearly term), on 2026-10-21,
-  at about half of Simplify+'s and Jobright Turbo's price. Every limit is a claim: Free's Tailor and Scout
-  limits are the API's caps today (`ai_tailor_cap`, `ai_scout_cap` in
-  `backend/app/config.py`), so change both together; a Scout use is one
-  message, a Tailor use one resume for one job posting; employer replies stay
-  "Coming soon" until updates are built, whatever the home page's tour
-  shows. Each list line is the feature in bold, then what the plan gives.
-  Plus is filled violet, the one card the eye should land on, with silk
-  ribbons of fine white curves (`Ribbons`); the team turned down soft
-  circles, which read as a sun. The ribbon under the list shows from lg up
-  only: on a stacked card it ran through the list's last line. The others
-  are `.glass-card` over the hero panel's blobs. Two cascade traps:
-  `.glass-card` and `.landing :focus-visible` are unlayered, so they beat
-  any Tailwind utility; a ring on a glass card loses to its box-shadow (use
-  an outline), and a focus colour needs `!`. The Monthly / 3 months switch
-  is two native radios, and the prices read the checked one with
+  at about half of Simplify+'s and Jobright Turbo's price. Every limit is a
+  claim: Free's Tailor and Scout limits are the API's caps today
+  (`ai_tailor_cap`, `ai_scout_cap` in `backend/app/config.py`), so change
+  both together; a Scout use is one message, a Tailor use one resume for one
+  job posting; employer replies stay "Coming soon" until updates are built,
+  whatever the home page's tour shows. Each list line is the feature in
+  bold, then what the plan gives. Each card's top is a tint and a pattern
+  that fade out by mid-card (`CARD_TOPS`: dots, tiles, crosses), after a
+  reference the team liked; a pattern is an SVG mask painted in a token
+  colour (`Pattern`), and the hero repeats the tiles faintly behind its
+  heading. Plus is filled violet, the one card the eye should land on, with
+  white tiles and a tilted "Recommended" badge over its top edge, so no card
+  may take `overflow-hidden`. Plus first had soft circles, which read as a
+  sun, then silk ribbons, which gave way so all three cards share one motif.
+  The other two are `.glass-card` over the hero panel's blobs. Two cascade
+  traps: `.glass-card` and `.landing :focus-visible` are unlayered, so they
+  beat any Tailwind utility; a ring on a glass card loses to its box-shadow
+  (use an outline), and a focus colour needs `!`. The Monthly / 3 months
+  switch is two native radios, and the prices read the checked one with
   `group-has-[...]`, so the page ships no script for it.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or

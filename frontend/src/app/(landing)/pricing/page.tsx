@@ -1,4 +1,4 @@
-import { Check, Info, Star } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -38,11 +38,18 @@ export default function PricingPage() {
           them and the cards may fade, filter or mask (landing.css). */}
       <section className={PANEL_INSET}>
         <div
-          className={cn(PANEL, "pt-16 pb-12 sm:pt-20 sm:pb-16 lg:pt-24 lg:pb-20")}
+          className={cn(PANEL, "relative isolate pt-14 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-20")}
           style={{ background: HERO_BACKDROP }}
         >
+          <Pattern
+            mask={PATTERNS.heroTiles}
+            ink="color-mix(in oklab, var(--color-landing-brand-300) 40%, transparent)"
+            fade="radial-gradient(ellipse 55% 75% at 50% 0%, black 30%, transparent)"
+            className="h-[30rem]"
+          />
           <div className={cn(CONTAINER, "text-center")}>
-            <h1 className="from-ink to-landing-brand-800 mx-auto max-w-3xl bg-linear-to-b from-40% bg-clip-text pb-[0.1em] text-[2.75rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance text-transparent sm:text-6xl">
+            <Eyebrow>Pricing</Eyebrow>
+            <h1 className="from-ink to-landing-brand-800 mx-auto mt-6 max-w-3xl bg-linear-to-b from-40% bg-clip-text pb-[0.1em] text-[2.75rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance text-transparent sm:text-6xl">
               Pricing built for students.
             </h1>
             <p className="text-ink-muted mx-auto mt-4 max-w-[600px] text-lg leading-[1.55] text-pretty sm:text-[19px]">
@@ -54,7 +61,7 @@ export default function PricingPage() {
           <div className={cn(CONTAINER, "group/pricing mt-10")}>
             {PLANS_ARE_PLACEHOLDERS && <PlaceholderNote />}
             <BillingSwitch />
-            <ul className="mx-auto mt-8 grid max-w-md gap-4 lg:max-w-none lg:grid-cols-3 lg:gap-6">
+            <ul className="mx-auto mt-10 grid max-w-md gap-10 lg:max-w-none lg:grid-cols-3 lg:gap-6">
               {plans.map((plan) => (
                 <PlanCard key={plan.id} plan={plan} />
               ))}
@@ -125,7 +132,7 @@ const CLOSING_BACKDROP = [
   "var(--color-brand-tint)",
 ].join(", ");
 
-/** The highlighted plan's fill, under its ribbons: a magenta glow in the top
+/** The highlighted plan's fill, under its tiles: a magenta glow in the top
  *  corner and a violet one under the list, over a deep violet gradient. The
  *  glows stay dark enough for white type (white on landing-brand-600 is
  *  6.26:1). */
@@ -135,56 +142,91 @@ const FEATURED_FILL = [
   "linear-gradient(165deg, var(--color-landing-brand-600), var(--color-landing-brand-800) 60%, var(--color-landing-brand-900))",
 ].join(", ");
 
-/**
- * Silk ribbons: bands of fine curves whose control points step at different
- * rates, so each band fans out, twists and gathers again. Each line is
- * brightest at the band's middle and faint at its edges, so the band reads
- * as texture behind the type. One sits faint in the top corner, behind the
- * badge; the main one fills the empty space under the list, which only lg
- * has: on a stacked card it ran through the last line of the list.
- */
-const RIBBONS = [
-  {
-    className: "top-0 h-40",
-    viewBox: "0 0 400 160",
-    align: "xMaxYMin",
-    lines: 14,
-    peak: 0.22,
-    path: (i: number) =>
-      `M ${180 + i * 7} -20 C ${260 + i * 2} ${50 + i * 5}, ${330 - i * 2} ${40 + i * 8}, 440 ${90 + i * 7}`,
-  },
-  {
-    className: "bottom-0 hidden h-60 lg:block",
-    viewBox: "0 0 400 240",
-    align: "xMidYMax",
-    lines: 20,
-    peak: 0.36,
-    path: (i: number) =>
-      `M -40 ${230 - i * 4} C 90 ${120 + i * 10}, 250 ${300 - i * 12}, 440 ${40 + i * 9}`,
-  },
-];
+/** A tile of a repeating pattern, as a mask: the SVG gives only the shape
+ *  and its size, and `Pattern` paints it in a token colour. */
+const tile = (size: number, shape: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>${shape}</svg>`,
+  )}")`;
 
-function Ribbons() {
-  return RIBBONS.map(({ className, viewBox, align, lines, peak, path }) => (
-    <svg
-      key={viewBox}
-      viewBox={viewBox}
-      preserveAspectRatio={`${align} slice`}
-      className={cn("pointer-events-none absolute inset-x-0 -z-10 w-full", className)}
+const PATTERNS = {
+  dots: tile(14, "<circle cx='7' cy='7' r='1.3'/>"),
+  tiles: tile(
+    34,
+    "<rect x='3.5' y='3.5' width='27' height='27' rx='8' fill='none' stroke='black'/>",
+  ),
+  crosses: tile(
+    22,
+    "<path d='M11 7v8M7 11h8' stroke='black' stroke-width='1.3' stroke-linecap='round'/>",
+  ),
+  heroTiles: tile(
+    64,
+    "<rect x='4.5' y='4.5' width='55' height='55' rx='14' fill='none' stroke='black'/>",
+  ),
+};
+
+/**
+ * Each card's top, after the team's reference: a tint and a pattern that
+ * fade out by mid-card, a different pattern per plan. Plus keeps its violet
+ * fill, so its tiles are white.
+ */
+const CARD_TOPS: Record<Plan["id"], { mask: string; ink: string; tint?: string }> = {
+  free: {
+    mask: PATTERNS.dots,
+    ink: "color-mix(in oklab, var(--color-landing-brand-400) 50%, transparent)",
+    tint: "color-mix(in oklab, var(--color-landing-brand-200) 75%, transparent)",
+  },
+  plus: { mask: PATTERNS.tiles, ink: "rgb(255 255 255 / 0.2)" },
+  pro: {
+    mask: PATTERNS.crosses,
+    ink: "color-mix(in oklab, var(--color-match-weak) 45%, transparent)",
+    tint: "color-mix(in oklab, var(--color-match-weak) 22%, transparent)",
+  },
+};
+
+/** A pattern layer behind its parent's content (the parent is `isolate`): a
+ *  tint, then the pattern painted in `ink`, both faded by `fade`. */
+function Pattern({
+  mask,
+  ink,
+  tint,
+  fade = "linear-gradient(to bottom, black, transparent 90%)",
+  className,
+}: {
+  mask: string;
+  ink: string;
+  tint?: string;
+  fade?: string;
+  className?: string;
+}) {
+  return (
+    <div
       aria-hidden="true"
+      className={cn(
+        "pointer-events-none absolute inset-x-0 top-0 -z-10 rounded-[inherit]",
+        className,
+      )}
+      style={{ background: tint, maskImage: fade, WebkitMaskImage: fade }}
     >
-      {Array.from({ length: lines }, (_, i) => (
-        <path
-          key={i}
-          d={path(i)}
-          fill="none"
-          stroke="white"
-          strokeOpacity={0.04 + peak * Math.sin((Math.PI * i) / (lines - 1))}
-          vectorEffect="non-scaling-stroke"
-        />
-      ))}
-    </svg>
-  ));
+      <div
+        className="absolute inset-0 rounded-[inherit]"
+        style={{ backgroundColor: ink, maskImage: mask, WebkitMaskImage: mask }}
+      />
+    </div>
+  );
+}
+
+/** The hero's label: a brand-glass pill with two rings around it. */
+function Eyebrow({ children }: { children: string }) {
+  return (
+    <p className="relative mx-auto w-fit">
+      <span className="border-landing-brand-300/40 absolute -inset-x-6 -inset-y-3 rounded-full border" />
+      <span className="border-landing-brand-300/70 absolute -inset-x-3 -inset-y-1.5 rounded-full border" />
+      <span className="text-landing-brand-800 relative block rounded-full px-4 py-1.5 text-xs font-semibold tracking-[0.18em] uppercase [box-shadow:var(--brand-glass-edge)] [background:var(--brand-glass-fill)]">
+        {children}
+      </span>
+    </p>
+  );
 }
 
 /** One term's price shows, the other's hides: the cards sit inside
@@ -236,10 +278,11 @@ function BillingSwitch() {
 }
 
 /**
- * A plan: its price and button above a rule, its list below. The highlighted
- * plan is filled violet with white type and silk ribbons, and on lg reaches
- * past the other two at top and bottom, so it is the one the eye lands on;
- * the other two stay glass over the panel's blobs.
+ * A plan: a patterned top (`CARD_TOPS`), its price and button above a rule,
+ * its list below. The highlighted plan is filled violet with white type and a
+ * tilted badge over its top edge, and on lg reaches past the other two at top
+ * and bottom, so it is the one the eye lands on; the other two stay glass
+ * over the panel's blobs. No `overflow-hidden`: it would cut the badge off.
  */
 function PlanCard({ plan }: { plan: Plan }) {
   const featured = plan.highlighted;
@@ -257,31 +300,35 @@ function PlanCard({ plan }: { plan: Plan }) {
   return (
     <li
       className={cn(
-        "flex flex-col overflow-hidden rounded-[1.75rem] text-left",
+        "relative isolate flex flex-col rounded-[1.75rem] text-left",
         featured
-          ? "relative isolate text-white shadow-[0_32px_64px_-24px_rgb(58_30_124/0.65)] ring-1 ring-white/25 ring-inset lg:-my-4"
+          ? "text-white shadow-[0_32px_64px_-24px_rgb(58_30_124/0.65)] ring-1 ring-white/25 ring-inset lg:-my-4"
           : "glass-card text-ink",
       )}
       style={featured ? { background: FEATURED_FILL } : undefined}
     >
-      {featured && <Ribbons />}
+      <Pattern {...CARD_TOPS[plan.id]} className="h-60" />
+      {featured && (
+        <span className="text-landing-brand-800 ring-landing-brand-950/10 absolute -top-3.5 right-6 -rotate-6 rounded-full bg-white px-3.5 py-1.5 text-[11px] font-bold tracking-[0.14em] uppercase shadow-[0_8px_20px_-6px_rgb(34_17_75/0.55)] ring-1">
+          Recommended
+        </span>
+      )}
+
       <div className={cn("p-6 sm:p-8", featured && "lg:pt-12")}>
-        <div className="flex min-h-7 items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">{plan.name}</h2>
-          {featured && (
-            <span className="bg-warning-tint text-warning inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm">
-              <Star className="size-3 fill-current" aria-hidden="true" />
-              Recommended
-            </span>
-          )}
-        </div>
+        <h2 className="text-xl font-semibold">{plan.name}</h2>
         <p className={cn("mt-2 text-sm lg:min-h-10", meta)}>{plan.pitch}</p>
 
-        <p className="mt-6 flex items-baseline gap-1.5">
+        <p className="mt-6 flex items-baseline gap-2">
           <span className="text-5xl font-semibold tracking-tight">
             <span className={ON_MONTHLY}>${plan.price.monthly}</span>
             <span className={ON_QUARTERLY}>${plan.price.quarterly}</span>
           </span>
+          {!free && (
+            <span className={cn(ON_QUARTERLY, "text-xl", meta)}>
+              <span className="sr-only">instead of </span>
+              <s>${plan.price.monthly}</s>
+            </span>
+          )}
           <span className={cn("text-sm", meta)}>/ month</span>
         </p>
         <p className={cn("mt-1 min-h-5 text-sm", meta)}>
@@ -299,12 +346,16 @@ function PlanCard({ plan }: { plan: Plan }) {
           {featured ? (
             <Link
               href="/signup"
-              className="text-landing-brand-900 hover:bg-landing-brand-50 inline-flex h-12 w-full items-center justify-center rounded-lg bg-white text-base font-semibold shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] transition-colors focus-visible:outline-white!"
+              className="text-landing-brand-900 hover:bg-landing-brand-50 inline-flex h-12 w-full items-center justify-center rounded-full bg-white text-base font-semibold shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] transition-colors focus-visible:outline-white!"
             >
               {label}
             </Link>
           ) : (
-            <GlassButton href="/signup" label={label} className="h-12 w-full text-base" />
+            <GlassButton
+              href="/signup"
+              label={label}
+              className="h-12 w-full rounded-full text-base"
+            />
           )}
         </div>
       </div>
