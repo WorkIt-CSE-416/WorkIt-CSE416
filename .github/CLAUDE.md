@@ -40,8 +40,14 @@ it by hand: `gh workflow run deploy.yml --ref <branch>`.
   zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.
 - **The API's runtime values are one secret, `CF_API_SECRETS_JSON`**: a JSON
   object of every variable the API reads in production, copied from Vercel's
-  production env. The job pipes it to `wrangler secret bulk` after the deploy,
-  which rolls a new version. To change one value, rewrite the whole JSON
+  production env. The job pipes it to `wrangler secret bulk` **before** the
+  deploy: the image rollout restarts the containers with the secrets of that
+  moment, and a secrets-only version restarts none, so set after, the new
+  values reach no container until each sleeps (found 2026-10-21). `secret
+  bulk` never deletes a secret, so a key dropped from the JSON keeps its old
+  value. **Build it from the root `.env`, never `vercel env pull`**: Vercel
+  returns every sensitive variable as the text `[SENSITIVE]`, which once
+  shipped as the database URL and keys. To change one value, rewrite the whole JSON
   (`gh secret set CF_API_SECRETS_JSON < file.json`); never put a value in the
   workflow. `DIRECT_URL` never goes in it: migrations stay a local step.
 - **`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are repo
@@ -56,8 +62,9 @@ it by hand: `gh workflow run deploy.yml --ref <branch>`.
   the `workitjobs.ai` zone. Scoped to the zone, Workers Scripts Write grants
   nothing and every call answers "No access" (found 2026-10-21). Zone scope is
   right only for Workers Routes Write.
-- **The health check** polls `https://api.workitjobs.ai/health` for five
-  minutes, because a fresh Container takes a while to start; a red API job
+- **The health check** polls `https://api.workitjobs.ai/health/db` for five
+  minutes, the database route because `/health` answers 200 with every
+  secret wrong (it did, with `[SENSITIVE]` placeholders),, because a fresh Container takes a while to start; a red API job
   with a green deploy step usually means the container is still pulling.
 
 ## Scheduled scrape and import (KAN-160)

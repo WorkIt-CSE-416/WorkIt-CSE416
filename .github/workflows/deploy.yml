@@ -29,19 +29,21 @@ jobs:
           node-version-file: .nvmrc
       - run: npm ci
       - run: ../../.github/scripts/ensure-worker.sh workit-api
-      # wrangler builds backend/Dockerfile (context: the repo root) with the
-      # runner's Docker and pushes it to Cloudflare's registry.
-      - run: npm run deploy
-      # One JSON secret holds every runtime value; bulk sets them all and
-      # rolls a new version (.github/CLAUDE.md, "Deploy to Cloudflare").
+      # One JSON secret holds every runtime value. It goes on before the
+      # deploy: the deploy's image rollout restarts the containers with the
+      # secrets of that moment, and a secrets-only version restarts none
+      # (.github/CLAUDE.md, "Deploy to Cloudflare").
       - name: Set runtime secrets
         env:
           SECRETS_JSON: ${{ secrets.CF_API_SECRETS_JSON }}
         run: printf '%s' "$SECRETS_JSON" | npx wrangler secret bulk
+      # wrangler builds backend/Dockerfile (context: the repo root) with the
+      # runner's Docker and pushes it to Cloudflare's registry.
+      - run: npm run deploy
       - name: Health check
         run: |
           for i in $(seq 1 30); do
-            if curl -fsS https://api.workitjobs.ai/health; then exit 0; fi
+            if curl -fsS https://api.workitjobs.ai/health/db; then exit 0; fi
             sleep 10
           done
           exit 1
