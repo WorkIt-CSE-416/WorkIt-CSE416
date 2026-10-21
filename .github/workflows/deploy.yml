@@ -33,4 +33,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # Prints the token's account and scopes (never the token), so a
+      # permission error below can be read straight from the log.
+      - run: npx wrangler whoami
       - run: npm run cf:deploy
