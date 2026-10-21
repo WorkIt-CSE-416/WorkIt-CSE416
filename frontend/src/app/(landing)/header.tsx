@@ -173,7 +173,7 @@ function FeaturesPanel() {
           </li>
         ))}
       </ul>
-      {/* The home page's hiring-systems section, until a page of its own. */}
+      {/* The home page's hiring-systems section, which has no page of its own. */}
       <Link
         href="/#hiring-systems"
         className="group text-ink-meta hover:text-ink mt-1 flex items-center gap-3 rounded-xl bg-slate-900/[0.03] px-3 py-2.5 text-[13px] font-medium transition-colors duration-200"
