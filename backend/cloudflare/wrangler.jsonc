@@ -1,0 +1,31 @@
+// The API's Worker and Container (ADR 0004, KAN-295). CI deploys it with
+// `npm run deploy`; secrets come from `wrangler secret`, never this file.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "workit-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "containers": [
+    {
+      "class_name": "Api",
+      "image": "../Dockerfile",
+      // The repo root: the image needs ../scout, a path dependency. wrangler
+      // pipes the Dockerfile on stdin, so Dockerfile.dockerignore is not read;
+      // the Dockerfile's named COPYs are what keep the rest of the repo out.
+      "image_build_context": "../..",
+      // 1/4 vCPU, 1 GiB, 4 GB disk (the image is under 1 GB)
+      "instance_type": "basic",
+      "max_instances": 3
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "API", "class_name": "Api" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Api"] }],
+  "routes": [{ "pattern": "api.workitjobs.ai", "custom_domain": true }],
+  // Served on the custom domain only: the account has no workers.dev
+  // subdomain, and the CI token cannot read one.
+  "workers_dev": false
+}

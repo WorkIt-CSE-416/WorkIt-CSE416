@@ -41,6 +41,9 @@ uv run python -m app.scripts.intake_test_set   intake's fixed test set against t
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
+The container image builds from the repo root, not here (Deployment):
+`docker build --platform linux/amd64 -f backend/Dockerfile -t workit-api .`
+
 Migrations: read `alembic/CLAUDE.md` before writing one; it has the offline
 `--sql` check that needs no credentials. Never run `alembic init` again: it
 overwrites `alembic/env.py` and its schema filters.
@@ -663,12 +666,58 @@ Find files with a directory listing; these are the rules for where code goes.
 
 ## Deployment
 
-Vercel, its own project (Root Directory `backend`), the whole app one Vercel
-Function (`[tool.vercel] entrypoint` in `pyproject.toml`; Vercel installs from
-`uv.lock`). Chosen in KAN-146 over Render (free tier sleeps and takes ~1 minute
-to wake, so sign-in looked broken), Railway, Fly.io and Cloud Run (no usable
-free tier). Render with a Dockerfile is the fallback.
+**The target is a Cloudflare Container** at `api.workitjobs.ai` (ADR 0004,
+KAN-295): `Dockerfile` here, behind the small Worker in `cloudflare/`, on
+Workers Paid. **Vercel stays live until the KAN-296 cutover**: its project
+(Root Directory `backend`, the app one Vercel Function from `[tool.vercel]
+entrypoint` and `vercel.json`) still serves production, and both files are
+removed at cutover, not before. Until then a change must work on both.
 
+- **The image builds from the repo root**, `docker build --platform
+  linux/amd64 -f backend/Dockerfile -t workit-api .`, because `../scout` is a
+  path dependency and a build context of `backend/` cannot reach it.
+  `wrangler.jsonc` sets `image_build_context` to `../..` for the same reason.
+  **Every `COPY` names its paths** (`backend/app`, `scout/workit_scout`...),
+  never a whole folder: `wrangler deploy` pipes the Dockerfile in on stdin
+  (`-f -`), so BuildKit never reads `Dockerfile.dockerignore`, and a
+  `COPY backend ./` put a laptop's macOS `.venv` over the image's (the first
+  dry run failed with `.venv/bin/python: not found`). That ignore file only
+  speeds up a plain local `docker build`; there is no root `.dockerignore`,
+  since the root holds no tooling. A new folder the API reads at runtime
+  needs its own `COPY`. Cloudflare runs linux/amd64 only: build that
+  platform on an Apple Silicon Mac. The image is about 450 MB on disk (185 MB
+  compressed): the venv 188 MB, Tectonic and its cache 71 MB.
+- **A `docker build` that hangs at "load metadata for ghcr.io/..." on a Mac
+  is Docker Desktop's keychain credential helper** waiting on a prompt no
+  one sees. Build with `DOCKER_CONFIG` pointing at a folder whose
+  `config.json` has no `credsStore` (both images are public). Never run
+  `docker buildx history ls` while a build runs: on Docker Desktop 4.55 it
+  panicked dockerd and stopped every container (2026-10-20).
+- **The image uses the base image's Python 3.12, not a uv-managed one**
+  (`UV_PYTHON_PREFERENCE=only-system`), installs with `uv sync --frozen
+  --no-dev`, and starts the venv's `uvicorn` directly on :8080: `uv run`
+  would re-check the lock on every cold start.
+- **The image fetches Tectonic at build time** (`scripts/fetch_tectonic.py`)
+  and gives `vendor/` to the non-root `api` user, so the warm cache is
+  writable in place and no render copies it to `/tmp`. A build that cannot
+  fetch it fails (`app/services/resume_render/CLAUDE.md`).
+- **The Worker (`cloudflare/`) holds no logic.** It forwards each request to
+  one of 3 instances with `getRandom` (the library's stopgap balancer, until
+  Cloudflare ships autoscaling): the API is stateless, so any instance serves
+  any request, and three let renders run side by side on `basic`'s 1/4 vCPU.
+  `INSTANCES` in `src/index.ts` and `max_instances` in `wrangler.jsonc` must
+  match. The cost: each instance cold-starts on its own first request, and
+  each stays billed for `sleepAfter` (10 minutes) after its last one.
+  Shorter saves memory-hours; longer means fewer cold starts.
+- **Secrets are Worker secrets set by CI** (`wrangler secret bulk` with
+  `CLOUDFLARE_API_TOKEN`), never `wrangler.jsonc`, which is committed. The
+  Worker's `Api` class copies the names in its `FORWARDED` list into the
+  container's environment, skipping any the Worker lacks so the code's
+  default applies. **A new setting the API reads must join `FORWARDED`**, or
+  the container never sees it. CI deploys with `npm ci && npm run deploy`
+  in `cloudflare/`; `npx wrangler deploy --dry-run` there checks the config
+  and builds the image without deploying. Nobody runs `wrangler login` or a
+  real deploy from a laptop.
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
   model, where"); without `SCOUT_*` every Scout reply is "offline". The
@@ -678,7 +727,8 @@ free tier). Render with a Dockerfile is the fallback.
   `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
   **Still open:** the deployed API has no Ollama, so until the Vercel project
   sets `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations
-  score without the semantic part.
+  score without the semantic part. The Worker forwards both names when set,
+  and sets neither itself: `gemini` without a key would fail matching.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.
@@ -761,16 +811,18 @@ free tier). Render with a Dockerfile is the fallback.
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX
-  (`app/services/resume_render/CLAUDE.md`).
-- **`../scout` is bundled as a non-editable path source.** uv copies it into
+  (`app/services/resume_render/CLAUDE.md`). Removed at the KAN-296 cutover.
+- **`../scout` is installed as a non-editable path source.** uv copies it into
   site-packages at build time; an editable install would point at a folder the
-  function lacks.
-- **`NullPool` makes serverless safe**: each invocation opens one connection
-  through Supavisor's transaction pooler, so scale-out cannot exhaust Postgres.
-  It costs ~0.5 s per `/jobs` request (measured 2026-10-07); cache the
-  response if the feed must be faster.
-- **Still open:** the 4.5 MB request-body limit against the 5 MB upload cap
-  (`../frontend/CLAUDE.md`, Deployment).
+  function (or the image's final layout) need not have.
+- **`NullPool` stays right in the container**: every request opens one
+  connection through Supavisor's transaction pooler, which already pools,
+  so 3 instances (or Vercel's scale-out) cannot exhaust Postgres. It costs
+  ~0.5 s per `/jobs` request (measured 2026-10-07); cache the response if
+  the feed must be faster.
+- **Still open, closes at the KAN-296 cutover:** Vercel's 4.5 MB request-body
+  limit against the 5 MB upload cap (`../frontend/CLAUDE.md`, Deployment).
+  Cloudflare accepts 100 MB bodies.
 
 ## Auth
 
