@@ -305,6 +305,50 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   native popover in `mobile-menu.tsx`, which also closes when one of its
   links is followed: the header stays mounted from page to page, so an
   open popover would sit over the next page.
+- **The Pricing page, `app/(landing)/pricing/`, shows the team's plans.**
+  Every plan, price, daily limit, feature row and billing answer lives in
+  its `data.ts`; the page holds layout only. The team picked Free, Plus
+  ($15) and Pro ($29) a month, or 20% less on a 3-month term (a job search
+  lasts one recruiting season, so there is no yearly term), on 2026-10-21,
+  at about half of Simplify+'s and Jobright Turbo's price, and had the page
+  show them plainly: no "Prices are not final" or "Not on sale yet" note,
+  which an earlier version had. WorkIt has no billing yet, so every account
+  is on Free; while `PAID_PLANS_ON_SALE` is false each paid plan's button
+  leads to the free sign-up and says so ("Start free, then Plus"; "Get Plus"
+  would sell a plan nobody can buy, and one "Get started for free" on every
+  plan read as the same plan three times). Set it to true only once billing
+  ships and the API enforces the paid limits. Every limit is a claim: Free's
+  Tailor and Scout limits are the API's caps today (`ai_tailor_cap`,
+  `ai_scout_cap` in `backend/app/config.py`), so change both together; a
+  Scout use is one message, a Tailor use one Tailor run or the first keyword
+  check against a job posting WorkIt has not read; no answer says Auto Apply
+  attaches a resume, since the extension's upload is unverified live;
+  employer replies stay "Coming soon" until they are built, whatever the
+  home page's tour shows. **Layout, after Jobright's pricing page:** one
+  board (`PlanBoard`). From xl up a glass panel holds the intro, the switch
+  and the paid plans heading their columns, Free has its own grey panel on
+  the right, and each feature runs across as a row, a CSS subgrid so its
+  cells line up under the plans. The panels and Plus's column strip are
+  absolutely placed grid children: with no row set they span the grid's full
+  height, and they take no cell from auto-placement, which would push the
+  rows below the grid. Below xl the same markup stacks, the plans as a row
+  of three from md, then a box per plan under each feature; the 14rem plan
+  columns need xl's width. The board replaced three cards with lists and a
+  separate comparison table, which the team found boring. Colour follows the
+  tiers: Plus, the recommended plan, is filled violet with a tilted
+  "Recommended" badge over its top edge, so no plan may take
+  `overflow-hidden`; Pro is white with violet pills; Free, the basic tier,
+  is grey (`canvas`, grey checks, a plain white button), since violet on
+  Free read as a paid plan. The hero's blobs are violet only and the same on
+  both sides: a magenta blob once showed through the glass as pink. The team
+  turned down soft circles on Plus (they read as a sun), silk ribbons,
+  patterned card tops (dots, tiles, crosses), and a tile grid with rings
+  behind the heading; keep the plans plain. Two cascade traps: `.glass-card`
+  and `.landing :focus-visible` are unlayered, so they beat any Tailwind
+  utility; a ring on a glass card loses to its box-shadow (use an outline),
+  and a focus colour needs `!`. The Monthly / 3 months switch is two native
+  radios, and the prices read the checked one with `group-has-[...]`, so the
+  page ships no script for it.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
