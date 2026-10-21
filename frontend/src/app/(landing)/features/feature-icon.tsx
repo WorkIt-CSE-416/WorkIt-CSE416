@@ -9,7 +9,7 @@ const SIZES = {
 
 /**
  * A feature's mark: its icon, white on a tile in its own colour. The home
- * tour's stop chips, the Product menu, each feature page's eyebrow and the
+ * tour's stop chips, the Features menu, each feature page's eyebrow and the
  * related-feature cards all draw it, so a feature wears one mark site-wide.
  */
 export function FeatureIcon({

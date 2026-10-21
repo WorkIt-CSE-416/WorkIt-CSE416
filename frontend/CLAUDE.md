@@ -226,10 +226,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   claims, each tied to its source in a comment in `data.ts`.
 - **The marketing site is the home page, a page per feature and Pricing**,
   all in `app/(landing)/`, after Linear, Notion and Calendly. The home page
-  is the overview. The header reads Product ▾, Pricing, Log in and Get
-  started; its old anchor links (Features, Applications, FAQ) are gone.
+  is the overview. The header reads Features ▾, Pricing, Log in and Get
+  started (the team renamed Product to Features); its old anchor links (Features, Applications, FAQ) are gone.
   **The feature list is `features/catalog.ts`**: each feature page's slug,
-  name, icon and colour, in menu order. The Product menu, the phone menu,
+  name, icon and colour, in menu order. The Features menu, the phone menu,
   the footer's Features column, each page's related-feature cards and the
   tour's "Learn more" links all read it, and the tour's stops take their
   colours from it, so a feature wears one colour and one mark
@@ -245,7 +245,7 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `features/content/<slug>.ts` (the shape is `features/types.ts`), so
   writing one page never touches another's file; all five exist, and
   `content/index.ts`, which maps them, is never edited per page. A content
-  file's `line` is also the Product menu's line under the name. Its copy
+  file's `line` is also the Features menu's line under the name. Its copy
   is a product claim like the FAQ's: auto apply fills one application at
   a time and the student clicks Submit on each, so no page says WorkIt
   submits or applies in parallel. Until each page's own session rewrites
@@ -257,13 +257,16 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `visual`, shows a placeholder in the feature's colour. The hero and the
   closing call to action use `SocialSignUpButton` (`social-sign-up.tsx`,
   shared with the home hero) and the FAQ is `FaqList` (`faq-list.tsx`).
-  **The Product menu** (`product-menu.tsx`) is a disclosure with
+  **The Features menu** (`features-menu.tsx`) is a disclosure with
   `aria-expanded`, not an ARIA menu, since its items are links: a mouse
   hover opens it, a click pins it, Esc closes it and returns focus, and
   tabbing out, a click outside, a link inside or a route change closes it.
   `header.tsx` draws its panel on the server and passes it in, so the
-  content files never reach the browser. Its foot row links to the home
-  page's `#hiring-systems` until that has a page. **The bar's white fill
+  content files never reach the browser. Features and Pricing share one
+  box, `NAV_ITEM` in `layout-parts.tsx`: Pricing as a bare inline link
+  sat 1px lower, its 14px text on the list item's 16px baseline. The
+  menu's foot row links to the home page's `#hiring-systems` until that
+  has a page. **The bar's white fill
   is a layer behind the nav, not the nav's parent**: with `backdrop-blur`
   on an ancestor, that ancestor is the panel's backdrop root, and the
   panel's own blur would see nothing behind it. The phone menu is the

@@ -116,7 +116,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Hiring systems, in a rounded panel. The Product menu's foot row
+      {/* Hiring systems, in a rounded panel. The Features menu's foot row
             links here. */}
       <section id="hiring-systems" className={PANEL_INSET}>
         <div className={cn(PANEL, "bg-surface py-20 sm:py-28")}>

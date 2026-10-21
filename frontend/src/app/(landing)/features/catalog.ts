@@ -4,8 +4,8 @@ import type { ComponentType } from "react";
 import { SparkleIcon } from "@/components/icons";
 
 /**
- * The five feature pages, in the Product menu's order: each page's slug,
- * name, icon and colour. The header's Product menu, the footer, each page's
+ * The five feature pages, in the Features menu's order: each page's slug,
+ * name, icon and colour. The header's Features menu, the footer, each page's
  * related-feature cards and the home tour's "Learn more" links all read
  * this list, so a page added or renamed here moves everywhere at once.
  * Each page's copy lives in its own file under `content/`, never here.

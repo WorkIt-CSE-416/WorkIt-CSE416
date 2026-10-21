@@ -10,17 +10,18 @@ import { featureContent } from "./features/content";
 import { FeatureIcon } from "./features/feature-icon";
 import { FloatingHeader } from "./floating-header";
 import { GlassButton, OutlineButton } from "./buttons";
+import { FeaturesMenu } from "./features-menu";
+import { NAV_ITEM } from "./layout-parts";
 import { MobileMenu } from "./mobile-menu";
-import { ProductMenu } from "./product-menu";
 
-/** The Product menu's foot row: the first few hiring systems by name. */
+/** The Features menu's foot row: the first few hiring systems by name. */
 const WORKS_WITH = hiringSystems.slice(0, 3);
 
 /**
  * The header sits above the hero's rounded panel. Once the page scrolls it
  * floats: the bar becomes a white rounded panel with a shadow, inset from
  * the window's edges like the panels below it (FloatingHeader sets the
- * state). The links: Product ▾ (the feature pages, features/catalog.ts),
+ * state). The links: Features ▾ (the feature pages, features/catalog.ts),
  * Pricing, then Log in and Get started.
  *
  * The site's Applicant / Company switcher is left out while the business side
@@ -31,7 +32,7 @@ export function Header() {
     <FloatingHeader>
       <div className="relative isolate">
         {/* The bar's fill is a layer behind the nav, not the nav's parent:
-            its backdrop-filter would make it the Product panel's backdrop
+            its backdrop-filter would make it the Features panel's backdrop
             root, and the panel's own blur would see nothing behind it. */}
         <div
           aria-hidden="true"
@@ -51,15 +52,12 @@ export function Header() {
 
           <ul className="hidden items-center gap-1 lg:flex">
             <li>
-              <ProductMenu label="Product">
-                <ProductPanel />
-              </ProductMenu>
+              <FeaturesMenu label="Features">
+                <FeaturesPanel />
+              </FeaturesMenu>
             </li>
             <li>
-              <Link
-                href={site.pricing.href}
-                className="hover:text-ink rounded-md px-3 py-2 text-sm font-medium text-slate-800 transition-colors"
-              >
+              <Link href={site.pricing.href} className={NAV_ITEM}>
                 {site.pricing.label}
               </Link>
             </li>
@@ -102,10 +100,10 @@ export function Header() {
         </div>
         <ul className="mt-4 grid gap-1">
           <li>
-            {/* The Product menu as an expandable list. */}
+            {/* The Features menu as an expandable list. */}
             <details className="group">
               <summary className="text-ink hover:bg-surface flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">
-                Product
+                Features
                 <ChevronDown
                   aria-hidden="true"
                   className="ease-glide size-5 opacity-60 transition-transform duration-200 group-open:rotate-180"
@@ -149,12 +147,12 @@ export function Header() {
 }
 
 /**
- * The Product menu's panel: the feature pages in two columns, each with its
+ * The Features menu's panel: the feature pages in two columns, each with its
  * mark, its name and its content file's `line`, then the hiring systems.
- * Drawn here on the server and passed into ProductMenu, so the content
+ * Drawn here on the server and passed into FeaturesMenu, so the content
  * files never reach the browser. Its surface is the floating bar's.
  */
-function ProductPanel() {
+function FeaturesPanel() {
   return (
     <div className="w-[36rem] rounded-2xl bg-white/90 p-2 shadow-lg ring-1 shadow-slate-900/5 ring-slate-900/5 backdrop-blur-md">
       <ul className="grid grid-cols-2 gap-1">

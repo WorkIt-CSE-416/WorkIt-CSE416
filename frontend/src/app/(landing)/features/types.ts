@@ -11,7 +11,7 @@ import type { ComponentType } from "react";
  * page says WorkIt submits or applies in parallel.
  */
 export type FeatureContent = {
-  /** One line under the name in the Product menu and on the other pages'
+  /** One line under the name in the Features menu and on the other pages'
    *  related-feature cards. Short: the menu gives it about 30 characters
    *  a line, two lines at most. */
   line: string;

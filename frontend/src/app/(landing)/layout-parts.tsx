@@ -7,6 +7,12 @@ import { cn } from "@/lib/cn";
  * one site; add a shared piece here rather than copying it into a page.
  */
 
+/** The header's links, Features ▾ and Pricing: one box for both, so their
+ *  text lines up. A bare inline link sat 1px below the Features button,
+ *  its 14px text on the baseline of the list item's 16px line. */
+export const NAV_ITEM =
+  "hover:text-ink inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-slate-800 transition-colors";
+
 /** The site's `container-page` utility. */
 export const CONTAINER = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 

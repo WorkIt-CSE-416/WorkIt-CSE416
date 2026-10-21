@@ -12,7 +12,7 @@ export const site = {
   primaryCta: { label: "Get started for free", href: "/signup" },
   login: { label: "Log in", href: "/login" },
   pricing: { label: "Pricing", href: "/pricing" },
-  // The header's Product menu and the footer's Features column list the
+  // The header's Features menu and the footer's Features column list the
   // feature pages from features/catalog.ts; these are the footer's other
   // columns.
   footer: [

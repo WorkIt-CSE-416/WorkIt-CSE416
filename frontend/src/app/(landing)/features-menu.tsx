@@ -6,12 +6,14 @@ import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } f
 
 import { cn } from "@/lib/cn";
 
+import { NAV_ITEM } from "./layout-parts";
+
 /** How long the pointer may leave before a hover-opened panel closes, so a
  *  path that clips the gap between the trigger and the panel keeps it. */
 const CLOSE_DELAY = 150;
 
 /**
- * The header's Product ▾: a disclosure, not an ARIA menu, since its items
+ * The header's Features ▾: a disclosure, not an ARIA menu, since its items
  * are plain links (the WAI-ARIA disclosure navigation pattern). It opens on
  * hover (a mouse only) and on click; a click on a hover-opened panel keeps
  * it open. Esc closes it and returns focus to the trigger; tabbing past its
@@ -20,7 +22,7 @@ const CLOSE_DELAY = 150;
  * so Tab walks into it in order; while closed it is `invisible`, out of the
  * tab order.
  */
-export function ProductMenu({ label, children }: { label: string; children: ReactNode }) {
+export function FeaturesMenu({ label, children }: { label: string; children: ReactNode }) {
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -92,10 +94,7 @@ export function ProductMenu({ label, children }: { label: string; children: Reac
         aria-expanded={open !== null}
         aria-controls={panelId}
         onClick={() => setOpen((current) => (current === "click" ? null : "click"))}
-        className={cn(
-          "hover:text-ink inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-slate-800 transition-colors",
-          open && "text-ink",
-        )}
+        className={cn(NAV_ITEM, open && "text-ink")}
       >
         {label}
         <ChevronDown
