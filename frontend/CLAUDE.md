@@ -223,6 +223,27 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `signInWithOAuth`. The testimonial still holds the site's placeholder
   copy; never fill it with an invented quote. The FAQ answers are product
   claims, each tied to its source in a comment in `data.ts`.
+- **The Pricing page, `app/(landing)/pricing/`, shows placeholder plans.**
+  Every plan, price, daily limit, table row and billing answer lives in its
+  `data.ts`; the page holds layout only. WorkIt has no billing yet, so while
+  `PLANS_ARE_PLACEHOLDERS` is true the page says "Prices are not final" and
+  each paid card says "Not on sale yet", its button leading to the free
+  sign-up. Set it to false only once billing ships and the API enforces the
+  paid limits. The team picked Free, Plus ($15) and Pro ($29) a month, or 20%
+  less on a 3-month term (a job search lasts one recruiting season, so there
+  is no yearly term), on 2026-10-21, at about half of Simplify+'s and
+  Jobright Turbo's price. Every limit is a claim: Free's Tailor and Scout
+  limits are the API's caps today (`ai_tailor_cap`, `ai_scout_cap` in
+  `backend/app/config.py`), so change both together; a Scout use is one
+  message, a Tailor use one resume for one job posting; employer replies stay
+  "Coming soon" until updates are built, whatever the home page's tour
+  shows. Plus is filled violet, the one card the eye should land on; the
+  others are `.glass-card` over the hero panel's blobs. Two cascade traps:
+  `.glass-card` and `.landing :focus-visible` are unlayered, so they beat
+  any Tailwind utility; a ring on a glass card loses to its box-shadow (use
+  an outline), and a focus colour needs `!`. The Monthly / 3 months switch
+  is two native radios, and the prices read the checked one with
+  `group-has-[...]`, so the page ships no script for it.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
