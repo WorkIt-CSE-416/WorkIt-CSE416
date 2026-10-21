@@ -17,6 +17,13 @@ export type LoginState = { error: string | null; email: string };
 // type — telling them apart lets anyone enumerate registered addresses.
 const INVALID_CREDENTIALS = "Invalid email or password.";
 
+// Supabase only returns this once the password has already checked out
+// (GoTrue validates credentials before confirmation status), so unlike
+// INVALID_CREDENTIALS above, naming it here reveals nothing an attacker
+// couldn't already tell from a correct password alone.
+const EMAIL_NOT_CONFIRMED =
+  "Please verify your email before signing in. Check your inbox for the link we sent you.";
+
 // login with supabase Auth
 export async function signIn(_prevState: LoginState, formData: FormData): Promise<LoginState> {
   const email = formData.get("email");
@@ -32,7 +39,12 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
   });
 
   if (error) {
-    const message = error.code === "invalid_credentials" ? INVALID_CREDENTIALS : error.message;
+    const message =
+      error.code === "invalid_credentials"
+        ? INVALID_CREDENTIALS
+        : error.code === "email_not_confirmed"
+          ? EMAIL_NOT_CONFIRMED
+          : error.message;
     return { error: message, email: emailValue };
   }
 

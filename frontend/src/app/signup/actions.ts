@@ -1,9 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { apiFetch, extractErrorMessage, type AuthenticatedAccount } from "@/lib/auth";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // firstName/middleName/lastName/email round-trip the submitted values back
 // into the form on failure. React resets a useActionState-bound form's
@@ -25,14 +25,19 @@ export type SignupState = {
 };
 
 /**
- * Sign up with 2 steps (for job_applicants)
+ * Sign up with a password (Create Account, never Google/LinkedIn — an
+ * OAuth identity is already provider-verified and never touches this
+ * action).
  *
- * 1. POST /auth/signup (backend/app/routers/auth.py) creates the Supabase
- *    auth user and the profile row. It goes through the API rather than
- *    `supabase.auth.signUp()` because only the API can set the account type
- *    where the user can't edit it
- * 2. signInWithPassword() starts the session, setting Supabase's cookies.
- 
+ * POST /auth/signup (backend/app/routers/auth.py) creates the Supabase auth
+ * user — unconfirmed — and the profile row, through the API rather than
+ * `supabase.auth.signUp()` because only the API can set the account type
+ * where the user can't edit it. There is no sign-in here: Supabase refuses
+ * a session for an unconfirmed email (once the project's "Confirm email"
+ * setting is on, docs/auth.md), so the student lands on
+ * /signup/check-email instead and signs in for the first time once they
+ * click the link that email sends — /auth/callback (route.ts) is what
+ * picks that up and sends them on to onboarding.
  */
 function fieldValue(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -73,6 +78,15 @@ export async function createAccount(
 
   const password = fieldValue(formData, "password");
 
+  // Where Supabase's confirmation email sends the browser back to, once it
+  // verifies the token — same origin-from-headers pattern
+  // src/lib/oauth-actions.ts's signInWithOAuth already uses, so a local or
+  // preview signup confirms back to itself rather than production.
+  const headersList = await headers();
+  const host = headersList.get("x-forwarded-host") ?? headersList.get("host");
+  const protocol = headersList.get("x-forwarded-proto") ?? "http";
+  const redirectTo = `${protocol}://${host}/auth/callback`;
+
   // create the user in backend with supabase
   const response = await apiFetch("/auth/signup", {
     method: "POST",
@@ -81,6 +95,7 @@ export async function createAccount(
       name,
       email,
       password,
+      redirectTo,
 
       // fields for company sign up
       ...(accountType === "company" && {
@@ -101,22 +116,9 @@ export async function createAccount(
 
   const account: AuthenticatedAccount = await response.json();
 
-  // user finishes sign up, logs in and issue token
-  const supabase = await createSupabaseServerClient();
-
-  // sign in with the created user, supabase issues the token
-  const { error } = await supabase.auth.signInWithPassword({ email: account.email, password });
-  if (error) {
-    return {
-      error: "Your account was created, but signing in failed. Please sign in again.",
-      ...echo,
-    };
-  }
-
-  // A new applicant always starts with onboarding; a company's is a stub.
-  if (account.account_type == "applicant") {
-    redirect("/onboarding/applicant");
-  } else {
-    redirect("/company");
-  }
+  // No sign-in here: the account is unconfirmed, and Supabase refuses a
+  // session for it until the student clicks the link the signup above just
+  // triggered. /auth/callback sends a verified account on to onboarding or
+  // /company; this screen is only ever the waiting room before that.
+  redirect(`/signup/check-email?email=${encodeURIComponent(account.email)}`);
 }
