@@ -39,6 +39,8 @@ import {
   Medal,
   Monitor,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   Search,
   Send,
@@ -521,4 +523,11 @@ const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
  *  My Profile became the second route to want them (KAN-269). */
 export function answerIcon(key: keyof AutofillAnswers) {
   return ANSWER_ICON[key];
+}
+
+/** The sidebar's pin (KAN-300, components/hover-sidebar.tsx): a pin to pin
+ *  the panel open, crossed out to unpin it. Not PinIcon, which is a place. */
+export function SidebarPinIcon({ pinned, className }: IconProps & { pinned: boolean }) {
+  const Glyph = pinned ? PinOff : Pin;
+  return <Glyph aria-hidden className={className} />;
 }

@@ -91,8 +91,11 @@ editing the vendored one: it opens the provider when pinned or hovering.
 **Size anything by the pinned width with `useSidebarPin`, never shadcn's
 `state`**: a hover sets that to "expanded", and the company bar's corner
 cell, sized by it, widened and pushed the bar on every hover. On the seeker
-shell a hovering panel covers the bar's toggle, so pinning from a hover is
-Ctrl or Cmd+B, or the toggle once the panel closes.
+shell a hovering panel runs the window's height and covers the bar's
+toggle, so the open panel carries its own pin at its header's right, beside
+the logo (`app-sidebar.tsx`, PanelBrand): the same toggle, a pin to pin and
+a crossed-out pin to unpin. The company bar's toggle is never covered, so
+its panel has none.
 
 Shared shell parts in `src/components`: `app-sidebar.tsx` (the left panel both
 shells use: shadcn's Sidebar with WorkIt's row spacing and current-item
