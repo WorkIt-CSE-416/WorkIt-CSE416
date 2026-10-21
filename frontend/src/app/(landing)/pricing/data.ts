@@ -37,107 +37,84 @@ const limits = {
   scout: { free: 3, plus: 50, pro: 150 },
 } satisfies Record<string, Record<PlanId, number>>;
 
-/** One line of a card's list: the feature in bold, then what the plan gives. */
-export type Included = { feature: string; detail: string };
-
 export type Plan = {
   id: PlanId;
   name: string;
   pitch: string;
   /** Dollars a month on each term; the 3-month term bills 3 of them at once. */
   price: Record<BillingId, number>;
-  /** The card's list, under its title: the plan's limits, then for Free the
-   *  features every plan has. */
-  listTitle: string;
-  includes: Included[];
   /** The one plan drawn filled in violet, so it stands out from the others. */
   highlighted?: boolean;
 };
 
-/** A plan's three daily limits, as list lines. */
-const dailyLimits = (plan: PlanId): Included[] => [
-  { feature: "Auto Apply", detail: `${limits.autoApply[plan]} applications filled a day` },
-  { feature: "Tailor", detail: `${limits.tailor[plan]} resumes tailored a day` },
-  { feature: "Scout", detail: `${limits.scout[plan]} messages a day` },
-];
-
-export const plans: Plan[] = [
-  {
+export const plans: Record<PlanId, Plan> = {
+  free: {
     id: "free",
     name: "Free",
     pitch: "Everything you need to start your search.",
     price: { monthly: 0, quarterly: 0 },
-    listTitle: "What you get:",
-    includes: [
-      ...dailyLimits("free"),
-      { feature: "Job Matching", detail: "A match score on every job posting" },
-      { feature: "Resume Builder", detail: "Resumes from your experience bank, as PDFs" },
-      { feature: "Application Tracker", detail: "Every application in one place" },
-    ],
   },
-  {
+  plus: {
     id: "plus",
     name: "Plus",
     pitch: "For a steady search through recruiting season.",
     price: { monthly: 15, quarterly: 12 },
-    listTitle: "Everything in Free, with higher limits:",
-    includes: dailyLimits("plus"),
     highlighted: true,
   },
-  {
+  pro: {
     id: "pro",
     name: "Pro",
     pitch: "For students who apply to many jobs each week.",
     price: { monthly: 29, quarterly: 23 },
-    listTitle: "Everything in Plus, with the highest limits:",
-    includes: dailyLimits("pro"),
   },
-];
+};
 
-/** A table cell: a daily limit, included, or not built yet. */
+/** What a plan gives for a feature: a daily limit, included, or not built yet. */
 export type Cell = number | "included" | "soon";
 
 const every = (cell: Cell): Record<PlanId, Cell> => ({ free: cell, plus: cell, pro: cell });
 
 /**
- * The comparison table, one group per feature. Updates (replies from
- * employers on the tracker) are not built, whatever the home page's tour
- * shows, so they stay "Coming soon" here until they are.
+ * The feature rows under the plans: each feature, one line on what it does,
+ * and what each plan gives. The line names a limit's unit, since a cell only
+ * says "15 a day". Employer replies are not built, whatever the home page's
+ * tour shows, so they stay "Coming soon" until they are.
  */
-export const comparison: {
-  feature: string;
-  note?: string;
-  rows: { label: string; cells: Record<PlanId, Cell> }[];
-}[] = [
-  {
-    feature: "Resume Builder and tailoring",
-    rows: [
-      { label: "Resumes built from your experience bank, as PDFs", cells: every("included") },
-      { label: "Resumes tailored to a job posting", cells: limits.tailor },
-    ],
-  },
-  {
-    feature: "Job Matching",
-    rows: [
-      { label: "A match score on every job posting", cells: every("included") },
-      { label: "Jobs sorted by Best Match", cells: every("included") },
-    ],
-  },
+export const features: { feature: string; detail: string; cells: Record<PlanId, Cell> }[] = [
   {
     feature: "Auto Apply",
-    note: "One application at a time. You check each one and click Submit.",
-    rows: [{ label: "Applications filled for you", cells: limits.autoApply }],
+    detail: "Applications filled for you, one at a time. You check each one and click Submit.",
+    cells: limits.autoApply,
   },
   {
-    feature: "Application Tracker and updates",
-    rows: [
-      { label: "Every application in one place", cells: every("included") },
-      { label: "Replies from employers, on your tracker", cells: every("soon") },
-    ],
+    feature: "Tailor",
+    detail: "Resumes tailored to one job posting each, for you to review.",
+    cells: limits.tailor,
   },
   {
     feature: "Scout",
-    rows: [{ label: "Messages to Scout", cells: limits.scout }],
+    detail: "Messages to your job assistant: what a role needs and how you fit.",
+    cells: limits.scout,
+  },
+  {
+    feature: "Job Matching",
+    detail: "A match score on every job posting, best fits first.",
+    cells: every("included"),
+  },
+  {
+    feature: "Resume Builder",
+    detail: "Resumes from your experience bank, as PDFs.",
+    cells: every("included"),
+  },
+  {
+    feature: "Application Tracker",
+    detail: "Every application in one place.",
+    cells: every("included"),
+  },
+  {
+    feature: "Employer replies",
+    detail: "Replies from employers, right on your tracker.",
+    cells: every("soon"),
   },
 ];
 

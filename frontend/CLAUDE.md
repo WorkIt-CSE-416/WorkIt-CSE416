@@ -224,12 +224,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   copy; never fill it with an invented quote. The FAQ answers are product
   claims, each tied to its source in a comment in `data.ts`.
 - **The Pricing page, `app/(landing)/pricing/`, shows placeholder plans.**
-  Every plan, price, daily limit, table row and billing answer lives in its
-  `data.ts`; the page holds layout only. WorkIt has no billing yet, so while
-  `PLANS_ARE_PLACEHOLDERS` is true the page says "Prices are not final" and
-  each paid card says "Not on sale yet", its button leading to the free
-  sign-up and saying so ("Start free, upgrade to Plus"; "Get Plus" would
-  sell a plan nobody can buy, and one "Get started for free" on every card
+  Every plan, price, daily limit, feature row and billing answer lives in
+  its `data.ts`; the page holds layout only. WorkIt has no billing yet, so
+  while `PLANS_ARE_PLACEHOLDERS` is true the page says "Prices are not
+  final" and each paid plan says "Not on sale yet", its button leading to
+  the free sign-up and saying so ("Start free, then Plus"; "Get Plus" would
+  sell a plan nobody can buy, and one "Get started for free" on every plan
   read as the same plan three times). Set it to false only once billing
   ships and the API enforces the paid limits. The team picked Free, Plus
   ($15) and Pro ($29) a month, or 20% less on a 3-month term (a job search
@@ -238,26 +238,34 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   claim: Free's Tailor and Scout limits are the API's caps today
   (`ai_tailor_cap`, `ai_scout_cap` in `backend/app/config.py`), so change
   both together; a Scout use is one message, a Tailor use one resume for one
-  job posting; employer replies stay "Coming soon" until updates are built,
-  whatever the home page's tour shows. Each list line is the feature in
-  bold, then what the plan gives. Each card's top is a tint and a pattern
-  that fade out by mid-card (`CARD_TOPS`: dots, tiles, crosses), after a
-  reference the team liked; a pattern is an SVG mask painted in a token
-  colour (`Pattern`). Colour means one thing on this page, the recommended
-  plan: Free and Pro share one light violet top (`PLAIN_TOP`), and the
-  hero's blobs are violet only and the same on both sides, since a magenta
-  blob once showed through Pro's glass as pink and the team found the
-  colours arbitrary. The team also had a tile grid and rings removed from
-  behind the heading. Plus is filled violet, the one card the eye should
-  land on, with white tiles and a tilted "Recommended" badge over its top
-  edge, so no card may take `overflow-hidden`. Plus first had soft circles,
-  which read as a sun, then silk ribbons, which gave way so all three cards
-  share one motif. The other two are `.glass-card` over the hero panel's
-  blobs. Two cascade traps: `.glass-card` and `.landing :focus-visible` are
-  unlayered, so they beat any Tailwind utility; a ring on a glass card loses
-  to its box-shadow (use an outline), and a focus colour needs `!`. The
-  Monthly / 3 months switch is two native radios, and the prices read the
-  checked one with `group-has-[...]`, so the page ships no script for it.
+  job posting; employer replies stay "Coming soon" until they are built,
+  whatever the home page's tour shows. **Layout, after Jobright's pricing
+  page:** one board (`PlanBoard`). From xl up a glass panel holds the intro,
+  the switch and the paid plans heading their columns, Free has its own
+  lighter panel on the right, and each feature runs across as a row, a CSS
+  subgrid so its cells line up under the plans. The panels and Plus's column
+  strip are absolutely placed grid children: with no row set they span the
+  grid's full height, and they take no cell from auto-placement, which would
+  push the rows below the grid. Below xl the same markup stacks, the plans
+  as a row of three from md, then a box per plan under each feature; the
+  14rem plan columns need xl's width. The board replaced three cards with
+  lists and a separate comparison table, which the team found boring. Each
+  plan's top is a tint and a pattern that fade out downwards (`CARD_TOPS`:
+  dots, tiles, crosses), after a reference the team liked; a pattern is an
+  SVG mask painted in a token colour (`Pattern`). Colour means one thing,
+  the recommended plan: Plus is filled violet with white tiles and a tilted
+  "Recommended" badge over its top edge, so no plan may take
+  `overflow-hidden`; Free and Pro share one light violet top (`PLAIN_TOP`),
+  and the hero's blobs are violet only and the same on both sides, since a
+  magenta blob once showed through Pro's glass as pink and the team found
+  the colours arbitrary. The team turned down soft circles on Plus (they
+  read as a sun), silk ribbons, and a tile grid with rings behind the
+  heading. Two cascade traps: `.glass-card` and `.landing :focus-visible`
+  are unlayered, so they beat any Tailwind utility; a ring on a glass card
+  loses to its box-shadow (use an outline), and a focus colour needs `!`.
+  The Monthly / 3 months switch is two native radios, and the prices read
+  the checked one with `group-has-[...]`, so the page ships no script for
+  it.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its

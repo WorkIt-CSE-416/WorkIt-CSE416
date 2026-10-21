@@ -9,11 +9,12 @@ import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "../layout-parts";
 import {
   billing,
   billingFaqs,
-  comparison,
+  features,
   plans,
   PLANS_ARE_PLACEHOLDERS,
   type Cell,
   type Plan,
+  type PlanId,
 } from "./data";
 
 export const metadata: Metadata = {
@@ -23,19 +24,19 @@ export const metadata: Metadata = {
 };
 
 /**
- * /pricing: the plans over violet blobs in the hero panel (Plus filled, the
- * other two glass), then the feature table, the billing FAQ and a sign-up
- * panel. Everything it
- * says about a plan lives in data.ts. No JavaScript: the Monthly / 3 months
- * switch is two native radios (arrow keys move between them), and the cards
- * read the checked one with :has().
+ * /pricing, after Jobright's pricing page: one board where the plans head
+ * their own columns and every feature runs across them as a row, then the
+ * billing FAQ and a sign-up panel. Everything it says about a plan lives in
+ * data.ts. No JavaScript: the Monthly / 3 months switch is two native radios
+ * (arrow keys move between them), and the prices read the checked one with
+ * :has().
  */
 export default function PricingPage() {
   return (
     <main id="main" className="flex-1">
-      {/* Hero and plans, in one rounded panel. The blobs are the panel's own
-          background so the glass cards have colour to blur; nothing between
-          them and the cards may fade, filter or mask (landing.css). */}
+      {/* Hero and board, in one rounded panel. The blobs are the panel's own
+          background so the glass has colour to blur; nothing between them
+          and the glass may fade, filter or mask (landing.css). */}
       <section className={PANEL_INSET}>
         <div
           className={cn(PANEL, "pt-14 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-20")}
@@ -54,28 +55,11 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <div className={cn(CONTAINER, "group/pricing mt-10")}>
-            {PLANS_ARE_PLACEHOLDERS && <PlaceholderNote />}
-            <BillingSwitch />
-            <ul className="mx-auto mt-10 grid max-w-md gap-10 lg:max-w-none lg:grid-cols-3 lg:gap-6">
-              {plans.map((plan) => (
-                <PlanCard key={plan.id} plan={plan} />
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* Every feature, plan by plan. */}
-      <section className={cn(PANEL_INSET, "mt-2 sm:mt-6")}>
-        <div className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
-          <div className={CONTAINER}>
-            <SectionHeading
-              eyebrow="Compare plans"
-              title="What each plan includes."
-              subtitle="Daily limits reset at midnight UTC."
-            />
-            <ComparisonTable />
+          <div className={cn(CONTAINER, "mt-12 sm:mt-14")}>
+            <PlanBoard />
+            <p className="text-ink-meta mt-6 text-center text-sm">
+              Daily limits reset at midnight UTC.
+            </p>
           </div>
         </div>
       </section>
@@ -113,9 +97,117 @@ export default function PricingPage() {
   );
 }
 
-/** Soft violet blobs under the plan cards, over white fading to the brand
- *  tint. Violet only and the same on both sides, so Free and Pro, both glass,
- *  read alike: a magenta blob once turned Pro pink. */
+/**
+ * The board. From xl up it is one grid: a glass panel for the paid plans
+ * (the intro and switch, then Plus and Pro heading their columns), a lighter
+ * panel for Free on the right, and a feature row across all three, each row
+ * a subgrid so its cells line up under the plans. Below xl the same markup
+ * stacks: the plans as cards (a row of three from md), then each feature
+ * with a box per plan; the 14rem plan columns need xl's width.
+ *
+ * The panels and Plus's strip are absolutely placed grid children: with no
+ * row set, they span the grid's full height, and they never take a cell
+ * from auto-placement. They sit at -z-10 inside the `isolate` grid.
+ */
+function PlanBoard() {
+  return (
+    <div className="group/pricing relative isolate mx-auto grid max-w-md grid-cols-1 gap-6 md:max-w-3xl md:grid-cols-3 md:gap-4 xl:max-w-none xl:grid-cols-[2rem_minmax(0,1fr)_14rem_14rem_1.5rem_1.5rem_14rem] xl:gap-0 xl:py-8">
+      <div className="glass-card absolute inset-0 -z-10 hidden rounded-[2rem] xl:col-[1/6] xl:block" />
+      <div className="absolute inset-0 -z-10 hidden rounded-[2rem] bg-white/45 shadow-[0_14px_32px_-18px_rgb(40_20_90/0.35)] ring-1 ring-white/70 ring-inset xl:col-[7/8] xl:block" />
+      <div className="bg-landing-brand-100/80 absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] xl:col-[3/4] xl:block" />
+
+      <div className="text-center md:col-span-3 md:mb-4 xl:col-[2] xl:row-[1] xl:mb-0 xl:pr-8 xl:pb-8 xl:text-left">
+        <h2 className="text-ink text-2xl font-semibold tracking-tight">Choose your plan</h2>
+        <p className="text-ink-meta mt-2 text-sm text-pretty">
+          Every plan has the whole of WorkIt. Paid plans raise the daily limits.
+        </p>
+        <BillingSwitch />
+        {PLANS_ARE_PLACEHOLDERS && <PlaceholderNote />}
+      </div>
+
+      <PlanHeader plan={plans.plus} className="xl:col-[3] xl:row-[1] xl:mx-2 xl:mb-8" />
+      <PlanHeader plan={plans.pro} className="xl:col-[4] xl:row-[1] xl:mx-2 xl:mb-8" />
+      <PlanHeader plan={plans.free} className="xl:col-[7] xl:row-[1]" />
+
+      <h2 className="text-ink mt-6 text-lg font-semibold md:col-span-3 xl:col-[2/5] xl:row-[2] xl:mt-0 xl:pb-3">
+        Everything in WorkIt, plan by plan
+      </h2>
+      <ul role="list" className="md:col-span-3 xl:contents">
+        {features.map((row) => (
+          <li
+            key={row.feature}
+            className="border-landing-brand-950/10 border-t pt-5 xl:col-span-full xl:grid xl:grid-cols-subgrid xl:border-0 xl:pt-0"
+          >
+            <div className="xl:border-landing-brand-950/8 xl:col-[2] xl:border-t xl:py-4 xl:pr-6">
+              <p className="text-ink font-semibold">{row.feature}</p>
+              <p className="text-ink-meta mt-0.5 text-sm">{row.detail}</p>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 xl:contents">
+              {COLUMNS.map(({ id, className }) => (
+                <div
+                  key={id}
+                  className={cn(
+                    "ring-landing-brand-950/5 xl:border-landing-brand-950/8 flex flex-col items-center justify-center gap-1.5 rounded-xl bg-white/60 px-2 py-2.5 text-center ring-1 xl:rounded-none xl:border-t xl:bg-transparent xl:py-4 xl:ring-0",
+                    className,
+                  )}
+                >
+                  <span className="text-ink-meta text-[11px] font-semibold tracking-wide uppercase xl:sr-only">
+                    {plans[id].name}
+                  </span>
+                  <Value cell={row.cells[id]} plan={id} />
+                </div>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** The plan columns from xl up, in board order: the paid plans, then Free in
+ *  its own panel past the gap. */
+const COLUMNS: { id: PlanId; className: string }[] = [
+  { id: "plus", className: "xl:col-[3]" },
+  { id: "pro", className: "xl:col-[4]" },
+  { id: "free", className: "xl:col-[7]" },
+];
+
+/** What a plan gives for one feature. Plus's limits are solid violet pills on
+ *  its strip, Pro's tinted ones, Free's plain text, after Jobright's board. */
+function Value({ cell, plan }: { cell: Cell; plan: PlanId }) {
+  if (cell === "included") {
+    return (
+      <span className="bg-landing-brand-600 inline-flex size-6 items-center justify-center rounded-full text-white">
+        <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
+        <span className="sr-only">Included</span>
+      </span>
+    );
+  }
+  if (cell === "soon") {
+    return (
+      <span className="text-ink-meta ring-landing-brand-950/10 rounded-full bg-white/80 px-2.5 py-1 text-xs whitespace-nowrap ring-1">
+        Coming soon
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "text-sm font-semibold whitespace-nowrap",
+        plan === "plus" && "bg-landing-brand-600 rounded-full px-3 py-1 text-white shadow-sm",
+        plan === "pro" && "bg-landing-brand-100 text-landing-brand-800 rounded-full px-3 py-1",
+        plan === "free" && "text-ink",
+      )}
+    >
+      {cell} a day
+    </span>
+  );
+}
+
+/** Soft violet blobs under the board, over white fading to the brand tint.
+ *  Violet only and the same on both sides, so the glass reads alike: a
+ *  magenta blob once turned the Pro card pink. */
 const HERO_BACKDROP = [
   "radial-gradient(42% 32% at 12% 72%, color-mix(in oklab, var(--color-landing-brand-400) 38%, transparent), transparent)",
   "radial-gradient(42% 32% at 88% 72%, color-mix(in oklab, var(--color-landing-brand-400) 38%, transparent), transparent)",
@@ -129,8 +221,8 @@ const CLOSING_BACKDROP = [
   "var(--color-brand-tint)",
 ].join(", ");
 
-/** The highlighted plan's fill, under its tiles: a soft violet glow under
- *  the list, over a deep violet gradient that starts at landing-brand-600
+/** The highlighted plan's fill, under its tiles: a soft violet glow at the
+ *  bottom, over a deep violet gradient that starts at landing-brand-600
  *  where the small type sits (white on it is 6.26:1). */
 const FEATURED_FILL = [
   "radial-gradient(80% 45% at 0% 100%, color-mix(in oklab, var(--color-landing-brand-400) 30%, transparent), transparent)",
@@ -164,18 +256,18 @@ const PLAIN_TOP = {
 };
 
 /**
- * Each card's top, after the team's reference: a tint and a pattern that
- * fade out by mid-card, a different pattern per plan. Plus keeps its violet
- * fill, so its tiles are white.
+ * Each plan's top, after a reference the team liked: a tint and a pattern
+ * that fade out downwards, a different pattern per plan. Plus keeps its
+ * violet fill, so its tiles are white.
  */
-const CARD_TOPS: Record<Plan["id"], { mask: string; ink: string; tint?: string }> = {
+const CARD_TOPS: Record<PlanId, { mask: string; ink: string; tint?: string }> = {
   free: { mask: PATTERNS.dots, ...PLAIN_TOP },
   plus: { mask: PATTERNS.tiles, ink: "rgb(255 255 255 / 0.2)" },
   pro: { mask: PATTERNS.crosses, ...PLAIN_TOP },
 };
 
-/** A card's patterned top, behind its content (the card is `isolate`): a
- *  tint, then the pattern painted in `ink`, both fading out downwards. */
+/** A patterned top, behind its parent's content (the parent is `isolate`):
+ *  a tint, then the pattern painted in `ink`, both fading out downwards. */
 const FADE = "linear-gradient(to bottom, black, transparent 90%)";
 
 function Pattern({ mask, ink, tint }: { mask: string; ink: string; tint?: string }) {
@@ -193,14 +285,14 @@ function Pattern({ mask, ink, tint }: { mask: string; ink: string; tint?: string
   );
 }
 
-/** One term's price shows, the other's hides: the cards sit inside
- *  `group/pricing`, which holds the switch's radios. */
+/** One term's price shows, the other's hides: the board is `group/pricing`,
+ *  and it holds the switch's radios. */
 const ON_MONTHLY = "group-has-[#billing-quarterly:checked]/pricing:hidden";
 const ON_QUARTERLY = "hidden group-has-[#billing-quarterly:checked]/pricing:inline";
 
 function PlaceholderNote() {
   return (
-    <p className="bg-warning-tint text-warning ring-warning-fill/40 mx-auto mb-8 flex w-fit max-w-full items-start gap-2 rounded-2xl px-4 py-2.5 text-left text-sm ring-1 ring-inset">
+    <p className="bg-warning-tint text-warning ring-warning-fill/40 mx-auto mt-5 flex w-fit max-w-full items-start gap-2 rounded-2xl px-4 py-2.5 text-left text-sm ring-1 ring-inset xl:mx-0">
       <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <span>
         <strong className="font-semibold">Prices are not final.</strong> WorkIt has no billing yet,
@@ -214,12 +306,12 @@ function PlaceholderNote() {
  *  Tab reaches it and the arrow keys switch it with no script. */
 function BillingSwitch() {
   return (
-    <fieldset className="glass-card mx-auto flex w-fit rounded-full p-1">
+    <fieldset className="ring-landing-brand-950/10 mx-auto mt-5 flex w-fit rounded-full bg-white/80 p-1 shadow-sm ring-1 xl:mx-0">
       <legend className="sr-only">Billing period</legend>
       {billing.map((term, index) => (
         <label
           key={term.id}
-          className="text-ink-meta has-checked:text-ink has-focus-visible:outline-landing-brand-500 flex h-10 cursor-pointer items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors select-none has-checked:bg-white has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-offset-2"
+          className="text-ink-meta has-checked:text-ink has-focus-visible:outline-landing-brand-500 has-checked:bg-landing-brand-100 flex h-10 cursor-pointer items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors select-none has-focus-visible:outline-2 has-focus-visible:outline-offset-2"
         >
           <input
             type="radio"
@@ -231,7 +323,7 @@ function BillingSwitch() {
           />
           {term.label}
           {term.note && (
-            <span className="bg-landing-brand-100 text-landing-brand-700 rounded-full px-2 py-0.5 text-xs">
+            <span className="bg-landing-brand-600 rounded-full px-2 py-0.5 text-xs text-white">
               {term.note}
             </span>
           )}
@@ -242,191 +334,84 @@ function BillingSwitch() {
 }
 
 /**
- * A plan: a patterned top (`CARD_TOPS`), its price and button above a rule,
- * its list below. The highlighted plan is filled violet with white type and a
- * tilted badge over its top edge, and on lg reaches past the other two at top
- * and bottom, so it is the one the eye lands on; the other two stay glass
- * over the panel's blobs. No `overflow-hidden`: it would cut the badge off.
+ * A plan at the head of its column: a patterned top (`CARD_TOPS`), the price
+ * and the button. Plus is filled violet with a tilted badge over its top
+ * edge, so nothing here may take `overflow-hidden`. Free sits in its own
+ * panel from xl up, so there it drops its card and reaches the panel's top.
  */
-function PlanCard({ plan }: { plan: Plan }) {
+function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
   const featured = plan.highlighted;
-  const free = plan.price.monthly === 0;
+  const free = plan.id === "free";
   // Until billing ships, a paid plan's button leads to the free sign-up and
   // says so: "Get Plus" would sell a plan nobody can buy yet.
   const label = free
     ? "Get started for free"
     : PLANS_ARE_PLACEHOLDERS
-      ? `Start free, upgrade to ${plan.name}`
+      ? `Start free, then ${plan.name}`
       : `Get ${plan.name}`;
   const onSale = free ? "No card needed" : PLANS_ARE_PLACEHOLDERS ? "Not on sale yet" : null;
   const meta = featured ? "text-white/80" : "text-ink-meta";
 
   return (
-    <li
+    <div
       className={cn(
-        "relative isolate flex flex-col rounded-[1.75rem] text-left",
-        featured
-          ? "text-white shadow-[0_32px_64px_-24px_rgb(58_30_124/0.65)] ring-1 ring-white/25 ring-inset lg:-my-4"
-          : "glass-card text-ink",
+        "relative isolate flex flex-col rounded-[1.75rem] p-6 text-left md:p-5",
+        featured &&
+          "text-white shadow-[0_24px_48px_-20px_rgb(58_30_124/0.7)] ring-1 ring-white/25 ring-inset",
+        plan.id === "pro" && "text-ink ring-landing-brand-950/10 bg-white/80 shadow-sm ring-1",
+        free &&
+          "text-ink ring-landing-brand-950/5 bg-white/60 ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
+        className,
       )}
       style={featured ? { background: FEATURED_FILL } : undefined}
     >
       <Pattern {...CARD_TOPS[plan.id]} />
       {featured && (
-        <span className="text-landing-brand-800 ring-landing-brand-950/10 absolute -top-3.5 right-6 -rotate-6 rounded-full bg-white px-3.5 py-1.5 text-[11px] font-bold tracking-[0.14em] uppercase shadow-[0_8px_20px_-6px_rgb(34_17_75/0.55)] ring-1">
+        <span className="text-landing-brand-800 ring-landing-brand-950/10 absolute -top-3.5 right-5 -rotate-6 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold tracking-[0.14em] uppercase shadow-[0_8px_20px_-6px_rgb(34_17_75/0.55)] ring-1">
           Recommended
         </span>
       )}
 
-      <div className={cn("p-6 sm:p-8", featured && "lg:pt-12")}>
-        <h2 className="text-xl font-semibold">{plan.name}</h2>
-        <p className={cn("mt-2 text-sm lg:min-h-10", meta)}>{plan.pitch}</p>
+      <h3 className="text-xl font-semibold">{plan.name}</h3>
+      <p className={cn("mt-1.5 text-sm xl:min-h-15", meta)}>{plan.pitch}</p>
 
-        <p className="mt-6 flex items-baseline gap-2">
-          <span className="text-5xl font-semibold tracking-tight">
-            <span className={ON_MONTHLY}>${plan.price.monthly}</span>
-            <span className={ON_QUARTERLY}>${plan.price.quarterly}</span>
+      <p className="mt-5 flex flex-wrap items-baseline gap-x-2">
+        <span className="text-4xl font-semibold tracking-tight">
+          <span className={ON_MONTHLY}>${plan.price.monthly}</span>
+          <span className={ON_QUARTERLY}>${plan.price.quarterly}</span>
+        </span>
+        {!free && (
+          <span className={cn(ON_QUARTERLY, "text-lg", meta)}>
+            <span className="sr-only">instead of </span>
+            <s>${plan.price.monthly}</s>
           </span>
-          {!free && (
-            <span className={cn(ON_QUARTERLY, "text-xl", meta)}>
-              <span className="sr-only">instead of </span>
-              <s>${plan.price.monthly}</s>
-            </span>
-          )}
-          <span className={cn("text-sm", meta)}>/ month</span>
-        </p>
-        <p className={cn("mt-1 min-h-5 text-sm", meta)}>
-          {!free && (
-            <>
-              <span className={ON_MONTHLY}>Billed monthly</span>
-              <span className={ON_QUARTERLY}>${plan.price.quarterly * 3} every 3 months</span>
-              {onSale && " · "}
-            </>
-          )}
-          {onSale}
-        </p>
-
-        <div className="mt-6">
-          {featured ? (
-            <Link
-              href="/signup"
-              className="text-landing-brand-900 hover:bg-landing-brand-50 inline-flex h-12 w-full items-center justify-center rounded-full bg-white text-base font-semibold shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] transition-colors focus-visible:outline-white!"
-            >
-              {label}
-            </Link>
-          ) : (
-            <GlassButton
-              href="/signup"
-              label={label}
-              className="h-12 w-full rounded-full text-base"
-            />
-          )}
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "flex-1 border-t p-6 sm:p-8",
-          featured ? "border-white/20" : "border-landing-brand-950/10",
         )}
-      >
-        <p className="text-sm font-semibold">{plan.listTitle}</p>
-        <ul className="mt-5 grid gap-4 text-sm">
-          {plan.includes.map(({ feature, detail }) => (
-            <li key={feature} className="flex gap-3">
-              <span
-                className={cn(
-                  "mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full",
-                  featured ? "text-landing-brand-700 bg-white" : "bg-landing-brand-600 text-white",
-                )}
-                aria-hidden="true"
-              >
-                <Check className="size-3" strokeWidth={3} />
-              </span>
-              <span>
-                <strong className={cn("block font-semibold", featured ? "text-white" : "text-ink")}>
-                  {feature}
-                </strong>
-                <span className={cn("block", meta)}>{detail}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <span className={cn("text-sm", meta)}>/ month</span>
+      </p>
+      <p className={cn("mt-1 text-xs xl:min-h-8", meta)}>
+        {!free && (
+          <>
+            <span className={ON_MONTHLY}>Billed monthly</span>
+            <span className={ON_QUARTERLY}>${plan.price.quarterly * 3} every 3 months</span>
+            {onSale && " · "}
+          </>
+        )}
+        {onSale}
+      </p>
+
+      <div className="mt-auto pt-5">
+        {featured ? (
+          <Link
+            href="/signup"
+            className="text-landing-brand-900 hover:bg-landing-brand-50 inline-flex h-11 w-full items-center justify-center rounded-full bg-white text-sm font-semibold shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] transition-colors focus-visible:outline-white!"
+          >
+            {label}
+          </Link>
+        ) : (
+          <GlassButton href="/signup" label={label} className="h-11 w-full rounded-full" />
+        )}
       </div>
-    </li>
-  );
-}
-
-/** One group per feature, its rows' limits in plan columns. Fixed columns,
- *  so it fits a phone without scrolling sideways. */
-function ComparisonTable() {
-  return (
-    <table className="mx-auto mt-12 w-full max-w-4xl table-fixed border-collapse text-left text-sm">
-      <caption className="sr-only">What each plan includes</caption>
-      <colgroup>
-        <col className="w-[37%] sm:w-[46%]" />
-        {plans.map((plan) => (
-          <col key={plan.id} />
-        ))}
-      </colgroup>
-      <thead>
-        <tr>
-          <td />
-          {plans.map((plan) => (
-            <th
-              key={plan.id}
-              scope="col"
-              className={cn(
-                "px-1 pb-2 text-center text-base font-semibold sm:px-4",
-                plan.highlighted ? "text-landing-brand-700" : "text-ink",
-              )}
-            >
-              {plan.name}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      {comparison.map((group) => (
-        <tbody key={group.feature}>
-          <tr>
-            <th scope="colgroup" colSpan={plans.length + 1} className="pt-8 pb-3 font-normal">
-              <span className="text-ink block text-base font-semibold">{group.feature}</span>
-              {group.note && <span className="text-ink-meta mt-1 block text-sm">{group.note}</span>}
-            </th>
-          </tr>
-          {group.rows.map((row) => (
-            <tr key={row.label} className="border-border border-t">
-              <th scope="row" className="text-ink-muted py-3 pr-2 font-normal">
-                {row.label}
-              </th>
-              {plans.map((plan) => (
-                <td key={plan.id} className="px-1 py-3 text-center sm:px-4">
-                  <CellValue cell={row.cells[plan.id]} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      ))}
-    </table>
-  );
-}
-
-function CellValue({ cell }: { cell: Cell }) {
-  if (cell === "included") {
-    return (
-      <>
-        <Check className="text-landing-brand-600 mx-auto size-5" aria-hidden="true" />
-        <span className="sr-only">Included</span>
-      </>
-    );
-  }
-  if (cell === "soon") return <span className="text-ink-meta text-xs">Coming soon</span>;
-  return (
-    <>
-      <span className="text-ink block font-semibold">{cell}</span>
-      <span className="text-ink-meta block text-xs">a day</span>
-    </>
+    </div>
   );
 }
 
