@@ -1,7 +1,8 @@
 # CLAUDE.md — resume rendering
 
 How a built resume becomes a PDF: Jake's Resume's own LaTeX, compiled by
-Tectonic inside the API's Vercel Function (ADR 0002), and a plain Word file.
+Tectonic inside the API (ADR 0002): a Vercel Function until the KAN-296
+cutover, then the Cloudflare Container (ADR 0004). And a plain Word file.
 Loaded on top of `../../../CLAUDE.md`. KAN-204 proved Tectonic with a fixed
 resume; KAN-207 renders the bank and retired the proof endpoint.
 
@@ -116,7 +117,8 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **Pinned:** `scripts/fetch_tectonic.py` holds the version (0.17.0) and the
   static Linux build's SHA-256, and refuses a download that does not match.
   It is stdlib only, because it runs as Vercel's build command
-  (`backend/vercel.json`) before anything is installed.
+  (`backend/vercel.json`) before anything is installed. The container image
+  runs the same script in `backend/Dockerfile`, after `uv sync`.
 - **What it builds:** `backend/vendor/tectonic/` (gitignored): the binary on
   Linux x86_64, and a package cache warmed by compiling `sample.py` (Jake's
   sample content as a view, through the real `jakes.py`) once online
@@ -134,7 +136,11 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   and renamed into place only when finished (`_copy_once`): a Function
   serves several renders at once on threads, and a plain "copy if missing"
   let a second render read a half-copied cache, and a copy that died partway
-  failed every render on that instance until it recycled. No binary or cache raises
+  failed every render on that instance until it recycled. **In the
+  container none of that copying runs**: the Dockerfile gives `vendor/` to
+  the user the API runs as, so the binary keeps its execute bit and the
+  cache is written in place. Keep that `chown`, or every render pays the
+  ~44 MB copy once per instance. No binary or cache raises
   `TectonicUnavailable`, and the endpoint answers 503. There is no fallback
   renderer.
 - **Warming also compiles `sample.fonts()`**: a word in every size, shape
@@ -158,7 +164,9 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   script first), so in CI they fail instead.
 - **Measured:** about 0.3 to 0.5 s a render on an M-series Mac, warm. The
   prototype measured 0.7 s in AWS Lambda's Python image, read-only and
-  offline, in a 236 MB bundle (limit 500 MB). The editor's Render Again
+  offline, in a 236 MB bundle (limit 500 MB). The container image rendered
+  `sample.py` in 0.8 s, warm, under linux/amd64 emulation on an M-series Mac
+  (2026-10-20). The editor's Render Again
   shows the round trip from the browser (KAN-209).
 
 ## Still open
