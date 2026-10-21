@@ -338,6 +338,15 @@ are in `docs/auth.md`.
   API is reachable without Next and checks every token. Its session step
   no-ops when the Supabase env vars are unset, so a clone with no env file
   boots; the business-side redirect above runs first, either way.
+- **`/login` and `/signup` send a signed-in visitor to their home**
+  (`redirectIfSignedIn` in `lib/session.ts`); the landing page at `/` never
+  does, so a signed-in student can still read it. Every sign-in path picks
+  the destination with `homePath` (`lib/auth.ts`): company, onboarding, or
+  the Dashboard. Before this, a saved session went unnoticed: the landing
+  page's Log In always opened the form, and Google's account chooser
+  (`prompt: "select_account"` in `oauth-actions.ts`) made it look like a
+  fresh sign-in every visit. `/signup/choose-account-type` is not redirected:
+  a new OAuth identity is signed in there before it has an account.
 - **Never export a token-returning helper from a `"use server"` file.** Every
   export there is a browser-callable endpoint. Token helpers (`session.ts`)
   and Server-Component-only reads (`job-queries.ts`) live in `server-only`

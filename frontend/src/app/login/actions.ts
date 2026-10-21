@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { apiFetch, extractErrorMessage, type AuthenticatedAccount } from "@/lib/auth";
+import { apiFetch, extractErrorMessage, homePath, type AuthenticatedAccount } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // `email` round-trips the submitted value back into the form on failure.
@@ -52,11 +52,5 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     return { error: message, email: emailValue };
   }
 
-  const account_type = account.account_type;
-  if (account_type === "applicant") {
-    // Onboarding until it is finished (KAN-231 saves it, which sets
-    // onboarding_completed), then the Dashboard, the seeker's home.
-    redirect(account.onboarding_completed ? "/dashboard" : "/onboarding/applicant");
-  }
-  redirect(`/company`);
+  redirect(homePath(account));
 }
