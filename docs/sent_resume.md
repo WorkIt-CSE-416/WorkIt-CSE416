@@ -389,6 +389,11 @@ You Apply?" (flow 5), which records it.
 
 ### 4. Apply Now (the job posting's page)
 
+Hidden for now (2026-10-21): Apply Now opens the employer's page and asks
+"Did You Apply?" (flow 5) at once, which keeps the resume picked there as
+the sent resume. The Pick a Resume and Your Resume Is Ready steps below
+stay in the code, commented out.
+
 The dialog (`jobs/apply-button.tsx`; every Apply Now opens it since KAN-290) keeps its steps. What changes:
 
 - **Pick a resume** lists built and uploaded resumes as today, plus

@@ -352,7 +352,10 @@ are in `docs/auth.md`.
   download went through `sendBuiltResume` and kept a sent resume in
   Storage, so the bucket filled with files no employer saw; that action is
   gone. The missing-character warning still holds a PDF until Download
-  Anyway. Apply Now goes through `applyWithResume` (KAN-220) wherever it
+  Anyway. Pick a Resume is hidden for now (`frontend/docs/screens.md`, Job
+  posting page): Apply Now opens the employer's page and asks "Did You
+  Apply?", whose Yes keeps the pick through `applyWithResume`. It went through
+  `applyWithResume` (KAN-220) at Apply wherever it
   sits: the job posting page, the feed cards on /jobs and /search, and the
   Dashboard's New Matches (KAN-290). It keeps its sent resume: the student
   is told WorkIt kept a copy, so it is never deleted behind their back.

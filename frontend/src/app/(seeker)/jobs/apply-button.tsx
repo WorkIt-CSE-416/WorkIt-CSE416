@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+// import Link from "next/link"; (Pick a Resume, hidden for now)
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -80,7 +80,7 @@ export function ApplyButton({
   applyUrl,
   canMarkApplied = false,
   applied = false,
-  showsSent = false,
+  // showsSent: read only by Pick a Resume's Apply, hidden for now.
   onApplied,
   label = "Apply Now",
   "aria-label": ariaLabel,
@@ -107,7 +107,7 @@ export function ApplyButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [choices, setChoices] = useState<Choice[] | null>(null);
-  const [picked, setPicked] = useState<string | null>(null);
+  // const [picked, setPicked] = useState<string | null>(null); (Pick a Resume, hidden for now)
   const [sent, setSent] = useState<SentDownload | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +119,6 @@ export function ApplyButton({
     setChoices(null);
     setSent(null);
     setError(null);
-    setAsking(false);
     const [built, uploaded] = await Promise.all([listBuiltResumes(), listResumes()]);
     if (built.error || uploaded.error) {
       setChoices([]);
@@ -158,27 +157,17 @@ export function ApplyButton({
       list.find((c) => c.kind === "Tailored to this job") ??
       list.find((c) => c.isDefault) ??
       list[0];
-    setPicked(first?.key ?? null);
+    // setPicked(first?.key ?? null); (Pick a Resume, hidden for now)
+    // With nothing picked at Apply, "Did You Apply?" starts on it.
+    setAppliedWith(first?.key ?? NO_RESUME);
   }
 
-  async function apply() {
-    const choice = choices?.find((c) => c.key === picked);
-    if (!choice) return;
-    setBusy(true);
-    setError(null);
-    const { data, error } = await applyWithResume(choice.source, jobId);
-    setBusy(false);
-    if (!data) return setError(error);
-    setSent(data);
-    // The page's "You sent <name> on <date>" reads the new sent resume.
-    if (showsSent) router.refresh();
-  }
-
-  function ask() {
-    setAppliedWith(sent ? sentKey(sent) : NO_RESUME);
-    setError(null);
-    setAsking(true);
-  }
+  // Called by the hidden employer link (end of file).
+  // function ask() {
+  //   setAppliedWith(sent ? sentKey(sent) : NO_RESUME);
+  //   setError(null);
+  //   setAsking(true);
+  // }
 
   async function confirmApplied() {
     setBusy(true);
@@ -206,41 +195,36 @@ export function ApplyButton({
     router.refresh();
   }
 
-  const employerLink = (label: string, variant: "default" | "secondary") => (
-    <a
-      href={applyUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={buttonClasses({ variant })}
-      // The posting opens in a new tab; this dialog stays to ask whether they
-      // applied, for when they come back. Anyone it can't mark just closes it.
-      onClick={() => (canMarkApplied && !applied ? ask() : setOpen(false))}
-    >
-      {label}
-      <ExternalLinkIcon className="size-4" />
-      <span className="sr-only"> (opens in a new tab)</span>
-    </a>
-  );
-
   return (
     <>
       {/* sm, as every action in the bar it sits in (./action-bar.tsx): lg
           stood 12px over Ask Scout and Tailor My Resume (frontend/docs/
           design.md, "Pick a button's size by where it sits"). */}
-      <Button
-        size="sm"
-        className={className}
+      {/* PICK A RESUME IS HIDDEN FOR NOW: Apply Now is a plain link to the
+          employer's posting, in a new tab. A signed-in applicant who has
+          not marked the job gets "Did You Apply?" behind that tab, from the
+          same click: a link click opens the tab itself, so no popup blocker
+          stops it. The hidden steps are at the end of this file. */}
+      <a
+        href={applyUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={buttonClasses({ size: "sm", className })}
         aria-label={ariaLabel}
         onClick={() => {
+          if (!canMarkApplied || applied) return;
           setOpen(true);
+          setAsking(true);
           void load();
         }}
       >
         {label}
-      </Button>
+        <ExternalLinkIcon className="size-4" />
+        <span className="sr-only"> (opens in a new tab)</span>
+      </a>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
-          {asking ? (
+          {asking && (
             <>
               <DialogHeader>
                 <DialogTitle className="text-subtitle font-semibold">Did You Apply?</DialogTitle>
@@ -268,79 +252,6 @@ export function ApplyButton({
                 </Button>
                 <Button onClick={confirmApplied} disabled={busy}>
                   {busy ? "Saving…" : "Yes, I Applied"}
-                </Button>
-              </DialogFooter>
-            </>
-          ) : sent ? (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-subtitle font-semibold">
-                  Your Resume Is Ready
-                </DialogTitle>
-                <DialogDescription>
-                  WorkIt kept a copy of &ldquo;{sent.name}&rdquo;, linked to {title}. Download it
-                  from Resumes &amp; Experiences, then attach it on the employer&apos;s page.
-                </DialogDescription>
-              </DialogHeader>
-              {sent.missing_characters.length > 0 && (
-                <p className="text-note text-warning">
-                  The PDF&apos;s font cannot show {sent.missing_characters.join(" ")}. Check the
-                  file before you send it.
-                </p>
-              )}
-              <DialogFooter>
-                {/* Resume files come from Resumes & Experiences only (KAN-267):
-                    a built resume opens in its editor, which downloads it,
-                    an upload on the Resumes view. A new tab, so this dialog
-                    stays to ask "Did You Apply?" later. */}
-                <Link
-                  href={
-                    sent.built_resume_id
-                      ? `/resumes/${encodeURIComponent(sent.built_resume_id)}`
-                      : "/resumes"
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonClasses({ variant: "secondary" })}
-                >
-                  Open in Resumes
-                  <ExternalLinkIcon className="size-4" />
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </Link>
-                {employerLink("Open the Posting", "default")}
-              </DialogFooter>
-            </>
-          ) : (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-subtitle font-semibold">Pick a Resume</DialogTitle>
-                <DialogDescription>
-                  WorkIt keeps the exact file you send, so you can see later what {title} received.
-                </DialogDescription>
-              </DialogHeader>
-              {choices == null ? (
-                <p className="text-note text-ink-muted">Loading your resumes…</p>
-              ) : choices.length === 0 ? (
-                !error && (
-                  <p className="text-note text-ink-muted">
-                    You have no resumes yet. Generate one under Resumes, or apply without one.
-                  </p>
-                )
-              ) : (
-                <ResumeChoices
-                  legend="Resume to Send"
-                  hideLegend
-                  name="resume"
-                  choices={choices}
-                  picked={picked}
-                  onPick={setPicked}
-                />
-              )}
-              {error && <p className="text-meta text-danger">{error}</p>}
-              <DialogFooter>
-                {employerLink("Apply Without a Resume", "secondary")}
-                <Button onClick={apply} disabled={busy || picked == null}>
-                  {busy ? "Saving…" : "Apply"}
                 </Button>
               </DialogFooter>
             </>
@@ -392,3 +303,117 @@ function ResumeChoices({
     </fieldset>
   );
 }
+
+// --- Pick a Resume, hidden for now ---------------------------------------
+// Apply Now opened this dialog on "Pick a Resume"; Apply kept the pick as a
+// sent resume (`apply`), then "Your Resume Is Ready" linked to Resumes &
+// Experiences and to the employer's posting (`employerLink`), whose click
+// moved to "Did You Apply?" (`ask`). To bring it back: uncomment `picked`,
+// `ask` and these, put `apply` and `employerLink` back in the component,
+// make Apply Now a Button that opens the dialog and calls `load()` (which
+// sets `picked` again), and put the two branches back in front of "Did You
+// Apply?" in the ternary they came from (`asking ? ... : sent ? ... : ...`).
+// `Link` comes back to the imports.
+//
+//   async function apply() {
+//     const choice = choices?.find((c) => c.key === picked);
+//     if (!choice) return;
+//     setBusy(true);
+//     setError(null);
+//     const { data, error } = await applyWithResume(choice.source, jobId);
+//     setBusy(false);
+//     if (!data) return setError(error);
+//     setSent(data);
+//     // The page's "You sent <name> on <date>" reads the new sent resume.
+//     if (showsSent) router.refresh();
+//   }
+//
+//   const employerLink = (label: string, variant: "default" | "secondary") => (
+//     <a
+//       href={applyUrl}
+//       target="_blank"
+//       rel="noopener noreferrer"
+//       className={buttonClasses({ variant })}
+//       // The posting opens in a new tab; this dialog stays to ask whether they
+//       // applied, for when they come back. Anyone it can't mark just closes it.
+//       onClick={() => (canMarkApplied && !applied ? ask() : setOpen(false))}
+//     >
+//       {label}
+//       <ExternalLinkIcon className="size-4" />
+//       <span className="sr-only"> (opens in a new tab)</span>
+//     </a>
+//   );
+//
+//           ) : sent ? (
+//             <>
+//               <DialogHeader>
+//                 <DialogTitle className="text-subtitle font-semibold">
+//                   Your Resume Is Ready
+//                 </DialogTitle>
+//                 <DialogDescription>
+//                   WorkIt kept a copy of &ldquo;{sent.name}&rdquo;, linked to {title}. Download it
+//                   from Resumes &amp; Experiences, then attach it on the employer&apos;s page.
+//                 </DialogDescription>
+//               </DialogHeader>
+//               {sent.missing_characters.length > 0 && (
+//                 <p className="text-note text-warning">
+//                   The PDF&apos;s font cannot show {sent.missing_characters.join(" ")}. Check the
+//                   file before you send it.
+//                 </p>
+//               )}
+//               <DialogFooter>
+//                 {/* Resume files come from Resumes & Experiences only (KAN-267):
+//                     a built resume opens in its editor, which downloads it,
+//                     an upload on the Resumes view. A new tab, so this dialog
+//                     stays to ask "Did You Apply?" later. */}
+//                 <Link
+//                   href={
+//                     sent.built_resume_id
+//                       ? `/resumes/${encodeURIComponent(sent.built_resume_id)}`
+//                       : "/resumes"
+//                   }
+//                   target="_blank"
+//                   rel="noopener noreferrer"
+//                   className={buttonClasses({ variant: "secondary" })}
+//                 >
+//                   Open in Resumes
+//                   <ExternalLinkIcon className="size-4" />
+//                   <span className="sr-only"> (opens in a new tab)</span>
+//                 </Link>
+//                 {employerLink("Open the Posting", "default")}
+//               </DialogFooter>
+//             </>
+//           ) : (
+//             <>
+//               <DialogHeader>
+//                 <DialogTitle className="text-subtitle font-semibold">Pick a Resume</DialogTitle>
+//                 <DialogDescription>
+//                   WorkIt keeps the exact file you send, so you can see later what {title} received.
+//                 </DialogDescription>
+//               </DialogHeader>
+//               {choices == null ? (
+//                 <p className="text-note text-ink-muted">Loading your resumes…</p>
+//               ) : choices.length === 0 ? (
+//                 !error && (
+//                   <p className="text-note text-ink-muted">
+//                     You have no resumes yet. Generate one under Resumes, or apply without one.
+//                   </p>
+//                 )
+//               ) : (
+//                 <ResumeChoices
+//                   legend="Resume to Send"
+//                   hideLegend
+//                   name="resume"
+//                   choices={choices}
+//                   picked={picked}
+//                   onPick={setPicked}
+//                 />
+//               )}
+//               {error && <p className="text-meta text-danger">{error}</p>}
+//               <DialogFooter>
+//                 {employerLink("Apply Without a Resume", "secondary")}
+//                 <Button onClick={apply} disabled={busy || picked == null}>
+//                   {busy ? "Saving…" : "Apply"}
+//                 </Button>
+//               </DialogFooter>
+//             </>

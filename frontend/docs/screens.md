@@ -225,8 +225,15 @@ sections stay first and open, since they are what a student reads first, and
 matching never reads the folded ones. Only the job's headings make a
 description sectioned, so an old one with its own "Benefits" line draws as
 before.
+**Pick a Resume is hidden for now** (2026-10-21, on the user's ask): Apply
+Now is a plain link that opens the employer's posting in a new tab, and for
+a signed-in applicant who has not marked the job the same click opens
+"Did You Apply?" (below) behind it, its resume list starting on the one
+Pick a Resume would have picked (tailored, else the default). The hidden
+steps stay in `jobs/apply-button.tsx`, commented out, with how to bring
+them back. What follows describes them as they were.
 Apply Now (`jobs/apply-button.tsx`,
-KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
+KAN-220) opened "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
 shows Open in Resumes and Open the Posting (links in new tabs, so no popup
