@@ -79,12 +79,12 @@ export function ViewResumeButton({
         {/* React passes a click inside the dialog up to the row or card it
             was opened from, portal or not: stop it here, so reading the
             resume never opens the application. */}
-        {/* 80% of the window each way, whatever its size (vw and vh follow
-            a resize): a resume needs the room, and a fixed width left it a
-            narrow strip on a wide screen. A flex column, so the frame takes
+        {/* 92% of the window each way, whatever its size (vw and vh follow
+            a resize): a resume needs the room. A fixed width left it a
+            narrow strip on a wide screen, and 80% still looked squished. A flex column, so the frame takes
             whatever the title leaves. */}
         <DialogContent
-          className="flex h-[80vh] w-[80vw] max-w-none flex-col sm:max-w-none"
+          className="flex h-[92vh] w-[92vw] max-w-none flex-col sm:max-w-none"
           onClick={(event) => event.stopPropagation()}
         >
           <DialogHeader>
