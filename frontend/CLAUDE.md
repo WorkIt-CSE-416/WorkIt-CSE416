@@ -159,9 +159,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `var()`. The list is `isolate`, or the highlight's `-z-10` drops behind
   the page's background. **The hiring-system list in
   `data.ts` is a claim that WorkIt reads those systems**: it must match
-  `scraper/workit_scraper/providers.py`'s `LISTING_URL`. Its logos come from
-  the Google favicon host `next.config.ts` already allows; Workday's and
-  BambooHR's are only 16px there, so they look soft on a sharp screen.
+  `scraper/workit_scraper/providers.py`'s `LISTING_URL`. Its logos are
+  files in `public/hiring-systems/`, each from the company's own site or
+  its GitHub organization, square and at least 48px: the Google favicon
+  host had only 16-32px copies of BambooHR's and Workday's, which looked
+  blurry. A hiring system added to the list needs its file there too.
   **The hiring-systems section** (`hiring-systems.tsx`) draws the job
   pipeline (`docs/job-pipeline.md`) as a stream. From lg up, one lane per
   hiring system carries job postings from real employers on that system

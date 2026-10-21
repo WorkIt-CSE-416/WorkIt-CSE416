@@ -336,7 +336,7 @@ export function HiringSystems() {
                 key={system.name}
                 className="text-ink flex h-8 items-center gap-2 rounded-xl bg-white pr-2.5 pl-1 text-xs font-medium shadow-[0_6px_16px_-12px_rgba(40,20,90,0.4)] ring-1 ring-slate-900/[0.07] lg:h-10 lg:pr-3 lg:pl-1.5 lg:text-[13px]"
               >
-                <FaviconLogo domain={system.domain} className="size-6 rounded-lg lg:size-7" />
+                <FaviconLogo src={system.logo} className="size-6 rounded-lg lg:size-7" />
                 {system.name}
               </li>
             ))}

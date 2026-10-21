@@ -145,18 +145,20 @@ export const hiringSystemsSection = {
 /**
  * The hiring systems the scraper reads company job boards from
  * (scraper/workit_scraper/providers.py, LISTING_URL). Keep the two lists
- * the same: a name here is a claim that WorkIt reads it. `domain` feeds the
- * favicon service next.config.ts already allows. The header's Features menu
- * names the first three.
+ * the same: a name here is a claim that WorkIt reads it. `logo` is a file
+ * in public/hiring-systems/, from the company's own site or its GitHub
+ * organization: Google's favicon host had only 16-32px copies of
+ * BambooHR's and Workday's, which looked blurry. The header's Features
+ * menu names the first three.
  */
 export const hiringSystems = [
-  { name: "Greenhouse", domain: "greenhouse.com" },
-  { name: "Lever", domain: "lever.co" },
-  { name: "Ashby", domain: "ashbyhq.com" },
-  { name: "Workday", domain: "workday.com" },
-  { name: "Workable", domain: "workable.com" },
-  { name: "BambooHR", domain: "bamboohr.com" },
-  { name: "Recruitee", domain: "recruitee.com" },
+  { name: "Greenhouse", logo: "/hiring-systems/greenhouse.png" },
+  { name: "Lever", logo: "/hiring-systems/lever.png" },
+  { name: "Ashby", logo: "/hiring-systems/ashby.png" },
+  { name: "Workday", logo: "/hiring-systems/workday.png" },
+  { name: "Workable", logo: "/hiring-systems/workable.svg" },
+  { name: "BambooHR", logo: "/hiring-systems/bamboohr.png" },
+  { name: "Recruitee", logo: "/hiring-systems/recruitee.png" },
 ] as const;
 
 export type HiringSystemName = (typeof hiringSystems)[number]["name"];

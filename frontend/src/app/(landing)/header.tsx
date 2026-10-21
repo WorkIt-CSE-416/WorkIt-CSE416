@@ -182,7 +182,7 @@ function FeaturesPanel() {
           {WORKS_WITH.map((system) => (
             <Image
               key={system.name}
-              src={`https://www.google.com/s2/favicons?domain=${system.domain}&sz=64`}
+              src={system.logo}
               alt=""
               width={20}
               height={20}
