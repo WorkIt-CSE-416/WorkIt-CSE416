@@ -14,7 +14,7 @@ import { Timeline } from "../timeline";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The strip's columns from 448px of card, by how many counts it has: a
+/** The strip's columns from 448px of card, by how many cards it has: a
  *  literal class each, so Tailwind sees them. */
 const COLUMNS: Record<number, string> = {
   1: "@md:grid-cols-1",
@@ -34,15 +34,20 @@ function daysBetween(from: string, to: string | Date) {
 /**
  * The Your Application tab (KAN-256): one card, built as the Jobs page card
  * is (the status, the facts and the timeline on the left, the match rail
- * flush on the right, the day counts as a ruled strip along the foot), then
- * what the seeker sent, from what the API already keeps. No new
- * table: the stage and its dates are the application's row, the resumes are
- * the sent resumes linked to the job posting.
+ * flush on the right, the next-step cards along the foot), then what the
+ * seeker sent, from what the API already keeps. No new table: the stage and
+ * its dates are the application's row, the resumes are the sent resumes
+ * linked to the job posting.
  *
- * THE NUMBERS ARE ELAPSED DAYS, worked out on the server against the
- * request's time (`getNow`): how long the posting was up before the seeker
- * applied, how long from saving to applying, and how long they have been
- * waiting. Each shows only when both its dates exist.
+ * TWO CARDS, FACTS ONLY (KAN-286), worked out on the server against the
+ * request's time (`getNow`). First whether the posting is still open, then
+ * how long: since the seeker applied, or, for a saved job, since the
+ * posting went up (the sooner they apply, the fewer applicants are ahead).
+ * They replaced counts that read 0 for every Apply ("save to apply": Apply
+ * saves and applies at once) or told the student only about the past
+ * ("posted before you applied"). A suggested follow-up day was tried and
+ * dropped: any fixed number of days is a guess. The total applicant count
+ * would fit here, but no hiring system WorkIt reads publishes it.
  */
 export function YourApplication({
   app,
@@ -56,29 +61,40 @@ export function YourApplication({
   sent: SentResume[];
   now: Date;
 }) {
-  const stats: { label: string; days: number }[] = [];
-  if (app.appliedOn) {
-    stats.push({ label: "Days waiting to hear back", days: daysBetween(app.appliedOn, now) });
-    stats.push({ label: "Days from save to apply", days: daysBetween(app.savedOn, app.appliedOn) });
-    if (job?.posted_at) {
-      stats.push({
-        label: "Days posted before you applied",
-        days: daysBetween(job.posted_at, app.appliedOn),
-      });
-    }
-  } else {
-    stats.push({ label: "Days since you saved it", days: daysBetween(app.savedOn, now) });
-    if (job?.posted_at) {
-      stats.push({ label: "Days since it was posted", days: daysBetween(job.posted_at, now) });
-    }
+  const cards: { label: string; value: string | number }[] = [];
+  // Every live application has `open`; the type leaves it optional.
+  if (app.open != null) {
+    cards.push(
+      app.open
+        ? {
+            label: app.appliedOn ? "Still taking applications" : "Apply while it's open",
+            value: "Open",
+          }
+        : {
+            label: app.appliedOn ? "No longer taking applications" : "You can no longer apply",
+            value: "Closed",
+          },
+    );
   }
-  const closed = app.open === false;
+  if (app.appliedOn) {
+    const days = daysBetween(app.appliedOn, now);
+    cards.push({
+      label: days === 1 ? "Day since you applied" : "Days since you applied",
+      value: days,
+    });
+  } else if (job?.posted_at) {
+    const days = daysBetween(job.posted_at, now);
+    cards.push({
+      label: days === 1 ? "Day since it was posted" : "Days since it was posted",
+      value: days,
+    });
+  }
   const StageIcon = STAGE_ICON[app.stage];
 
   return (
     <>
       {/* ONE TINTED CARD for the seeker's record, holding rounded white
-          boxes: the status and timeline on the left with the day counts
+          boxes: the status and timeline on the left with the two cards
           under them, one box each, and the match in a box of its own on the
           right (side by side from 576px of card, stacked under it). The
           boxes are the app's rounded cards on white, so the figures stand
@@ -114,32 +130,30 @@ export function YourApplication({
               <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
                 {STAGE_LABEL[app.stage]}
               </span>
-              {closed && <Badge tone="inert">Posting Closed</Badge>}
             </div>
             <h2 className="text-title text-ink mt-3 font-bold">
               {app.appliedOn ? "Waiting to Hear Back" : "Not Applied Yet"}
             </h2>
+            {/* No applied date here: the days-since card and the timeline
+                both carry it. */}
             <p className="text-body text-ink-meta mt-1">
-              {app.appliedOn ? (
-                <>
-                  You applied on <LocalDate at={app.appliedOn} />
-                </>
-              ) : (
+              {!app.appliedOn && (
                 <>
                   You saved it on <LocalDate at={app.savedOn} />
+                  {" · "}
                 </>
               )}
-              {" · "}
               {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
             </p>
 
             <Timeline steps={timeline(app, sent)} horizontal className="mt-5" />
 
-            {/* The counts: a figure over its words, a rounded white box
-                each. justify-end puts the figure at the top (the column is
-                reversed), so the figures line up when one label wraps. */}
-            <dl className={cn("mt-5 grid gap-3", COLUMNS[stats.length])}>
-              {stats.map(({ label, days }) => (
+            {/* The cards: a figure over its words, a rounded white
+                box each. justify-end puts the figure at the top (the column
+                is reversed), so the figures line up when one label wraps.
+                A closed posting says so here only, not in a badge too. */}
+            <dl className={cn("mt-5 grid gap-3", COLUMNS[cards.length])}>
+              {cards.map(({ label, value }) => (
                 // The figure first to the eye, the words first to a screen
                 // reader (a <dt> leads its <dd>).
                 <Card
@@ -149,7 +163,7 @@ export function YourApplication({
                   className="flex flex-col-reverse justify-end"
                 >
                   <dt className="text-note text-ink-meta mt-0.5">{label}</dt>
-                  <dd className="text-title text-ink font-bold tabular-nums">{days}</dd>
+                  <dd className="text-title text-ink font-bold tabular-nums">{value}</dd>
                 </Card>
               ))}
             </dl>
