@@ -4,6 +4,7 @@ main file for the backend app
 
 import logging
 import math
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -84,8 +85,16 @@ async def health_db() -> JSONResponse:
     check the health of the database
     '''
     try:
+        # Splits the wait, timed in-process: "first" includes taking (or
+        # opening) a connection, "again" is one round trip on it. A header
+        # would not do: Cloudflare drops Server-Timing on api.workitjobs.ai
+        start = time.perf_counter()
         async with get_sessionmaker()() as session:
             await session.execute(text("select 1"))
+            first = time.perf_counter()
+            await session.execute(text("select 1"))
+            again = time.perf_counter()
+            pool = type(session.bind.pool).__name__
     except Exception as exc:
         logger.exception("Database health check failed")
 
@@ -98,4 +107,10 @@ async def health_db() -> JSONResponse:
             },
         )
 
-    return JSONResponse(content={"status": "ok", "database": "reachable"})
+    return JSONResponse(content={
+        "status": "ok",
+        "database": "reachable",
+        "pool": pool,
+        "first_ms": round((first - start) * 1000),
+        "again_ms": round((again - first) * 1000),
+    })
