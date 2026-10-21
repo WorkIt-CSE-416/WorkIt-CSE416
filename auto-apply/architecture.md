@@ -22,8 +22,9 @@ built. It replaces the earlier `design.md`.
 > Start and a job card's Auto Apply send `run/open`, and the extension
 > opens the next queued application's `apply_url` in its own background
 > tab (`autofiller_extension/src/background/runner.js`); the webapp shows that
-> job as Working in Browser. It fills nothing yet.
-> Everything else is a plan. The exact function names are a
+> job as Working in Browser. Then the runner starts the extension's own
+> fill in that tab ("The first fill", 8.3, KAN-305); the application stays
+> `queued`. Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
 
 ## Terms
@@ -39,7 +40,7 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 | **Tailored resume** | A built resume for one job posting (`built_resumes.job_posting_id`), made with Tailor (KAN-217). At most one per job posting |
 | **Uploaded resume** | A file the student uploaded (`resumes`). Its default is `applicant_profiles.default_resume_id`. It feeds the bank's import; matching never reads it |
 | **Default resume** | The one resume the student starred, a built (base or tailored) or an uploaded one: the Resumes view calls it the primary resume. Starring one clears the other pointer (`built_resumes.set_default`), so a student never has two. A student's only resume is the default with no star click (`built_resumes.default_if_only`, on every add and delete) |
-| **Sent resume** | The exact file a student downloaded or applied with, kept in `sent_resumes` (KAN-208). With `job_posting_id` it records what went to that job posting (Apply, KAN-220) |
+| **Sent resume** | The exact file a student applied with, kept in `sent_resumes` (KAN-208): what went to one job posting (Apply, KAN-220, or auto apply). A download keeps nothing (KAN-267) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
 | **Run** | The extension working through the queue, one application at a time |
@@ -88,12 +89,12 @@ everything up to that click and nothing after it ("Decisions", below).
 | Matching | `fetch_recommended()` scores job postings 0–100 against the experience bank, with up to 3 highlights and `min_match`. Also served as `GET /jobs/recommended/{applicant_id}` | `backend/app/routers/jobs.py`, `backend/app/services/matching/` |
 | Experience bank | The student's facts, filled by intake and import. Matching, base resumes and Tailor read it | `backend/app/services/bank.py`, `backend/app/routers/bank.py` |
 | Base and tailored resumes | Built from the bank and rendered to PDF with Tectonic (Jake's Resume). Tailor proposes changes for one job posting; the student accepts or rejects each | `backend/app/services/built_resumes.py`, `services/resume_render/`, `services/tailor.py`, `frontend/src/app/(seeker)/jobs/[jobId]/tailor/` |
-| Sent resumes | `POST .../sent-resumes` keeps the exact file and answers a 5-minute download link. With `job_posting_id` it is Apply | `backend/app/services/sent_resumes.py`, `backend/app/routers/sent_resumes.py` |
+| Sent resumes | `POST .../sent-resumes` (Apply, with `job_posting_id`) keeps the resume sent and answers its file: the PDF itself (`data`) for a built resume, kept as a snapshot (KAN-267), or a 5-minute link (`url`) for an uploaded one | `backend/app/services/sent_resumes.py`, `backend/app/routers/sent_resumes.py` |
 | Uploaded resume | PDF or DOCX in the `Resume` Storage bucket. Feeds the bank's import | `backend/app/routers/resumes.py` |
 | LLM access | Scout's model chain. Daily uses per student and feature; Tailor has 2 a day | `scout/workit_scout/llm.py`, `backend/app/services/usage.py` |
 | Privacy boundary | Identity fields (name, contact details, links) never reach a model: the seam removes them | `backend/app/services/identity.py`, `scout/` |
 | Form filling | Chrome extension, started from its popup. Fills text fields, dropdowns and repeated sections. Never submits | `autofiller_extension/` |
-| Webapp ↔ extension link | `externally_connectable`. Today it only answers "installed and signed in?" | `frontend/src/lib/autofill-extension.ts` |
+| Webapp ↔ extension link | `externally_connectable`, one-shot messages: `run/open` (open the next queued application), `run/status` and `run/show` (Working in Browser) | `frontend/src/lib/autofill-extension.ts`, `autofiller_extension/src/background/runner.js` |
 | Auto Apply page | "Resume List" (every resume the student has, with the pick rule under it), Start Auto Apply, and Live Activity from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
 | Applications screen | Saved and Applied columns live from `GET .../applications?stage=saved&stage=applied&scored=true` (KAN-261), each card with the Jobs page's score (KAN-256); Interviewing and Offer empty until the API stores those stages | `frontend/src/app/(seeker)/applications/` |
 
@@ -208,7 +209,7 @@ Names are not final.
 | 1 | `remove_queued(db, applicant_id, job_id)` | Deletes the application only while it is `queued`, in one statement, so a fill that finishes it meanwhile is never undone. **Built** |
 | 2 | `dequeue_job(db, applicant_id, job_id)` | The Auto Apply button's second click and Live Activity's cross: `remove_queued`, one commit; the job has no application again, so a later batch may pick it. `NotFound` without one, `WrongStage` past queued. **Built** |
 | 2 | `list_applications`, `get_application`, `next_application` | Thin: `fetch_applications`, `fetch_application` (`NotFound` without one), `fetch_next_application`. `list_applications(score_for=account)` adds each open posting's `match` through `fetch_recommended` (`JobFilters.job_ids`); only the Applications page asks, since it can embed the bank. **Built** |
-| 2 | `prepare_resume(db, storage, applicant_id, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`; none, `NotFound`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting → one commit → the sent resume and a 5-minute link, or `None` with no resume. Never tailors. **Built** |
+| 2 | `prepare_resume(db, storage, applicant_id, job_id)` | Stage check (`queued` or `needs_you`, else `WrongStage`; none, `NotFound`) → `pick_resume` → `send_built` or `send_uploaded` with the job posting → `link_resume` (the application names the sent resume, KAN-267) → one commit → the sent resume and its file (`data` for a built resume's snapshot, a 5-minute `url` for an uploaded one), or `None` with no resume. Never tailors. **Built** |
 | 2 | `finish_application(db, applicant_id, job_id, outcome)` | Stage check (`queued` or `needs_you`, else `WrongStage`) → `set_stage`: submitted → `applied`, skipped → `skipped`, failed → `needs_you`. **Built**, without `record_run`, which waits for `autofill_runs` |
 
 ### 5.3 One step through all three layers
@@ -254,7 +255,7 @@ read and write the queue through the routes, like any other caller.
 runBatch()                       // parent: a loop, nothing else
   → nextApplication()            // GET from the API
   → openApplicationTab(url)      // the run's own background tab, reused
-  → prepareResume(jobId)         // POST to the API: the sent resume and its link
+  → prepareResume(jobId)         // POST to the API: the sent resume and its file
   → fillForm(tabId, file)        // the field engine that exists, plus the file
   → waitForDecision(tabId)       // the student clicks "Submitted" or "Skip"
   → finishApplication(...)       // POST to the API
@@ -355,8 +356,10 @@ student can still finish it.
 1. **next.** The runner asks the API for the next queued application. None
    left: the run goes idle.
 2. **resume.** The runner calls `prepare_resume`. The API picks the resume,
-   keeps it as a sent resume for this job posting and answers a 5-minute
-   link. The background worker downloads the file at once. No resume: the
+   keeps it as a sent resume for this job posting and answers its file: the
+   PDF itself (`data`, base64) for a built resume, or a 5-minute link
+   (`url`) for an uploaded one, which the background worker downloads at
+   once. No resume: the
    run fills the form without one ("The resume"). The run never tailors.
 3. **opening.** It opens `apply_url` in the run's tab ("Chrome limits")
    and waits for the tab's `complete` status. Limit: 30 seconds.
@@ -382,6 +385,120 @@ later, one hiring system at a time.
 Workday asks for an account on each company's site. The runner cannot create
 one. When the content script sees a sign-in form and no application form, it
 reports "sign-in needed" and the runner moves on.
+
+### 8.3 The first fill: Auto Apply starts the extension's fill (KAN-305)
+
+**Built** (KAN-305), untested live. The smallest step that joins the runner to the fill engine that
+exists. A job card's Auto Apply (and Start Auto Apply, which sends the same
+message) opens the application in the run's background tab, as today, and
+then the runner starts the extension's own fill in that tab: the same fill
+that the popup's "Autofill This Page" starts. It adds no route, no message
+type and no change to the content scripts.
+
+```
+ job card: Auto Apply
+   │ queueJob (API)                              the job is queued, as today
+   │ run/open ──────────────▶ runner (runner.js)
+   │                            1. me()                         401 → signed_out
+   │                            2. GET .../applications/next    none → queue_empty
+   │                            3. open apply_url in the run's tab, wait for `complete`
+   │                               (the tab already shows this job → no reload, no fill: kept)
+   │                            4. wait for the form, 10 s      none → fill failed: no_form
+   │                            5. inject the fill engine       refused → fill failed: not_allowed
+   │ ◀── { opened, jobId, url, fill } ── answers once the fill has started
+   ▼
+ the card reads Working in Browser; the overlay in the tab shows what was filled
+```
+
+**"Is the extension active?" is the answer to `run/open`.** The webapp sends
+no `ping` first: a ping adds a round trip, the state can change between the
+ping and the open, and `run/open` must handle every case anyway.
+
+The webapp does not show a failed fill or `not_installed` on the job card
+yet; the column below is the plan for that warning.
+
+| Answer to `run/open` | Means | The job card shows |
+|---|---|---|
+| No answer (`not_installed`) | No extension at the id, or the student turned it off | `openedNote`'s "Install the WorkIt extension...", under the button. Today the card is silent on this; a click on Auto Apply asks for a fill, so silence hides why nothing happens. The job stays queued |
+| `signed_out` | The extension cannot read a fresh session | The note that exists |
+| `queue_empty` | Nothing to open | Nothing |
+| `opened`, `fill: "started"` | The tab loaded and the fill began | Working in Browser |
+| `opened`, `fill: "kept"` | The tab already showed this job: no reload, no second fill | Working in Browser |
+| `opened`, `fill: "failed"`, `reason` | `no_form` or `not_allowed` | Working in Browser, and a line: the application is open but was not filled; open the tab and use the extension's button |
+
+**The decisions:**
+
+- **The runner starts the fill, never the webapp.** The webapp sends
+  `run/open` and names no tab, URL or file, so the `externally_connectable`
+  channel stays as narrow as it is (`background.js`). A web page cannot
+  reach into a hiring system's tab anyway.
+- **The fill is the popup's fill, unchanged.** The runner calls
+  `chrome.scripting.executeScript({ target: { tabId }, files })` with the
+  popup's file list. `content-script.js` runs on injection: it reads
+  `profile/get`, fills, and mounts the overlay. The file list moves from
+  `popup.js` to one module in `src/shared/`, which the popup and the runner
+  both import, so the two can never inject different files or a different
+  order.
+- **Fill only a page the runner loaded in this call.** When the tab already
+  shows the next application (`saved.jobId === jobId`), the runner injects
+  nothing. A second fill would write over what the student changed and
+  mount a second overlay. A student who reloads the tab by hand fills it
+  from the popup.
+- **Wait for the form before the fill.** `content-script.js` reads the
+  fields once, when it is injected, and Greenhouse can draw its form after
+  `complete`. So the runner first injects a small function that resolves
+  when a form field (`#first_name`, or an `input`, `select` or `textarea` in
+  a `form`) exists, or after 10 seconds. It waits with a `MutationObserver`,
+  never `requestAnimationFrame`, which a hidden tab does not run ("Hidden
+  tabs run slowly"). No field: `fill: "failed", reason: "no_form"`. A closed
+  job posting's page lands here too.
+- **Do not wait for the fill to end.** The form wait already proves the
+  runner may inject (a refused injection shows there as `not_allowed`), so
+  the runner then injects the engine's files and answers at once. The
+  answer says that the fill started, not what it filled; the overlay shows
+  that.
+- **Take the student to the tab for the fill.** A hidden tab filled its
+  text fields but not most dropdowns (below). So once the form is ready,
+  the runner makes the run's tab active, and the student stays on it to
+  review the form. Switching back to the WorkIt tab after the fill was
+  tried and dropped: it did not help. This reverses "fill in a hidden tab"
+  (10.4) for the fill; the tab still opens and loads hidden.
+- **Host permission for Greenhouse.** `activeTab` covers only a tab the
+  student opened the popup on, never one the runner opened. So
+  `manifest.json` adds `https://*.greenhouse.io/*` to `host_permissions`:
+  the same hosts as `backend/app/auto_apply/hosts.py`, the one list of the
+  hiring systems auto apply takes ("The batch"). A hiring system added there
+  is added to the manifest in the same change. An unpacked extension gets
+  the new permission when the student reloads it in `chrome://extensions`.
+- **The resume is the profile's for now.** The fill attaches what the
+  popup attaches: the default resume (`resolveResumeFile`). It does not
+  call `prepare_resume`, so it does not yet attach a tailored resume (11.3)
+  and keeps no sent resume. The next step sends `prepare_resume`'s file
+  with `fill/start` (9.2).
+- **The stage stays `queued`.** Nothing finishes the application yet, so
+  the next `run/open` finds the same job in the tab and leaves it. The
+  overlay's Submitted and Skip and `POST .../finish` come next.
+
+**Learned in the first live runs:** only the name fields filled, every
+dropdown said "No options appeared", and the resume did not attach. The
+fill engine waited with `requestAnimationFrame`, which a hidden tab never
+runs. It now waits on DOM changes, and its typing does not use timers in a
+hidden tab. Even then most dropdowns stayed empty in a hidden tab, so the
+fill now runs with the tab shown (above), and the dropdowns fill. The waits stay fixed, so a fill
+the student leaves early still finishes its text fields.
+
+**Changes, by file:**
+
+| File | Change |
+|---|---|
+| `autofiller_extension/src/background/runner.js` | Steps 4 and 5, and `fill` in the answer |
+| `autofiller_extension/src/shared/` (one new module) | The content-script file list, out of `popup.js` |
+| `autofiller_extension/src/popup/popup.js` | Imports the list |
+| `autofiller_extension/manifest.json` | `https://*.greenhouse.io/*` in `host_permissions` |
+| `autofiller_extension/CLAUDE.md` | The runner section: it now fills; the user-triggered rule (the Auto Apply click is the trigger); the host permission |
+| `frontend/src/lib/autofill-extension.ts` | `fill` and `reason` in `OpenApplicationResult` |
+| `frontend/src/app/(seeker)/auto-apply/` | Later, with the warning: `opened-note.ts` says a failed fill; the job card shows `not_installed` and a failed fill |
+| `frontend/docs/screens.md` | Auto Apply: what a click does now |
 
 ## 9. Messages
 
@@ -420,10 +537,10 @@ The message makes the page fast; the API keeps it correct.
 `activeTab` covers only a tab the student opened the popup on. The runner
 opens tabs itself, so it needs host permissions for the hiring systems.
 
-- **Prototype: required `host_permissions`** for the hiring systems the
-  scraper covers: `*.greenhouse.io`, `jobs.lever.co`, `jobs.ashbyhq.com`,
-  `apply.workable.com`, `*.recruitee.com`, `*.myworkdayjobs.com`. Chrome
-  shows one warning at install.
+- **Prototype: required `host_permissions`** for the hiring systems auto
+  apply takes (`hosts.py`): `*.greenhouse.io` only, for now (8.3). Each
+  hiring system added there adds its host here. Chrome shows one warning at
+  install.
 - **Before the Chrome Web Store: optional permissions.**
   `chrome.permissions.request` works only on a click inside an extension page,
   never on a click in the webapp. So the first Start opens a small extension
@@ -473,9 +590,11 @@ for a redraw. The run's tab is hidden all the same:
   API prevents this, and a minimized window is hidden too.
 - The tab is set `autoDiscardable: false`, so Memory Saver never throws
   away a half-filled form.
-- So the fill must work in a hidden tab: wait on DOM changes
-  (`MutationObserver`), not on redraws or `requestAnimationFrame`. Test
-  each hiring system's dropdowns and file upload in a background tab.
+- The tab opens and loads hidden, but **the student is taken to it for the
+  fill** and stays there (8.3): filled hidden, most Greenhouse dropdowns
+  stayed empty. The fill still waits on DOM changes
+  (`MutationObserver`), never on redraws, so a fill cut short still
+  completes.
 - Only one application fills at a time.
 
 ---
@@ -497,9 +616,10 @@ what exists:
   truth rule (`services/truth_rule.py`, `invented`) drops a wording with a
   number or a tool that is in neither its original bullet nor the bank's
   skills, and Done refuses one (422). Identity fields never reach the model.
-- **Sent resumes** (KAN-208) keep every file a student downloads or applies
-  with, and answer a 5-minute download link. Unchanged content returns the
-  last sent resume, with no new file.
+- **Sent resumes** (KAN-208) keep every resume a student applies with (a
+  download keeps nothing since KAN-267): a built resume as a snapshot
+  rendered again on open, an uploaded one as its own file. Unchanged
+  content returns the last sent resume.
 - **Apply** on the job posting page (KAN-220) offers the tailored resume
   first, else the default, and keeps the one sent as a sent resume linked to
   the job posting.
@@ -631,9 +751,10 @@ This data also shows which hiring systems need adapter work.
 
 **Built** (KAN-283): one JSONB bank of answers per student for the questions
 hiring systems repeat, `backend/app/models/CLAUDE.md`, "The answer bank".
-Onboarding's Profile step fills it: work authorization, sponsorship,
-citizenship and visa status, security clearance, gender, veteran status
-and disability. Contact details and links are not in it: auto apply reads
+Onboarding's Profile step fills it, and My Profile's Application Questions
+edits it later (KAN-269): work authorization, sponsorship,
+citizenship and visa status, security clearance, gender, Hispanic or
+Latino, race, veteran status and disability. Contact details and links are not in it: auto apply reads
 them from `applicant_profiles`, their one home. `GET` and `PATCH /applicants/{id}/autofill-answers` read and
 write it, a key at a time. Still to do: the extension fills forms from it,
 and start date and the other repeated questions get keys. Without it, every
@@ -847,7 +968,8 @@ Each step ships alone and is about one ticket.
    **Submitted** and **Skip**. Start and Pause go live. Started: `run/open`
    opens the next queued application in the run's background tab, and
    `run/status` and `run/show` drive "Working in Browser" (one-shot
-   messages, not yet the port; no fill).
+   messages, not yet the port). `run/open` also starts the extension's
+   fill in that tab (8.3, KAN-305).
 6. **`autofill_runs`**, and Live Activity shows each fill's report.
 7. **`autofill_answers`** for screening questions. The bank and its routes
    are built (KAN-283); the extension does not read it yet.

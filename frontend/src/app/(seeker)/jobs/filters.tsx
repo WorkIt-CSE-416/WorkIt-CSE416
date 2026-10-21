@@ -649,9 +649,9 @@ export function JobFilters({
       for (const [key, value] of filterEntries(next)) query.append(key, value);
       let search = query.toString();
       // Bare /jobs is a fresh visit, which the page sends on to the saved
-      // preferences, so a cleared row with no ?view (as the Dashboard's New
-      // Roles tile opens it) names the default view instead.
-      if (!search && pathname === "/jobs") search = "view=recommended";
+      // preferences, so a cleared row with no ?sort (as the Dashboard's
+      // week and month links open it) names the default order instead.
+      if (!search && pathname === "/jobs") search = "sort=match";
       router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
     });
   }
@@ -758,9 +758,9 @@ export function JobFilters({
           X at All Filters' height, its name in the tooltip: as the words
           "Clear Filters" (93px) it cost the row Date Posted at every width,
           and on a phone it pushed All Filters onto a second line. It keeps
-          ?view and ?q as every pick does, and apply() keeps /jobs off the
-          bare URL, so the Recommended view stays itself rather than bringing
-          the saved preferences back. The press hands focus to All Filters,
+          ?sort and ?q as every pick does, and apply() keeps /jobs off the
+          bare URL, so the list stays cleared rather than bringing the saved
+          preferences back. The press hands focus to All Filters,
           since the button leaves with the last pick. */}
       {filtered && (
         <IconButton

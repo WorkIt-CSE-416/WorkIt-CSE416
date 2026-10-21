@@ -1,7 +1,7 @@
 "use server";
 
 import { apiUpload, apiGet, apiDelete } from "@/lib/api";
-import { apiFetch, extractErrorMessage } from "@/lib/auth";
+import { apiFetch, errorMessage, extractErrorMessage } from "@/lib/auth";
 import type { ImportResult } from "@/lib/bank-actions";
 import { getApplicantSession } from "@/lib/session";
 
@@ -121,17 +121,16 @@ export async function getResumeFileUrl(
 }
 
 // The API reads the file itself and writes what it read into the experience
-// bank; the client never sends parsed content.
+// bank; the client never sends parsed content. A file whose text the student
+// has already uploaded is refused (KAN-267): `error` is "Duplicate Resume
+// found: <name>" and `duplicateOf` that resume's id.
 export async function uploadResume(
   formData: FormData,
-): Promise<{ resume: ResumeItem | null; error: string | null }> {
+): Promise<{ resume: ResumeItem | null; error: string | null; duplicateOf?: string }> {
   try {
     const { id, token } = await getApplicantSession();
     const res = await apiUpload(`/applicants/${id}/resumes`, formData, token);
-    if (!res.ok) {
-      const msg = await extractErrorMessage(res);
-      return { resume: null, error: msg };
-    }
+    if (!res.ok) return await refused(res);
     const resume: ResumeItem = await res.json();
     return { resume, error: null };
   } catch {
@@ -139,17 +138,32 @@ export async function uploadResume(
   }
 }
 
+/** A refused upload or Import Updated Resume: the API's message, and for a
+ *  duplicate (409, KAN-267) the id of the resume it matched. */
+async function refused(
+  res: Response,
+): Promise<{ resume: null; error: string; duplicateOf?: string }> {
+  const body: unknown = await res.json().catch(() => null);
+  const duplicateOf = (body as { detail?: { resume_id?: unknown } } | null)?.detail?.resume_id;
+  return {
+    resume: null,
+    error: errorMessage(body),
+    ...(res.status === 409 && typeof duplicateOf === "string" ? { duplicateOf } : {}),
+  };
+}
+
 // Import Updated Resume: a newer version of the file on this row. The row
 // keeps its id and primary star, and the API reads the new file into the
-// experience bank as it reads an upload.
+// experience bank as it reads an upload. The text of another upload is a
+// duplicate, as for an upload; this row's own text in a new file is not.
 export async function replaceResume(
   resumeId: string,
   formData: FormData,
-): Promise<{ resume: ResumeItem | null; error: string | null }> {
+): Promise<{ resume: ResumeItem | null; error: string | null; duplicateOf?: string }> {
   try {
     const { id, token } = await getApplicantSession();
     const res = await apiUpload(resumePath(id, resumeId), formData, token, "PUT");
-    if (!res.ok) return { resume: null, error: await extractErrorMessage(res) };
+    if (!res.ok) return await refused(res);
     const resume: ResumeItem = await res.json();
     return { resume, error: null };
   } catch {

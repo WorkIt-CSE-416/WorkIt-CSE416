@@ -100,7 +100,7 @@ const noSubscription = () => () => {};
  *  history, as the browser's Back does, rather than following the link. The
  *  router keeps the list from when they left it for that, and draws it at
  *  once; the link is a fresh visit, which asks the API for the whole feed
- *  again, and the Recommended view scores every job again: slow enough that
+ *  again, and Best Match scores every job again: slow enough that
  *  the list seemed stuck on its skeleton (reported 2026-10-19). */
 export function BackToJobs({ className }: { className?: string }) {
   const href = useSyncExternalStore(noSubscription, rememberedFeed, () => "/jobs");
@@ -199,7 +199,7 @@ export function MoreActions({ title }: { title: string }) {
  * record that they applied, under the header beside "You sent …" rather than a
  * button in the row, where a misclick marked a job applied and took it off the
  * feed. Apply Now's dialog asks once the seeker leaves for the employer's
- * posting (./apply-button). The day is the viewer's own: the server renders
+ * posting (../apply-button). The day is the viewer's own: the server renders
  * the UTC day and the browser swaps in its local one, as SentNote does.
  */
 export function AppliedNote({ at }: { at: string }) {

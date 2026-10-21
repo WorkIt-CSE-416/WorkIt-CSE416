@@ -26,10 +26,23 @@ window.WIA = window.WIA || {};
    * display:none and visibility:hidden both leave offsetParent null (for
    * anything but position:fixed, which form fields essentially never are),
    * so that one check covers both without a getComputedStyle call per field.
+   *
+   * Also excludes `aria-hidden="true"` on its own, found live on Greenhouse:
+   * a custom combobox there ships a sibling shadow `<input required
+   * aria-hidden="true" tabindex="-1">` purely so the browser's native HTML5
+   * validation has something to anchor "required" to — positioned
+   * off-screen rather than display:none, so offsetParent alone doesn't
+   * catch it. It has no label a real user would ever see, confirmed live to
+   * get mis-classified by DOM-proximity label matching and silently
+   * consume a repeated-field occurrence meant for the real, visible field
+   * next to it. An element its own markup declares invisible to assistive
+   * tech is the same signal a sighted autofill pass should trust — nothing
+   * legitimate for a user to fill is ever marked aria-hidden.
    * @param {Element} el
    */
   function isVisible(el) {
     if (!(el instanceof HTMLElement)) return true; // non-HTML elements (rare) — don't filter them out
+    if (el.getAttribute("aria-hidden") === "true") return false;
     return el.offsetParent !== null || el.getClientRects().length > 0;
   }
 
@@ -247,30 +260,34 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Polls `predicate` until it's true or `timeoutMs` elapses. For DOM
-   * changes with no reliable completion event — here, a clicked "Add"
-   * button's new block finishing its render. Same polling shape as
-   * lib-fill.js's waitForOptions, generalized to any condition instead of
-   * "got a non-empty list".
+   * Waits until `predicate` is true or `timeoutMs` elapses, checking it on
+   * every DOM change. For DOM changes with no reliable completion event — a
+   * clicked "Add" button's new block finishing its render, a combobox's
+   * options (lib-fill.js's waitForOptions). Watches the DOM rather than
+   * polling with requestAnimationFrame: the auto-apply runner fills a tab
+   * the student hasn't opened, and a hidden tab runs no animation frames,
+   * so every wait stalled until the student looked at the tab, then timed
+   * out ("No options appeared") on each dropdown.
    * @param {() => boolean} predicate
    * @param {number} [timeoutMs]
    * @returns {Promise<boolean>} Whether predicate became true before timing out.
    */
   function waitUntil(predicate, timeoutMs = 2000) {
     return new Promise((resolve) => {
-      const start = Date.now();
-      const tick = () => {
-        if (predicate()) {
-          resolve(true);
-          return;
-        }
-        if (Date.now() - start > timeoutMs) {
-          resolve(false);
-          return;
-        }
-        requestAnimationFrame(tick);
+      if (predicate()) {
+        resolve(true);
+        return;
+      }
+      const done = (result) => {
+        observer.disconnect();
+        clearTimeout(timer);
+        resolve(result);
       };
-      tick();
+      const observer = new MutationObserver(() => {
+        if (predicate()) done(true);
+      });
+      const timer = setTimeout(() => done(predicate()), timeoutMs);
+      observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
     });
   }
 

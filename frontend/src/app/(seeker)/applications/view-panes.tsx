@@ -15,7 +15,7 @@ import { useApplicationsQuery } from "./view-switcher";
  *
  * Keyed on the shape of the results: the layout, or nothing matching (`panes` null, `empty` shown). A change of shape swaps the
  * whole thing, the old fading as the new one rises in; within one shape the
- * items glide to their new places instead (./reflow.tsx).
+ * items glide to their new places instead (components/reflow.tsx).
  */
 export function ViewPanes({
   panes,

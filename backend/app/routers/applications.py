@@ -6,11 +6,19 @@ button. GET /jobs, /jobs/count and /jobs/recommended leave the applied jobs
 out for that applicant (queries/jobs/filters.py, JobFilters.applied_by); a
 saved job stays in, with its Save button filled.
 
-GET  /jobs/{job_id}/applied  {"applied_at": null} until the applicant marks it.
-POST /jobs/{job_id}/applied  marks it, and answers when. A job queued for
-                             auto apply becomes applied. Marking it again
-                             keeps the first date: the day they applied
-                             doesn't move. A saved job becomes applied.
+GET  /jobs/{job_id}/applied  {"applied_at": null, "sent_resume_id": null}
+                             until the applicant marks it.
+POST /jobs/{job_id}/applied  marks it, and answers when and with which sent
+                             resume. Body (optional, KAN-267):
+                             {"sent_resume_id": "<id>"} names the resume it
+                             went out with, which must be the applicant's
+                             and sent to this job (404 otherwise); null says
+                             none was sent; no body (or no key) leaves the
+                             one named as it is. A job queued for auto apply
+                             becomes applied. Marking it again keeps the
+                             first date: the day they applied doesn't move,
+                             while the resume can change. A saved job
+                             becomes applied.
 POST   /jobs/{job_id}/saved  the Save button: keeps the job as saved and
                              answers {"stage": "saved"}. A job that already
                              has an application keeps it and answers that
@@ -42,12 +50,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.deps import get_current_account
 from app.queries.applications import (
-    fetch_applied_at,
+    KEEP,
+    fetch_applied,
     mark_applied,
     save_job,
+    sent_to_job,
     unsave_job,
 )
-from app.schemas.applications import JobApplied, JobSaved
+from app.schemas.applications import JobApplied, JobSaved, MarkApplied
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter(prefix="/jobs", tags=["applications"])
@@ -65,23 +75,30 @@ async def get_applied(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> JobApplied:
-    """When the signed-in applicant marked this job as applied, if they have."""
+    """When the signed-in applicant marked this job as applied, if they have,
+    and with which sent resume."""
     applicant_id = _applicant_only(account)
-    return JobApplied(applied_at=await fetch_applied_at(db, applicant_id, job_id))
+    return JobApplied(**(await fetch_applied(db, applicant_id, job_id))._asdict())
 
 
 @router.post("/{job_id}/applied", response_model=JobApplied)
 async def post_applied(
     job_id: uuid.UUID,
+    body: MarkApplied | None = None,
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> JobApplied:
-    """Marks this job as applied for the signed-in applicant."""
+    """Marks this job as applied for the signed-in applicant, with the sent
+    resume the body names, if it names one."""
     applicant_id = _applicant_only(account)
-    applied_at = await mark_applied(db, applicant_id, job_id)
-    if applied_at is None:
+    sent_resume_id = KEEP
+    if body is not None and "sent_resume_id" in body.model_fields_set:
+        sent_resume_id = body.sent_resume_id
+        if sent_resume_id is not None and not await sent_to_job(db, applicant_id, job_id, sent_resume_id):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "That resume wasn't sent to this job.")
+    if await mark_applied(db, applicant_id, job_id, sent_resume_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That job isn't open any more.")
-    return JobApplied(applied_at=applied_at)
+    return JobApplied(**(await fetch_applied(db, applicant_id, job_id))._asdict())
 
 
 @router.post("/{job_id}/saved", response_model=JobSaved)

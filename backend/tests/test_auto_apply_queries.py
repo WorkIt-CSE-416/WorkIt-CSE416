@@ -115,7 +115,10 @@ def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():
     asyncio.run(applications.mark_applied(db, APPLICANT, JOB))
     sql = db.sql(1)  # after the "is it listed" read
     assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = %(param_1)s" in sql
-    assert "WHERE job_applications.applied_at IS NULL" in sql
+    # The first date stays (KAN-267 dropped the WHERE, so a second mark can
+    # still change the resume it names); no body leaves that resume alone.
+    assert "applied_at = coalesce(job_applications.applied_at, now())" in sql
+    assert "sent_resume_id" not in sql
 
 
 def test_the_feed_hides_applied_jobs_only():

@@ -108,6 +108,19 @@ async def _generate(client, me, name="Base Resume") -> str:
     return res.json()["id"]
 
 
+async def _new_skill(client, me) -> None:
+    res = await client.post(f"{me}/bank/skills", json={"name": f"Skill {uuid.uuid4().hex[:8]}"})
+    assert res.status_code == 201, res.text
+
+
+async def _another(client, me, name="Base Resume") -> str:
+    """One more resume from the bank. Generate refuses one that prints the
+    same as a resume the student has (KAN-267), so the bank gains a skill
+    first; nothing else on the resume changes."""
+    await _new_skill(client, me)
+    return await _generate(client, me, name)
+
+
 async def test_the_word_file_has_every_entry_in_section_order_newest_first(student):
     client, me = student
     await _fill_bank(client, me)
@@ -200,6 +213,43 @@ async def test_generate_leaves_a_copy_of_an_entry_off(student):
     assert len(hidden) == 1
 
 
+async def test_generate_refuses_a_resume_the_student_already_has(student):
+    """KAN-267: a second Generate with nothing changed made a copy."""
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me, "General SWE")
+
+    res = await client.post(f"{me}/built-resumes", json={})
+    assert res.status_code == 409
+    assert res.json()["detail"] == {"message": "Duplicate Resume found: General SWE", "built_resume_id": first}
+    assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [first]
+
+    # The first resume edited, a new one is not the same...
+    bullet = next(e for e in (await client.get(f"{me}/bank")).json()["entries"]
+                  if e["title"] == "Software Intern")["bullets"][0]["id"]
+    await client.patch(f"{me}/built-resumes/{first}/choices",
+                       json={"bullets": [{"bullet_id": bullet, "shown": False}]})
+    second = await _generate(client, me, "Everything")
+    # ...but it is, once more, the one to match.
+    res = await client.post(f"{me}/built-resumes", json={})
+    assert (res.status_code, res.json()["detail"]["built_resume_id"]) == (409, second)
+
+    # A bank entry added since makes the next one new.
+    await client.post(f"{me}/bank/entries", json={"section": "experience", "title": "Barista", "organization": "Cafe"})
+    assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
+
+
+async def test_generate_matches_a_resume_only_on_what_it_prints(student):
+    # A bank fix shows on every resume, so it changes nothing between them.
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me)
+    tutor = next(e for e in (await client.get(f"{me}/bank")).json()["entries"] if e["title"] == "Tutor")
+    await client.patch(f"{me}/bank/bullets/{tutor['bullets'][0]['id']}", json={"text": "Tutored 45 students"})
+    res = await client.post(f"{me}/built-resumes", json={})
+    assert (res.status_code, res.json()["detail"]["built_resume_id"]) == (409, first)
+
+
 class _FakeBucket:
     def upload(self, path, contents, options):
         return {"path": path}
@@ -227,7 +277,7 @@ async def test_five_uploads_and_no_sixth_however_many_are_generated(student, mon
     # Generated resumes count for nothing (KAN-268): six of them leave room
     # for five uploads.
     for _ in range(6):
-        await _generate(client, me)
+        await _another(client, me)
     uploads = []
     for _ in range(5):
         res = await _upload(client, me)
@@ -237,6 +287,7 @@ async def test_five_uploads_and_no_sixth_however_many_are_generated(student, mon
     res = await _upload(client, me)
     assert res.status_code == 409
     assert "5 resumes" in res.json()["detail"]
+    await _new_skill(client, me)
     assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
 
     # Deleting one makes room again.
@@ -337,6 +388,55 @@ async def test_a_tailored_resume_can_be_the_default(student, database):
     assert (await client.put(f"{me}/built-resumes/{uuid.uuid4()}/default")).status_code == 404
 
 
+async def _tailored(database, me) -> str:
+    async with database() as session:
+        posting = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
+                " (gen_random_uuid(), 'Intern', 'published', 'Acme', :url) RETURNING id"
+            ),
+            {"url": f"https://example.com/{uuid.uuid4()}"},
+        )
+        tailored = await session.scalar(
+            text(
+                "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
+                " VALUES (:a, 'Tailored', 'jakes', :p) RETURNING id"
+            ),
+            {"a": uuid.UUID(me.split("/")[2]), "p": posting},
+        )
+        await session.commit()
+    return str(tailored)
+
+
+async def test_a_tailored_resume_left_alone_becomes_the_default(student, database):
+    """A tailored resume can be the default since KAN-268, but the one-resume
+    rule still counted base resumes only: deleting the base left the
+    tailored resume with no star."""
+    client, me = student
+    base = await _generate(client, me)
+    tailored = await _tailored(database, me)
+
+    assert (await client.delete(f"{me}/built-resumes/{base}")).status_code == 204
+    assert [(r["id"], r["is_default"]) for r in (await client.get(f"{me}/built-resumes")).json()] == [
+        (tailored, True)]
+
+
+async def test_a_starred_tailored_resume_keeps_its_star_beside_one_upload(student, database, monkeypatch):
+    # The same rule saw an upload and a tailored resume as one resume, so
+    # every add or delete moved the star to the upload.
+    monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
+    monkeypatch.setattr("app.routers.resumes._extract", _no_text)
+    client, me = student
+    upload = (await _upload(client, me)).json()["id"]
+    tailored = await _tailored(database, me)
+    assert (await client.put(f"{me}/built-resumes/{tailored}/default")).status_code == 200
+
+    base = await _another(client, me)  # the seeded tailored resume is empty
+    assert (await client.delete(f"{me}/built-resumes/{base}")).status_code == 204
+    assert [r["is_default"] for r in (await client.get(f"{me}/built-resumes")).json()] == [True]
+    assert [(r["id"], r["is_default"]) for r in (await client.get(f"{me}/resumes")).json()] == [(upload, False)]
+
+
 async def test_an_entry_says_how_many_built_resumes_show_it(student, database):
     """Story 18: the delete confirm names the resumes an entry is on."""
     client, me = student
@@ -346,7 +446,7 @@ async def test_an_entry_says_how_many_built_resumes_show_it(student, database):
     assert (await client.get(url)).json() == {"built_resumes": 0}
 
     first = await _generate(client, me)
-    await _generate(client, me)
+    await _another(client, me)
     assert (await client.get(url)).json() == {"built_resumes": 2}
 
     hide = {"entries": [{"entry_id": entry["id"], "shown": False}]}
@@ -394,11 +494,13 @@ async def test_generate_then_render_gives_a_one_page_pdf_with_the_bank(student):
     _tectonic_or_skip()
     client, me = student
     await _fill_bank(client, me)
-    resume_id = await _generate(client, me)
+    resume_id = await _generate(client, me, "Data/ML: 2027")
 
     res = await client.get(f"{me}/built-resumes/{resume_id}/render")
     assert res.status_code == 200
     body = res.json()
+    # The editor's Download PDF saves it under this (KAN-267), header-safe.
+    assert body["file_name"] == "DataML 2027.pdf"
     assert body["page_count"] == 1
     assert body["missing_characters"] == []
     text = _pdf_text(body["pdf"])
@@ -485,11 +587,13 @@ async def test_a_resume_made_with_no_name_is_numbered_past_the_highest_in_use(st
     """KAN-258: every resume made with no name was "Base Resume"."""
     client, me = student
     first = (await client.post(f"{me}/built-resumes", json={})).json()
+    await _new_skill(client, me)
     second = (await client.post(f"{me}/built-resumes", json={})).json()
     assert (first["name"], second["name"]) == ("Resume #1", "Resume #2")
 
     # A deleted number is not handed out again while a higher one is left.
     assert (await client.delete(f"{me}/built-resumes/{first['id']}")).status_code == 204
+    await _new_skill(client, me)
     assert (await client.post(f"{me}/built-resumes", json={})).json()["name"] == "Resume #3"
 
 
@@ -507,6 +611,7 @@ async def test_rename_changes_the_name_and_frees_its_number(student):
     assert (await client.patch(f"{me}/built-resumes/{resume_id}", json={"name": "   "})).status_code == 422
     assert (await client.patch(f"{me}/built-resumes/{uuid.uuid4()}", json={"name": "X"})).status_code == 404
     # No resume holds "Resume #1" any more, so the next one takes it.
+    await _new_skill(client, me)
     assert (await client.post(f"{me}/built-resumes", json={})).json()["name"] == "Resume #1"
 
 

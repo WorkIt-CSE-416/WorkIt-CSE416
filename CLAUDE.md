@@ -144,6 +144,13 @@ with the failure it prevents.
 - `docs/job_posting.md`, `resume.md`, `avatar.md`, `auth.md` — design
   rationale: the schema notes and the auth flow. Alembic stays the source of
   truth for what the schema is.
+- `docs/sent_resume.md` — KAN-267's design, built: each application names
+  the sent resume it went out with (`job_applications.sent_resume_id`); a
+  sent resume is an uploaded resume's file (frozen as parsed JSON once the
+  upload is replaced or deleted) or a gzipped snapshot of a built resume,
+  rendered again on view; downloads keep nothing; uploads and Generate
+  refuse duplicates. Read it before changing sent resumes, applications,
+  resume upload or delete, Generate or the editor's Download.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

@@ -45,6 +45,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
+import { ClickableRow } from "@/components/clickable-row";
+import { MatchBadge } from "@/components/match-badge";
+import { Reflow } from "@/components/reflow";
 import { useShallowPush } from "@/components/shallow-routing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -55,7 +58,6 @@ import { STAGE_COLOR, STAGE_LABEL, STAGE_ORDER } from "../stage-colors";
 import { LocalDate } from "../local-time";
 import { sortKey, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
-import { ClickableRow } from "./clickable-row";
 import {
   COLUMNS,
   FROZEN,
@@ -67,10 +69,9 @@ import {
   type ColumnId,
   type ColumnLayout,
 } from "./column-layout";
-import { MatchBadge } from "./match-badge";
 import { applicationHref, applicationsHref, type Sort } from "./query";
-import { Reflow } from "./reflow";
 import { useApplicationsQuery } from "./view-switcher";
+import { ViewResumeButton } from "./view-resume";
 
 /**
  * The applications as a table, one row each, in the order job trackers read
@@ -114,7 +115,7 @@ import { useApplicationsQuery } from "./view-switcher";
  * layout) and cuts what does not fit, with the whole value on hover. A last,
  * empty column takes whatever room is left, so a resize never stretches the
  * others. A row opens its application's own page (./[jobId]) on a click
- * anywhere (./clickable-row.tsx); the role is its link.
+ * anywhere (components/clickable-row.tsx); the role is its link.
  */
 const FEATURES = tableFeatures({
   rowSortingFeature,
@@ -191,7 +192,7 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   // The logo, then the role over its company, as the list drew it before
   // KAN-256. The role is cut to the column, the whole title on hover:
   // scraped titles run long ("... 2027 in Eurasburg / Bavaria"). The row
-  // opens on a click anywhere (./clickable-row.tsx); the role is the link a
+  // opens on a click anywhere (components/clickable-row.tsx); the role is the link a
   // keyboard reaches.
   role: (app) => (
     <div className="flex min-w-0 items-center gap-3">
@@ -242,14 +243,13 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   ),
   pay: (app) => <FactValue Icon={CoinIcon} value={app.pay} missing="Not listed" />,
   source: (app) => <FactValue Icon={ExternalLinkIcon} value={app.source} missing="Unknown" />,
-  resume: (app) => (
-    <FactValue
-      Icon={FileIcon}
-      value={app.resume}
-      missing="Not sent"
-      title={app.resume ?? undefined}
-    />
-  ),
+  // View Resume (KAN-267): the button names the resume, filling the cell.
+  resume: (app) =>
+    app.sentResume ? (
+      <ViewResumeButton resume={app.sentResume} className="w-full" />
+    ) : (
+      <FactValue Icon={FileIcon} value={null} missing="Not sent" />
+    ),
   // A pill: positive is the badge's tone for a live posting, inert for one
   // that is over.
   posting: (app) =>
@@ -387,6 +387,14 @@ export function ApplicationsList({ applications }: { applications: Application[]
                   return (
                     <TableCell
                       key={cell.id}
+                      // A click in the resume cell around View Resume is a
+                      // near miss, not a wish to open the application:
+                      // ClickableRow leaves a prevented click alone.
+                      onClick={
+                        id === "resume" && row.original.sentResume
+                          ? (event) => event.preventDefault()
+                          : undefined
+                      }
                       className={cn(
                         TD,
                         "overflow-hidden",

@@ -14,7 +14,7 @@ import { listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
 import { SaveJobButton } from "../save-job-button";
 import { factText, toPosting } from "../to-posting";
-import { ApplyButton } from "./apply-button";
+import { ApplyButton } from "../apply-button";
 import { JobDescription } from "./description";
 import { KeyRequirementsCard } from "./key-requirements";
 import { AppliedNote, MoreActions } from "./page-actions";
@@ -87,6 +87,7 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
         applyUrl={job.apply_url}
         canMarkApplied={applied != null}
         applied={applied?.appliedAt != null}
+        showsSent
         className="shrink-0"
       />
     </>

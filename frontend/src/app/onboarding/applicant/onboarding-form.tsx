@@ -15,6 +15,7 @@ import {
 } from "@/app/(seeker)/jobs/filter-query";
 import { SalaryPicker, SearchPicker, type PickOption } from "@/components/filter-controls";
 import {
+  answerIcon,
   BriefcaseIcon,
   CalendarIcon,
   CoinIcon,
@@ -22,7 +23,6 @@ import {
   LevelIcon,
   PinIcon,
   RoleIcon,
-  VisaIcon,
   workStyleIcon,
 } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
@@ -31,17 +31,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { uploadResume } from "@/lib/resume-actions";
 
-import { saveAutofillAnswers, savePreferences } from "./actions";
-import { NO_ANSWERS, PROFILE_QUESTIONS, type AutofillAnswers } from "./answers";
+import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
+import { NO_ANSWERS, PROFILE_QUESTIONS, type AutofillAnswers } from "@/lib/autofill-answers";
+
+import { savePreferences } from "./actions";
 import { ChoiceTile } from "./choice-tile";
-import {
-  AuthorizationIcon,
-  ClearanceIcon,
-  DisabilityIcon,
-  GenderIcon,
-  StatusIcon,
-  VeteranIcon,
-} from "./icons";
 import { SignedInAs } from "./signed-in-as";
 import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
@@ -63,7 +57,8 @@ import { StoryPanel } from "./story-panel";
  *
  * STEP 2 IS WHAT EVERY APPLICATION ASKS (KAN-283): work authorization,
  * sponsorship, citizenship and visa status, clearance, and the voluntary
- * gender, veteran and disability self-identification (./answers). They are no
+ * gender, Hispanic or Latino, race, veteran and disability
+ * self-identification (lib/autofill-answers). They are no
  * filter: they go to the seeker's answer bank, which auto apply fills forms
  * from. It used to be Pay & Visa; pay moved to step 1 with the rest of the
  * role, and the visa filter question left onboarding (a saved one is kept,
@@ -74,7 +69,7 @@ import { StoryPanel } from "./story-panel";
  * then step 1 as the seeker's preferences, which marks onboarding done, then
  * uploads the picked file; the API reads it into the experience bank matching
  * reads (ADR 0003). Skip saves the answers alone. Either opens the Jobs
- * page's Recommended view. The answer bank saves first because a finished
+ * page in its Best Match order. The answer bank saves first because a finished
  * seeker is never sent back here, and nothing else asks these questions yet;
  * a failed upload leaves onboarding done and this step to retry from, and
  * saving again changes nothing.
@@ -132,7 +127,7 @@ export function OnboardingForm({
   /** The Start Date options, GET /jobs/facets' seasons. */
   seasons: PickOption[];
   initial?: FeedFilters;
-  /** The answer bank as saved (./saved-answers), for step 2. */
+  /** The answer bank as saved (lib/autofill-answers-actions), for step 2. */
   initialAnswers?: AutofillAnswers;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
@@ -213,8 +208,11 @@ export function OnboardingForm({
         const fd = new FormData();
         fd.append("file", file);
         setUploading(true);
-        const { error: uploadError } = await uploadResume(fd);
-        if (uploadError) return fail(uploadError);
+        const { error: uploadError, duplicateOf } = await uploadResume(fd);
+        // A duplicate is already uploaded (KAN-267): an upload that reached
+        // the API before a dropped connection, sent again on retry. Not
+        // a reason to keep the student here.
+        if (uploadError && !duplicateOf) return fail(uploadError);
       }
       router.push("/jobs");
     } catch {
@@ -487,18 +485,7 @@ function OneOf<V extends string>({
   );
 }
 
-/** Each Profile question's glyph, by its key in the bank. */
-const QUESTION_ICONS: Record<keyof AutofillAnswers, Glyph> = {
-  work_authorized_us: AuthorizationIcon,
-  needs_sponsorship: VisaIcon,
-  work_authorization_status: StatusIcon,
-  security_clearance: ClearanceIcon,
-  gender: GenderIcon,
-  veteran_status: VeteranIcon,
-  disability_status: DisabilityIcon,
-};
-
-/** Step 2 (KAN-283): ./answers' PROFILE_QUESTIONS, each under the question as
+/** Step 2 (KAN-283): lib/autofill-answers' PROFILE_QUESTIONS, each under the question as
  *  forms word it, so the seeker knows what their answer will fill in. */
 function ProfileStep({
   answers,
@@ -510,7 +497,7 @@ function ProfileStep({
   return (
     <>
       {PROFILE_QUESTIONS.map((q) => (
-        <Field key={q.key} Icon={QUESTION_ICONS[q.key]} label={q.label} hint={q.question}>
+        <Field key={q.key} Icon={answerIcon(q.key)} label={q.label} hint={q.question}>
           <OneOf
             labelledBy={fieldId(q.label)}
             describedBy={`${fieldId(q.label)}-hint`}

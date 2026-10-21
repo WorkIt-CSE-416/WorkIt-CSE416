@@ -84,9 +84,15 @@ async def test_the_default_base_resume_is_kept_once_for_the_job(student, storage
 
     assert (first["built_resume_id"], first["job_posting_id"]) == (built, job)
     assert again["id"] == first["id"]  # a run that starts again keeps nothing new
-    assert len(renders) == 1
+    # Kept as a snapshot (KAN-267): the PDF comes back itself, rendered
+    # again from it, and nothing goes to Storage.
+    assert (first["url"], again["data"]) == (None, first["data"])
+    assert storage.files == {}
     listed = (await client.get(f"{me}/sent-resumes")).json()
     assert [s["id"] for s in listed] == [first["id"]]
+    # The application names it (KAN-267), as "Did You Apply?" does for Apply.
+    [application] = (await client.get(f"{me}/applications")).json()
+    assert application["sent_resume"]["id"] == first["id"]
 
 
 async def test_the_tailored_resume_comes_before_the_default(student, storage, renders, database):

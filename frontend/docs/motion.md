@@ -46,7 +46,7 @@ moving at `/design-kit/motion`. The rules:
   is not. Inside a page, the Applications results are keyed on
   their shape (the view, or nothing matching) and swap
   (`swap-enter`, `swap-exit`); within one shape each card or row is keyed by
-  its application (`applications/reflow.tsx`) and glides to its new place
+  its application (`components/reflow.tsx`; Auto Apply's Live Activity rows too) and glides to its new place
   when the list is sorted or filtered (`reflow`). The Calendar keys its
   title and view on the span, and its arrows and Today tag their moves
   `nav-back` or `nav-forward` (`<ShallowLink transitionType>`, which does what
@@ -64,8 +64,20 @@ moving at `/design-kit/motion`. The rules:
   `useSearchParams` after a bare `history.pushState`: Next applies that URL
   in a microtask after the caller's transition has ended (its router
   reducer is async), so the redraw is an ordinary update and no
-  `<ViewTransition>` runs. Anything that depends on the server (a filter,
-  the list's sort) stays a real link.
+  `<ViewTransition>` runs. Anything that depends on the server (an
+  Applications filter) stays a real navigation. Auto Apply's Live Activity
+  filter and sort move in place too, since the page holds every row; a
+  filter tick passes `{ replace: true }` to the push, which swaps the
+  address bar's entry, so ten ticks are not ten steps of Back.
+- **"Transition was aborted because of invalid state. Document hidden"
+  is harmless.** Chrome refuses a view transition in a hidden tab (a
+  background tab, or the desktop app's Browser pane while it is not shown),
+  so any navigation, `router.refresh()` or shallow move there throws it, and
+  the update still lands without the animation. React drops this error
+  under its older wording, without ". Document hidden", so with Next
+  16.3.3 the dev overlay still shows it as a Recoverable error; in
+  production it is only a console line. Nothing on the page is broken; do
+  not chase it in app code. Seen on Auto Apply on 2026-10-20 (KAN-285).
 - **The root's own crossfade is off** (`::view-transition-old(root)` is
   hidden). Everything outside a `<ViewTransition>` then updates live, which
   is what lets the sidebar's fill glide beside a changing page instead of

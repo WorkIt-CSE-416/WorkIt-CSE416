@@ -14,6 +14,11 @@
 //    (field-map.js reads the DOM's own required/aria-required/asterisk
 //    signal) — an unfilled optional field renders as "skipped", a neutral
 //    state, never "failed".
+//
+// A fourth status, "needs_generation", is the essay-question feature's own:
+// an open-ended question WorkIt can offer to draft (never fill) until the
+// student opts in via the overlay's batch prompt — see content-script.js's
+// detection and overlay.js's promptForEssays.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -75,12 +80,19 @@ window.WIA = window.WIA || {};
     const required = all.filter((r) => r.required);
     const filled = required.filter((r) => r.status === "filled");
     const failed = all.filter((r) => r.status === "failed");
+    // A required one of these still counts toward requiredTotal above (and
+    // stays un-filled in the percent) until the student generates an
+    // answer or dismisses the batch prompt — same honesty rule as every
+    // other required-but-unresolved field, just with a third way to
+    // resolve it besides WorkIt already having the data.
+    const essay = all.filter((r) => r.status === "needs_generation");
 
     return {
       total: all.length,
       requiredTotal: required.length,
       requiredFilled: filled.length,
       failedCount: failed.length,
+      essayCount: essay.length,
       // No required fields at all → treat as complete rather than 0/0.
       percent: required.length === 0 ? 100 : Math.round((filled.length / required.length) * 100),
       fields: all,

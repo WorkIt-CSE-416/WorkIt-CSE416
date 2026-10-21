@@ -11,6 +11,7 @@ import { LocalDate } from "../../local-time";
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "../../stage-colors";
 import { sortKey, type Application, type TimelineStep } from "../../tracker";
 import { Timeline } from "../timeline";
+import { ViewResumeButton } from "../view-resume";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -187,8 +188,12 @@ export function YourApplication({
           <ul className="mt-3 flex flex-col gap-2">
             {sent.map((resume) => (
               <li key={resume.id} className="text-body text-ink flex flex-wrap items-center gap-2">
-                <span className="font-medium">{resume.name}</span>
+                <ViewResumeButton resume={resume} />
                 <Badge tone="inert">{resume.format.toUpperCase()}</Badge>
+                {resume.rebuilt && <Badge tone="inert">Rebuilt</Badge>}
+                {/* The one the application names (KAN-267): what the
+                    student said they sent, among every send to the posting. */}
+                {app.sentResume?.id === resume.id && <Badge tone="positive">Applied With</Badge>}
                 <span className="text-note text-ink-meta">
                   Sent <LocalDate at={resume.created_at} />
                 </span>

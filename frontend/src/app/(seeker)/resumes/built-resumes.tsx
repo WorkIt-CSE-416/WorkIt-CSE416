@@ -10,6 +10,7 @@ import { generateResume, listBuiltResumes, type BuiltResume } from "@/lib/built-
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
 
 import { BuiltResumeRow } from "./built-resume-row";
+import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
 import { ResumesHeader } from "./header";
 import { YourResumes } from "./your-resumes";
 
@@ -25,7 +26,10 @@ import { YourResumes } from "./your-resumes";
  * drawn here because Generate changes this component's lists. Generate makes a base resume from the whole bank in
  * Jake's Resume, named "Resume #N" by the API until the student renames it.
  * Generate has no limit: only uploads count toward the 5 (KAN-268). A
- * failed Generate or reload shows as Generated Resumes' error.
+ * failed Generate or reload shows as Generated Resumes' error. A Generate
+ * that would make a resume the student already has (the API's 409, KAN-267)
+ * makes nothing and says so in a pop-up (./duplicate-resume-dialog.tsx),
+ * the one a duplicate upload gets.
  *
  * Each built resume is a row drawn as an uploaded one's is
  * (`components/resume-row.tsx`), and the whole row opens the resume
@@ -43,6 +47,8 @@ export function BuiltResumes({
   const [uploaded, setUploaded] = useState(initialUploaded);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The API's "Duplicate Resume found: <name>", while its pop-up is open.
+  const [duplicate, setDuplicate] = useState<string | null>(null);
 
   // Both lists, every time: one primary star spans them.
   async function reload() {
@@ -55,8 +61,9 @@ export function BuiltResumes({
   async function generate() {
     setGenerating(true);
     setError(null);
-    const { error } = await generateResume();
+    const { error, status } = await generateResume();
     setGenerating(false);
+    if (status === 409) return setDuplicate(error);
     if (error) return setError(error);
     await reload();
   }
@@ -129,6 +136,7 @@ export function BuiltResumes({
           </Card>
         )}
       </div>
+      <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />
     </>
   );
 }

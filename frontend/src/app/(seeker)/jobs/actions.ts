@@ -59,19 +59,25 @@ export async function loadMoreJobs(query: string, offset: number): Promise<FeedP
 
 /**
  * Marks a job as applied for the signed-in applicant (`POST
- * /jobs/{id}/applied`), from the Applied button on its page. Answers when,
- * as the API stored it: the first click's date, if it was marked before. The
- * API checks the token and the account type; this only forwards it.
+ * /jobs/{id}/applied`), from "Did You Apply?". Answers when, as the API
+ * stored it: the first click's date, if it was marked before. `sentResumeId`
+ * names the sent resume it went out with (KAN-267), or null for none; left
+ * out, the application keeps the one it names. The API checks the token, the
+ * account type and that the sent resume went to this job; this only
+ * forwards it.
  */
 export async function markApplied(
   jobId: string,
+  sentResumeId?: string | null,
 ): Promise<{ appliedAt: string; error: null } | { appliedAt: null; error: string }> {
   const token = await viewerToken();
   if (!token) return { appliedAt: null, error: SIGNED_OUT };
   try {
     const res = await apiFetch(
       `/jobs/${encodeURIComponent(jobId)}/applied`,
-      { method: "POST" },
+      sentResumeId === undefined
+        ? { method: "POST" }
+        : { method: "POST", body: JSON.stringify({ sent_resume_id: sentResumeId }) },
       token,
     );
     if (!res.ok) return { appliedAt: null, error: await extractErrorMessage(res) };
@@ -123,7 +129,7 @@ export async function unsaveJob(jobId: string): Promise<{ error: string | null }
 }
 
 /**
- * The Recommended view's Load More (./feed-list, `source="recommended"`):
+ * The Best Match order's Load More (./feed-list, `source="recommended"`):
  * the next page of the seeker's scored jobs under the same filters. The
  * seeker comes from the session in getRecommendedPage, never an argument. A
  * seeker whose experience bank emptied between pages gets an error, and the
