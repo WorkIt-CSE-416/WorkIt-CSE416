@@ -37,6 +37,9 @@ const limits = {
   scout: { free: 3, plus: 50, pro: 150 },
 } satisfies Record<string, Record<PlanId, number>>;
 
+/** One line of a card's list: the feature in bold, then what the plan gives. */
+export type Included = { feature: string; detail: string };
+
 export type Plan = {
   id: PlanId;
   name: string;
@@ -46,10 +49,17 @@ export type Plan = {
   /** The card's list, under its title: the plan's limits, then for Free the
    *  features every plan has. */
   listTitle: string;
-  includes: string[];
+  includes: Included[];
   /** The one plan drawn filled in violet, so it stands out from the others. */
   highlighted?: boolean;
 };
+
+/** A plan's three daily limits, as list lines. */
+const dailyLimits = (plan: PlanId): Included[] => [
+  { feature: "Auto Apply", detail: `${limits.autoApply[plan]} applications filled a day` },
+  { feature: "Tailor", detail: `${limits.tailor[plan]} resumes tailored a day` },
+  { feature: "Scout", detail: `${limits.scout[plan]} messages a day` },
+];
 
 export const plans: Plan[] = [
   {
@@ -59,11 +69,10 @@ export const plans: Plan[] = [
     price: { monthly: 0, quarterly: 0 },
     listTitle: "What you get:",
     includes: [
-      `Auto Apply: ${limits.autoApply.free} applications a day`,
-      `Tailor: ${limits.tailor.free} resumes a day`,
-      `Scout: ${limits.scout.free} messages a day`,
-      "Job Matching on every job posting",
-      "Resume Builder and Application Tracker",
+      ...dailyLimits("free"),
+      { feature: "Job Matching", detail: "A match score on every job posting" },
+      { feature: "Resume Builder", detail: "Resumes from your experience bank, as PDFs" },
+      { feature: "Application Tracker", detail: "Every application in one place" },
     ],
   },
   {
@@ -72,11 +81,7 @@ export const plans: Plan[] = [
     pitch: "For a steady search through recruiting season.",
     price: { monthly: 15, quarterly: 12 },
     listTitle: "Everything in Free, with higher limits:",
-    includes: [
-      `Auto Apply: ${limits.autoApply.plus} applications a day`,
-      `Tailor: ${limits.tailor.plus} resumes a day`,
-      `Scout: ${limits.scout.plus} messages a day`,
-    ],
+    includes: dailyLimits("plus"),
     highlighted: true,
   },
   {
@@ -85,11 +90,7 @@ export const plans: Plan[] = [
     pitch: "For students who apply to many jobs each week.",
     price: { monthly: 29, quarterly: 23 },
     listTitle: "Everything in Plus, with the highest limits:",
-    includes: [
-      `Auto Apply: ${limits.autoApply.pro} applications a day`,
-      `Tailor: ${limits.tailor.pro} resumes a day`,
-      `Scout: ${limits.scout.pro} messages a day`,
-    ],
+    includes: dailyLimits("pro"),
   },
 ];
 

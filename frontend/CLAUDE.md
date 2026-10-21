@@ -228,17 +228,23 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `data.ts`; the page holds layout only. WorkIt has no billing yet, so while
   `PLANS_ARE_PLACEHOLDERS` is true the page says "Prices are not final" and
   each paid card says "Not on sale yet", its button leading to the free
-  sign-up. Set it to false only once billing ships and the API enforces the
-  paid limits. The team picked Free, Plus ($15) and Pro ($29) a month, or 20%
-  less on a 3-month term (a job search lasts one recruiting season, so there
-  is no yearly term), on 2026-10-21, at about half of Simplify+'s and
-  Jobright Turbo's price. Every limit is a claim: Free's Tailor and Scout
+  sign-up and saying so ("Start free, upgrade to Plus"; "Get Plus" would
+  sell a plan nobody can buy, and one "Get started for free" on every card
+  read as the same plan three times). Set it to false only once billing
+  ships and the API enforces the paid limits. The team picked Free, Plus
+  ($15) and Pro ($29) a month, or 20% less on a 3-month term (a job search
+  lasts one recruiting season, so there is no yearly term), on 2026-10-21,
+  at about half of Simplify+'s and Jobright Turbo's price. Every limit is a claim: Free's Tailor and Scout
   limits are the API's caps today (`ai_tailor_cap`, `ai_scout_cap` in
   `backend/app/config.py`), so change both together; a Scout use is one
   message, a Tailor use one resume for one job posting; employer replies stay
   "Coming soon" until updates are built, whatever the home page's tour
-  shows. Plus is filled violet, the one card the eye should land on; the
-  others are `.glass-card` over the hero panel's blobs. Two cascade traps:
+  shows. Each list line is the feature in bold, then what the plan gives.
+  Plus is filled violet, the one card the eye should land on, with silk
+  ribbons of fine white curves (`Ribbons`); the team turned down soft
+  circles, which read as a sun. The ribbon under the list shows from lg up
+  only: on a stacked card it ran through the list's last line. The others
+  are `.glass-card` over the hero panel's blobs. Two cascade traps:
   `.glass-card` and `.landing :focus-visible` are unlayered, so they beat
   any Tailwind utility; a ring on a glass card loses to its box-shadow (use
   an outline), and a focus colour needs `!`. The Monthly / 3 months switch

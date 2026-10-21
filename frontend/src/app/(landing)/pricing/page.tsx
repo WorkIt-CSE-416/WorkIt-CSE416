@@ -125,15 +125,67 @@ const CLOSING_BACKDROP = [
   "var(--color-brand-tint)",
 ].join(", ");
 
-/** The highlighted plan's fill: a sheen and two soft circles over a deep
- *  violet gradient, light at the top where the small type sits (white on
- *  landing-brand-600 is 6.26:1). */
+/** The highlighted plan's fill, under its ribbons: a magenta glow in the top
+ *  corner and a violet one under the list, over a deep violet gradient. The
+ *  glows stay dark enough for white type (white on landing-brand-600 is
+ *  6.26:1). */
 const FEATURED_FILL = [
-  "linear-gradient(115deg, transparent 40%, rgb(255 255 255 / 0.13) 52%, transparent 64%)",
-  "radial-gradient(circle 150px at 100% 0%, rgb(255 255 255 / 0.12) 99%, transparent 100%)",
-  "radial-gradient(circle 110px at 74% 12%, rgb(255 255 255 / 0.08) 99%, transparent 100%)",
+  "radial-gradient(70% 40% at 100% 0%, color-mix(in oklab, var(--color-match-good) 50%, transparent), transparent)",
+  "radial-gradient(80% 45% at 0% 100%, color-mix(in oklab, var(--color-landing-brand-400) 30%, transparent), transparent)",
   "linear-gradient(165deg, var(--color-landing-brand-600), var(--color-landing-brand-800) 60%, var(--color-landing-brand-900))",
 ].join(", ");
+
+/**
+ * Silk ribbons: bands of fine curves whose control points step at different
+ * rates, so each band fans out, twists and gathers again. Each line is
+ * brightest at the band's middle and faint at its edges, so the band reads
+ * as texture behind the type. One sits faint in the top corner, behind the
+ * badge; the main one fills the empty space under the list, which only lg
+ * has: on a stacked card it ran through the last line of the list.
+ */
+const RIBBONS = [
+  {
+    className: "top-0 h-40",
+    viewBox: "0 0 400 160",
+    align: "xMaxYMin",
+    lines: 14,
+    peak: 0.22,
+    path: (i: number) =>
+      `M ${180 + i * 7} -20 C ${260 + i * 2} ${50 + i * 5}, ${330 - i * 2} ${40 + i * 8}, 440 ${90 + i * 7}`,
+  },
+  {
+    className: "bottom-0 hidden h-60 lg:block",
+    viewBox: "0 0 400 240",
+    align: "xMidYMax",
+    lines: 20,
+    peak: 0.36,
+    path: (i: number) =>
+      `M -40 ${230 - i * 4} C 90 ${120 + i * 10}, 250 ${300 - i * 12}, 440 ${40 + i * 9}`,
+  },
+];
+
+function Ribbons() {
+  return RIBBONS.map(({ className, viewBox, align, lines, peak, path }) => (
+    <svg
+      key={viewBox}
+      viewBox={viewBox}
+      preserveAspectRatio={`${align} slice`}
+      className={cn("pointer-events-none absolute inset-x-0 -z-10 w-full", className)}
+      aria-hidden="true"
+    >
+      {Array.from({ length: lines }, (_, i) => (
+        <path
+          key={i}
+          d={path(i)}
+          fill="none"
+          stroke="white"
+          strokeOpacity={0.04 + peak * Math.sin((Math.PI * i) / (lines - 1))}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </svg>
+  ));
+}
 
 /** One term's price shows, the other's hides: the cards sit inside
  *  `group/pricing`, which holds the switch's radios. */
@@ -185,15 +237,20 @@ function BillingSwitch() {
 
 /**
  * A plan: its price and button above a rule, its list below. The highlighted
- * plan is filled violet with white type, a sheen and two soft circles, and on
- * lg reaches past the other two at top and bottom, so it is the one the eye
- * lands on; the other two stay glass over the panel's blobs.
+ * plan is filled violet with white type and silk ribbons, and on lg reaches
+ * past the other two at top and bottom, so it is the one the eye lands on;
+ * the other two stay glass over the panel's blobs.
  */
 function PlanCard({ plan }: { plan: Plan }) {
   const featured = plan.highlighted;
   const free = plan.price.monthly === 0;
-  // A paid plan's button still leads to the free sign-up until billing ships.
-  const label = free || PLANS_ARE_PLACEHOLDERS ? "Get started for free" : `Get ${plan.name}`;
+  // Until billing ships, a paid plan's button leads to the free sign-up and
+  // says so: "Get Plus" would sell a plan nobody can buy yet.
+  const label = free
+    ? "Get started for free"
+    : PLANS_ARE_PLACEHOLDERS
+      ? `Start free, upgrade to ${plan.name}`
+      : `Get ${plan.name}`;
   const onSale = free ? "No card needed" : PLANS_ARE_PLACEHOLDERS ? "Not on sale yet" : null;
   const meta = featured ? "text-white/80" : "text-ink-meta";
 
@@ -202,11 +259,12 @@ function PlanCard({ plan }: { plan: Plan }) {
       className={cn(
         "flex flex-col overflow-hidden rounded-[1.75rem] text-left",
         featured
-          ? "text-white shadow-[0_32px_64px_-24px_rgb(58_30_124/0.65)] ring-1 ring-white/25 ring-inset lg:-my-4"
+          ? "relative isolate text-white shadow-[0_32px_64px_-24px_rgb(58_30_124/0.65)] ring-1 ring-white/25 ring-inset lg:-my-4"
           : "glass-card text-ink",
       )}
       style={featured ? { background: FEATURED_FILL } : undefined}
     >
+      {featured && <Ribbons />}
       <div className={cn("p-6 sm:p-8", featured && "lg:pt-12")}>
         <div className="flex min-h-7 items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">{plan.name}</h2>
@@ -258,12 +316,9 @@ function PlanCard({ plan }: { plan: Plan }) {
         )}
       >
         <p className="text-sm font-semibold">{plan.listTitle}</p>
-        <ul className="mt-4 grid gap-3 text-sm">
-          {plan.includes.map((line) => (
-            <li
-              key={line}
-              className={cn("flex gap-2.5", featured ? "text-white" : "text-ink-muted")}
-            >
+        <ul className="mt-5 grid gap-4 text-sm">
+          {plan.includes.map(({ feature, detail }) => (
+            <li key={feature} className="flex gap-3">
               <span
                 className={cn(
                   "mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full",
@@ -273,7 +328,12 @@ function PlanCard({ plan }: { plan: Plan }) {
               >
                 <Check className="size-3" strokeWidth={3} />
               </span>
-              {line}
+              <span>
+                <strong className={cn("block font-semibold", featured ? "text-white" : "text-ink")}>
+                  {feature}
+                </strong>
+                <span className={cn("block", meta)}>{detail}</span>
+              </span>
             </li>
           ))}
         </ul>
