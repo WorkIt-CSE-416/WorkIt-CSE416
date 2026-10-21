@@ -21,6 +21,9 @@ class ApplicantProfileResponse(BaseModel):
     portfolio_url: str | None
     github_url: str | None
     other_url: str | None
+    # KAN-298: the Settings opt-in for the daily job-match digest (bell and
+    # email alike). Off until the student turns it on.
+    job_alerts_enabled: bool
 
 
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")
@@ -60,6 +63,7 @@ class ApplicantProfileUpdate(BaseModel):
     portfolio_url: str | None = Field(None, max_length=500)
     github_url: str | None = Field(None, max_length=500)
     other_url: str | None = Field(None, max_length=500)
+    job_alerts_enabled: bool | None = None
 
     @field_validator("contact_email", "phone_number", "headline", *LINK_FIELDS, mode="before")
     @classmethod

@@ -64,3 +64,35 @@ rate-limiting the shared GitHub runners, which would stall every job on it.
 - **When it fails, GitHub emails whoever last edited the cron line.** The import
   refuses to close more than half the jobs at once, so a broken scrape fails the
   run instead of emptying the site; nothing is written either way.
+
+## Job alerts (KAN-298)
+
+`workflows/job-alerts.yml` runs `app.scripts.send_job_alerts` **daily at
+13:13 UTC** (off the hour, same reasoning as the scrape's own cron): every
+opted-in applicant's best new matches, scored by the same `fetch_recommended`
++ `pick_batch` auto apply's own batch uses (`auto-apply/architecture.md`,
+"Match (built)"/"The batch"; `backend/app/services/job_alerts.py`), as a
+bell notification and an email through Resend. Daily, not every few hours
+like the scrape: a new job posting can wait for the next scrape, but a
+digest in someone's inbox every three hours would train them to ignore it.
+
+- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` (both already set for
+  the scrape workflow — reused here, not duplicated) and `RESEND_API_KEY`
+  (new; without it `send_email` logs and returns `False`, so the run still
+  writes every bell notification, it just sends no mail). `EMBEDDING_PROVIDER=gemini`
+  is a plain env value here, not a secret, so the digest scores with the
+  semantic part the deployed API itself still doesn't have on by default
+  (`backend/CLAUDE.md`'s "Still open" note on that).
+- **One run at a time**, same reasoning as the scrape's concurrency group:
+  two overlapping runs would double-send the same applicant.
+- **Manual run:** Actions → Job alerts → Run workflow, or
+  `gh workflow run job-alerts.yml` (input `dry_run`). A PR that touches the
+  digest, the script or this workflow runs it too, always `--dry-run`
+  (never needs `RESEND_API_KEY` to pass, since a dry run never calls
+  `send_email`).
+- **It stops silently after 60 days without a commit** to `main`, same as
+  the scrape. Re-enable with `gh workflow enable job-alerts.yml`.
+- **No retry and no queue.** One applicant's failure (an empty bank, a
+  bounced email) is caught, counted in the run's report, and logged; it
+  never stops the rest of the run, and nobody is sent two digests to make
+  up for a missed day.
