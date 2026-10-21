@@ -5,6 +5,7 @@ Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
                         (PDF bytes, page count, characters the font lacks,
                         a box for each marked line)
     escape(text)        the one way applicant text enters the LaTeX
+    pdf_title(text)     the PDF's Title, as hex digits only
     jakes_document(b)   Jake's preamble, byte for byte, around body b
     MARKS, mark(id, kind, latex)  position markers a template's body uses
     line_count(boxes)   the distinct lines of text some boxes sit on
@@ -185,10 +186,32 @@ def render(view, identity: HeaderIdentity, template: str) -> Rendered:
     # Imported here: the template modules import escape() from this one
     from app.services.resume_render import jakes
 
-    templates = {"jakes": lambda v, i: jakes_document(jakes.body(v, i))}
+    templates = {"jakes": lambda v, i: jakes_document(_titled(i) + jakes.body(v, i))}
     if template not in templates:
         raise ValueError(f"unknown template {template!r}")
     return compile_document(templates[template](view, identity))
+
+
+def _titled(identity: HeaderIdentity) -> str:
+    '''The Title line every template's body starts with: "Jane Doe Resume".
+    The person's name, not the resume's: it is in every render's identity
+    with no new argument, and it is what an employer should read in the
+    file the student sends. With no Title a viewer shows the file's URL,
+    a random id for the in-app dialog's blob: link (KAN-317).'''
+    name = identity.name.strip()
+    return pdf_title(f"{name} Resume" if name else "Resume") + "\n"
+
+
+def pdf_title(text: str) -> str:
+    '''
+    The PDF's Title (its Info dictionary), as XeTeX's driver writes it.
+    The text goes in as UTF-16 hex digits, so it never meets the TeX parser
+    or PDF string syntax and needs no escape(): nothing in it can close the
+    special or start a command. A \\special is a whatsit, which neither moves
+    the page nor reaches its content stream.
+    '''
+    hex_text = "FEFF" + text.replace("\r", " ").replace("\n", " ").encode("utf-16-be").hex().upper()
+    return rf"\special{{pdf:docinfo<</Title<{hex_text}>>>}}"
 
 
 def escape(text: str) -> str:
