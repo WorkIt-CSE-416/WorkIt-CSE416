@@ -18,6 +18,7 @@ window.WIA = window.WIA || {};
   let host = null;
   let root = null;
   let unsubscribe = null;
+  let keeper = null;
 
   function styles() {
     const style = document.createElement("style");
@@ -156,11 +157,30 @@ window.WIA = window.WIA || {};
     root = shadow;
 
     document.documentElement.appendChild(host);
+    keepAttached();
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());
   }
 
+  /**
+   * Puts the panel back whenever the page removes it. Greenhouse is a React
+   * app that takes over the whole document when it starts up (hydration),
+   * and that drops nodes it didn't render, ours included, sometimes by
+   * replacing <html> itself. The auto-apply runner shows its tab and fills
+   * at once, which lands the fill right as the page starts up: the fields
+   * filled, but the panel was gone. So this watches the whole document,
+   * not one element, and appends the same host to whichever <html> exists.
+   */
+  function keepAttached() {
+    keeper = new MutationObserver(() => {
+      if (host && !host.isConnected) document.documentElement.appendChild(host);
+    });
+    keeper.observe(document, { childList: true, subtree: true });
+  }
+
   function unmount() {
+    keeper?.disconnect();
+    keeper = null;
     unsubscribe?.();
     unsubscribe = null;
     host?.remove();
