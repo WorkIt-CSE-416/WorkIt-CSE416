@@ -720,12 +720,22 @@ URL (`?tab=job` for the second):
   reads as the seeker's record rather than a second white card under the
   job's header. On the tint: the stage as its glyph on a solid disc and its
   name (the board's column headers; a badge's fill is the tint itself), a
-  one-line status such as "Waiting to Hear Back", when it was applied or
-  saved and the resume sent, the timeline left to right (`Timeline`'s
-  `horizontal`), and the day counts (waiting to hear back, save to apply,
-  posted before applying; or since saving and since posting for a saved
-  job). The counts and the match are rounded white boxes on the tint: each
-  count a `Card`, the match the Jobs page card's `MatchRail` with
+  one-line status such as "Waiting to Hear Back", the resume sent (and
+  when it was saved, for a saved job), the timeline left to right (`Timeline`'s
+  `horizontal`), and two cards of facts (KAN-286): whether the posting is
+  Open or Closed, then the days since the seeker applied (for a saved job,
+  the days since the posting went up). The status line drops the applied
+  date, which the card and the timeline already carry. A closed posting
+  says so in its card only, with no badge beside the stage. The cards
+  replaced day counts that did not help: save to apply read 0 for every
+  Apply (Apply saves and applies at once), and posted before applying only
+  told the student about the past. A suggested follow-up day was tried and
+  dropped, as any fixed number of days is a guess. A total applicant count
+  would fit, but no hiring system WorkIt reads publishes one; a count of
+  WorkIt's own applicants is possible from `job_applications` and would
+  need a field on the tracker's response. The cards and the match are
+  rounded white boxes on the tint: each
+  card a `Card`, the match the Jobs page card's `MatchRail` with
   `standalone` on white, with its reasons (`?scored=true` sends
   `highlights` with `match`). Ruled, square cells were tried first and read
   as a spreadsheet next to the app's rounded cards. The match sits right of
@@ -746,8 +756,8 @@ The application comes from `getTracker`, so its score, resume and stage
 match its row. A job the seeker has not saved or applied to is not found. A
 closed posting has no job page (`GET /jobs/{id}` answers 404), so the header
 shows what the tracker knows, marked Closed, and the description tab says it
-is gone. The day counts round elapsed time, as "Posted 8 days ago" does:
-cut, an application sent 47 hours ago read as waiting 1 day.
+is gone. The cards round elapsed time, as "Posted 8 days ago" does: cut,
+an application sent 47 hours ago read as waiting 1 day.
 
 ## Auto Apply
 
