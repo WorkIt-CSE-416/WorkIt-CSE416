@@ -338,11 +338,12 @@ would change a moment after the page loads.
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
 behind the new tab and asks "Did You Apply?". **It shows the resume they
-applied with** (KAN-267), in four sections that share one choice, each
+applied with** (KAN-267), in three sections and a button that share one choice, each
 titled as a field is (`text-label`, ink): **Generated Resumes** (built and
 tailored), **Uploaded Resumes**, **Sent a Different Resume?** (the upload,
-below) and **No Resume** (one row, "I Applied Without One"); an empty
-section says so in one line. A row shows the resume's name alone: a grey
+below), then a full-width **No Resume** button, not a section: pressed
+(the brand fill, `aria-pressed`), it is the pick and every radio above
+clears; a radio pick unpresses it. An empty section says so in one line. A row shows the resume's name alone: a grey
 kind line under each ("Built resume", "Uploaded file") only repeated its
 section's title, and went on the user's ask. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No

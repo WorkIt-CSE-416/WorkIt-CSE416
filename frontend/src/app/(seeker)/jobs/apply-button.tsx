@@ -370,14 +370,18 @@ export function ApplyButton({
                   )}
                 </div>
               )}
+              {/* No Resume is a button, not a section of its own: pressed, it
+                  is the pick (every radio above clears), and Yes then marks
+                  the job applied with no resume. */}
               {choices != null && (
-                <ResumeChoices
-                  legend="No Resume"
-                  name="applied-with"
-                  choices={[{ key: NO_RESUME, label: "I Applied Without One" }]}
-                  picked={appliedWith}
-                  onPick={setAppliedWith}
-                />
+                <Button
+                  variant={appliedWith === NO_RESUME ? "default" : "secondary"}
+                  aria-pressed={appliedWith === NO_RESUME}
+                  onClick={() => setAppliedWith(NO_RESUME)}
+                  className="w-full"
+                >
+                  No Resume
+                </Button>
               )}
               {error && <p className="text-meta text-danger">{error}</p>}
               <DialogFooter>
