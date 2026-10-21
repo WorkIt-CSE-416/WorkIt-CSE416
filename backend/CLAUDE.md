@@ -711,13 +711,15 @@ removed at cutover, not before. Until then a change must work on both.
   still count, so an equal cap could refuse the new ones. The cost: each instance cold-starts on its own first request, and
   each stays billed for `sleepAfter` (10 minutes) after its last one.
   Shorter saves memory-hours; longer means fewer cold starts.
-- **The instances are pinned near the database** with `locationHint:
-  "enam"` (eastern North America; Supabase is us-east-1). A Durable Object
-  stays where its first request made it, and its container runs near it.
-  The first, hint-less `instance-N` objects landed far away: every request
-  paid ~0.7 s to open its database connection, and pages took 3–9 s
-  (2026-10-21). A hint only places a new object, so the names changed to
-  `enam-N`; changing the hint needs new names too.
+- **The containers run in eastern North America, beside the database**
+  (Supabase is us-east-1): `constraints.regions: ["ENAM"]` in
+  `wrangler.jsonc`. Unconstrained, Cloudflare placed them on the West Coast
+  (traffic left at LAX and PDX), each database round trip took 150 ms, and
+  pages took 3–9 s (2026-10-21). A location hint on the Durable Object does
+  not move its container: the two need not share a location. The Worker
+  still gives the objects `locationHint: "enam"`, so the hop to the
+  container stays short; a hint places an object only when it is first
+  made, so changing it needs new names (now `enam-N`).
 - **Secrets are Worker secrets set by CI** (`wrangler secret bulk` with
   `CLOUDFLARE_API_TOKEN`), never `wrangler.jsonc`, which is committed. The
   Worker's `Api` class copies the names in its `FORWARDED` list into the

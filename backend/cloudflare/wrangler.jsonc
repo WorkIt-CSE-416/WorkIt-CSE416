@@ -17,6 +17,10 @@
       "image_build_context": "../..",
       // 1/4 vCPU, 1 GiB, 4 GB disk (the image is under 1 GB)
       "instance_type": "basic",
+      // Eastern North America, beside Supabase (us-east-1). Unconstrained,
+      // the containers ran on the West Coast, 65-95 ms from the database
+      // per round trip, and pages took 3-9 s (2026-10-21)
+      "constraints": { "regions": ["ENAM"] },
       // Twice INSTANCES (src/index.ts): after the objects are renamed, the old
       // containers stay awake for sleepAfter and still count against this
       "max_instances": 6

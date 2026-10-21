@@ -73,11 +73,10 @@ export class Api extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // getRandom with a location hint. A Durable Object stays where it was
-    // first made, and its container runs near it: the hint-less "instance-N"
-    // objects landed far from Supabase (us-east-1), and every request paid
-    // ~0.7 s to open its database connection (2026-10-21). The names are new
-    // so the hint applies; renaming them again strands containers the same way.
+    // getRandom with a location hint, so each object sits near its
+    // container, which wrangler.jsonc's constraints keep in eastern North
+    // America. A hint places an object only when it is first made, hence
+    // the new "enam-N" names (2026-10-21).
     const id = env.API.idFromName(`enam-${Math.floor(Math.random() * INSTANCES)}`);
     return env.API.get(id, { locationHint: "enam" }).fetch(request);
   },
