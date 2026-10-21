@@ -49,8 +49,9 @@ PAGE = {
     # read. Its cards show initials.
 }
 # Each pattern only accepts its ATS's own image host, and `favicon` only Google's.
-# frontend/next.config.ts allows exactly these hosts, and next/image throws -- failing
-# the whole page -- on any other, so a logo from anywhere else must stay out of the feed.
+# frontend/next.config.ts allows exactly these hosts. With the optimizer on, next/image
+# throws -- failing the whole page -- on any other; it is off on Cloudflare (KAN-169) but
+# stays one line from coming back, so a logo from anywhere else must stay out of the feed.
 PATTERN = {
     "greenhouse": re.compile(
         r'"(https://[\w-]*recruiting\.cdn\.greenhouse\.io/external_greenhouse_job_boards/logos/[^"]+)"'
