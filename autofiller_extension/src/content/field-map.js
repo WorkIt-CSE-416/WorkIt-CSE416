@@ -208,6 +208,33 @@ window.WIA = window.WIA || {};
         synonyms: ["hispanic", "latino", "ethnic"],
         value: answerLabel(profile.answers, "hispanic_latino", HISPANIC_LATINO_LABELS),
       },
+      {
+        // "Where did you find this job?" / "How did you hear about us?" —
+        // confirmed live on Braze's Greenhouse posting ("How did you
+        // initially hear about this job?"), a required field with no
+        // WorkIt profile data to answer it from honestly, unlike every
+        // other rule here. The honest answer is WorkIt itself, so this
+        // names it directly rather than reporting a failure for a field
+        // nothing in the profile could ever fill. Two candidates, tried in
+        // order (lib-fill.js's fillField): "WorkIt" first, for a free-text
+        // field that can hold any string; "Job Board" second, the generic
+        // option nearly every such dropdown's own list already offers,
+        // for a select or combobox where "WorkIt" itself is never a real
+        // option.
+        key: "referral_source",
+        synonyms: ["hear about", "hear of", "find this job", "find this posting", "find out about"],
+        value: ["WorkIt", "Job Board"],
+      },
+      {
+        // Relocation willingness — no WorkIt profile field tracks this yet
+        // (there's no location/preference data behind it at all). Hardcoded
+        // "Yes" for now, the same honest-stand-in approach as
+        // referral_source above; revisit once WorkIt has real preference
+        // data to answer from instead of a fixed guess.
+        key: "willing_to_relocate",
+        synonyms: ["willing to relocate", "able to relocate", "open to relocating"],
+        value: "Yes",
+      },
     ];
   }
 
@@ -273,7 +300,7 @@ window.WIA = window.WIA || {};
    *   matching a template gets bank entry *n*: the first "School" field
    *   found in DOM order is education[0], the second is education[1], and
    *   so on. Left untouched (and unused) for non-repeated fields.
-   * @returns {{ key: string, value: string | null } | null}
+   * @returns {{ key: string, value: string | string[] | null } | null}
    */
   function matchLabel(labelText, profile, occurrences) {
     if (!labelText) return null;

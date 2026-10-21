@@ -231,16 +231,47 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Entry point field-map.js and content-script.js call — dispatches to
-   * the right strategy by field shape.
+   * Dispatches to the right strategy by field shape, for one candidate
+   * value.
    * @param {Element} field
    * @param {string} value
    * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
    */
-  async function fillField(field, value) {
+  async function fillOne(field, value) {
     if (field instanceof HTMLSelectElement) return fillSelect(field, value);
     if (field.getAttribute("role") === "combobox") return fillCombobox(field, value);
     return fillText(field, value);
+  }
+
+  /**
+   * Entry point field-map.js and content-script.js call. `value` is
+   * usually one string, but a rule that cares what kind of field it landed
+   * on without inspecting the DOM itself (field-map.js never sees the
+   * element) can instead give an ordered list of candidates — the first
+   * one `fillOne` accepts wins. A free-text field accepts its first
+   * candidate immediately, since fillText only ever fails on a field that
+   * cannot hold text at all; a select or combobox tries each in turn,
+   * which is what lets "WorkIt" be offered first (an unlikely but honest
+   * try, for a free-text field that really does take it) and "Job Board"
+   * be a safe second choice no real dropdown's own option list is likely
+   * to miss (the "How did you hear about us?" rule in field-map.js is the
+   * one caller today).
+   * @param {Element} field
+   * @param {string | string[]} value
+   * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
+   */
+  async function fillField(field, value) {
+    const candidates = Array.isArray(value) ? value : [value];
+    let last = { ok: false, reason: "No value to fill" };
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      // eslint-disable-next-line no-await-in-loop -- each candidate must be
+      // tried in order, not raced: a combobox candidate types into the
+      // field itself, so two at once would corrupt each other's input.
+      last = await fillOne(field, candidate);
+      if (last.ok) return last;
+    }
+    return last;
   }
 
   window.WIA.fill = { fillField, setNativeValue, fillFile };
