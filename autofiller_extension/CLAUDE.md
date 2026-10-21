@@ -50,8 +50,8 @@ here:
   and solves it the same way.
 - **The webapp's role is a thin, optional bridge** (`frontend/src/lib/
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
-  the runner to open the next queued application, which job its tab shows,
-  and to switch to that tab — nothing more. The job cards' "Autofill ready"
+  the runner to open (and fill) the next queued application, which job its
+  tab shows, and to switch to that tab — nothing more. The job cards' "Autofill ready"
   badge, the bridge's one use of `ping`, was removed (KAN-278); the
   background script still answers `ping`, with no webapp caller. The extension's core function
   never depends on this bridge: it works from its own popup on whatever
@@ -86,15 +86,22 @@ Submit button themselves, on the ATS's own page, after reviewing what got
 filled. `activeTab` also means no broad host-permission prompt for
 arbitrary websites at install time.
 
-## The auto-apply runner (KAN-223): opens the next queued application
+**The one other trigger is the student's own Auto Apply click** (KAN-305):
+the runner fills the application tab it opened for that click (below). It
+is still a click, never a page load, and it still never submits. It is why
+`host_permissions` lists `https://*.greenhouse.io/*`: `activeTab` never
+covers a tab the runner opened.
+
+## The auto-apply runner (KAN-223, KAN-305): opens and fills the next queued application
 
 `src/background/runner.js` is the runner's first step
-(`auto-apply/architecture.md`, "The run"). The Auto Apply page's Start,
-and a job card's Auto Apply once it queues the job, send `run/open` over
-`externally_connectable`; the runner reads the oldest queued application
-from `GET .../applications/next` and opens its `job.apply_url`. It fills
-nothing yet: injecting the fill, Submitted/Skip and `POST .../finish` are
-the next steps. Two more messages serve the webapp's "Working in
+(`auto-apply/architecture.md`, "The run" and "The first fill"). The Auto
+Apply page's Start, and a job card's Auto Apply once it queues the job,
+send `run/open` over `externally_connectable`; the runner reads the oldest
+queued application from `GET .../applications/next`, opens its
+`job.apply_url`, and starts the fill there. Submitted/Skip and `POST
+.../finish` are the next steps; until then the application stays
+`queued`. Two more messages serve the webapp's "Working in
 Browser": `run/status` answers which job posting the run's tab shows
 (null once the student closes it), and `run/show` switches to that tab.
 
@@ -115,24 +122,73 @@ Browser": `run/status` answers which job posting the run's tab shows
 - **The run's tab is never discarded.** It is set
   `autoDiscardable: false`, so Memory Saver can't throw away a
   half-filled form in a tab the student has not looked at yet.
-- **No new permission.** `chrome.tabs.create`, `chrome.tabs.update`
-  (`autoDiscardable` too), `chrome.windows.update` and a tab's load
-  `status` need none (only url, title and favicon need `tabs`).
-  Injecting the fill into these tabs will: `activeTab` doesn't cover a tab
-  the runner opened, so that step adds hiring-system `host_permissions`.
-- **`run/open` never reloads the application already open.** When the
-  run's tab shows the next application's job posting, it is left as it
-  is: a second click (another card, Start again) would otherwise throw
-  away what the student typed. The saved job id is what's compared, not
+- **Opening needs no permission; filling needs the host.**
+  `chrome.tabs.create`, `chrome.tabs.update` (`autoDiscardable` too),
+  `chrome.windows.update` and a tab's load `status` need none (only url,
+  title and favicon need `tabs`). Injecting the fill does: `activeTab`
+  doesn't cover a tab the runner opened, so `host_permissions` lists each
+  hiring system auto apply takes, the same hosts as
+  `backend/app/auto_apply/hosts.py` (Greenhouse only). A host added there
+  is added to `manifest.json` in the same change, or its fills answer
+  `not_allowed`. After pulling a manifest change, reload the unpacked
+  extension in `chrome://extensions`.
+- **The fill is the popup's fill.** Both inject `CONTENT_SCRIPT_FILES`
+  (`src/shared/content-scripts.js`); `content-script.js` runs on
+  injection, so injecting is starting. The resume is the profile's default
+  (`resolveResumeFile`), not yet `prepare_resume`'s, so a tailored resume
+  is not attached and no sent resume is kept.
+- **Wait for the form, not for the fill.** `content-script.js` reads the
+  fields once, so the runner first injects `waitForForm`, which watches
+  the DOM (never `requestAnimationFrame`: a hidden tab runs none) for up
+  to 10 seconds. Then it injects the engine and answers `run/open`
+  without awaiting the fill.
+- **The student is taken to the run's tab for the fill, and stays there.**
+  Filled hidden, the text fields filled but most dropdowns did not, even
+  with the waits below fixed: Chrome treats a hidden page differently (no
+  redraws, timers about once a second, no focus), and react-select's menus
+  need some of that. So `startFill` makes the run's tab active once the
+  form is ready, and the dropdowns fill (confirmed live). Switching back
+  to the WorkIt tab after the fill was built and dropped: it didn't help,
+  since the student reviews this form next anyway.
+- **The overlay puts itself back when the page removes it.** Once the
+  runner showed the tab and filled at once, the fields filled but the
+  panel never appeared: the fill landed as Greenhouse's React app took
+  over the document (hydration), which drops nodes it didn't render.
+  `overlay.js`'s `keepAttached` watches the whole document and appends the
+  same host again, to whichever `<html>` exists. Anything else this
+  extension adds to a page needs the same guard.
+- **`run/open` never reloads or refills the application already open.**
+  When the run's tab shows the next application's job posting, it is left
+  as it is (`fill: "kept"`): a second click (another card, Start again)
+  would otherwise throw away what the student typed, and a second fill
+  would mount a second overlay. A student who reloads the tab by hand
+  fills it from the popup. The saved job id is what's compared, not
   the URL, which the form's own steps change.
-- **`run/open` answers once the page loads** (`status: "complete"`, 30
-  seconds at most) or with why nothing opened: `queue_empty`,
-  `signed_out`, or an error such as a closed tab. Greenhouse and Ashby draw
-  their form after `complete`; the fill step must wait for fields itself.
+- **`run/open` answers once the fill has started** (the page's `status:
+  "complete"`, 30 seconds at most, then the form, 10 seconds at most), with
+  `fill: "started" | "kept" | "failed"` (`reason`: `no_form`,
+  `not_allowed`, or the error's message), or with why nothing opened:
+  `queue_empty`, `signed_out`, or an error such as a closed tab. No answer
+  at all means no extension, or one turned off: that is the webapp's
+  "is the extension active?" check. The webapp shows no failed fill yet.
+
+- **Nothing in the fill engine waits on a redraw.** The first runner fill
+  filled the name fields, then reported "No options appeared" on every
+  dropdown and never attached the resume: `waitForOptions` and `waitUntil`
+  polled with `requestAnimationFrame`, which a hidden tab never runs, so
+  each wait stalled until the student looked at the tab and then timed
+  out. Both now wait on DOM changes (`MutationObserver`) with a
+  `setTimeout` limit, and the pause between typed characters yields
+  through a `MessageChannel` in a hidden tab, since Chrome runs a hidden
+  tab's timers about once a second. A new wait in `src/content/` follows
+  the same rule. The test browser tool can't check this: Chrome keeps a
+  tab it drives visible and focused, so test with the real runner.
 
 Still open: a Lever `apply_url` opens the job posting, not the form (that
-is at `.../apply`). Whether a Greenhouse form fills in a hidden tab
-(dropdowns, file upload) is untested. A tab closed within a second or two
+is at `.../apply`). Why a hidden tab's dropdowns stay empty is not pinned
+down (focus is the likeliest); if found, the fill could stay hidden. With
+the student's Chrome window behind another app, macOS may still count the
+shown tab as hidden. A tab closed within a second or two
 of opening should be reported as that, not as the student's Skip.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
@@ -626,8 +682,9 @@ fields and aren't affected by any of this.
   .executeScript`'s `files` array) don't support ES modules, so these files
   attach to `window.WIA` instead of using `import`/`export`. The load order
   that makes this work lives in exactly one place —
-  `src/popup/popup.js`'s `CONTENT_SCRIPT_FILES` array — and has to be kept
-  in sync by hand if a new content file is added.
+  `src/shared/content-scripts.js`'s `CONTENT_SCRIPT_FILES`, which the
+  popup and the runner both import — and a new content file is added
+  there by hand.
 - **`src/background/` and `src/popup/` do use ES modules** (`"type":
   "module"` in the manifest's `background` key; `popup.html`'s `<script
   type="module">`) — only the on-demand-injected content scripts can't.

@@ -260,30 +260,34 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Polls `predicate` until it's true or `timeoutMs` elapses. For DOM
-   * changes with no reliable completion event — here, a clicked "Add"
-   * button's new block finishing its render. Same polling shape as
-   * lib-fill.js's waitForOptions, generalized to any condition instead of
-   * "got a non-empty list".
+   * Waits until `predicate` is true or `timeoutMs` elapses, checking it on
+   * every DOM change. For DOM changes with no reliable completion event — a
+   * clicked "Add" button's new block finishing its render, a combobox's
+   * options (lib-fill.js's waitForOptions). Watches the DOM rather than
+   * polling with requestAnimationFrame: the auto-apply runner fills a tab
+   * the student hasn't opened, and a hidden tab runs no animation frames,
+   * so every wait stalled until the student looked at the tab, then timed
+   * out ("No options appeared") on each dropdown.
    * @param {() => boolean} predicate
    * @param {number} [timeoutMs]
    * @returns {Promise<boolean>} Whether predicate became true before timing out.
    */
   function waitUntil(predicate, timeoutMs = 2000) {
     return new Promise((resolve) => {
-      const start = Date.now();
-      const tick = () => {
-        if (predicate()) {
-          resolve(true);
-          return;
-        }
-        if (Date.now() - start > timeoutMs) {
-          resolve(false);
-          return;
-        }
-        requestAnimationFrame(tick);
+      if (predicate()) {
+        resolve(true);
+        return;
+      }
+      const done = (result) => {
+        observer.disconnect();
+        clearTimeout(timer);
+        resolve(result);
       };
-      tick();
+      const observer = new MutationObserver(() => {
+        if (predicate()) done(true);
+      });
+      const timer = setTimeout(() => done(predicate()), timeoutMs);
+      observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
     });
   }
 

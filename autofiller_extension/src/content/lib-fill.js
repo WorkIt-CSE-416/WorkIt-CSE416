@@ -84,24 +84,32 @@ window.WIA = window.WIA || {};
 
   /**
    * A short wait for a debounced search to render its filtered options —
-   * most ATS comboboxes search on a 150–400ms debounce. Polls rather than
-   * using a single fixed delay, so it resolves as soon as options actually
-   * exist instead of always waiting the worst case.
+   * most ATS comboboxes search on a 150–400ms debounce. Resolves as soon as
+   * options actually exist instead of always waiting the worst case
+   * (lib-dom.js's waitUntil, which also works in a hidden tab). The limit
+   * leaves room for a hidden tab, where Chrome runs the page's own debounce
+   * timer about once a second.
    * @param {() => Element[]} getOptions
    * @param {number} [timeoutMs]
    */
-  function waitForOptions(getOptions, timeoutMs = 1200) {
+  async function waitForOptions(getOptions, timeoutMs = 3000) {
+    await window.WIA.dom.waitUntil(() => getOptions().length > 0, timeoutMs);
+    return getOptions();
+  }
+
+  /**
+   * The pause between typed characters. In a hidden tab (the auto-apply
+   * runner's), Chrome runs a timer at most about once a second, which made
+   * "United States" take 13 seconds; there it yields one task through a
+   * MessageChannel, which Chrome does not slow.
+   * @param {number} ms
+   */
+  function pause(ms) {
+    if (!document.hidden) return new Promise((resolve) => setTimeout(resolve, ms));
     return new Promise((resolve) => {
-      const start = Date.now();
-      const tick = () => {
-        const options = getOptions();
-        if (options.length > 0 || Date.now() - start > timeoutMs) {
-          resolve(options);
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      tick();
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => resolve();
+      channel.port2.postMessage(null);
     });
   }
 
@@ -139,7 +147,7 @@ window.WIA = window.WIA || {};
       // school-name lookup hitting a real API) a moment between keystrokes
       // rather than firing the whole string as one burst.
       // eslint-disable-next-line no-await-in-loop
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await pause(20);
     }
   }
 
