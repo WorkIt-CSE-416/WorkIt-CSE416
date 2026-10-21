@@ -1,7 +1,8 @@
 name: Deploy to Cloudflare
 
-# The app runs on Cloudflare Workers Paid through OpenNext at workitjobs.ai
-# (docs/adr/0004-host-on-cloudflare.md). Vercel stays live until KAN-296.
+# Both halves run on Cloudflare Workers Paid (docs/adr/0004-host-on-cloudflare.md):
+# the app on Workers through OpenNext at workitjobs.ai, the API in a Container
+# behind a Worker at api.workitjobs.ai. Vercel stays live until KAN-296.
 on:
   push:
     branches: [main, "kan-169-*"]
@@ -16,6 +17,35 @@ env:
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/cloudflare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+      - run: ../../.github/scripts/ensure-worker.sh workit-api
+      # wrangler builds backend/Dockerfile (context: the repo root) with the
+      # runner's Docker and pushes it to Cloudflare's registry.
+      - run: npm run deploy
+      # One JSON secret holds every runtime value; bulk sets them all and
+      # rolls a new version (.github/CLAUDE.md, "Deploy to Cloudflare").
+      - name: Set runtime secrets
+        env:
+          SECRETS_JSON: ${{ secrets.CF_API_SECRETS_JSON }}
+        run: printf '%s' "$SECRETS_JSON" | npx wrangler secret bulk
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS https://api.workitjobs.ai/health; then exit 0; fi
+            sleep 10
+          done
+          exit 1
+
   web:
     runs-on: ubuntu-latest
     defaults:
