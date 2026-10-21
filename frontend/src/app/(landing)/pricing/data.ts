@@ -1,22 +1,23 @@
 /**
  * The Pricing page's plans, prices, limits and billing FAQ, in one place.
  *
- * **Placeholders.** WorkIt has no billing yet, so every account is on Free
- * and nobody can buy Plus or Pro. The team picked these numbers on
- * 2026-10-21 against Simplify+, Jobright Turbo and Teal+ ($29 to $39.99 a
- * month): half their price, for students. While `PLANS_ARE_PLACEHOLDERS` is
- * true the page says "Prices are not final" and the paid cards say they are
- * not on sale; set it to false only once billing ships and the limits below
- * are enforced.
+ * The team picked these prices on 2026-10-21 against Simplify+, Jobright
+ * Turbo and Teal+ ($29 to $39.99 a month): half their price, for students.
+ * The page shows them plainly, with no "not final" note: the team had that
+ * note taken off. WorkIt has no billing yet, so every account is on Free;
+ * while `PAID_PLANS_ON_SALE` is false a paid plan's button says "Start free,
+ * then Plus" and leads to the free sign-up. Set it to true only once billing
+ * ships and the limits below are enforced.
  *
  * Every limit is a claim. Free's Tailor and Scout limits are the caps the
  * API enforces today (`ai_tailor_cap`, `ai_scout_cap` in
  * `backend/app/config.py`); change them together. The API has no Auto Apply
  * limit and no paid caps yet. A Scout use is one message the student sends
- * (`backend/app/routers/scout.py`), a Tailor use one resume tailored to one
- * job posting; neither counts when it fails.
+ * (`backend/app/routers/scout.py`), a Tailor use one Tailor run, or the
+ * first keyword check against a job posting WorkIt has not read before
+ * (`backend/app/routers/built_resumes.py`); neither counts when it fails.
  */
-export const PLANS_ARE_PLACEHOLDERS = true;
+export const PAID_PLANS_ON_SALE = false;
 
 export type PlanId = "free" | "plus" | "pro";
 export type BillingId = "monthly" | "quarterly";
@@ -88,12 +89,12 @@ export const features: { feature: string; detail: string; cells: Record<PlanId, 
   },
   {
     feature: "Tailor",
-    detail: "Resumes tailored to one job posting each, for you to review.",
+    detail: "Resumes tailored to a job posting. You accept or reject every change.",
     cells: limits.tailor,
   },
   {
     feature: "Scout",
-    detail: "Messages to your job assistant: what a role needs and how you fit.",
+    detail: "Messages to your job assistant. Ask what a role needs and how you fit.",
     cells: limits.scout,
   },
   {
@@ -103,7 +104,7 @@ export const features: { feature: string; detail: string; cells: Record<PlanId, 
   },
   {
     feature: "Resume Builder",
-    detail: "Resumes from your experience bank, as PDFs.",
+    detail: "Resumes built from your experience bank, to download as PDF or Word.",
     cells: every("included"),
   },
   {
@@ -113,7 +114,7 @@ export const features: { feature: string; detail: string; cells: Record<PlanId, 
   },
   {
     feature: "Employer replies",
-    detail: "Replies from employers, right on your tracker.",
+    detail: "Replies from employers, shown on your tracker.",
     cells: every("soon"),
   },
 ];
@@ -123,26 +124,23 @@ export const features: { feature: string; detail: string; cells: Record<PlanId, 
  * auto-apply/architecture.md's (one at a time, the student submits,
  * Greenhouse only for now in `backend/app/auto_apply/hosts.py`), and nothing
  * here promises a billing term (refunds, cancelling) that does not exist yet.
+ * The extension's resume upload is unverified live
+ * (`autofiller_extension/CLAUDE.md`), so no answer says a resume is attached.
  */
 export const billingFaqs = [
   {
-    question: "Can I buy Plus or Pro today?",
-    answer:
-      "Not yet. WorkIt has no billing yet, so every account is on the Free plan. The prices and limits on this page are not final and can change before paid plans open.",
+    question: "Do I need a card to start?",
+    answer: "No. Sign up and you start on the Free plan, with no card.",
   },
   {
     question: "What counts as one use?",
     answer:
-      "For Auto Apply, one application filled for you. For Tailor, one resume tailored to one job posting. For Scout, one message you send. A Tailor run or a Scout message that fails does not count.",
-  },
-  {
-    question: "When do the daily limits reset?",
-    answer: "Every day at midnight UTC.",
+      "For Auto Apply, one application filled for you. For Tailor, one Tailor run on a job posting; checking a resume's keywords against a new job posting can count as one too. For Scout, one message you send. A Tailor run or a Scout message that fails does not count.",
   },
   {
     question: "Does WorkIt submit applications for me?",
     answer:
-      "No. Auto Apply fills one application at a time in your Chrome, with the resume for that job attached. You check each one and click Submit yourself.",
+      "No. Auto Apply fills one application at a time in your Chrome. You check each one and click Submit yourself.",
   },
   {
     question: "Which applications can Auto Apply fill?",
@@ -152,7 +150,7 @@ export const billingFaqs = [
   {
     question: "Why 3 months and not a year?",
     answer:
-      "A job search usually runs one recruiting season. The 3-month plan costs about 20% less than paying month by month.",
+      "A job search usually lasts one recruiting season. Paying for 3 months at once costs about 20% less than paying month by month.",
   },
   {
     question: "Is there a student discount?",

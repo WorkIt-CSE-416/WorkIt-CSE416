@@ -1,4 +1,4 @@
-import { Check, Info } from "lucide-react";
+import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -11,7 +11,7 @@ import {
   billingFaqs,
   features,
   plans,
-  PLANS_ARE_PLACEHOLDERS,
+  PAID_PLANS_ON_SALE,
   type Cell,
   type Plan,
   type PlanId,
@@ -20,7 +20,7 @@ import {
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Start free with Job Matching, the Resume Builder and the Application Tracker. Plus and Pro fill more applications, tailor more resumes and answer more Scout messages each day.",
+    "WorkIt's plans for students: start free with every feature, or raise your daily Auto Apply, Tailor and Scout limits with Plus or Pro.",
 };
 
 /**
@@ -47,7 +47,7 @@ export default function PricingPage() {
               Pricing
             </p>
             <h1 className="from-ink to-landing-brand-800 mx-auto mt-6 max-w-3xl bg-linear-to-b from-40% bg-clip-text pb-[0.1em] text-[2.75rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance text-transparent sm:text-6xl">
-              Pricing built for students.
+              Plans built for students.
             </h1>
             <p className="text-ink-muted mx-auto mt-4 max-w-[600px] text-lg leading-[1.55] text-pretty sm:text-[19px]">
               Start free. Upgrade when you want more applications filled and more resumes tailored
@@ -119,10 +119,9 @@ function PlanBoard() {
       <div className="text-center md:col-span-3 md:mb-4 xl:col-[2] xl:row-[1] xl:mb-0 xl:pr-8 xl:pb-8 xl:text-left">
         <h2 className="text-ink text-2xl font-semibold tracking-tight">Choose your plan</h2>
         <p className="text-ink-meta mt-2 text-sm text-pretty">
-          Every plan has the whole of WorkIt. Paid plans raise the daily limits.
+          Every plan includes every feature. Paid plans raise the daily limits.
         </p>
         <BillingSwitch />
-        {PLANS_ARE_PLACEHOLDERS && <PlaceholderNote />}
       </div>
 
       <PlanHeader plan={plans.plus} className="xl:col-[3] xl:row-[1] xl:mx-2 xl:mb-8" />
@@ -130,7 +129,7 @@ function PlanBoard() {
       <PlanHeader plan={plans.free} className="xl:col-[7] xl:row-[1]" />
 
       <h2 className="text-ink mt-6 text-lg font-semibold md:col-span-3 xl:col-[2/5] xl:row-[2] xl:mt-0 xl:pb-3">
-        Everything in WorkIt, plan by plan
+        What each plan includes
       </h2>
       <ul role="list" className="md:col-span-3 xl:contents">
         {features.map((row) => (
@@ -239,18 +238,6 @@ const FEATURED_FILL = [
 const ON_MONTHLY = "group-has-[#billing-quarterly:checked]/pricing:hidden";
 const ON_QUARTERLY = "hidden group-has-[#billing-quarterly:checked]/pricing:inline";
 
-function PlaceholderNote() {
-  return (
-    <p className="bg-warning-tint text-warning ring-warning-fill/40 mx-auto mt-5 flex w-fit max-w-full items-start gap-2 rounded-2xl px-4 py-2.5 text-left text-sm ring-1 ring-inset xl:mx-0">
-      <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <span>
-        <strong className="font-semibold">Prices are not final.</strong> WorkIt has no billing yet,
-        so every account is on Free for now.
-      </span>
-    </p>
-  );
-}
-
 /** Monthly or 3 months: two native radios drawn as a segmented control, so
  *  Tab reaches it and the arrow keys switch it with no script. */
 function BillingSwitch() {
@@ -295,10 +282,9 @@ function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
   // says so: "Get Plus" would sell a plan nobody can buy yet.
   const label = free
     ? "Get started for free"
-    : PLANS_ARE_PLACEHOLDERS
-      ? `Start free, then ${plan.name}`
-      : `Get ${plan.name}`;
-  const onSale = free ? "No card needed" : PLANS_ARE_PLACEHOLDERS ? "Not on sale yet" : null;
+    : PAID_PLANS_ON_SALE
+      ? `Get ${plan.name}`
+      : `Start free, then ${plan.name}`;
   const meta = featured ? "text-white/80" : "text-ink-meta";
 
   return (
@@ -336,15 +322,15 @@ function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
         )}
         <span className={cn("text-sm", meta)}>/ month</span>
       </p>
-      <p className={cn("mt-1 text-xs xl:min-h-8", meta)}>
-        {!free && (
+      <p className={cn("mt-1 text-xs", meta)}>
+        {free ? (
+          "No card needed"
+        ) : (
           <>
             <span className={ON_MONTHLY}>Billed monthly</span>
-            <span className={ON_QUARTERLY}>${plan.price.quarterly * 3} every 3 months</span>
-            {onSale && " · "}
+            <span className={ON_QUARTERLY}>${plan.price.quarterly * 3} billed every 3 months</span>
           </>
         )}
-        {onSale}
       </p>
 
       <div className="mt-auto pt-5">
