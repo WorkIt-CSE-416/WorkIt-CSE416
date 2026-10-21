@@ -57,6 +57,9 @@ class Sent_Resume(BaseModel):
     __table_args__ = (
         CheckConstraint("num_nonnulls(built_resume_id, uploaded_resume_id) <= 1", name="sent_resumes_one_source"),
         CheckConstraint("num_nonnulls(storage_path, snapshot_id) = 1", name="sent_resumes_one_file"),
+        # What job_applications' composite foreign key points at, so an
+        # application can name only its own applicant's sent resume.
+        UniqueConstraint("id", "applicant_id", name="sent_resumes_id_applicant_key"),
         Index("ix_sent_resumes_built_resume_id", "built_resume_id", "content_hash"),
     )
 

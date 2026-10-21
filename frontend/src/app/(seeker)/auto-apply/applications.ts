@@ -8,6 +8,8 @@ import { getApplicantSession } from "@/lib/session";
 
 import type { Highlight } from "../jobs/data";
 import type { JobListing } from "../jobs/listings";
+import type { SentResume } from "@/lib/sent-resume-actions";
+
 import type { ApplicationStage, RunStage } from "./actions";
 
 /**
@@ -34,6 +36,9 @@ export type Application<Stage extends ApplicationStage = ApplicationStage> = {
   match?: number | null;
   /** Up to 3 reasons behind `match`, as the Jobs page card lists them. */
   highlights?: Highlight[];
+  /** The sent resume it went out with (KAN-267), or null: none was sent,
+   *  or it was deleted since. */
+  sent_resume?: SentResume | null;
 };
 
 const UNREACHABLE = "Could not reach the server.";

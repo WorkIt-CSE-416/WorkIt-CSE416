@@ -238,6 +238,13 @@ The image is `pgvector/pgvector`, not the plain `postgres:15` this used to
 say. The official image doesn't ship pgvector, so the chain stopped at
 `4485d7a7a712` with `could not open extension control file`.
 
+**Put the local URL on every Alembic command itself**
+(`DIRECT_URL=postgresql://...localhost... uv run alembic upgrade head`),
+never in an `export` earlier in a chain. On 2026-10-21 the chain's first
+command failed, `&&` skipped the export, and the Alembic commands after a
+`;` ran anyway with the root `.env`'s `DIRECT_URL`: they upgraded the
+shared database to a migration no commit held yet.
+
 Supabase owns `auth.users`; `197cfcdecdb8` points a foreign key at it, so the
 stub has to exist first. Exported variables beat the root `.env`
 (pydantic-settings), which is what keeps every command here off the shared

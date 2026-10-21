@@ -90,6 +90,9 @@ async def test_the_default_base_resume_is_kept_once_for_the_job(student, storage
     assert storage.files == {}
     listed = (await client.get(f"{me}/sent-resumes")).json()
     assert [s["id"] for s in listed] == [first["id"]]
+    # The application names it (KAN-267), as "Did You Apply?" does for Apply.
+    [application] = (await client.get(f"{me}/applications")).json()
+    assert application["sent_resume"]["id"] == first["id"]
 
 
 async def test_the_tailored_resume_comes_before_the_default(student, storage, renders, database):

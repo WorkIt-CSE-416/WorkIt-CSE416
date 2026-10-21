@@ -157,9 +157,14 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The application tracker is live and has no fixture** (KAN-261): saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
   cached per request by `getTracker` in `data.ts`), each with the Jobs
-  page's own match score (`?scored=true`, KAN-256) and the resume last sent
-  to its posting (the sent resumes list; its failure only empties that
-  column). A row or card opens the application's own page,
+  page's own match score (`?scored=true`, KAN-256) and the sent resume the
+  application names (`sent_resume`, KAN-267: "Did You Apply?" sends it
+  through `markApplied`, auto apply links its own), which View Resume opens in a dialog (`applications/view-resume.tsx`,
+  KAN-267: `openSentResume`, nothing downloaded). A button inside a
+  clickable row or card must not open the application on a near miss: the
+  list's cell prevents its clicks and the card's strip sits over the
+  stretched link, and a dialog opened from one stops its own clicks, since
+  React passes them up through the portal. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
   dated events stay empty until the API stores them; a failed read shows an
   error, never stand-in cards. A job's application
@@ -351,7 +356,10 @@ are in `docs/auth.md`.
   download went through `sendBuiltResume` and kept a sent resume in
   Storage, so the bucket filled with files no employer saw; that action is
   gone. The missing-character warning still holds a PDF until Download
-  Anyway. Apply Now goes through `applyWithResume` (KAN-220) wherever it
+  Anyway. Pick a Resume is hidden for now (`frontend/docs/screens.md`, Job
+  posting page): Apply Now opens the employer's page and asks "Did You
+  Apply?", whose Yes keeps the pick through `applyWithResume`. It went through
+  `applyWithResume` (KAN-220) at Apply wherever it
   sits: the job posting page, the feed cards on /jobs and /search, and the
   Dashboard's New Matches (KAN-290). It keeps its sent resume: the student
   is told WorkIt kept a copy, so it is never deleted behind their back.

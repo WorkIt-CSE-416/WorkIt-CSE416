@@ -703,6 +703,14 @@ free tier). Render with a Dockerfile is the fallback.
   CHECK. Deployed first is worse: the new `JobPreferences` refuses a saved
   `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
   migration runs.
+- **`3aa342c5a064` (`job_applications.sent_resume_id`, KAN-267) goes on
+  before the deploy that writes it**, after `5a6e419367b8`: the model maps
+  the column, so deployed first, every application insert answers 500. It
+  only adds a nullable column, a unique key and a foreign key (and fills
+  the column for applied rows), so applying it early is safe. **It reached
+  the shared database on 2026-10-21 before its file was committed**, by
+  the shell slip `alembic/CLAUDE.md` records: until the file is on `main`,
+  Alembic against the shared database fails for anyone without it.
 - **Apply `5a6e419367b8` (`resume_snapshots`, KAN-267) before the deploy
   that writes it**, after `d642d93fcfbc`. The model maps
   `sent_resumes.snapshot_id`, so deployed first, every Apply and auto apply

@@ -35,9 +35,11 @@ from app.models.dto import application_stage
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
+from app.models.sent_resume import Sent_Resume
 from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
 from app.schemas.applications import Application
+from app.schemas.sent_resume import SentResumeResponse
 
 
 async def queue_applications(
@@ -93,7 +95,8 @@ async def fetch_stage(
 
 
 def _applications(applicant_id: uuid.UUID) -> Select:
-    """This applicant's applications, each with its job posting's listing."""
+    """This applicant's applications, each with its job posting's listing
+    and the sent resume it names (KAN-267), if any."""
     return (
         select(
             *LISTING_COLUMNS,
@@ -101,8 +104,10 @@ def _applications(applicant_id: uuid.UUID) -> Select:
             Job_Application.created_at.label("added_at"),
             Job_Application.applied_at.label("applied_at"),
             LISTED.label("open"),
+            Sent_Resume,
         )
         .join(Job_Application, Job_Application.job_id == Job_Post.id)
+        .outerjoin(Sent_Resume, Sent_Resume.id == Job_Application.sent_resume_id)
         .where(Job_Application.applicant_id == applicant_id)
     )
 
@@ -114,6 +119,20 @@ def _to_application(row) -> Application:
         added_at=row.added_at,
         applied_at=row.applied_at,
         open=row.open,
+        sent_resume=SentResumeResponse.from_row(row.Sent_Resume) if row.Sent_Resume else None,
+    )
+
+
+async def link_resume(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, sent_resume_id: uuid.UUID
+) -> None:
+    """Names the sent resume an application goes out with (KAN-267): auto
+    apply's resume step, which made it for this job posting. Flushes; the
+    caller commits."""
+    await db.execute(
+        update(Job_Application)
+        .where(Job_Application.applicant_id == applicant_id, Job_Application.job_id == job_id)
+        .values(sent_resume_id=sent_resume_id)
     )
 
 

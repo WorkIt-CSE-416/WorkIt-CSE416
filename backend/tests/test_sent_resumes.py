@@ -485,8 +485,9 @@ async def _seed_posting(database, apply_url: str = "https://example.com/apply") 
 
     async with database() as session:
         posting = await session.scalar(text(
-            "INSERT INTO job_postings (id, title, status, company_name, apply_url) VALUES"
-            " (gen_random_uuid(), 'Intern', 'published', 'Acme', :url) RETURNING id"
+            # A level, as the import always writes one: a listing reads it.
+            "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level) VALUES"
+            " (gen_random_uuid(), 'Intern', 'published', 'Acme', :url, 'new_grad') RETURNING id"
         ), {"url": apply_url})
         await session.commit()
     return str(posting)
@@ -546,3 +547,99 @@ async def test_apply_needs_exactly_one_resume_and_a_real_posting(student, storag
     assert (await client.post(f"{me}/sent-resumes", json=missing)).status_code == 404
     assert (await client.post(f"{me}/sent-resumes", json=_to(posting, uploaded_resume_id=str(uuid.uuid4())))).status_code == 404
     assert (await client.get(f"{me}/sent-resumes")).json() == []
+
+
+# --- the application names its sent resume (KAN-267, step 4) ----------------
+
+
+async def _applied(client, me) -> list[dict]:
+    return (await client.get(f"{me}/applications?stage=applied")).json()
+
+
+async def test_marking_applied_names_the_sent_resume_the_tracker_reads(student, storage, renders, posting):
+    client, me = student
+    await _fill_bank(client, me)
+    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
+
+    res = await client.post(f"/jobs/{posting}/applied", json={"sent_resume_id": sent["id"]})
+
+    assert (res.status_code, res.json()["sent_resume_id"]) == (200, sent["id"])
+    [app_] = await _applied(client, me)
+    assert (app_["sent_resume"]["id"], app_["sent_resume"]["name"]) == (sent["id"], "Base Resume")
+    assert (await client.get(f"/jobs/{posting}/applied")).json()["sent_resume_id"] == sent["id"]
+
+
+async def test_an_application_names_only_a_resume_sent_to_its_job_by_its_applicant(
+    student, storage, renders, posting, database
+):
+    from tests.test_built_resumes import _seed_applicant, _sign_in
+
+    client, me = student
+    built = await _generate(client, me)
+    another = await _seed_posting(database, "https://example.com/another")
+    elsewhere = (await client.post(f"{me}/sent-resumes", json=_to(another, built_resume_id=built))).json()
+    async with database() as session:
+        other = await _seed_applicant(session)
+    _sign_in(other)
+    theirs = (await client.post(f"/applicants/{other}/sent-resumes",
+                                json=_to(posting, built_resume_id=await _generate(client, f"/applicants/{other}")))).json()
+    _sign_in(uuid.UUID(me.split("/")[2]))
+
+    for wrong in (elsewhere["id"], theirs["id"], str(uuid.uuid4())):
+        res = await client.post(f"/jobs/{posting}/applied", json={"sent_resume_id": wrong})
+        assert (res.status_code, res.json()["detail"]) == (404, "That resume wasn't sent to this job.")
+    assert await _applied(client, me) == []
+
+
+async def test_a_mark_with_no_resume_keeps_it_and_null_clears_it(student, storage, renders, posting):
+    client, me = student
+    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
+    first = (await client.post(f"/jobs/{posting}/applied", json={"sent_resume_id": sent["id"]})).json()
+
+    again = (await client.post(f"/jobs/{posting}/applied")).json()  # the job page's older call: no body
+    assert again == first  # the first day and the resume both stay
+
+    cleared = (await client.post(f"/jobs/{posting}/applied", json={"sent_resume_id": None})).json()
+    assert (cleared["applied_at"], cleared["sent_resume_id"]) == (first["applied_at"], None)
+    [app_] = await _applied(client, me)
+    assert app_["sent_resume"] is None
+
+
+async def test_deleting_the_sent_resume_clears_the_link_and_keeps_the_application(student, storage, renders, posting):
+    client, me = student
+    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
+    await client.post(f"/jobs/{posting}/applied", json={"sent_resume_id": sent["id"]})
+
+    assert (await client.delete(f"{me}/sent-resumes/{sent['id']}")).status_code == 204
+
+    [app_] = await _applied(client, me)
+    assert (app_["job"]["id"], app_["stage"], app_["sent_resume"]) == (posting, "applied", None)
+
+
+async def test_taking_a_job_out_of_saved_keeps_its_sent_resume(student, storage, renders, posting):
+    client, me = student
+    sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
+    assert (await client.post(f"/jobs/{posting}/saved")).status_code == 200
+    assert (await client.delete(f"/jobs/{posting}/saved")).status_code == 204
+    assert [s["id"] for s in (await client.get(f"{me}/sent-resumes")).json()] == [sent["id"]]
+
+
+async def test_the_database_refuses_a_link_to_another_applicants_sent_resume(student, storage, renders, posting, database):
+    from sqlalchemy.exc import IntegrityError
+
+    from tests.test_built_resumes import _seed_applicant, _sign_in
+
+    client, me = student
+    await client.post(f"/jobs/{posting}/applied")
+    async with database() as session:
+        other = await _seed_applicant(session)
+    _sign_in(other)
+    theirs = (await client.post(f"/applicants/{other}/sent-resumes",
+                                json=_to(posting, built_resume_id=await _generate(client, f"/applicants/{other}")))).json()
+
+    with pytest.raises(IntegrityError, match="job_applications_sent_resume_fkey"):
+        async with database() as session:
+            await session.execute(
+                text("UPDATE job_applications SET sent_resume_id = :s WHERE applicant_id = :a"),
+                {"s": uuid.UUID(theirs["id"]), "a": uuid.UUID(me.split("/")[2])})
+            await session.commit()

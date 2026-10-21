@@ -1,11 +1,9 @@
 # Sent resumes per application (KAN-267)
 
-Status: **design complete; built: the duplicate checks, downloads that keep
-nothing, snapshots and the freeze of replaced or deleted uploads** (build
-order steps 1, 2, 3, 5 and 6, migrations `d642d93fcfbc` and
-`5a6e419367b8`). Not built: the application link (step 4), and with it
-every screen that opens a sent resume (View Resume, the rebuilt note, Show
-Original Text). It changes how sent resumes (KAN-208)
+Status: **built** (every build order step, migrations `d642d93fcfbc`,
+`5a6e419367b8` and `3aa342c5a064`), Upload included: on "Did You Apply?",
+since Pick a Resume is hidden, with Replace at the 5-upload limit. Not
+built: the job posting page's "You sent" as a link. It changes how sent resumes (KAN-208)
 are kept, links each application to the resume it went out with, stops
 recording plain downloads, freezes an upload's sent resumes as JSON once
 the upload is replaced or deleted, and stops duplicate resumes at upload
@@ -182,7 +180,13 @@ effect.
 ### `job_applications.sent_resume_id`
 
 - Nullable FK → `sent_resumes`, `ON DELETE SET NULL`, indexed (for the SET
-  NULL).
+  NULL). Built as a composite key (`3aa342c5a064`): `(sent_resume_id,
+  applicant_id)` → `sent_resumes (id, applicant_id)`, so the database
+  refuses another applicant's sent resume, with `ON DELETE SET NULL
+  (sent_resume_id)` so a deletion clears the link and never the
+  application's `applicant_id`. The job posting is checked in Python
+  (`queries/applications.py`'s `sent_to_job`). The migration backfills
+  each applied application with its posting's last sent resume.
 - `NULL` means the student applied without a resume, or applied before this
   existed.
 - It is the answer to "which resume did this application use". A posting can
@@ -386,6 +390,11 @@ You Apply?" (flow 5), which records it.
 
 ### 4. Apply Now (the job posting's page)
 
+Hidden for now (2026-10-21): Apply Now opens the employer's page and asks
+"Did You Apply?" (flow 5) at once, which keeps the resume picked there as
+the sent resume. The Pick a Resume and Your Resume Is Ready steps below
+stay in the code, commented out.
+
 The dialog (`jobs/apply-button.tsx`; every Apply Now opens it since KAN-290) keeps its steps. What changes:
 
 - **Pick a resume** lists built and uploaded resumes as today, plus
@@ -416,21 +425,20 @@ The dialog (`jobs/apply-button.tsx`; every Apply Now opens it since KAN-290) kee
   A second call with a resume sets the resume but keeps the first
   `applied_at`.
 - No body: as today, so the deployed frontend keeps working during the
-  rollout.
+  rollout. Built: no body, or no `sent_resume_id` key, keeps the resume
+  the application names; `null` clears it (No Resume).
 
 A student who chose **Apply Without a Resume** sees the picker on the Did
 You Apply? step, with "I didn't send a resume" as one choice. Picking a
 resume there calls `POST .../sent-resumes` first (flow 4's Apply, without
 giving a file), then this route with its id.
 
-Built, ahead of step 4 (the picker only): "Did You Apply?" lists the
-resumes under "Resume You Sent", plus No Resume, starting on the one sent
-at Apply (No Resume after Apply Without a Resume), and the student can
-change it. Yes keeps a resume other than the one sent as a sent resume for
-the posting (`applyWithResume`), then marks the job applied as before.
-Step 4 adds the `sent_resume_id` the route takes; until then the job
-posting's "You sent <name>" (its last sent resume) is the only record of
-which one, and No Resume after a send changes nothing.
+Built: "Did You Apply?" lists the resumes in sections (Generated Resumes,
+Uploaded Resumes, Sent a Different Resume?, then No Resume), starting on the one sent at Apply (No Resume after Apply
+Without a Resume), and the student can change it. Yes keeps a resume
+other than the one sent as a sent resume for the posting
+(`applyWithResume`), then marks the job applied with its `sent_resume_id`,
+or null for No Resume.
 
 ### 6. Auto apply
 
@@ -479,6 +487,13 @@ Where the student sees it:
   application has a `sent_resume_id`. Their resume column reads that link
   instead of "the resume last sent to its posting". Fetch the file only on
   click: a snapshot renders on each open.
+
+Built (`applications/view-resume.tsx`): View Resume on the list, the grid
+cards and What You Sent, on the application's own `sent_resume`. It opens a dialog with the PDF in a frame (GET
+.../file?download=false; a snapshot's PDF is kept for the next open, a
+stored file's link asked for again), the rebuilt note with Show Original
+Text, and for a Word file a pointer to Resumes & Experiences. Step 4 only
+swaps which sent resume each application names.
 
 ### 8. Delete
 
@@ -564,10 +579,11 @@ Each step is one PR with its migration, code, tests and docs.
    `send_built` writing snapshots (it no longer takes Storage), flow 7's
    two shapes, the Apply dialog's file, `prepare_resume`'s response.
    `openSentResume` moved to step 4.
-4. **Application link.** Migration 3, `POST /jobs/{id}/applied` with
-   `sent_resume_id`, `prepare_resume` setting it, the Did You Apply?
-   picker, Upload in the Apply picker, View Resume on the Applications list,
-   an application's page and the job posting's page.
+4. **Application link.** Built: migration 3 (`3aa342c5a064`), `POST
+   /jobs/{id}/applied` with `sent_resume_id`, `prepare_resume` setting it
+   (`link_resume`), the Did You Apply? picker sending it, and the tracker
+   and View Resume reading it. Not built: Upload in the Apply picker, and
+   the job posting page's "You sent" as a link.
 5. **Generate duplicates.** The live hash check on Generate, and its
    "Duplicate Resume found: <name>" pop-up on the Resumes page.
 6. **Freeze replaced uploads.** Built with step 3: `view_from_reading`,

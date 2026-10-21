@@ -225,8 +225,26 @@ sections stay first and open, since they are what a student reads first, and
 matching never reads the folded ones. Only the job's headings make a
 description sectioned, so an old one with its own "Benefits" line draws as
 before.
+**Pick a Resume is hidden for now** (2026-10-21, on the user's ask): Apply
+Now is a plain link that opens the employer's posting in a new tab, and for
+a signed-in applicant who has not marked the job the same click opens
+"Did You Apply?" (below) behind it, its resume list starting on the one
+Pick a Resume would have picked (tailored, else the default). Yes, I
+Applied stays off, under "Loading your resumes…", until that list is in:
+before it, the pick is only a guess. **Sent a Different Resume?** under the
+lists is the Resumes page's own dropzone (`ResumeUpload`) and upload
+(`uploadResume`, which reads it into Experiences as any upload does): the
+new resume is picked once the list reloads, and a duplicate picks the one
+it matched, saying "Duplicate Resume found: <name>". **At the 5-upload
+limit** (`lib/resume-limits.ts`, the API's own) a file waits while the
+student picks an upload to replace, then Replace It runs Import Updated
+Resume (`replaceResume`) on that row: the old file's sent resumes keep a
+frozen copy, so past applications lose nothing. Yes, I Applied stays off
+while an upload runs or a file waits. The hidden
+steps stay in `jobs/apply-button.tsx`, commented out, with how to bring
+them back. What follows describes them as they were.
 Apply Now (`jobs/apply-button.tsx`,
-KAN-220) opens "Pick a Resume": the student's base resumes, the one tailored
+KAN-220) opened "Pick a Resume": the student's base resumes, the one tailored
 to this posting and the uploaded resumes, with the tailored one, else the
 default, picked first. Apply keeps a sent resume linked to the posting, then
 shows Open in Resumes and Open the Posting (links in new tabs, so no popup
@@ -320,16 +338,22 @@ would change a moment after the page loads.
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
 behind the new tab and asks "Did You Apply?". **It shows the resume they
-applied with** (KAN-267), under "Resume You Sent": the resumes Pick a
+applied with** (KAN-267), in three sections and a button that share one choice, each
+titled as a field is (`text-label`, ink): **Generated Resumes** (built and
+tailored), **Uploaded Resumes**, **Sent a Different Resume?** (the upload,
+below), then a full-width **No Resume** button, not a section: pressed
+(the brand fill, `aria-pressed`), it is the pick and every radio above
+clears; a radio pick unpresses it. An empty section says so in one line. A row shows the resume's name alone: a grey
+kind line under each ("Built resume", "Uploaded file") only repeated its
+section's title, and went on the user's ask. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
 may have attached another file on the employer's page. Yes, I Applied keeps
 a resume other than the one sent as a sent resume for this posting first
-(`applyWithResume`), so the page's "You sent <name>" names it, then calls
-`markApplied` (`jobs/actions.ts`); Not Yet closes it. No Resume after a
-send leaves that sent resume as it is: nothing links an application to
-its resume until `job_applications.sent_resume_id` (docs/sent_resume.md,
-step 4). A job already marked is
+(`applyWithResume`), then calls `markApplied` (`jobs/actions.ts`) with
+that sent resume's id, or null for No Resume: the application names it
+(`job_applications.sent_resume_id`), and the tracker shows it. Not Yet
+closes it. A job already marked is
 never asked about again, and anyone else's dialog just closes. The page then
 reads "You applied on Oct 17, 2026" under the header (`AppliedNote`), the
 viewer's own day after hydration. An Applied button in the header did this
@@ -550,10 +574,24 @@ buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
 real link a keyboard reaches. Sorted by Date Applied unless `?sort=` names
 another column (below). Notes / Next Step is a placeholder ("No notes yet") and
 Status is only Saved or Applied until the API stores notes and later
-stages. Resume is the name of the last sent resume linked to the job
-posting (`listSentResumes`, as the posting's own page reads it): Apply and
-auto apply keep one, while the plain Applied button sends none, so it says
-"Not sent". Location and Pay print as the Jobs page's card does
+stages. Resume is the sent resume the application names
+(`sent_resume`, KAN-267): the one picked on "Did You Apply?", or the one
+auto apply attached; "Not sent" when the student said No Resume, applied
+before KAN-267 with nothing sent, or deleted that sent resume. **With one, the cell is View Resume** (KAN-267,
+`applications/view-resume.tsx`): an sm button naming the resume, the cell's
+whole width, that opens it in a dialog over the list, 92% of the window's
+width and height (80% looked squished) (it follows a resize), the PDF filling it. A click anywhere in
+that cell around the button is a near miss and opens nothing (it is
+prevented, which `ClickableRow` leaves alone), and a click inside the
+dialog stops there. The dialog shows the PDF in a frame: a built resume's
+snapshot rendered again, or an uploaded file through a link signed to
+open, not download (asked for again on each open, since it lasts 5
+minutes). A rebuilt upload (its upload replaced or deleted since) says so,
+with Show Original Text for the file's own words. A Word file cannot be
+shown in a browser, so it points to Resumes & Experiences instead.
+Nothing downloads here. A grid card with a sent resume carries the same
+button above its footer, on a strip that sits over the card's stretched
+link, so the strip's gap is no misclick either. Location and Pay print as the Jobs page's card does
 (`jobs/format.ts`). The cells are drawn as the job cards draw their facts
 (`ui/fact.tsx`): a grey glyph, then the value in ink, and a missing value
 in meta grey; Status, Match and Posting are pills (Posting `positive` Open
@@ -690,7 +728,9 @@ URL (`?tab=job` for the second):
   as a spreadsheet next to the app's rounded cards. The match sits right of
   the rest from 576px of card and under it below that. Under the card,
   What You Sent lists every sent resume linked to the
-  posting, or, with none, a dashed placeholder box (the upload dropzone's
+  posting, each as View Resume (above) with its format, a Rebuilt tag
+  for a rebuilt upload and Applied With on the one the application names,
+  or, with none, a dashed placeholder box (the upload dropzone's
   outline) saying "No resume sent yet". It replaced two lines of
   explanation. Neither Apply nor auto apply keeps the answers typed into
   the employer's form, so the tab cannot show them.

@@ -6,7 +6,14 @@ ex: applicant 7 queued job 3 for auto apply on 2026-10-15, applied 2026-10-16
 import datetime
 import uuid
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -18,7 +25,7 @@ class Job_Application(Base):
     one row per (applicant, job) the applicant has applied to or queued. A
     join table rather than an array of applicant ids on the job: the foreign
     keys keep both sides real, an apply never rewrites the job row the import
-    upserts, and a status or resume column can join applied_at later
+    upserts, and the resume it went out with sits beside applied_at
     '''
     __tablename__ = "job_applications"
     applicant_id: Mapped[uuid.UUID] = mapped_column(
@@ -39,6 +46,10 @@ class Job_Application(Base):
     # The now() default is for applied inserts: a queued one writes NULL
     applied_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+    # The resume it went out with (KAN-267): set by "Did You Apply?" and by
+    # auto apply's resume step; NULL for one applied without a resume. Its
+    # foreign key (below) is the applicant's own sent resumes only.
+    sent_resume_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
 
     __table_args__ = (
         # the primary key serves "this applicant's jobs" (the feed's filter);
@@ -48,5 +59,13 @@ class Job_Application(Base):
         CheckConstraint(
             "stage <> 'applied' OR applied_at IS NOT NULL",
             name="job_applications_applied_dated",
+        ),
+        # Composite, so the database refuses a link to another applicant's
+        # sent resume. Deleting the sent resume clears the link alone (SET
+        # NULL on that one column: nulling applicant_id too would break the
+        # primary key); the application stays.
+        ForeignKeyConstraint(
+            ["sent_resume_id", "applicant_id"], ["sent_resumes.id", "sent_resumes.applicant_id"],
+            ondelete="SET NULL (sent_resume_id)", name="job_applications_sent_resume_fkey",
         ),
     )

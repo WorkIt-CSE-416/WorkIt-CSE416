@@ -928,7 +928,23 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
 - **Apply `c0467afe819c` right after merging.** Until then the deployed
   code's queue routes and stage filters fail on the missing column; the
   Applied button keeps working either way.
-- The resume sent and an undo are not built. The tracker's later stages
+- **`sent_resume_id` names the resume it went out with** (KAN-267,
+  `3aa342c5a064`): "Did You Apply?" sets it through `POST
+  /jobs/{id}/applied`, auto apply's resume step through `link_resume`.
+  NULL means none was sent, or the sent resume was deleted since. **Its
+  foreign key is composite**, `(sent_resume_id, applicant_id)` to
+  `sent_resumes (id, applicant_id)` (`sent_resumes_id_applicant_key`), so
+  the database refuses a link to another applicant's sent resume; that it
+  was sent to this job posting is checked in Python (`sent_to_job`), since
+  `sent_resumes.job_posting_id` is nulled when a posting goes. **Deletion:**
+  deleting the sent resume clears the link alone (`ON DELETE SET NULL
+  (sent_resume_id)`, Postgres 15: a plain SET NULL would null
+  `applicant_id`, a primary key column, and fail), and the application
+  stays; deleting the application (unsave, dequeue) leaves the sent
+  resume; the job posting or the account cascades both. The migration
+  backfilled each applied application with its posting's last sent
+  resume, which the tracker showed until then.
+- An undo is not built. The tracker's later stages
   (interviewing, offer) are Out of scope below.
 
 ## Identity lives in auth.users
