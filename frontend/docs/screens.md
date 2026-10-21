@@ -325,11 +325,10 @@ Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
 may have attached another file on the employer's page. Yes, I Applied keeps
 a resume other than the one sent as a sent resume for this posting first
-(`applyWithResume`), so the page's "You sent <name>" names it, then calls
-`markApplied` (`jobs/actions.ts`); Not Yet closes it. No Resume after a
-send leaves that sent resume as it is: nothing links an application to
-its resume until `job_applications.sent_resume_id` (docs/sent_resume.md,
-step 4). A job already marked is
+(`applyWithResume`), then calls `markApplied` (`jobs/actions.ts`) with
+that sent resume's id, or null for No Resume: the application names it
+(`job_applications.sent_resume_id`), and the tracker shows it. Not Yet
+closes it. A job already marked is
 never asked about again, and anyone else's dialog just closes. The page then
 reads "You applied on Oct 17, 2026" under the header (`AppliedNote`), the
 viewer's own day after hydration. An Applied button in the header did this
@@ -550,10 +549,10 @@ buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
 real link a keyboard reaches. Sorted by Date Applied unless `?sort=` names
 another column (below). Notes / Next Step is a placeholder ("No notes yet") and
 Status is only Saved or Applied until the API stores notes and later
-stages. Resume is the last sent resume linked to the job
-posting (`listSentResumes`, as the posting's own page reads it): Apply and
-auto apply keep one, while the plain Applied button sends none, so it says
-"Not sent". **With one, the cell is View Resume** (KAN-267,
+stages. Resume is the sent resume the application names
+(`sent_resume`, KAN-267): the one picked on "Did You Apply?", or the one
+auto apply attached; "Not sent" when the student said No Resume, applied
+before KAN-267 with nothing sent, or deleted that sent resume. **With one, the cell is View Resume** (KAN-267,
 `applications/view-resume.tsx`): an sm button naming the resume, the cell's
 whole width, that opens it in a dialog over the list. A click anywhere in
 that cell around the button is a near miss and opens nothing (it is
@@ -703,8 +702,9 @@ URL (`?tab=job` for the second):
   as a spreadsheet next to the app's rounded cards. The match sits right of
   the rest from 576px of card and under it below that. Under the card,
   What You Sent lists every sent resume linked to the
-  posting, each as View Resume (above) with its format and a Rebuilt tag
-  for a rebuilt upload, or, with none, a dashed placeholder box (the upload dropzone's
+  posting, each as View Resume (above) with its format, a Rebuilt tag
+  for a rebuilt upload and Applied With on the one the application names,
+  or, with none, a dashed placeholder box (the upload dropzone's
   outline) saying "No resume sent yet". It replaced two lines of
   explanation. Neither Apply nor auto apply keeps the answers typed into
   the employer's form, so the tab cannot show them.

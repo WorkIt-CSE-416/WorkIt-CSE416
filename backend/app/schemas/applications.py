@@ -6,13 +6,24 @@ from pydantic import BaseModel, Field
 
 from app.models.dto import application_stage
 from app.schemas.jobs import Highlight, JobListing
+from app.schemas.sent_resume import SentResumeResponse
 
 
 class JobApplied(BaseModel):
     """GET and POST /jobs/{job_id}/applied: when the signed-in applicant marked
-    this job as applied, or null when they haven't."""
+    this job as applied, or null when they haven't, and the sent resume the
+    application names (KAN-267), or null."""
 
     applied_at: datetime.datetime | None
+    sent_resume_id: uuid.UUID | None = None
+
+
+class MarkApplied(BaseModel):
+    """POST /jobs/{job_id}/applied's optional body: the sent resume the
+    application went out with, or null for none. Leaving the key out keeps
+    the one it names (the route reads `model_fields_set`)."""
+
+    sent_resume_id: uuid.UUID | None = None
 
 
 class JobSaved(BaseModel):
@@ -34,6 +45,9 @@ class Application(BaseModel):
     # When it was queued (or marked applied): the queue's order.
     added_at: datetime.datetime
     applied_at: datetime.datetime | None
+    # The sent resume it went out with (KAN-267): job_applications'
+    # `sent_resume_id`, null when none was sent or it was since deleted.
+    sent_resume: SentResumeResponse | None = None
     # False once the job posting has closed: the extension skips it.
     open: bool
     # The Jobs page's match score (0-100) for this job posting, on ?scored=true

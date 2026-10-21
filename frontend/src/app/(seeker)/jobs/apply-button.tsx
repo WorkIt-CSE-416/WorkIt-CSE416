@@ -54,8 +54,9 @@ function sentKey(sent: SentDownload): string {
  * resume they applied with (KAN-267): the one picked at Apply, else No
  * Resume (Apply Without a Resume), and they can change it, since they may
  * have attached another on the employer's page. A resume other than the one
- * sent is kept as a sent resume for this posting first (`applyWithResume`),
- * so "You sent <name>" names it. It replaced an
+ * sent is kept as a sent resume for this posting first (`applyWithResume`).
+ * Yes names the pick on the application (`markApplied`'s `sentResumeId`),
+ * or none, which the tracker then shows. It replaced an
  * Applied button in the page's header, where one misclick marked a job
  * applied with no undo. It asks only a signed-in applicant (`canMarkApplied`)
  * who has not marked this job already (`applied`).
@@ -182,15 +183,20 @@ export function ApplyButton({
   async function confirmApplied() {
     setBusy(true);
     setError(null);
+    // The sent resume the application names (KAN-267): the one sent at
+    // Apply, one kept now for a different pick, or none.
+    let sentResumeId: string | null = null;
     const choice = choices?.find((c) => c.key === appliedWith);
-    if (choice && (!sent || sentKey(sent) !== choice.key)) {
+    if (choice && sent && sentKey(sent) === choice.key) sentResumeId = sent.id;
+    else if (choice) {
       const kept = await applyWithResume(choice.source, jobId);
       if (!kept.data) {
         setBusy(false);
         return setError(kept.error);
       }
+      sentResumeId = kept.data.id;
     }
-    const result = await markApplied(jobId);
+    const result = await markApplied(jobId, sentResumeId);
     setBusy(false);
     if (result.error) return setError(result.error);
     setOpen(false);

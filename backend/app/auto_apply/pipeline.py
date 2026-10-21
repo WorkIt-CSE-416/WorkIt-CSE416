@@ -20,6 +20,7 @@ from app.auto_apply.queries import (
     fetch_applications,
     fetch_next_application,
     fetch_stage,
+    link_resume,
     pick_resume,
     queue_applications,
     remove_queued,
@@ -267,7 +268,8 @@ async def prepare_resume(
     Only a queued or needs_you application gets one: raises NotFound when
     there is none or its job posting closed, WrongStage when it is skipped or
     applied. A repeat with unchanged content returns the same sent resume, so
-    a run that starts again keeps nothing new. Raises TectonicUnavailable
+    a run that starts again keeps nothing new. The application names the
+    sent resume (`link_resume`, KAN-267). Raises TectonicUnavailable
     when the PDF cannot be made, FileFailed when Storage cannot sign the link.
     """
     stage = await fetch_stage(db, applicant_id, job_id)
@@ -294,13 +296,15 @@ async def prepare_resume(
         # The job posting closed (or its resume went) after the pick.
         raise NotFound("That job isn't open any more.") from exc
 
-    if sent.created:
-        # A failed commit leaves nothing to clean up: a send stores no file.
-        try:
-            await db.commit()
-        except SQLAlchemyError:
-            await db.rollback()
-            raise
+    # The application names what it goes out with (KAN-267), a repeat's
+    # sent resume too, in the same commit. A failed commit leaves nothing to
+    # clean up: a send stores no file.
+    await link_resume(db, applicant_id, job_id, sent.row.id)
+    try:
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
 
     try:
         file = await sent_resumes.open_file(db, storage, sent.row, pdf=sent.pdf)

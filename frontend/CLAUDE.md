@@ -153,9 +153,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The application tracker is live and has no fixture** (KAN-261): saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
   cached per request by `getTracker` in `data.ts`), each with the Jobs
-  page's own match score (`?scored=true`, KAN-256) and the resume last sent
-  to its posting (the sent resumes list; its failure only empties that
-  column), which View Resume opens in a dialog (`applications/view-resume.tsx`,
+  page's own match score (`?scored=true`, KAN-256) and the sent resume the
+  application names (`sent_resume`, KAN-267: "Did You Apply?" sends it
+  through `markApplied`, auto apply links its own), which View Resume opens in a dialog (`applications/view-resume.tsx`,
   KAN-267: `openSentResume`, nothing downloaded). A button inside a
   clickable row or card must not open the application on a near miss: the
   list's cell prevents its clicks and the card's strip sits over the

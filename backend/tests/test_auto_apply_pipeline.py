@@ -203,9 +203,14 @@ def sent_row(**kwargs):
 
 
 def fake_pick(monkeypatch, choice):
+    """Fakes pick_resume, and link_resume after it (the application names
+    the sent resume, KAN-267). Answers the links made."""
     async def pick_resume(db, applicant_id, job_id):
         return choice
     monkeypatch.setattr(pipeline, "pick_resume", pick_resume)
+    links = AsyncMock()
+    monkeypatch.setattr(pipeline, "link_resume", links)
+    return links
 
 
 def fake_send(monkeypatch, name, sent=None, raises=None):
@@ -258,14 +263,16 @@ def test_prepare_resume_sends_an_uploaded_default_as_its_own_file(monkeypatch):
     assert (resume.url, resume.data) == (f"https://storage.test/{row.storage_path}", None)
 
 
-def test_prepare_resume_again_keeps_nothing_new(monkeypatch):
+def test_prepare_resume_again_keeps_nothing_new_and_links_the_same_one(monkeypatch):
     fake_stage(monkeypatch, application_stage.queued)
-    fake_pick(monkeypatch, ResumeChoice(built_resume_id=uuid.uuid4()))
-    fake_send(monkeypatch, "send_built", Sent(sent_row(), created=False))
+    links = fake_pick(monkeypatch, ResumeChoice(built_resume_id=uuid.uuid4()))
+    row = sent_row()
+    fake_send(monkeypatch, "send_built", Sent(row, created=False))
     db = FakeDB()
 
     assert asyncio.run(pipeline.prepare_resume(db, FakeStorage(), APPLICANT, JOB)) is not None
-    db.commit.assert_not_awaited()
+    links.assert_awaited_once_with(db, APPLICANT, JOB, row.id)
+    db.commit.assert_awaited_once()
 
 
 def test_prepare_resume_without_a_resume_is_none(monkeypatch):

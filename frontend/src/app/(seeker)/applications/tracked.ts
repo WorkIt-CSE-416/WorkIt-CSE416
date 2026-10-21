@@ -1,6 +1,6 @@
 import "server-only";
 
-import { listSentResumes, type SentResume } from "@/lib/sent-resume-actions";
+import type { SentResume } from "@/lib/sent-resume-actions";
 
 import { getApplications, type Application as Stored } from "../auto-apply/applications";
 import { formatJobType, formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
@@ -19,39 +19,22 @@ import type { Application } from "../tracker";
  * A failed read is an error, never stand-in cards (backend/CLAUDE.md): the
  * page says they aren't loading.
  *
- * The resume each one sent comes from the sent resumes list (KAN-256): Apply
- * and auto apply keep the resume they attach as a sent resume linked to the
- * job posting. That read failing only empties the Resume column; it never
- * fails the page.
+ * The resume each one went out with is the application's own
+ * (`sent_resume`, KAN-267): "Did You Apply?" and auto apply name it, so it
+ * is the one the student said they sent, not just the last sent to the
+ * posting. Null when none was sent or it was deleted since.
  */
 export async function getTracked(): Promise<
   { applications: Application[]; error: null } | { applications: null; error: string }
 > {
-  const [{ applications, error }, sent] = await Promise.all([
-    getApplications(["saved", "applied"] as const, { scored: true }),
-    listSentResumes(),
-  ]);
+  const { applications, error } = await getApplications(["saved", "applied"] as const, {
+    scored: true,
+  });
   if (applications == null) return { applications: null, error };
-  const resumes = lastSentByJob(sent.data ?? []);
   return {
-    applications: applications.map((stored) =>
-      toApplication(stored, resumes.get(stored.job.id) ?? null),
-    ),
+    applications: applications.map((stored) => toApplication(stored, stored.sent_resume ?? null)),
     error: null,
   };
-}
-
-/** Each job posting's last sent resume. The list comes newest first, so
- *  the first one per posting is the last sent there, as the job posting's
- *  own page reads it. */
-function lastSentByJob(sent: SentResume[]) {
-  const byJob = new Map<string, SentResume>();
-  for (const resume of sent) {
-    if (resume.job_posting_id && !byJob.has(resume.job_posting_id)) {
-      byJob.set(resume.job_posting_id, resume);
-    }
-  }
-  return byJob;
 }
 
 /** Where the job is, as the Jobs page's card prints it ("Bellevue, WA +2

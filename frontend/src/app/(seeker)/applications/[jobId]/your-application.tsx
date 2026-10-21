@@ -177,6 +177,9 @@ export function YourApplication({
                 <ViewResumeButton resume={resume} />
                 <Badge tone="inert">{resume.format.toUpperCase()}</Badge>
                 {resume.rebuilt && <Badge tone="inert">Rebuilt</Badge>}
+                {/* The one the application names (KAN-267): what the
+                    student said they sent, among every send to the posting. */}
+                {app.sentResume?.id === resume.id && <Badge tone="positive">Applied With</Badge>}
                 <span className="text-note text-ink-meta">
                   Sent <LocalDate at={resume.created_at} />
                 </span>
