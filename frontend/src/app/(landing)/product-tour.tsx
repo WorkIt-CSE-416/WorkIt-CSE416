@@ -11,76 +11,48 @@ import {
   useTransform,
 } from "motion/react";
 import Link from "next/link";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ComponentType,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useRef, useState, type ComponentType } from "react";
 
 import { cn } from "@/lib/cn";
 
 import AutoApplyVisual from "./auto-apply-visual";
 import { features, type FeatureId } from "./feature-data";
+import { backdrop as featureBackdrop, FEATURES, type FeatureSlug } from "./features/catalog";
+import { FeatureIcon } from "./features/feature-icon";
+import { Fit } from "./fit";
 import { useMediaQuery } from "./hooks";
 import MatchingVisual from "./matching-visual";
 import ResumeVisual from "./resume-visual";
 import UpdatesVisual from "./updates-visual";
 
 /**
- * Each stop's tab and colours. The colours are the app's own: the advanced
- * blue for resumes, then violet for matching, positive green and the match
- * pink, so each stop reads as its own product while staying in the palette.
- * The order is `features` in feature-data.ts; a stop keeps its colour.
+ * Each stop's tab, animation and feature page. A stop's colours are its
+ * page's (features/catalog.ts), so the tour and the feature pages match:
+ * the advanced blue for resumes, then violet for matching, positive green
+ * and the match pink, each stop its own product within the palette. The
+ * order is `features` in feature-data.ts; a stop keeps its colour.
  */
 const STOPS: Record<
   FeatureId,
-  { label: string; icon: LucideIcon; Visual: ComponentType; tint: string; glow: string }
+  { label: string; icon: LucideIcon; Visual: ComponentType; page: FeatureSlug }
 > = {
-  matching: {
-    label: "Matching",
-    icon: Target,
-    Visual: MatchingVisual,
-    tint: "var(--color-brand-tint)",
-    glow: "var(--color-brand)",
-  },
-  resumes: {
-    label: "Resumes",
-    icon: FileText,
-    Visual: ResumeVisual,
-    tint: "var(--color-advanced-tint)",
-    glow: "var(--color-advanced)",
-  },
+  matching: { label: "Matching", icon: Target, Visual: MatchingVisual, page: "matching" },
+  resumes: { label: "Resumes", icon: FileText, Visual: ResumeVisual, page: "resumes" },
   "auto-apply": {
     label: "Auto Apply",
     // The app's own Auto Apply glyph (the Jobs page's filters, the sidebar).
     icon: Zap,
     Visual: AutoApplyVisual,
-    tint: "var(--color-positive-tint)",
-    glow: "var(--color-positive)",
+    page: "auto-apply",
   },
-  updates: {
-    label: "Updates",
-    icon: Bell,
-    Visual: UpdatesVisual,
-    tint: "var(--color-danger-tint)",
-    glow: "var(--color-match-good)",
-  },
+  // The Application Tracker's page shows this stop's animation.
+  updates: { label: "Updates", icon: Bell, Visual: UpdatesVisual, page: "tracker" },
 };
 
 /** A stop's soft, two-blob gradient over its tint. */
 function backdrop(id: FeatureId) {
-  const { tint, glow } = STOPS[id];
-  const blob = (amount: number) => `color-mix(in oklab, ${glow} ${amount}%, transparent)`;
-  return `radial-gradient(55% 65% at 12% 18%, ${blob(38)}, transparent), radial-gradient(50% 60% at 88% 85%, ${blob(30)}, transparent), radial-gradient(40% 50% at 70% 10%, white, transparent), ${tint}`;
+  return featureBackdrop(FEATURES[STOPS[id].page]);
 }
-
-/** How far `Fit` may scale a pinned stop's visual up: the stories are drawn
- * at 520px wide, small type included, so past this their 10px labels read
- * as display type. */
-const MAX_FIT = 1.5;
 
 // Tailwind's lg breakpoint: pinned from here up, stacked below it.
 const DESKTOP_QUERY = "(min-width: 64rem)";
@@ -108,69 +80,6 @@ export function ProductTour() {
         {isDesktop !== true && <StackedTour />}
       </section>
     </MotionConfig>
-  );
-}
-
-/**
- * Scales a visual to fit: to the height and width of `box` (the pinned
- * visual area, minus its padding), up to `MAX_FIT`, or down to its own
- * width when there is no box (the stacked stops). So a tall visual such as
- * the resume card fits a short laptop screen instead of losing its top and
- * bottom to the area's overflow clip, and on a big screen the stories fill
- * their area instead of floating small in the middle of it (the team found
- * them too small at 1x). A transform from the top, with the space it
- * frees or takes evened out by the bottom margin, so the content keeps its
- * own layout. The stacked stops never scale up.
- */
-function Fit({ box, children }: { box?: RefObject<HTMLDivElement | null>; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [fit, setFit] = useState(1);
-  const [height, setHeight] = useState(0);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const area = box?.current ?? el.parentElement;
-    if (!area) return;
-    const measure = () => {
-      const style = getComputedStyle(area);
-      const roomW =
-        area.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      const roomH = box
-        ? area.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
-        : Infinity;
-      // offsetWidth and offsetHeight ignore the transform, so these are the
-      // unscaled sizes. The child's width, not the wrapper's: the wrapper
-      // stretches to the area, while a wide visual overflows it.
-      const child = el.firstElementChild as HTMLElement | null;
-      const w = child?.offsetWidth ?? 0;
-      const h = el.offsetHeight;
-      setHeight(h);
-      setFit(w > 0 && h > 0 ? Math.min(box ? MAX_FIT : 1, roomW / w, roomH / h) : 1);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    observer.observe(area);
-    return () => observer.disconnect();
-  }, [box]);
-
-  return (
-    <div
-      ref={ref}
-      className="flex w-full justify-center"
-      style={
-        fit !== 1
-          ? {
-              transform: `scale(${fit})`,
-              transformOrigin: "top center",
-              marginBottom: -height * (1 - fit),
-            }
-          : undefined
-      }
-    >
-      {children}
-    </div>
   );
 }
 
@@ -345,31 +254,41 @@ function StackedTour() {
   );
 }
 
-/** A stop's label chip, title, description and link. */
+/** A stop's label chip, title, description and links. */
 function StopCopy({ id }: { id: FeatureId }) {
   const feature = features.find((item) => item.id === id) ?? features[0];
-  const { icon: Icon, label, glow } = STOPS[id];
+  const { icon: Icon, label, page } = STOPS[id];
+  const { glow, href, name } = FEATURES[page];
   return (
     <>
       <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
-        <span
-          className="flex size-6 items-center justify-center rounded-md text-white"
-          style={{ background: glow }}
-        >
-          <Icon className="size-3.5" aria-hidden="true" />
-        </span>
+        <FeatureIcon feature={{ icon: Icon, glow }} />
         {label}
       </p>
       <h2 className="text-ink mt-4 text-3xl font-semibold tracking-tight text-balance">
         {feature.title}
       </h2>
       <p className="text-ink-meta mt-3 text-pretty">{feature.description}</p>
-      <Link
-        href="/signup"
-        className="text-ink mt-6 inline-flex items-center gap-1.5 border-b border-current pb-0.5 text-sm font-medium"
-      >
-        Try it free <span aria-hidden="true">→</span>
-      </Link>
+      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-medium">
+        <Link
+          href="/signup"
+          className="text-ink inline-flex items-center gap-1.5 border-b border-current pb-0.5"
+        >
+          Try it free <span aria-hidden="true">→</span>
+        </Link>
+        <Link
+          href={href}
+          className="group text-ink-meta hover:text-ink inline-flex items-center gap-1.5 border-b border-transparent pb-0.5 transition-colors duration-200 hover:border-current"
+        >
+          Learn more<span className="sr-only"> about {name}</span>
+          <span
+            aria-hidden="true"
+            className="transition-transform duration-200 group-hover:translate-x-0.5"
+          >
+            →
+          </span>
+        </Link>
+      </div>
     </>
   );
 }

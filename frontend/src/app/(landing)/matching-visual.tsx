@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import Image from "next/image";
 import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "motion/react";

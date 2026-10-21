@@ -11,20 +11,17 @@ export const site = {
   tagline: "Where candidates and recruiters finally share a platform.",
   primaryCta: { label: "Get started for free", href: "/signup" },
   login: { label: "Log in", href: "/login" },
-  // The site's Features, Resources and Pricing pages are not part of the
-  // app, so the header links to this page's own sections.
-  nav: [
-    { label: "Features", href: "#features" },
-    { label: "Applications", href: "#applications" },
-    { label: "FAQ", href: "#faq" },
-  ],
+  pricing: { label: "Pricing", href: "/pricing" },
+  // The header's Product menu and the footer's Features column list the
+  // feature pages from features/catalog.ts; these are the footer's other
+  // columns.
   footer: [
     {
       title: "Product",
       links: [
-        { label: "Features", href: "#features" },
-        { label: "Applications", href: "#applications" },
-        { label: "FAQ", href: "#faq" },
+        { label: "Overview", href: "/" },
+        { label: "Pricing", href: "/pricing" },
+        { label: "FAQ", href: "/#faq" },
       ],
     },
     {

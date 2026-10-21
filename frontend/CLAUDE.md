@@ -198,7 +198,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `score-tone.ts`, from the positive, warning and danger tokens), not the
   app's magenta match bands: the team wanted the hero to show a spread of
   fits at a glance. In the
-  pinned product tour, `Fit` scales a visual to the visual area's height
+  pinned product tour, `Fit` (`fit.tsx`, shared with the feature pages'
+  stage) scales a visual to the visual area's height
   and width, up to 1.5x (and, in the stacked stops, down to their width
   only), so the 520px-wide stories fit a short laptop screen and fill a
   big one: at 1x they sat small in an area of empty colour, which the team
@@ -216,13 +217,59 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   (`motion/react`), which only this route imports; the feature animations
   expect the tour's `MotionConfig reducedMotion="user"` around them. What
   differs from the site, and why: the Applicant / Company switcher is left
-  out while the business side is hidden; nav and footer link to this
-  page's sections, since the site's other pages are not in the app; the
+  out while the business side is hidden; the nav and footer link to the
+  marketing pages (next bullet), not to this page's sections; the
   waitlist form became a sign-up link, since its email went through the
   site's own server; every call to action goes to `/signup`, `/login` or
   `signInWithOAuth`. The testimonial still holds the site's placeholder
   copy; never fill it with an invented quote. The FAQ answers are product
   claims, each tied to its source in a comment in `data.ts`.
+- **The marketing site is the home page, a page per feature and Pricing**,
+  all in `app/(landing)/`, after Linear, Notion and Calendly. The home page
+  is the overview. The header reads Product ▾, Pricing, Log in and Get
+  started; its old anchor links (Features, Applications, FAQ) are gone.
+  **The feature list is `features/catalog.ts`**: each feature page's slug,
+  name, icon and colour, in menu order. The Product menu, the phone menu,
+  the footer's Features column, each page's related-feature cards and the
+  tour's "Learn more" links all read it, and the tour's stops take their
+  colours from it, so a feature wears one colour and one mark
+  (`FeatureIcon`) everywhere. Tracker shows the tour's Updates animation
+  in its pink; Scout had no stop, so it took amber, the one app colour
+  left free. **One template, one content file per feature**:
+  `features/[slug]/page.tsx` is the route (`generateStaticParams` lists
+  the five slugs and `dynamicParams = false` makes any other a 404; the
+  metadata comes from each content file), and `features/feature-page.tsx`
+  draws every one: hero, the animation shown large, three or four deep
+  dives, How it works, the other features, an FAQ and a closing call to
+  action. Each page's copy and visuals live in its own
+  `features/content/<slug>.ts` (the shape is `features/types.ts`), so
+  writing one page never touches another's file; all five exist, and
+  `content/index.ts`, which maps them, is never edited per page. A content
+  file's `line` is also the Product menu's line under the name. Its copy
+  is a product claim like the FAQ's: auto apply fills one application at
+  a time and the student clicks Submit on each, so no page says WorkIt
+  submits or applies in parallel. Until each page's own session rewrites
+  it, a file holds stub copy, marked as such at its top. A content file
+  imports its animation, a client component (the four tour visuals carry
+  `"use client"` so a server file can import them); the template wraps it
+  in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`. A
+  page with no animation (Scout, for now), or a deep dive with no
+  `visual`, shows a placeholder in the feature's colour. The hero and the
+  closing call to action use `SocialSignUpButton` (`social-sign-up.tsx`,
+  shared with the home hero) and the FAQ is `FaqList` (`faq-list.tsx`).
+  **The Product menu** (`product-menu.tsx`) is a disclosure with
+  `aria-expanded`, not an ARIA menu, since its items are links: a mouse
+  hover opens it, a click pins it, Esc closes it and returns focus, and
+  tabbing out, a click outside, a link inside or a route change closes it.
+  `header.tsx` draws its panel on the server and passes it in, so the
+  content files never reach the browser. Its foot row links to the home
+  page's `#hiring-systems` until that has a page. **The bar's white fill
+  is a layer behind the nav, not the nav's parent**: with `backdrop-blur`
+  on an ancestor, that ancestor is the panel's backdrop root, and the
+  panel's own blur would see nothing behind it. The phone menu is the
+  native popover in `mobile-menu.tsx`, which also closes when one of its
+  links is followed: the header stays mounted from page to page, so an
+  open popover would sit over the next page.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its

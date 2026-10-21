@@ -1,6 +1,17 @@
+import Link from "next/link";
+
 import { Logo } from "@/components/logo";
 
 import { site } from "./data";
+import { featurePages } from "./features/catalog";
+
+const COLUMNS = [
+  {
+    title: "Features",
+    links: featurePages.map((page) => ({ label: page.name, href: page.href })),
+  },
+  ...site.footer,
+];
 
 /**
  * A dark rounded panel inset from the window, like the bands above it, that
@@ -21,18 +32,18 @@ export function Footer() {
             <Logo size="card" className="mt-10 brightness-0 invert" />
           </div>
 
-          {site.footer.map((column) => (
+          {COLUMNS.map((column) => (
             <div key={column.title}>
               <h2 className="text-sm font-semibold">{column.title}</h2>
               <ul className="mt-4 grid gap-3">
                 {column.links.map((link) => (
                   <li key={link.href}>
-                    <a
+                    <Link
                       href={link.href}
                       className="text-sm text-white/65 transition-colors hover:text-white"
                     >
                       {link.label}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
