@@ -1,0 +1,36 @@
+name: Deploy to Cloudflare
+
+# The app runs on Cloudflare Workers Paid through OpenNext at workitjobs.ai
+# (docs/adr/0004-host-on-cloudflare.md). Vercel stays live until KAN-296.
+on:
+  push:
+    branches: [main, "kan-169-*"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+      # NEXT_PUBLIC_* are inlined at build time, so they come in here, not as
+      # Worker secrets. Both are public by design (the anon key and URL).
+      - run: npm run cf:build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      - run: npm run cf:deploy
