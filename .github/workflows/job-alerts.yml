@@ -1,0 +1,68 @@
+name: Job alerts
+
+# Sends KAN-298's daily job-match digest (bell notification + email) to
+# every applicant who opted in under Settings. Root CLAUDE.md's CI section
+# and .github/CLAUDE.md's own "Job alerts" section explain the schedule,
+# the secrets it needs and how it fails.
+on:
+  schedule:
+    # Off the hour, same reasoning as scrape.yml's own cron: GitHub delays,
+    # and under load drops, runs scheduled on it. Late morning ET.
+    - cron: "13 13 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and report every digest; write and send nothing"
+        type: boolean
+        default: false
+  # A change to the digest or this file proves the whole path once, always
+  # as a dry run, before it merges.
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/job-alerts.yml"
+      - "backend/app/scripts/send_job_alerts.py"
+      - "backend/app/services/job_alerts.py"
+      - "backend/app/services/email.py"
+      - "backend/app/models/notification.py"
+
+# One run at a time: two runs at once would double-send the same applicant.
+concurrency:
+  group: job-alerts
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  send-job-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install the backend
+        working-directory: backend
+        run: uv sync --locked
+
+      - name: Send today's digests
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EMBEDDING_PROVIDER: gemini
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          WEB_URL: https://workit-web-gamma.vercel.app
+          DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          uv run python -m app.scripts.send_job_alerts ${DRY_RUN:+"$DRY_RUN"}

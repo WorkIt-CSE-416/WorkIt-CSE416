@@ -568,6 +568,24 @@ Find files with a directory listing; these are the rules for where code goes.
   on top of the spec's four shares, which already fill the pool, so a busy
   day can overshoot the pool by that much). Tests:
   `tests/test_editor_assistant.py`.
+- **The daily job-alert digest** (KAN-298) is
+  `app/scripts/send_job_alerts.py`, run by `.github/workflows/job-alerts.yml`
+  (`.github/CLAUDE.md`), over `services/job_alerts.py`. It reuses auto
+  apply's own matching, not a second implementation:
+  `build_digest` calls `routers/jobs.py`'s `fetch_recommended` and
+  `auto_apply/rules.py`'s `pick_batch` exactly as `auto_apply/pipeline.py`'s
+  own `_matches` does, at the same `MIN_MATCH`/`BATCH_SIZE` (imported, not
+  retyped), just without `auto_apply_only=True` — a digest links to
+  WorkIt's own `/jobs/{id}` page, never `apply_url`, so it needs no
+  ATS-specific knowledge. `send_job_alert` writes one `notifications` row
+  (`models/CLAUDE.md`, "notifications") and sends one email through
+  `services/email.py`'s `send_email` (Resend's HTTP API, the one place a
+  provider swap would touch) from the same computed list — never scored
+  twice. Gated by `applicant_profiles.job_alerts_enabled`, the Settings
+  opt-in, default off. One applicant's failure (empty bank, a bounced
+  email) is caught and counted, never stopping the run; `--dry-run` builds
+  and reports every digest, writing and sending nothing. Tests:
+  `tests/test_job_alerts.py`, `tests/test_notifications.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.

@@ -16,6 +16,9 @@ export type ApplicantProfile = {
   portfolio_url: string | null;
   github_url: string | null;
   other_url: string | null;
+  /** KAN-298: the Settings opt-in for the daily job-match digest (bell and
+   *  email alike). Off until the student turns it on. */
+  job_alerts_enabled: boolean;
 };
 
 export async function getProfile(): Promise<{

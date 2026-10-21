@@ -93,6 +93,17 @@ class Settings(BaseSettings):
     # stays out of this build.
     scraper_feed: Path = Field(default_factory=default_scraper_feed)
 
+    # KAN-298's daily job-alert email, sent through Resend's HTTP API
+    # (app/services/email.py) — isolated there so swapping providers later
+    # changes one file, never a caller. Unset in dev: send_email logs and
+    # returns False rather than raising, same principle every other
+    # best-effort external call in this app already follows.
+    resend_api_key: str | None = None
+    # Where a job-alert email's links point — the production app by
+    # default, overridden in the scheduled workflow's own env for a
+    # preview or local run.
+    web_url: str = "https://workit-web-gamma.vercel.app"
+
     @property
     def app_url(self) -> str:
         if not self.database_url:
