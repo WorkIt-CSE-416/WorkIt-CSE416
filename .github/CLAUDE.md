@@ -31,9 +31,9 @@ Every push to `main` deploys both halves to Cloudflare Workers Paid
 (`../docs/adr/0004-host-on-cloudflare.md`): the API job builds
 `backend/Dockerfile` into a Container behind the Worker in
 `backend/cloudflare/` (`api.workitjobs.ai`), and the web job builds the app
-with OpenNext and deploys it (`workitjobs.ai`). Pushes to `kan-169-*` branches
-deploy too, so the migration could be tried before merge; drop that pattern
-once KAN-169 merges, or every branch push of it overwrites production.
+with OpenNext and deploys it (`workitjobs.ai`). A branch never deploys on
+push, because each deploy overwrites production. To try one before merge, run
+it by hand: `gh workflow run deploy.yml --ref <branch>`.
 
 - **Secrets:** `CLOUDFLARE_API_TOKEN` (account token from the "Edit Cloudflare
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`

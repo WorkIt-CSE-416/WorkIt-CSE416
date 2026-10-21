@@ -5,7 +5,7 @@ name: Deploy to Cloudflare
 # behind a Worker at api.workitjobs.ai. Vercel stays live until KAN-296.
 on:
   push:
-    branches: [main, "kan-169-*"]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
