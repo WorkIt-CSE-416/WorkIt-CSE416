@@ -307,7 +307,9 @@ round. A failed Undo says so in a toast and leaves the button Queued.
 A click that leaves the job queued then runs Start Auto Apply's pipeline
 without the matching: it asks the extension to open the oldest queued job
 in a background tab beside this one (`openNextApplication`), which is this
-job only when nothing older waits. It runs after the click settles, so the
+job only when nothing older waits, and the extension starts its fill there
+(the popup's fill; its overlay in the tab says what was filled). A failed
+fill shows nothing here yet. It runs after the click settles, so the
 button never waits on a page load; only a failure shows, as a line above
 the button (no extension stays silent). The job open in that tab reads
 **Working in Browser** (the AppWindow glyph) on every card that shows it,
@@ -777,8 +779,9 @@ application's page in a background tab beside this one
 (`openNextApplication` in `src/lib/autofill-extension.ts`, the message
 `run/open`), and the note says so, or why not (no extension, signed out) in
 red (`auto-apply/opened-note.ts`, shared with the job card). A tab already
-on that job stays as it is, so Start never wipes a form in progress. Pause
-and Resume only move the state: nothing fills a form yet. It is off until
+on that job stays as it is, so Start never wipes a form in progress. A tab
+the extension opens, it also fills (KAN-305). Pause and Resume only move
+the state. It is off until
 the Resume List has a resume (the panel holds both lists' read,
 `useResumes`, for that), and while a batch is queueing. It never waits on
 the tab's page load: the note says how many jobs it queued at once and adds
