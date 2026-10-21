@@ -323,7 +323,21 @@ window.WIA = window.WIA || {};
    * cleanly enough (field-map.js's "willing_to_relocate" rule) that it's
    * now handled by the generic engine instead, for every posting, not
    * just this one.
-   * @type {Record<number, Record<string, { label: string, value: string }>>}
+   *
+   * A "Which location(s) would you want to be considered for?" field is
+   * never answered with a made-up city here, the way `candidate-location`
+   * above is — this posting's own override already states a real one, so
+   * when a sibling field like that exists, `value` should be the real
+   * office names this posting's own dropdown/multi-select offers, ordered
+   * nearest the override's `candidate-location` first: `lib-fill.js`'s
+   * `fillField` already tries an array of candidates in order and keeps
+   * the first one the field actually accepts, the exact mechanism
+   * `field-map.js`'s `referral_source` rule uses for the same reason — no
+   * new fill logic needed, only the right list of real city names for
+   * that one posting. No posting checked so far has asked this question
+   * alongside a hardcoded location, so there's no live example yet; add
+   * one here, in this shape, the day one does.
+   * @type {Record<number, Record<string, { label: string, value: string | string[] }>>}
    */
   const POSTING_OVERRIDES = {
     8293641: {

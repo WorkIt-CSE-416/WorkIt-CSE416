@@ -12,6 +12,11 @@ POST /applicants/{id}/essay-answer  EssayAnswerRequest -> EssayAnswerResponse
      check. 429 at the essay limit; 503 when the model fails or answers out
      of schema; 422 when the model's draft invents a fact the bank doesn't
      hold (nothing counted in either failure case).
+
+     A question `essay_answer.general_answer` recognizes (start date,
+     location preference — a personal/logistics question no bank fact
+     could ever ground) skips the model and the quota entirely: free, and
+     answered even at the essay limit, since it never spends an ESSAY use.
 """
 
 import uuid
@@ -51,6 +56,18 @@ async def generate_essay_answer(
     assert_applicant_owns(account, applicant_id)
 
     left = await uses_left(session, applicant_id, Feature.ESSAY)
+
+    # A known personal/logistics question (start date, location
+    # preference, ...) answers directly with no model call and no bank
+    # read at all — free, and never blocked by an exhausted daily limit,
+    # the same "free, for every student" precedent the keyword match's
+    # cache hit already sets (../services/essay_answer.py's `generate`
+    # still refuses to invent one of these from the bank, for every other
+    # question, which is why this check exists in the first place).
+    general = essay_answer.general_answer(body.question)
+    if general is not None:
+        return EssayAnswerResponse(answer=general, uses_left=left)
+
     if left <= 0:
         raise HTTPException(429, AI.spent)
 
