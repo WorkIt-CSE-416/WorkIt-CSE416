@@ -20,6 +20,9 @@
     },
   ],
   "routes": [{ "pattern": "workitjobs.ai", "custom_domain": true }],
+  // Served on the custom domain only. The account has no workers.dev
+  // subdomain yet, and the CI token cannot read one.
+  "workers_dev": false,
   // Server-only and not secret. NEXT_PUBLIC_* do not belong here: Next
   // inlines them at build time, so they must be set where the build runs.
   "vars": {
