@@ -470,6 +470,71 @@ rather than patched after the fact:
   both required and empty or mis-filled. An empty optional field is
   `"skipped"` — present in the overlay, not alarming.
 
+## A rule can offer an ordered list of candidates, not just one value
+
+"How did you hear about this job?" (confirmed live on Braze's posting, a
+required field) has no WorkIt profile data to answer honestly — unlike
+every other `simpleFieldRules` entry in `field-map.js`, which all read a
+real saved value. The honest answer is WorkIt itself, so this field names
+it directly rather than reporting a failure for a field nothing in the
+profile could ever fill. But the right literal text depends on whether the
+field can hold any string or only one from a fixed list, and `field-map.js`
+never sees the DOM element — it classifies by label text alone.
+
+`lib-fill.js`'s `fillField` now accepts `value: string | string[]` for
+exactly this: a plain string behaves exactly as before, and an array is
+tried in order, first success wins. This needed no new "what kind of field
+is this" detection in `field-map.js` at all — the existing success/failure
+semantics of each fill strategy already encode the distinction. `fillText`
+only ever fails on a field that can't hold text, so a free-text field
+accepts `"WorkIt"` (the first candidate) immediately; `fillSelect`/
+`fillCombobox` fail the moment nothing in the option list matches, so a
+dropdown falls through to `"Job Board"` — the generic option nearly every
+such field's own list already offers — without `field-map.js` ever
+checking `field instanceof HTMLSelectElement` itself. One mechanism, no
+field-type branching at the rule level; promote any other field with an
+honest-but-not-personal-data answer to this same shape rather than a bare
+string the day one comes up.
+
+## A field the fill loop reveals mid-pass still gets filled
+
+Found live on The Allen Institute for AI's Greenhouse posting: the EEOC
+"Please identify your race" combobox doesn't exist in the DOM at all until
+"Are you Hispanic/Latino?" has an answer. `content-script.js`'s fill loop
+snapshots every field once, before it fills anything (`dom.findFormFields`),
+so a field Greenhouse only renders in response to an earlier answer was
+invisible to a plain `for...of` over that snapshot — it would never get its
+own turn, no matter how correct `field-map.js`'s `race` rule already was.
+
+The loop is an index loop (`for (let i = 0; i < fields.length; i++)`) with a
+`try`/`finally` around each field's body: the `finally` re-queries
+`dom.findFormFields(document)` after every field, regardless of which
+`continue` fired, and pushes anything not already in `fields` onto the same
+array. `i < fields.length` re-reads that array's current length each pass,
+so a field appended this way gets its own iteration later in the same loop
+— and a reveal chain more than one field deep (an answer that reveals a
+field whose own answer reveals another) still terminates correctly, since
+each new field is itself subject to the same re-scan. General, not
+Greenhouse- or race-specific: any ATS with a conditionally-revealed field
+is covered by the same mechanism.
+
+## Posting-specific overrides are a last resort, in `ats-greenhouse.js` only
+
+`ats-greenhouse.js`'s `POSTING_OVERRIDES`, keyed by Greenhouse's own job id
+(the number at the end of `.../jobs/<id>` — stable per posting, confirmed
+live), fills one specific posting's fields that have no honest general
+answer: a field with no WorkIt data source at all (Ai2's "Location (City)",
+since no part of WorkIt tracks a student's city — not even their own
+profile), or that posting's own one-off custom question wording a synonym
+rule would be too narrow to justify adding generally. **Promote an entry
+out of here the moment it generalizes** — "willing to relocate" started as
+an override here and moved to a real `field-map.js` rule once it was clear
+most postings phrase that question close enough to match one synonym list;
+Ai2's own override for it was deleted in the same change. Delete an entry
+outright once its posting is gone or done with, rather than leaving it to
+accumulate — this map is for "get one specific application unblocked right
+now," not a growing per-company config.
+
 ## Repeated sections: clicking "Add" and filling every entry, not just the first
 
 Found live on a real Workday application (not the sample form): a second
