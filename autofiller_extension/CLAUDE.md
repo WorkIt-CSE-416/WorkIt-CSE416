@@ -150,6 +150,13 @@ Browser": `run/status` answers which job posting the run's tab shows
   form is ready, and the dropdowns fill (confirmed live). Switching back
   to the WorkIt tab after the fill was built and dropped: it didn't help,
   since the student reviews this form next anyway.
+- **The overlay puts itself back when the page removes it.** Once the
+  runner showed the tab and filled at once, the fields filled but the
+  panel never appeared: the fill landed as Greenhouse's React app took
+  over the document (hydration), which drops nodes it didn't render.
+  `overlay.js`'s `keepAttached` watches the whole document and appends the
+  same host again, to whichever `<html>` exists. Anything else this
+  extension adds to a page needs the same guard.
 - **`run/open` never reloads or refills the application already open.**
   When the run's tab shows the next application's job posting, it is left
   as it is (`fill: "kept"`): a second click (another card, Start again)
