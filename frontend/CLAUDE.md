@@ -243,17 +243,21 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   bold, then what the plan gives. Each card's top is a tint and a pattern
   that fade out by mid-card (`CARD_TOPS`: dots, tiles, crosses), after a
   reference the team liked; a pattern is an SVG mask painted in a token
-  colour (`Pattern`), and the hero repeats the tiles faintly behind its
-  heading. Plus is filled violet, the one card the eye should land on, with
-  white tiles and a tilted "Recommended" badge over its top edge, so no card
-  may take `overflow-hidden`. Plus first had soft circles, which read as a
-  sun, then silk ribbons, which gave way so all three cards share one motif.
-  The other two are `.glass-card` over the hero panel's blobs. Two cascade
-  traps: `.glass-card` and `.landing :focus-visible` are unlayered, so they
-  beat any Tailwind utility; a ring on a glass card loses to its box-shadow
-  (use an outline), and a focus colour needs `!`. The Monthly / 3 months
-  switch is two native radios, and the prices read the checked one with
-  `group-has-[...]`, so the page ships no script for it.
+  colour (`Pattern`). Colour means one thing on this page, the recommended
+  plan: Free and Pro share one light violet top (`PLAIN_TOP`), and the
+  hero's blobs are violet only and the same on both sides, since a magenta
+  blob once showed through Pro's glass as pink and the team found the
+  colours arbitrary. The team also had a tile grid and rings removed from
+  behind the heading. Plus is filled violet, the one card the eye should
+  land on, with white tiles and a tilted "Recommended" badge over its top
+  edge, so no card may take `overflow-hidden`. Plus first had soft circles,
+  which read as a sun, then silk ribbons, which gave way so all three cards
+  share one motif. The other two are `.glass-card` over the hero panel's
+  blobs. Two cascade traps: `.glass-card` and `.landing :focus-visible` are
+  unlayered, so they beat any Tailwind utility; a ring on a glass card loses
+  to its box-shadow (use an outline), and a focus colour needs `!`. The
+  Monthly / 3 months switch is two native radios, and the prices read the
+  checked one with `group-has-[...]`, so the page ships no script for it.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
