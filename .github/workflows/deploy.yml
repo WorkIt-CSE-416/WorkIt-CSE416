@@ -32,13 +32,6 @@ jobs:
       # wrangler builds backend/Dockerfile (context: the repo root) with the
       # runner's Docker and pushes it to Cloudflare's registry.
       - run: npm run deploy
-      - name: Probe the Containers API
-        if: failure()
-        run: |
-          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/containers/me"
-          echo
-          grep -h -B2 -A8 'containers/me' ~/.config/.wrangler/logs/*.log | grep -iv 'authorization\|bearer' | tail -40 || true
       # One JSON secret holds every runtime value; bulk sets them all and
       # rolls a new version (.github/CLAUDE.md, "Deploy to Cloudflare").
       - name: Set runtime secrets
