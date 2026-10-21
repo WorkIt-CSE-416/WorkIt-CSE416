@@ -19,7 +19,12 @@ fi
 tmp=$(mktemp -d)
 printf 'export default { fetch() { return new Response("deploying", { status: 503 }); } };\n' > "$tmp/placeholder.js"
 printf '{"main_module":"placeholder.js","compatibility_date":"2026-09-01"}' > "$tmp/metadata.json"
-curl -fsS -X PUT -H "$auth" "$api/scripts/$name" \
+status=$(curl -sS -o "$tmp/out.json" -w '%{http_code}' -X PUT -H "$auth" "$api/scripts/$name" \
   -F "metadata=@$tmp/metadata.json;type=application/json" \
-  -F "placeholder.js=@$tmp/placeholder.js;type=application/javascript+module" >/dev/null
+  -F "placeholder.js=@$tmp/placeholder.js;type=application/javascript+module")
+if [[ "$status" != 2* ]]; then
+  echo "creating $name failed with HTTP $status:"
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("errors"))' "$tmp/out.json"
+  exit 1
+fi
 echo "$name created as a placeholder"
