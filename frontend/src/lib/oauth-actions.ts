@@ -26,7 +26,10 @@ export type OAuthProvider = "google" | "linkedin_oidc";
 export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
   const headersList = await headers();
   const host = headersList.get("x-forwarded-host") ?? headersList.get("host");
-  const protocol = headersList.get("x-forwarded-proto") ?? "http";
+  // Plain http only on a local machine; a deployed host is https even when a
+  // proxy in front of it leaves x-forwarded-proto off.
+  const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host ?? "");
+  const protocol = headersList.get("x-forwarded-proto") ?? (isLocal ? "http" : "https");
   const origin = `${protocol}://${host}`;
 
   const supabase = await createSupabaseServerClient();
