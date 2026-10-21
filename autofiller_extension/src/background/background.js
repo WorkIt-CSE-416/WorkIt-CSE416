@@ -7,7 +7,7 @@
 // comment explains why) — just the cache.
 
 import { getSession } from "./auth.js";
-import { getAutofillProfile, ApiError } from "./api.js";
+import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
 import { openNextApplication, runStatus, showRunTab } from "./runner.js";
 
 /** @param {{ type: string, [key: string]: any }} message */
@@ -21,6 +21,16 @@ async function handleMessage(message) {
     case "profile/get": {
       const profile = await getAutofillProfile({ force: Boolean(message.force) });
       return { profile };
+    }
+
+    case "essay/generate": {
+      const { answer, uses_left } = await generateEssayAnswer(message.applicantId, {
+        question: message.question,
+        companyName: message.companyName,
+        jobTitle: message.jobTitle,
+        maxLength: message.maxLength,
+      });
+      return { answer, usesLeft: uses_left };
     }
 
     default:

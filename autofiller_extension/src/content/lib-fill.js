@@ -106,6 +106,44 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * Types `value` into a combobox one character at a time, with a real
+   * keydown/input/keyup around each one — not the single bulk value-set
+   * setNativeValue does for a plain text field. Confirmed necessary live on
+   * Greenhouse: its comboboxes are built with react-select, which only
+   * opens its listbox (and sets the aria-controls pointing to it) in
+   * response to real per-character input — a single native-setter-plus-one-
+   * generic-"input"-event left aria-expanded stuck at "false" and
+   * aria-controls never set, so fillCombobox's listbox lookup fell through
+   * to whatever unrelated [role=listbox] happened to already exist on the
+   * page (on one real posting: the phone field's country-code picker) and
+   * never matched, no matter how correct the typed value was. react-select
+   * is common enough across ATS vendors that this needs to be the default
+   * typing strategy for every combobox, not a Greenhouse-specific path.
+   * @param {HTMLInputElement} field
+   * @param {string} value
+   */
+  async function typeIntoCombobox(field, value) {
+    field.focus();
+    nativeInputValueSetter.call(field, "");
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+
+    for (const ch of value) {
+      const next = field.value + ch;
+      field.dispatchEvent(new KeyboardEvent("keydown", { key: ch, bubbles: true }));
+      nativeInputValueSetter.call(field, next);
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, data: ch, inputType: "insertText" }));
+      field.dispatchEvent(new KeyboardEvent("keyup", { key: ch, bubbles: true }));
+      // Deliberately sequential and slightly paced, not Promise.all — mimics
+      // real typing cadence for a debounced search handler that only fires
+      // once input goes quiet, and gives a remote-search field (e.g. a
+      // school-name lookup hitting a real API) a moment between keystrokes
+      // rather than firing the whole string as one burst.
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+
+  /**
    * Custom dropdown/combobox widgets (role="combobox", often paired with a
    * role="listbox" that only exists in the DOM while open) — the pattern
    * every vendor in the architecture research uses: type into the field to
@@ -123,8 +161,12 @@ window.WIA = window.WIA || {};
    * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
    */
   async function fillCombobox(field, value) {
-    const textResult = fillText(field, value);
-    if (!textResult.ok) return textResult;
+    if (field instanceof HTMLInputElement) {
+      await typeIntoCombobox(field, value);
+    } else {
+      const textResult = fillText(field, value);
+      if (!textResult.ok) return textResult;
+    }
 
     const listboxId = field.getAttribute("aria-controls");
     const findOptions = () => {
@@ -157,6 +199,38 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * Attaches a file to a native `<input type="file">` — the only way a
+   * script can: `.value` is read-only on a file input, and assigning a
+   * plain array to `.files` is rejected outright, so a real `FileList` has
+   * to come from a `DataTransfer`, same as a user's own file picker
+   * produces. Dispatching "change" afterward is what tells a framework
+   * (Greenhouse's own resume-upload widget included) that a file was
+   * chosen, same principle as setNativeValue above for text fields.
+   * @param {Element} field
+   * @param {{ filename: string, mimeType: string, base64: string }} resume
+   * @returns {{ ok: true } | { ok: false, reason: string }}
+   */
+  function fillFile(field, resume) {
+    if (!(field instanceof HTMLInputElement) || field.type !== "file") {
+      return { ok: false, reason: "Not a file field" };
+    }
+    let bytes;
+    try {
+      const binary = atob(resume.base64);
+      bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    } catch {
+      return { ok: false, reason: "Could not read the resume file" };
+    }
+    const file = new File([bytes], resume.filename, { type: resume.mimeType });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    field.files = transfer.files;
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    return { ok: true };
+  }
+
+  /**
    * Entry point field-map.js and content-script.js call — dispatches to
    * the right strategy by field shape.
    * @param {Element} field
@@ -169,5 +243,5 @@ window.WIA = window.WIA || {};
     return fillText(field, value);
   }
 
-  window.WIA.fill = { fillField, setNativeValue };
+  window.WIA.fill = { fillField, setNativeValue, fillFile };
 })();

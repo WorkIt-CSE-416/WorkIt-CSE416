@@ -30,6 +30,7 @@ class Feature(StrEnum):
     TAILOR = "tailor"
     PARSING = "parsing"
     ASSISTANT = "assistant"
+    ESSAY = "essay"
 
 
 def _today() -> datetime.date:

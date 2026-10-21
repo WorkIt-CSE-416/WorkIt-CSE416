@@ -568,6 +568,26 @@ Find files with a directory listing; these are the rules for where code goes.
   on top of the spec's four shares, which already fill the pool, so a busy
   day can overshoot the pool by that much). Tests:
   `tests/test_editor_assistant.py`.
+- **The autofiller's essay-answer generation** (KAN-164) is
+  `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
+  `services/essay_answer.py` — the first route `autofiller_extension/`
+  needed, since the extension cannot hold a model key itself. The Chrome
+  extension reads an open-ended application question straight off the ATS
+  page's own DOM (no `job_posting_id`: the posting may not be one WorkIt
+  has scraped or a company has posted) and sends the literal question text,
+  plus whatever company name/job title it could read from the page and the
+  field's own HTML `maxlength`. The model drafts a short paragraph grounded
+  in the whole bank (not a ranked subset — a student's bank is small enough
+  to use whole, unlike Tailor's posting-ranked bullets); a draft that fails
+  `truth_rule.invented` against the whole bank's bullets and skills, or
+  holds an identity placeholder, answers 422 and counts nothing — there is
+  no safe fallback text to show instead, the way the assistant's `none`
+  action has one. Nothing is stored: the question text is never saved
+  (`models/CLAUDE.md`'s "autofill_answers" section explains why, and
+  already anticipates this feature as the reason a company's own question
+  would eventually get its own JSONB-backed slot). One `ESSAY` use per
+  generated answer (cap 5, share 10%: on top of the spec's four shares plus
+  the assistant's, following the same accepted-overshoot precedent).
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.

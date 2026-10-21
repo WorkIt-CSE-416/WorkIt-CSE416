@@ -39,6 +39,10 @@ student already has 5 uploads; generated resumes do not count (KAN-268,
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
 download under the original filename for a DOCX. `?download=true` makes a PDF
 download too: the row's Download button (KAN-268).
+`GET .../{resume_id}/bytes` returns the file itself from this API's own
+origin, for the Chrome autofiller (`autofiller_extension/`) to attach to an
+ATS's resume field — signed URLs go to Storage's own domain, which the
+extension's `host_permissions` doesn't cover.
 `DELETE .../{resume_id}` removes the row, and its stored file unless a sent
 resume still uses it (`app/services/sent_resumes.py`, KAN-208).
 """
@@ -54,7 +58,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -579,6 +583,50 @@ async def get_resume_file_url(
         logger.exception("Failed to sign resume URL", extra={"storage_path": resume.storage_path})
         raise HTTPException(502, "Could not open the resume")
     return {"url": signed.get("signedUrl")}
+
+
+RESUME_MIME_TYPES = {
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+@router.get("/applicants/{applicant_id}/resumes/{resume_id}/bytes")
+async def get_resume_file_bytes(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """The file itself, from this API's own origin — for the Chrome
+    autofiller (`autofiller_extension/`), which cannot rely on a signed
+    Storage URL the way the webapp's preview link above does: its
+    `manifest.json` host_permissions cover this API's origins, never
+    Storage's, so a fetch to a signed URL is subject to whatever CORS
+    policy the Storage bucket happens to have, not this app's. Routing the
+    bytes through here instead needs no such assumption, at the cost of a
+    server round trip through Storage and this app at attach-time instead of
+    a direct browser-to-Storage fetch."""
+    assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    if not resume.storage_path:
+        raise HTTPException(404, "Resume file not found")
+    try:
+        data = await asyncio.to_thread(
+            get_supabase().storage.from_(BUCKET).download, resume.storage_path,
+        )
+    except Exception:
+        logger.exception("Failed to download resume file", extra={"storage_path": resume.storage_path})
+        raise HTTPException(502, "Could not open the resume")
+    ext = PurePosixPath(resume.storage_path).suffix.lower()
+    media_type = RESUME_MIME_TYPES.get(ext, "application/octet-stream")
+    filename = resume.original_filename or f"resume{ext}"
+    return Response(
+        data,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.delete("/applicants/{applicant_id}/resumes/{resume_id}")
